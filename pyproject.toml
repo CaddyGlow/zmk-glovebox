@@ -5,12 +5,19 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "pyobjc>=11.0 ; platform_system == 'Darwin'",
-    "wmi>=1.5.1 ; platform_system == 'Windows'",
+  "pyobjc>=11.0 ; platform_system == 'Darwin'",
+  "wmi>=1.5.1 ; platform_system == 'Windows'",
 ]
 
 [dependency-groups]
-dev = [
-    "aider-chat>=0.81.0",
-    "google-genai>=1.9.0",
-]
+dev = []
+
+[project.scripts]
+glove80-flash = "glovebox.flash:main"
+
+[build-system]
+# requires = ["uv"]
+# build-backend = "uv.build"
+
+requires = ["hatchling"]
+build-backend = "hatchling.build"

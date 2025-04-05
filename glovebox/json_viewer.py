@@ -68,34 +68,45 @@ def format_key(key_data, max_width=10):
         elif value == "&mt":
             mod = KEY_ALIASES.get(str(param_values[0]), str(param_values[0])) if len(param_values) > 0 else "?"
             tap = KEY_ALIASES.get(str(param_values[1]), str(param_values[1])) if len(param_values) > 1 else "?"
-            formatted = f"MT({mod},{tap})"
+            # Use M/T abbreviation consistent with web UI
+            formatted = f"M/T({mod},{tap})"
         elif value == "&lt":
             layer = str(param_values[0]) if len(param_values) > 0 else "?"
             tap = KEY_ALIASES.get(str(param_values[1]), str(param_values[1])) if len(param_values) > 1 else "?"
-            formatted = f"LT({layer},{tap})"
+            # Use L/T abbreviation consistent with web UI
+            formatted = f"L/T({layer},{tap})"
         elif value == "&mo":
             layer = str(param_values[0]) if param_values else "?"
+            # Use MO abbreviation consistent with web UI
             formatted = f"MO({layer})"
         elif value == "&to":
             layer = str(param_values[0]) if param_values else "?"
+            # Use TO abbreviation consistent with web UI
             formatted = f"TO({layer})"
         elif value == "&tog":
             layer = str(param_values[0]) if param_values else "?"
+            # Use TG abbreviation consistent with web UI
             formatted = f"TG({layer})"
         elif value == "&bt":
             cmd = str(param_values[0]) if param_values else "?"
             param = str(param_values[1]) if len(param_values) > 1 else ""
-            formatted = f"BT.{cmd[:3]}({param})" if param else f"BT.{cmd[:3]}"
+            # Keep BT format, maybe shorten cmd if needed
+            cmd_short = cmd[:3] if len(cmd) > 3 else cmd
+            formatted = f"BT.{cmd_short}({param})" if param else f"BT.{cmd_short}"
         elif value == "&sys_reset":
             formatted = "Sys Rst"
         elif value == "&bootloader":
             formatted = "Bootldr"
         elif value == "&rgb_ug":
             cmd = str(param_values[0]) if param_values else "?"
-            formatted = f"RGB.{cmd[:3]}"
+            # Keep RGB format, maybe shorten cmd if needed
+            cmd_short = cmd[:3] if len(cmd) > 3 else cmd
+            formatted = f"RGB.{cmd_short}"
         elif value == "&out":
             cmd = str(param_values[0]) if param_values else "?"
-            formatted = f"OUT.{cmd[:3]}"
+            # Keep OUT format, maybe shorten cmd if needed
+            cmd_short = cmd[:3] if len(cmd) > 3 else cmd
+            formatted = f"OUT.{cmd_short}"
         elif value == "&magic":
              formatted = "Magic" # Specific to QWERTY example?
         elif value == "Custom":
@@ -144,7 +155,9 @@ def format_key(key_data, max_width=10):
             # General case for other behaviors like &bt, &sys_reset etc.
             param_str = ",".join(map(str, param_values))
             behavior_name = value.replace("&", "") # Remove '&' prefix
-            formatted = f"{behavior_name}({param_str})" if param_str else behavior_name
+            # Use first 3 chars as abbreviation if name is long
+            abbr = behavior_name[:3] if len(behavior_name) > 3 else behavior_name
+            formatted = f"{abbr}({param_str})" if param_str else abbr
 
     except IndexError:
         formatted = "ERR:Idx"

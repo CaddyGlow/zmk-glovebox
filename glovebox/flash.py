@@ -70,7 +70,9 @@ def parse_query(query_str: str) -> List[Tuple[str, str, str]]:
     return conditions
 
 
-def evaluate_condition(device: BlockDevice, field: str, operator: str, value: str) -> bool:
+def evaluate_condition(
+    device: BlockDevice, field: str, operator: str, value: str
+) -> bool:
     """
     Evaluate a single condition against a BlockDevice object.
 
@@ -102,7 +104,9 @@ def evaluate_condition(device: BlockDevice, field: str, operator: str, value: st
         logger.debug(f"Device {device.name} does not have attribute '{field.lower()}'")
         return False
     except Exception as e:
-        logger.error(f"Error evaluating condition ({field} {operator} {value}) on device {device.name}: {e}")
+        logger.error(
+            f"Error evaluating condition ({field} {operator} {value}) on device {device.name}: {e}"
+        )
         return False
 
 
@@ -159,8 +163,10 @@ def wait_for_device(query_str: str, timeout: int = 60) -> BlockDevice:
 
                 # Check if all conditions are met
                 all_conditions_met = True
-                if not conditions: # If query is empty, match first removable device? Or require query?
-                     all_conditions_met = False # Require a query for safety
+                if (
+                    not conditions
+                ):  # If query is empty, match first removable device? Or require query?
+                    all_conditions_met = False  # Require a query for safety
 
                 for field, operator, value in conditions:
                     if not evaluate_condition(device, field, operator, value):
@@ -183,11 +189,17 @@ def wait_for_device(query_str: str, timeout: int = 60) -> BlockDevice:
 
         time.sleep(1)
 
-    logger.error(f"Timeout: Device matching '{query_str}' not found after {timeout} seconds.")
-    raise TimeoutError(f"Device matching '{query_str}' not found after {timeout} seconds.")
+    logger.error(
+        f"Timeout: Device matching '{query_str}' not found after {timeout} seconds."
+    )
+    raise TimeoutError(
+        f"Device matching '{query_str}' not found after {timeout} seconds."
+    )
 
 
-def mount_and_flash(device: BlockDevice, firmware_file: str, max_retries: int = 3, retry_delay: int = 2) -> bool:
+def mount_and_flash(
+    device: BlockDevice, firmware_file: str, max_retries: int = 3, retry_delay: int = 2
+) -> bool:
     """
     Mount device and flash firmware with retry logic using udisksctl.
 
@@ -207,16 +219,23 @@ def mount_and_flash(device: BlockDevice, firmware_file: str, max_retries: int = 
     system = platform.system().lower()
     if system not in ["linux"]:
         # udisksctl is primarily a Linux tool. macOS/Windows need different approaches.
-        raise BlockDeviceError(f"Automated mounting with udisksctl is not supported on {system}.")
+        raise BlockDeviceError(
+            f"Automated mounting with udisksctl is not supported on {system}."
+        )
 
     # Construct the full device path (e.g., /dev/sda)
     device_path = get_device_path(device.name)
-    device_identifier = f"{device.vendor} {device.model}" if device.vendor or device.model else device.name
+    device_identifier = (
+        f"{device.vendor} {device.model}"
+        if device.vendor or device.model
+        else device.name
+    )
 
     # Check if udisksctl exists
     if not shutil.which("udisksctl"):
-         raise FileNotFoundError("`udisksctl` command not found. Please install udisks2.")
-
+        raise FileNotFoundError(
+            "`udisksctl` command not found. Please install udisks2."
+        )
 
     for attempt in range(max_retries):
         mount_point = None
@@ -230,27 +249,37 @@ def mount_and_flash(device: BlockDevice, firmware_file: str, max_retries: int = 
                 ["udisksctl", "mount", "--no-user-interaction", "-b", device_path],
                 capture_output=True,
                 text=True,
-                check=False, # Don't check=True, handle errors manually
-                timeout=10 # Add a timeout
+                check=False,  # Don't check=True, handle errors manually
+                timeout=10,  # Add a timeout
             )
             logger.debug(f"Mount command stdout: {mount_result.stdout}")
             logger.debug(f"Mount command stderr: {mount_result.stderr}")
 
             if mount_result.returncode != 0:
-                 # Check stderr for common errors
+                # Check stderr for common errors
                 if "already mounted" in mount_result.stderr.lower():
-                    logger.warning(f"Device {device_path} already mounted. Trying to find mount point.")
+                    logger.warning(
+                        f"Device {device_path} already mounted. Trying to find mount point."
+                    )
                     # Proceed to find mount point below
                 elif "not authorized" in mount_result.stderr.lower():
-                     logger.error(f"Authorization failed for mounting {device_path}. Check polkit rules.")
-                     raise PermissionError(f"Authorization failed for mounting {device_path}")
+                    logger.error(
+                        f"Authorization failed for mounting {device_path}. Check polkit rules."
+                    )
+                    raise PermissionError(
+                        f"Authorization failed for mounting {device_path}"
+                    )
                 else:
-                    logger.warning(f"Mount command failed (exit code {mount_result.returncode}). Retrying...")
+                    logger.warning(
+                        f"Mount command failed (exit code {mount_result.returncode}). Retrying..."
+                    )
                     if attempt < max_retries - 1:
                         time.sleep(retry_delay)
                         continue
                     else:
-                        logger.error(f"Failed to mount {device_path} after {max_retries} attempts.")
+                        logger.error(
+                            f"Failed to mount {device_path} after {max_retries} attempts."
+                        )
                         return False
 
             # Extract mount point from udisksctl output or info
@@ -262,17 +291,21 @@ def mount_and_flash(device: BlockDevice, firmware_file: str, max_retries: int = 
 
             # If mount_point not found from output, try getting info
             if not mount_point:
-                logger.debug(f"Mount point not found in mount output, querying udisksctl info for {device_path}...")
+                logger.debug(
+                    f"Mount point not found in mount output, querying udisksctl info for {device_path}..."
+                )
                 try:
                     info_result = subprocess.run(
                         ["udisksctl", "info", "-b", device_path],
                         capture_output=True,
                         text=True,
                         check=True,
-                        timeout=5
+                        timeout=5,
                     )
                     logger.debug(f"Info command stdout: {info_result.stdout}")
-                    mount_point_line = re.search(r"MountPoints:\s*(/\S+)", info_result.stdout)
+                    mount_point_line = re.search(
+                        r"MountPoints:\s*(/\S+)", info_result.stdout
+                    )
                     if mount_point_line:
                         mount_point = mount_point_line.group(1).strip()
                     else:
@@ -280,32 +313,39 @@ def mount_and_flash(device: BlockDevice, firmware_file: str, max_retries: int = 
                         lines = info_result.stdout.splitlines()
                         for i, line in enumerate(lines):
                             if "MountPoints:" in line and i + 1 < len(lines):
-                                possible_mount = lines[i+1].strip()
-                                if possible_mount.startswith('/'):
+                                possible_mount = lines[i + 1].strip()
+                                if possible_mount.startswith("/"):
                                     mount_point = possible_mount
                                     break
                 except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-                    logger.warning(f"Failed to get udisksctl info for {device_path}: {e}")
+                    logger.warning(
+                        f"Failed to get udisksctl info for {device_path}: {e}"
+                    )
                 except Exception as e:
-                     logger.error(f"Unexpected error getting udisksctl info: {e}")
-
+                    logger.error(f"Unexpected error getting udisksctl info: {e}")
 
             if not mount_point or not os.path.isdir(mount_point):
-                logger.warning(f"Could not reliably determine mount point for {device_path}.")
+                logger.warning(
+                    f"Could not reliably determine mount point for {device_path}."
+                )
                 if attempt < max_retries - 1:
                     logger.info(f"Retrying mount/info in {retry_delay} seconds...")
                     time.sleep(retry_delay)
                     continue
                 else:
-                    logger.error(f"Failed to find mount point for {device_path} after {max_retries} attempts.")
-                    return False # Failed to find mount point
+                    logger.error(
+                        f"Failed to find mount point for {device_path} after {max_retries} attempts."
+                    )
+                    return False  # Failed to find mount point
 
             logger.info(f"Device {device_identifier} mounted at {mount_point}")
 
             # Copy the firmware file
             dest_path = os.path.join(mount_point, os.path.basename(firmware_file))
             logger.info(f"Copying {firmware_file} to {dest_path}")
-            shutil.copy2(firmware_file, mount_point) # Copy to directory, filename is preserved
+            shutil.copy2(
+                firmware_file, mount_point
+            )  # Copy to directory, filename is preserved
             # Optional: Add fsync to ensure data is written
             try:
                 fd = os.open(mount_point, os.O_RDONLY)
@@ -315,7 +355,7 @@ def mount_and_flash(device: BlockDevice, firmware_file: str, max_retries: int = 
             except OSError as e:
                 logger.warning(f"Could not fsync mount point {mount_point}: {e}")
             except Exception as e:
-                 logger.warning(f"Unexpected error during fsync: {e}")
+                logger.warning(f"Unexpected error during fsync: {e}")
 
             logger.info("Firmware file copied successfully.")
 
@@ -324,33 +364,42 @@ def mount_and_flash(device: BlockDevice, firmware_file: str, max_retries: int = 
                 logger.debug(f"Attempting to unmount {mount_point} ({device_path})")
                 # Use --force as the device might already be gone
                 unmount_result = subprocess.run(
-                    ["udisksctl", "unmount", "--no-user-interaction", "-b", device_path, "--force"],
+                    [
+                        "udisksctl",
+                        "unmount",
+                        "--no-user-interaction",
+                        "-b",
+                        device_path,
+                        "--force",
+                    ],
                     capture_output=True,
                     text=True,
-                    timeout=5, # Short timeout
-                    check=False # Don't fail on error
+                    timeout=5,  # Short timeout
+                    check=False,  # Don't fail on error
                 )
                 logger.debug(f"Unmount stdout: {unmount_result.stdout}")
                 logger.debug(f"Unmount stderr: {unmount_result.stderr}")
                 if unmount_result.returncode == 0:
                     logger.debug("Unmount command successful")
                 else:
-                    logger.debug(f"Unmount command finished (exit code {unmount_result.returncode}), device likely disconnected.")
+                    logger.debug(
+                        f"Unmount command finished (exit code {unmount_result.returncode}), device likely disconnected."
+                    )
 
             except (subprocess.SubprocessError, subprocess.TimeoutExpired) as e:
                 logger.debug(f"Unmount failed or timed out (likely expected): {e}")
             except Exception as e:
-                 logger.warning(f"Unexpected error during unmount: {e}")
+                logger.warning(f"Unexpected error during unmount: {e}")
 
-            return True # Flash successful
+            return True  # Flash successful
 
         except FileNotFoundError as e:
             # Handle missing udisksctl specifically
             logger.error(f"Error: {e}. Please ensure udisks2 is installed.")
-            raise # Re-raise critical error
+            raise  # Re-raise critical error
         except PermissionError as e:
-             logger.error(f"Permission error during mount/flash: {e}")
-             raise # Re-raise critical error
+            logger.error(f"Permission error during mount/flash: {e}")
+            raise  # Re-raise critical error
         except Exception as e:
             logger.error(f"Error during mount/flash attempt {attempt + 1}: {e}")
             if attempt < max_retries - 1:
@@ -363,14 +412,24 @@ def mount_and_flash(device: BlockDevice, firmware_file: str, max_retries: int = 
                     try:
                         logger.info(f"Attempting cleanup unmount of {mount_point}")
                         subprocess.run(
-                            ["udisksctl", "unmount", "--no-user-interaction", "-b", device_path, "--force"],
-                            capture_output=True, text=True, timeout=3, check=False
+                            [
+                                "udisksctl",
+                                "unmount",
+                                "--no-user-interaction",
+                                "-b",
+                                device_path,
+                                "--force",
+                            ],
+                            capture_output=True,
+                            text=True,
+                            timeout=3,
+                            check=False,
                         )
                     except Exception as unmount_e:
                         logger.warning(f"Cleanup unmount failed: {unmount_e}")
-                return False # Failed after retries
+                return False  # Failed after retries
 
-    return False # Should not be reached, but ensures return
+    return False  # Should not be reached, but ensures return
 
 
 def main():
@@ -378,15 +437,17 @@ def main():
 
     parser = argparse.ArgumentParser(
         description="Flash firmware to a USB Mass Storage device (like Glove80 bootloader).",
-        epilog="Example Query: 'model~=nRF.*UF2 and vendor=Adafruit and removable=true'"
-        )
+        epilog="Example Query: 'model~=nRF.*UF2 and vendor=Adafruit and removable=true'",
+    )
     parser.add_argument("firmware_file", help="Path to the firmware file (.uf2)")
-    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose debug logging")
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Enable verbose debug logging"
+    )
     parser.add_argument(
         "-n",
         "--count",
         type=int,
-        default=1, # Default to flashing once
+        default=2,  # Default to flashing once
         help="Number of devices/times to flash (default: 1). Use 0 for infinite.",
     )
     parser.add_argument(
@@ -396,13 +457,13 @@ def main():
         # Default query targets Adafruit nRF UF2 bootloaders
         default="model~=nRF.*UF2 and vendor=Adafruit and removable=true",
         help="Device query string using BlockDevice attributes (e.g., 'model=X', 'vendor=Y', 'removable=true'). "
-             "Format: 'field1=value1 and field2~=regex and field3!=value3'"
+        "Format: 'field1=value1 and field2~=regex and field3!=value3'",
     )
     parser.add_argument(
         "--timeout",
         type=int,
         default=60,
-        help="Timeout in seconds to wait for a device to appear (default: 60)"
+        help="Timeout in seconds to wait for a device to appear (default: 60)",
     )
     args = parser.parse_args()
 
@@ -411,21 +472,26 @@ def main():
     logging.basicConfig(
         level=log_level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
     # Suppress noisy logs from libraries if not verbose
     if not args.verbose:
         logging.getLogger("shutil").setLevel(logging.WARNING)
 
-
     # --- Sanity Checks ---
     if platform.system().lower() not in ["linux"]:
-        logger.error("This script currently relies on 'udisksctl' and is primarily tested on Linux.")
-        logger.error("Functionality on other OS (macOS, Windows) is limited or requires different tools.")
+        logger.error(
+            "This script currently relies on 'udisksctl' and is primarily tested on Linux."
+        )
+        logger.error(
+            "Functionality on other OS (macOS, Windows) is limited or requires different tools."
+        )
         # sys.exit(1) # Allow running, but warn heavily
 
     if not shutil.which("udisksctl"):
-        logger.error("`udisksctl` command not found. Please install the 'udisks2' package.")
+        logger.error(
+            "`udisksctl` command not found. Please install the 'udisks2' package."
+        )
         # sys.exit(1) # Allow running, but warn heavily
 
     firmware_file = args.firmware_file
@@ -433,73 +499,93 @@ def main():
         logger.error(f"Firmware file not found: {firmware_file}")
         sys.exit(1)
     if not firmware_file.lower().endswith(".uf2"):
-        logger.warning(f"Firmware file '{os.path.basename(firmware_file)}' does not have a .uf2 extension.")
+        logger.warning(
+            f"Firmware file '{os.path.basename(firmware_file)}' does not have a .uf2 extension."
+        )
 
     # --- Flashing Loop ---
     flash_count = 0
-    max_flashes = args.count if args.count > 0 else float('inf')
-    infinite_mode = (args.count == 0)
+    max_flashes = args.count if args.count > 0 else float("inf")
+    infinite_mode = args.count == 0
 
     try:
         while flash_count < max_flashes:
             loop_iteration = flash_count + 1
             if infinite_mode:
-                logger.info(f"--- Starting flash cycle {loop_iteration} (Infinite Mode) ---")
+                logger.info(
+                    f"--- Starting flash cycle {loop_iteration} (Infinite Mode) ---"
+                )
             else:
-                logger.info(f"--- Starting flash {loop_iteration}/{int(max_flashes)} ---")
+                logger.info(
+                    f"--- Starting flash {loop_iteration}/{int(max_flashes)} ---"
+                )
 
-            logger.info("Please connect the device in bootloader mode (or ensure it's already connected)...")
+            logger.info(
+                "Please connect the device in bootloader mode (or ensure it's already connected)..."
+            )
             try:
                 device_info = wait_for_device(args.query, timeout=args.timeout)
                 # Add a small delay to ensure the system fully recognizes the device files
                 time.sleep(2)
 
                 if mount_and_flash(device_info, firmware_file):
-                    logger.info(f"Flashing completed successfully for device {device_info.name}.")
+                    logger.info(
+                        f"Flashing completed successfully for device {device_info.name}."
+                    )
                     flash_count += 1
                     logger.info("Device should reboot shortly.")
                     # Wait a bit for the device to potentially disconnect before starting next loop
                     time.sleep(5)
                 else:
-                    logger.warning("Flashing failed for the detected device. Will retry device search.")
+                    logger.warning(
+                        "Flashing failed for the detected device. Will retry device search."
+                    )
                     # Add a delay before searching again to avoid tight loops on persistent errors
                     time.sleep(3)
 
             except TimeoutError:
-                logger.error(f"Device not detected within the {args.timeout}s timeout period.")
+                logger.error(
+                    f"Device not detected within the {args.timeout}s timeout period."
+                )
                 if infinite_mode:
                     logger.info("Continuing to wait...")
-                    time.sleep(1) # Prevent busy-looping on timeout in infinite mode
-                    continue # Continue waiting in infinite mode
+                    time.sleep(1)  # Prevent busy-looping on timeout in infinite mode
+                    continue  # Continue waiting in infinite mode
                 else:
                     logger.error("Exiting.")
-                    sys.exit(1) # Exit if not in infinite mode
+                    sys.exit(1)  # Exit if not in infinite mode
             except (BlockDeviceError, FileNotFoundError, PermissionError) as e:
-                 logger.error(f"A critical error occurred: {e}")
-                 logger.error("Cannot continue. Exiting.")
-                 sys.exit(1)
-            except ValueError as e: # Catch invalid query errors
-                 logger.error(f"Configuration error: {e}")
-                 sys.exit(1)
+                logger.error(f"A critical error occurred: {e}")
+                logger.error("Cannot continue. Exiting.")
+                sys.exit(1)
+            except ValueError as e:  # Catch invalid query errors
+                logger.error(f"Configuration error: {e}")
+                sys.exit(1)
             except KeyboardInterrupt:
                 logger.info("Keyboard interrupt detected. Exiting.")
-                break # Exit loop cleanly
+                break  # Exit loop cleanly
             except Exception as e:
-                logger.exception(f"An unexpected error occurred during flash cycle {loop_iteration}: {e}")
+                logger.exception(
+                    f"An unexpected error occurred during flash cycle {loop_iteration}: {e}"
+                )
                 # Decide whether to continue or exit on unexpected errors
                 if infinite_mode:
-                    logger.warning("Attempting to continue in infinite mode after unexpected error...")
-                    time.sleep(5) # Delay before retrying
+                    logger.warning(
+                        "Attempting to continue in infinite mode after unexpected error..."
+                    )
+                    time.sleep(5)  # Delay before retrying
                 else:
                     logger.error("Exiting due to unexpected error.")
                     sys.exit(1)
 
-
         if flash_count >= max_flashes and not infinite_mode:
-            logger.info(f"Successfully completed all {int(max_flashes)} requested flashes.")
+            logger.info(
+                f"Successfully completed all {int(max_flashes)} requested flashes."
+            )
         elif not infinite_mode:
-             logger.warning(f"Finished, but only completed {flash_count}/{int(max_flashes)} flashes.")
-
+            logger.warning(
+                f"Finished, but only completed {flash_count}/{int(max_flashes)} flashes."
+            )
 
     except KeyboardInterrupt:
         logger.info("Keyboard interrupt detected during main loop. Exiting.")
@@ -528,4 +614,3 @@ if __name__ == "__main__":
     #     logger.error("Timeout waiting for device.")
     # except Exception as e:
     #      logger.exception(f"An error occurred: {e}")
-

@@ -5,7 +5,7 @@ import platform
 import sys
 import logging
 from typing import Dict, List, Optional, Union
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -27,8 +27,8 @@ class BlockDevice:
     removable: bool = False
     model: str = ""
     vendor: str = ""
-    partitions: List[str] = []
-    mount_points: Dict[str, str] = {}
+    partitions: list[str] = field(default_factory=list)
+    mount_points: dict[str, str] = field(default_factory=dict)
 
 
 def format_size(bytes_count: int) -> str:
