@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
+from glovebox import layout
+
 from . import dtsi_builder
 from . import file_utils
 
@@ -382,6 +384,20 @@ def build_keymap(
         logger.error(f"Failed to create output directory {output_dir}: {e}")
         return
 
+    # --- Read Optional Configuration Files (using the provided config_dir) ---
+    system_behaviors_content = file_utils.read_optional_file(
+        config_dir / "system_behaviors.dts", "system behaviors"
+    )
+    key_position_defines_content = file_utils.read_optional_file(
+        config_dir / "key_position.h", "key position defines"
+    )
+
+    # Read LayoutConfig
+    layout_map_file = config_dir / ".." / ".." / "layout" / "glove80.json"
+    layout_config = layout.LayoutConfig.from_file(
+        layout_map_file, key_position_defines_content
+    )
+
     # Read Kconfig map (JSON data is already passed in)
     kconfig_map_file = config_dir / "kconfig_mapping.json"
     kconfig_map = load_kconfig_mapping(kconfig_map_file)
@@ -391,13 +407,6 @@ def build_keymap(
         )
         return
 
-    # --- Read Optional Configuration Files (using the provided config_dir) ---
-    system_behaviors_content = file_utils.read_optional_file(
-        config_dir / "system_behaviors.dts", "system behaviors"
-    )
-    key_position_defines_content = file_utils.read_optional_file(
-        config_dir / "key_position.h", "key position defines"
-    )
     # Input listeners are generated from JSON, not read from a file.
 
     # --- Generate .keymap ---
@@ -409,6 +418,7 @@ def build_keymap(
             json_data,
             template_dir,
             template_name,
+            layout_config,
             system_behaviors_content,
             key_position_defines_content,
             # input_listeners_content is removed, generated internally now

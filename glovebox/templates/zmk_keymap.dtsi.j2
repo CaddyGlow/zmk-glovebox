@@ -39,28 +39,32 @@
 {{ custom_devicetree }}
 {% endif %}
 
+
 /* Input Listeners */
 {# Render generated DTS from inputListeners JSON data #}
 {% if input_listeners_dtsi %}
 {{ input_listeners_dtsi }}
 {% endif %}
 
+
 /* System behavior and Macros */
 {# Render content read from system_behaviors.dts #}
-{% if system_behaviors %}
+{% if system_behaviors -%}
 {{ system_behaviors }}
-{% endif %}
+{% endif -%}
 
 /* #define for key positions */
 {# Render content read from key_position.h #}
-{% if key_position_defines %}
+{% if key_position_defines -%}
 {{ key_position_defines }}
-{% endif %}
+{% endif -%}
 
 /* Custom Defined Behaviors */
 / {
 {% if custom_defined_behaviors %}
 {{ custom_defined_behaviors }}
+{% else %}
+-
 {% endif %}
 };
 
@@ -69,13 +73,14 @@
     macros {
 {% if macros_dtsi %}
 {{ macros_dtsi }}
-{% endif %}
+{% endif -%}
     };
 };
 
 /* Automatically generated behavior definitions */
 / {
     behaviors {
+
 {% if behaviors_dtsi %}
 {{ behaviors_dtsi }}
 {% endif %}
@@ -83,7 +88,7 @@
 };
 
 /* Automatically generated combos definitions */
-{% if combos_dtsi %}
+{% if combos_dtsi -%}
 / {
 {{ combos_dtsi }}
 };
