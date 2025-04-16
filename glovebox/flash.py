@@ -594,23 +594,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # Example usage for testing specific parts:
-    # logging.basicConfig(level=logging.DEBUG)
-    # try:
-    #     # Test device listing
-    #     # devices = get_block_devices()
-    #     # from .lsblk import print_device_info
-    #     # print_device_info(devices)
-    #
-    #     # Test waiting (replace query with something relevant)
-    #     # query = "model~=storage & vendor=generic"
-    #     # print(f"Waiting for device matching: {query}")
-    #     # device = wait_for_device(query, timeout=30)
-    #     # print(f"Found: {device}")
-    #
-    # except BlockDeviceError as e:
-    #     logger.error(f"Block device error: {e}")
-    # except TimeoutError:
-    #     logger.error("Timeout waiting for device.")
-    # except Exception as e:
-    #      logger.exception(f"An error occurred: {e}")
