@@ -1,5 +1,7 @@
 import re
+import json
 import logging
+from pathlib import Path
 from typing import List, Dict, Any, Optional, Type
 
 logger = logging.getLogger(__name__)
@@ -7,6 +9,67 @@ logger = logging.getLogger(__name__)
 # KEYCODE_MAP: Needs to be properly populated, e.g., from a config file or constants
 # Example population (incomplete):
 KEYCODE_MAP = {}
+
+# Behavior Registry: Stores info about known behaviors
+# Format: { "&behavior_name": {"expected_params": int, "origin": str} }
+BEHAVIOR_REGISTRY: Dict[str, Dict[str, Any]] = {}
+
+
+def register_behavior(name: str, expected_params: int, origin: str):
+    """Registers a behavior and its expected parameter count."""
+    if not name.startswith("&"):
+        logger.warning(
+            f"Attempting to register behavior without '&' prefix: {name}. Adding prefix."
+        )
+        name = f"&{name}"
+
+    if name in BEHAVIOR_REGISTRY:
+        # Allow re-registration but log it, might indicate overlapping definitions
+        logger.debug(f"Re-registering behavior: {name}")
+    BEHAVIOR_REGISTRY[name] = {"expected_params": expected_params, "origin": origin}
+    logger.debug(
+        f"Registered behavior: {name} (params: {expected_params}, origin: {origin})"
+    )
+
+
+def load_and_register_behaviors_from_json(file_path: Path):
+    """Loads behavior definitions from a JSON file and registers them."""
+    if not file_path.is_file():
+        logger.error(f"Behavior definition file not found: {file_path}")
+        return
+
+    try:
+        with open(file_path, "r") as f:
+            behaviors_data = json.load(f)
+
+        if not isinstance(behaviors_data, list):
+            logger.error(
+                f"Invalid format in {file_path}: Expected a list of behavior objects."
+            )
+            return
+
+        logger.info(f"Loading behaviors from {file_path}...")
+        for behavior_def in behaviors_data:
+            name = behavior_def.get("name")
+            expected_params = behavior_def.get("expected_params")
+            origin = behavior_def.get(
+                "origin", file_path.stem
+            )  # Use filename stem as default origin
+
+            if not name or not name.startswith("&") or expected_params is None:
+                logger.warning(
+                    f"Skipping invalid behavior definition in {file_path}: {behavior_def}"
+                )
+                continue
+
+            # TODO: Handle conditional registration based on 'condition' field if needed
+            # For now, register all found behaviors.
+            register_behavior(name, expected_params, origin)
+
+    except json.JSONDecodeError:
+        logger.error(f"Error decoding JSON from {file_path}")
+    except Exception as e:
+        logger.error(f"Error processing behavior file {file_path}: {e}")
 
 
 def get_keycode(key_name: str) -> str:
@@ -50,8 +113,32 @@ class Behavior:
                 return param
             elif param.startswith("&"):  # Reference to another behavior
                 return param
+            elif param == "MACRO_PLACEHOLDER":  # Handle macro placeholder literally
+                return param
+            # Check if it's a modifier alias - return the alias name directly
+            # ZMK uses these directly for &kp, &mt etc. (e.g., &kp LCTL)
+            elif param in [
+                "LALT",
+                "LCTL",
+                "LSHFT",
+                "LGUI",
+                "RALT",
+                "RCTL",
+                "RSHFT",
+                "RGUI",
+                "LA",
+                "LC",
+                "LS",
+                "LG",
+                "RA",
+                "RC",
+                "RS",
+                "RG",
+            ]:  # Include function names if used simply
+                return param
             else:
-                # Assume it's a keycode or simple ZMK define name
+                # Assume it's a standard keycode or simple ZMK define name
+                # get_keycode should handle potential KC_ prefixes if needed based on map
                 return get_keycode(param)
         elif isinstance(param, int):
             return str(param)
@@ -60,6 +147,7 @@ class Behavior:
         ):  # If a param is a nested behavior (e.g., for &sk)
             return param.format_dtsi()
         else:
+            # Removed debug logging for CAPSWord_v1_TKZ
             logger.warning(
                 f"Unhandled parameter type: {type(param)} ({param}). Converting to string."
             )
@@ -103,50 +191,57 @@ class KPBehavior(Behavior):
             mod_name = param_data["value"]
             # Check if it's a known modifier function like LA, LC, etc.
             # A more robust way might involve parsing the structure explicitly.
-            # Check if it's a known modifier function like LA, LC, etc.
-            # These modifier functions are essentially behaviors themselves in ZMK DTSI
+            mod_name = param_data["value"]
+            inner_params_data = param_data.get("params", [])
+
+            # Case 1: Modifier Function (LA, LC, LS, LG, RA, RC, RS, RG)
             if mod_name in ["LA", "LC", "LS", "LG", "RA", "RC", "RS", "RG"]:
-                 inner_params_data = param_data.get("params", [])
-                 if not inner_params_data:
-                     logger.error(f"Modifier function '{mod_name}' in &kp missing inner parameter.")
-                     return f"{mod_name}(ERROR_MOD_PARAM)"
+                if not inner_params_data:
+                    logger.error(
+                        f"Modifier function '{mod_name}' missing inner parameter."
+                    )
+                    return f"{mod_name}(ERROR_MOD_PARAM)"
+                inner_formatted = self._format_kp_recursive(inner_params_data[0])
+                return f"{mod_name}({inner_formatted})"
 
-                 # The inner parameter could be another modifier or a simple keycode.
-                 # Format it recursively using the same logic.
-                 inner_formatted = self._format_kp_recursive(inner_params_data[0])
-                 return f"{mod_name}({inner_formatted})"
-            # Handle aliases like LALT -> LA
-            elif mod_name in ["LALT", "LCTL", "LSHFT", "LGUI", "RALT", "RCTL", "RSHFT", "RGUI"]:
-                 zmk_mod_func = {
-                     "LALT": "LA", "LCTL": "LC", "LSHFT": "LS", "LGUI": "LG",
-                     "RALT": "RA", "RCTL": "RC", "RSHFT": "RS", "RGUI": "RG",
-                 }.get(mod_name)
-                 inner_params_data = param_data.get("params", [])
-                 if not inner_params_data:
-                     logger.error(f"Modifier alias '{mod_name}' in &kp missing inner parameter.")
-                     return f"{zmk_mod_func}(ERROR_MOD_PARAM)" # Return the ZMK func name even on error
+            # Case 2: Modifier Alias (LALT, LCTL, etc.)
+            elif mod_name in [
+                "LALT",
+                "LCTL",
+                "LSHFT",
+                "LGUI",
+                "RALT",
+                "RCTL",
+                "RSHFT",
+                "RGUI",
+            ]:
+                if not inner_params_data:
+                    # It's &kp LSHFT etc. Format the alias as a simple keycode param.
+                    return self._format_param(mod_name)  # _format_param handles aliases
+                else:
+                    # It's &kp LALT(A) etc. Map alias to function and format recursively.
+                    zmk_mod_func = {
+                        "LALT": "LA",
+                        "LCTL": "LC",
+                        "LSHFT": "LS",
+                        "LGUI": "LG",
+                        "RALT": "RA",
+                        "RCTL": "RC",
+                        "RSHFT": "RS",
+                        "RGUI": "RG",
+                    }.get(mod_name)
+                    inner_formatted = self._format_kp_recursive(inner_params_data[0])
+                    return f"{zmk_mod_func}({inner_formatted})"
 
-                 inner_formatted = self._format_kp_recursive(inner_params_data[0])
-                 return f"{zmk_mod_func}({inner_formatted})"
+            # Case 3: Simple Keycode (A, SEMI, N1, etc.) or other value
             else:
-            else:
-                 # Not a recognized modifier function, treat as simple keycode
-                 # This handles cases like &kp A, &kp LSHFT, &kp SEMI
-                 return self._format_param(param_data["value"])
+                # Format the simple keycode value using _format_param
+                return self._format_param(mod_name)
 
         elif isinstance(param_data, (str, int)):
-             # Simple keycode or value passed directly (e.g., from macro param)
-             # Check if it's an alias that needs mapping for &kp context
-             if param_data in ["LALT", "LCTL", "LSHFT", "LGUI", "RALT", "RCTL", "RSHFT", "RGUI"]:
-                 zmk_mod_func = {
-                     "LALT": "LA", "LCTL": "LC", "LSHFT": "LS", "LGUI": "LG",
-                     "RALT": "RA", "RCTL": "RC", "RSHFT": "RS", "RGUI": "RG",
-                 }.get(param_data)
-                 # Modifiers used directly in &kp should just be the keycode name
-                 # return f"{zmk_mod_func}(ERROR_MOD_PARAM)" # Incorrect - this implies function call
-                 return self._format_param(param_data) # Return the original alias name
-             else:
-                 return self._format_param(param_data)
+            # Simple keycode or value passed directly (e.g., from macro param)
+            # Format using _format_param which handles aliases
+            return self._format_param(param_data)
         else:
             logger.error(
                 f"Unexpected parameter type in &kp: {type(param_data)} ({param_data})"
@@ -220,8 +315,8 @@ class OneParamBehavior(Behavior):
         # We need to format the parameter using format_binding if it's complex
         # The raw parameter data is needed for format_binding
         if not self.raw_params:
-             logger.error(f"Behavior {self.behavior_name} missing raw parameters.")
-             return f"&error /* {self.behavior_name} missing params */"
+            logger.error(f"Behavior {self.behavior_name} missing raw parameters.")
+            return f"&error /* {self.behavior_name} missing params */"
 
         # Assume the parameter is the first element in the raw_params list
         param_data = self.raw_params[0]
@@ -235,7 +330,9 @@ class OneParamBehavior(Behavior):
             # We need an instance of KPBehavior to call its protected method, which isn't ideal.
             # Let's duplicate the relevant formatting logic here for now.
             # TODO: Refactor _format_kp_recursive into a shared utility function.
-            param_formatted = KPBehavior._format_kp_recursive(KPBehavior(self.behavior_name, self.raw_params), param_data)
+            param_formatted = KPBehavior._format_kp_recursive(
+                KPBehavior(self.behavior_name, self.raw_params), param_data
+            )
 
         else:
             # Otherwise, format it as a simple parameter (number, keycode name, etc.)
@@ -272,14 +369,114 @@ class BluetoothBehavior(Behavior):
             return f"&bt {command}"
 
 
+class LowerBehavior(Behavior):
+    """Handles the deprecated &lower behavior."""
+
+    def _validate_params(self):
+        if self.params:
+            logger.warning(
+                f"{self.behavior_name} expects no parameters, found {len(self.params)}"
+            )
+
+    def format_dtsi(self) -> str:
+        # Outputs the reference to the system-defined 'lower' tap-dance
+        return "&lower"
+
+
+class MagicBehavior(Behavior):
+    """Handles the deprecated &magic behavior."""
+
+    def _validate_params(self):
+        # &magic in the keymap doesn't take explicit params in the JSON,
+        # but the output format requires layer and key index (assumed 0).
+        if self.params:
+            logger.warning(
+                f"{self.behavior_name} expects no parameters in JSON, found {len(self.params)}"
+            )
+
+    def format_dtsi(self) -> str:
+        # Outputs the reference to the system-defined 'magic' hold-tap
+        # Assumes LAYER_Magic is defined and key index 0 is appropriate.
+        # TODO: Make layer name/index configurable if needed later.
+        return "&magic LAYER_Magic 0"
+
+
 class CustomBehaviorRef(Behavior):
     """Handles references to custom behaviors defined elsewhere (e.g., in hold-taps, macros)."""
 
     # Assumes parameters are simple values passed along
     def format_dtsi(self) -> str:
         # behavior_name starts with '&' already
-        param_str = " ".join(self._format_param(p) for p in self.params)
-        return f"{self.behavior_name} {param_str}".strip()
+
+        registry_info = BEHAVIOR_REGISTRY.get(self.behavior_name)
+
+        if registry_info:
+            expected_params = registry_info["expected_params"]
+            origin = registry_info["origin"]
+
+            # Handle zero-parameter behaviors explicitly - if a binding directly uses
+            # a zero-param behavior like &kp(caps_word) (which is invalid zmk)
+            # or &my_zero_param_macro()
+            if expected_params == 0:
+                if self.params:
+                    logger.warning(
+                        f"Binding directly uses zero-parameter behavior '{self.behavior_name}' (origin: {origin}) but passed {len(self.params)} parameters. Ignoring parameters."
+                    )
+                return self.behavior_name  # Output only the name
+
+            # For behaviors expecting parameters (including hold-taps like &CAPSWord_v1_TKZ which expect 2 in the binding)
+            # or variable params (-1), format the parameters provided in the binding data.
+            # The check for mismatch is potentially noisy if variable params are common.
+            # Let's just format what we are given if params are expected.
+            # if expected_params > 0 and len(self.params) != expected_params:
+            #     logger.warning(
+            #             f"Behavior '{self.behavior_name}' (origin: {origin}) expects {expected_params} parameters but received {len(self.params)}. Formatting received params anyway."
+            #         )
+
+            formatted_params = []
+            # Limit the loop to the number of expected parameters if known and positive
+            params_to_format = self.params
+            num_params_received = len(self.params)
+
+            if expected_params > 0:  # Fixed positive number expected
+                if num_params_received > expected_params:
+                    logger.warning(
+                        f"Behavior '{self.behavior_name}' (origin: {origin}) expects {expected_params} parameters but received {num_params_received}. Using only the first {expected_params}."
+                    )
+                    params_to_format = self.params[:expected_params]
+                elif num_params_received < expected_params:
+                    logger.warning(
+                        f"Behavior '{self.behavior_name}' (origin: {origin}) expects {expected_params} parameters but received only {num_params_received}. Appending '0' for missing parameters."
+                    )
+                    # Proceed with formatting the parameters we have, then append '0's
+            # Else (expected_params is -1 or 0), format all received params (handled above for 0)
+
+            for p in params_to_format:  # Use the potentially truncated list
+                formatted = self._format_param(p)
+                formatted_params.append(formatted)
+
+            # Append '0' for missing parameters if expected > received
+            if expected_params > 0 and num_params_received < expected_params:
+                missing_count = expected_params - num_params_received
+                formatted_params.extend(["0"] * missing_count)
+
+            param_str = " ".join(formatted_params)
+            result = f"{self.behavior_name} {param_str}".strip()
+            return result
+
+        else:
+            # Behavior not found in registry - fallback to old logic (format params)
+            logger.warning(
+                f"Behavior '{self.behavior_name}' not found in registry. Formatting all {len(self.params)} parameters as passed."
+            )
+            formatted_params = []
+            for p in self.params:  # Format all params if unregistered
+                formatted = self._format_param(p)
+                formatted_params.append(formatted)
+
+            param_str = " ".join(formatted_params)
+            result = f"{self.behavior_name} {param_str}".strip()
+            return result
 
 
 class RawBehavior(Behavior):
@@ -313,15 +510,44 @@ BEHAVIOR_CLASS_MAP: Dict[str, Type[Behavior]] = {
     "&rgb_ug": OneParamBehavior,
     "&out": OneParamBehavior,
     "&bt": BluetoothBehavior,
-    "&msc": OneParamBehavior, # Mouse scroll
-    "&mmv": OneParamBehavior, # Mouse move
-    "&mkp": OneParamBehavior, # Mouse key press
-    "&caps_word": SimpleBehavior, # No params
-    # "&magic": DeprecatedBehavior, # Handle deprecated separately if needed
-    # "&lower": DeprecatedBehavior,
+    "&msc": OneParamBehavior,  # Mouse scroll
+    "&mmv": OneParamBehavior,  # Mouse move
+    "&mkp": OneParamBehavior,  # Mouse key press
+    "&caps_word": SimpleBehavior,  # No params
+    "&lower": LowerBehavior,  # Handle deprecated &lower
+    "&magic": MagicBehavior,  # Handle deprecated &magic
     "Custom": RawBehavior,  # Handle the "Custom" type from JSON
     # Add other specific behaviors if they have unique parameter structures
 }
+
+# --- Remove old registration logic ---
+# def get_behavior_expected_params(behavior_class: Type[Behavior]) -> int: ...
+# def register_builtin_behaviors(): ...
+# register_builtin_behaviors() # Remove immediate call
+
+# --- Load behaviors from JSON files ---
+# Determine paths relative to this file or pass them in?
+# Assuming they are in a standard location relative to the script execution or package.
+# This might need adjustment based on how the tool is run.
+try:
+    # Assuming execution from project root or similar standard structure
+    # Use Path(__file__).parent to get the directory of the current behaviors.py file
+    CURRENT_DIR = Path(__file__).parent
+    CONFIG_DIR = CURRENT_DIR / "config"  # Assumes config is a sibling directory
+
+    # Construct paths relative to the behaviors.py location
+    ZMK_BEHAVIORS_PATH = CONFIG_DIR / "zmk_behaviors.json"
+    # Path to system behaviors might depend on the specific keyboard config being used.
+    # This needs to be determined dynamically, perhaps passed into a setup function.
+    # For now, hardcoding the glove80 path as an example.
+    GLOVE80_SYSTEM_BEHAVIORS_PATH = CONFIG_DIR / "glove80/v25.05/system_behaviors.json"
+
+    load_and_register_behaviors_from_json(ZMK_BEHAVIORS_PATH)
+    # Load system-specific behaviors AFTER core ZMK ones
+    load_and_register_behaviors_from_json(GLOVE80_SYSTEM_BEHAVIORS_PATH)
+
+except Exception as e:
+    logger.error(f"Failed to load initial behavior definitions: {e}")
 
 
 # Keep the global format_binding function, but make it use the classes

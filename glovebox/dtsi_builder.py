@@ -6,7 +6,10 @@ from pathlib import Path
 from typing import List, Dict, Any
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
-from . import LayoutConfig, format_layer_bindings_grid, format_binding
+from .layout import LayoutConfig, format_layer_bindings_grid
+
+# Import the registration function and formatting function
+from .behaviors import format_binding, register_behavior
 
 logger = logging.getLogger(__name__)
 
@@ -14,149 +17,7 @@ logger = logging.getLogger(__name__)
 KEYCODE_MAP = {}
 
 
-
-
-
-# def format_binding(binding_data: Dict[str, Any]) -> str:
-#     """
-#     Converts a JSON key binding object into a ZMK DTSI binding string.
-#     Handles nested structures for modifier functions.
-#     """
-#     value = binding_data.get("value")
-#     params = binding_data.get("params", [])
-#
-#     if value is None:
-#         logger.warning("Binding data missing 'value'. Returning '&none'.")
-#         return "&none"
-#
-#     if isinstance(value, int):
-#         value = str(value)  # Convert to string for consistency
-#
-#     # Simple Behaviors (no params or fixed params)
-#     if value in ["&none", "&trans", "&bootloader"]:
-#         return value
-#     if value == "&reset" or value == "&sys_reset":
-#         return "&sys_reset"
-#     if value == "&kp" and not params:
-#         logger.warning("Formatting &kp without parameters. Returning '&kp NONE'.")
-#         return "&kp NONE"
-#     if value == "&magic":
-#         # ZMK &magic behavior is deprecated, but keeping format if used
-#         logger.warning("&magic behavior is deprecated.")
-#         return "&magic LAYER_Magic 0"  # Assumes LAYER_Magic is defined
-#     if value == "&lower":
-#         logger.warning("&lower is deprecated, consider using layer functions like &mo.")
-#         return "&mo LAYER_Lower"  # Assumes LAYER_Lower is defined
-#
-#     # Format Parameters Recursively
-#     formatted_params = []
-#     for p_data in params:
-#         # Parameters can be simple values (str/int from JSON) or nested binding objects
-#         if isinstance(p_data, dict) and "value" in p_data:
-#             # Nested binding object (e.g., for modifier functions in &kp or &sk)
-#             formatted_params.append(format_binding(p_data))
-#         else:
-#             # Simple parameter (keycode, layer name, number, simple behavior name)
-#             # Extract the actual value if it's wrapped in a simple dict like {"value": "A"}
-#             p_value = p_data.get("value") if isinstance(p_data, dict) else p_data
-#             formatted_params.append(format_param(p_value))
-#
-#     # Specific Behavior Formatting
-#     if value == "&kp":
-#         # Handles: &kp KEY, &kp MOD(KEY), &kp MOD1(MOD2(KEY)), etc.
-#         def format_kp_recursive(p_list):
-#             if not p_list:
-#                 return "NONE"  # Should not happen with valid JSON
-#
-#             first_p_data = p_list[0]
-#
-#             if isinstance(first_p_data, dict) and "value" in first_p_data:
-#                 # It's a nested structure, should be a modifier function like LA, LC, etc.
-#                 mod_name = format_param(
-#                     first_p_data["value"]
-#                 )  # Get modifier name (LALT, LCTL)
-#                 inner_params_data = first_p_data.get("params", [])
-#                 # Recursively format the inner part
-#                 inner_formatted = format_kp_recursive(inner_params_data)
-#                 return f"{mod_name}({inner_formatted})"
-#             else:
-#                 # Base case: simple keycode parameter
-#                 p_value = (
-#                     first_p_data.get("value")
-#                     if isinstance(first_p_data, dict)
-#                     else first_p_data
-#                 )
-#                 return format_param(p_value)
-#
-#         kp_param_formatted = format_kp_recursive(params)
-#         return f"&kp {kp_param_formatted}"
-#
-#     elif value == "&mt" or value == "&lt":
-#         if len(formatted_params) == 2:
-#             return f"{value} {formatted_params[0]} {formatted_params[1]}"
-#         else:
-#             logger.warning(
-#                 f"Incorrect number of params for {value}. Expected 2, got {len(formatted_params)}. Params: {params}"
-#             )
-#             return f"{value} NONE NONE"
-#     elif value in ["&mo", "&to", "&tog"]:
-#         if len(formatted_params) == 1:
-#             # Parameter should be a layer name/index
-#             return f"{value} {formatted_params[0]}"
-#         else:
-#             logger.warning(
-#                 f"Incorrect number of params for {value}. Expected 1, got {len(formatted_params)}. Params: {params}"
-#             )
-#             return f"{value} 0"  # Default to layer 0 on error?
-#     elif value in [
-#         "&sk",
-#         "&rgb_ug",
-#         "&out",
-#         "&msc",
-#         "&mmv",
-#         "&mkp",
-#     ]:  # Behaviors taking one param
-#         if len(formatted_params) == 1:
-#             # Parameter could be simple (RGB_TOG) or complex (LA(LC(LSFT)))
-#             return f"{value} {formatted_params[0]}"
-#         else:
-#             logger.warning(
-#                 f"Incorrect number of params for {value}. Expected 1, got {len(formatted_params)}. Params: {params}"
-#             )
-#             return f"{value} NONE"
-#     elif value == "&bt":
-#         # Format: &bt BT_XXX [param]
-#         if len(formatted_params) > 1 and formatted_params[0] == "BT_SEL":
-#             return f"&bt {formatted_params[0]} {formatted_params[1]}"
-#         elif len(formatted_params) == 1:
-#             return f"&bt {formatted_params[0]}"
-#         else:
-#             logger.warning(
-#                 f"Incorrect number of params for {value}. Got {len(formatted_params)}. Params: {params}"
-#             )
-#             return "&bt NONE"
-#     elif value == "Custom":  # Raw string passthrough
-#         if formatted_params:
-#             # Assume the first param is the raw string intended
-#             return formatted_params[0]
-#         else:
-#             logger.warning("Custom binding type used without parameters.")
-#             return "// Custom binding error"
-#     elif value.startswith("&"):  # Reference to another behavior or macro
-#         # Format as: &my_behavior param1 param2 ...
-#         param_str = " ".join(formatted_params)
-#         return f"{value} {param_str}".strip()
-#     else:
-#         # Might be an old format, a macro name not starting with '&', or an error
-#         logger.warning(
-#             f"Unhandled binding value format: '{value}'. Treating as raw value/macro name."
-#         )
-#         param_str = " ".join(formatted_params)
-#         return f"{value} {param_str}".strip()  # Best guess
-
-
 # String Generation Functions
-# (Keep generate_layer_defines and generate_keymap_node functions)
 def generate_layer_defines(layer_names: List[str]) -> str:
     """Generates the #define statements for layers."""
     defines = []
@@ -197,10 +58,12 @@ def generate_keymap_node(
         # Format all bindings
         formatted_bindings = [format_binding(key_data) for key_data in layer_keys_data]
 
+        # --- Restore Grid Formatting ---
         grid_lines = format_layer_bindings_grid(formatted_bindings, config)
         keymap_parts.extend(grid_lines)
+        # --- End Restore ---
 
-        keymap_parts.append("        >;")
+        keymap_parts.append("        >;")  # Keep the closing bracket
         keymap_parts.append("    };")
         keymap_parts.append("")
 
@@ -250,11 +113,15 @@ def generate_behaviors_dtsi(
         label = [f"// {line}" for line in label]
 
         # Assume hold-tap behavior type based on structure
+
+        # Register the hold-tap behavior itself. It always takes 2 params in the keymap.
+        register_behavior(name, 2, "user_hold_tap")
+
         dtsi_parts.extend(label)
         dtsi_parts.append(f"{node_name}: {node_name} {{")
         dtsi_parts.append('    compatible = "zmk,behavior-hold-tap";')
         # dtsi_parts.append(f'        label = "{escaped_label}";')
-        dtsi_parts.append("    #binding-cells = <2>;")
+        dtsi_parts.append("    #binding-cells = <2>;")  # This defines the node itself
 
         # Optional properties
         if tapping_term is not None:
@@ -265,24 +132,25 @@ def generate_behaviors_dtsi(
         # Example JSON: "bindings": [{"value": "&kp", "params": ["A"]}, {"value": "&macro_name", "params": []}] -> DTSI: bindings = <&kp A>, <&macro_name>;
         formatted_bindings = []
         for binding_ref in bindings:
-            if isinstance(binding_ref, str): # Simple reference like "&kp"
-                 # Basic formatting for simple string references, assuming they are valid behavior names
-                 # Might need enhancement if params are ever passed with simple refs this way
-                 formatted_bindings.append(binding_ref)
-            elif isinstance(binding_ref, dict): # Complex binding object
-                 formatted_bindings.append(format_binding(binding_ref))
+            if isinstance(binding_ref, str):  # Simple reference like "&kp"
+                # Basic formatting for simple string references, assuming they are valid behavior names
+                # Might need enhancement if params are ever passed with simple refs this way
+                formatted_bindings.append(binding_ref)
+            elif isinstance(binding_ref, dict):  # Complex binding object
+                formatted_bindings.append(format_binding(binding_ref))
             else:
-                 logger.warning(f"Unexpected binding format in hold-tap '{name}': {binding_ref}. Skipping.")
-                 formatted_bindings.append("&error /* Invalid HT Binding */")
+                logger.warning(
+                    f"Unexpected binding format in hold-tap '{name}': {binding_ref}. Skipping."
+                )
+                formatted_bindings.append("&error /* Invalid HT Binding */")
 
         if len(formatted_bindings) == 2:
-             dtsi_parts.append(
-                 f"    bindings = <{formatted_bindings[0]}>, <{formatted_bindings[1]}>;"
-             )
+            dtsi_parts.append(
+                f"    bindings = <{formatted_bindings[0]}>, <{formatted_bindings[1]}>;"
+            )
         else:
-             # This case should be caught earlier, but as a safeguard:
-             dtsi_parts.append("    bindings = <&error>, <&error>;")
-
+            # This case should be caught earlier, but as a safeguard:
+            dtsi_parts.append("    bindings = <&error>, <&error>;")
 
         if flavor is not None:
             # Ensure flavor is one of the allowed ZMK values
@@ -319,12 +187,12 @@ def generate_behaviors_dtsi(
 
         # Add retro-tap property if present and true
         if ht.get("retroTap"):
-             dtsi_parts.append("    retro-tap;")
+            dtsi_parts.append("    retro-tap;")
 
         dtsi_parts.append("};")
         dtsi_parts.append("")  # Blank line between behaviors
 
-    dtsi_parts.pop() # remove last blank line
+    dtsi_parts.pop()  # remove last blank line
     return "\n".join(indent_array(dtsi_parts, " " * 8))
 
 
@@ -397,6 +265,9 @@ def generate_macros_dtsi(macros_data: List[Dict]) -> str:
             )
             continue
 
+        # Register the macro behavior before generating its node
+        register_behavior(name, int(binding_cells), "user_macro")
+
         # Start building the macro node
         macro_parts = []
 
@@ -427,7 +298,7 @@ def generate_macros_dtsi(macros_data: List[Dict]) -> str:
         dtsi_parts.append("")  # Blank line separator? Check wanted.keymap
 
     # dtsi_parts.append("};")
-    dtsi_parts.pop() # Remove last blank line
+    dtsi_parts.pop()  # Remove last blank line
     return "\n".join(dtsi_parts)  # Remove last blank line
 
 
@@ -526,7 +397,7 @@ def generate_combos_dtsi(
         dtsi_parts.append("    };")
         dtsi_parts.append("")  # Blank line between combos
 
-    dtsi_parts.pop() # Remove last blank line
+    dtsi_parts.pop()  # Remove last blank line
     dtsi_parts.append("};")
     return "\n".join(indent_array(dtsi_parts))
 
@@ -692,7 +563,7 @@ def build_dtsi_from_json(
     template_dir: Path,
     template_name: str,
     layout_config: LayoutConfig,
-    system_behaviors_content: str = "",
+    system_behaviors_content: str = "", # Add back the argument
     key_position_defines_content: str = "",
 ) -> str:
     """
@@ -732,30 +603,40 @@ def build_dtsi_from_json(
         for p in json_data.get("config_parameters", [])
     }
 
-    # Parse key position defines
+    # Parse key position defines - Already done in LayoutConfig
 
-    # Generate DTSI components
+    # --- Generate DTSI components ---
+    # IMPORTANT: Generate macros and behaviors FIRST to populate the registry
+    # before the keymap node uses format_binding.
+
+    # Generate macros (and register them)
+    macros_data = json_data.get("macros", [])
+    macros_dtsi_str = generate_macros_dtsi(macros_data)
+
+    # Generate behaviors from holdTaps (and register them)
+    behaviors_dtsi_str = generate_behaviors_dtsi(
+        hold_taps_data, layout_config.key_position_map
+    )
+
+    # Now generate other components that might use the registry
     layer_defines_str = generate_layer_defines(layer_names)
     keymap_node_str = (
         generate_keymap_node(layer_names, layers_data, layout_config)
         if layer_names and layers_data
-        else logger.warning("Keymap node not generated (no layers found in JSON)")
+        else ""  # Return empty string if no layers, avoid logging warning here
     )
-    # Generate behaviors from holdTaps
-    behaviors_dtsi_str = generate_behaviors_dtsi(
-        hold_taps_data, layout_config.key_position_map
-    )
+    if not keymap_node_str:
+        logger.warning("Keymap node not generated (no layers found in JSON)")
+
     # Generate combos
     combos_dtsi_str = generate_combos_dtsi(
         combos_data, layout_config.key_position_map, layer_names
     )
-    # Generate macros
-    macros_data = json_data.get("macros", [])
-    macros_dtsi_str = generate_macros_dtsi(macros_data)
+
     # Generate input listeners
     input_listeners_dtsi_str = generate_input_listeners_node(input_listeners_data)
 
-    # Build Jinja context
+    # --- Build Jinja context ---
     context = {
         "layer_defines": layer_defines_str,
         "keymap_node": keymap_node_str,
@@ -771,7 +652,7 @@ def build_dtsi_from_json(
         ),  # Keep for other custom behaviors
         "custom_devicetree": json_data.get("custom_devicetree", ""),
         "config_params": config_params_dict,
-        "system_behaviors": system_behaviors_content,  # Pass through included content
+        "system_behaviors": system_behaviors_content, # Add back to context
         "key_position_defines": key_position_defines_content,  # Pass through included content
         # Add other json data if needed by the template
         "json_data": json_data,

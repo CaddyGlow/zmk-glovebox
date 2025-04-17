@@ -18,12 +18,6 @@ from . import dtsi_builder
 from . import file_utils
 
 logger = logging.getLogger(__name__)
-# Configure basic logging if not already configured
-if not logger.hasHandlers():
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
 
 
 # --- Other functions (empty_fields, extract_base, extract_layers, finish, combine_layers) remain the same ---
@@ -419,7 +413,7 @@ def build_keymap(
             template_dir,
             template_name,
             layout_config,
-            system_behaviors_content,
+            system_behaviors_content, # Pass the read content
             key_position_defines_content,
             # input_listeners_content is removed, generated internally now
         )
