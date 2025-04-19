@@ -6,16 +6,21 @@ import argparse
 import re
 import logging
 import shutil
-import importlib.resources  # Now used for template AND map
+
+# import importlib.resources # No longer used for default paths
 import sys  # For stdin handling
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
-from glovebox import layout
+# Import new config classes
+from .config.resolver import ProfileResolver
+from .config.profiles import Profile  # Import Profile for type hinting
 
+from glovebox import layout
 from . import dtsi_builder
 from . import file_utils
+from . import behaviors  # Import behaviors module for registry population
 
 logger = logging.getLogger(__name__)
 
@@ -245,6 +250,30 @@ def combine_layers(input_dir: Path, output_file: Path):
 # --- Build Command Logic ---
 
 
+def load_and_register_behaviors(profile: Profile):
+    """Loads system behaviors from the profile and registers them."""
+    behaviors_data = profile.load_system_behaviors()
+    if not behaviors_data:
+        logger.warning("No system behaviors found or loaded for the profile.")
+        return
+
+    logger.info(f"Registering {len(behaviors_data)} system behaviors...")
+    for behavior_def in behaviors_data:
+        name = behavior_def.get("name")
+        expected_params = behavior_def.get("expected_params")
+        # Use profile name as origin, or fallback if not defined
+        origin = behavior_def.get("origin", f"system_{profile.name}")
+
+        if not name or not name.startswith("&") or expected_params is None:
+            logger.warning(
+                f"Skipping invalid system behavior definition: {behavior_def}"
+            )
+            continue
+
+        # TODO: Handle conditional registration based on 'condition' field if needed
+        behaviors.register_behavior(name, expected_params, origin)
+
+
 def check_and_prompt_overwrite(files: List[Path]) -> bool:
     """Checks if any file in the list exists and prompts user to overwrite."""
     # (Keep this function as is)
@@ -262,110 +291,89 @@ def check_and_prompt_overwrite(files: List[Path]) -> bool:
         return False
 
 
-def find_default_file(package: str, resource_name: str) -> Optional[Path]:
-    """Tries to find a default file within the package."""
-    try:
-        # Use 'files()' for Python 3.9+ recomme
-        template_res = importlib.resources.files(package).joinpath(resource_name)
-        with importlib.resources.as_file(template_res) as f:
-            return f
-    except FileNotFoundError:
-        logger.warning(
-            f"Default resource '{resource_name}' not found in package '{package}'."
-        )
-        return None
-    except Exception as e:
-        logger.warning(f"Error finding default resource '{resource_name}': {e}")
-        return None
-
-
-def find_default_config_dir() -> Optional[Path]:
-    """Tries to find the default config directory within the package."""
-    try:
-        # Navigate through the package structure
-        config_res = importlib.resources.files("glovebox").joinpath(
-            "config/glove80/v25.05"
-        )
-        # Ensure it's treated as a file path context
-        with importlib.resources.as_file(config_res) as f:
-            if f.is_dir():
-                return f
-            else:
-                logger.warning(
-                    f"Default config resource found but is not a directory: {f}"
-                )
-                return None
-    except FileNotFoundError:
-        logger.warning(
-            "Default config directory 'glovebox/config/glove80/v25.05' not found in package."
-        )
-        return None
-    except Exception as e:
-        logger.warning(f"Error finding default config directory: {e}")
-        return None
-
-
-def load_kconfig_mapping(map_file: Path) -> Dict:
-    """Loads the Kconfig mapping JSON file."""
-    if not map_file or not map_file.is_file():
-        logger.error(f"Kconfig mapping file not found: {map_file}")
-        return {}
-    try:
-        with open(map_file, "r") as f:
-            mapping = json.load(f)
-        logger.info(f"Loaded Kconfig mapping from: {map_file}")
-        return mapping
-    except json.JSONDecodeError as e:
-        logger.error(f"Error decoding JSON from Kconfig mapping file {map_file}: {e}")
-        return {}
-    except IOError as e:
-        logger.error(f"Error reading Kconfig mapping file {map_file}: {e}")
-        return {}
+# Removed find_default_file - template path comes from profile
+# Removed find_default_config_dir - config paths come from profile
+# Removed load_kconfig_mapping - loading is handled by profile instance
 
 
 def build_keymap(
     json_data: Dict[str, Any],
     source_json_path: Optional[Path],  # Path to original file, or None if stdin
     target_prefix: str,
-    template_file: Path,
-    config_dir: Path,
+    resolved_profile: Profile,  # Pass the resolved profile instance
 ):
     """
-    Builds .keymap and .conf files from JSON data and template, copies original JSON (if applicable), using config files from config_dir.
+    Builds .keymap and .conf files from JSON data using a resolved configuration profile.
 
     Args:
         json_data (Dict[str, Any]): The loaded keymap JSON data.
         source_json_path (Optional[Path]): Path to the original input JSON file, or None if from stdin.
         target_prefix (str): The base path and name for output files (e.g., "config/glove80").
-        template_file (Path): Path to the Jinja2 template file.
-        config_dir (Path): Path to the directory containing config files (kconfig_mapping.json, etc.).
+        resolved_profile (Profile): The resolved profile instance containing config paths and settings.
     """
-    # Input JSON data is already loaded
-    if not template_file.is_file():
-        logger.error(f"Template file not found: {template_file}")
-        return
-    if not config_dir.is_dir():
+    # --- Get paths and data from the resolved profile ---
+    template_path = resolved_profile.get_absolute_path("template_file")
+    kconfig_map_path = resolved_profile.get_absolute_path("kconfig_map_file")
+    layout_path = resolved_profile.get_absolute_path("layout_file")
+    key_pos_header_path = resolved_profile.get_absolute_path("key_position_header_file")
+    system_behaviors_dts_path = resolved_profile.get_absolute_path(
+        "system_behaviors_dts_file"
+    )
+
+    if not template_path or not template_path.is_file():
         logger.error(
-            f"Configuration directory not found or not a directory: {config_dir}"
+            f"Template file '{resolved_profile.template_file}' not found via profile '{resolved_profile.name}'. Searched at: {template_path}"
         )
         return
-    # Kconfig map existence checked later in load_kconfig_mapping
+    if not kconfig_map_path or not kconfig_map_path.is_file():
+        logger.error(
+            f"Kconfig mapping file '{resolved_profile.kconfig_map_file}' not found via profile '{resolved_profile.name}'. Searched at: {kconfig_map_path}"
+        )
+        return
+    if not layout_path or not layout_path.is_file():
+        logger.error(
+            f"Layout file '{resolved_profile.layout_file}' not found via profile '{resolved_profile.name}'. Searched at: {layout_path}"
+        )
+        return
+    # key_pos_header and system_behaviors_dts are optional files, loaded later if path exists
 
-    # Derive output paths
+    logger.info(f"Using configuration profile: {resolved_profile.name}")
+    logger.info(f"  Template: {template_path}")
+    logger.info(f"  Kconfig Map: {kconfig_map_path}")
+    logger.info(f"  Layout: {layout_path}")
+    logger.info(
+        f"  Key Position Header: {key_pos_header_path or 'Not specified/found'}"
+    )
+    logger.info(
+        f"  System Behaviors DTS: {system_behaviors_dts_path or 'Not specified/found'}"
+    )
+
+    # --- Load data using profile methods ---
+    kconfig_map = resolved_profile.load_kconfig_map()
+    if not kconfig_map:
+        logger.error("Failed to load Kconfig map. Aborting build.")
+        return
+
+    # Load system behaviors JSON and register them *before* generating keymap
+    load_and_register_behaviors(resolved_profile)
+
+    # Load optional content files
+    key_position_header_content = resolved_profile.load_key_position_header()
+    system_behaviors_dts_content = resolved_profile.load_system_behaviors_dts()
+
+    # --- Derive output paths ---
     target_prefix_path = Path(target_prefix)
     output_dir = target_prefix_path.parent
     base_name = target_prefix_path.name
     keymap_output_path = output_dir / f"{base_name}.keymap"
     conf_output_path = output_dir / f"{base_name}.conf"
     json_copy_path = output_dir / f"{base_name}.json"
-    nix_output_path = output_dir / "default.nix"  # Nix output file
 
     # Check for overwrite
     files_to_check = [
         keymap_output_path,
         conf_output_path,
         json_copy_path,
-        nix_output_path,
     ]
     if not check_and_prompt_overwrite(files_to_check):
         return
@@ -378,63 +386,64 @@ def build_keymap(
         logger.error(f"Failed to create output directory {output_dir}: {e}")
         return
 
-    # --- Read Optional Configuration Files (using the provided config_dir) ---
-    system_behaviors_content = file_utils.read_optional_file(
-        config_dir / "system_behaviors.dts", "system behaviors"
-    )
-    key_position_defines_content = file_utils.read_optional_file(
-        config_dir / "key_position.h", "key position defines"
-    )
-
-    # Read LayoutConfig
-    layout_map_file = config_dir / ".." / ".." / "layout" / "glove80.json"
+    # --- Load Layout Config ---
+    # Use the layout path from the profile and the loaded key position header content
+    logger.info(f"Loading layout configuration from: {layout_path}")
     layout_config = layout.LayoutConfig.from_file(
-        layout_map_file, key_position_defines_content
+        layout_path,
+        key_position_header_content,  # Pass loaded content
     )
-
-    # Read Kconfig map (JSON data is already passed in)
-    kconfig_map_file = config_dir / "kconfig_mapping.json"
-    kconfig_map = load_kconfig_mapping(kconfig_map_file)
-    if not kconfig_map:  # Exit if map loading failed
+    if not layout_config:
         logger.error(
-            f"Kconfig mapping could not be loaded from {kconfig_map_file}. Aborting build."
+            f"Failed to load layout config from {layout_path}. Aborting build."
         )
         return
 
-    # Input listeners are generated from JSON, not read from a file.
-
-    # --- Generate .keymap ---
-    template_dir = template_file.parent
-    template_name = template_file.name
-    logger.info(f"Building .keymap from using template {template_file}")
+    # --- Generate .conf first (needed for conditional includes) ---
+    logger.info(f"Generating Kconfig .conf file using map {kconfig_map_path}...")
+    conf_content = ""
+    kconfig_settings: Dict[str, str] = {}  # Store generated settings for include check
     try:
-        keymap_content = dtsi_builder.build_dtsi_from_json(
-            json_data,
-            template_dir,
-            template_name,
-            layout_config,
-            system_behaviors_content, # Pass the read content
-            key_position_defines_content,
-            # input_listeners_content is removed, generated internally now
-        )
-        with open(keymap_output_path, "w") as f:
-            f.write(keymap_content)
-        logger.info(f"Successfully built keymap and saved to {keymap_output_path}")
-    except Exception as e:
-        logger.error(f"Failed to generate or write .keymap file: {e}", e)
-        return
-
-    # --- Generate .conf ---
-    logger.info(f"Generating Kconfig .conf file using map {kconfig_map_file}...")
-    try:
-        conf_content = dtsi_builder.generate_kconfig_conf(
+        conf_content, kconfig_settings = dtsi_builder.generate_kconfig_conf(
             json_data, kconfig_map
-        )  # Pass loaded map
+        )
         with open(conf_output_path, "w") as f:
             f.write(conf_content)
         logger.info(f"Successfully generated config and saved to {conf_output_path}")
     except Exception as e:
         logger.error(f"Failed to generate or write .conf file: {e}")
+        # Continue to attempt keymap generation? Or return? Let's return for now.
+        return
+
+    # --- Resolve Includes based on generated Kconfig ---
+    resolved_includes = resolved_profile.get_resolved_includes(kconfig_settings)
+    logger.debug(f"Final resolved includes for template: {resolved_includes}")
+
+    # --- Generate .keymap ---
+    template_dir = template_path.parent
+    template_name = template_path.name
+    logger.info(f"Building .keymap using template {template_path}")
+    try:
+        # Pass necessary resolved data to the builder
+        keymap_content = dtsi_builder.build_dtsi_from_json(
+            json_data=json_data,
+            template_dir=template_dir,
+            template_name=template_name,
+            layout_config=layout_config,
+            resolved_includes=resolved_includes,
+            key_position_header_content=key_position_header_content,  # Pass loaded content
+            system_behaviors_dts_content=system_behaviors_dts_content,  # Pass loaded content
+            # Pass the profile name for potential use in comments/headers
+            profile_name=resolved_profile.name,
+        )
+        with open(keymap_output_path, "w") as f:
+            f.write(keymap_content)
+        logger.info(f"Successfully built keymap and saved to {keymap_output_path}")
+    except Exception as e:
+        logger.error(
+            f"Failed to generate or write .keymap file: {e}", exc_info=True
+        )  # Add traceback
+        return
 
     # --- Save/Copy JSON to target directory ---
     if source_json_path:
@@ -453,40 +462,6 @@ def build_keymap(
             logger.info("JSON data written successfully.")
         except Exception as e:
             logger.error(f"Failed to write JSON data: {e}")
-
-    # --- Generate default.nix ---
-    nix_template_path = template_dir / "default.nix.j2"
-    if nix_template_path.is_file():
-        logger.info(
-            f"Found Nix template: {nix_template_path}. Generating default.nix..."
-        )
-        try:
-            # Setup Jinja env specifically for this template
-
-            env = Environment(
-                loader=FileSystemLoader(template_dir),
-                trim_blocks=True,
-                lstrip_blocks=True,
-            )
-            nix_template = env.get_template("default.nix.j2")
-            nix_context = {"base_name": base_name}
-            nix_content = nix_template.render(nix_context)
-            with open(nix_output_path, "w") as f:
-                f.write(nix_content)
-            logger.info(
-                f"Successfully generated Nix file and saved to {nix_output_path}"
-            )
-        except TemplateNotFound:
-            # Should not happen due to is_file() check, but good practice
-            logger.error(
-                f"Nix template '{nix_template_path.name}' disappeared unexpectedly."
-            )
-        except Exception as e:
-            logger.error(f"Failed to generate or write default.nix file: {e}")
-    else:
-        logger.info(
-            f"Optional Nix template not found at {nix_template_path}. Skipping default.nix generation."
-        )
 
 
 def main():
@@ -559,37 +534,38 @@ def main():
         default=None,
     )
 
-    # --- Build command (Updated with --kconfig-map) ---
+    # --- List Profiles command ---
+    list_parser = subparsers.add_parser(
+        "list-profiles",
+        help="List available firmware profile names that can be used with the build command.",
+    )
+    # No arguments needed for list-profiles
+
+    # --- Build command (Updated) ---
     build_parser = subparsers.add_parser(
         "build",
-        help="Build .keymap, .conf, and default.nix files from JSON.",
+        help="Build .keymap, .conf, and default.nix files from JSON using a configuration profile.",
     )
     build_parser.add_argument(
         "json_file",
-        type=Path,
-        nargs="?",  # Make it optional
+        type=str,  # Accept string to handle '-' for stdin easily
+        nargs="?",
         help="Path to the input keymap JSON file. Use '-' or omit to read from stdin.",
-        default=None,  # Default to None if omitted
+        default=None,
     )
     build_parser.add_argument(
         "target_prefix",
         type=str,
-        help='Target directory and base filename (e.g., "config/my_glove80")',
+        help='Target directory and base filename for output (e.g., "config/my_glove80"). The directory will be created if it doesn\'t exist.',
     )
     build_parser.add_argument(
-        "--template",
-        "-t",
-        type=Path,
-        help="Path to the Jinja2 template file (e.g., zmk_keymap.dtsi.j2). Defaults to internal template.",
-        default=None,
+        "--firmware-name",
+        "-f",
+        type=str,
+        required=True,
+        help="Firmware name to match against profile patterns (e.g., 'v25.05', 'glove80/mybranch'). Determines which configuration profile to use.",
     )
-    build_parser.add_argument(
-        "--config-dir",
-        "-c",
-        type=Path,
-        help="Path to the directory containing configuration files (kconfig_mapping.json, system_behaviors.dts, etc.). Defaults to internal glove80/v25.05 config.",
-        default=None,
-    )
+    # Removed --template and --config-dir arguments
 
     # Common options
     parser.add_argument(
@@ -616,45 +592,24 @@ def main():
     elif args.command == "finish":
         finish(args.keymap_file, args.device, args.keymap, args.output)
     elif args.command == "build":
-        # Resolve template path
-        template_path = args.template
-        if not template_path:
-            logger.info("Template path not specified, searching for default...")
-            # Assumes templates are in 'glovebox/templates' relative to package
-            template_path = find_default_file(
-                "glovebox.templates", "zmk_keymap.dtsi.j2"
-            )
-            if not template_path or not template_path.is_file():
-                logger.error(
-                    "Default template could not be found or is not a file. Please specify one with --template."
-                )
-                exit(1)
-            logger.info(f"Using default template: {template_path}")
+        # --- Resolve Profile ---
+        resolver = ProfileResolver()  # Use default base package
+        resolved_profile = resolver.resolve(args.firmware_name)
 
-        # Resolve Config Directory path
-        config_dir_path = args.config_dir
-        if not config_dir_path:
-            logger.info("Config directory not specified, searching for default...")
-            config_dir_path = find_default_config_dir()
-            if not config_dir_path or not config_dir_path.is_dir():
-                logger.error(
-                    "Default config directory could not be found or is not a directory. Please specify one with --config-dir."
-                )
-                exit(1)
-            logger.info(f"Using default config directory: {config_dir_path}")
-        elif not config_dir_path.is_dir():
+        if not resolved_profile:
             logger.error(
-                f"Specified config directory not found or is not a directory: {config_dir_path}"
+                f"Could not find or resolve a profile for firmware '{args.firmware_name}'."
             )
+            logger.info(f"Available profiles: {resolver.list_available_profiles()}")
             exit(1)
 
-        # Load JSON data (from file or stdin)
+        # --- Load JSON data (from file or stdin) ---
         json_data = None
-        source_json_path = args.json_file  # Keep track of original path or None
+        source_json_path: Optional[Path] = None  # Path object or None
 
-        if source_json_path is None or str(source_json_path) == "-":
+        if args.json_file is None or args.json_file == "-":
             logger.info("Reading keymap JSON from stdin...")
-            source_json_path = None  # Explicitly set to None for stdin case
+            source_json_path = None
             try:
                 json_data = json.load(sys.stdin)
                 logger.info("Successfully parsed JSON from stdin.")
@@ -665,6 +620,7 @@ def main():
                 logger.error(f"Error reading from stdin: {e}")
                 exit(1)
         else:
+            source_json_path = Path(args.json_file)
             if not source_json_path.is_file():
                 logger.error(f"Input JSON file not found: {source_json_path}")
                 exit(1)
@@ -680,15 +636,24 @@ def main():
                 logger.error(f"Error reading file {source_json_path}: {e}")
                 exit(1)
 
-        # Call build_keymap with loaded data and source path
+        # --- Call build_keymap ---
         build_keymap(
-            json_data,
-            source_json_path,
-            args.target_prefix,
-            template_path,
-            config_dir_path,
+            json_data=json_data,
+            source_json_path=source_json_path,
+            target_prefix=args.target_prefix,
+            resolved_profile=resolved_profile,  # Pass the instance
         )
+    elif args.command == "list-profiles":
+        resolver = ProfileResolver()
+        available_profiles = resolver.list_available_profiles()
+        if available_profiles:
+            print("Available firmware profile names:")
+            for name in sorted(available_profiles):
+                print(f"  - {name}")
+        else:
+            print("No configuration profiles found.")
     else:
+        # This should not be reachable if a command is required, but good practice
         parser.print_help()
 
 

@@ -6,7 +6,6 @@ import re
 import logging
 
 logger = logging.getLogger(__name__)
-DEFAULT_KEY_WIDTH = 20  # Default width for centering keys if not specified
 
 
 def parse_key_position_defines(content: str) -> Dict[int, str]:
@@ -25,28 +24,6 @@ def parse_key_position_defines(content: str) -> Dict[int, str]:
             "Could not parse any KEY_POS defines from key_position_defines_content."
         )
     return mapping
-
-
-# Helper function to calculate padding based on alignment rules
-def calculate_left_padding(row_type: str, formatting: Dict) -> str:
-    """Calculates the left-side padding string based on alignment rules."""
-    rules = formatting.get("alignment_rules", {})
-    rule = rules.get(row_type)
-    # Only apply padding if the rule is for 'inner' alignment relative to 'main_6'
-    if not rule or rule.get("align_to") != "main_6" or rule.get("side") != "inner":
-        # Default: no padding if rule missing, not relative to main_6, or not inner align
-        return ""
-
-    offset_keys = rule.get("offset_keys", 0)
-    # Fetch formatting params needed for calculation
-    # Use the actual width configured or the default fallback
-    default_key_width = formatting.get("default_key_width", DEFAULT_KEY_WIDTH)
-    key_gap = formatting.get("key_gap", " ")  # Assuming key_gap is always defined
-
-    # Calculate padding amount in spaces
-    # This represents the empty space created by offsetting inwards
-    padding_amount = offset_keys * (default_key_width + len(key_gap))
-    return " " * padding_amount
 
 
 @dataclass
@@ -119,17 +96,9 @@ def format_layer_bindings_grid(bindings: List[str], config: LayoutConfig) -> Lis
     fmt = config.formatting
     EMPTY_SLOT_MARKER = None  # Use None to mark empty slots in the matrix
 
-    # --- Get formatting parameters ---
-    base_indent = fmt.get("base_indent", "           ")  # 11 spaces default
+    base_indent = fmt.get("base_indent", "")
     key_gap = fmt.get("key_gap", "  ")
-    # default_width is not directly used for padding anymore, but good for logging
-    default_width_log = fmt.get("default_key_width", DEFAULT_KEY_WIDTH)
 
-    logger.debug(
-        f"Formatting grid with: indent='{len(base_indent)} spaces', gap='{len(key_gap)} spaces', default_width_log={default_width_log}"
-    )
-
-    # --- Prepare map of index to binding string ---
     bindings_map: Dict[int, str] = {}
     num_bindings_available = len(bindings)
 
@@ -148,7 +117,6 @@ def format_layer_bindings_grid(bindings: List[str], config: LayoutConfig) -> Lis
             continue
         bindings_map[idx] = str(binding_str)
 
-    # --- Determine grid dimensions and initialize matrix ---
     if not isinstance(config.rows, list) or not all(
         isinstance(r, list) for r in config.rows
     ):
@@ -200,10 +168,6 @@ def format_layer_bindings_grid(bindings: List[str], config: LayoutConfig) -> Lis
         if col_binding_lengths:
             max_col_widths[c] = max(col_binding_lengths)
         # If a column only contains EMPTY_SLOT_MARKER, its width remains 0
-
-    logger.debug(
-        f"Calculated max column widths from matrix (0 means empty column): {max_col_widths}"
-    )
 
     # --- Iterate through the matrix and format output lines ---
     for r in range(num_rows):

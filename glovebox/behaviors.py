@@ -525,29 +525,9 @@ BEHAVIOR_CLASS_MAP: Dict[str, Type[Behavior]] = {
 # def register_builtin_behaviors(): ...
 # register_builtin_behaviors() # Remove immediate call
 
-# --- Load behaviors from JSON files ---
-# Determine paths relative to this file or pass them in?
-# Assuming they are in a standard location relative to the script execution or package.
-# This might need adjustment based on how the tool is run.
-try:
-    # Assuming execution from project root or similar standard structure
-    # Use Path(__file__).parent to get the directory of the current behaviors.py file
-    CURRENT_DIR = Path(__file__).parent
-    CONFIG_DIR = CURRENT_DIR / "config"  # Assumes config is a sibling directory
-
-    # Construct paths relative to the behaviors.py location
-    ZMK_BEHAVIORS_PATH = CONFIG_DIR / "zmk_behaviors.json"
-    # Path to system behaviors might depend on the specific keyboard config being used.
-    # This needs to be determined dynamically, perhaps passed into a setup function.
-    # For now, hardcoding the glove80 path as an example.
-    GLOVE80_SYSTEM_BEHAVIORS_PATH = CONFIG_DIR / "glove80/v25.05/system_behaviors.json"
-
-    load_and_register_behaviors_from_json(ZMK_BEHAVIORS_PATH)
-    # Load system-specific behaviors AFTER core ZMK ones
-    load_and_register_behaviors_from_json(GLOVE80_SYSTEM_BEHAVIORS_PATH)
-
-except Exception as e:
-    logger.error(f"Failed to load initial behavior definitions: {e}")
+# --- Remove static loading of behaviors ---
+# Behavior loading and registration is now triggered dynamically by the build process
+# using the resolved profile in keymap_utility.py:load_and_register_behaviors()
 
 
 # Keep the global format_binding function, but make it use the classes

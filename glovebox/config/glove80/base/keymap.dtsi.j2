@@ -12,19 +12,8 @@
  * edit it directly.
  */
 
-#include <behaviors.dtsi>
 /* Include all behavior includes needed */
-#include <dt-bindings/zmk/outputs.h>
-#include <dt-bindings/zmk/keys.h>
-#include <dt-bindings/zmk/bt.h>
-#include <dt-bindings/zmk/rgb.h>
-
-/* On demand includes */
-{% if 'HID_POINTING' in config_params and config_params['HID_POINTING'] == 'y' %}
-#include <dt-bindings/zmk/input_transform.h>
-#include <dt-bindings/zmk/pointing.h>
-#include <input/processors.dtsi>
-{% endif %}
+{{ resolved_includes }}
 
 /* Automatically generated layer name #define */
 {{ layer_defines }}
@@ -39,7 +28,6 @@
 {{ custom_devicetree }}
 {% endif %}
 
-
 /* Input Listeners */
 {# Render generated DTS from inputListeners JSON data #}
 {% if input_listeners_dtsi %}
@@ -49,15 +37,11 @@
 
 /* System behavior and Macros */
 {# Render content read from system_behaviors.dts #}
-{% if system_behaviors -%}
-{{ system_behaviors }}
-{% endif -%}
+{{ system_behaviors_dts }}
 
 /* #define for key positions */
 {# Render content read from key_position.h #}
-{% if key_position_defines -%}
-{{ key_position_defines }}
-{% endif -%}
+{{ key_position_header }}
 
 /* Custom Defined Behaviors */
 / {
@@ -71,8 +55,9 @@
 /* Automatically generated macro definitions */
 / {
     macros {
+
 {% if macros_dtsi %}
-{{ macros_dtsi }}
+{{ user_macros_dtsi }}
 {% endif %}
     };
 };
@@ -82,10 +67,11 @@
     behaviors {
 
 {% if behaviors_dtsi %}
-{{ behaviors_dtsi }}
+{{ user_behaviors_dtsi }}
 {% endif %}
     };
 };
+
 
 /* Automatically generated combos definitions */
 {% if combos_dtsi -%}
