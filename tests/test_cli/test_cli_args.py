@@ -8,11 +8,16 @@ import pytest
 import typer
 
 from glovebox.cli import app
+from glovebox.cli.commands import register_all_commands
+
+
+# Register commands with the app before running tests
+register_all_commands(app)
 
 
 def test_version_flag(cli_runner):
     """Test --version flag."""
-    with patch("glovebox.cli.__version__", "1.2.3"):
+    with patch("glovebox.cli.app.__version__", "1.2.3"):
         result = cli_runner.invoke(app, ["--version"], catch_exceptions=False)
         # When using --version, Typer raises typer.Exit() which is treated as exit code 0
         assert "Glovebox v1.2.3" in result.output
@@ -21,7 +26,7 @@ def test_version_flag(cli_runner):
 def test_verbose_flag(cli_runner):
     """Test --verbose flag sets log level correctly."""
     with (
-        patch("glovebox.cli.setup_logging") as mock_setup_logging,
+        patch("glovebox.cli.app.setup_logging") as mock_setup_logging,
         patch("subprocess.run"),  # Mock subprocess to avoid running actual commands
         patch("glovebox.config.keyboard_config.KeyboardConfig"),  # Mock config
     ):

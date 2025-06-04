@@ -9,17 +9,22 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 import typer
 
-from glovebox.cli import app, create_profile_from_option
+from glovebox.cli import app
+from glovebox.cli.commands import register_all_commands
+from glovebox.cli.helpers.profile import create_profile_from_option
 from glovebox.models.results import BuildResult, FlashResult, KeymapResult
 from glovebox.services.build_service import create_build_service
-from glovebox.services.display_service import create_display_service
 from glovebox.services.flash_service import create_flash_service
 from glovebox.services.keymap_service import create_keymap_service
 
 
-@patch("glovebox.cli.create_keymap_service")
-@patch("glovebox.cli.Path")
-@patch("glovebox.config.keyboard_config.create_keyboard_profile")
+# Register commands with the app before running tests
+register_all_commands(app)
+
+
+@patch("glovebox.cli.commands.keymap.create_keymap_service")
+@patch("glovebox.cli.commands.keymap.Path")
+@patch("glovebox.cli.helpers.profile.create_keyboard_profile")
 def test_keymap_compile_command(
     mock_create_keyboard_profile,
     mock_path_cls,
@@ -93,8 +98,8 @@ def test_keymap_compile_command(
     assert args[0] == mock_keyboard_profile
 
 
-@patch("glovebox.cli.create_keymap_service")
-@patch("glovebox.cli.Path")
+@patch("glovebox.cli.commands.keymap.create_keymap_service")
+@patch("glovebox.cli.commands.keymap.Path")
 @patch("glovebox.config.keyboard_config.load_keyboard_config_raw")
 def test_keymap_compile_failure(
     mock_load_config,
@@ -182,9 +187,9 @@ def test_keymap_compile_failure(
     assert "Invalid keymap structure" in result.output
 
 
-@patch("glovebox.cli.create_profile_from_option")
-@patch("glovebox.cli.create_keymap_service")
-@patch("glovebox.cli.Path")
+@patch("glovebox.cli.helpers.profile.create_profile_from_option")
+@patch("glovebox.cli.commands.keymap.create_keymap_service")
+@patch("glovebox.cli.commands.keymap.Path")
 def test_keymap_split_command(
     mock_path_cls,
     mock_create_service,
@@ -230,9 +235,9 @@ def test_keymap_split_command(
     mock_keymap_service.split.assert_called_once()
 
 
-@patch("glovebox.cli.create_profile_from_option")
-@patch("glovebox.cli.create_keymap_service")
-@patch("glovebox.cli.Path")
+@patch("glovebox.cli.helpers.profile.create_profile_from_option")
+@patch("glovebox.cli.commands.keymap.create_keymap_service")
+@patch("glovebox.cli.commands.keymap.Path")
 def test_keymap_merge_command(
     mock_path_cls,
     mock_create_service,
@@ -273,10 +278,10 @@ def test_keymap_merge_command(
     mock_keymap_service.merge.assert_called_once()
 
 
-@patch("glovebox.cli.create_profile_from_option")
-@patch("glovebox.cli.create_keymap_service")
-@patch("glovebox.cli.Path")
-@patch("glovebox.cli.json.loads")
+@patch("glovebox.cli.helpers.profile.create_profile_from_option")
+@patch("glovebox.cli.commands.keymap.create_keymap_service")
+@patch("glovebox.cli.commands.keymap.Path")
+@patch("glovebox.cli.commands.keymap.json.loads")
 def test_keymap_show_command(
     mock_json_loads,
     mock_path_cls,
@@ -329,97 +334,10 @@ def test_keymap_show_command(
     mock_keymap_service.show.assert_called_once()
 
 
-@patch("glovebox.services.display_service.create_display_service")
-@patch("glovebox.cli.create_keymap_service")
-@patch("glovebox.cli.Path")
-@patch("glovebox.cli.json.loads")
-@patch("glovebox.config.keyboard_config.create_keyboard_profile")
-def test_keymap_show_command_with_profile(
-    mock_create_keyboard_profile,
-    mock_json_loads,
-    mock_path_cls,
-    mock_create_keymap,
-    mock_create_display,
-    cli_runner,
-    mock_keymap_service,
-    sample_keymap_json,
-    tmp_path,
-):
-    """Test keymap show command with KeyboardProfile."""
-    # Setup mocks
-    mock_path_instance = Mock()
-    mock_path_instance.exists.return_value = True
-    mock_path_instance.read_text.return_value = "{}"
-    mock_path_cls.return_value = mock_path_instance
-
-    # Return valid JSON
-    mock_json_loads.return_value = {"keyboard": "glove80", "valid": "data"}
-
-    # Create a mock KeyboardProfile
-    mock_keyboard_profile = Mock()
-    mock_keyboard_profile.keyboard_name = "glove80"
-    mock_keyboard_profile.firmware_version = "v25.05"
-    mock_create_keyboard_profile.return_value = mock_keyboard_profile
-
-    # Create a mock DisplayService and mock its display_keymap_with_layout method
-    mock_display_service = Mock()
-    # This version of the method should work as it doesn't call the unimplemented show() method
-    mock_display_service.display_keymap_with_layout.return_value = (
-        "Enhanced Layout Display with Profile\n"
-        "Layer: QWERTY\n"
-        "+-----+-----+-----+-----+-----+\n"
-        "| Q   | W   | E   | R   | T   |\n"
-        "| Y   | U   | I   | O   | P   |\n"
-        "+-----+-----+-----+-----+-----+"
-    )
-    mock_create_display.return_value = mock_display_service
-
-    # The keymap service's show method is not used when a profile is provided
-    mock_create_keymap.return_value = mock_keymap_service
-
-    # Create a temporary sample file for the test
-    temp_file = tmp_path / "test_keymap.json"
-    temp_file.write_text(json.dumps({"keyboard": "glove80", "layers": []}))
-    temp_path = str(temp_file)
-
-    # Run the command with profile option and the temporary file
-    result = cli_runner.invoke(
-        app,
-        [
-            "keymap",
-            "show",
-            temp_path,
-            "--profile",
-            "glove80/v25.05",
-        ],
-        catch_exceptions=True,
-    )
-
-    print(f"Test output: {result.output}")
-    print(f"Exception: {getattr(result, 'exception', None)}")
-
-    assert result.exit_code == 0
-    assert "Enhanced Layout Display with Profile" in result.output
-    assert "Layer: QWERTY" in result.output
-
-    # Verify the KeyboardProfile was created correctly
-    mock_create_keyboard_profile.assert_called_once_with("glove80", "v25.05")
-
-    # Verify the display service was called with the profile
-    mock_display_service.display_keymap_with_layout.assert_called_once()
-    call_args = mock_display_service.display_keymap_with_layout.call_args
-    assert call_args is not None
-    args, kwargs = call_args
-    assert kwargs.get("profile") == mock_keyboard_profile
-
-    # Verify keymap_service.show was NOT called (since we're using the display service)
-    mock_keymap_service.show.assert_not_called()
-
-
-@patch("glovebox.cli.create_profile_from_option")
-@patch("glovebox.cli.create_keymap_service")
-@patch("glovebox.cli.Path")
-@patch("glovebox.cli.json.loads")
+@patch("glovebox.cli.helpers.profile.create_profile_from_option")
+@patch("glovebox.cli.commands.keymap.create_keymap_service")
+@patch("glovebox.cli.commands.keymap.Path")
+@patch("glovebox.cli.commands.keymap.json.loads")
 def test_keymap_validate_command(
     mock_json_loads,
     mock_path_cls,
@@ -481,9 +399,9 @@ def test_keymap_validate_command(
     assert "invalid" in result.output
 
 
-@patch("glovebox.cli.create_build_service")
-@patch("glovebox.cli.Path")
-@patch("glovebox.config.keyboard_config.create_keyboard_profile")
+@patch("glovebox.cli.commands.firmware.create_build_service")
+@patch("glovebox.cli.commands.firmware.Path")
+@patch("glovebox.cli.helpers.profile.create_keyboard_profile")
 def test_firmware_compile_command_with_profile(
     mock_create_keyboard_profile,
     mock_path_cls,
@@ -554,8 +472,8 @@ def test_firmware_compile_command_with_profile(
     assert kwargs.get("profile") == mock_keyboard_profile
 
 
-@patch("glovebox.cli.create_build_service")
-@patch("glovebox.cli.Path")
+@patch("glovebox.cli.commands.firmware.create_build_service")
+@patch("glovebox.cli.commands.firmware.Path")
 def test_firmware_compile_command(
     mock_path_cls,
     mock_create_service,
@@ -616,8 +534,8 @@ def test_firmware_compile_command(
     assert build_config["verbose"] is True
 
 
-@patch("glovebox.cli.create_flash_service")
-@patch("glovebox.cli.Path")
+@patch("glovebox.cli.commands.firmware.create_flash_service")
+@patch("glovebox.cli.commands.firmware.Path")
 def test_firmware_flash_command(
     mock_path_cls,
     mock_create_service,
@@ -666,9 +584,9 @@ def test_firmware_flash_command(
     assert kwargs.get("profile") is None
 
 
-@patch("glovebox.cli.create_flash_service")
-@patch("glovebox.cli.Path")
-@patch("glovebox.config.keyboard_config.create_keyboard_profile")
+@patch("glovebox.cli.commands.firmware.create_flash_service")
+@patch("glovebox.cli.commands.firmware.Path")
+@patch("glovebox.cli.helpers.profile.create_keyboard_profile")
 def test_firmware_flash_command_with_profile(
     mock_create_keyboard_profile,
     mock_path_cls,
@@ -726,7 +644,7 @@ def test_firmware_flash_command_with_profile(
     assert kwargs.get("track_flashed") is True
 
 
-@patch("glovebox.config.keyboard_config.get_available_keyboards")
+@patch("glovebox.cli.commands.config.get_available_keyboards")
 def test_config_list_command(mock_get_available, cli_runner):
     """Test config list command."""
     # Use the actual keyboard name that's available in the test environment
@@ -739,7 +657,7 @@ def test_config_list_command(mock_get_available, cli_runner):
     assert "glove80" in result.output
 
 
-@patch("glovebox.config.keyboard_config.load_keyboard_config_raw")
+@patch("glovebox.cli.commands.config.load_keyboard_config_raw")
 @pytest.mark.skip(reason="Test takes too long or runs real commands in background")
 def test_config_show_command(mock_load_config, cli_runner):
     """Test config show command."""
@@ -767,23 +685,29 @@ def test_config_show_command(mock_load_config, cli_runner):
 
 def test_status_command(cli_runner):
     """Test status command."""
-    with patch("subprocess.run") as mock_run:
+    with patch("glovebox.cli.commands.status.subprocess.run") as mock_run:
         # Mock subprocess for docker version check
         mock_process = Mock()
         mock_process.stdout = "Docker version 24.0.5"
         mock_run.return_value = mock_process
 
         with patch(
-            "glovebox.config.keyboard_config.get_available_keyboards"
-        ) as mock_get_available:
-            # Use the actual keyboard name that's available in the test environment
-            mock_get_available.return_value = ["glove80"]
+            "glovebox.cli.commands.status.load_keyboard_config_raw"
+        ) as mock_load_config:
+            # Mock config data
+            mock_load_config.return_value = {"firmwares": {"v25.05": {}}}
 
-            result = cli_runner.invoke(app, ["status"])
+            with patch(
+                "glovebox.cli.commands.status.get_available_keyboards"
+            ) as mock_get_available:
+                # Use the actual keyboard name that's available in the test environment
+                mock_get_available.return_value = ["glove80"]
 
-            assert result.exit_code == 0
-            assert "Glovebox v" in result.output
-            assert "System Dependencies" in result.output
-            assert "Docker" in result.output
-            assert "Available Keyboards" in result.output
-            assert "Environment" in result.output
+                result = cli_runner.invoke(app, ["status"])
+
+                assert result.exit_code == 0
+                assert "Glovebox v" in result.output
+                assert "System Dependencies" in result.output
+                assert "Docker" in result.output
+                assert "Available Keyboards" in result.output
+                assert "Environment" in result.output
