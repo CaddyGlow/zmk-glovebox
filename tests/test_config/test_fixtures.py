@@ -7,20 +7,27 @@ import pytest
 
 def test_mock_keyboard_config(mock_keyboard_config):
     """Test that the mock_keyboard_config fixture is properly structured."""
-    assert mock_keyboard_config["keyboard"] == "test_keyboard"
-    assert "description" in mock_keyboard_config
-    assert "flash" in mock_keyboard_config
-    assert "build" in mock_keyboard_config
-    assert "firmwares" in mock_keyboard_config
-    assert "default" in mock_keyboard_config["firmwares"]
-    assert "bluetooth" in mock_keyboard_config["firmwares"]
+    assert mock_keyboard_config.keyboard == "test_keyboard"
+    assert mock_keyboard_config.description is not None
+    assert mock_keyboard_config.flash is not None
+    assert mock_keyboard_config.build is not None
+    assert "default" in mock_keyboard_config.firmwares
+    assert "bluetooth" in mock_keyboard_config.firmwares
 
 
 def test_mock_firmware_config(mock_firmware_config):
     """Test that the mock_firmware_config fixture is properly structured."""
-    assert "description" in mock_firmware_config
-    assert "version" in mock_firmware_config
-    assert "branch" in mock_firmware_config
+    assert mock_firmware_config.description is not None
+    assert mock_firmware_config.version is not None
+    assert mock_firmware_config.build_options is not None
+
+
+def test_mock_keyboard_profile(mock_keyboard_profile):
+    """Test that the mock_keyboard_profile fixture is properly structured."""
+    assert mock_keyboard_profile.keyboard_name == "test_keyboard"
+    assert mock_keyboard_profile.firmware_version == "default"
+    assert mock_keyboard_profile.keyboard_config is not None
+    assert mock_keyboard_profile.firmware_config is not None
 
 
 def test_mock_load_keyboard_config(mock_load_keyboard_config, mock_keyboard_config):

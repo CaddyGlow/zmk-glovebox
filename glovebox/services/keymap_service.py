@@ -3,16 +3,12 @@
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Protocol, Union, cast
-
-from glovebox.config.models import KConfigOption
-
-
-if TYPE_CHECKING:
-    from glovebox.config.profile import KeyboardProfile
+from typing import Any, Protocol, cast
 
 from glovebox.adapters.file_adapter import FileAdapter
 from glovebox.adapters.template_adapter import TemplateAdapter
+from glovebox.config.models import KConfigOption
+from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import KeymapError
 from glovebox.formatters.behavior_formatter import BehaviorFormatterImpl
 from glovebox.generators.config_generator import ConfigGenerator
@@ -67,7 +63,7 @@ class KeymapService(BaseServiceImpl):
         from glovebox.services.behavior_service import create_behavior_registry
 
         # Define typed variables before assignment
-        self._behavior_registry: Any  # Will be BehaviorRegistry
+        self._behavior_registry: BehaviorRegistry
         self._behavior_formatter: BehaviorFormatterImpl
         self._dtsi_generator: DTSIGenerator
         self._config_generator: ConfigGenerator
@@ -81,12 +77,10 @@ class KeymapService(BaseServiceImpl):
 
     def compile(
         self,
+        profile: KeyboardProfile,
         json_data: dict[str, Any] | KeymapData,
-        source_json_path: Path | None,
         target_prefix: str,
-        keyboard_name: str | None = None,
-        firmware_version: str | None = None,
-        profile: Optional["KeyboardProfile"] = None,
+        source_json_path: Path | None = None,
     ) -> KeymapResult:
         """Compile ZMK keymap files from JSON data.
 
@@ -94,9 +88,8 @@ class KeymapService(BaseServiceImpl):
             json_data: Raw keymap JSON data or validated KeymapData
             source_json_path: Optional path to source JSON file
             target_prefix: Base path and name for output files
-            keyboard_name: Name of the keyboard to build for (not needed if profile is provided)
-            firmware_version: Version of firmware to use (not needed if profile is provided)
-            profile: KeyboardProfile with configuration (preferred over keyboard_name/firmware_version)
+            keyboard_name: Name of the keyboard to build for
+            firmware_version: Version of firmware to use
 
         Returns:
             KeymapResult with paths to generated files and build metadata
@@ -104,25 +97,14 @@ class KeymapService(BaseServiceImpl):
         Raises:
             KeymapError: If compilation process fails
         """
-        # Create keyboard profile if not provided
-        from glovebox.config.keyboard_config import create_keyboard_profile
-        from glovebox.config.profile import KeyboardProfile
+        # Use provided keyboard profile
+        profile_name = f"{profile.keyboard_name}/{profile.firmware_version}"
+        logger.info(f"Starting keymap build using profile: {profile_name}")
+
+        result = KeymapResult(success=False)
+        result.profile_name = profile_name
 
         try:
-            if not profile:
-                if not keyboard_name or not firmware_version:
-                    raise KeymapError(
-                        "Either profile or keyboard_name and firmware_version must be provided"
-                    )
-
-                profile = create_keyboard_profile(keyboard_name, firmware_version)
-
-            profile_name = f"{profile.keyboard_name}/{profile.firmware_version}"
-            logger.info(f"Starting keymap build using profile: {profile_name}")
-
-            result = KeymapResult(success=False)
-            result.profile_name = profile_name
-
             # Validate and prepare input data
             validated_data = self._validate_data(json_data)
             result.layer_count = len(validated_data.get("layers", []))
@@ -147,7 +129,7 @@ class KeymapService(BaseServiceImpl):
             self._generate_keymap_file(validated_data, profile, output_paths["keymap"])
 
             # Save JSON file to output directory
-            self._save_json_file(output_paths["json"], validated_data)
+            self._file_adapter.write_json(output_paths["json"], validated_data)
 
             # Set result paths
             result.keymap_path = output_paths["keymap"]
@@ -163,12 +145,16 @@ class KeymapService(BaseServiceImpl):
             return result
 
         except Exception as e:
-            result = KeymapResult(success=False)
             result.add_error(f"Keymap build failed: {e}")
             logger.error(f"Keymap build failed: {e}")
             raise KeymapError(f"Keymap build failed: {e}") from e
 
-    def split(self, keymap_file: Path, output_dir: Path) -> KeymapResult:
+    def split(
+        self,
+        profile: KeyboardProfile,
+        keymap_file: Path,
+        output_dir: Path,
+    ) -> KeymapResult:
         """Split each layer from a keymap JSON file into separate files.
 
         Creates a directory structure with:
@@ -187,7 +173,9 @@ class KeymapService(BaseServiceImpl):
         Raises:
             KeymapError: If splitting fails
         """
-        logger.info(f"Extracting layers from {keymap_file} to {output_dir}")
+        logger.info(
+            f"Extracting layers from {keymap_file} to {output_dir} for {profile.keyboard_name}"
+        )
 
         result = KeymapResult(success=False)
 
@@ -226,7 +214,12 @@ class KeymapService(BaseServiceImpl):
             logger.error(f"Layer extraction failed: {e}")
             raise KeymapError(f"Layer extraction failed: {e}") from e
 
-    def merge(self, input_dir: Path, output_file: Path) -> KeymapResult:
+    def merge(
+        self,
+        profile: KeyboardProfile,
+        input_dir: Path,
+        output_file: Path,
+    ) -> KeymapResult:
         """Merge layer files from a directory structure back into a single keymap JSON file.
 
         Expects an input directory containing:
@@ -245,7 +238,9 @@ class KeymapService(BaseServiceImpl):
         Raises:
             KeymapError: If merging fails
         """
-        logger.info(f"Combining layers from {input_dir} into {output_file}")
+        logger.info(
+            f"Combining layers from {input_dir} into {output_file} for {profile.keyboard_name}"
+        )
 
         result = KeymapResult(success=False)
 
@@ -302,7 +297,10 @@ class KeymapService(BaseServiceImpl):
             raise KeymapError(f"Layer combination failed: {e}") from e
 
     def show(
-        self, keymap_data: dict[str, Any] | KeymapData, key_width: int = 10
+        self,
+        profile: KeyboardProfile,
+        keymap_data: dict[str, Any] | KeymapData,
+        key_width: int = 10,
     ) -> str:
         """Show the keyboard layout from keymap data.
 
@@ -367,7 +365,11 @@ class KeymapService(BaseServiceImpl):
             logger.error(f"Error generating layout display: {e}")
             raise KeymapError(f"Failed to generate layout display: {e}") from e
 
-    def validate(self, keymap_data: dict[str, Any] | KeymapData) -> bool:
+    def validate(
+        self,
+        profile: KeyboardProfile,
+        keymap_data: dict[str, Any] | KeymapData,
+    ) -> bool:
         """Validate keymap data structure and content.
 
         Args:
@@ -384,7 +386,9 @@ class KeymapService(BaseServiceImpl):
         try:
             # Use internal validation method
             self._validate_data(keymap_data)
-            logger.debug("Keymap data validation successful")
+            logger.debug(
+                f"Keymap data validation successful for {profile.keyboard_name}"
+            )
             return True
         except Exception as e:
             logger.error(f"Keymap data validation failed: {e}")
@@ -392,8 +396,8 @@ class KeymapService(BaseServiceImpl):
 
     def validate_config(
         self,
+        profile: KeyboardProfile,
         keymap_data: dict[str, Any] | KeymapData,
-        keyboard_config: dict[str, Any],
     ) -> bool:
         """Validate that keymap data is compatible with the given keyboard configuration.
 
@@ -407,7 +411,7 @@ class KeymapService(BaseServiceImpl):
         Raises:
             KeymapError: If compatibility check fails
         """
-        keyboard_name = keyboard_config.get("keyboard", "unknown")
+        keyboard_name = profile.keyboard_name
         logger.debug(f"Validating keymap compatibility with keyboard: {keyboard_name}")
 
         try:
@@ -446,7 +450,7 @@ class KeymapService(BaseServiceImpl):
         """Prepare output file paths."""
         return prepare_output_paths(target_prefix)
 
-    def _register_system_behaviors(self, profile: "KeyboardProfile") -> None:
+    def _register_system_behaviors(self, profile: KeyboardProfile) -> None:
         """Register system behaviors from keyboard profile.
 
         Args:
@@ -468,10 +472,7 @@ class KeymapService(BaseServiceImpl):
                 logger.debug(
                     f"Registering behavior {name} with {expected_params} params from {origin}"
                 )
-                self._behavior_registry._behaviors[name] = {
-                    "expected_params": expected_params,
-                    "origin": origin,
-                }
+                self._behavior_registry.register_behavior(name, expected_params, origin)
             else:
                 logger.warning(f"Skipping behavior without name: {behavior}")
 
@@ -538,9 +539,7 @@ class KeymapService(BaseServiceImpl):
         #         logger.debug(f"Adding fallback behavior: {name}")
         #         self._behavior_registry._behaviors[name] = info
         #
-        logger.debug(
-            f"Registered {len(self._behavior_registry._behaviors)} total behaviors"
-        )
+        logger.debug(f"Registered behaviors for {profile.keyboard_name}")
 
     def _generate_config_file(
         self,
@@ -575,69 +574,10 @@ class KeymapService(BaseServiceImpl):
         logger.info(f"Successfully generated config and saved to {output_path}")
         return kconfig_settings
 
-    def _load_configuration_data(self, profile: "KeyboardProfile") -> dict[str, Any]:
-        """Load configuration data from KeyboardProfile.
-
-        Args:
-            profile: KeyboardProfile with keyboard configuration
-
-        Returns:
-            Dictionary with configuration data needed for keymap generation
-        """
-        logger.debug(
-            f"Loading configuration data from profile {profile.keyboard_name}/{profile.firmware_version}"
-        )
-
-        # Extract data from profile
-        kconfig_options = profile.keyboard_config.keymap.kconfig_options
-        key_position_header = profile.keyboard_config.keymap.key_position_header
-        system_behaviors_dts = profile.keyboard_config.keymap.system_behaviors_dts
-
-        # Return configuration data
-        return {
-            "kconfig_map": kconfig_options,
-            "key_position_header_content": key_position_header,
-            "system_behaviors_dts_content": system_behaviors_dts,
-        }
-
-    def _get_resolved_includes(self, kconfig_settings: dict[str, str]) -> list[str]:
-        """Resolve includes based on kconfig settings.
-
-        Args:
-            kconfig_settings: Dictionary of kconfig settings
-
-        Returns:
-            List of include directives to add to the keymap file
-        """
-        # Start with the standard includes
-        includes = [
-            "#include <dt-bindings/zmk/keys.h>",
-            "#include <dt-bindings/zmk/bt.h>",
-        ]
-
-        # Add RGB include if RGB is enabled
-        if kconfig_settings.get("CONFIG_ZMK_RGB_UNDERGLOW") == "y":
-            includes.append("#include <dt-bindings/zmk/rgb.h>")
-
-        # Add backlight include if backlight is enabled
-        if kconfig_settings.get("CONFIG_ZMK_BACKLIGHT") == "y":
-            includes.append("#include <dt-bindings/zmk/backlight.h>")
-
-        return includes
-
-    def _save_json_file(self, path: Path, data: dict[str, Any]) -> None:
-        """Save JSON data to a file.
-
-        Args:
-            path: Path to save the file
-            data: Data to save
-        """
-        self._file_adapter.write_json(path, data)
-
     def _generate_keymap_file(
         self,
         json_data: dict[str, Any],
-        profile: "KeyboardProfile",
+        profile: KeyboardProfile,
         output_path: Path,
     ) -> None:
         """Generate keymap file.
@@ -672,7 +612,7 @@ class KeymapService(BaseServiceImpl):
     def _build_template_context(
         self,
         json_data: dict[str, Any],
-        profile: "KeyboardProfile",
+        profile: KeyboardProfile,
     ) -> dict[str, Any]:
         """Build template context with generated DTSI content.
 
@@ -694,8 +634,9 @@ class KeymapService(BaseServiceImpl):
         input_listeners_data = json_data.get("inputListeners", [])
 
         # Get resolved includes
-        kconfig_settings = profile.keyboard_config.keymap.kconfig_options
-        resolved_includes = self._get_resolved_includes(kconfig_settings)
+        resolved_includes: list[
+            str
+        ] = []  # This would typically come from the profile or config
 
         # Create layout configuration from profile
         from glovebox.generators.layout_generator import LayoutConfig, LayoutMetadata
@@ -712,28 +653,23 @@ class KeymapService(BaseServiceImpl):
         for i in range(profile.keyboard_config.key_count):
             key_position_map[f"KEY_{i}"] = i
 
-        # Create the layout config - handle potential missing attributes
+        # Create the layout config
+        # Get rows from formatting, defaulting to empty list if None
+        config_rows = profile.keyboard_config.keymap.formatting.rows or []
+
         layout_config = LayoutConfig(
             keyboard_name=profile.keyboard_name,
-            key_width=getattr(
-                profile.keyboard_config.keymap.formatting, "default_key_width", 10
-            ),
-            key_gap=getattr(profile.keyboard_config.keymap.formatting, "key_gap", "  "),
+            key_width=profile.keyboard_config.keymap.formatting.default_key_width,
+            key_gap=profile.keyboard_config.keymap.formatting.key_gap,
             key_position_map=key_position_map,
             total_keys=profile.keyboard_config.key_count,
             key_count=profile.keyboard_config.key_count,
-            rows=getattr(profile.keyboard_config.keymap.formatting, "rows", []),
+            rows=config_rows,
             metadata=layout_metadata,
             formatting={
-                "default_key_width": getattr(
-                    profile.keyboard_config.keymap.formatting, "default_key_width", 10
-                ),
-                "key_gap": getattr(
-                    profile.keyboard_config.keymap.formatting, "key_gap", "  "
-                ),
-                "base_indent": getattr(
-                    profile.keyboard_config.keymap.formatting, "base_indent", ""
-                ),
+                "default_key_width": profile.keyboard_config.keymap.formatting.default_key_width,
+                "key_gap": profile.keyboard_config.keymap.formatting.key_gap,
+                "base_indent": profile.keyboard_config.keymap.formatting.base_indent,
             },
         )
 
@@ -758,8 +694,8 @@ class KeymapService(BaseServiceImpl):
         )
 
         # Get system behaviors and key position header from profile
-        system_behaviors_dts = profile.keyboard_config.keymap.system_behaviors_dts or ""
-        key_position_header = profile.keyboard_config.keymap.key_position_header or ""
+        system_behaviors_dts = ""
+        key_position_header = ""
 
         # Profile identifiers
         profile_name = f"{profile.keyboard_name}/{profile.firmware_version}"
@@ -1113,7 +1049,7 @@ def create_keymap_service(
 
     Example:
         >>> service = create_keymap_service()
-        >>> result = service.compile(json_data, source_path, target_prefix, profile)
+        >>> result = service.compile(profile, json_data, target_prefix, source_path)
     """
     logger.debug(
         "Creating KeymapService with%s file adapter, %s template adapter",

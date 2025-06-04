@@ -22,13 +22,13 @@ pre-commit install
 python -m glovebox.cli [command]
 
 # Build a keymap
-glovebox keymap build my_layout.json output/my_keymap --keyboard glove80
+glovebox keymap compile my_layout.json output/my_keymap --profile glove80/v25.05
 
 # Build firmware
-glovebox firmware build keymap.keymap config.conf --keyboard glove80
+glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
 
 # Flash firmware
-glovebox firmware flash firmware.uf2
+glovebox firmware flash firmware.uf2 --profile glove80/v25.05
 ```
 
 ### Testing
@@ -41,13 +41,13 @@ pytest
 pytest --cov=glovebox
 
 # Run a specific test file
-pytest tests/test_services/test_keymap_service.py
+pytest tests/test_services/test_keymap_service_config.py
 
 # Run a specific test function
-pytest tests/test_services/test_keymap_service.py::test_function_name
+pytest tests/test_services/test_keymap_service_config.py::test_function_name
 
 # Run CLI tests
-pytest tests/test_cli/test_basics.py
+pytest tests/test_cli/test_command_execution.py
 ```
 
 Note: The CLI tests have been simplified to focus on basic functionality and command structure verification.
@@ -88,7 +88,7 @@ Glovebox is a comprehensive tool for ZMK keyboard firmware management with a cle
   - `KeymapService`: Handles keymap operations
   - `BuildService`: Manages firmware building
   - `FlashService`: Controls device detection and firmware flashing
-  - `ConfigService`: Handles configuration and profile management
+  - `DisplayService`: Renders keyboard layouts in the terminal
 
 - **Adapter Pattern**: External system interfaces
   - `DockerAdapter`: Docker interaction for builds
@@ -96,9 +96,11 @@ Glovebox is a comprehensive tool for ZMK keyboard firmware management with a cle
   - `USBAdapter`: USB device detection and mounting
   - `TemplateAdapter`: Template rendering
 
-- **Profile System**: Keyboard-specific configuration inheritance
-  - Each keyboard has a specific profile with templates and settings
-  - Profiles can inherit from base configurations
+- **Configuration System**: Type-safe configuration with KeyboardProfile pattern
+  - Typed dataclasses for all configuration components
+  - KeyboardProfile combines keyboard and firmware configurations
+  - YAML-based configuration files with schema validation
+  - Helper functions for profile creation and management
 
 - **Build Chains**: Pluggable build system for different toolchains all based on ZMK
 
@@ -109,6 +111,52 @@ Glovebox is a comprehensive tool for ZMK keyboard firmware management with a cle
 3. **Clear Error Handling**: Specific exceptions with context
 4. **Service Oriented**: Business logic organized by feature areas
 5. **File Organization**: Logical size limits and function grouping
+6. **Dependency Injection**: Services accept dependencies rather than creating them
+7. **Factory Functions**: Simplify creation of properly configured services
+
+### KeyboardProfile Pattern
+
+The KeyboardProfile pattern is a central concept in the architecture:
+
+1. **Creation**: 
+   ```python
+   from glovebox.config.keyboard_config import create_keyboard_profile
+   
+   profile = create_keyboard_profile("glove80", "v25.05")
+   ```
+
+2. **CLI Integration**:
+   ```bash
+   # Using profile parameter
+   glovebox keymap compile input.json output/ --profile glove80/v25.05
+   ```
+
+3. **Service Usage**:
+   ```python
+   # Service methods accept profile
+   result = keymap_service.compile(profile, json_data, target_prefix)
+   ```
+
+4. **Configuration Access**:
+   ```python
+   # Access nested configuration
+   profile.keyboard_config.description
+   profile.firmware_config.version
+   ```
+
+### CLI Structure
+
+All CLI commands follow a consistent pattern with profile-based parameter:
+
+```
+glovebox [command] [subcommand] [--profile KEYBOARD/FIRMWARE] [options]
+```
+
+For example:
+- `glovebox keymap compile my_layout.json output/my_keymap --profile glove80/v25.05`
+- `glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05`
+- `glovebox firmware flash firmware.uf2 --profile glove80/v25.05`
+- `glovebox keymap show my_layout.json --profile glove80/v25.05`
 
 ### Maintainability Guidelines
 

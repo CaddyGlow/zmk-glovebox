@@ -219,9 +219,7 @@ def keymap_compile(
 
     # Compile keymap using the KeyboardProfile
     keymap_service = create_keymap_service()
-    result = keymap_service.compile(
-        json_data, json_file_path, target_prefix, profile=keyboard_profile
-    )
+    result = keymap_service.compile(keyboard_profile, json_data, target_prefix)
 
     if result.success:
         print("✓ Keymap compiled successfully")
@@ -383,12 +381,20 @@ def show(
         print(result)
     else:
         # Use the traditional display
-        keymap_service = create_keymap_service()
-        result = keymap_service.show(keymap_data=json_data, key_width=key_width)
+        try:
+            keymap_service = create_keymap_service()
+            result = keymap_service.show(keymap_data=json_data, key_width=key_width)
 
-        # Display the result
-        for line in result:
-            print(line)
+            # Display the result
+            if isinstance(result, list):
+                for line in result:
+                    print(line)
+            else:
+                print(result)
+        except NotImplementedError as e:
+            print(f"Error: {e}")
+            print("Please use the --profile option to use the enhanced display service instead.")
+            raise typer.Exit(1) from e
 
 
 @keymap_app.command()

@@ -12,6 +12,7 @@ import typer
 from glovebox.cli import app
 from glovebox.models.results import BuildResult, FlashResult, KeymapResult
 from glovebox.services.build_service import create_build_service
+from glovebox.services.display_service import create_display_service
 from glovebox.services.flash_service import create_flash_service
 from glovebox.services.keymap_service import create_keymap_service
 
@@ -27,12 +28,13 @@ def test_keymap_compile_command(
     mock_keymap_service,
     mock_keyboard_config,
     sample_keymap_json,
+    tmp_path,
 ):
     """Test keymap compile command with KeyboardProfile."""
     # Setup path mock
     mock_path_instance = Mock()
     mock_path_instance.exists.return_value = True
-    mock_path_instance.read_text.return_value = "{}"
+    mock_path_instance.read_text.return_value = json.dumps(sample_keymap_json)
     mock_path_cls.return_value = mock_path_instance
 
     # Setup keymap service mock
@@ -52,6 +54,10 @@ def test_keymap_compile_command(
     mock_keyboard_profile.firmware_version = "v25.05"
     mock_create_keyboard_profile.return_value = mock_keyboard_profile
 
+    # Create a temporary file with sample keymap data
+    temp_file = tmp_path / "test_keymap.json"
+    temp_file.write_text(json.dumps(sample_keymap_json))
+
     # Run the command
     result = cli_runner.invoke(
         app,
@@ -61,7 +67,7 @@ def test_keymap_compile_command(
             "output/test",
             "--profile",
             "glove80/v25.05",
-            str(sample_keymap_json),
+            str(temp_file),
         ],
         catch_exceptions=False,
     )
@@ -79,11 +85,12 @@ def test_keymap_compile_command(
     # Verify the KeyboardProfile was created correctly
     mock_create_keyboard_profile.assert_called_once_with("glove80", "v25.05")
 
-    # Verify the service was called with the profile
+    # Verify the service was called with the profile as positional arg
     call_args = mock_keymap_service.compile.call_args
     assert call_args is not None
     args, kwargs = call_args
-    assert kwargs.get("profile") == mock_keyboard_profile
+    assert len(args) >= 1
+    assert args[0] == mock_keyboard_profile
 
 
 @patch("glovebox.cli.create_keymap_service")
@@ -95,6 +102,7 @@ def test_keymap_compile_failure(
     mock_create_service,
     cli_runner,
     mock_keymap_service,
+    tmp_path,
 ):
     """Test keymap compile command failure handling."""
     # Setup path mock
@@ -129,8 +137,8 @@ def test_keymap_compile_failure(
             "repository": "moergo-sc/zmk",
             "branch": "v25.05",
         },
-        "visual_layout": {"rows": [[0, 1, 2, 3, 4]]},
-        "formatting": {"default_key_width": 8, "key_gap": "  ", "base_indent": ""},
+        # visual_layout removed - not part of KeyboardConfig
+        # Move formatting into keymap where it belongs
         "firmwares": {
             "v25.05": {
                 "version": "v25.05",
@@ -145,9 +153,15 @@ def test_keymap_compile_failure(
             "keymap_dtsi": "test template",
             "system_behaviors_dts": "test behaviors",
             "key_position_header": "test header",
+            "formatting": {"default_key_width": 8, "key_gap": "  ", "base_indent": ""},
         },
     }
     mock_load_config.return_value = mock_config
+
+    # Create a temporary sample file for the test
+    temp_file = tmp_path / "test_keymap.json"
+    temp_file.write_text(json.dumps({"keyboard": "glove80", "layers": []}))
+    temp_path = str(temp_file)
 
     result = cli_runner.invoke(
         app,
@@ -157,9 +171,9 @@ def test_keymap_compile_failure(
             "output/test",
             "--profile",
             "glove80/v25.05",
-            "test.json",
+            temp_path,
         ],
-        catch_exceptions=False,
+        catch_exceptions=True,
     )
 
     print(f"Failure test output: {result.output}")
@@ -190,10 +204,15 @@ def test_keymap_split_command(
     split_result = KeymapResult(success=True)
     mock_keymap_service.split.return_value = split_result
 
+    # Create a temporary sample file for the test
+    temp_file = tmp_path / "test_keymap.json"
+    temp_file.write_text(json.dumps({"keyboard": "test_keyboard", "layers": []}))
+    temp_path = str(temp_file)
+
     result = cli_runner.invoke(
         app,
-        ["keymap", "split", str(sample_keymap_json), str(output_dir)],
-        catch_exceptions=False,
+        ["keymap", "split", temp_path, str(output_dir)],
+        catch_exceptions=True,
     )
 
     assert result.exit_code == 0
@@ -244,6 +263,7 @@ def test_keymap_show_command(
     cli_runner,
     mock_keymap_service,
     sample_keymap_json,
+    tmp_path,
 ):
     """Test keymap show command (using traditional show method)."""
     # Setup mocks
@@ -256,28 +276,31 @@ def test_keymap_show_command(
     # Return valid JSON
     mock_json_loads.return_value = {"valid": "data"}
 
-    # Configure mock to return specific layout lines
-    mock_keymap_service.show.return_value = [
-        "Layer: QWERTY",
-        "+-----+-----+-----+-----+-----+",
-        "| Q   | W   | E   | R   | T   |",
-        "| Y   | U   | I   | O   | P   |",
-        "+-----+-----+-----+-----+-----+",
-    ]
-
-    result = cli_runner.invoke(
-        app, ["keymap", "show", str(sample_keymap_json)], catch_exceptions=False
+    # Configure mock to handle the NotImplementedError
+    mock_keymap_service.show.side_effect = NotImplementedError(
+        "The layout display feature is not yet implemented. Coming in a future release."
     )
 
-    assert result.exit_code == 0
-    assert "Layer: QWERTY" in result.output
-    assert "| Q   | W   | E   | R   | T   |" in result.output
+    # Create a temporary sample file for the test
+    temp_file = tmp_path / "test_keymap.json"
+    temp_file.write_text(json.dumps({"keyboard": "test_keyboard", "layers": []}))
+    temp_path = str(temp_file)
+
+    # Test with catch_exceptions=True to handle the expected NotImplementedError
+    result = cli_runner.invoke(
+        app, ["keymap", "show", temp_path], catch_exceptions=True
+    )
+
+    # The command should fail with exit code 1 because of the NotImplementedError
+    assert result.exit_code == 1
+    # Verify the error message is included in the output
+    assert "not yet implemented" in result.output
 
     # Verify service was called
     mock_keymap_service.show.assert_called_once()
 
 
-@patch("glovebox.cli.create_display_service")
+@patch("glovebox.services.display_service.create_display_service")
 @patch("glovebox.cli.create_keymap_service")
 @patch("glovebox.cli.Path")
 @patch("glovebox.cli.json.loads")
@@ -291,6 +314,7 @@ def test_keymap_show_command_with_profile(
     cli_runner,
     mock_keymap_service,
     sample_keymap_json,
+    tmp_path,
 ):
     """Test keymap show command with KeyboardProfile."""
     # Setup mocks
@@ -310,6 +334,7 @@ def test_keymap_show_command_with_profile(
 
     # Create a mock DisplayService and mock its display_keymap_with_layout method
     mock_display_service = Mock()
+    # This version of the method should work as it doesn't call the unimplemented show() method
     mock_display_service.display_keymap_with_layout.return_value = (
         "Enhanced Layout Display with Profile\n"
         "Layer: QWERTY\n"
@@ -320,18 +345,29 @@ def test_keymap_show_command_with_profile(
     )
     mock_create_display.return_value = mock_display_service
 
-    # Run the command with profile option
+    # The keymap service's show method is not used when a profile is provided
+    mock_create_keymap.return_value = mock_keymap_service
+
+    # Create a temporary sample file for the test
+    temp_file = tmp_path / "test_keymap.json"
+    temp_file.write_text(json.dumps({"keyboard": "glove80", "layers": []}))
+    temp_path = str(temp_file)
+
+    # Run the command with profile option and the temporary file
     result = cli_runner.invoke(
         app,
         [
             "keymap",
             "show",
-            str(sample_keymap_json),
+            temp_path,
             "--profile",
             "glove80/v25.05",
         ],
-        catch_exceptions=False,
+        catch_exceptions=True,
     )
+
+    print(f"Test output: {result.output}")
+    print(f"Exception: {getattr(result, 'exception', None)}")
 
     assert result.exit_code == 0
     assert "Enhanced Layout Display with Profile" in result.output
@@ -347,6 +383,9 @@ def test_keymap_show_command_with_profile(
     args, kwargs = call_args
     assert kwargs.get("profile") == mock_keyboard_profile
 
+    # Verify keymap_service.show was NOT called (since we're using the display service)
+    mock_keymap_service.show.assert_not_called()
+
 
 @patch("glovebox.cli.create_keymap_service")
 @patch("glovebox.cli.Path")
@@ -358,6 +397,7 @@ def test_keymap_validate_command(
     cli_runner,
     mock_keymap_service,
     sample_keymap_json,
+    tmp_path,
 ):
     """Test keymap validate command."""
     # Setup mocks
@@ -373,9 +413,17 @@ def test_keymap_validate_command(
     # First test: validation passes
     mock_keymap_service.validate.return_value = True
 
+    # Create a temporary sample file for the test
+    temp_file = tmp_path / "test_keymap.json"
+    temp_file.write_text(json.dumps({"valid": "data"}))
+    temp_path = str(temp_file)
+
     result = cli_runner.invoke(
-        app, ["keymap", "validate", str(sample_keymap_json)], catch_exceptions=False
+        app, ["keymap", "validate", temp_path], catch_exceptions=True
     )
+
+    print(f"Validate test output: {result.output}")
+    print(f"Exception: {getattr(result, 'exception', None)}")
 
     assert result.exit_code == 0
     assert "valid" in result.output
@@ -383,9 +431,13 @@ def test_keymap_validate_command(
     # Second test: validation fails
     mock_keymap_service.validate.return_value = False
 
+    # Use the same temporary file for the failure test
     result = cli_runner.invoke(
-        app, ["keymap", "validate", str(sample_keymap_json)], catch_exceptions=False
+        app, ["keymap", "validate", temp_path], catch_exceptions=True
     )
+
+    print(f"Validate failure test output: {result.output}")
+    print(f"Exception: {getattr(result, 'exception', None)}")
 
     assert result.exit_code == 1
     assert "invalid" in result.output

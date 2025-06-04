@@ -32,6 +32,13 @@ in
     uv.enable = true;
   };
 
+  languages.javascript = {
+    enable = true;
+    pnpm = {
+      enable = true;
+      install.enable = true;
+    };
+  };
   enterShell = '''';
   # git-hooks.hooks = {
   #   ruff.enable = true;

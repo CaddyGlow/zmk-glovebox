@@ -98,31 +98,11 @@ def keymap_service():
     return KeymapService(file_adapter, template_adapter)
 
 
-@pytest.fixture
-def sample_keymap_data():
-    """Create sample keymap data for testing."""
-    return {
-        "keyboard": "test_keyboard",
-        "firmware_api_version": "1",
-        "locale": "en-US",
-        "uuid": "test-uuid",
-        "date": "2025-01-01T00:00:00",
-        "creator": "test",
-        "title": "Test Keymap",
-        "notes": "Test keymap for unit tests",
-        "tags": ["test", "unit"],
-        "layers": [[{"value": "&kp", "params": ["Q"]} for _ in range(80)]],
-        "layer_names": ["DEFAULT"],
-        "custom_defined_behaviors": "",
-        "custom_devicetree": "",
-        "macros": [],
-        "combos": [],
-        "holdTaps": [],
-    }
+# Using sample_keymap_json fixture from conftest.py
 
 
 def test_compile_with_profile(
-    keymap_service, mock_create_keyboard_profile, sample_keymap_data, mock_profile
+    keymap_service, mock_create_keyboard_profile, sample_keymap_json, mock_profile
 ):
     """Test compiling a keymap with the new KeyboardProfile."""
     # Mock the generator methods to avoid real functionality
@@ -132,11 +112,9 @@ def test_compile_with_profile(
 
     # Run the compile method
     result = keymap_service.compile(
-        sample_keymap_data,
-        None,  # No source_json_path
+        mock_profile,
+        sample_keymap_json,
         "output/test",  # target_prefix
-        "test_keyboard",  # keyboard_name
-        "default",  # firmware_version
     )
 
     # Check that create_keyboard_profile was called

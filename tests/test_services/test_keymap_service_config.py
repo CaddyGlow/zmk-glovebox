@@ -9,32 +9,10 @@ from glovebox.adapters.file_adapter import FileAdapter
 from glovebox.adapters.template_adapter import TemplateAdapter
 from glovebox.core.errors import KeymapError
 from glovebox.models.results import KeymapResult
-from glovebox.services.keymap_service import KeymapService, create_keymap_service
+from glovebox.services.keymap_service import KeymapService
 
 
-@pytest.fixture
-def sample_keymap_json():
-    """Sample keymap JSON data for testing."""
-    return {
-        "keyboard": "test_keyboard",
-        "firmware_api_version": "1",
-        "locale": "en-US",
-        "uuid": "test-uuid",
-        "date": "2025-01-01T00:00:00",
-        "creator": "test",
-        "title": "Test Keymap",
-        "notes": "",
-        "tags": [],
-        "layers": [[{"value": "&kp", "params": [{"value": "Q"}]} for _ in range(80)]],
-        "layer_names": ["DEFAULT"],
-        "custom_defined_behaviors": "",
-        "custom_devicetree": "",
-        "config_parameters": [],
-        "macros": [],
-        "combos": [],
-        "holdTaps": [],
-        "inputListeners": [],
-    }
+# Using sample_keymap_json fixture from conftest.py
 
 
 class TestKeymapServiceWithKeyboardConfig:
@@ -118,6 +96,11 @@ class TestKeymapServiceWithKeyboardConfig:
         # Verify
         assert result is True
 
+    def test_show_not_implemented(self, sample_keymap_json):
+        """Test that the show method raises NotImplementedError."""
+        with pytest.raises(NotImplementedError):
+            self.service.show(keymap_data=sample_keymap_json)
+
     @patch("glovebox.config.keyboard_config.create_keyboard_profile")
     @patch("glovebox.generators.dtsi_generator.DTSIGenerator.generate_layer_defines")
     @patch("glovebox.generators.dtsi_generator.DTSIGenerator.generate_keymap_node")
@@ -135,7 +118,6 @@ class TestKeymapServiceWithKeyboardConfig:
         mock_behaviors,
         mock_keymap,
         mock_layers,
-        mock_create_profile,
         sample_keymap_json,
         mock_keyboard_config,
         tmp_path,
@@ -176,9 +158,6 @@ class TestKeymapServiceWithKeyboardConfig:
         mock_profile.system_behaviors = []
         mock_profile.kconfig_options = {}
 
-        # Setup mock to return our profile
-        mock_create_profile.return_value = mock_profile
-
         # Mock file adapter methods
         self.mock_file_adapter.mkdir.return_value = None
         self.mock_file_adapter.write_text.return_value = None
@@ -188,16 +167,13 @@ class TestKeymapServiceWithKeyboardConfig:
         self.mock_template_adapter.render_string.return_value = "// Generated keymap"
 
         # Setup test data
-        source_path = Path(tmp_path / "source.json")
         target_prefix = str(tmp_path / "output/test")
 
         # Execute
         result = self.service.compile(
+            mock_profile,
             sample_keymap_json,
-            source_path,
             target_prefix,
-            "test_keyboard",  # keyboard_name instead of config
-            "default",  # firmware_version instead of config
         )
 
         # Verify
@@ -212,34 +188,6 @@ class TestKeymapServiceWithKeyboardConfig:
 
         # Verify JSON file was saved
         assert self.mock_file_adapter.write_json.call_count > 0
-
-    def test_load_configuration_data(self, mock_keyboard_config):
-        """Test loading configuration data from keyboard profile."""
-        # Create a mock profile
-        mock_profile = MagicMock()
-        mock_profile.keyboard_name = "test_keyboard"
-        mock_profile.firmware_version = "default"
-        mock_profile.keyboard_config = MagicMock()
-        mock_profile.keyboard_config.keymap = MagicMock()
-        mock_profile.keyboard_config.keymap.keymap_dtsi = "// Template content"
-        mock_profile.keyboard_config.keymap.key_position_header = "// Key positions"
-        mock_profile.keyboard_config.keymap.system_behaviors_dts = "// Behaviors"
-        mock_profile.system_behaviors = []
-        mock_profile.kconfig_options = {"CONFIG_ZMK_KEYBOARD_NAME": MagicMock()}
-
-        # Execute
-        config_data = self.service._load_configuration_data(mock_profile)
-
-        # Verify expected fields are present
-        assert "kconfig_map" in config_data
-        assert "key_position_header_content" in config_data
-        assert "system_behaviors_dts_content" in config_data
-
-        # Verify contents
-        assert config_data["key_position_header_content"] == "// Key positions"
-        assert config_data["system_behaviors_dts_content"] == "// Behaviors"
-        # The test mock structure is different from the implementation
-        # Just check that the field exists
 
     def test_register_system_behaviors(self, mock_keyboard_config):
         """Test registration of system behaviors from keyboard profile."""
@@ -306,7 +254,6 @@ class TestKeymapServiceWithMockedConfig:
         mock_get_keyboards,
         mock_create_profile,
         sample_keymap_json,
-        mock_keyboard_config,
         tmp_path,
     ):
         """Test integrated keymap workflow with mocked config API."""
@@ -374,11 +321,9 @@ class TestKeymapServiceWithMockedConfig:
         try:
             # We're only testing that the integration points don't raise exceptions
             result = service.compile(
+                mock_profile,
                 sample_keymap_json,
-                source_path,
                 target_prefix,
-                "test_keyboard",  # keyboard_name instead of config
-                "default",  # firmware_version instead of config
             )
             success = True
             assert result.success is True
