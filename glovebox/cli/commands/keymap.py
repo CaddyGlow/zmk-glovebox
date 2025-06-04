@@ -63,6 +63,14 @@ def keymap_compile(
     logger.info(f"Reading keymap JSON from {json_file_path}...")
     json_data = json.loads(json_file_path.read_text())
 
+    # Validate as KeymapData
+    from glovebox.models.keymap import KeymapData
+
+    try:
+        keymap_data = KeymapData.model_validate(json_data)
+    except Exception as e:
+        raise typer.BadParameter(f"Invalid keymap data: {str(e)}") from e
+
     # Create profile from profile option
     from glovebox.cli.helpers.profile import create_profile_from_option
 
@@ -70,7 +78,7 @@ def keymap_compile(
 
     # Compile keymap using the KeyboardProfile
     keymap_service = create_keymap_service()
-    result = keymap_service.compile(keyboard_profile, json_data, target_prefix)
+    result = keymap_service.compile(keyboard_profile, keymap_data, target_prefix)
 
     if result.success:
         print_success_message("Keymap compiled successfully")
@@ -109,12 +117,17 @@ def split(
 
     # Create profile from profile option
     from glovebox.cli.helpers.profile import create_profile_from_option
+    from glovebox.models.keymap import KeymapData
 
     keyboard_profile = create_profile_from_option(profile)
 
+    # Load JSON data and convert to KeymapData
+    json_data = json.loads(keymap_file.read_text())
+    keymap_data = KeymapData.model_validate(json_data)
+
     keymap_service = create_keymap_service()
-    result = keymap_service.split(
-        profile=keyboard_profile, keymap_file=keymap_file, output_dir=output_dir
+    result = keymap_service.split_keymap(
+        profile=keyboard_profile, keymap_data=keymap_data, output_dir=output_dir
     )
 
     if result.success:
@@ -153,12 +166,29 @@ def merge(
 
     # Create profile from profile option
     from glovebox.cli.helpers.profile import create_profile_from_option
+    from glovebox.models.keymap import KeymapData
 
     keyboard_profile = create_profile_from_option(profile)
 
+    # Load base data
+    base_json_path = input_dir / "base.json"
+    if not base_json_path.exists():
+        raise typer.BadParameter(f"Base JSON file not found: {base_json_path}")
+
+    base_json = json.loads(base_json_path.read_text())
+    base_data = KeymapData.model_validate(base_json)
+
+    # Create layers directory path
+    layers_dir = input_dir / "layers"
+    if not layers_dir.exists():
+        raise typer.BadParameter(f"Layers directory not found: {layers_dir}")
+
     keymap_service = create_keymap_service()
-    result = keymap_service.merge(
-        profile=keyboard_profile, input_dir=input_dir, output_file=output
+    result = keymap_service.merge_layers(
+        profile=keyboard_profile,
+        base_data=base_data,
+        layers_dir=layers_dir,
+        output_file=output,
     )
 
     if result.success:
@@ -189,13 +219,22 @@ def validate(
 
     json_data = json.loads(json_file.read_text())
 
+    # Validate as KeymapData
+    from glovebox.models.keymap import KeymapData
+
+    try:
+        keymap_data = KeymapData.model_validate(json_data)
+    except Exception as e:
+        print_error_message(f"Keymap validation failed: {str(e)}")
+        raise typer.Exit(1) from e
+
     # Create profile from profile option
     from glovebox.cli.helpers.profile import create_profile_from_option
 
     keyboard_profile = create_profile_from_option(profile)
 
     keymap_service = create_keymap_service()
-    if keymap_service.validate(profile=keyboard_profile, keymap_data=json_data):
+    if keymap_service.validate(profile=keyboard_profile, keymap_data=keymap_data):
         print_success_message(f"Keymap file {json_file} is valid")
     else:
         print_error_message(f"Keymap file {json_file} is invalid")
@@ -239,6 +278,15 @@ def show(
 
     json_data = json.loads(json_file.read_text())
 
+    # Validate as KeymapData
+    from glovebox.models.keymap import KeymapData
+
+    try:
+        keymap_data = KeymapData.model_validate(json_data)
+    except Exception as e:
+        print_error_message(f"Keymap validation failed: {str(e)}")
+        raise typer.Exit(1) from e
+
     # Create profile from profile option if provided
     keyboard_profile = None
     if profile:
@@ -251,14 +299,16 @@ def show(
     try:
         result = keymap_service.show(
             profile=keyboard_profile,
-            keymap_data=json_data,
+            keymap_data=keymap_data,
             key_width=key_width,
-            view_mode=view_mode,
-            layout=layout,
-            layer=layer,
         )
-        for line in result:
-            typer.echo(line)
+        # Since the return type has changed from list to str, handle accordingly
+        if isinstance(result, str):
+            typer.echo(result)
+        else:
+            # Handle backward compatibility for any case where it might still return a list
+            for line in result:
+                typer.echo(line)
     except NotImplementedError as e:
         print_error_message(str(e))
         raise typer.Exit(1) from e

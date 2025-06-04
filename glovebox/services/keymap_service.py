@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, TypeAlias, Union, cast
 
 from glovebox.adapters.file_adapter import FileAdapter
 from glovebox.adapters.template_adapter import TemplateAdapter
@@ -22,7 +22,15 @@ from glovebox.generators.layout_generator import (
     LayoutMetadata,
     ViewMode,
 )
-from glovebox.models.keymap import KeymapData, KeymapLayer
+from glovebox.models.keymap import (
+    ComboBehavior,
+    HoldTapBehavior,
+    InputListener,
+    KeymapBinding,
+    KeymapData,
+    KeymapLayer,
+    MacroBehavior,
+)
 from glovebox.models.results import KeymapResult
 from glovebox.services.base_service import BaseServiceImpl
 from glovebox.services.behavior_service import (
@@ -33,6 +41,13 @@ from glovebox.utils.file_utils import prepare_output_paths, sanitize_filename
 
 
 logger = logging.getLogger(__name__)
+
+
+# Type aliases for internal use
+LayerData: TypeAlias = list[KeymapBinding]
+KeymapDict: TypeAlias = dict[str, Any]
+KConfigMap: TypeAlias = dict[str, dict[str, str]]
+TemplateContext: TypeAlias = dict[str, Any]
 
 
 class KeymapService(BaseServiceImpl):
@@ -398,14 +413,14 @@ class KeymapService(BaseServiceImpl):
 
     def _generate_config_file(
         self,
-        json_data: dict[str, Any],
+        keymap_data: KeymapDict,
         kconfig_options: dict[str, KConfigOption],
         output_path: Path,
     ) -> dict[str, str]:
         """Generate configuration file and return settings.
 
         Args:
-            json_data: Keymap data containing config parameters
+            keymap_data: Keymap data containing config parameters
             kconfig_options: Mapping of kconfig options
             output_path: Path to save the config file
 
@@ -415,7 +430,7 @@ class KeymapService(BaseServiceImpl):
         logger.info("Generating Kconfig .conf file...")
 
         # Create a kconfig map from the options
-        kconfig_map = {}
+        kconfig_map: KConfigMap = {}
         for name, option in kconfig_options.items():
             kconfig_map[name] = {
                 "config_key": f"CONFIG_{name.upper()}",  # Default naming convention
@@ -423,7 +438,7 @@ class KeymapService(BaseServiceImpl):
             }
 
         conf_content, kconfig_settings = self._config_generator.generate_kconfig(
-            json_data, kconfig_map
+            keymap_data, kconfig_map
         )
         self._file_adapter.write_text(output_path, conf_content)
         logger.info("Successfully generated config and saved to %s", output_path)
@@ -431,14 +446,14 @@ class KeymapService(BaseServiceImpl):
 
     def _generate_keymap_file(
         self,
-        json_data: dict[str, Any],
+        keymap_data: KeymapDict,
         profile: KeyboardProfile,
         output_path: Path,
     ) -> None:
         """Generate keymap file.
 
         Args:
-            json_data: Keymap data with layers and behaviors
+            keymap_data: Keymap data with layers and behaviors
             profile: KeyboardProfile instance with configuration
             output_path: Path to save the generated keymap file
         """
@@ -446,7 +461,7 @@ class KeymapService(BaseServiceImpl):
         logger.info("Building .keymap file")
 
         # Prepare template context
-        context = self._build_template_context(json_data, profile)
+        context = self._build_template_context(keymap_data, profile)
 
         # Get template content directly from keymap configuration
         template_content = profile.keyboard_config.keymap.keymap_dtsi
@@ -466,25 +481,25 @@ class KeymapService(BaseServiceImpl):
 
     def _build_template_context(
         self,
-        json_data: dict[str, Any],
+        keymap_data: KeymapDict,
         profile: KeyboardProfile,
-    ) -> dict[str, Any]:
+    ) -> TemplateContext:
         """Build template context with generated DTSI content.
 
         Args:
-            json_data: Keymap data
+            keymap_data: Keymap data
             profile: Keyboard profile with configuration
 
         Returns:
             Dictionary with template context
         """
         # Extract data for generation
-        layer_names = json_data.get("layer_names", [])
-        layers_data = json_data.get("layers", [])
-        hold_taps_data = json_data.get("holdTaps", [])
-        combos_data = json_data.get("combos", [])
-        macros_data = json_data.get("macros", [])
-        input_listeners_data = json_data.get("inputListeners", [])
+        layer_names = keymap_data.get("layer_names", [])
+        layers_data = keymap_data.get("layers", [])
+        hold_taps_data = keymap_data.get("holdTaps", [])
+        combos_data = keymap_data.get("combos", [])
+        macros_data = keymap_data.get("macros", [])
+        input_listeners_data = keymap_data.get("inputListeners", [])
 
         # Get resolved includes from the profile
         resolved_includes = (
@@ -527,8 +542,9 @@ class KeymapService(BaseServiceImpl):
         profile_name = f"{profile.keyboard_name}/{profile.firmware_version}"
         firmware_version = profile.firmware_version
 
-        return {
-            "keyboard": json_data.get("keyboard", "unknown"),
+        # Build and return the template context
+        context: TemplateContext = {
+            "keyboard": keymap_data.get("keyboard", "unknown"),
             "layer_names": layer_names,
             "layers": layers_data,
             "layer_defines": layer_defines,
@@ -540,16 +556,18 @@ class KeymapService(BaseServiceImpl):
             "resolved_includes": "\n".join(resolved_includes),
             "key_position_header": key_position_header,
             "system_behaviors_dts": system_behaviors_dts,
-            "custom_defined_behaviors": json_data.get("custom_defined_behaviors", ""),
-            "custom_devicetree": json_data.get("custom_devicetree", ""),
+            "custom_defined_behaviors": keymap_data.get("custom_defined_behaviors", ""),
+            "custom_devicetree": keymap_data.get("custom_devicetree", ""),
             "profile_name": profile_name,
             "firmware_version": firmware_version,
             "generation_timestamp": datetime.now().isoformat(),
         }
 
+        return context
+
     # Helper methods for extraction
 
-    def _extract_dtsi_snippets(self, keymap: dict[str, Any], output_dir: Path) -> None:
+    def _extract_dtsi_snippets(self, keymap: KeymapDict, output_dir: Path) -> None:
         """Extract custom DTSI snippets to separate files.
 
         Args:
@@ -569,7 +587,7 @@ class KeymapService(BaseServiceImpl):
             self._file_adapter.write_text(keymap_dtsi_path, behaviors_dtsi)
             logger.info("Extracted custom_defined_behaviors to %s", keymap_dtsi_path)
 
-    def _extract_base_config(self, keymap: dict[str, Any], output_dir: Path) -> None:
+    def _extract_base_config(self, keymap: KeymapDict, output_dir: Path) -> None:
         """Extract base configuration to base.json.
 
         Args:
@@ -582,15 +600,13 @@ class KeymapService(BaseServiceImpl):
         fields_to_empty = ["layers", "custom_defined_behaviors", "custom_devicetree"]
         for field in fields_to_empty:
             if field in base_keymap:
-                if isinstance(base_keymap[field], list):
+                if field == "layers":
                     base_keymap[field] = []
-                elif isinstance(base_keymap[field], dict):
-                    base_keymap[field] = {}
-                elif isinstance(base_keymap[field], str):
+                elif isinstance(base_keymap.get(field), str):
                     base_keymap[field] = ""
 
         # Ensure essential fields exist
-        essential_fields: dict[str, list[Any] | dict[str, Any]] = {
+        essential_fields = {
             "layer_names": [],
             "macros": [],
             "combos": [],
@@ -612,7 +628,7 @@ class KeymapService(BaseServiceImpl):
         logger.info("Extracted base configuration to %s", output_file)
 
     def _extract_individual_layers(
-        self, keymap: dict[str, Any], output_layer_dir: Path
+        self, keymap: KeymapDict, output_layer_dir: Path
     ) -> None:
         """Extract individual layers to separate JSON files.
 
@@ -653,7 +669,7 @@ class KeymapService(BaseServiceImpl):
                 continue
 
             # Create minimal keymap structure for the single layer
-            layer_keymap = {
+            layer_keymap: KeymapDict = {
                 "keyboard": keymap.get("keyboard", "unknown"),
                 "firmware_api_version": keymap.get("firmware_api_version", "1"),
                 "locale": keymap.get("locale", "en-US"),
@@ -681,7 +697,7 @@ class KeymapService(BaseServiceImpl):
     # Helper methods for layer combination
 
     def _process_layers_for_combination(
-        self, combined_keymap: dict[str, Any], layers_dir: Path
+        self, combined_keymap: KeymapDict, layers_dir: Path
     ) -> None:
         """Process and combine layer files.
 
@@ -690,7 +706,7 @@ class KeymapService(BaseServiceImpl):
             layers_dir: Directory containing layer files
         """
         combined_keymap["layers"] = []
-        layer_names = combined_keymap["layer_names"]
+        layer_names = combined_keymap.get("layer_names", [])
         logger.info(
             "Expecting %d layers based on base.json: %s", len(layer_names), layer_names
         )
@@ -713,7 +729,8 @@ class KeymapService(BaseServiceImpl):
                     layer_file.name,
                     layer_name,
                 )
-                combined_keymap["layers"].append(empty_layer)
+                if "layers" in combined_keymap:
+                    combined_keymap["layers"].append(empty_layer)
                 continue
 
             logger.info(
@@ -721,7 +738,7 @@ class KeymapService(BaseServiceImpl):
             )
 
             try:
-                layer_data = self._file_adapter.read_json(layer_file)
+                layer_data: KeymapDict = self._file_adapter.read_json(layer_file)
 
                 # Find the actual layer data within the layer file
                 if (
@@ -770,7 +787,7 @@ class KeymapService(BaseServiceImpl):
         )
 
     def _add_dtsi_content_from_files(
-        self, combined_keymap: dict[str, Any], input_dir: Path
+        self, combined_keymap: KeymapDict, input_dir: Path
     ) -> None:
         """Add DTSI content from separate files to combined keymap.
 
@@ -798,6 +815,112 @@ class KeymapService(BaseServiceImpl):
             logger.info("Restored custom_defined_behaviors from keymap.dtsi.")
         else:
             combined_keymap["custom_defined_behaviors"] = ""
+
+    def _generate_layout_display(
+        self,
+        title: str,
+        creator: str,
+        locale: str,
+        notes: str,
+        keyboard: str,
+        layer_names: list[str],
+        layers: list[list[dict[str, Any]]],
+        key_width: int,
+    ) -> str:
+        """Generate formatted layout display text.
+
+        Args:
+            title: Layout title
+            creator: Layout creator
+            locale: Layout locale
+            notes: Layout notes
+            keyboard: Keyboard name
+            layer_names: List of layer names
+            layers: List of layer data
+            key_width: Width of keys in the display
+
+        Returns:
+            Formatted string representation of the keyboard layout
+        """
+        # Prepare keymap data for the generator
+        keymap_data = {
+            "title": title,
+            "creator": creator,
+            "locale": locale,
+            "notes": notes,
+            "keyboard": keyboard,
+            "layer_names": layer_names,
+            "layers": layers,
+        }
+
+        # Get layout structure for the keyboard
+        layout_structure = self._get_keyboard_layout_structure(keyboard)
+
+        # Flatten the structure to get all row indices
+        all_rows = []
+        for indices_pair in layout_structure.values():
+            row = []
+            row.extend(indices_pair[0])  # Left side
+            row.extend(indices_pair[1])  # Right side
+            all_rows.append(row)
+
+        # Create a layout config
+        layout_metadata = LayoutMetadata(
+            keyboard_type=keyboard,
+            description=f"{keyboard} layout",
+            keyboard=keyboard,
+        )
+
+        # Create a key position map
+        key_position_map = {}
+        for i in range(80):  # Default key count
+            key_position_map[f"KEY_{i}"] = i
+
+        # Create the layout config
+        layout_config = LayoutConfig(
+            keyboard_name=keyboard,
+            key_width=key_width,
+            key_gap=" ",
+            key_position_map=key_position_map,
+            total_keys=80,
+            key_count=80,
+            rows=all_rows,
+            metadata=layout_metadata,
+            formatting={
+                "default_key_width": key_width,
+                "key_gap": " ",
+                "base_indent": "",
+            },
+        )
+
+        # Generate the layout display
+        return self._layout_generator.generate_keymap_display(
+            keymap_data, layout_config, ViewMode.NORMAL
+        )
+
+    def _get_keyboard_layout_structure(
+        self, keyboard: str
+    ) -> dict[str, list[list[int]]]:
+        """Get the keyboard layout structure.
+
+        Args:
+            keyboard: Keyboard name
+
+        Returns:
+            Dictionary mapping row names to key indices
+        """
+        # Default to Glove80 layout structure
+        return {
+            "row0": [[0, 1, 2, 3, 4], [5, 6, 7, 8, 9]],
+            "row1": [[10, 11, 12, 13, 14, 15], [16, 17, 18, 19, 20, 21]],
+            "row2": [[22, 23, 24, 25, 26, 27], [28, 29, 30, 31, 32, 33]],
+            "row3": [[34, 35, 36, 37, 38, 39], [40, 41, 42, 43, 44, 45]],
+            "row4": [[46, 47, 48, 49, 50, 51], [58, 59, 60, 61, 62, 63]],
+            "row5": [[64, 65, 66, 67, 68], [75, 76, 77, 78, 79]],
+            "thumb1": [[69, 52], [57, 74]],
+            "thumb2": [[70, 53], [56, 73]],
+            "thumb3": [[71, 54], [55, 72]],
+        }
 
 
 def create_keymap_service(

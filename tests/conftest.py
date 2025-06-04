@@ -304,11 +304,11 @@ def mock_keymap_service() -> Mock:
 
     # Mock successful split result
     split_result = KeymapResult(success=True)
-    mock.split.return_value = split_result
+    mock.split_keymap.return_value = split_result
 
     # Mock successful merge result
     merge_result = KeymapResult(success=True)
-    mock.merge.return_value = merge_result
+    mock.merge_layers.return_value = merge_result
 
     # Mock show result
     mock.show.return_value = ["Layer 1", "Layer 2"]
