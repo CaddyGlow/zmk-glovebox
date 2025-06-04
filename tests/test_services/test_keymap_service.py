@@ -16,6 +16,7 @@ from glovebox.services.keymap_service import KeymapService
 
 # Fixtures for the typed tests
 
+
 @pytest.fixture
 def mock_profile():
     """Create a mock KeyboardProfile for testing."""
@@ -125,9 +126,7 @@ class TestKeymapServiceWithKeyboardConfig:
         # Verify
         assert result is True
 
-    def test_validate_config_keyboard_mismatch(
-        self, sample_keymap_json, mock_profile
-    ):
+    def test_validate_config_keyboard_mismatch(self, sample_keymap_json, mock_profile):
         """Test validation with keyboard type mismatch."""
         # Setup
         keymap_data = sample_keymap_json.copy()
@@ -160,7 +159,9 @@ class TestKeymapServiceWithKeyboardConfig:
         assert result is True
 
     @patch("glovebox.services.keymap_service.KeymapService._generate_layout_display")
-    def test_show_error_handling(self, mock_generate_layout, sample_keymap_json, mock_profile):
+    def test_show_error_handling(
+        self, mock_generate_layout, sample_keymap_json, mock_profile
+    ):
         """Test error handling in the show method."""
         # Make the layout generation raise an error
         mock_generate_layout.side_effect = Exception("Layout generation failed")
@@ -185,10 +186,10 @@ class TestKeymapServiceWithKeyboardConfig:
         mock_prepare_paths.return_value = {
             "keymap": Path(tmp_path / "output/test.keymap"),
             "conf": Path(tmp_path / "output/test.conf"),
-            "json": Path(tmp_path / "output/test.json")
+            "json": Path(tmp_path / "output/test.json"),
         }
         mock_generate_config.return_value = {}
-        
+
         # Mock file adapter methods
         self.mock_file_adapter.mkdir.return_value = None
         self.mock_file_adapter.write_text.return_value = None
@@ -361,6 +362,7 @@ class TestKeymapServiceWithMockedConfig:
 
 # Tests from test_keymap_service_typed.py
 
+
 @patch("glovebox.services.keymap_service.KeymapService._prepare_output_paths")
 @patch("glovebox.services.keymap_service.KeymapService._generate_keymap_file")
 @patch("glovebox.services.keymap_service.KeymapService._generate_config_file")
@@ -368,23 +370,23 @@ def test_compile_with_profile(
     mock_generate_config,
     mock_generate_keymap,
     mock_prepare_paths,
-    keymap_service, 
-    sample_keymap_json, 
-    mock_profile
+    keymap_service,
+    sample_keymap_json,
+    mock_profile,
 ):
     """Test compiling a keymap with the new KeyboardProfile."""
     # Set up the mocks
     mock_prepare_paths.return_value = {
         "keymap": Path("/tmp/output/test.keymap"),
         "conf": Path("/tmp/output/test.conf"),
-        "json": Path("/tmp/output/test.json")
+        "json": Path("/tmp/output/test.json"),
     }
     mock_generate_config.return_value = {}
-    
+
     # Mock the file adapter
     keymap_service._file_adapter.mkdir = MagicMock()
     keymap_service._file_adapter.write_json = MagicMock()
-    
+
     # Run the compile method
     result = keymap_service.compile(
         mock_profile,
@@ -395,7 +397,7 @@ def test_compile_with_profile(
     # Check that the result is successful
     assert isinstance(result, KeymapResult)
     assert result.success is True
-    
+
     # Verify the methods were called
     mock_prepare_paths.assert_called_once()
     mock_generate_config.assert_called_once()

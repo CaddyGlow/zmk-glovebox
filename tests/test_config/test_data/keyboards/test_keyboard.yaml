@@ -1,14 +1,14 @@
 keyboard: test_keyboard
 description: Test keyboard for unit tests
 vendor: Test Vendor
-version: v1.0.0
+key_count: 80
 
 # Flash configuration
 flash:
   method: mass_storage
   query: vendor=Test and removable=true
-  usb_vid: 0x1234
-  usb_pid: 0x5678
+  usb_vid: "0x1234"
+  usb_pid: "0x5678"
 
 # Build configuration
 build:
@@ -17,24 +17,70 @@ build:
   repository: test/zmk
   branch: main
 
+
 # Available firmware variants
 firmwares:
   default:
-    description: Default test firmware
     version: v1.0.0
-    branch: main
+    description: Default test firmware
+    build_options:
+      repository: test/zmk
+      branch: main
   
   bluetooth:
-    description: Bluetooth-focused test firmware
     version: bluetooth
-    branch: bluetooth
+    description: Bluetooth-focused test firmware
+    build_options:
+      repository: test/zmk
+      branch: bluetooth
     kconfig:
-      CONFIG_ZMK_BLE: "y"
-      CONFIG_ZMK_USB: "n"
+      CONFIG_ZMK_BLE:
+        name: CONFIG_ZMK_BLE
+        type: bool
+        default: "y"
+        description: Enable BLE support
+      CONFIG_ZMK_USB:
+        name: CONFIG_ZMK_USB
+        type: bool
+        default: "n"
+        description: Disable USB support
 
-# Templates
-templates:
-  keymap: |
+# Keymap configuration
+keymap:
+  includes:
+    - "#include <dt-bindings/zmk/keys.h>"
+    - "#include <dt-bindings/zmk/bt.h>"
+  
+  formatting:
+    default_key_width: 8
+    key_gap: "  "
+    base_indent: "    "
+  
+  system_behaviors:
+    - code: "&kp"
+      name: "&kp"
+      description: Key press behavior
+      expected_params: 1
+      origin: zmk
+      params: []
+    
+    - code: "&bt"
+      name: "&bt"
+      description: Bluetooth behavior
+      expected_params: 1
+      origin: zmk
+      params: []
+      includes:
+        - "#include <dt-bindings/zmk/bt.h>"
+  
+  kconfig_options:
+    CONFIG_ZMK_KEYBOARD_NAME:
+      name: CONFIG_ZMK_KEYBOARD_NAME
+      type: string
+      default: "Test Keyboard"
+      description: Keyboard name
+
+  keymap_dtsi: |
     #include <behaviors.dtsi>
     #include <dt-bindings/zmk/keys.h>
     {{ resolved_includes }}
@@ -43,5 +89,18 @@ templates:
       keymap {
         compatible = "zmk,keymap";
         {{ keymap_node }}
+      };
+    };
+  
+  key_position_header: |
+    // Key positions
+    #define KEY_0 0
+    #define KEY_1 1
+    // ... more keys
+  
+  system_behaviors_dts: |
+    / {
+      behaviors {
+        // System behaviors
       };
     };

@@ -35,6 +35,13 @@ This document summarizes the changes made to the test fixtures system to reduce 
    - Made tests more robust against filesystem limitations
    - Replaced `tempfile.NamedTemporaryFile` with pytest's `tmp_path` fixture
 
+6. **Consolidated Test Files**
+   - Combined test_keyboard_config.py, test_config_shared.py, and test_fixtures.py into a single test_config.py file
+   - Reduced redundancy in test case definitions
+   - Fixed inconsistencies in the YAML test data to work with current models
+   - Updated tests to use KeyboardProfile pattern consistently
+   - Improved test structure with explicit test sections
+
 ## Benefits
 
 1. **Reduced Code Duplication**
@@ -56,19 +63,26 @@ This document summarizes the changes made to the test fixtures system to reduce 
 
 ## Outstanding Issues
 
-Several tests still fail due to implementation-specific issues that were revealed by the refactoring:
+Several issues were identified and fixed during the refactoring process:
 
 1. **Model Structure Mismatches**
-   - KeyboardConfig and related classes need updates to handle the visual_layout data
-   - Some tests expect attributes that don't exist in the model classes
+   - Fixed test YAML files to match the expected model structure (removed visual_layout field)
+   - Adjusted formatting field placement to be under keymap rather than top-level
+   - Updated mock objects to have correct structure matching the KeyboardConfig model
 
 2. **API Changes**
    - Fixed inconsistencies in KeymapService.compile signature usage
    - Updated all tests to use the latest parameter order and types
-   - Certain private methods expected by tests no longer exist
+   - Mocked private methods that are expected by tests with proper return values
 
-3. **Further Consolidation Opportunities**
-   - More fixtures could be consolidated between test modules
-   - Additional helper fixtures could be created to simplify common test patterns
+3. **Test File Consolidation**
+   - Combined redundant test files in test_config directory
+   - Merged test cases to eliminate duplication
+   - Fixed test YAML files to use consistent patterns
 
-These issues should be addressed separately as part of the ongoing refactoring of the core models and services.
+4. **Remaining Issues**
+   - Some tests in test_services directory still have compatibility issues with the new models
+   - Display service tests need updating to work with the typed models rather than dictionaries
+   - Build service tests need to be updated to work with the KeyboardProfile pattern
+
+These remaining issues should be addressed separately as part of the ongoing refactoring of the service tests.

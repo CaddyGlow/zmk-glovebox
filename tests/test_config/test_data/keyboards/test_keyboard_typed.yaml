@@ -17,17 +17,6 @@ build:
   repository: test/zmk
   branch: main
 
-# Visual layout
-visual_layout:
-  rows:
-    - [0, 1, 2, 3, 4]
-    - [5, 6, 7, 8, 9]
-
-# Formatting
-formatting:
-  default_key_width: 8
-  key_gap: "  "
-  base_indent: "    "
 
 # Available firmware variants
 firmwares:
@@ -46,12 +35,12 @@ firmwares:
       branch: bluetooth
     kconfig:
       CONFIG_ZMK_BLE:
-        kconfig_name: CONFIG_ZMK_BLE
+        name: CONFIG_ZMK_BLE
         type: bool
         default: "y"
         description: Enable BLE support
       CONFIG_ZMK_USB:
-        kconfig_name: CONFIG_ZMK_USB
+        name: CONFIG_ZMK_USB
         type: bool
         default: "n"
         description: Disable USB support
@@ -61,6 +50,11 @@ keymap:
   includes:
     - "#include <dt-bindings/zmk/keys.h>"
     - "#include <dt-bindings/zmk/bt.h>"
+  
+  formatting:
+    default_key_width: 8
+    key_gap: "  "
+    base_indent: "    "
   
   system_behaviors:
     - code: "&kp"
@@ -81,13 +75,11 @@ keymap:
   
   kconfig_options:
     CONFIG_ZMK_KEYBOARD_NAME:
-      kconfig_name: CONFIG_ZMK_KEYBOARD_NAME
+      name: CONFIG_ZMK_KEYBOARD_NAME
       type: string
       default: "Test Keyboard"
       description: Keyboard name
-
-# Templates
-templates:
+  
   keymap_dtsi: |
     #include <behaviors.dtsi>
     #include <dt-bindings/zmk/keys.h>
@@ -106,7 +98,7 @@ templates:
     #define KEY_1 1
     // ... more keys
   
-  system_dts: |
+  system_behaviors_dts: |
     / {
       behaviors {
         // System behaviors
