@@ -1,0 +1,114 @@
+keyboard: test_keyboard
+description: Test keyboard for unit tests
+vendor: Test Vendor
+key_count: 80
+
+# Flash configuration
+flash:
+  method: mass_storage
+  query: vendor=Test and removable=true
+  usb_vid: "0x1234"
+  usb_pid: "0x5678"
+
+# Build configuration
+build:
+  method: docker
+  docker_image: test-zmk-build
+  repository: test/zmk
+  branch: main
+
+# Visual layout
+visual_layout:
+  rows:
+    - [0, 1, 2, 3, 4]
+    - [5, 6, 7, 8, 9]
+
+# Formatting
+formatting:
+  default_key_width: 8
+  key_gap: "  "
+  base_indent: "    "
+
+# Available firmware variants
+firmwares:
+  default:
+    version: v1.0.0
+    description: Default test firmware
+    build_options:
+      repository: test/zmk
+      branch: main
+  
+  bluetooth:
+    version: bluetooth
+    description: Bluetooth-focused test firmware
+    build_options:
+      repository: test/zmk
+      branch: bluetooth
+    kconfig:
+      CONFIG_ZMK_BLE:
+        kconfig_name: CONFIG_ZMK_BLE
+        type: bool
+        default: "y"
+        description: Enable BLE support
+      CONFIG_ZMK_USB:
+        kconfig_name: CONFIG_ZMK_USB
+        type: bool
+        default: "n"
+        description: Disable USB support
+
+# Keymap configuration
+keymap:
+  includes:
+    - "#include <dt-bindings/zmk/keys.h>"
+    - "#include <dt-bindings/zmk/bt.h>"
+  
+  system_behaviors:
+    - code: "&kp"
+      name: "&kp"
+      description: Key press behavior
+      expected_params: 1
+      origin: zmk
+      params: []
+    
+    - code: "&bt"
+      name: "&bt"
+      description: Bluetooth behavior
+      expected_params: 1
+      origin: zmk
+      params: []
+      includes:
+        - "#include <dt-bindings/zmk/bt.h>"
+  
+  kconfig_options:
+    CONFIG_ZMK_KEYBOARD_NAME:
+      kconfig_name: CONFIG_ZMK_KEYBOARD_NAME
+      type: string
+      default: "Test Keyboard"
+      description: Keyboard name
+
+# Templates
+templates:
+  keymap_dtsi: |
+    #include <behaviors.dtsi>
+    #include <dt-bindings/zmk/keys.h>
+    {{ resolved_includes }}
+    
+    / {
+      keymap {
+        compatible = "zmk,keymap";
+        {{ keymap_node }}
+      };
+    };
+  
+  key_position_header: |
+    // Key positions
+    #define KEY_0 0
+    #define KEY_1 1
+    // ... more keys
+  
+  system_dts: |
+    / {
+      behaviors {
+        // System behaviors
+      };
+    };

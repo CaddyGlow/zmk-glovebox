@@ -1,26 +1,106 @@
 [project]
 name = "glovebox"
-version = "0.1.0"
-description = "Add your description here"
+dynamic = ["version"]
+description = "Comprehensive tool for ZMK keyboard firmware management"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-  "jinja2>=3.1.6",
-  "pyobjc>=11.0 ; platform_system == 'Darwin'",
-  "wmi>=1.5.1 ; platform_system == 'Windows'",
+  "jinja2>=3.1.0",
+  "pydantic>=2.11.0",
+  "pyudev>=0.24.0",
+  "PyYAML>=6.0",
+  "typer-slim>=0.16.0",
 ]
 
-[dependency-groups]
-dev = []
-
 [project.scripts]
-glove80-flash = "glovebox.flash:main"
-glove80-keymap = "glovebox.keymap_utility:main"
-glove80-keymap-viewer = "glovebox.json_viewer:main"
+glovebox = "glovebox.cli:main"
 
 [build-system]
-# requires = ["uv"]
-# build-backend = "uv.build"
+# requires = ["uv"] # Keep hatchling as per original file
+# build-backend = "uv.build" # Keep hatchling as per original file
 
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+  "flake8>=7.2.0",
+  "mypy>=1.15.0",
+  "pre-commit>=4.2.0",
+  "pytest>=8.3.0",
+  "ruff>=0.11.0",
+  "types-PyYAML>=6.0.12.12",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors
+  "W",   # pycodestyle warnings
+  "F",   # Pyflakes
+  "I",   # isort
+  "N",   # pep8-naming
+  "UP",  # pyupgrade
+  "B",   # flake8-bugbear
+  "C4",  # flake8-comprehensions
+  "SIM", # flake8-simplify
+  "PTH", # flake8-use-pathlib
+]
+
+ignore = [
+  "E501",   # Line too long (handled by formatter)
+  "B008",   # Do not perform function calls in argument defaults
+  "N806",   # Variable in function should be lowercase (for pandas df, etc)
+  "SIM108", # Use ternary operator (sometimes less readable)
+  "F401",   # Imported but unused
+  "F841",   # Local variable assigned but never used
+]
+
+exclude = [
+  ".git",
+  ".venv",
+  "venv",
+  "__pycache__",
+  "build",
+  "dist",
+  "*.egg-info",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ruff.lint.isort]
+known-first-party = ["glovebox"]
+force-single-line = false
+lines-after-imports = 2
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["T201"]
+"tests/*" = ["N802", "N803"]
+# Scripts might need print statements
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[[tool.mypy.overrides]]
+module = "glovebox.services.config_service"
+ignore_errors = true
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "glovebox/_version.py"
