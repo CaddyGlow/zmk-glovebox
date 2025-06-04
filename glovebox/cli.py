@@ -14,6 +14,12 @@ from glovebox import __version__
 
 # Import CLI modules
 from glovebox.cli_config import config_app
+from glovebox.config.keyboard_config import (
+    create_keyboard_profile,
+    get_available_firmwares,
+    get_available_keyboards,
+)
+from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import BuildError, ConfigError, FlashError, KeymapError
 from glovebox.core.logging import setup_logging
 from glovebox.services import (
@@ -136,6 +142,66 @@ def handle_errors(func: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 
+def create_profile_from_option(profile_option: str | None) -> KeyboardProfile:
+    """Create a KeyboardProfile from a profile option string.
+
+    Args:
+        profile_option: Profile option string in format "keyboard" or "keyboard/firmware"
+                        If None, uses the default profile.
+
+    Returns:
+        KeyboardProfile instance
+
+    Raises:
+        typer.Exit: If profile creation fails
+    """
+    if profile_option is None:
+        profile_option = "glove80/default"
+    # Parse profile to get keyboard name and firmware version
+    if "/" in profile_option:
+        keyboard_name, firmware_name = profile_option.split("/", 1)
+    else:
+        keyboard_name = profile_option
+        firmware_name = "default"
+
+    logger.debug(f"Using keyboard: {keyboard_name}, firmware: {firmware_name}")
+
+    # Create KeyboardProfile
+    try:
+        # Create keyboard profile for the specified keyboard and firmware
+        # We're importing inside the function to make mocking easier in tests
+        from glovebox.config.keyboard_config import (
+            create_keyboard_profile as create_profile,
+        )
+
+        keyboard_profile = create_profile(keyboard_name, firmware_name)
+        logger.debug(f"Created keyboard profile for {keyboard_name}/{firmware_name}")
+        return keyboard_profile
+    except Exception as e:
+        # Handle profile creation errors with helpful feedback
+        if "not found for keyboard" in str(e):
+            # Show available firmwares if the firmware wasn't found
+            print(
+                f"Error: Firmware '{firmware_name}' not found for keyboard: {keyboard_name}"
+            )
+            try:
+                firmwares = get_available_firmwares(keyboard_name)
+                if firmwares:
+                    print("Available firmwares:")
+                    for fw_name in firmwares:
+                        print(f"  • {fw_name}")
+            except Exception:
+                pass
+        else:
+            # General configuration error
+            print(f"Error: Failed to load keyboard configuration: {e}")
+            keyboards = get_available_keyboards()
+            print("Available keyboards:")
+            for kb in keyboards:
+                print(f"  • {kb}")
+        raise typer.Exit(1) from e
+
+
 # KEYMAP COMMANDS
 @keymap_app.command(name="compile")
 @handle_errors
@@ -171,51 +237,8 @@ def keymap_compile(
     logger.info(f"Reading keymap JSON from {json_file_path}...")
     json_data = json.loads(json_file_path.read_text())
 
-    # Load keyboard configuration
-    from glovebox.config.keyboard_config import (
-        create_keyboard_profile,
-        get_available_firmwares,
-        get_available_keyboards,
-    )
-
-    # Parse profile to get keyboard name and firmware version
-    # Format can be either "keyboard" or "keyboard/firmware"
-    if "/" in profile:
-        keyboard_name, firmware_name = profile.split("/", 1)
-    else:
-        keyboard_name = profile
-        firmware_name = "default"
-
-    logger.debug(f"Using keyboard: {keyboard_name}, firmware: {firmware_name}")
-
-    # Create KeyboardProfile
-    try:
-        # Create keyboard profile for the specified keyboard and firmware
-        keyboard_profile = create_keyboard_profile(keyboard_name, firmware_name)
-        logger.debug(f"Created keyboard profile for {keyboard_name}/{firmware_name}")
-    except Exception as e:
-        # Handle profile creation errors with helpful feedback
-        if "not found for keyboard" in str(e):
-            # Show available firmwares if the firmware wasn't found
-            print(
-                f"Error: Firmware '{firmware_name}' not found for keyboard: {keyboard_name}"
-            )
-            try:
-                firmwares = get_available_firmwares(keyboard_name)
-                if firmwares:
-                    print("Available firmwares:")
-                    for fw_name in firmwares:
-                        print(f"  • {fw_name}")
-            except Exception:
-                pass
-        else:
-            # General configuration error
-            print(f"Error: Failed to load keyboard configuration: {e}")
-            keyboards = get_available_keyboards()
-            print("Available keyboards:")
-            for kb in keyboards:
-                print(f"  • {kb}")
-        raise typer.Exit(1) from e
+    # Create keyboard profile from profile option
+    keyboard_profile = create_profile_from_option(profile)
 
     # Compile keymap using the KeyboardProfile
     keymap_service = create_keymap_service()
@@ -240,6 +263,14 @@ def split(
     output_dir: Annotated[
         Path, typer.Argument(help="Directory to save extracted files")
     ],
+    profile: Annotated[
+        str | None,
+        typer.Option(
+            "--profile",
+            "-p",
+            help="Profile to use (e.g., 'v25.05', 'glove80/mybranch')",
+        ),
+    ] = "glove80/default",
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
@@ -248,8 +279,13 @@ def split(
     if not keymap_file.exists():
         raise typer.BadParameter(f"Keymap file not found: {keymap_file}")
 
+    # Create keyboard profile from profile option
+    keyboard_profile = create_profile_from_option(profile)
+
     keymap_service = create_keymap_service()
-    result = keymap_service.split(keymap_file=keymap_file, output_dir=output_dir)
+    result = keymap_service.split(
+        profile=keyboard_profile, keymap_file=keymap_file, output_dir=output_dir
+    )
 
     if result.success:
         print(f"✓ Keymap split into layers at {output_dir}")
@@ -269,6 +305,14 @@ def merge(
     output: Annotated[
         Path, typer.Option("--output", "-o", help="Output keymap JSON file path")
     ],
+    profile: Annotated[
+        str | None,
+        typer.Option(
+            "--profile",
+            "-p",
+            help="Profile to use (e.g., 'v25.05', 'glove80/mybranch')",
+        ),
+    ] = "glove80/default",
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
@@ -277,8 +321,13 @@ def merge(
     if not input_dir.exists():
         raise typer.BadParameter(f"Input directory not found: {input_dir}")
 
+    # Create keyboard profile from profile option
+    keyboard_profile = create_profile_from_option(profile)
+
     keymap_service = create_keymap_service()
-    result = keymap_service.merge(input_dir=input_dir, output_file=output)
+    result = keymap_service.merge(
+        profile=keyboard_profile, input_dir=input_dir, output_file=output
+    )
 
     if result.success:
         print(f"✓ Keymap merged and saved to {output}")
@@ -329,34 +378,8 @@ def show(
     # Create KeyboardProfile if profile is specified
     keyboard_profile = None
     if profile:
-        from glovebox.config.keyboard_config import (
-            create_keyboard_profile,
-            get_available_firmwares,
-            get_available_keyboards,
-        )
-
-        # Parse profile to get keyboard name and firmware version
-        if "/" in profile:
-            keyboard_name, firmware_name = profile.split("/", 1)
-        else:
-            keyboard_name = profile
-            # Try to get the default firmware version
-            try:
-                from glovebox.config.keyboard_config import get_default_firmware
-
-                firmware_name = get_default_firmware(keyboard_name)
-            except Exception as e:
-                logger.warning(
-                    f"Could not determine default firmware for {keyboard_name}: {e}"
-                )
-                firmware_name = "default"
-
         try:
-            # Create keyboard profile for the specified keyboard and firmware
-            keyboard_profile = create_keyboard_profile(keyboard_name, firmware_name)
-            logger.debug(
-                f"Created keyboard profile for {keyboard_name}/{firmware_name}"
-            )
+            keyboard_profile = create_profile_from_option(profile)
         except Exception as e:
             logger.warning(f"Failed to create keyboard profile: {e}")
             # Don't exit - we can fall back to keyboard_type
@@ -382,8 +405,30 @@ def show(
     else:
         # Use the traditional display
         try:
+            # Need to create a basic keyboard profile if not already available
+            if keyboard_profile is None:
+                # Get the keyboard type from the JSON or use a default
+                keyboard_type = json_data.get("keyboard", "glove80")
+
+                try:
+                    # Try to create a basic profile with default firmware
+                    keyboard_profile = create_profile_from_option(keyboard_type)
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to create keyboard profile for traditional display: {e}"
+                    )
+                    print(
+                        f"Error: Could not create keyboard profile for {keyboard_type}"
+                    )
+                    print(
+                        "Please use the --profile option to specify a valid keyboard profile."
+                    )
+                    raise typer.Exit(1) from e
+
             keymap_service = create_keymap_service()
-            result = keymap_service.show(keymap_data=json_data, key_width=key_width)
+            result = keymap_service.show(
+                profile=keyboard_profile, keymap_data=json_data, key_width=key_width
+            )
 
             # Display the result
             if isinstance(result, list):
@@ -403,6 +448,14 @@ def show(
 @handle_errors
 def validate(
     json_file: Annotated[Path, typer.Argument(help="Path to keymap JSON file")],
+    profile: Annotated[
+        str | None,
+        typer.Option(
+            "--profile",
+            "-p",
+            help="Profile to use (e.g., 'v25.05', 'glove80/mybranch')",
+        ),
+    ] = "glove80/default",
 ) -> None:
     """Validate keymap syntax and structure."""
     if not json_file.exists():
@@ -410,8 +463,11 @@ def validate(
 
     json_data = json.loads(json_file.read_text())
 
+    # Create keyboard profile from profile option
+    keyboard_profile = create_profile_from_option(profile)
+
     keymap_service = create_keymap_service()
-    if keymap_service.validate(json_data):
+    if keymap_service.validate(profile=keyboard_profile, keymap_data=json_data):
         print(f"✓ Keymap file {json_file} is valid")
     else:
         print(f"✗ Keymap file {json_file} is invalid")
@@ -479,67 +535,19 @@ def firmware_compile(
 
     # Handle the profile parameter (which has priority)
     if profile:
-        from glovebox.config.keyboard_config import (
-            create_keyboard_profile,
-            get_available_firmwares,
-            get_available_keyboards,
-        )
-
-        # Parse profile to get keyboard name and firmware version
-        if "/" in profile:
-            keyboard_name, firmware_version = profile.split("/", 1)
+        # If both profile and firmware are specified, adjust the profile to include the firmware
+        if firmware and "/" not in profile:
+            adjusted_profile = f"{profile}/{firmware}"
+            logger.debug(f"Adjusting profile to include firmware: {adjusted_profile}")
+            keyboard_profile = create_profile_from_option(adjusted_profile)
         else:
-            keyboard_name = profile
-            if firmware:
-                # Use explicitly provided firmware version
-                firmware_version = firmware
-            else:
-                # Try to get the default firmware version
-                try:
-                    from glovebox.config.keyboard_config import get_default_firmware
-
-                    firmware_version = get_default_firmware(keyboard_name)
-                except Exception as e:
-                    logger.warning(
-                        f"Could not determine default firmware for {keyboard_name}: {e}"
-                    )
-                    firmware_version = "default"
-
-        try:
-            # Create keyboard profile for the specified keyboard and firmware
-            keyboard_profile = create_keyboard_profile(keyboard_name, firmware_version)
-            logger.debug(
-                f"Created keyboard profile for {keyboard_name}/{firmware_version}"
-            )
-        except Exception as e:
-            # Handle profile creation errors with helpful feedback
-            if "not found for keyboard" in str(e):
-                # Show available firmwares if the firmware wasn't found
-                print(
-                    f"Error: Firmware '{firmware_version}' not found for keyboard: {keyboard_name}"
-                )
-                try:
-                    firmwares = get_available_firmwares(keyboard_name)
-                    if firmwares:
-                        print("Available firmwares:")
-                        for fw_name in firmwares:
-                            print(f"  • {fw_name}")
-                except Exception:
-                    pass
-            else:
-                # General configuration error
-                print(f"Error: Failed to load keyboard configuration: {e}")
-                keyboards = get_available_keyboards()
-                print("Available keyboards:")
-                for kb in keyboards:
-                    print(f"  • {kb}")
-            raise typer.Exit(1) from e
+            keyboard_profile = create_profile_from_option(profile)
     # Handle keyboard + firmware parameters (if profile not specified)
     elif keyboard and firmware:
-        from glovebox.config.keyboard_config import create_keyboard_profile
-
         try:
-            keyboard_profile = create_keyboard_profile(keyboard, firmware)
+            # Create a profile from keyboard and firmware
+            combined_profile = f"{keyboard}/{firmware}"
+            keyboard_profile = create_profile_from_option(combined_profile)
             logger.debug(f"Created keyboard profile for {keyboard}/{firmware}")
         except Exception as e:
             logger.warning(
@@ -595,57 +603,7 @@ def flash(
     # Create KeyboardProfile if profile is specified
     keyboard_profile = None
     if profile:
-        from glovebox.config.keyboard_config import (
-            create_keyboard_profile,
-            get_available_firmwares,
-            get_available_keyboards,
-        )
-
-        # Parse profile to get keyboard name and firmware version
-        if "/" in profile:
-            keyboard_name, firmware_version = profile.split("/", 1)
-        else:
-            keyboard_name = profile
-            # Try to get the default firmware version
-            try:
-                from glovebox.config.keyboard_config import get_default_firmware
-
-                firmware_version = get_default_firmware(keyboard_name)
-            except Exception as e:
-                logger.warning(
-                    f"Could not determine default firmware for {keyboard_name}: {e}"
-                )
-                firmware_version = "default"
-
-        try:
-            # Create keyboard profile for the specified keyboard and firmware
-            keyboard_profile = create_keyboard_profile(keyboard_name, firmware_version)
-            logger.debug(
-                f"Created keyboard profile for {keyboard_name}/{firmware_version}"
-            )
-        except Exception as e:
-            # Handle profile creation errors with helpful feedback
-            if "not found for keyboard" in str(e):
-                # Show available firmwares if the firmware wasn't found
-                print(
-                    f"Error: Firmware '{firmware_version}' not found for keyboard: {keyboard_name}"
-                )
-                try:
-                    firmwares = get_available_firmwares(keyboard_name)
-                    if firmwares:
-                        print("Available firmwares:")
-                        for fw_name in firmwares:
-                            print(f"  • {fw_name}")
-                except Exception:
-                    pass
-            else:
-                # General configuration error
-                print(f"Error: Failed to load keyboard configuration: {e}")
-                keyboards = get_available_keyboards()
-                print("Available keyboards:")
-                for kb in keyboards:
-                    print(f"  • {kb}")
-            raise typer.Exit(1) from e
+        keyboard_profile = create_profile_from_option(profile)
 
     flash_service = create_flash_service()
     result = flash_service.flash(

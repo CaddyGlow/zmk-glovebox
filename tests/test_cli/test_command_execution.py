@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 import typer
 
-from glovebox.cli import app
+from glovebox.cli import app, create_profile_from_option
 from glovebox.models.results import BuildResult, FlashResult, KeymapResult
 from glovebox.services.build_service import create_build_service
 from glovebox.services.display_service import create_display_service
@@ -182,11 +182,13 @@ def test_keymap_compile_failure(
     assert "Invalid keymap structure" in result.output
 
 
+@patch("glovebox.cli.create_profile_from_option")
 @patch("glovebox.cli.create_keymap_service")
 @patch("glovebox.cli.Path")
 def test_keymap_split_command(
     mock_path_cls,
     mock_create_service,
+    mock_create_profile,
     cli_runner,
     mock_keymap_service,
     sample_keymap_json,
@@ -195,6 +197,12 @@ def test_keymap_split_command(
     """Test keymap split command."""
     # Setup path mocks
     mock_create_service.return_value = mock_keymap_service
+
+    # Mock the profile creation
+    mock_keyboard_profile = Mock()
+    mock_keyboard_profile.keyboard_name = "glove80"
+    mock_keyboard_profile.firmware_version = "v25.05"
+    mock_create_profile.return_value = mock_keyboard_profile
 
     # Use actual paths for clarity
     output_dir = tmp_path / "split_output"
@@ -222,14 +230,26 @@ def test_keymap_split_command(
     mock_keymap_service.split.assert_called_once()
 
 
+@patch("glovebox.cli.create_profile_from_option")
 @patch("glovebox.cli.create_keymap_service")
 @patch("glovebox.cli.Path")
 def test_keymap_merge_command(
-    mock_path_cls, mock_create_service, cli_runner, mock_keymap_service, tmp_path
+    mock_path_cls,
+    mock_create_service,
+    mock_create_profile,
+    cli_runner,
+    mock_keymap_service,
+    tmp_path,
 ):
     """Test keymap merge command."""
     # Setup mocks
     mock_create_service.return_value = mock_keymap_service
+
+    # Mock the profile creation
+    mock_keyboard_profile = Mock()
+    mock_keyboard_profile.keyboard_name = "glove80"
+    mock_keyboard_profile.firmware_version = "v25.05"
+    mock_create_profile.return_value = mock_keyboard_profile
 
     # Setup successful result
     merge_result = KeymapResult(success=True)
@@ -253,6 +273,7 @@ def test_keymap_merge_command(
     mock_keymap_service.merge.assert_called_once()
 
 
+@patch("glovebox.cli.create_profile_from_option")
 @patch("glovebox.cli.create_keymap_service")
 @patch("glovebox.cli.Path")
 @patch("glovebox.cli.json.loads")
@@ -260,6 +281,7 @@ def test_keymap_show_command(
     mock_json_loads,
     mock_path_cls,
     mock_create_service,
+    mock_create_profile,
     cli_runner,
     mock_keymap_service,
     sample_keymap_json,
@@ -268,6 +290,13 @@ def test_keymap_show_command(
     """Test keymap show command (using traditional show method)."""
     # Setup mocks
     mock_create_service.return_value = mock_keymap_service
+
+    # Mock the profile creation
+    mock_keyboard_profile = Mock()
+    mock_keyboard_profile.keyboard_name = "glove80"
+    mock_keyboard_profile.firmware_version = "v25.05"
+    mock_create_profile.return_value = mock_keyboard_profile
+
     mock_path_instance = Mock()
     mock_path_instance.exists.return_value = True
     mock_path_instance.read_text.return_value = "{}"
@@ -387,6 +416,7 @@ def test_keymap_show_command_with_profile(
     mock_keymap_service.show.assert_not_called()
 
 
+@patch("glovebox.cli.create_profile_from_option")
 @patch("glovebox.cli.create_keymap_service")
 @patch("glovebox.cli.Path")
 @patch("glovebox.cli.json.loads")
@@ -394,6 +424,7 @@ def test_keymap_validate_command(
     mock_json_loads,
     mock_path_cls,
     mock_create_service,
+    mock_create_profile,
     cli_runner,
     mock_keymap_service,
     sample_keymap_json,
@@ -402,6 +433,13 @@ def test_keymap_validate_command(
     """Test keymap validate command."""
     # Setup mocks
     mock_create_service.return_value = mock_keymap_service
+
+    # Mock the profile creation
+    mock_keyboard_profile = Mock()
+    mock_keyboard_profile.keyboard_name = "glove80"
+    mock_keyboard_profile.firmware_version = "v25.05"
+    mock_create_profile.return_value = mock_keyboard_profile
+
     mock_path_instance = Mock()
     mock_path_instance.exists.return_value = True
     mock_path_instance.read_text.return_value = "{}"

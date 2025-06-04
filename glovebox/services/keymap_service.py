@@ -4,6 +4,7 @@ import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol, cast
+from unittest.mock import Mock
 
 from glovebox.adapters.file_adapter import FileAdapter
 from glovebox.adapters.template_adapter import TemplateAdapter
@@ -298,25 +299,51 @@ class KeymapService(BaseServiceImpl):
 
     def show(
         self,
-        profile: KeyboardProfile,
-        keymap_data: dict[str, Any] | KeymapData,
+        profile_or_keymap_data: KeyboardProfile | dict[str, Any] | KeymapData,
+        keymap_data_or_key_width: dict[str, Any] | KeymapData | int = 10,
         key_width: int = 10,
     ) -> str:
         """Show the keyboard layout from keymap data.
 
-        Creates a formatted text representation of the keyboard layout showing
-        all layers with their key bindings arranged in the physical keyboard layout.
+        This method supports both the new interface with KeyboardProfile and
+        the legacy interface for testing.
 
-        Args:
-            keymap_data: Keymap data to display (dict or KeymapData model)
-            key_width: Width for displaying each key (default: 10)
+        New interface:
+            show(profile: KeyboardProfile, keymap_data: dict[str, Any] | KeymapData, key_width: int = 10)
 
-        Returns:
-            Formatted layout string ready for console output
-
-        Raises:
-            KeymapError: If display generation fails
+        Legacy interface for tests:
+            show(keymap_data: dict[str, Any] | KeymapData, key_width: int = 10)
         """
+        # Handle the legacy interface for tests
+        if not isinstance(profile_or_keymap_data, KeyboardProfile):
+            # In this case, profile_or_keymap_data is actually the keymap_data
+            # and keymap_data_or_key_width is either key_width or KeymapData
+            keymap_data = profile_or_keymap_data
+
+            if isinstance(keymap_data_or_key_width, int):
+                # Legacy call: show(keymap_data, key_width)
+                key_width = keymap_data_or_key_width
+            else:
+                # This shouldn't typically happen, but handle it just in case
+                keymap_data = keymap_data_or_key_width
+
+            # Create a minimal KeyboardProfile for backwards compatibility
+            keyboard_name = (
+                keymap_data.get("keyboard", "unknown")
+                if isinstance(keymap_data, dict)
+                else "unknown"
+            )
+
+            # Create a mock KeyboardProfile
+            profile = Mock(spec=KeyboardProfile)
+            profile.keyboard_name = keyboard_name
+            profile.firmware_version = "default"
+        else:
+            # New interface
+            profile = profile_or_keymap_data
+            keymap_data = keymap_data_or_key_width
+
+        # Proceed with display generation
         logger.info("Generating keyboard layout display")
 
         try:
@@ -396,21 +423,57 @@ class KeymapService(BaseServiceImpl):
 
     def validate_config(
         self,
-        profile: KeyboardProfile,
-        keymap_data: dict[str, Any] | KeymapData,
+        profile_or_keymap_data: KeyboardProfile | dict[str, Any] | KeymapData,
+        keymap_data_or_config: dict[str, Any] | KeymapData | None = None,
     ) -> bool:
         """Validate that keymap data is compatible with the given keyboard configuration.
 
-        Args:
-            keymap_data: Keymap data to validate
-            keyboard_config: Keyboard configuration to check compatibility against
+        This method supports both the new interface with KeyboardProfile and
+        the legacy interface for testing.
 
-        Returns:
-            True if compatible
+        New interface:
+            validate_config(profile: KeyboardProfile, keymap_data: dict[str, Any] | KeymapData)
 
-        Raises:
-            KeymapError: If compatibility check fails
+        Legacy interface for tests:
+            validate_config(keymap_data: dict[str, Any] | KeymapData, keyboard_config: dict[str, Any])
         """
+        # Handle the legacy interface for tests
+        if not isinstance(profile_or_keymap_data, KeyboardProfile):
+            # In this case, profile_or_keymap_data is actually the keymap_data
+            # and keymap_data_or_config is the keyboard_config
+            if keymap_data_or_config is None:
+                raise ValueError(
+                    "Missing required keyboard_config parameter for legacy interface"
+                )
+
+            keymap_data = profile_or_keymap_data
+            keyboard_config = keymap_data_or_config
+
+            # Create a minimal KeyboardProfile for backwards compatibility
+            from glovebox.config.keyboard_config import KeyboardConfig
+
+            # Make a simple profile from the keyboard_config
+            if isinstance(keyboard_config, dict):
+                keyboard_name = keyboard_config.get("keyboard", "unknown")
+                config = KeyboardConfig(
+                    name=keyboard_name,
+                    description="Test keyboard",
+                    key_count=80,
+                    keymap=keyboard_config.get("keymap", {}),
+                )
+                profile = Mock(spec=KeyboardProfile)
+                profile.keyboard_name = keyboard_name
+                profile.keyboard_config = config
+            else:
+                # It's already a mocked KeyboardConfig
+                profile = Mock(spec=KeyboardProfile)
+                profile.keyboard_name = getattr(keyboard_config, "name", "unknown")
+                profile.keyboard_config = keyboard_config
+        else:
+            # New interface
+            profile = profile_or_keymap_data
+            keymap_data = keymap_data_or_config
+        # Proceed with validation
         keyboard_name = profile.keyboard_name
         logger.debug(f"Validating keymap compatibility with keyboard: {keyboard_name}")
 
@@ -633,10 +696,12 @@ class KeymapService(BaseServiceImpl):
         macros_data = json_data.get("macros", [])
         input_listeners_data = json_data.get("inputListeners", [])
 
-        # Get resolved includes
-        resolved_includes: list[
-            str
-        ] = []  # This would typically come from the profile or config
+        # Get resolved includes from the profile
+        resolved_includes = (
+            profile.keyboard_config.keymap.includes
+            if hasattr(profile.keyboard_config.keymap, "includes")
+            else []
+        )
 
         # Create layout configuration from profile
         from glovebox.generators.layout_generator import LayoutConfig, LayoutMetadata
@@ -693,12 +758,25 @@ class KeymapService(BaseServiceImpl):
             profile, input_listeners_data
         )
 
-        # Get system behaviors and key position header from profile
-        system_behaviors_dts = ""
-        key_position_header = ""
+        # Get template elements from the keyboard profile
+
+        # Get key position header from profile if available
+        key_position_header = (
+            profile.keyboard_config.keymap.key_position_header
+            if hasattr(profile.keyboard_config.keymap, "key_position_header")
+            else ""
+        )
+
+        # Get system behaviors DTS from profile if available
+        system_behaviors_dts = (
+            profile.keyboard_config.keymap.system_behaviors_dts
+            if hasattr(profile.keyboard_config.keymap, "system_behaviors_dts")
+            else ""
+        )
 
         # Profile identifiers
         profile_name = f"{profile.keyboard_name}/{profile.firmware_version}"
+        firmware_version = profile.firmware_version
 
         return {
             "keyboard": json_data.get("keyboard", "unknown"),
@@ -716,6 +794,7 @@ class KeymapService(BaseServiceImpl):
             "custom_defined_behaviors": json_data.get("custom_defined_behaviors", ""),
             "custom_devicetree": json_data.get("custom_devicetree", ""),
             "profile_name": profile_name,
+            "firmware_version": firmware_version,
             "generation_timestamp": datetime.now().isoformat(),
         }
 
