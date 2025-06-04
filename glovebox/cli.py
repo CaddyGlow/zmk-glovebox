@@ -5,6 +5,7 @@ import logging
 import subprocess
 import sys
 from collections.abc import Callable
+from functools import wraps
 from pathlib import Path
 from typing import Annotated, Any, Optional
 
@@ -202,9 +203,54 @@ def create_profile_from_option(profile_option: str | None) -> KeyboardProfile:
         raise typer.Exit(1) from e
 
 
+def with_profile(
+    default_profile: str = "glove80/default", profile_param_name: str = "profile"
+) -> Callable:
+    """Decorator to automatically handle profile parameter and profile not found errors.
+
+    Args:
+        default_profile: Default profile to use if none is provided
+        profile_param_name: Name of the profile parameter in the function
+
+    Returns:
+        Decorated function with profile handling
+    """
+
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            # Extract the profile from kwargs
+            profile_option = kwargs.get(profile_param_name)
+
+            if profile_option is None:
+                # Set default profile if none provided
+                kwargs[profile_param_name] = default_profile
+
+            try:
+                # Create the profile object and add it to kwargs
+                profile_obj = create_profile_from_option(kwargs[profile_param_name])
+                kwargs["keyboard_profile"] = profile_obj
+
+                # Call the original function with the profile object
+                return func(*args, **kwargs)
+            except typer.Exit:
+                # Profile creation already handled the error, just re-raise
+                raise
+            except Exception as e:
+                logger.error(
+                    f"Error with profile {kwargs.get(profile_param_name)}: {e}"
+                )
+                raise typer.Exit(1) from e
+
+        return wrapper
+
+    return decorator
+
+
 # KEYMAP COMMANDS
 @keymap_app.command(name="compile")
 @handle_errors
+@with_profile(default_profile="glove80/default")
 def keymap_compile(
     target_prefix: Annotated[
         str,
@@ -227,6 +273,8 @@ def keymap_compile(
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
+    keyboard_profile: KeyboardProfile
+    | None = None,  # This will be filled by the decorator
 ) -> None:
     """Compile a keymap JSON file into ZMK keymap and config files."""
     # Load JSON data
@@ -237,8 +285,9 @@ def keymap_compile(
     logger.info(f"Reading keymap JSON from {json_file_path}...")
     json_data = json.loads(json_file_path.read_text())
 
-    # Create keyboard profile from profile option
-    keyboard_profile = create_profile_from_option(profile)
+    # Profile is already created by the decorator and passed as keyboard_profile
+    if keyboard_profile is None:
+        raise ValueError("Keyboard profile not created. This should not happen.")
 
     # Compile keymap using the KeyboardProfile
     keymap_service = create_keymap_service()
@@ -370,78 +419,7 @@ def show(
     ] = None,
 ) -> None:
     """Display keymap layout in terminal."""
-    if not json_file.exists():
-        raise typer.BadParameter(f"JSON file not found: {json_file}")
-
-    json_data = json.loads(json_file.read_text())
-
-    # Create KeyboardProfile if profile is specified
-    keyboard_profile = None
-    if profile:
-        try:
-            keyboard_profile = create_profile_from_option(profile)
-        except Exception as e:
-            logger.warning(f"Failed to create keyboard profile: {e}")
-            # Don't exit - we can fall back to keyboard_type
-
-    # If a layout is specified or we have a profile, use the enhanced display
-    if layout or view_mode or keyboard_profile:
-        from glovebox.services.display_service import create_display_service
-
-        display_service = create_display_service()
-
-        # Use the enhanced layout-based display
-        result = display_service.display_keymap_with_layout(
-            keymap_data=json_data,
-            profile=keyboard_profile,
-            layout_name=layout,
-            keyboard_type=json_data.get("keyboard"),
-            view_mode=view_mode,
-            layer_index=layer,
-        )
-
-        # Print the result
-        print(result)
-    else:
-        # Use the traditional display
-        try:
-            # Need to create a basic keyboard profile if not already available
-            if keyboard_profile is None:
-                # Get the keyboard type from the JSON or use a default
-                keyboard_type = json_data.get("keyboard", "glove80")
-
-                try:
-                    # Try to create a basic profile with default firmware
-                    keyboard_profile = create_profile_from_option(keyboard_type)
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to create keyboard profile for traditional display: {e}"
-                    )
-                    print(
-                        f"Error: Could not create keyboard profile for {keyboard_type}"
-                    )
-                    print(
-                        "Please use the --profile option to specify a valid keyboard profile."
-                    )
-                    raise typer.Exit(1) from e
-
-            keymap_service = create_keymap_service()
-            result = keymap_service.show(
-                profile=keyboard_profile, keymap_data=json_data, key_width=key_width
-            )
-
-            # Display the result
-            if isinstance(result, list):
-                for line in result:
-                    print(line)
-            else:
-                print(result)
-        except NotImplementedError as e:
-            print(f"Error: {e}")
-            print(
-                "Please use the --profile option to use the enhanced display service instead."
-            )
-            raise typer.Exit(1) from e
+    raise NotImplementedError
 
 
 @keymap_app.command()

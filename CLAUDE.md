@@ -78,6 +78,30 @@ glovebox --debug [command]
 glovebox --log-file debug.log [command]
 ```
 
+### LSP Tools
+
+When using Claude Code, these Language Server Protocol tools are available to enhance code navigation and editing:
+
+```
+# Find symbol definition
+mcp__language-server__definition
+
+# Get diagnostics for a file
+mcp__language-server__diagnostics
+
+# Apply multiple edits to a file
+mcp__language-server__edit_file
+
+# Get type information and documentation for a symbol
+mcp__language-server__hover
+
+# Find all references to a symbol in the codebase
+mcp__language-server__references
+
+# Rename a symbol throughout the codebase
+mcp__language-server__rename_symbol
+```
+
 ## Project Architecture
 
 Glovebox is a comprehensive tool for ZMK keyboard firmware management with a clean, modular architecture:
