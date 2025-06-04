@@ -1,7 +1,5 @@
-# This file marks the 'glovebox' directory as a Python package.
-# Core functionalities will be exposed via submodules like 'glovebox.core'.
+"""Glovebox - ZMK Keyboard Management Tool."""
 
-# from ._version import __version__
 from importlib.metadata import distribution
 
 from .models import BuildResult, FlashResult, KeymapResult
@@ -16,12 +14,8 @@ __all__ = [
     "__version__",
 ]
 
+# Import CLI after setting __version__ to avoid circular imports
+from .cli import app, main
 
-def test_function() -> str:
-    """
-    A simple test function to verify that the package is working.
 
-    Returns:
-        A simple test string
-    """
-    return "expected"
+__all__ += ["app", "main"]
