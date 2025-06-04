@@ -285,13 +285,22 @@ def keymap_compile(
     logger.info(f"Reading keymap JSON from {json_file_path}...")
     json_data = json.loads(json_file_path.read_text())
 
+    # Convert to KeymapData
+    from glovebox.models.keymap import KeymapData
+
+    try:
+        keymap_data = KeymapData.model_validate(json_data)
+    except Exception as e:
+        print(f"✗ Keymap file has invalid structure: {e}")
+        raise typer.Exit(1) from e
+
     # Profile is already created by the decorator and passed as keyboard_profile
     if keyboard_profile is None:
         raise ValueError("Keyboard profile not created. This should not happen.")
 
     # Compile keymap using the KeyboardProfile
     keymap_service = create_keymap_service()
-    result = keymap_service.compile(keyboard_profile, json_data, target_prefix)
+    result = keymap_service.compile(keyboard_profile, keymap_data, target_prefix)
 
     if result.success:
         print("✓ Keymap compiled successfully")
@@ -332,8 +341,15 @@ def split(
     keyboard_profile = create_profile_from_option(profile)
 
     keymap_service = create_keymap_service()
-    result = keymap_service.split(
-        profile=keyboard_profile, keymap_file=keymap_file, output_dir=output_dir
+
+    # Load JSON data and convert to KeymapData
+    from glovebox.models.keymap import KeymapData
+
+    json_data = json.loads(keymap_file.read_text())
+    keymap_data = KeymapData.model_validate(json_data)
+
+    result = keymap_service.split_keymap(
+        profile=keyboard_profile, keymap_data=keymap_data, output_dir=output_dir
     )
 
     if result.success:
@@ -374,8 +390,27 @@ def merge(
     keyboard_profile = create_profile_from_option(profile)
 
     keymap_service = create_keymap_service()
-    result = keymap_service.merge(
-        profile=keyboard_profile, input_dir=input_dir, output_file=output
+
+    # Load base.json file and convert to KeymapData
+    from glovebox.models.keymap import KeymapData
+
+    base_json_path = input_dir / "base.json"
+    if not base_json_path.exists():
+        raise typer.BadParameter(f"Base JSON file not found: {base_json_path}")
+
+    base_json_data = json.loads(base_json_path.read_text())
+    base_data = KeymapData.model_validate(base_json_data)
+
+    # Create layers directory path
+    layers_dir = input_dir / "layers"
+    if not layers_dir.exists():
+        raise typer.BadParameter(f"Layers directory not found: {layers_dir}")
+
+    result = keymap_service.merge_layers(
+        profile=keyboard_profile,
+        base_data=base_data,
+        layers_dir=layers_dir,
+        output_file=output,
     )
 
     if result.success:
@@ -439,13 +474,22 @@ def validate(
     if not json_file.exists():
         raise typer.BadParameter(f"JSON file not found: {json_file}")
 
+    # Load JSON data and convert to KeymapData
+    from glovebox.models.keymap import KeymapData
+
     json_data = json.loads(json_file.read_text())
+
+    try:
+        keymap_data = KeymapData.model_validate(json_data)
+    except Exception as e:
+        print(f"✗ Keymap file {json_file} has invalid structure: {e}")
+        raise typer.Exit(1) from e
 
     # Create keyboard profile from profile option
     keyboard_profile = create_profile_from_option(profile)
 
     keymap_service = create_keymap_service()
-    if keymap_service.validate(profile=keyboard_profile, keymap_data=json_data):
+    if keymap_service.validate(profile=keyboard_profile, keymap_data=keymap_data):
         print(f"✓ Keymap file {json_file} is valid")
     else:
         print(f"✗ Keymap file {json_file} is invalid")

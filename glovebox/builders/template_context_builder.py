@@ -1,0 +1,168 @@
+"""Builder for template contexts used in keymap generation."""
+
+import logging
+from datetime import datetime
+from typing import Any, Protocol, TypeAlias
+
+from glovebox.config.profile import KeyboardProfile
+
+
+logger = logging.getLogger(__name__)
+
+
+# Type aliases
+TemplateContext: TypeAlias = dict[str, Any]
+KeymapDict: TypeAlias = dict[str, Any]
+
+
+class DtsiGenerator(Protocol):
+    """Protocol for DTSI generator."""
+
+    def generate_layer_defines(
+        self, profile: KeyboardProfile, layer_names: list[str]
+    ) -> str:
+        """Generate layer define statements."""
+        ...
+
+    def generate_keymap_node(
+        self,
+        profile: KeyboardProfile,
+        layer_names: list[str],
+        layers_data: list[list[dict[str, Any]]],
+    ) -> str:
+        """Generate keymap node content."""
+        ...
+
+    def generate_behaviors_dtsi(
+        self, profile: KeyboardProfile, hold_taps_data: list[dict[str, Any]]
+    ) -> str:
+        """Generate behaviors DTSI content."""
+        ...
+
+    def generate_combos_dtsi(
+        self,
+        profile: KeyboardProfile,
+        combos_data: list[dict[str, Any]],
+        layer_names: list[str],
+    ) -> str:
+        """Generate combos DTSI content."""
+        ...
+
+    def generate_macros_dtsi(
+        self, profile: KeyboardProfile, macros_data: list[dict[str, Any]]
+    ) -> str:
+        """Generate macros DTSI content."""
+        ...
+
+    def generate_input_listeners_node(
+        self, profile: KeyboardProfile, input_listeners_data: list[dict[str, Any]]
+    ) -> str:
+        """Generate input listeners node content."""
+        ...
+
+
+class TemplateContextBuilder:
+    """Builder for template contexts used in keymap generation."""
+
+    def __init__(self, dtsi_generator: DtsiGenerator):
+        """Initialize with DTSI generator dependency."""
+        self._dtsi_generator = dtsi_generator
+
+    def build_context(
+        self, keymap_data: KeymapDict, profile: KeyboardProfile
+    ) -> TemplateContext:
+        """Build template context with generated DTSI content.
+
+        Args:
+            keymap_data: Keymap data
+            profile: Keyboard profile with configuration
+
+        Returns:
+            Dictionary with template context
+        """
+        # Extract data for generation with fallback to empty lists
+        layer_names = keymap_data.get("layer_names") or []
+        layers_data = keymap_data.get("layers") or []
+        hold_taps_data = keymap_data.get("holdTaps") or []
+        combos_data = keymap_data.get("combos") or []
+        macros_data = keymap_data.get("macros") or []
+        input_listeners_data = keymap_data.get("inputListeners") or []
+
+        # Get resolved includes from the profile
+        resolved_includes = (
+            profile.keyboard_config.keymap.includes
+            if hasattr(profile.keyboard_config.keymap, "includes")
+            else []
+        )
+
+        # Generate DTSI components
+        layer_defines = self._dtsi_generator.generate_layer_defines(
+            profile, layer_names
+        )
+        keymap_node = self._dtsi_generator.generate_keymap_node(
+            profile, layer_names, layers_data
+        )
+        behaviors_dtsi = self._dtsi_generator.generate_behaviors_dtsi(
+            profile, hold_taps_data
+        )
+        combos_dtsi = self._dtsi_generator.generate_combos_dtsi(
+            profile, combos_data, layer_names
+        )
+        macros_dtsi = self._dtsi_generator.generate_macros_dtsi(profile, macros_data)
+        input_listeners_dtsi = self._dtsi_generator.generate_input_listeners_node(
+            profile, input_listeners_data
+        )
+
+        # Get template elements from the keyboard profile
+        key_position_header = (
+            profile.keyboard_config.keymap.key_position_header
+            if hasattr(profile.keyboard_config.keymap, "key_position_header")
+            else ""
+        )
+        system_behaviors_dts = (
+            profile.keyboard_config.keymap.system_behaviors_dts
+            if hasattr(profile.keyboard_config.keymap, "system_behaviors_dts")
+            else ""
+        )
+
+        # Profile identifiers
+        profile_name = f"{profile.keyboard_name}/{profile.firmware_version}"
+        firmware_version = profile.firmware_version
+
+        # Build and return the template context with defaults for missing values
+        context: TemplateContext = {
+            "keyboard": keymap_data.get("keyboard") or "unknown",
+            "layer_names": layer_names,
+            "layers": layers_data,
+            "layer_defines": layer_defines,
+            "keymap_node": keymap_node,
+            "user_behaviors_dtsi": behaviors_dtsi,
+            "combos_dtsi": combos_dtsi,
+            "input_listeners_dtsi": input_listeners_dtsi,
+            "user_macros_dtsi": macros_dtsi,
+            "resolved_includes": "\n".join(resolved_includes),
+            "key_position_header": key_position_header,
+            "system_behaviors_dts": system_behaviors_dts,
+            "custom_defined_behaviors": keymap_data.get("custom_defined_behaviors")
+            or "",
+            "custom_devicetree": keymap_data.get("custom_devicetree") or "",
+            "profile_name": profile_name,
+            "firmware_version": firmware_version,
+            "generation_timestamp": datetime.now().isoformat(),
+        }
+
+        return context
+
+
+def create_template_context_builder(
+    dtsi_generator: DtsiGenerator,
+) -> TemplateContextBuilder:
+    """Create a TemplateContextBuilder instance.
+
+    Args:
+        dtsi_generator: DTSI generator dependency
+
+    Returns:
+        Configured TemplateContextBuilder instance
+    """
+    return TemplateContextBuilder(dtsi_generator)

@@ -99,8 +99,18 @@ class TestBuildServiceWithKeyboardConfig:
         self, mock_load_config, mock_keyboard_config
     ):
         """Test getting build environment using keyboard configuration."""
+        # Create a dictionary version of the mock for the test
+        mock_config_dict = {
+            "keyboard": mock_keyboard_config.keyboard,
+            "build": {
+                "docker_image": mock_keyboard_config.build.docker_image,
+                "branch": mock_keyboard_config.build.branch,
+                "repository": mock_keyboard_config.build.repository,
+            },
+        }
+
         # Setup mocks
-        mock_load_config.return_value = mock_keyboard_config
+        mock_load_config.return_value = mock_config_dict
 
         # Test getting build environment
         config = {
@@ -117,11 +127,11 @@ class TestBuildServiceWithKeyboardConfig:
 
         # We should get values from the mock_keyboard_config via the mock_load_config
         assert "DOCKER_IMAGE" in env
-        assert env["DOCKER_IMAGE"] == mock_keyboard_config["build"]["docker_image"]
+        assert env["DOCKER_IMAGE"] == mock_config_dict["build"]["docker_image"]
         assert "BRANCH" in env
-        assert env["BRANCH"] == mock_keyboard_config["build"]["branch"]
+        assert env["BRANCH"] == mock_config_dict["build"]["branch"]
         assert "REPO" in env
-        assert env["REPO"] == mock_keyboard_config["build"]["repository"]
+        assert env["REPO"] == mock_config_dict["build"]["repository"]
 
     @patch("glovebox.config.keyboard_config.create_profile_from_keyboard_name")
     def test_compile_with_profile(
