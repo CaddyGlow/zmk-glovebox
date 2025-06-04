@@ -1,0 +1,47 @@
+keyboard: test_keyboard
+description: Test keyboard for unit tests
+vendor: Test Vendor
+version: v1.0.0
+
+# Flash configuration
+flash:
+  method: mass_storage
+  query: vendor=Test and removable=true
+  usb_vid: 0x1234
+  usb_pid: 0x5678
+
+# Build configuration
+build:
+  method: docker
+  docker_image: test-zmk-build
+  repository: test/zmk
+  branch: main
+
+# Available firmware variants
+firmwares:
+  default:
+    description: Default test firmware
+    version: v1.0.0
+    branch: main
+  
+  bluetooth:
+    description: Bluetooth-focused test firmware
+    version: bluetooth
+    branch: bluetooth
+    kconfig:
+      CONFIG_ZMK_BLE: "y"
+      CONFIG_ZMK_USB: "n"
+
+# Templates
+templates:
+  keymap: |
+    #include <behaviors.dtsi>
+    #include <dt-bindings/zmk/keys.h>
+    {{ resolved_includes }}
+    
+    / {
+      keymap {
+        compatible = "zmk,keymap";
+        {{ keymap_node }}
+      };
+    };

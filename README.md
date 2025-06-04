@@ -1,0 +1,657 @@
+# Glovebox
+
+A comprehensive tool for ZMK keyboard firmware management, supporting multiple keyboards with different build chains. Glovebox provides keymap building, firmware compilation, device flashing, and configuration management for ZMK-based keyboards.
+
+## Features
+
+- **Multi-Keyboard Support**: Extensible architecture supporting different keyboard types
+- **Keymap Building**: Convert JSON layouts to ZMK keymap and configuration files
+- **Firmware Building**: Multiple build chains (Docker-based ZMK, QMK, custom toolchains)
+- **Device Flashing**: USB device detection and firmware flashing with retry logic
+- **Configuration Management**: Profile-based configuration system with inheritance
+- **Layout Visualization**: Display keyboard layouts in terminal
+- **Behavior Management**: Keyboard-specific behavior registration and validation
+
+## Supported Keyboards
+
+- **Glove80**: Full support with MoErgo Docker build chain
+- **Corne**: Standard ZMK build chain with split keyboard support
+- **Planck**: QMK build chain (planned)
+- **Extensible**: Architecture designed for easy addition of new keyboards
+
+## Installation
+
+### Requirements
+
+- Python 3.11 or higher
+- Docker (required for firmware building)
+- Linux with udisksctl (required for device flashing)
+
+### Install from PyPI
+
+```bash
+pip install glovebox
+```
+
+### Install from Source
+
+```bash
+git clone https://github.com/your-org/glovebox.git
+cd glovebox
+pip install -e .
+```
+
+### Development Installation
+
+```bash
+git clone https://github.com/your-org/glovebox.git
+cd glovebox
+pip install -e ".[dev]"
+pre-commit install
+```
+
+## Quick Start
+
+### Build a Keymap
+
+```bash
+# Build a keymap with a specific keyboard profile
+glovebox keymap compile my_layout.json output/my_keymap --profile glove80/v25.05
+
+# Read from stdin
+cat my_layout.json | glovebox keymap compile - output/my_keymap --profile glove80/v25.05
+
+# Force overwrite of existing files
+glovebox keymap compile my_layout.json output/my_keymap --profile glove80/v25.05 --force
+```
+
+### Build Firmware
+
+```bash
+# Build firmware with default settings using profile
+glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
+
+# Build with custom output directory
+glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --output-dir build/glove80
+
+# Using keyboard and firmware separately (legacy approach)
+glovebox firmware compile keymap.keymap config.conf --keyboard glove80 --firmware v25.05
+
+# Specify custom branch and repository (overrides profile settings)
+glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --branch dev --repo custom/zmk-fork
+```
+
+### Flash Firmware
+
+```bash
+# Flash firmware to detected devices with profile
+glovebox firmware flash glove80.uf2 --profile glove80/v25.05
+
+# Auto-detect keyboard from filename (legacy approach)
+glovebox firmware flash glove80.uf2
+
+# Flash with custom device query
+glovebox firmware flash firmware.uf2 --profile glove80/v25.05 --query "vendor=Adafruit and serial~=GLV80-.*"
+
+# Flash multiple devices
+glovebox firmware flash firmware.uf2 --profile glove80/v25.05 --count 2
+
+# Flash with longer timeout
+glovebox firmware flash firmware.uf2 --profile glove80/v25.05 --timeout 120
+```
+
+### System Commands
+
+```bash
+# List available profiles
+glovebox config list
+
+# Show detailed profile information
+glovebox config list --verbose
+
+# Show details of a specific profile
+glovebox config show glove80/main
+
+# Show system status
+glovebox status
+
+# Install shell completion
+glovebox --install-completion
+```
+
+## CLI Reference
+
+### Keymap Commands
+
+#### `glovebox keymap compile`
+
+Compile a keymap JSON file into ZMK keymap and config files.
+
+```bash
+glovebox keymap compile [OPTIONS] TARGET_PREFIX JSON_FILE
+```
+
+**Arguments:**
+- `TARGET_PREFIX`: Target directory and base filename (e.g., 'config/my_glove80')
+- `JSON_FILE`: Path to keymap JSON file (use '-' or omit for stdin)
+
+**Options:**
+- `--profile, -p`: Profile to use (e.g., 'glove80/v25.05')
+- `--force`: Overwrite existing files
+
+**Examples:**
+```bash
+# Using a specific profile (keyboard/firmware)
+glovebox keymap compile output/glove80 layout.json --profile glove80/v25.05
+
+# Reading from stdin
+cat layout.json | glovebox keymap compile output/glove80 - --profile glove80/v25.05
+```
+
+#### `glovebox keymap split`
+
+Split a keymap file into individual layer files.
+
+```bash
+glovebox keymap split [OPTIONS] KEYMAP_FILE OUTPUT_DIR
+```
+
+**Arguments:**
+- `KEYMAP_FILE`: Path to keymap JSON file
+- `OUTPUT_DIR`: Directory to save extracted files
+
+**Options:**
+- `--force`: Overwrite existing files
+
+Creates structure:
+```
+output_dir/
+├── base.json           # Base configuration
+├── device.dtsi         # Custom device tree (if present)
+├── keymap.dtsi         # Custom behaviors (if present)
+└── layers/
+    ├── DEFAULT.json
+    ├── LOWER.json
+    └── ...
+```
+
+#### `glovebox keymap merge`
+
+Merge layer files into a single keymap file.
+
+```bash
+glovebox keymap merge [OPTIONS] INPUT_DIR
+```
+
+**Arguments:**
+- `INPUT_DIR`: Directory with base.json and layers/ subdirectory
+
+**Options:**
+- `--output, -o`: Output keymap JSON file path
+- `--force`: Overwrite existing files
+
+#### `glovebox keymap show`
+
+Display keymap layout in terminal.
+
+```bash
+glovebox keymap show [OPTIONS] JSON_FILE
+```
+
+**Arguments:**
+- `JSON_FILE`: Path to keyboard layout JSON file
+
+**Options:**
+- `--key-width, -w`: Width for displaying each key (default: 10)
+
+#### `glovebox keymap validate`
+
+Validate keymap syntax and structure.
+
+```bash
+glovebox keymap validate JSON_FILE
+```
+
+**Arguments:**
+- `JSON_FILE`: Path to keymap JSON file
+
+### Firmware Commands
+
+#### `glovebox firmware compile`
+
+Compile firmware from keymap and config files.
+
+```bash
+glovebox firmware compile [OPTIONS] KEYMAP_FILE KCONFIG_FILE
+```
+
+**Arguments:**
+- `KEYMAP_FILE`: Path to keymap (.keymap) file
+- `KCONFIG_FILE`: Path to kconfig (.conf) file
+
+**Options:**
+- `--profile, -p`: Profile to use (e.g., 'glove80/v25.05')
+- `--output-dir, -o`: Build output directory (default: build)
+- `--keyboard, -k`: Target keyboard (legacy, use --profile instead)
+- `--firmware, -f`: Firmware version (legacy, use --profile instead)
+- `--branch`: Git branch to use (overrides profile settings)
+- `--repo`: Git repository (overrides profile settings)
+- `--jobs, -j`: Number of parallel jobs
+- `--verbose, -v`: Enable verbose build output
+
+#### `glovebox firmware flash`
+
+Flash firmware to USB devices.
+
+```bash
+glovebox firmware flash [OPTIONS] FIRMWARE_FILE
+```
+
+**Arguments:**
+- `FIRMWARE_FILE`: Path to firmware file (.uf2)
+
+**Options:**
+- `--profile, -p`: Profile to use (e.g., 'glove80/v25.05')
+- `--query, -q`: Device query string (default: from profile)
+- `--timeout`: Device detection timeout in seconds (default: 60)
+- `--count, -n`: Number of devices to flash (default: 2, 0 for unlimited)
+- `--no-track`: Allow flashing same device multiple times
+
+**Device Query Format:**
+```bash
+# Match by vendor
+--query "vendor=Adafruit"
+
+# Match by serial pattern
+--query "serial~=GLV80-.*"
+
+# Combine conditions
+--query "vendor=Adafruit and serial~=GLV80-.* and removable=true"
+
+# Available operators: = (exact), != (not equal), ~= (regex)
+```
+
+### Config Commands
+
+#### `glovebox config list`
+
+List available keyboard configurations.
+
+```bash
+glovebox config list [OPTIONS]
+```
+
+**Options:**
+- `--verbose, -v`: Show detailed information
+- `--format`: Output format (text or json)
+
+#### `glovebox config show`
+
+Show details of a specific keyboard configuration.
+
+```bash
+glovebox config show KEYBOARD_NAME
+```
+
+**Arguments:**
+- `KEYBOARD_NAME`: Keyboard name to show (e.g., 'glove80')
+
+#### `glovebox config firmwares`
+
+List available firmware variants for a keyboard.
+
+```bash
+glovebox config firmwares KEYBOARD_NAME
+```
+
+**Arguments:**
+- `KEYBOARD_NAME`: Keyboard name (e.g., 'glove80')
+
+#### `glovebox config firmware`
+
+Show details of a specific firmware configuration.
+
+```bash
+glovebox config firmware KEYBOARD_NAME FIRMWARE_NAME
+```
+
+**Arguments:**
+- `KEYBOARD_NAME`: Keyboard name (e.g., 'glove80')
+- `FIRMWARE_NAME`: Firmware variant name (e.g., 'v25.05')
+
+### Utility Commands
+
+#### Shell Completion
+
+Typer provides built-in shell completion installation.
+
+```bash
+# Install completion for current shell
+glovebox --install-completion
+
+# Show completion for current shell
+glovebox --show-completion
+```
+
+#### `glovebox status`
+
+Show system status and diagnostics.
+
+## Configuration
+
+### Typed Configuration System
+
+Glovebox uses a type-safe, file-based configuration system to support different keyboards and firmware versions:
+
+#### Key Components:
+
+1. **Keyboard Configurations**: YAML files that define keyboard-specific configurations
+   - Each keyboard has its own configuration file
+   - Configurations include build settings, templates, and firmware options
+
+2. **Firmware Configurations**:
+   - Each keyboard configuration can define multiple firmware variants
+   - Firmware variants can override keyboard-level settings
+
+3. **Configuration Files**:
+   - Stored in a discoverable directory structure
+   - Simple hierarchy: keyboard → firmware variants
+   - Files include templates, build settings, and flash configurations
+
+4. **Schema Validation**:
+   - Configuration files are validated against schemas
+   - Provides early error detection and helpful error messages
+
+5. **Type Safety**:
+   - All configuration objects are strongly typed with Python dataclasses
+   - Better IDE support with autocompletion
+   - Early validation of configuration structure
+
+6. **KeyboardProfile**:
+   - Unified access to keyboard and firmware configuration
+   - Simplifies working with combined settings
+
+7. **Configuration Components**:
+   - `get_available_keyboards()`: Lists available keyboard configurations
+   - `load_keyboard_config_typed()`: Loads typed configuration for a specific keyboard
+   - `create_keyboard_profile()`: Creates a profile for a keyboard and firmware variant
+
+#### Usage Examples:
+
+**Keyboard Configuration Loading**:
+```python
+from glovebox.config.keyboard_config import load_keyboard_config_typed
+
+# Load keyboard configuration as a typed object
+keyboard_config = load_keyboard_config_typed("glove80")
+
+# Access properties directly with IDE autocompletion
+print(keyboard_config.description)
+print(keyboard_config.vendor)
+print(keyboard_config.key_count)
+```
+
+**Keyboard Profile Usage**:
+```python
+from glovebox.config.keyboard_config import create_keyboard_profile
+
+# Create a profile for a specific keyboard and firmware
+profile = create_keyboard_profile("glove80", "v25.05")
+
+# Access keyboard and firmware properties
+print(profile.keyboard_name)
+print(profile.firmware_version)
+
+# Access firmware configuration
+build_options = profile.firmware_config.build_options
+```
+
+For detailed information about the typed configuration system, see [Typed Configuration Guide](docs/typed_configuration.md).
+
+**Keyboard Configuration Example**:
+```yaml
+# keyboards/glove80.yaml
+keyboard: glove80
+description: MoErgo Glove80 split ergonomic keyboard
+vendor: MoErgo
+
+# Flash configuration
+flash:
+  method: mass_storage
+  query: vendor=Adafruit and serial~=GLV80-.* and removable=true
+  usb_vid: 0x1209
+  usb_pid: 0x0080
+
+# Build configuration
+build:
+  method: docker
+  docker_image: moergo-zmk-build
+  repository: moergo-sc/zmk
+  branch: v25.05
+
+# Available firmware variants
+firmwares:
+  v25.05:
+    description: Stable MoErgo firmware v25.05
+    version: v25.05
+    branch: v25.05
+
+  v25.04-beta.1:
+    description: Beta MoErgo firmware v25.04-beta.1
+    version: v25.04-beta.1
+    branch: v25.04-beta.1
+```
+
+### Keyboard Support
+
+Glovebox uses this configuration system for each keyboard:
+
+- **Layout Definition**: Physical key arrangement and position mapping
+- **Build Chain**: Keyboard-specific build process (Docker images, commands)
+- **Behavior Definitions**: Keyboard-specific ZMK behaviors
+- **Templates**: Jinja2 templates for generating keymap files
+
+### Adding New Keyboards
+
+To add support for a new keyboard:
+
+1. Create a keyboard configuration YAML file:
+```yaml
+# keyboards/my_keyboard.yaml
+keyboard: my_keyboard
+description: My custom 60-key keyboard
+vendor: Custom Keyboards
+version: v1.0.0
+
+# Flash configuration
+flash:
+  method: mass_storage
+  query: vendor=Custom and removable=true
+  usb_vid: 0x1234
+  usb_pid: 0x5678
+
+# Build configuration
+build:
+  method: docker
+  docker_image: zmk-build
+  repository: zmkfirmware/zmk
+  branch: main
+
+# Available firmware variants
+firmwares:
+  default:
+    description: Default ZMK firmware
+    version: main
+    branch: main
+
+  bluetooth:
+    description: Bluetooth-focused firmware
+    version: bluetooth
+    branch: bluetooth
+    kconfig:
+      CONFIG_ZMK_BLE: "y"
+      CONFIG_ZMK_USB: "n"
+
+# Templates
+templates:
+  keymap: |
+    #include <behaviors.dtsi>
+    #include <dt-bindings/zmk/keys.h>
+    {{ resolved_includes }}
+
+    / {
+      keymap {
+        compatible = "zmk,keymap";
+        {{ keymap_node }}
+      };
+    };
+```
+
+2. Place templates or reference external templates:
+```yaml
+# Template references
+templates:
+  keymap: /path/to/templates/my_keyboard_keymap.j2
+  kconfig: /path/to/templates/my_keyboard_kconfig.j2
+```
+
+3. Test configuration discovery:
+```bash
+# List available keyboards
+glovebox config list
+
+# Show keyboard configuration
+glovebox config show my_keyboard
+```
+
+## Development
+
+### Project Structure
+
+```
+glovebox/
+├── core/                    # Core utilities and errors
+├── models/                  # Pydantic data models
+├── services/                # Business logic services
+├── adapters/                # External system interfaces
+├── build/                   # Build system and chains
+├── config/                  # Configuration and profiles
+├── formatters/              # Output formatting
+├── generators/              # Content generation
+├── flash/                   # USB device operations
+└── cli.py                   # Command-line interface
+```
+
+### Architecture Principles
+
+- **Service Layer**: Business logic with single responsibility
+- **Adapter Pattern**: External system interfaces (Docker, USB, File)
+- **Profile System**: Keyboard-specific configuration inheritance
+- **Build Chains**: Pluggable build system for different toolchains
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=glovebox
+
+# Run specific test category
+pytest -m unit
+pytest -m integration
+```
+
+### Code Quality
+
+```bash
+# Lint and format
+ruff check .
+ruff format .
+
+# Type checking (Note: mypy pre-commit hook currently disabled due to ongoing type fixes)
+mypy glovebox/services/base_service.py  # Test with a file known to pass type checks
+
+# Pre-commit hooks (recommended)
+pre-commit install
+pre-commit run --all-files
+```
+
+### Contributing
+
+1. Fork the repository
+2. Create feature branch: `git checkout -b feature/new-keyboard`
+3. Make changes following code conventions
+4. Add tests for new functionality
+5. Run quality checks: `ruff check . && ruff format . && pytest`
+6. Submit pull request
+
+## Troubleshooting
+
+### Common Issues
+
+**Docker not available:**
+```bash
+# Check Docker installation
+docker --version
+
+# Start Docker service (Linux)
+sudo systemctl start docker
+```
+
+**USB device not detected:**
+```bash
+# Check device permissions (Linux)
+ls -la /dev/disk/by-id/
+
+# Add user to appropriate groups
+sudo usermod -a -G plugdev,dialout $USER
+```
+
+**Build failures:**
+```bash
+# Check build requirements
+glovebox firmware build-info --keyboard glove80
+
+# View detailed build logs
+glovebox firmware build keymap.keymap config.conf --keyboard glove80 --verbose
+```
+
+**Template not found:**
+```bash
+# List available profiles
+glovebox config list --verbose
+
+# Check profile resolution
+glovebox keyboards info glove80
+```
+
+### Debug Logging
+
+Enable debug logging for troubleshooting:
+
+```bash
+# Enable verbose output (info level)
+glovebox -v keymap compile layout.json output
+
+# Enable debug output (very verbose)
+glovebox -vv keymap compile layout.json output
+
+# Log to file
+glovebox --log-file debug.log keymap compile layout.json output
+```
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Please read CONTRIBUTING.md for guidelines.
+
+## Support
+
+- Issues: GitHub Issues
+- Documentation: docs/
+- Examples: examples/

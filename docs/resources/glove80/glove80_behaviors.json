@@ -1,0 +1,17 @@
+[
+  { "name": "&lower", "type": "tap_dance", "expected_params": 0, "origin": "system_glove80" },
+  { "name": "&rgb_ug_status_macro", "type": "macro", "expected_params": 0, "origin": "system_glove80" },
+  { "name": "&bt_0", "type": "tap_dance", "expected_params": 0, "origin": "system_glove80", "condition": "BT_DISC_CMD" },
+  { "name": "&bt_1", "type": "tap_dance", "expected_params": 0, "origin": "system_glove80", "condition": "BT_DISC_CMD" },
+  { "name": "&bt_2", "type": "tap_dance", "expected_params": 0, "origin": "system_glove80", "condition": "BT_DISC_CMD" },
+  { "name": "&bt_3", "type": "tap_dance", "expected_params": 0, "origin": "system_glove80", "condition": "BT_DISC_CMD" },
+  { "name": "&bt_select_0", "type": "macro", "expected_params": 0, "origin": "system_glove80", "condition": "BT_DISC_CMD" },
+  { "name": "&bt_select_1", "type": "macro", "expected_params": 0, "origin": "system_glove80", "condition": "BT_DISC_CMD" },
+  { "name": "&bt_select_2", "type": "macro", "expected_params": 0, "origin": "system_glove80", "condition": "BT_DISC_CMD" },
+  { "name": "&bt_select_3", "type": "macro", "expected_params": 0, "origin": "system_glove80", "condition": "BT_DISC_CMD" },
+  { "name": "&bt_0", "type": "macro", "expected_params": 0, "origin": "system_glove80", "condition": "!BT_DISC_CMD" },
+  { "name": "&bt_1", "type": "macro", "expected_params": 0, "origin": "system_glove80", "condition": "!BT_DISC_CMD" },
+  { "name": "&bt_2", "type": "macro", "expected_params": 0, "origin": "system_glove80", "condition": "!BT_DISC_CMD" },
+  { "name": "&bt_3", "type": "macro", "expected_params": 0, "origin": "system_glove80", "condition": "!BT_DISC_CMD" },
+  { "name": "&magic", "type": "hold_tap", "expected_params": 2, "origin": "system_glove80" }
+]
