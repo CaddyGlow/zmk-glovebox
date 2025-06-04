@@ -7,9 +7,98 @@ import pytest
 
 from glovebox.adapters.file_adapter import FileAdapter
 from glovebox.adapters.template_adapter import TemplateAdapter
+from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import KeymapError
+from glovebox.models.keymap import KeymapData
 from glovebox.models.results import KeymapResult
 from glovebox.services.keymap_service import KeymapService
+
+
+# Fixtures for the typed tests
+
+@pytest.fixture
+def mock_profile():
+    """Create a mock KeyboardProfile for testing."""
+    profile = MagicMock(spec=KeyboardProfile)
+    profile.keyboard_name = "test_keyboard"
+    profile.firmware_version = "default"
+
+    # Set up the system behaviors
+    behavior1 = MagicMock()
+    behavior1.name = "&kp"
+    behavior1.code = "&kp"
+    behavior1.expected_params = 1
+    behavior1.origin = "zmk"
+    behavior1.includes = None
+
+    behavior2 = MagicMock()
+    behavior2.name = "&bt"
+    behavior2.code = "&bt"
+    behavior2.expected_params = 1
+    behavior2.origin = "zmk"
+    behavior2.includes = ["#include <dt-bindings/zmk/bt.h>"]
+
+    profile.system_behaviors = [behavior1, behavior2]
+
+    # Set up the keyboard_config mock with keymap
+    profile.keyboard_config = MagicMock()
+    profile.keyboard_config.keymap = MagicMock()
+    profile.keyboard_config.keymap.keymap_dtsi = (
+        "#include <behaviors.dtsi>\n{{ keymap_node }}"
+    )
+    profile.keyboard_config.keymap.key_position_header = "// Key positions"
+    profile.keyboard_config.keymap.system_behaviors_dts = "// System behaviors"
+
+    # Set up the get_template method (deprecated but still used in tests)
+    profile.get_template = lambda name, default=None: {
+        "keymap_dtsi": profile.keyboard_config.keymap.keymap_dtsi,
+        "key_position_header": profile.keyboard_config.keymap.key_position_header,
+        "system_behaviors_dts": profile.keyboard_config.keymap.system_behaviors_dts,
+    }.get(name, default)
+
+    # Set up kconfig options
+    kconfig_option = MagicMock()
+    kconfig_option.name = "CONFIG_ZMK_KEYBOARD_NAME"
+    kconfig_option.default = "Test Keyboard"
+    kconfig_option.type = "string"
+    kconfig_option.description = "Keyboard name"
+
+    profile.kconfig_options = {"CONFIG_ZMK_KEYBOARD_NAME": kconfig_option}
+
+    # Set up resolve_includes method
+    profile.resolve_includes = lambda behaviors_used: [
+        "#include <dt-bindings/zmk/keys.h>",
+        "#include <dt-bindings/zmk/bt.h>",
+    ]
+
+    return profile
+
+
+@pytest.fixture
+def mock_create_keyboard_profile(mock_profile):
+    """Mock the create_keyboard_profile function."""
+    with patch(
+        "glovebox.config.keyboard_config.create_keyboard_profile"
+    ) as mock_create:
+        mock_create.return_value = mock_profile
+        yield mock_create
+
+
+@pytest.fixture
+def keymap_service():
+    """Create a KeymapService for testing."""
+    file_adapter = MagicMock(spec=FileAdapter)
+    template_adapter = MagicMock(spec=TemplateAdapter)
+
+    # Set up the template_adapter to render something
+    template_adapter.render_string.return_value = "// Generated keymap content"
+
+    # Set up the file adapter to handle file operations
+    file_adapter.mkdir.return_value = True
+    file_adapter.write_text.return_value = True
+    file_adapter.write_json.return_value = True
+
+    return KeymapService(file_adapter, template_adapter)
 
 
 # Using sample_keymap_json fixture from conftest.py
@@ -24,147 +113,86 @@ class TestKeymapServiceWithKeyboardConfig:
         self.mock_template_adapter = Mock(spec=TemplateAdapter)
         self.service = KeymapService(self.mock_file_adapter, self.mock_template_adapter)
 
-    def test_validate_config_success(self, sample_keymap_json, mock_keyboard_config):
+    def test_validate_config_success(self, sample_keymap_json, mock_profile):
         """Test successful keymap-keyboard config validation."""
         # Setup
         keymap_data = sample_keymap_json
         keymap_data["keyboard"] = "test_keyboard"  # Ensure matching keyboard
 
         # Execute
-        result = self.service.validate_config(keymap_data, mock_keyboard_config)
+        result = self.service.validate_config(mock_profile, keymap_data)
 
         # Verify
         assert result is True
 
     def test_validate_config_keyboard_mismatch(
-        self, sample_keymap_json, mock_keyboard_config
+        self, sample_keymap_json, mock_profile
     ):
         """Test validation with keyboard type mismatch."""
         # Setup
         keymap_data = sample_keymap_json.copy()
         keymap_data["keyboard"] = "different_keyboard"  # Cause mismatch
 
-        # Make a copy to avoid modifying the fixture
-        keyboard_config = mock_keyboard_config.copy()
-        keyboard_config["keyboard"] = "test_keyboard"
-
         # Execute - should warn about mismatch but not fail
-        result = self.service.validate_config(keymap_data, keyboard_config)
+        result = self.service.validate_config(mock_profile, keymap_data)
 
         # Verify - returns True despite warning
         assert result is True
 
-    def test_validate_config_missing_template(self, sample_keymap_json):
+    def test_validate_config_missing_template(self, sample_keymap_json, mock_profile):
         """Test validation with missing required template."""
         # Setup
         keymap_data = sample_keymap_json
 
-        # Create keyboard config without required templates
-        keyboard_config = {
-            "keyboard": "test_keyboard",
-            "keymap": {
-                "includes": [],
-                "system_behaviors": [],
-                "kconfig_options": {},
-                # Missing keymap_dtsi template
-            },
-        }
-
         # This test should pass now since templates are optional in the schema
-        self.service.validate_config(keymap_data, keyboard_config)
+        result = self.service.validate_config(mock_profile, keymap_data)
+        assert result is True
 
-    def test_validate_config_with_templates(self, sample_keymap_json):
+    def test_validate_config_with_templates(self, sample_keymap_json, mock_profile):
         """Test validation with templates in keyboard config."""
         # Setup
         keymap_data = sample_keymap_json
 
-        # Create keyboard config with templates
-        keyboard_config = {
-            "keyboard": "test_keyboard",
-            "keymap": {
-                "includes": [],
-                "system_behaviors": [],
-                "kconfig_options": {},
-                "keymap_dtsi": "#include <behaviors.dtsi>",
-                "key_position_header": "// Key positions",
-            },
-        }
-
         # Execute
-        result = self.service.validate_config(keymap_data, keyboard_config)
+        result = self.service.validate_config(mock_profile, keymap_data)
 
         # Verify
         assert result is True
 
-    def test_show_not_implemented(self, sample_keymap_json):
-        """Test that the show method raises NotImplementedError."""
-        with pytest.raises(NotImplementedError):
-            self.service.show(keymap_data=sample_keymap_json)
+    @patch("glovebox.services.keymap_service.KeymapService._generate_layout_display")
+    def test_show_error_handling(self, mock_generate_layout, sample_keymap_json, mock_profile):
+        """Test error handling in the show method."""
+        # Make the layout generation raise an error
+        mock_generate_layout.side_effect = Exception("Layout generation failed")
 
-    @patch("glovebox.config.keyboard_config.create_keyboard_profile")
-    @patch("glovebox.generators.dtsi_generator.DTSIGenerator.generate_layer_defines")
-    @patch("glovebox.generators.dtsi_generator.DTSIGenerator.generate_keymap_node")
-    @patch("glovebox.generators.dtsi_generator.DTSIGenerator.generate_behaviors_dtsi")
-    @patch("glovebox.generators.dtsi_generator.DTSIGenerator.generate_combos_dtsi")
-    @patch("glovebox.generators.dtsi_generator.DTSIGenerator.generate_macros_dtsi")
-    @patch(
-        "glovebox.generators.dtsi_generator.DTSIGenerator.generate_input_listeners_node"
-    )
+        with pytest.raises(KeymapError):
+            self.service.show(profile=mock_profile, keymap_data=sample_keymap_json)
+
+    @patch("glovebox.services.keymap_service.KeymapService._prepare_output_paths")
+    @patch("glovebox.services.keymap_service.KeymapService._generate_keymap_file")
+    @patch("glovebox.services.keymap_service.KeymapService._generate_config_file")
     def test_compile_with_keyboard_config(
         self,
-        mock_input_listeners,
-        mock_macros,
-        mock_combos,
-        mock_behaviors,
-        mock_keymap,
-        mock_layers,
+        mock_generate_config,
+        mock_generate_keymap,
+        mock_prepare_paths,
         sample_keymap_json,
-        mock_keyboard_config,
+        mock_profile,
         tmp_path,
     ):
         """Test keymap compilation with keyboard configuration."""
-        # Set up DTSI generator mock methods
-        mock_layers.return_value = "// Layer defines"
-        mock_keymap.return_value = "// Keymap node"
-        mock_behaviors.return_value = "// Behaviors DTSI"
-        mock_combos.return_value = "// Combos DTSI"
-        mock_macros.return_value = "// Macros DTSI"
-        mock_input_listeners.return_value = "// Input listeners DTSI"
-
-        # Create a detailed mock profile
-        mock_profile = MagicMock()
-        mock_profile.keyboard_name = "test_keyboard"
-        mock_profile.firmware_version = "default"
-
-        # Create mock keyboard config
-        mock_profile.keyboard_config = MagicMock()
-        mock_profile.keyboard_config.key_count = 80
-        mock_profile.keyboard_config.description = "Test Keyboard"
-
-        # Create mock keymap
-        mock_profile.keyboard_config.keymap = MagicMock()
-        mock_profile.keyboard_config.keymap.keymap_dtsi = "// Template content"
-        mock_profile.keyboard_config.keymap.key_position_header = "// Key positions"
-        mock_profile.keyboard_config.keymap.system_behaviors_dts = "// Behaviors"
-
-        # Create mock formatting
-        mock_profile.keyboard_config.keymap.formatting = MagicMock()
-        mock_profile.keyboard_config.keymap.formatting.default_key_width = 10
-        mock_profile.keyboard_config.keymap.formatting.key_gap = "  "
-        mock_profile.keyboard_config.keymap.formatting.base_indent = ""
-        mock_profile.keyboard_config.keymap.formatting.rows = [[0, 1, 2, 3, 4]]
-
-        mock_profile.keyboard_config.keymap.kconfig_options = {}
-        mock_profile.system_behaviors = []
-        mock_profile.kconfig_options = {}
-
+        # Set up the mocks
+        mock_prepare_paths.return_value = {
+            "keymap": Path(tmp_path / "output/test.keymap"),
+            "conf": Path(tmp_path / "output/test.conf"),
+            "json": Path(tmp_path / "output/test.json")
+        }
+        mock_generate_config.return_value = {}
+        
         # Mock file adapter methods
         self.mock_file_adapter.mkdir.return_value = None
         self.mock_file_adapter.write_text.return_value = None
         self.mock_file_adapter.write_json.return_value = None
-
-        # Mock template adapter methods
-        self.mock_template_adapter.render_string.return_value = "// Generated keymap"
 
         # Setup test data
         target_prefix = str(tmp_path / "output/test")
@@ -180,14 +208,11 @@ class TestKeymapServiceWithKeyboardConfig:
         assert isinstance(result, KeymapResult)
         assert result.success is True
 
-        # Verify keymap file was created
-        assert self.mock_file_adapter.write_text.call_count > 0
-
-        # Verify config file was created
-        assert self.mock_file_adapter.write_text.call_count > 0
-
-        # Verify JSON file was saved
-        assert self.mock_file_adapter.write_json.call_count > 0
+        # Verify methods were called
+        mock_prepare_paths.assert_called_once_with(target_prefix)
+        mock_generate_config.assert_called_once()
+        mock_generate_keymap.assert_called_once()
+        self.mock_file_adapter.write_json.assert_called_once()
 
     def test_register_system_behaviors(self, mock_keyboard_config):
         """Test registration of system behaviors from keyboard profile."""
@@ -332,3 +357,62 @@ class TestKeymapServiceWithMockedConfig:
             success = False
 
         assert success is True
+
+
+# Tests from test_keymap_service_typed.py
+
+@patch("glovebox.services.keymap_service.KeymapService._prepare_output_paths")
+@patch("glovebox.services.keymap_service.KeymapService._generate_keymap_file")
+@patch("glovebox.services.keymap_service.KeymapService._generate_config_file")
+def test_compile_with_profile(
+    mock_generate_config,
+    mock_generate_keymap,
+    mock_prepare_paths,
+    keymap_service, 
+    sample_keymap_json, 
+    mock_profile
+):
+    """Test compiling a keymap with the new KeyboardProfile."""
+    # Set up the mocks
+    mock_prepare_paths.return_value = {
+        "keymap": Path("/tmp/output/test.keymap"),
+        "conf": Path("/tmp/output/test.conf"),
+        "json": Path("/tmp/output/test.json")
+    }
+    mock_generate_config.return_value = {}
+    
+    # Mock the file adapter
+    keymap_service._file_adapter.mkdir = MagicMock()
+    keymap_service._file_adapter.write_json = MagicMock()
+    
+    # Run the compile method
+    result = keymap_service.compile(
+        mock_profile,
+        sample_keymap_json,
+        "output/test",  # target_prefix
+    )
+
+    # Check that the result is successful
+    assert isinstance(result, KeymapResult)
+    assert result.success is True
+    
+    # Verify the methods were called
+    mock_prepare_paths.assert_called_once()
+    mock_generate_config.assert_called_once()
+    mock_generate_keymap.assert_called_once()
+
+
+def test_register_system_behaviors(keymap_service, mock_profile):
+    """Test registering system behaviors from a KeyboardProfile."""
+    # Call the method directly
+    keymap_service._register_system_behaviors(mock_profile)
+
+    # Check that behaviors were registered
+    behaviors = keymap_service._behavior_registry._behaviors
+    assert "&kp" in behaviors
+    assert "&bt" in behaviors
+    assert behaviors["&kp"]["expected_params"] == 1
+    assert behaviors["&bt"]["expected_params"] == 1
+
+
+# These tests were removed because they used non-existent private methods

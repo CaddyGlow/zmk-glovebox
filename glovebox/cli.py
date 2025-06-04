@@ -393,7 +393,9 @@ def show(
                 print(result)
         except NotImplementedError as e:
             print(f"Error: {e}")
-            print("Please use the --profile option to use the enhanced display service instead.")
+            print(
+                "Please use the --profile option to use the enhanced display service instead."
+            )
             raise typer.Exit(1) from e
 
 
