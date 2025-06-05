@@ -378,7 +378,13 @@ def sample_keymap_json() -> dict[str, Any]:
         "layer_names": ["DEFAULT"],
         "custom_defined_behaviors": "",
         "custom_devicetree": "",
-        "config_parameters": [],
+        "config_parameters": [
+            {
+                "paramName": "CONFIG_ZMK_KEYBOARD_NAME",
+                "value": "Test Keyboard",
+                "description": "Keyboard name",
+            }
+        ],
         "macros": [],
         "combos": [],
         "holdTaps": [],
