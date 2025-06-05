@@ -143,7 +143,8 @@ def split(
 @handle_errors
 def merge(
     input_dir: Annotated[
-        Path, typer.Argument(help="Directory with base.json and layers/ subdirectory")
+        Path,
+        typer.Argument(help="Directory with metadata.json and layers/ subdirectory"),
     ],
     output: Annotated[
         Path, typer.Option("--output", "-o", help="Output keymap JSON file path")
@@ -170,13 +171,13 @@ def merge(
 
     keyboard_profile = create_profile_from_option(profile)
 
-    # Load base data
-    base_json_path = input_dir / "base.json"
-    if not base_json_path.exists():
-        raise typer.BadParameter(f"Base JSON file not found: {base_json_path}")
+    # Load metadata data
+    metadata_json_path = input_dir / "metadata.json"
+    if not metadata_json_path.exists():
+        raise typer.BadParameter(f"Metadata JSON file not found: {metadata_json_path}")
 
-    base_json = json.loads(base_json_path.read_text())
-    base_data = KeymapData.model_validate(base_json)
+    metadata_json = json.loads(metadata_json_path.read_text())
+    metadata_data = KeymapData.model_validate(metadata_json)
 
     # Create layers directory path
     layers_dir = input_dir / "layers"
@@ -186,7 +187,7 @@ def merge(
     keymap_service = create_keymap_service()
     result = keymap_service.merge_layers(
         profile=keyboard_profile,
-        base_data=base_data,
+        base_data=metadata_data,
         layers_dir=layers_dir,
         output_file=output,
     )

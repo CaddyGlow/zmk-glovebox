@@ -166,7 +166,7 @@ glovebox keymap split [OPTIONS] KEYMAP_FILE OUTPUT_DIR
 Creates structure:
 ```
 output_dir/
-├── base.json           # Base configuration
+├── metadata.json       # Keymap metadata configuration
 ├── device.dtsi         # Custom device tree (if present)
 ├── keymap.dtsi         # Custom behaviors (if present)
 └── layers/
@@ -184,7 +184,7 @@ glovebox keymap merge [OPTIONS] INPUT_DIR
 ```
 
 **Arguments:**
-- `INPUT_DIR`: Directory with base.json and layers/ subdirectory
+- `INPUT_DIR`: Directory with metadata.json and layers/ subdirectory
 
 **Options:**
 - `--output, -o`: Output keymap JSON file path

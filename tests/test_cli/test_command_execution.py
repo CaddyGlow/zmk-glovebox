@@ -310,9 +310,9 @@ def test_keymap_merge_command(
     layers_dir = input_dir / "layers"
     layers_dir.mkdir()
 
-    # Create base.json in the input directory
-    base_json_path = input_dir / "base.json"
-    valid_base_data = {
+    # Create metadata.json in the input directory
+    metadata_json_path = input_dir / "metadata.json"
+    valid_metadata_data = {
         "keyboard": "test_keyboard",
         "title": "Test Keymap",
         "layer_names": ["Layer 1"],
@@ -322,10 +322,12 @@ def test_keymap_merge_command(
     # Mock file existence checks
     mock_path_instance = Mock()
     mock_path_instance.exists.return_value = True
-    mock_path_instance.read_text.return_value = json.dumps(valid_base_data)
+    mock_path_instance.read_text.return_value = json.dumps(valid_metadata_data)
     mock_path_instance.__truediv__.side_effect = lambda x: Mock(
         exists=lambda: True,
-        read_text=lambda: json.dumps(valid_base_data) if x == "base.json" else "",
+        read_text=lambda: json.dumps(valid_metadata_data)
+        if x == "metadata.json"
+        else "",
         parent=Mock(),
     )
     mock_path_cls.return_value = mock_path_instance

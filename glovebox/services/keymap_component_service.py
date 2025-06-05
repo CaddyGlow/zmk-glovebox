@@ -61,14 +61,14 @@ class KeymapComponentService(BaseServiceImpl):
 
             # Extract components
             self._extract_dtsi_snippets(keymap_dict, output_dir)
-            self._extract_base_config(keymap_dict, output_dir)
+            self._extract_metadata_config(keymap_dict, output_dir)
             self._extract_individual_layers(keymap_dict, output_layer_dir)
 
             result.success = True
             result.layer_count = len(keymap.layers)
             result.add_message(f"Successfully extracted layers to {output_dir}")
             result.add_message(
-                f"Created base.json and {result.layer_count} layer files"
+                f"Created metadata.json and {result.layer_count} layer files"
             )
 
             return result
@@ -79,7 +79,7 @@ class KeymapComponentService(BaseServiceImpl):
             raise KeymapError(f"Layer extraction failed: {e}") from e
 
     def combine_components(
-        self, base_keymap: KeymapData, layers_dir: Path
+        self, metadata_keymap: KeymapData, layers_dir: Path
     ) -> ResultDict:
         """Combine extracted components into a complete keymap.
 
@@ -101,8 +101,8 @@ class KeymapComponentService(BaseServiceImpl):
         if not self._file_adapter.is_dir(layers_dir):
             raise KeymapError(f"Layers directory not found: {layers_dir}")
 
-        # Make a copy of the base keymap as dictionary for processing
-        combined_keymap = base_keymap.model_dump()
+        # Make a copy of the metadata keymap as dictionary for processing
+        combined_keymap = metadata_keymap.model_dump()
 
         # Process layers
         self._process_layers_for_combination(combined_keymap, layers_dir)
@@ -139,8 +139,10 @@ class KeymapComponentService(BaseServiceImpl):
             self._file_adapter.write_text(keymap_dtsi_path, behaviors_dtsi)
             logger.info("Extracted custom_defined_behaviors to %s", keymap_dtsi_path)
 
-    def _extract_base_config(self, keymap: dict[str, Any], output_dir: Path) -> None:
-        """Extract base configuration to metadata.json.
+    def _extract_metadata_config(
+        self, keymap: dict[str, Any], output_dir: Path
+    ) -> None:
+        """Extract metadata configuration to metadata.json.
 
         Args:
             keymap: Keymap data
@@ -244,7 +246,9 @@ class KeymapComponentService(BaseServiceImpl):
         combined_keymap["layers"] = []
         layer_names = combined_keymap.get("layer_names", [])
         logger.info(
-            "Expecting %d layers based on base.json: %s", len(layer_names), layer_names
+            "Expecting %d layers based on metadata.json: %s",
+            len(layer_names),
+            layer_names,
         )
 
         # Determine expected number of keys per layer

@@ -108,7 +108,7 @@ glovebox keymap split my_layout.json my_layout/
 This creates:
 ```
 my_layout/
-├── base.json           # Base configuration 
+├── metadata.json       # Metadata configuration 
 ├── device.dtsi         # Custom device tree (if present)
 ├── keymap.dtsi         # Custom behaviors (if present)
 └── layers/
