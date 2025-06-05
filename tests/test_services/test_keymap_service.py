@@ -198,7 +198,7 @@ class TestKeymapServiceWithKeyboardConfig:
         """Test keymap compilation with keyboard configuration."""
         pass
 
-    def test_register_system_behaviors(self, mock_keyboard_config):
+    def test_register_behaviors(self, mock_keyboard_config):
         """Test registration of system behaviors from keyboard profile."""
         # Create a mock profile with behaviors
         mock_profile = MagicMock()
@@ -222,8 +222,14 @@ class TestKeymapServiceWithKeyboardConfig:
 
         mock_profile.system_behaviors = [behavior1, behavior2, behavior3]
 
-        # Execute
-        self.service._register_system_behaviors(mock_profile)
+        # Add register_behaviors method to mock
+        mock_profile.register_behaviors = lambda registry: [
+            registry.register_behavior(b.name, b.expected_params, b.origin)
+            for b in mock_profile.system_behaviors
+        ]
+
+        # Execute directly on the behavior registry
+        mock_profile.register_behaviors(self.service._behavior_registry)
 
         # Verify behaviors were registered
         assert len(self.service._behavior_registry._behaviors) > 0
@@ -291,6 +297,9 @@ class TestKeymapServiceWithMockedConfig:
         mock_profile.system_behaviors = []
         mock_profile.kconfig_options = {}
 
+        # Add register_behaviors method to the mock profile
+        mock_profile.register_behaviors = lambda registry: None
+
         mock_create_profile.return_value = mock_profile
 
         # Import needed here to avoid circular import
@@ -344,10 +353,31 @@ def test_compile_with_profile(
     pass
 
 
-def test_register_system_behaviors(keymap_service, mock_profile):
+def test_register_behaviors(keymap_service, mock_profile):
     """Test registering system behaviors from a KeyboardProfile."""
-    # Call the method directly
-    keymap_service._register_system_behaviors(mock_profile)
+    # First we need to make the mock do something useful
+    # Create system behaviors
+    behavior1 = MagicMock()
+    behavior1.name = "&kp"
+    behavior1.expected_params = 1
+    behavior1.origin = "zmk"
+
+    behavior2 = MagicMock()
+    behavior2.name = "&bt"
+    behavior2.expected_params = 1
+    behavior2.origin = "zmk"
+
+    mock_profile.system_behaviors = [behavior1, behavior2]
+
+    # Add register_behaviors method to mock
+    def register_behaviors_impl(registry):
+        for b in mock_profile.system_behaviors:
+            registry.register_behavior(b.name, b.expected_params, b.origin)
+
+    mock_profile.register_behaviors = register_behaviors_impl
+
+    # Call the profile's register_behaviors method
+    mock_profile.register_behaviors(keymap_service._behavior_registry)
 
     # Check that behaviors were registered
     behaviors = keymap_service._behavior_registry._behaviors

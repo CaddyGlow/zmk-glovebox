@@ -2,12 +2,11 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Optional, TypeAlias
+from typing import Any, TypeAlias
 
 from glovebox.adapters.file_adapter import FileAdapter
 from glovebox.adapters.template_adapter import TemplateAdapter
 from glovebox.builders.template_context_builder import (
-    TemplateContextBuilder,
     create_template_context_builder,
 )
 from glovebox.config.models import KConfigOption
@@ -34,8 +33,7 @@ from glovebox.utils.file_utils import prepare_output_paths
 logger = logging.getLogger(__name__)
 
 
-# Type aliases for internal use
-KeymapDict: TypeAlias = dict[str, Any]
+# Type alias for internal config mapping
 KConfigMap: TypeAlias = dict[str, dict[str, str]]
 
 
@@ -100,27 +98,28 @@ class KeymapService(BaseServiceImpl):
 
         try:
             # Convert to dictionary for internal processing
-            validated_data = keymap_data.model_dump()
-            result.layer_count = len(validated_data.get("layers", []))
+            result.layer_count = len(keymap_data.layers)
 
             # Prepare output paths and create directory
             output_paths = prepare_output_paths(target_prefix)
             self._file_adapter.mkdir(output_paths["keymap"].parent)
 
-            # Register system behaviors
-            self._register_system_behaviors(profile)
+            # Register system behaviors directly from profile
+            profile.register_behaviors(self._behavior_registry)
 
             # Generate files
             self._generate_config_file(
-                validated_data,
-                profile.keyboard_config.keymap.kconfig_options,
+                profile,
+                keymap_data,
                 output_paths["conf"],
             )
 
-            self._generate_keymap_file(validated_data, profile, output_paths["keymap"])
+            self._generate_keymap_file(keymap_data, profile, output_paths["keymap"])
 
             # Save JSON file to output directory
-            self._file_adapter.write_json(output_paths["json"], validated_data)
+            self._file_adapter.write_json(
+                output_paths["json"], keymap_data.model_dump(mode="json")
+            )
 
             # Set result paths
             result.keymap_path = output_paths["keymap"]
@@ -162,7 +161,8 @@ class KeymapService(BaseServiceImpl):
         logger.info("Extracting layers for %s to %s", profile.keyboard_name, output_dir)
 
         try:
-            # Convert to dictionary for internal processing
+            # TODO: Refactor KeymapComponentService to accept KeymapData instead of dict
+            # For now, we need to convert to dict because KeymapComponentService expects dict
             validated_data = keymap_data.model_dump()
 
             # Delegate to component service
@@ -202,7 +202,8 @@ class KeymapService(BaseServiceImpl):
         result = KeymapResult(success=False)
 
         try:
-            # Validate and convert to dictionary
+            # TODO: Refactor KeymapComponentService to accept KeymapData instead of dict
+            # For now, we need to convert to dict because KeymapComponentService expects dict
             validated_base = base_data.model_dump()
 
             # Create output directory if needed
@@ -255,7 +256,8 @@ class KeymapService(BaseServiceImpl):
         logger.info("Generating keyboard layout display")
 
         try:
-            # Convert to dictionary for internal processing
+            # TODO: Refactor LayoutDisplayService to accept KeymapData instead of dict
+            # For now, we need to convert to dict because LayoutDisplayService expects dict
             validated_data = keymap_data.model_dump()
 
             # Delegate to the layout display service
@@ -316,54 +318,26 @@ class KeymapService(BaseServiceImpl):
 
     # Private helper methods
 
-    def _register_system_behaviors(self, profile: KeyboardProfile) -> None:
-        """Register system behaviors from keyboard profile.
-
-        Args:
-            profile: KeyboardProfile instance with system behaviors
-        """
-        keyboard_name = profile.keyboard_name
-        logger.debug("Registering system behaviors for keyboard: %s", keyboard_name)
-
-        # Get system behaviors from the profile
-        behaviors = profile.system_behaviors
-
-        # Register each behavior
-        for behavior in behaviors:
-            name = behavior.name
-            expected_params = behavior.expected_params
-            origin = behavior.origin
-
-            if name:
-                logger.debug(
-                    "Registering behavior %s with %s params from %s",
-                    name,
-                    expected_params,
-                    origin,
-                )
-                self._behavior_registry.register_behavior(name, expected_params, origin)
-            else:
-                logger.warning("Skipping behavior without name: %s", behavior)
-
-        logger.debug("Registered behaviors for %s", profile.keyboard_name)
-
     def _generate_config_file(
         self,
-        keymap_data: KeymapDict,
-        kconfig_options: dict[str, KConfigOption],
+        profile: KeyboardProfile,
+        keymap_data: KeymapData,
         output_path: Path,
     ) -> dict[str, str]:
         """Generate configuration file and return settings.
 
         Args:
+            profile: Keyboard profile with configuration options
             keymap_data: Keymap data containing config parameters
-            kconfig_options: Mapping of kconfig options
             output_path: Path to save the config file
 
         Returns:
             Dictionary of kconfig settings
         """
         logger.info("Generating Kconfig .conf file...")
+
+        # Get kconfig options from the profile
+        kconfig_options = profile.kconfig_options
 
         # Create a kconfig map from the options
         kconfig_map: KConfigMap = {}
@@ -373,8 +347,12 @@ class KeymapService(BaseServiceImpl):
                 "type": option.type,
             }
 
+        # TODO: Refactor ConfigGenerator to accept KeymapData instead of dict
+        # For now, we need to convert to dict because ConfigGenerator expects dict
+        keymap_dict = keymap_data.model_dump()
+
         conf_content, kconfig_settings = self._config_generator.generate_kconfig(
-            keymap_data, kconfig_map
+            keymap_dict, kconfig_map
         )
         self._file_adapter.write_text(output_path, conf_content)
         logger.info("Successfully generated config and saved to %s", output_path)
@@ -382,7 +360,7 @@ class KeymapService(BaseServiceImpl):
 
     def _generate_keymap_file(
         self,
-        keymap_data: KeymapDict,
+        keymap_data: KeymapData,
         profile: KeyboardProfile,
         output_path: Path,
     ) -> None:
@@ -396,8 +374,12 @@ class KeymapService(BaseServiceImpl):
         profile_name = f"{profile.keyboard_name}/{profile.firmware_version}"
         logger.info("Building .keymap file")
 
+        # TODO: Refactor TemplateContextBuilder to accept KeymapData instead of dict
+        # For now, we need to convert to dict because TemplateContextBuilder expects KeymapDict
+        keymap_dict = keymap_data.model_dump()
+
         # Build template context using the context builder
-        context = self._context_builder.build_context(keymap_data, profile)
+        context = self._context_builder.build_context(keymap_dict, profile)
 
         # Get template content from keymap configuration
         template_content = profile.keyboard_config.keymap.keymap_dtsi

@@ -3,6 +3,10 @@
 import logging
 from typing import Any
 
+from glovebox.config.models import KConfigOption
+from glovebox.config.profile import KeyboardProfile
+from glovebox.models.keymap import KeymapData
+
 
 logger = logging.getLogger(__name__)
 
@@ -15,12 +19,14 @@ class ConfigGenerator:
         logger.debug("ConfigGenerator initialized")
 
     def generate_kconfig(
-        self, json_data: dict[str, Any], kconfig_map: dict[str, dict[str, Any]]
+        self,
+        keymap_data_dict: dict[str, Any],
+        kconfig_map: dict[str, dict[str, str]],
     ) -> tuple[str, dict[str, str]]:
         """Generate Kconfig content and settings.
 
         Args:
-            json_data: Keymap data containing config parameters
+            keymap_data_dict: Keymap data containing config parameters
             kconfig_map: Mapping from JSON params to Kconfig options
 
         Returns:
@@ -35,9 +41,10 @@ class ConfigGenerator:
         config_lines.append("# Generated ZMK configuration")
         config_lines.append("")
 
-        # Process config parameters from JSON
-        config_params = json_data.get("config_parameters", [])
-        kconfig_data = json_data.get("kconfig", {})
+        # Get config parameters
+        config_params = keymap_data_dict.get("config_parameters", [])
+        kconfig_data = keymap_data_dict.get("kconfig", {})
+        keyboard_name = keymap_data_dict.get("keyboard", "unknown")
 
         # Process explicit kconfig settings first
         for key, value in kconfig_data.items():
@@ -57,15 +64,21 @@ class ConfigGenerator:
 
         # Process config parameters using kconfig map
         for param in config_params:
-            param_name = param.get("paramName") or param.get("param_name")
-            param_value = param.get("value")
+            if isinstance(param, dict):
+                # Handle dict-style parameters from JSON
+                param_name = param.get("paramName")
+                param_value = param.get("value")
+            else:
+                # Handle ConfigParameter objects
+                param_name = getattr(param, "param_name", None)
+                param_value = getattr(param, "value", None)
 
             if not param_name or param_value is None:
                 logger.warning(f"Invalid config parameter: {param}")
                 continue
 
             # Look up in kconfig map
-            kconfig_info = kconfig_map.get(param_name)
+            kconfig_info = kconfig_map.get(param_name, {})
             if not kconfig_info:
                 logger.warning(f"No kconfig mapping found for parameter: {param_name}")
                 continue
@@ -90,11 +103,9 @@ class ConfigGenerator:
             else:  # string
                 config_lines.append(f'{config_key}="{param_value}"')
 
-        # Add common ZMK settings if not already present
+        # Add common ZMK settings
         default_configs = {
-            "CONFIG_ZMK_KEYBOARD_NAME": json_data.get("keyboard", "glove80"),
-            "CONFIG_ZMK_USB": "y",
-            "CONFIG_ZMK_BLE": "y",
+            "CONFIG_ZMK_KEYBOARD_NAME": keyboard_name,
         }
 
         for config_key, default_value in default_configs.items():
