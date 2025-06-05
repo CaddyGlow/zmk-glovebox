@@ -1,10 +1,7 @@
 """Service for displaying keyboard layouts in various formats."""
 
 import logging
-import textwrap
-from typing import Any, TypeAlias, cast
 
-from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import KeymapError
 from glovebox.generators.layout_generator import (
     DtsiLayoutGenerator,
@@ -12,14 +9,11 @@ from glovebox.generators.layout_generator import (
     LayoutMetadata,
     ViewMode,
 )
+from glovebox.models.keymap import KeymapData
 from glovebox.services.base_service import BaseServiceImpl
 
 
 logger = logging.getLogger(__name__)
-
-
-# Type aliases for internal use
-KeymapDict: TypeAlias = dict[str, Any]
 
 
 class LayoutDisplayService(BaseServiceImpl):
@@ -40,7 +34,7 @@ class LayoutDisplayService(BaseServiceImpl):
 
     def generate_display(
         self,
-        keymap_data: KeymapDict,
+        keymap_data: KeymapData,
         keyboard: str,
         key_width: int = 10,
         view_mode: ViewMode = ViewMode.NORMAL,
@@ -48,7 +42,7 @@ class LayoutDisplayService(BaseServiceImpl):
         """Generate formatted layout display text.
 
         Args:
-            keymap_data: Keymap data dictionary
+            keymap_data: Keymap data model
             keyboard: Keyboard name for layout configuration
             key_width: Width of keys in the display
             view_mode: Display mode (normal, compact, split)
@@ -63,14 +57,12 @@ class LayoutDisplayService(BaseServiceImpl):
 
         try:
             # Extract layout information
-            title = (
-                keymap_data.get("title") or keymap_data.get("name") or "Untitled Layout"
-            )
-            creator = keymap_data.get("creator", "N/A")
-            locale = keymap_data.get("locale", "N/A")
-            notes = keymap_data.get("notes", "")
-            layer_names = keymap_data.get("layer_names", [])
-            layers = keymap_data.get("layers", [])
+            title = keymap_data.title
+            creator = keymap_data.creator or "N/A"
+            locale = keymap_data.locale or "N/A"
+            notes = keymap_data.notes or ""
+            layer_names = keymap_data.layer_names
+            layers = keymap_data.layers
 
             if not layers:
                 raise KeymapError("No layers found in the keymap data")
@@ -81,7 +73,8 @@ class LayoutDisplayService(BaseServiceImpl):
                 layer_names = [f"Layer {i}" for i in range(len(layers))]
             elif len(layer_names) != len(layers):
                 logger.warning(
-                    "Mismatch between layer names (%d) and layer data (%d). Using available names.",
+                    "Mismatch between layer names (%d) and layer data (%d). "
+                    "Using available names.",
                     len(layer_names),
                     len(layers),
                 )
