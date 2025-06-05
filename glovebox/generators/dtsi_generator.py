@@ -1,9 +1,10 @@
-"""DTSI generation service for creating ZMK device tree files."""
+"""DTSI and configuration generation service for creating ZMK files."""
 
 import logging
 import re
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Optional  # UP035: Dict, List
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Optional, TypeAlias, cast  # UP035: Dict, List
 
 from glovebox.formatters.behavior_formatter import BehaviorFormatterImpl
 from glovebox.generators.layout_generator import DtsiLayoutGenerator, LayoutConfig
@@ -11,6 +12,11 @@ from glovebox.generators.layout_generator import DtsiLayoutGenerator, LayoutConf
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
+    from glovebox.models.keymap import KeymapData
+
+
+# Type alias for kconfig settings
+KConfigSettings: TypeAlias = dict[str, str]
 
 
 logger = logging.getLogger(__name__)
@@ -497,3 +503,51 @@ class DTSIGenerator:
     def _indent_array(self, lines: list[str], indent: str = "    ") -> list[str]:
         """Indent all lines in an array with the specified indent string."""
         return [f"{indent}{line}" for line in lines]
+
+    def generate_kconfig_conf(
+        self,
+        keymap_data: "KeymapData",
+        profile: "KeyboardProfile",
+    ) -> tuple[str, KConfigSettings]:
+        """Generate kconfig content and settings from keymap data.
+
+        Args:
+            keymap_data: Keymap data with configuration parameters
+            profile: Keyboard profile with kconfig options
+
+        Returns:
+            Tuple of (kconfig_content, kconfig_settings)
+        """
+        logger.info("Generating kconfig configuration")
+
+        # Extract behavior codes to get necessary includes
+        behavior_codes = profile.extract_behavior_codes(keymap_data)
+
+        # Extract user kconfig options from KeymapData
+        user_options = {}
+
+        # Get config parameters from keymap data
+        if keymap_data.config_parameters:
+            for param in keymap_data.config_parameters:
+                if param.param_name and param.value is not None:
+                    user_options[param.param_name] = param.value
+
+        # Get explicitly defined kconfig options
+        if keymap_data.kconfig:
+            for key, value in keymap_data.kconfig.items():
+                user_options[key] = value
+
+        # Set keyboard name if not specified
+        if "CONFIG_ZMK_KEYBOARD_NAME" not in user_options:
+            user_options["CONFIG_ZMK_KEYBOARD_NAME"] = (
+                keymap_data.keyboard or profile.keyboard_name
+            )
+
+        # Resolve kconfig settings with user options
+        kconfig_settings = profile.resolve_kconfig_with_user_options(user_options)
+
+        # Generate formatted kconfig content
+        kconfig_content = profile.generate_kconfig_content(kconfig_settings)
+
+        logger.info(f"Generated kconfig with {len(kconfig_settings)} settings")
+        return kconfig_content, kconfig_settings

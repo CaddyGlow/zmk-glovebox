@@ -72,6 +72,19 @@ def mock_profile():
         "#include <dt-bindings/zmk/bt.h>",
     ]
 
+    # Set up extract_behavior_codes method
+    profile.extract_behavior_codes = lambda keymap_data: ["&kp", "&bt", "&lt"]
+
+    # Set up resolve_kconfig_with_user_options method
+    profile.resolve_kconfig_with_user_options = lambda user_options: {
+        "CONFIG_ZMK_KEYBOARD_NAME": "Test Keyboard"
+    }
+
+    # Set up generate_kconfig_content method
+    profile.generate_kconfig_content = lambda kconfig_settings: (
+        '# Generated ZMK configuration\n\nCONFIG_ZMK_KEYBOARD_NAME="Test Keyboard"\n'
+    )
+
     return profile
 
 
