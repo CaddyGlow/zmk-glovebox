@@ -8,6 +8,7 @@ from importlib.metadata import distribution
 from typing import Annotated, Optional
 
 import typer
+from typer.main import get_command_from_info
 
 from glovebox.core.logging import setup_logging
 
@@ -30,6 +31,17 @@ class AppContext:
         """
         self.verbose = verbose
         self.log_file = log_file
+
+
+# Create a custom exception handler that will print stack traces
+def exception_callback(e: Exception) -> None:
+    import traceback
+
+    # Check if we should print full stack trace (based on verbosity)
+    if "--verbose" in sys.argv or "-v" in sys.argv:
+        print("\nStack trace:", file=sys.stderr)
+        traceback.print_exc()
+    # Note: We don't need to log here as that's done by Typer or in our other handlers
 
 
 # Main app
@@ -93,7 +105,15 @@ def main() -> int:
         app()
         return 0
     except Exception as e:
+        import traceback
+
         logger.exception(f"Unexpected error: {e}")
+
+        # Check if we should print stack trace (verbosity level)
+        if "--verbose" in sys.argv or "-v" in sys.argv:
+            print("\nStack trace:", file=sys.stderr)
+            traceback.print_exc()
+
         return 1
 
 
