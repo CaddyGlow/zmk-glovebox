@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Optional, TypeAlias, cast  # UP035: Dict,
 
 from glovebox.formatters.behavior_formatter import BehaviorFormatterImpl
 from glovebox.generators.layout_generator import DtsiLayoutGenerator, LayoutConfig
+from glovebox.services.behavior_service import BehaviorRegistryImpl
 
 
 if TYPE_CHECKING:
@@ -32,6 +33,9 @@ class DTSIGenerator:
             behavior_formatter: Formatter for converting bindings to DTSI format
         """
         self._behavior_formatter = behavior_formatter
+        self._behavior_registry = cast(
+            BehaviorRegistryImpl, behavior_formatter._registry
+        )
         self._layout_generator = DtsiLayoutGenerator()
 
     def generate_layer_defines(
@@ -97,9 +101,7 @@ class DTSIGenerator:
                 continue
 
             # Register the behavior
-            self._behavior_formatter._registry.register_behavior(
-                name, 2, "user_hold_tap"
-            )
+            self._behavior_registry.register_behavior(name, 2, "user_hold_tap")
 
             label = ht.get("description", node_name).split("\n")
             label = [f"// {line}" for line in label]
@@ -223,7 +225,7 @@ class DTSIGenerator:
                 continue
 
             # Register the macro behavior
-            self._behavior_formatter._registry.register_behavior(
+            self._behavior_registry.register_behavior(
                 name, int(binding_cells), "user_macro"
             )
 
