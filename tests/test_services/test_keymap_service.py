@@ -170,7 +170,9 @@ class TestKeymapServiceWithKeyboardConfig:
         # Verify
         assert result is True
 
-    @patch("glovebox.services.layout_display_service.LayoutDisplayService.generate_display")
+    @patch(
+        "glovebox.services.layout_display_service.LayoutDisplayService.generate_display"
+    )
     def test_show_error_handling(
         self, mock_generate_display, sample_keymap_json, mock_profile
     ):
