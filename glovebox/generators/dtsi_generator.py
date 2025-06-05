@@ -57,13 +57,13 @@ class DTSIGenerator:
         return "\n".join(defines)
 
     def generate_behaviors_dtsi(
-        self, profile: "KeyboardProfile", hold_taps_data: list[dict[str, Any]]
+        self, profile: "KeyboardProfile", hold_taps_data: list[Any]
     ) -> str:
         """Generate ZMK behaviors node string from hold-tap JSON data.
 
         Args:
             profile: Keyboard profile containing configuration
-            hold_taps_data: List of hold-tap behavior definitions
+            hold_taps_data: List of hold-tap behavior definitions (dict or HoldTapBehavior)
 
         Returns:
             DTSI behaviors node content as string
@@ -177,13 +177,13 @@ class DTSIGenerator:
         return "\n".join(self._indent_array(dtsi_parts, " " * 8))
 
     def generate_macros_dtsi(
-        self, profile: "KeyboardProfile", macros_data: list[dict[str, Any]]
+        self, profile: "KeyboardProfile", macros_data: list[Any]
     ) -> str:
         """Generate ZMK macros node string from JSON data.
 
         Args:
             profile: Keyboard profile containing configuration
-            macros_data: List of macro definitions
+            macros_data: List of macro definitions (dict or MacroBehavior)
 
         Returns:
             DTSI macros node content as string
@@ -256,14 +256,14 @@ class DTSIGenerator:
     def generate_combos_dtsi(
         self,
         profile: "KeyboardProfile",
-        combos_data: list[dict[str, Any]],
+        combos_data: list[Any],
         layer_names: list[str],
     ) -> str:
         """Generate ZMK combos node string from JSON data.
 
         Args:
             profile: Keyboard profile containing configuration
-            combos_data: List of combo behavior definitions
+            combos_data: List of combo behavior definitions (dict or ComboBehavior)
             layer_names: List of layer names
 
         Returns:
@@ -359,13 +359,13 @@ class DTSIGenerator:
         return "\n".join(self._indent_array(dtsi_parts))
 
     def generate_input_listeners_node(
-        self, profile: "KeyboardProfile", input_listeners_data: list[dict[str, Any]]
+        self, profile: "KeyboardProfile", input_listeners_data: list[Any]
     ) -> str:
         """Generate input listener nodes string from JSON data.
 
         Args:
             profile: Keyboard profile containing configuration
-            input_listeners_data: List of input listener definitions
+            input_listeners_data: List of input listener definitions (dict or InputListener)
 
         Returns:
             DTSI input listeners node content as string
