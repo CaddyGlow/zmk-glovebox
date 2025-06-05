@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Protocol, TypeAlias
 
 from glovebox.config.profile import KeyboardProfile
+from glovebox.models.keymap import KeymapData
 
 
 logger = logging.getLogger(__name__)
@@ -12,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 # Type aliases
 TemplateContext: TypeAlias = dict[str, Any]
-KeymapDict: TypeAlias = dict[str, Any]
 
 
 class DtsiGenerator(Protocol):
@@ -69,24 +69,24 @@ class TemplateContextBuilder:
         self._dtsi_generator = dtsi_generator
 
     def build_context(
-        self, keymap_data: KeymapDict, profile: KeyboardProfile
+        self, keymap_data: KeymapData, profile: KeyboardProfile
     ) -> TemplateContext:
         """Build template context with generated DTSI content.
 
         Args:
-            keymap_data: Keymap data
+            keymap_data: Keymap data model
             profile: Keyboard profile with configuration
 
         Returns:
             Dictionary with template context
         """
         # Extract data for generation with fallback to empty lists
-        layer_names = keymap_data.get("layer_names") or []
-        layers_data = keymap_data.get("layers") or []
-        hold_taps_data = keymap_data.get("holdTaps") or []
-        combos_data = keymap_data.get("combos") or []
-        macros_data = keymap_data.get("macros") or []
-        input_listeners_data = keymap_data.get("inputListeners") or []
+        layer_names = keymap_data.layer_names
+        layers_data = keymap_data.layers
+        hold_taps_data = keymap_data.hold_taps
+        combos_data = keymap_data.combos
+        macros_data = keymap_data.macros
+        input_listeners_data = getattr(keymap_data, "input_listeners", [])
 
         # Get resolved includes from the profile
         resolved_includes = (
@@ -131,7 +131,7 @@ class TemplateContextBuilder:
 
         # Build and return the template context with defaults for missing values
         context: TemplateContext = {
-            "keyboard": keymap_data.get("keyboard") or "unknown",
+            "keyboard": keymap_data.keyboard,
             "layer_names": layer_names,
             "layers": layers_data,
             "layer_defines": layer_defines,
@@ -143,9 +143,8 @@ class TemplateContextBuilder:
             "resolved_includes": "\n".join(resolved_includes),
             "key_position_header": key_position_header,
             "system_behaviors_dts": system_behaviors_dts,
-            "custom_defined_behaviors": keymap_data.get("custom_defined_behaviors")
-            or "",
-            "custom_devicetree": keymap_data.get("custom_devicetree") or "",
+            "custom_defined_behaviors": keymap_data.custom_defined_behaviors or "",
+            "custom_devicetree": keymap_data.custom_devicetree or "",
             "profile_name": profile_name,
             "firmware_version": firmware_version,
             "generation_timestamp": datetime.now().isoformat(),

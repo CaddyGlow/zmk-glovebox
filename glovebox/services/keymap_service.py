@@ -2,14 +2,13 @@
 
 import logging
 from pathlib import Path
-from typing import Any, TypeAlias
+from typing import TypeAlias
 
 from glovebox.adapters.file_adapter import FileAdapter
 from glovebox.adapters.template_adapter import TemplateAdapter
 from glovebox.builders.template_context_builder import (
     create_template_context_builder,
 )
-from glovebox.config.models import KConfigOption
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import KeymapError
 from glovebox.formatters.behavior_formatter import BehaviorFormatterImpl
@@ -161,14 +160,8 @@ class KeymapService(BaseServiceImpl):
         logger.info("Extracting layers for %s to %s", profile.keyboard_name, output_dir)
 
         try:
-            # TODO: Refactor KeymapComponentService to accept KeymapData instead of dict
-            # For now, we need to convert to dict because KeymapComponentService expects dict
-            validated_data = keymap_data.model_dump()
-
             # Delegate to component service
-            return self._component_service.extract_components(
-                validated_data, output_dir
-            )
+            return self._component_service.extract_components(keymap_data, output_dir)
 
         except Exception as e:
             logger.error("Layer extraction failed: %s", e)
@@ -181,7 +174,9 @@ class KeymapService(BaseServiceImpl):
         layers_dir: Path,
         output_file: Path,
     ) -> KeymapResult:
-        """Merge layer files from a directory structure back into a single keymap JSON file.
+        """Merge layer files into a single keymap JSON file.
+
+        Combines base keymap with layer files and outputs a complete keymap.
 
         Args:
             profile: Keyboard profile containing configuration
@@ -202,16 +197,12 @@ class KeymapService(BaseServiceImpl):
         result = KeymapResult(success=False)
 
         try:
-            # TODO: Refactor KeymapComponentService to accept KeymapData instead of dict
-            # For now, we need to convert to dict because KeymapComponentService expects dict
-            validated_base = base_data.model_dump()
-
             # Create output directory if needed
             self._file_adapter.mkdir(output_file.parent)
 
             # Delegate to component service
             combined_keymap = self._component_service.combine_components(
-                validated_base, layers_dir
+                base_data, layers_dir
             )
 
             # Write the final combined keymap
@@ -256,13 +247,9 @@ class KeymapService(BaseServiceImpl):
         logger.info("Generating keyboard layout display")
 
         try:
-            # TODO: Refactor LayoutDisplayService to accept KeymapData instead of dict
-            # For now, we need to convert to dict because LayoutDisplayService expects dict
-            validated_data = keymap_data.model_dump()
-
             # Delegate to the layout display service
             return self._layout_service.generate_display(
-                validated_data, profile.keyboard_name, key_width
+                keymap_data, profile.keyboard_name, key_width
             )
 
         except Exception as e:
@@ -371,15 +358,14 @@ class KeymapService(BaseServiceImpl):
             profile: KeyboardProfile instance with configuration
             output_path: Path to save the generated keymap file
         """
-        profile_name = f"{profile.keyboard_name}/{profile.firmware_version}"
-        logger.info("Building .keymap file")
-
-        # TODO: Refactor TemplateContextBuilder to accept KeymapData instead of dict
-        # For now, we need to convert to dict because TemplateContextBuilder expects KeymapDict
-        keymap_dict = keymap_data.model_dump()
+        logger.info(
+            "Building .keymap file for %s/%s",
+            profile.keyboard_name,
+            profile.firmware_version,
+        )
 
         # Build template context using the context builder
-        context = self._context_builder.build_context(keymap_dict, profile)
+        context = self._context_builder.build_context(keymap_data, profile)
 
         # Get template content from keymap configuration
         template_content = profile.keyboard_config.keymap.keymap_dtsi
