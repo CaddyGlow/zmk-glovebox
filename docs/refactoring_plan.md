@@ -123,7 +123,7 @@ def _generate_config_file(
 | Add kconfig formatting to KeyboardProfile | Completed | Added _format_kconfig_value and generate_kconfig_content methods |
 | Add kconfig generation to DTSIGenerator | Completed | Added generate_kconfig_conf method |
 | Update KeymapService | Completed | Removed ConfigGenerator dependency and updated _generate_config_file |
-| Update tests | Not Started | |
+| Update tests | Completed | Updated mock_profile fixture with new methods |
 | Remove ConfigGenerator | Completed | Removed config_generator.py file |
 | Clean up imports | Completed | Removed KConfigMap type alias and ConfigGenerator import |
 
