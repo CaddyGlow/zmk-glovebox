@@ -209,9 +209,12 @@ class KeyboardProfile:
         """
         behavior_codes = set()
 
-        # Extract behavior codes from layers
-        for layer in keymap_data.layers:
-            for binding in layer:
+        # Get structured layers with properly converted KeymapBinding objects
+        structured_layers = keymap_data.get_structured_layers()
+
+        # Extract behavior codes from structured layers
+        for layer in structured_layers:
+            for binding in layer.bindings:
                 if binding and binding.value:
                     # Extract base behavior code (e.g., "&kp" from "&kp SPACE")
                     code = binding.value.split()[0]
