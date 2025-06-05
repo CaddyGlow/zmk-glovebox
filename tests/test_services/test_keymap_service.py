@@ -170,13 +170,15 @@ class TestKeymapServiceWithKeyboardConfig:
         # Verify
         assert result is True
 
-    @patch("glovebox.services.keymap_service.KeymapService._generate_layout_display")
+    @patch(
+        "glovebox.services.layout_display_service.LayoutDisplayService.generate_display"
+    )
     def test_show_error_handling(
-        self, mock_generate_layout, sample_keymap_json, mock_profile
+        self, mock_generate_display, sample_keymap_json, mock_profile
     ):
         """Test error handling in the show method."""
         # Make the layout generation raise an error
-        mock_generate_layout.side_effect = Exception("Layout generation failed")
+        mock_generate_display.side_effect = Exception("Layout generation failed")
 
         # Convert to KeymapData
         keymap_data = KeymapData.model_validate(sample_keymap_json)
