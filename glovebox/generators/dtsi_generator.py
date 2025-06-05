@@ -13,6 +13,7 @@ from glovebox.models.keymap import (
     ComboBehavior,
     HoldTapBehavior,
     InputListener,
+    KeymapBinding,
     MacroBehavior,
 )
 from glovebox.services.behavior_service import BehaviorRegistryImpl
@@ -156,8 +157,9 @@ class DTSIGenerator:
             if require_idle is not None:
                 dtsi_parts.append(f"    require-prior-idle-ms = <{require_idle}>;")
 
-            if hold_key_positions_indices is not None and isinstance(
-                hold_key_positions_indices, list
+            if (
+                hold_key_positions_indices is not None
+                and len(hold_key_positions_indices) > 0
             ):
                 pos_numbers = [str(idx) for idx in hold_key_positions_indices]
                 dtsi_parts.append(
@@ -328,20 +330,8 @@ class DTSIGenerator:
             if layers_spec and layers_spec != [-1]:
                 combo_layer_defines = []
                 for layer_id in layers_spec:
-                    layer_define = None
-                    # Handle layer ID mapping
-                    if isinstance(layer_id, int):
-                        # Direct integer reference to layer index
-                        layer_define = layer_defines.get(layer_id)
-                    else:
-                        # Try to use as string key
-                        try:
-                            layer_id_str = str(layer_id)
-                            layer_index = layer_name_to_index.get(layer_id_str)
-                            if layer_index is not None:
-                                layer_define = layer_defines.get(layer_index)
-                        except (TypeError, ValueError):
-                            pass
+                    # Get layer define directly using the layer index
+                    layer_define = layer_defines.get(layer_id)
 
                     if layer_define:
                         combo_layer_defines.append(layer_define)
@@ -441,7 +431,7 @@ class DTSIGenerator:
         self,
         profile: "KeyboardProfile",
         layer_names: list[str],
-        layers_data: list[list[dict[str, Any]]],
+        layers_data: list[list["KeymapBinding"]],
     ) -> str:
         """Generate ZMK keymap node string from layer data.
 

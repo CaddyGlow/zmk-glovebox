@@ -4,27 +4,170 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Literal
 
 from glovebox.adapters.file_adapter import FileAdapter
+from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import KeymapError
-from glovebox.models.keymap import KeymapData
+from glovebox.models.keymap import (
+    KeymapBinding,
+    KeymapData,
+    KeymapLayer,
+    KeymapMetadata,
+    LayerBindings,
+)
 from glovebox.models.results import KeymapResult
+from glovebox.services.base_service import BaseServiceImpl
 
 
 logger = logging.getLogger(__name__)
 
 
-class KeymapFileService:
-    """Service for keymap file extraction and combination operations."""
+class KeymapFileService(BaseServiceImpl):
+    """Service for keymap file operations including loading, saving, extraction and combination."""
 
-    def __init__(self, file_adapter: FileAdapter | None = None):
-        """Initialize with file adapter dependency."""
-        if file_adapter is None:
-            from glovebox.adapters.file_adapter import create_file_adapter
-
-            file_adapter = create_file_adapter()
+    def __init__(self, file_adapter: FileAdapter):
+        """Initialize keymap file service with adapter dependencies."""
+        super().__init__(service_name="KeymapFileService", service_version="1.0.0")
         self._file_adapter = file_adapter
+
+    def load_keymap(
+        self, file_path: Path, profile: KeyboardProfile | None = None
+    ) -> KeymapData:
+        """Load keymap data from a file.
+
+        Args:
+            file_path: Path to the keymap file (JSON or keymap format)
+            profile: Optional keyboard profile for validation
+
+        Returns:
+            KeymapData model instance
+
+        Raises:
+            KeymapError: If file cannot be loaded or parsed
+        """
+        try:
+            logger.info("Loading keymap from %s", file_path)
+
+            # Determine file type from extension
+            file_ext = file_path.suffix.lower()
+
+            if file_ext == ".json":
+                return self._load_json_keymap(file_path)
+            elif file_ext == ".keymap":
+                # If profile is not provided, we can't parse .keymap files
+                if not profile:
+                    raise KeymapError(
+                        f"Cannot load .keymap file without a keyboard profile: {file_path}"
+                    )
+                # This would be implemented in a real system to parse keymap files
+                raise KeymapError("Loading from .keymap files not yet implemented")
+            else:
+                raise KeymapError(f"Unsupported keymap file type: {file_ext}")
+
+        except Exception as e:
+            if not isinstance(e, KeymapError):
+                logger.error("Error loading keymap file %s: %s", file_path, e)
+                raise KeymapError(f"Failed to load keymap file: {e}") from e
+            raise
+
+    def save_keymap(
+        self,
+        keymap_data: KeymapData,
+        file_path: Path,
+        format_type: Literal["json", "keymap", "conf"] = "json",
+    ) -> Path:
+        """Save keymap data to a file.
+
+        Args:
+            keymap_data: Keymap data model to save
+            file_path: Target file path
+            format_type: Output format (json, keymap, or conf)
+
+        Returns:
+            Path to the saved file
+
+        Raises:
+            KeymapError: If file cannot be saved
+        """
+        try:
+            logger.info("Saving keymap to %s", file_path)
+
+            # Create parent directory if it doesn't exist
+            self._file_adapter.mkdir(file_path.parent)
+
+            if format_type == "json":
+                return self._save_json_keymap(keymap_data, file_path)
+            elif format_type in ("keymap", "conf"):
+                # These would be implemented in a real system
+                raise KeymapError(f"Saving to {format_type} format not yet implemented")
+            else:
+                raise KeymapError(f"Unsupported output format: {format_type}")
+
+        except Exception as e:
+            if not isinstance(e, KeymapError):
+                logger.error("Error saving keymap to %s: %s", file_path, e)
+                raise KeymapError(f"Failed to save keymap file: {e}") from e
+            raise
+
+    def _load_json_keymap(self, file_path: Path) -> KeymapData:
+        """Load keymap data from a JSON file.
+
+        Args:
+            file_path: Path to the JSON file
+
+        Returns:
+            KeymapData model instance
+
+        Raises:
+            KeymapError: If file cannot be loaded or parsed
+        """
+        try:
+            # Read JSON file using the file adapter
+            json_data = self._file_adapter.read_json(file_path)
+
+            # Parse into KeymapData model
+            keymap_data = KeymapData.model_validate(json_data)
+
+            logger.info(
+                "Successfully loaded keymap with %d layers from %s",
+                len(keymap_data.layers),
+                file_path,
+            )
+
+            return keymap_data
+
+        except Exception as e:
+            logger.error("Error parsing keymap JSON from %s: %s", file_path, e)
+            raise KeymapError(f"Failed to parse keymap JSON: {e}") from e
+
+    def _save_json_keymap(self, keymap_data: KeymapData, file_path: Path) -> Path:
+        """Save keymap data to a JSON file.
+
+        Args:
+            keymap_data: Keymap data model to save
+            file_path: Target JSON file path
+
+        Returns:
+            Path to the saved file
+
+        Raises:
+            KeymapError: If file cannot be saved
+        """
+        try:
+            # Convert model to dictionary with proper field names
+            json_data = keymap_data.model_dump(mode="json", by_alias=True)
+
+            # Write JSON file using the file adapter
+            self._file_adapter.write_json(file_path, json_data)
+
+            logger.info("Successfully saved keymap to %s", file_path)
+
+            return file_path
+
+        except Exception as e:
+            logger.error("Error saving keymap to JSON %s: %s", file_path, e)
+            raise KeymapError(f"Failed to save keymap to JSON: {e}") from e
 
     def extract_layers(self, keymap_file: Path, output_dir: Path) -> KeymapResult:
         """
@@ -62,7 +205,7 @@ class KeymapFileService:
 
         try:
             logger.info(
-                f"Creating output directories: {output_dir} and {output_layer_dir}"
+                "Creating output directories: %s and %s", output_dir, output_layer_dir
             )
             self._file_adapter.mkdir(output_dir)
             self._file_adapter.mkdir(output_layer_dir)
@@ -70,16 +213,11 @@ class KeymapFileService:
             raise KeymapError(f"Failed to create output directories: {e}") from e
 
         try:
-            logger.info(f"Loading keymap data from {keymap_file}")
-            keymap_dict = self._file_adapter.read_json(keymap_file)
+            logger.info("Loading keymap data from %s", keymap_file)
 
-            # Validate the loaded dictionary using the Pydantic model
-            logger.info("Validating loaded keymap data structure...")
-            keymap_model = KeymapData.model_validate(keymap_dict)
-            logger.debug("Keymap data validated successfully.")
-
-            # Use the validated model's dict representation for further processing
-            keymap = keymap_model.to_dict()
+            # Load keymap data using the typed model
+            keymap_model = self._load_json_keymap(keymap_file)
+            logger.debug("Keymap data loaded and validated successfully.")
 
         except Exception as e:
             if "validation error" in str(e).lower():
@@ -91,20 +229,20 @@ class KeymapFileService:
             ) from e
 
         # Extract custom DTSI snippets
-        self._extract_dtsi_snippets(keymap, output_dir)
+        self._extract_dtsi_snippets(keymap_model, output_dir)
 
-        # Extract base configuration
-        self._extract_base(keymap, output_dir)
+        # Extract metadata configuration
+        self._extract_metadata(keymap_model, output_dir)
 
         # Extract individual layers
-        self._extract_individual_layers(keymap, output_layer_dir, keymap_file)
+        self._extract_individual_layers(keymap_model, output_layer_dir, keymap_file)
 
         result.success = True
-        result.layer_count = len(keymap.get("layers", []))
+        result.layer_count = len(keymap_model.layers)
         result.add_message(f"Successfully extracted layers to {output_dir}")
         result.add_message(f"Created base.json and {result.layer_count} layer files")
 
-        logger.info(f"Finished extracting layers to {output_dir}")
+        logger.info("Finished extracting layers to %s", output_dir)
         return result
 
     def combine_layers(self, input_dir: Path, output_file: Path) -> KeymapResult:
@@ -137,7 +275,7 @@ class KeymapFileService:
         keymap_dtsi_path = input_dir / "keymap.dtsi"
         layers_dir = input_dir / "layers"
 
-        logger.info(f"Combining layers from {input_dir} into {output_file}")
+        logger.info("Combining layers from %s into %s", input_dir, output_file)
 
         if not self._file_adapter.is_file(base_file):
             raise KeymapError(f"Base file not found: {base_file}")
@@ -145,20 +283,22 @@ class KeymapFileService:
             raise KeymapError(f"Layers directory not found: {layers_dir}")
 
         # Load base configuration
-        combined_keymap = self._load_base_config(base_file)
+        base_keymap = self._load_base_config(base_file)
 
         # Process layers
-        self._process_layers(combined_keymap, layers_dir)
+        combined_keymap = self._process_layers(base_keymap, layers_dir)
 
         # Add DTSI content
-        self._add_dtsi_content(combined_keymap, device_dtsi_path, keymap_dtsi_path)
+        combined_keymap = self._add_dtsi_content(
+            combined_keymap, device_dtsi_path, keymap_dtsi_path
+        )
 
         # Write the final combined keymap
-        self._write_combined_keymap(combined_keymap, output_file)
+        self._save_json_keymap(combined_keymap, output_file)
 
         result.success = True
         result.json_path = output_file
-        result.layer_count = len(combined_keymap.get("layers", []))
+        result.layer_count = len(combined_keymap.layers)
         result.add_message(f"Successfully combined keymap and saved to {output_file}")
         result.add_message(f"Combined {result.layer_count} layers from {layers_dir}")
 
@@ -194,19 +334,19 @@ class KeymapFileService:
             raise KeymapError(f"Keymap file not found: {keymap_file}")
 
         output_path = (output_file if output_file else keymap_file).resolve()
-        logger.info(f"Finishing keymap: {keymap_file} -> {output_path}")
+        logger.info("Finishing keymap: %s -> %s", keymap_file, output_path)
 
         # Load keymap
-        keymap = self._load_keymap_file(keymap_file)
+        keymap_data = self._load_json_keymap(keymap_file)
 
         # Add device tree content
-        self._add_device_tree_content(keymap, device_dtsi)
+        keymap_data = self._add_device_tree_content(keymap_data, device_dtsi)
 
         # Add keymap behaviors content
-        self._add_keymap_behaviors_content(keymap, keymap_dtsi)
+        keymap_data = self._add_keymap_behaviors_content(keymap_data, keymap_dtsi)
 
         # Write the updated keymap
-        self._write_keymap_file(keymap, output_path)
+        self._save_json_keymap(keymap_data, output_path)
 
         result.success = True
         result.json_path = output_path
@@ -215,85 +355,98 @@ class KeymapFileService:
         return result
 
     # Private helper methods for extraction
-    def _extract_dtsi_snippets(self, keymap: dict[str, Any], output_dir: Path) -> None:
-        """Extract custom DTSI snippets to separate files."""
-        devtree_dtsi = keymap.get("custom_devicetree", "")
-        def_bev_dtsi = keymap.get("custom_defined_behaviors", "")
+    def _extract_dtsi_snippets(self, keymap: KeymapData, output_dir: Path) -> None:
+        """Extract custom DTSI snippets to separate files.
 
+        Args:
+            keymap: Keymap data model
+            output_dir: Directory to write snippet files
+        """
         try:
             device_dtsi_path = output_dir / "device.dtsi"
-            if devtree_dtsi:
-                self._file_adapter.write_text(device_dtsi_path, devtree_dtsi)
-                logger.info(f"Extracted custom_devicetree to {device_dtsi_path}")
+            if keymap.custom_devicetree:
+                self._file_adapter.write_text(
+                    device_dtsi_path, keymap.custom_devicetree
+                )
+                logger.info("Extracted custom_devicetree to %s", device_dtsi_path)
             else:
                 logger.info("No custom_devicetree found to extract.")
 
             keymap_dtsi_path = output_dir / "keymap.dtsi"
-            if def_bev_dtsi:
-                self._file_adapter.write_text(keymap_dtsi_path, def_bev_dtsi)
-                logger.info(f"Extracted custom_defined_behaviors to {keymap_dtsi_path}")
+            if keymap.custom_defined_behaviors:
+                self._file_adapter.write_text(
+                    keymap_dtsi_path, keymap.custom_defined_behaviors
+                )
+                logger.info(
+                    "Extracted custom_defined_behaviors to %s", keymap_dtsi_path
+                )
             else:
                 logger.info("No custom_defined_behaviors found to extract.")
 
         except Exception as e:
-            logger.warning(f"Failed to write DTSI snippets: {e}")
+            logger.warning("Failed to write DTSI snippets: %s", e)
 
-    def _extract_base(self, keymap: dict[str, Any], output_dir: Path) -> None:
-        """Extract base configuration to base.json."""
-        base_keymap = keymap.copy()
+    def _extract_metadata(self, keymap: KeymapData, output_dir: Path) -> None:
+        """Extract base configuration to base.json.
 
-        # Define fields specific to layers or custom code that should be in layer files or separate snippets
-        fields_to_empty = ["layers", "custom_defined_behaviors", "custom_devicetree"]
-        base_keymap = self._empty_fields(base_keymap, fields_to_empty)
+        Args:
+            keymap: Keymap data model
+            output_dir: Directory to write metadata configuration
+        """
+        # Extract just the KeymapMetadata portion from the KeymapData
+        # Since KeymapData inherits from KeymapMetadata, we can use model_dump
+        # with include to get just the base class fields
+        metadata_dict = keymap.model_dump(
+            mode="json", by_alias=True, include=set(KeymapMetadata.model_fields.keys())
+        )
 
-        # Ensure essential base fields exist, even if empty, for clarity
-        if "layer_names" not in base_keymap:
-            base_keymap["layer_names"] = []
-        if "macros" not in base_keymap:
-            base_keymap["macros"] = []
-        if "combos" not in base_keymap:
-            base_keymap["combos"] = []
-        if "holdTaps" not in base_keymap:
-            base_keymap["holdTaps"] = []
-        if "kconfig" not in base_keymap:
-            base_keymap["kconfig"] = {}
+        # Add empty layers list
+        metadata_dict["layers"] = []
 
-        # Explicitly convert datetime to ISO string for JSON serialization
-        if isinstance(base_keymap.get("date"), datetime):
-            base_keymap["date"] = base_keymap["date"].isoformat()
-        elif "date" not in base_keymap:
-            base_keymap["date"] = datetime.now().isoformat()
+        # Empty custom snippets as they are stored separately
+        metadata_dict["custom_defined_behaviors"] = ""
+        metadata_dict["custom_devicetree"] = ""
 
         output_file = output_dir / "base.json"
         try:
-            self._file_adapter.write_json(output_file, base_keymap)
-            logger.info(f"Extracted base configuration to {output_file}")
+            self._file_adapter.write_json(output_file, metadata_dict)
+            logger.info("Extracted base configuration to %s", output_file)
         except Exception as e:
             raise KeymapError(f"Failed to write base file {output_file}: {e}") from e
 
     def _extract_individual_layers(
-        self, keymap: dict[str, Any], output_layer_dir: Path, keymap_file: Path
+        self, keymap: KeymapData, output_layer_dir: Path, keymap_file: Path
     ) -> None:
-        """Extract individual layers to separate JSON files."""
-        layer_names = keymap.get("layer_names", [])
-        layers_structured = keymap.get("layers", [])
+        """Extract individual layers to separate JSON files.
 
-        if not layer_names:
+        Args:
+            keymap: Keymap data model
+            output_layer_dir: Directory to write individual layer files
+            keymap_file: Original keymap file path for reference
+        """
+        if not keymap.layer_names:
             logger.warning(
-                "No 'layer_names' found in keymap. Cannot extract individual layers."
+                "No layer_names found in keymap. Cannot extract individual layers."
             )
             return
 
-        if not layers_structured:
+        if not keymap.layers:
             logger.warning(
-                "No 'layers' data found in keymap. Cannot extract individual layers."
+                "No layers data found in keymap. Cannot extract individual layers."
             )
             return
 
-        logger.info(f"Extracting {len(layer_names)} layers...")
-        original_date_str = keymap.get("date", datetime.now().isoformat())
+        logger.info("Extracting %d layers...", len(keymap.layer_names))
 
-        for i, layer_name in enumerate(layer_names):
+        # Use original date or current date
+        original_date = keymap.date
+
+        # Get structured layers
+        structured_layers = keymap.get_structured_layers()
+
+        for i, layer in enumerate(structured_layers):
+            layer_name = layer.name
+
             # Sanitize layer name for use as filename
             safe_layer_name = "".join(
                 c if c.isalnum() or c in ["-", "_"] else "_" for c in layer_name
@@ -301,74 +454,98 @@ class KeymapFileService:
             if not safe_layer_name:
                 safe_layer_name = f"layer_{i}"
 
-            # Get the corresponding layer data (bindings) from the structured list
-            layer_bindings = []
-            if i < len(layers_structured) and isinstance(layers_structured[i], list):
-                layer_bindings = layers_structured[i]
-            else:
-                logger.error(
-                    f"Could not find valid data for layer index {i} ('{layer_name}'). Skipping."
-                )
-                continue
-
             # Create a minimal keymap structure for the single layer
-            layer_keymap = {
-                "keyboard": keymap.get("keyboard", "unknown"),
-                "firmware_api_version": keymap.get("firmware_api_version", "1"),
-                "locale": keymap.get("locale", "en-US"),
-                "uuid": "",
-                "parent_uuid": keymap.get("uuid", ""),
-                "date": original_date_str,
-                "creator": keymap.get("creator", ""),
-                "title": f"Layer: {layer_name}",
-                "notes": f"Extracted layer '{layer_name}' from {keymap_file.name}",
-                "tags": [layer_name.lower().replace("_", "-").replace(" ", "-")],
-                "layer_names": [layer_name],
-                "layers": [layer_bindings],
-                "custom_defined_behaviors": "",
-                "custom_devicetree": "",
-                "kconfig": {},
-                "macros": [],
-                "combos": [],
-                "holdTaps": [],
-            }
+            layer_data = KeymapData(
+                keyboard=keymap.keyboard,
+                title=f"Layer: {layer_name}",
+                firmware_api_version=keymap.firmware_api_version,
+                locale=keymap.locale,
+                uuid="",
+                parent_uuid=keymap.uuid,
+                date=original_date,
+                creator=keymap.creator,
+                notes=f"Extracted layer '{layer_name}' from {keymap_file.name}",
+                tags=[layer_name.lower().replace("_", "-").replace(" ", "-")],
+                layer_names=[layer_name],
+                layers=[layer.bindings],
+                custom_defined_behaviors="",
+                custom_devicetree="",
+                kconfig={},
+                macros=[],
+                combos=[],
+                holdTaps=[],
+                inputListeners=[],
+                config_parameters=[],
+            )
 
             output_file = output_layer_dir / f"{safe_layer_name}.json"
             try:
-                self._file_adapter.write_json(output_file, layer_keymap)
-                logger.info(f"Extracted layer '{layer_name}' to {output_file}")
+                # Save using our helper method
+                self._save_json_keymap(layer_data, output_file)
+                logger.info("Extracted layer '%s' to %s", layer_name, output_file)
             except Exception as e:
-                logger.error(f"Failed to write layer file {output_file}: {e}")
+                logger.error("Failed to write layer file %s: %s", output_file, e)
 
     # Private helper methods for combination
-    def _load_base_config(self, base_file: Path) -> dict[str, Any]:
-        """Load base configuration from file."""
+    def _load_base_config(self, base_file: Path) -> KeymapData:
+        """Load base configuration from file.
+
+        Args:
+            base_file: Path to the base.json file
+
+        Returns:
+            KeymapData model with base configuration
+
+        Raises:
+            KeymapError: If the file cannot be loaded or parsed
+        """
         try:
-            combined_keymap = self._file_adapter.read_json(base_file)
+            # Read base.json file
+            base_dict = self._file_adapter.read_json(base_file)
+
+            # Parse into KeymapMetadata model first to ensure base fields are correctly handled
+            # Since KeymapData inherits from KeymapMetadata, this will correctly use the base fields
+            base_keymap = KeymapData.model_validate(base_dict)
+
+            # Ensure layers list is empty (will be filled by _process_layers)
+            base_keymap.layers = []
+
+            return base_keymap
+
         except Exception as e:
-            raise KeymapError(f"Error reading base file {base_file}: {e}") from e
+            if not isinstance(e, KeymapError):
+                logger.error("Error reading base file %s: %s", base_file, e)
+                raise KeymapError(f"Error reading base file {base_file}: {e}") from e
+            raise
 
-        # Validate base structure
-        if "layer_names" not in combined_keymap or not isinstance(
-            combined_keymap["layer_names"], list
-        ):
-            raise KeymapError("Invalid or missing 'layer_names' list in base.json")
+    def _process_layers(self, base_keymap: KeymapData, layers_dir: Path) -> KeymapData:
+        """Process and combine layer files.
 
-        return combined_keymap
+        Args:
+            base_keymap: Base keymap data model (contains KeymapMetadata fields)
+            layers_dir: Directory containing layer files
 
-    def _process_layers(
-        self, combined_keymap: dict[str, Any], layers_dir: Path
-    ) -> None:
-        """Process and combine layer files."""
-        combined_keymap["layers"] = []
-        layer_names = combined_keymap["layer_names"]
+        Returns:
+            KeymapData model with layers added
+
+        Raises:
+            KeymapError: If layers cannot be processed
+        """
+        # Initialize empty layers list in the keymap
+        base_keymap.layers = []
+        layer_names = base_keymap.layer_names
+
         logger.info(
-            f"Expecting {len(layer_names)} layers based on base.json: {layer_names}"
+            "Expecting %d layers based on base.json: %s", len(layer_names), layer_names
         )
 
         # Determine expected number of keys per layer
         num_keys = self._determine_key_count(layer_names, layers_dir)
-        empty_layer = [{"value": "&none", "params": []} for _ in range(num_keys)]
+
+        # Create empty layer with proper KeymapBinding objects
+        empty_layer: list[KeymapBinding] = [
+            KeymapBinding(value="&none", params=[]) for _ in range(num_keys)
+        ]
 
         found_layer_count = 0
 
@@ -383,32 +560,50 @@ class KeymapFileService:
 
             if not self._file_adapter.is_file(layer_file):
                 logger.warning(
-                    f"Layer file '{layer_file.name}' not found for layer '{layer_name}'. Adding empty layer."
+                    "Layer file '%s' not found for layer '%s'. Adding empty layer.",
+                    layer_file.name,
+                    layer_name,
                 )
-                combined_keymap["layers"].append(empty_layer)
+                base_keymap.layers.append(empty_layer)
                 continue
 
-            logger.info(f"Processing layer '{layer_name}' from file: {layer_file.name}")
+            logger.info(
+                "Processing layer '%s' from file: %s", layer_name, layer_file.name
+            )
 
             try:
                 layer_content = self._load_layer_file(
                     layer_file, layer_name, num_keys, empty_layer
                 )
-                combined_keymap["layers"].append(layer_content)
-                logger.info(f"Added layer '{layer_name}' (index {i})")
+                base_keymap.layers.append(layer_content)
+                logger.info("Added layer '%s' (index %d)", layer_name, i)
                 found_layer_count += 1
             except Exception as e:
                 logger.error(
-                    f"Error processing layer file {layer_file.name}: {e}. Adding empty layer."
+                    "Error processing layer file %s: %s. Adding empty layer.",
+                    layer_file.name,
+                    e,
                 )
-                combined_keymap["layers"].append(empty_layer)
+                base_keymap.layers.append(empty_layer)
 
         logger.info(
-            f"Successfully processed {found_layer_count} out of {len(layer_names)} expected layers."
+            "Successfully processed %d out of %d expected layers.",
+            found_layer_count,
+            len(layer_names),
         )
 
-    def _determine_key_count(self, layer_names: list, layers_dir: Path) -> int:
-        """Determine expected number of keys per layer."""
+        return base_keymap
+
+    def _determine_key_count(self, layer_names: list[str], layers_dir: Path) -> int:
+        """Determine expected number of keys per layer.
+
+        Args:
+            layer_names: List of layer names
+            layers_dir: Directory containing layer files
+
+        Returns:
+            Number of keys per layer
+        """
         num_keys = 80  # Default for Glove80
 
         if layer_names:
@@ -422,186 +617,190 @@ class KeymapFileService:
 
             if self._file_adapter.is_file(first_layer_file):
                 try:
-                    first_layer_data = self._file_adapter.read_json(first_layer_file)
-                    if (
-                        first_layer_data.get("layers")
-                        and isinstance(first_layer_data["layers"], list)
-                        and first_layer_data["layers"]
-                    ):
-                        num_keys = len(first_layer_data["layers"][0])
+                    # Use our typed loader method
+                    first_layer_keymap = self._load_json_keymap(first_layer_file)
+                    if first_layer_keymap.layers and first_layer_keymap.layers[0]:
+                        num_keys = len(first_layer_keymap.layers[0])
                         logger.info(
-                            f"Determined expected key count per layer: {num_keys} (from {first_layer_file})"
+                            "Determined expected key count per layer: %d (from %s)",
+                            num_keys,
+                            first_layer_file,
                         )
                 except Exception as e:
                     logger.warning(
-                        f"Could not determine key count from {first_layer_file}, using default {num_keys}. Error: {e}"
+                        "Could not determine key count from %s, using default %d. Error: %s",
+                        first_layer_file,
+                        num_keys,
+                        e,
                     )
             else:
                 logger.warning(
-                    f"First layer file {first_layer_file} not found, using default key count {num_keys}."
+                    "First layer file %s not found, using default key count %d.",
+                    first_layer_file,
+                    num_keys,
                 )
 
         return num_keys
 
     def _load_layer_file(
-        self, layer_file: Path, layer_name: str, num_keys: int, empty_layer: list
-    ) -> list:
-        """Load and process a single layer file."""
-        layer_data = self._file_adapter.read_json(layer_file)
+        self,
+        layer_file: Path,
+        layer_name: str,
+        num_keys: int,
+        empty_layer: LayerBindings,
+    ) -> LayerBindings:
+        """Load and process a single layer file.
 
-        # Find the actual layer data within the layer file
-        if (
-            "layers" in layer_data
-            and isinstance(layer_data["layers"], list)
-            and layer_data["layers"]
-        ):
-            actual_layer_content = layer_data["layers"][0]
+        Args:
+            layer_file: Path to the layer file
+            layer_name: Name of the layer
+            num_keys: Expected number of keys
+            empty_layer: Empty layer to use for padding
 
-            if len(actual_layer_content) != num_keys:
+        Returns:
+            List of KeymapBinding objects for the layer
+        """
+        try:
+            # Load the layer file into a KeymapData model
+            layer_keymap = self._load_json_keymap(layer_file)
+
+            # Extract the layer bindings
+            if layer_keymap.layers and len(layer_keymap.layers) > 0:
+                layer_bindings = layer_keymap.layers[0]
+
+                if len(layer_bindings) != num_keys:
+                    logger.warning(
+                        "Layer '%s' from %s has %d keys, expected %d. Padding/truncating.",
+                        layer_name,
+                        layer_file.name,
+                        len(layer_bindings),
+                        num_keys,
+                    )
+                    # Pad or truncate the layer to match expected size
+                    layer_bindings = (layer_bindings + empty_layer)[:num_keys]
+
+                return layer_bindings
+            else:
                 logger.warning(
-                    f"Layer '{layer_name}' from {layer_file.name} has {len(actual_layer_content)} keys, "
-                    f"expected {num_keys}. Padding/truncating."
+                    "Layer data missing or invalid in %s for layer '%s'. Using empty layer.",
+                    layer_file.name,
+                    layer_name,
                 )
-                # Pad or truncate the layer to match expected size
-                actual_layer_content = (actual_layer_content + empty_layer)[:num_keys]
-
-            return actual_layer_content
-        else:
-            logger.warning(
-                f"Layer data missing or invalid in {layer_file.name} for layer '{layer_name}'. Using empty layer."
+                return empty_layer
+        except Exception as e:
+            logger.error(
+                "Error loading layer file %s: %s. Using empty layer.",
+                layer_file.name,
+                e,
             )
             return empty_layer
 
     def _add_dtsi_content(
         self,
-        combined_keymap: dict[str, Any],
+        keymap_data: KeymapData,
         device_dtsi_path: Path,
         keymap_dtsi_path: Path,
-    ) -> None:
-        """Add DTSI content to combined keymap."""
+    ) -> KeymapData:
+        """Add DTSI content to keymap.
+
+        Args:
+            keymap_data: Keymap data model
+            device_dtsi_path: Path to device.dtsi file
+            keymap_dtsi_path: Path to keymap.dtsi file
+
+        Returns:
+            Updated KeymapData model
+        """
         # Read device.dtsi if exists
         if self._file_adapter.is_file(device_dtsi_path):
             try:
-                combined_keymap["custom_devicetree"] = self._file_adapter.read_text(
+                keymap_data.custom_devicetree = self._file_adapter.read_text(
                     device_dtsi_path
                 )
                 logger.info("Restored custom_devicetree from device.dtsi.")
             except Exception as e:
-                logger.warning(f"Error reading {device_dtsi_path}: {e}")
+                logger.warning("Error reading %s: %s", device_dtsi_path, e)
+                keymap_data.custom_devicetree = ""
         else:
-            if "custom_devicetree" not in combined_keymap:
-                combined_keymap["custom_devicetree"] = ""
+            keymap_data.custom_devicetree = ""
 
         # Read keymap.dtsi if exists
         if self._file_adapter.is_file(keymap_dtsi_path):
             try:
-                combined_keymap["custom_defined_behaviors"] = (
-                    self._file_adapter.read_text(keymap_dtsi_path)
+                keymap_data.custom_defined_behaviors = self._file_adapter.read_text(
+                    keymap_dtsi_path
                 )
                 logger.info("Restored custom_defined_behaviors from keymap.dtsi.")
             except Exception as e:
-                logger.warning(f"Error reading {keymap_dtsi_path}: {e}")
+                logger.warning("Error reading %s: %s", keymap_dtsi_path, e)
+                keymap_data.custom_defined_behaviors = ""
         else:
-            if "custom_defined_behaviors" not in combined_keymap:
-                combined_keymap["custom_defined_behaviors"] = ""
+            keymap_data.custom_defined_behaviors = ""
 
-    def _write_combined_keymap(
-        self, combined_keymap: dict[str, Any], output_file: Path
-    ) -> None:
-        """Write the final combined keymap to file."""
-        try:
-            self._file_adapter.mkdir(output_file.parent)
-            self._file_adapter.write_json(output_file, combined_keymap)
-            logger.info(f"Combined keymap saved successfully to {output_file}")
-        except Exception as e:
-            raise KeymapError(
-                f"Failed to write combined keymap file {output_file}: {e}"
-            ) from e
+        return keymap_data
 
     # Private helper methods for finish operation
-    def _load_keymap_file(self, keymap_file: Path) -> dict[str, Any]:
-        """Load keymap from file."""
-        try:
-            return self._file_adapter.read_json(keymap_file)
-        except Exception as e:
-            raise KeymapError(f"Error reading keymap file {keymap_file}: {e}") from e
-
     def _add_device_tree_content(
-        self, keymap: dict[str, Any], device_dtsi: Path | None
-    ) -> None:
-        """Add device tree content to keymap."""
-        if device_dtsi:
+        self, keymap_data: KeymapData, device_dtsi: Path | None
+    ) -> KeymapData:
+        """Add device tree content to keymap.
+
+        Args:
+            keymap_data: Keymap data model
+            device_dtsi: Path to the device tree file
+
+        Returns:
+            Updated KeymapData model
+        """
+        if device_dtsi and self._file_adapter.is_file(device_dtsi):
             device_dtsi = device_dtsi.resolve()
-            if self._file_adapter.is_file(device_dtsi):
-                logger.info(f"Reading device tree from {device_dtsi}")
-                try:
-                    keymap["custom_devicetree"] = self._file_adapter.read_text(
-                        device_dtsi
-                    )
-                except Exception as e:
-                    logger.warning(f"Error reading device tree file {device_dtsi}: {e}")
-                    keymap["custom_devicetree"] = ""
-            else:
-                logger.warning(f"Device tree file not found, skipping: {device_dtsi}")
-                keymap["custom_devicetree"] = ""
-        elif "custom_devicetree" not in keymap:
-            keymap["custom_devicetree"] = ""
+            logger.info("Reading device tree from %s", device_dtsi)
+            try:
+                keymap_data.custom_devicetree = self._file_adapter.read_text(
+                    device_dtsi
+                )
+            except Exception as e:
+                logger.warning("Error reading device tree file %s: %s", device_dtsi, e)
+                keymap_data.custom_devicetree = ""
+        else:
+            if device_dtsi:
+                logger.warning("Device tree file not found, skipping: %s", device_dtsi)
+            keymap_data.custom_devicetree = ""
+
+        return keymap_data
 
     def _add_keymap_behaviors_content(
-        self, keymap: dict[str, Any], keymap_dtsi: Path | None
-    ) -> None:
-        """Add keymap behaviors content to keymap."""
-        if keymap_dtsi:
+        self, keymap_data: KeymapData, keymap_dtsi: Path | None
+    ) -> KeymapData:
+        """Add keymap behaviors content to keymap.
+
+        Args:
+            keymap_data: Keymap data model
+            keymap_dtsi: Path to the keymap behaviors file
+
+        Returns:
+            Updated KeymapData model
+        """
+        if keymap_dtsi and self._file_adapter.is_file(keymap_dtsi):
             keymap_dtsi = keymap_dtsi.resolve()
-            if self._file_adapter.is_file(keymap_dtsi):
-                logger.info(f"Reading keymap behaviors from {keymap_dtsi}")
-                try:
-                    keymap["custom_defined_behaviors"] = self._file_adapter.read_text(
-                        keymap_dtsi
-                    )
-                except Exception as e:
-                    logger.warning(
-                        f"Error reading keymap behaviors file {keymap_dtsi}: {e}"
-                    )
-                    keymap["custom_defined_behaviors"] = ""
-            else:
-                logger.warning(
-                    f"Keymap behaviors file not found, skipping: {keymap_dtsi}"
+            logger.info("Reading keymap behaviors from %s", keymap_dtsi)
+            try:
+                keymap_data.custom_defined_behaviors = self._file_adapter.read_text(
+                    keymap_dtsi
                 )
-                keymap["custom_defined_behaviors"] = ""
-        elif "custom_defined_behaviors" not in keymap:
-            keymap["custom_defined_behaviors"] = ""
+            except Exception as e:
+                logger.warning(
+                    "Error reading keymap behaviors file %s: %s", keymap_dtsi, e
+                )
+                keymap_data.custom_defined_behaviors = ""
+        else:
+            if keymap_dtsi:
+                logger.warning(
+                    "Keymap behaviors file not found, skipping: %s", keymap_dtsi
+                )
+            keymap_data.custom_defined_behaviors = ""
 
-    def _write_keymap_file(self, keymap: dict[str, Any], output_path: Path) -> None:
-        """Write keymap to file."""
-        try:
-            if output_path.parent != Path():
-                self._file_adapter.mkdir(output_path.parent)
-
-            self._file_adapter.write_json(output_path, keymap)
-            logger.info(f"Updated keymap saved to {output_path}")
-        except Exception as e:
-            raise KeymapError(
-                f"Failed to write updated keymap file {output_path}: {e}"
-            ) from e
-
-    # Shared utility methods
-    def _empty_fields(
-        self, keymap_data: dict[str, Any], fields_to_empty: list[str]
-    ) -> dict[str, Any]:
-        """Sets specified fields in the keymap dictionary to empty values."""
-        keymap_dict = keymap_data.copy()
-
-        for field in fields_to_empty:
-            if field in keymap_dict:
-                if isinstance(keymap_dict[field], list):
-                    keymap_dict[field] = []
-                elif isinstance(keymap_dict[field], dict):
-                    keymap_dict[field] = {}
-                elif isinstance(keymap_dict[field], str):
-                    keymap_dict[field] = ""
-
-        return keymap_dict
+        return keymap_data
 
 
 def create_file_service(
@@ -615,4 +814,14 @@ def create_file_service(
     Returns:
         KeymapFileService instance
     """
+    logger.debug(
+        "Creating KeymapFileService with%s file adapter",
+        "" if file_adapter else " default",
+    )
+
+    if file_adapter is None:
+        from glovebox.adapters.file_adapter import create_file_adapter
+
+        file_adapter = create_file_adapter()
+
     return KeymapFileService(file_adapter)

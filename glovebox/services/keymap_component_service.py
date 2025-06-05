@@ -7,7 +7,7 @@ from typing import Any, TypeAlias
 
 from glovebox.adapters.file_adapter import FileAdapter
 from glovebox.core.errors import KeymapError
-from glovebox.models.keymap import KeymapData
+from glovebox.models.keymap import KeymapData, KeymapMetadata
 from glovebox.models.results import KeymapResult
 from glovebox.services.base_service import BaseServiceImpl
 from glovebox.utils.file_utils import sanitize_filename
@@ -140,44 +140,28 @@ class KeymapComponentService(BaseServiceImpl):
             logger.info("Extracted custom_defined_behaviors to %s", keymap_dtsi_path)
 
     def _extract_base_config(self, keymap: dict[str, Any], output_dir: Path) -> None:
-        """Extract base configuration to base.json.
+        """Extract base configuration to metadata.json.
 
         Args:
             keymap: Keymap data
-            output_dir: Directory to write base configuration
+            output_dir: Directory to write metadata configuration
         """
-        base_keymap = keymap.copy()
+        # Create a KeymapData model from the keymap data, which includes all metadata fields
+        full_keymap = KeymapData.model_validate(keymap)
 
-        # Remove layer-specific and custom code fields
-        fields_to_empty = ["layers", "custom_defined_behaviors", "custom_devicetree"]
-        for field in fields_to_empty:
-            if field in base_keymap:
-                if field == "layers":
-                    base_keymap[field] = []
-                elif field in base_keymap and isinstance(base_keymap[field], str):
-                    base_keymap[field] = ""
+        # Extract just the KeymapMetadata portion
+        # Since KeymapData inherits from KeymapMetadata, we can use model_dump
+        # with include to get just the base class fields
+        metadata_dict = full_keymap.model_dump(
+            mode="json", by_alias=True, include=set(KeymapMetadata.model_fields.keys())
+        )
 
-        # Ensure essential fields exist
-        essential_fields = {
-            "layer_names": [],
-            "macros": [],
-            "combos": [],
-            "holdTaps": [],
-            "kconfig": {},
-        }
-        for field, default_value in essential_fields.items():
-            if field not in base_keymap:
-                base_keymap[field] = default_value
+        # Add empty layers list
+        metadata_dict["layers"] = []
 
-        # Handle date field
-        if "date" in base_keymap and isinstance(base_keymap["date"], datetime):
-            base_keymap["date"] = base_keymap["date"].isoformat()
-        elif "date" not in base_keymap:
-            base_keymap["date"] = datetime.now().isoformat()
-
-        output_file = output_dir / "base.json"
-        self._file_adapter.write_json(output_file, base_keymap)
-        logger.info("Extracted base configuration to %s", output_file)
+        output_file = output_dir / "metadata.json"
+        self._file_adapter.write_json(output_file, metadata_dict)
+        logger.info("Extracted metadata configuration to %s", output_file)
 
     def _extract_individual_layers(
         self, keymap: dict[str, Any], output_layer_dir: Path

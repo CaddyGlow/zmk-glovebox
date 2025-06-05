@@ -1,9 +1,39 @@
 """Keymap models for Glove80 keyboard."""
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional, TypeAlias, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
+
+
+# Type aliases for common parameter types
+ParamValue: TypeAlias = str | int
+ConfigValue: TypeAlias = str | int | bool
+LayerIndex: TypeAlias = int
+#
+# TODO: Update all occurrences of list[dict[str, Any]] and list[KeymapBinding] to use this type alias
+# This will improve type safety and make future changes easier
+LayerBindings: TypeAlias = list["KeymapBinding"]
+
+
+class KeymapParam(BaseModel):
+    """Model for parameter values in key bindings."""
+
+    model_config = ConfigDict(extra="allow")
+
+    value: ParamValue
+    params: list["KeymapParam"] = Field(default_factory=list)
+
+
+# Recursive type reference for KeymapParam
+KeymapParam.model_rebuild()
 
 
 class KeymapBinding(BaseModel):
@@ -12,7 +42,7 @@ class KeymapBinding(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     value: str
-    params: list[dict[str, Any]] = Field(default_factory=list)
+    params: list[KeymapParam] = Field(default_factory=list)
 
     @property
     def behavior(self) -> str:
@@ -99,7 +129,7 @@ class ComboBehavior(BaseModel):
     description: str | None = ""
     timeout_ms: int | None = Field(default=None, alias="timeoutMs")
     key_positions: list[int] = Field(alias="keyPositions")
-    layers: list[int] | None = None
+    layers: list[LayerIndex] | None = None
     binding: list[KeymapBinding] = Field(default_factory=list)
     behavior: str | None = Field(default=None, alias="behavior")
 
@@ -125,11 +155,13 @@ class MacroBehavior(BaseModel):
     wait_ms: int | None = Field(default=None, alias="waitMs")
     tap_ms: int | None = Field(default=None, alias="tapMs")
     bindings: list[KeymapBinding] = Field(default_factory=list)
-    params: list[Any] | None = None
+    params: list[ParamValue] | None = None
 
     @field_validator("params")
     @classmethod
-    def validate_params_count(cls, v: list[Any] | None) -> list[Any] | None:
+    def validate_params_count(
+        cls, v: list[ParamValue] | None
+    ) -> list[ParamValue] | None:
         """Validate macro parameter count."""
         if v is not None and len(v) > 2:
             raise ValueError(
@@ -144,7 +176,7 @@ class ConfigParameter(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     param_name: str = Field(alias="paramName")
-    value: Any
+    value: ConfigValue
     description: str | None = None
 
 
@@ -154,7 +186,7 @@ class InputProcessor(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     code: str
-    params: list[Any] = Field(default_factory=list)
+    params: list[ParamValue] = Field(default_factory=list)
 
 
 class InputListenerNode(BaseModel):
@@ -164,7 +196,7 @@ class InputListenerNode(BaseModel):
 
     code: str
     description: str | None = ""
-    layers: list[int] = Field(default_factory=list)
+    layers: list[LayerIndex] = Field(default_factory=list)
     input_processors: list[InputProcessor] = Field(
         default_factory=list, alias="inputProcessors"
     )
@@ -182,27 +214,34 @@ class InputListener(BaseModel):
     nodes: list[InputListenerNode] = Field(default_factory=list)
 
 
-class KeymapData(BaseModel):
-    """Complete keymap data model with Pydantic v2."""
+class KeymapMetadata(BaseModel):
+    """Pydantic model for keymap metadata fields."""
 
-    model_config = ConfigDict(extra="allow", str_strip_whitespace=True)
+    model_config = ConfigDict(extra="allow")
 
     # Required fields
     keyboard: str
     title: str
-    layer_names: list[str] = Field(alias="layer_names")
-    # TODO: Type it here to avoid to do it below
-    layers: list[list[dict[str, Any]]]  # Raw layer data, will be processed
 
     # Optional metadata
     firmware_api_version: str = Field(default="1", alias="firmware_api_version")
     locale: str = Field(default="en-US")
     uuid: str = Field(default="")
     parent_uuid: str = Field(default="", alias="parent_uuid")
-    date: datetime | int | str = Field(default_factory=datetime.now)
+    date: datetime = Field(default_factory=datetime.now)
     creator: str = Field(default="")
     notes: str = Field(default="")
     tags: list[str] = Field(default_factory=list)
+
+
+class KeymapData(KeymapMetadata):
+    """Complete keymap data model with Pydantic v2."""
+
+    model_config = ConfigDict(extra="allow", str_strip_whitespace=True)
+
+    # Essential structure fields
+    layers: list[LayerBindings] = Field(default_factory=list)
+    layer_names: list[str] = Field(default_factory=list, alias="layer_names")
 
     # Behavior definitions
     hold_taps: list[HoldTapBehavior] = Field(default_factory=list, alias="holdTaps")
@@ -216,44 +255,17 @@ class KeymapData(BaseModel):
     config_parameters: list[ConfigParameter] = Field(
         default_factory=list, alias="config_parameters"
     )
-    kconfig: dict[str, Any] = Field(default_factory=dict)
+    kconfig: dict[str, ConfigValue] = Field(default_factory=dict)
 
     # Custom code
     custom_defined_behaviors: str = Field(default="", alias="custom_defined_behaviors")
     custom_devicetree: str = Field(default="", alias="custom_devicetree")
 
-    @field_validator("date", mode="before")
-    @classmethod
-    def parse_date(cls, v: datetime | int | str) -> datetime:
-        """Parse date from various formats."""
-        import logging
-
-        logger = logging.getLogger(__name__)
-
-        if isinstance(v, datetime):
-            return v
-        elif isinstance(v, int):
-            # Assume Unix timestamp
-            return datetime.fromtimestamp(v)
-        elif isinstance(v, str):
-            try:
-                # Try ISO format first
-                return datetime.fromisoformat(v.replace("Z", "+00:00"))
-            except ValueError:
-                try:
-                    # Try Unix timestamp as string
-                    return datetime.fromtimestamp(float(v))
-                except (ValueError, TypeError):
-                    logger.warning(f"Could not parse date '{v}', using current time")
-                    return datetime.now()
-        else:
-            return datetime.now()
-
     @field_validator("layers")
     @classmethod
     def validate_layers_structure(
-        cls, v: list[list[dict[str, Any]]]
-    ) -> list[list[dict[str, Any]]]:
+        cls, v: list[list[KeymapBinding]]
+    ) -> list[list[KeymapBinding]]:
         """Validate layers structure."""
         if not v:
             raise ValueError("Keymap must have at least one layer") from None
@@ -264,11 +276,11 @@ class KeymapData(BaseModel):
 
             # Validate each binding in the layer
             for j, binding in enumerate(layer):
-                if not isinstance(binding, dict):
+                if not isinstance(binding, KeymapBinding):
                     raise ValueError(
-                        f"Layer {i}, binding {j} must be a dictionary"
+                        f"Layer {i}, binding {j} must be a KeymapBinding"
                     ) from None
-                if "value" not in binding:
+                if not binding.value:
                     raise ValueError(
                         f"Layer {i}, binding {j} missing 'value' field"
                     ) from None
@@ -286,30 +298,14 @@ class KeymapData(BaseModel):
         return self
 
     def get_structured_layers(self) -> list[KeymapLayer]:
-        """Convert raw layer data to structured KeymapLayer objects."""
-        import logging
-
-        logger = logging.getLogger(__name__)
-
+        """Create KeymapLayer objects from typed layer data."""
         structured_layers = []
 
-        for i, (layer_name, layer_data) in enumerate(
-            zip(self.layer_names, self.layers, strict=False)
+        for layer_name, layer_bindings in zip(
+            self.layer_names, self.layers, strict=False
         ):
-            # Convert raw binding dicts to KeymapBinding objects
-            bindings = []
-            for binding_dict in layer_data:
-                try:
-                    binding = KeymapBinding.model_validate(binding_dict)
-                    bindings.append(binding)
-                except Exception as e:
-                    logger.warning(
-                        f"Invalid binding in layer {i}: {binding_dict}. Error: {e}"
-                    )
-                    # Create a fallback binding
-                    bindings.append(KeymapBinding(value="&none", params=[]))
-
-            layer = KeymapLayer(name=layer_name, bindings=bindings)
+            # Create KeymapLayer directly from properly typed bindings
+            layer = KeymapLayer(name=layer_name, bindings=layer_bindings)
             structured_layers.append(layer)
 
         return structured_layers
