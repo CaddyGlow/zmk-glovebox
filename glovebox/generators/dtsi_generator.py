@@ -1,16 +1,30 @@
-"""DTSI generation service for creating ZMK device tree files."""
+"""DTSI and configuration generation service for creating ZMK files."""
 
 import logging
 import re
+from collections.abc import Sequence
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Optional  # UP035: Dict, List
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Optional, TypeAlias, cast  # UP035: Dict, List
 
 from glovebox.formatters.behavior_formatter import BehaviorFormatterImpl
 from glovebox.generators.layout_generator import DtsiLayoutGenerator, LayoutConfig
+from glovebox.models.keymap import (
+    ComboBehavior,
+    HoldTapBehavior,
+    InputListener,
+    MacroBehavior,
+)
+from glovebox.services.behavior_service import BehaviorRegistryImpl
 
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
+    from glovebox.models.keymap import KeymapData
+
+
+# Type alias for kconfig settings
+KConfigSettings: TypeAlias = dict[str, str]
 
 
 logger = logging.getLogger(__name__)
@@ -26,6 +40,9 @@ class DTSIGenerator:
             behavior_formatter: Formatter for converting bindings to DTSI format
         """
         self._behavior_formatter = behavior_formatter
+        self._behavior_registry = cast(
+            BehaviorRegistryImpl, behavior_formatter._registry
+        )
         self._layout_generator = DtsiLayoutGenerator()
 
     def generate_layer_defines(
@@ -47,13 +64,13 @@ class DTSIGenerator:
         return "\n".join(defines)
 
     def generate_behaviors_dtsi(
-        self, profile: "KeyboardProfile", hold_taps_data: list[dict[str, Any]]
+        self, profile: "KeyboardProfile", hold_taps_data: Sequence[HoldTapBehavior]
     ) -> str:
-        """Generate ZMK behaviors node string from hold-tap JSON data.
+        """Generate ZMK behaviors node string from hold-tap behavior models.
 
         Args:
             profile: Keyboard profile containing configuration
-            hold_taps_data: List of hold-tap behavior definitions
+            hold_taps_data: List of hold-tap behavior models
 
         Returns:
             DTSI behaviors node content as string
@@ -70,19 +87,19 @@ class DTSIGenerator:
         dtsi_parts = []
 
         for ht in hold_taps_data:
-            name = ht.get("name")
+            name = ht.name
             if not name:
                 logger.warning("Skipping hold-tap behavior with missing 'name'.")
                 continue
 
             node_name = name[1:] if name.startswith("&") else name
-            bindings = ht.get("bindings", [])
-            tapping_term = ht.get("tappingTermMs")
-            flavor = ht.get("flavor")
-            quick_tap = ht.get("quickTapMs")
-            require_idle = ht.get("requirePriorIdleMs")
-            hold_on_release = ht.get("holdTriggerOnRelease")
-            hold_key_positions_indices = ht.get("holdTriggerKeyPositions")
+            bindings = ht.bindings
+            tapping_term = ht.tapping_term_ms
+            flavor = ht.flavor
+            quick_tap = ht.quick_tap_ms
+            require_idle = ht.require_prior_idle_ms
+            hold_on_release = ht.hold_trigger_on_release
+            hold_key_positions_indices = ht.hold_trigger_key_positions
 
             if len(bindings) != 2:
                 logger.warning(
@@ -91,11 +108,9 @@ class DTSIGenerator:
                 continue
 
             # Register the behavior
-            self._behavior_formatter._registry.register_behavior(
-                name, 2, "user_hold_tap"
-            )
+            self._behavior_registry.register_behavior(name, 2, "user_hold_tap")
 
-            label = ht.get("description", node_name).split("\n")
+            label = (ht.description or node_name).split("\n")
             label = [f"// {line}" for line in label]
 
             dtsi_parts.extend(label)
@@ -109,17 +124,10 @@ class DTSIGenerator:
             # Format bindings
             formatted_bindings = []
             for binding_ref in bindings:
-                if isinstance(binding_ref, str):
-                    formatted_bindings.append(binding_ref)
-                elif isinstance(binding_ref, dict):
-                    formatted_bindings.append(
-                        self._behavior_formatter.format_binding(binding_ref)
-                    )
-                else:
-                    logger.warning(
-                        f"Unexpected binding format in hold-tap '{name}': {binding_ref}. Skipping."
-                    )
-                    formatted_bindings.append("&error /* Invalid HT Binding */")
+                # Always use format_binding for consistent handling
+                formatted_bindings.append(
+                    self._behavior_formatter.format_binding(binding_ref)
+                )
 
             if len(formatted_bindings) == 2:
                 dtsi_parts.append(
@@ -159,7 +167,7 @@ class DTSIGenerator:
             if hold_on_release:
                 dtsi_parts.append("    hold-trigger-on-release;")
 
-            if ht.get("retroTap"):
+            if ht.retro_tap:
                 dtsi_parts.append("    retro-tap;")
 
             dtsi_parts.append("};")
@@ -169,13 +177,13 @@ class DTSIGenerator:
         return "\n".join(self._indent_array(dtsi_parts, " " * 8))
 
     def generate_macros_dtsi(
-        self, profile: "KeyboardProfile", macros_data: list[dict[str, Any]]
+        self, profile: "KeyboardProfile", macros_data: Sequence[MacroBehavior]
     ) -> str:
-        """Generate ZMK macros node string from JSON data.
+        """Generate ZMK macros node string from macro behavior models.
 
         Args:
             profile: Keyboard profile containing configuration
-            macros_data: List of macro definitions
+            macros_data: List of macro behavior models
 
         Returns:
             DTSI macros node content as string
@@ -186,19 +194,19 @@ class DTSIGenerator:
         dtsi_parts = [""]
 
         for macro in macros_data:
-            name = macro.get("name")
+            name = macro.name
             if not name:
                 logger.warning("Skipping macro with missing 'name'.")
                 continue
 
             node_name = name[1:] if name.startswith("&") else name
-            description = macro.get("description", node_name).split("\n")
+            description = (macro.description or node_name).split("\n")
             description = [f"// {line}" for line in description]
 
-            bindings = macro.get("bindings", [])
-            params = macro.get("params", [])
-            wait_ms = macro.get("waitMs")
-            tap_ms = macro.get("tapMs")
+            bindings = macro.bindings
+            params = macro.params or []
+            wait_ms = macro.wait_ms
+            tap_ms = macro.tap_ms
 
             # Determine compatible and binding-cells based on params
             if not params:
@@ -217,7 +225,7 @@ class DTSIGenerator:
                 continue
 
             # Register the macro behavior
-            self._behavior_formatter._registry.register_behavior(
+            self._behavior_registry.register_behavior(
                 name, int(binding_cells), "user_macro"
             )
 
@@ -248,14 +256,14 @@ class DTSIGenerator:
     def generate_combos_dtsi(
         self,
         profile: "KeyboardProfile",
-        combos_data: list[dict[str, Any]],
+        combos_data: Sequence[ComboBehavior],
         layer_names: list[str],
     ) -> str:
-        """Generate ZMK combos node string from JSON data.
+        """Generate ZMK combos node string from combo behavior models.
 
         Args:
             profile: Keyboard profile containing configuration
-            combos_data: List of combo behavior definitions
+            combos_data: List of combo behavior models
             layer_names: List of layer names
 
         Returns:
@@ -281,16 +289,16 @@ class DTSIGenerator:
 
         for combo in combos_data:
             logger.info(f"Processing combo: {combo}")
-            name = combo.get("name")
+            name = combo.name
             if not name:
                 logger.warning("Skipping combo with missing 'name'.")
                 continue
 
             node_name = re.sub(r"\W|^(?=\d)", "_", name)
-            binding_data = combo.get("binding")
-            key_positions_indices = combo.get("keyPositions")
-            timeout = combo.get("timeoutMs")
-            layers_spec = combo.get("layers")
+            binding_data = combo.binding
+            key_positions_indices = combo.key_positions
+            timeout = combo.timeout_ms
+            layers_spec = combo.layers
 
             if not binding_data or not key_positions_indices:
                 logger.warning(
@@ -298,8 +306,8 @@ class DTSIGenerator:
                 )
                 continue
 
-            label = combo.get("description", node_name).split("\n")
-            label = "\n".join([f"    // {line}" for line in label])
+            description_lines = (combo.description or node_name).split("\n")
+            label = "\n".join([f"    // {line}" for line in description_lines])
 
             dtsi_parts.append(f"{label}")
             dtsi_parts.append(f"    combo_{node_name} {{")
@@ -319,26 +327,30 @@ class DTSIGenerator:
             # Format layers
             if layers_spec and layers_spec != [-1]:
                 combo_layer_defines = []
-                valid_layer_spec = True
                 for layer_id in layers_spec:
                     layer_define = None
+                    # Handle layer ID mapping
                     if isinstance(layer_id, int):
+                        # Direct integer reference to layer index
                         layer_define = layer_defines.get(layer_id)
-                    elif isinstance(layer_id, str):
-                        layer_index = layer_name_to_index.get(layer_id)
-                        if layer_index is not None:
-                            layer_define = layer_defines.get(layer_index)
+                    else:
+                        # Try to use as string key
+                        try:
+                            layer_id_str = str(layer_id)
+                            layer_index = layer_name_to_index.get(layer_id_str)
+                            if layer_index is not None:
+                                layer_define = layer_defines.get(layer_index)
+                        except (TypeError, ValueError):
+                            pass
 
                     if layer_define:
                         combo_layer_defines.append(layer_define)
                     else:
                         logger.warning(
-                            f"Combo '{name}' specifies unknown layer '{layer_id}'. Ignoring layer spec."
+                            f"Combo '{name}' specifies unknown layer '{layer_id}'. Ignoring this layer."
                         )
-                        valid_layer_spec = False
-                        break
 
-                if valid_layer_spec and combo_layer_defines:
+                if combo_layer_defines:
                     dtsi_parts.append(
                         f"        layers = <{' '.join(combo_layer_defines)}>;"
                     )
@@ -351,13 +363,13 @@ class DTSIGenerator:
         return "\n".join(self._indent_array(dtsi_parts))
 
     def generate_input_listeners_node(
-        self, profile: "KeyboardProfile", input_listeners_data: list[dict[str, Any]]
+        self, profile: "KeyboardProfile", input_listeners_data: Sequence[InputListener]
     ) -> str:
-        """Generate input listener nodes string from JSON data.
+        """Generate input listener nodes string from input listener models.
 
         Args:
             profile: Keyboard profile containing configuration
-            input_listeners_data: List of input listener definitions
+            input_listeners_data: List of input listener models
 
         Returns:
             DTSI input listeners node content as string
@@ -367,30 +379,30 @@ class DTSIGenerator:
 
         dtsi_parts = []
         for listener in input_listeners_data:
-            listener_code = listener.get("code")
+            listener_code = listener.code
             if not listener_code:
                 logger.warning("Skipping input listener with missing 'code'.")
                 continue
 
             dtsi_parts.append(f"{listener_code} {{")
 
-            global_processors = listener.get("inputProcessors", [])
+            global_processors = listener.input_processors
             if global_processors:
                 processors_str = " ".join(
-                    f"{p.get('code', '')} {' '.join(map(str, p.get('params', [])))}".strip()
+                    f"{p.code} {' '.join(map(str, p.params))}".strip()
                     for p in global_processors
                 )
                 if processors_str:
                     dtsi_parts.append(f"    input-processors = <{processors_str}>;")
 
-            nodes = listener.get("nodes", [])
+            nodes = listener.nodes
             if not nodes:
                 logger.warning(
                     f"Input listener '{listener_code}' has no nodes defined."
                 )
             else:
                 for node in nodes:
-                    node_code = node.get("code")
+                    node_code = node.code
                     if not node_code:
                         logger.warning(
                             f"Skipping node in listener '{listener_code}' with missing 'code'."
@@ -398,18 +410,18 @@ class DTSIGenerator:
                         continue
 
                     dtsi_parts.append("")
-                    dtsi_parts.append(f"    // {node.get('description', node_code)}")
+                    dtsi_parts.append(f"    // {node.description or node_code}")
                     dtsi_parts.append(f"    {node_code} {{")
 
-                    layers = node.get("layers", [])
+                    layers = node.layers
                     if layers:
                         layers_str = " ".join(map(str, layers))
                         dtsi_parts.append(f"        layers = <{layers_str}>;")
 
-                    node_processors = node.get("inputProcessors", [])
+                    node_processors = node.input_processors
                     if node_processors:
                         node_processors_str = " ".join(
-                            f"{p.get('code', '')} {' '.join(map(str, p.get('params', [])))}".strip()
+                            f"{p.code} {' '.join(map(str, p.params))}".strip()
                             for p in node_processors
                         )
                         if node_processors_str:
@@ -497,3 +509,51 @@ class DTSIGenerator:
     def _indent_array(self, lines: list[str], indent: str = "    ") -> list[str]:
         """Indent all lines in an array with the specified indent string."""
         return [f"{indent}{line}" for line in lines]
+
+    def generate_kconfig_conf(
+        self,
+        keymap_data: "KeymapData",
+        profile: "KeyboardProfile",
+    ) -> tuple[str, KConfigSettings]:
+        """Generate kconfig content and settings from keymap data.
+
+        Args:
+            keymap_data: Keymap data with configuration parameters
+            profile: Keyboard profile with kconfig options
+
+        Returns:
+            Tuple of (kconfig_content, kconfig_settings)
+        """
+        logger.info("Generating kconfig configuration")
+
+        # Extract behavior codes to get necessary includes
+        behavior_codes = profile.extract_behavior_codes(keymap_data)
+
+        # Extract user kconfig options from KeymapData
+        user_options = {}
+
+        # Get config parameters from keymap data
+        if keymap_data.config_parameters:
+            for param in keymap_data.config_parameters:
+                if param.param_name and param.value is not None:
+                    user_options[param.param_name] = param.value
+
+        # Get explicitly defined kconfig options
+        if keymap_data.kconfig:
+            for key, value in keymap_data.kconfig.items():
+                user_options[key] = value
+
+        # Set keyboard name if not specified
+        if "CONFIG_ZMK_KEYBOARD_NAME" not in user_options:
+            user_options["CONFIG_ZMK_KEYBOARD_NAME"] = (
+                keymap_data.keyboard or profile.keyboard_name
+            )
+
+        # Resolve kconfig settings with user options
+        kconfig_settings = profile.resolve_kconfig_with_user_options(user_options)
+
+        # Generate formatted kconfig content
+        kconfig_content = profile.generate_kconfig_content(kconfig_settings)
+
+        logger.info(f"Generated kconfig with {len(kconfig_settings)} settings")
+        return kconfig_content, kconfig_settings

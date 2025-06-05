@@ -14,6 +14,11 @@ class KeymapBinding(BaseModel):
     value: str
     params: list[dict[str, Any]] = Field(default_factory=list)
 
+    @property
+    def behavior(self) -> str:
+        """Get the behavior code."""
+        return self.value
+
 
 class KeymapLayer(BaseModel):
     """Model for keyboard layers."""
@@ -42,7 +47,7 @@ class HoldTapBehavior(BaseModel):
 
     name: str
     description: str | None = ""
-    bindings: list[dict[str, Any]] = Field(default_factory=list)
+    bindings: list[KeymapBinding] = Field(default_factory=list)
     tapping_term_ms: int | None = Field(default=None, alias="tappingTermMs")
     quick_tap_ms: int | None = Field(default=None, alias="quickTapMs")
     flavor: str | None = None
@@ -54,6 +59,8 @@ class HoldTapBehavior(BaseModel):
         default=None, alias="holdTriggerKeyPositions"
     )
     retro_tap: bool | None = Field(default=None, alias="retroTap")
+    tap_behavior: str | None = Field(default=None, alias="tapBehavior")
+    hold_behavior: str | None = Field(default=None, alias="holdBehavior")
 
     @field_validator("flavor")
     @classmethod
@@ -74,7 +81,7 @@ class HoldTapBehavior(BaseModel):
 
     @field_validator("bindings")
     @classmethod
-    def validate_bindings_count(cls, v: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def validate_bindings_count(cls, v: list[KeymapBinding]) -> list[KeymapBinding]:
         """Validate that hold-tap has exactly 2 bindings."""
         if len(v) != 2:
             raise ValueError(
@@ -93,7 +100,8 @@ class ComboBehavior(BaseModel):
     timeout_ms: int | None = Field(default=None, alias="timeoutMs")
     key_positions: list[int] = Field(alias="keyPositions")
     layers: list[int] | None = None
-    binding: dict[str, Any]
+    binding: list[KeymapBinding] = Field(default_factory=list)
+    behavior: str | None = Field(default=None, alias="behavior")
 
     @field_validator("key_positions")
     @classmethod
@@ -116,7 +124,7 @@ class MacroBehavior(BaseModel):
     description: str | None = ""
     wait_ms: int | None = Field(default=None, alias="waitMs")
     tap_ms: int | None = Field(default=None, alias="tapMs")
-    bindings: list[dict[str, Any]] = Field(default_factory=list)
+    bindings: list[KeymapBinding] = Field(default_factory=list)
     params: list[Any] | None = None
 
     @field_validator("params")
@@ -183,6 +191,7 @@ class KeymapData(BaseModel):
     keyboard: str
     title: str
     layer_names: list[str] = Field(alias="layer_names")
+    # TODO: Type it here to avoid to do it below
     layers: list[list[dict[str, Any]]]  # Raw layer data, will be processed
 
     # Optional metadata

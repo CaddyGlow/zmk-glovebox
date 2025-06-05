@@ -16,6 +16,7 @@ from glovebox.config.models import (
 )
 from glovebox.core.errors import ConfigError
 from glovebox.core.logging import get_logger
+from glovebox.models.keymap import KeymapData
 
 
 # Handle circular import using TYPE_CHECKING
@@ -122,14 +123,126 @@ class KeyboardProfile:
 
         # Apply defaults
         for _, config in options.items():
-            resolved[config.name] = str(config.default)
+            resolved[config.name] = self._format_kconfig_value(
+                config.default, config.type
+            )
 
         # Apply user overrides
         for key, value in user_options.items():
             if key in options:
-                resolved[options[key].name] = str(value)
+                option_type = options[key].type
+                resolved[options[key].name] = self._format_kconfig_value(
+                    value, option_type
+                )
 
         return resolved
+
+    def _format_kconfig_value(self, value: Any, value_type: str) -> str:
+        """
+        Format a kconfig value based on its type.
+
+        Args:
+            value: The value to format
+            value_type: The type of the value (bool, int, string)
+
+        Returns:
+            Formatted string value for kconfig
+        """
+        if value_type == "bool":
+            # Handle boolean values
+            if isinstance(value, bool):
+                return "y" if value else "n"
+            if isinstance(value, str):
+                return "y" if value.lower() in ["true", "yes", "y", "1"] else "n"
+            return "y" if value else "n"
+        elif value_type == "int":
+            # Handle integer values
+            return str(int(value))
+        else:
+            # Default to string type
+            return str(value)
+
+    def generate_kconfig_content(self, kconfig_settings: dict[str, str]) -> str:
+        """
+        Generate formatted kconfig content from settings.
+
+        Args:
+            kconfig_settings: Dictionary of kconfig settings
+
+        Returns:
+            Formatted kconfig content as string
+        """
+        config_lines = []
+
+        # Add header
+        config_lines.append("# Generated ZMK configuration")
+        config_lines.append("")
+
+        # Process all settings
+        for config_key, value in kconfig_settings.items():
+            # Add CONFIG_ prefix if missing
+            if not config_key.startswith("CONFIG_"):
+                config_key = f"CONFIG_{config_key}"
+
+            # Format based on value
+            if value == "y":
+                config_lines.append(f"{config_key}=y")
+            elif value == "n":
+                config_lines.append(f"# {config_key} is not set")
+            elif config_key.endswith("_NAME") or isinstance(value, str):
+                # Use quotes for names and strings
+                config_lines.append(f'{config_key}="{value}"')
+            else:
+                config_lines.append(f"{config_key}={value}")
+
+        return "\n".join(config_lines)
+
+    def extract_behavior_codes(self, keymap_data: KeymapData) -> list[str]:
+        """
+        Extract behavior codes used in a keymap.
+
+        Args:
+            keymap_data: KeymapData object with layers and behaviors
+
+        Returns:
+            List of behavior codes used in the keymap
+        """
+        behavior_codes = set()
+
+        # Get structured layers with properly converted KeymapBinding objects
+        structured_layers = keymap_data.get_structured_layers()
+
+        # Extract behavior codes from structured layers
+        for layer in structured_layers:
+            for binding in layer.bindings:
+                if binding and binding.value:
+                    # Extract base behavior code (e.g., "&kp" from "&kp SPACE")
+                    code = binding.value.split()[0]
+                    behavior_codes.add(code)
+
+        # Extract behavior codes from hold-taps
+        for ht in keymap_data.hold_taps:
+            if ht.tap_behavior:
+                code = ht.tap_behavior.split()[0]
+                behavior_codes.add(code)
+            if ht.hold_behavior:
+                code = ht.hold_behavior.split()[0]
+                behavior_codes.add(code)
+
+        # Extract behavior codes from combos
+        for combo in keymap_data.combos:
+            if combo.behavior:
+                code = combo.behavior.split()[0]
+                behavior_codes.add(code)
+
+        # Extract behavior codes from macros
+        for macro in keymap_data.macros:
+            if macro.bindings:
+                for binding in macro.bindings:
+                    code = binding.value.split()[0]
+                    behavior_codes.add(code)
+
+        return list(behavior_codes)
 
     def register_behaviors(self, behavior_registry: "BehaviorRegistryImpl") -> None:
         """
@@ -159,3 +272,5 @@ class KeyboardProfile:
         for behavior in self.system_behaviors:
             if behavior.code in behaviors_used and behavior.includes:
                 base_includes.update(behavior.includes)
+
+        return sorted(base_includes)

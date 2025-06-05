@@ -2,7 +2,6 @@
 
 import logging
 from pathlib import Path
-from typing import TypeAlias
 
 from glovebox.adapters.file_adapter import FileAdapter
 from glovebox.adapters.template_adapter import TemplateAdapter
@@ -12,7 +11,6 @@ from glovebox.builders.template_context_builder import (
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import KeymapError
 from glovebox.formatters.behavior_formatter import BehaviorFormatterImpl
-from glovebox.generators.config_generator import create_config_generator
 from glovebox.generators.dtsi_generator import DTSIGenerator
 from glovebox.models.keymap import KeymapData
 from glovebox.models.results import KeymapResult
@@ -30,10 +28,6 @@ from glovebox.utils.file_utils import prepare_output_paths
 
 
 logger = logging.getLogger(__name__)
-
-
-# Type alias for internal config mapping
-KConfigMap: TypeAlias = dict[str, dict[str, str]]
 
 
 class KeymapService(BaseServiceImpl):
@@ -59,7 +53,6 @@ class KeymapService(BaseServiceImpl):
         self._behavior_registry = create_behavior_registry()
         self._behavior_formatter = BehaviorFormatterImpl(self._behavior_registry)
         self._dtsi_generator = DTSIGenerator(self._behavior_formatter)
-        self._config_generator = create_config_generator()
 
         # Initialize delegated services
         self._component_service = component_service or create_keymap_component_service(
@@ -323,24 +316,12 @@ class KeymapService(BaseServiceImpl):
         """
         logger.info("Generating Kconfig .conf file...")
 
-        # Get kconfig options from the profile
-        kconfig_options = profile.kconfig_options
-
-        # Create a kconfig map from the options
-        kconfig_map: KConfigMap = {}
-        for name, option in kconfig_options.items():
-            kconfig_map[name] = {
-                "config_key": f"CONFIG_{name.upper()}",  # Default naming convention
-                "type": option.type,
-            }
-
-        # TODO: Refactor ConfigGenerator to accept KeymapData instead of dict
-        # For now, we need to convert to dict because ConfigGenerator expects dict
-        keymap_dict = keymap_data.model_dump()
-
-        conf_content, kconfig_settings = self._config_generator.generate_kconfig(
-            keymap_dict, kconfig_map
+        # Use the DTSIGenerator to generate the config
+        conf_content, kconfig_settings = self._dtsi_generator.generate_kconfig_conf(
+            keymap_data, profile
         )
+
+        # Write the config file
         self._file_adapter.write_text(output_path, conf_content)
         logger.info("Successfully generated config and saved to %s", output_path)
         return kconfig_settings

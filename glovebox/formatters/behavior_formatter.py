@@ -33,7 +33,8 @@ class BehaviorFormatterImpl:
         self._behavior_classes: dict[str, Any] = {}
         self._init_behavior_class_map()
 
-    def format_binding(self, binding_data: dict[str, Any]) -> str:
+    # TODO: Update this method to use proper KeymapBinding type instead of dict
+    def format_binding(self, binding_data: Any) -> str:
         """Format a binding dictionary to DTSI string."""
         if not isinstance(binding_data, dict):
             logger.error(f"Invalid binding data format: {binding_data}")
