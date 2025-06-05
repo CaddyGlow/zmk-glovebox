@@ -239,9 +239,8 @@ class KeyboardProfile:
         for macro in keymap_data.macros:
             if macro.bindings:
                 for binding in macro.bindings:
-                    if binding.behavior:
-                        code = binding.behavior.split()[0]
-                        behavior_codes.add(code)
+                    code = binding.value.split()[0]
+                    behavior_codes.add(code)
 
         return list(behavior_codes)
 

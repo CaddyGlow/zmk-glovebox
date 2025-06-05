@@ -1,11 +1,18 @@
 """Builder for template contexts used in keymap generation."""
 
 import logging
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, Protocol, TypeAlias
 
 from glovebox.config.profile import KeyboardProfile
-from glovebox.models.keymap import KeymapData
+from glovebox.models.keymap import (
+    ComboBehavior,
+    HoldTapBehavior,
+    InputListener,
+    KeymapData,
+    MacroBehavior,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -34,7 +41,7 @@ class DtsiGenerator(Protocol):
         ...
 
     def generate_behaviors_dtsi(
-        self, profile: KeyboardProfile, hold_taps_data: list[dict[str, Any]]
+        self, profile: KeyboardProfile, hold_taps_data: Sequence[HoldTapBehavior]
     ) -> str:
         """Generate behaviors DTSI content."""
         ...
@@ -42,20 +49,20 @@ class DtsiGenerator(Protocol):
     def generate_combos_dtsi(
         self,
         profile: KeyboardProfile,
-        combos_data: list[dict[str, Any]],
+        combos_data: Sequence[ComboBehavior],
         layer_names: list[str],
     ) -> str:
         """Generate combos DTSI content."""
         ...
 
     def generate_macros_dtsi(
-        self, profile: KeyboardProfile, macros_data: list[dict[str, Any]]
+        self, profile: KeyboardProfile, macros_data: Sequence[MacroBehavior]
     ) -> str:
         """Generate macros DTSI content."""
         ...
 
     def generate_input_listeners_node(
-        self, profile: KeyboardProfile, input_listeners_data: list[dict[str, Any]]
+        self, profile: KeyboardProfile, input_listeners_data: Sequence[InputListener]
     ) -> str:
         """Generate input listeners node content."""
         ...

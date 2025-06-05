@@ -64,13 +64,13 @@ class DTSIGenerator:
         return "\n".join(defines)
 
     def generate_behaviors_dtsi(
-        self, profile: "KeyboardProfile", hold_taps_data: Sequence[Any]
+        self, profile: "KeyboardProfile", hold_taps_data: Sequence[HoldTapBehavior]
     ) -> str:
         """Generate ZMK behaviors node string from hold-tap behavior models.
 
         Args:
             profile: Keyboard profile containing configuration
-            hold_taps_data: List of hold-tap behavior models or dictionaries
+            hold_taps_data: List of hold-tap behavior models
 
         Returns:
             DTSI behaviors node content as string
@@ -86,42 +86,20 @@ class DTSIGenerator:
 
         dtsi_parts = []
 
-        for ht_data in hold_taps_data:
-            # Handle both HoldTapBehavior objects and dictionaries
-            if isinstance(ht_data, dict):
-                # Dictionary access for raw JSON data
-                name = ht_data.get("name")
-                if not name:
-                    logger.warning("Skipping hold-tap behavior with missing 'name'.")
-                    continue
+        for ht in hold_taps_data:
+            name = ht.name
+            if not name:
+                logger.warning("Skipping hold-tap behavior with missing 'name'.")
+                continue
 
-                node_name = name[1:] if name.startswith("&") else name
-                bindings = ht_data.get("bindings", [])
-                tapping_term = ht_data.get("tappingTermMs")
-                flavor = ht_data.get("flavor")
-                quick_tap = ht_data.get("quickTapMs")
-                require_idle = ht_data.get("requirePriorIdleMs")
-                hold_on_release = ht_data.get("holdTriggerOnRelease")
-                hold_key_positions_indices = ht_data.get("holdTriggerKeyPositions")
-                retro_tap = ht_data.get("retroTap", False)
-                description = ht_data.get("description", node_name)
-            else:
-                # Object access for HoldTapBehavior models
-                name = ht_data.name
-                if not name:
-                    logger.warning("Skipping hold-tap behavior with missing 'name'.")
-                    continue
-
-                node_name = name[1:] if name.startswith("&") else name
-                bindings = ht_data.bindings
-                tapping_term = ht_data.tapping_term_ms
-                flavor = ht_data.flavor
-                quick_tap = ht_data.quick_tap_ms
-                require_idle = ht_data.require_prior_idle_ms
-                hold_on_release = ht_data.hold_trigger_on_release
-                hold_key_positions_indices = ht_data.hold_trigger_key_positions
-                retro_tap = ht_data.retro_tap
-                description = ht_data.description or node_name
+            node_name = name[1:] if name.startswith("&") else name
+            bindings = ht.bindings
+            tapping_term = ht.tapping_term_ms
+            flavor = ht.flavor
+            quick_tap = ht.quick_tap_ms
+            require_idle = ht.require_prior_idle_ms
+            hold_on_release = ht.hold_trigger_on_release
+            hold_key_positions_indices = ht.hold_trigger_key_positions
 
             if len(bindings) != 2:
                 logger.warning(
@@ -132,7 +110,7 @@ class DTSIGenerator:
             # Register the behavior
             self._behavior_registry.register_behavior(name, 2, "user_hold_tap")
 
-            label = description.split("\n")
+            label = (ht.description or node_name).split("\n")
             label = [f"// {line}" for line in label]
 
             dtsi_parts.extend(label)
@@ -189,7 +167,7 @@ class DTSIGenerator:
             if hold_on_release:
                 dtsi_parts.append("    hold-trigger-on-release;")
 
-            if retro_tap:
+            if ht.retro_tap:
                 dtsi_parts.append("    retro-tap;")
 
             dtsi_parts.append("};")
@@ -199,13 +177,13 @@ class DTSIGenerator:
         return "\n".join(self._indent_array(dtsi_parts, " " * 8))
 
     def generate_macros_dtsi(
-        self, profile: "KeyboardProfile", macros_data: Sequence[Any]
+        self, profile: "KeyboardProfile", macros_data: Sequence[MacroBehavior]
     ) -> str:
         """Generate ZMK macros node string from macro behavior models.
 
         Args:
             profile: Keyboard profile containing configuration
-            macros_data: List of macro behavior models or dictionaries
+            macros_data: List of macro behavior models
 
         Returns:
             DTSI macros node content as string
@@ -215,39 +193,20 @@ class DTSIGenerator:
 
         dtsi_parts = [""]
 
-        for macro_data in macros_data:
-            # Handle both MacroBehavior objects and dictionaries
-            if isinstance(macro_data, dict):
-                # Dictionary access for raw JSON data
-                name = macro_data.get("name")
-                if not name:
-                    logger.warning("Skipping macro with missing 'name'.")
-                    continue
+        for macro in macros_data:
+            name = macro.name
+            if not name:
+                logger.warning("Skipping macro with missing 'name'.")
+                continue
 
-                node_name = name[1:] if name.startswith("&") else name
-                macro_description = macro_data.get("description", node_name)
-                description = (macro_description or node_name).split("\n")
-                description = [f"// {line}" for line in description]
+            node_name = name[1:] if name.startswith("&") else name
+            description = (macro.description or node_name).split("\n")
+            description = [f"// {line}" for line in description]
 
-                bindings = macro_data.get("bindings", [])
-                params = macro_data.get("params", []) or []
-                wait_ms = macro_data.get("waitMs")
-                tap_ms = macro_data.get("tapMs")
-            else:
-                # Object access for MacroBehavior models
-                name = macro_data.name
-                if not name:
-                    logger.warning("Skipping macro with missing 'name'.")
-                    continue
-
-                node_name = name[1:] if name.startswith("&") else name
-                description = (macro_data.description or node_name).split("\n")
-                description = [f"// {line}" for line in description]
-
-                bindings = macro_data.bindings
-                params = macro_data.params or []
-                wait_ms = macro_data.wait_ms
-                tap_ms = macro_data.tap_ms
+            bindings = macro.bindings
+            params = macro.params or []
+            wait_ms = macro.wait_ms
+            tap_ms = macro.tap_ms
 
             # Determine compatible and binding-cells based on params
             if not params:
@@ -297,14 +256,14 @@ class DTSIGenerator:
     def generate_combos_dtsi(
         self,
         profile: "KeyboardProfile",
-        combos_data: Sequence[Any],
+        combos_data: Sequence[ComboBehavior],
         layer_names: list[str],
     ) -> str:
         """Generate ZMK combos node string from combo behavior models.
 
         Args:
             profile: Keyboard profile containing configuration
-            combos_data: List of combo behavior models or dictionaries
+            combos_data: List of combo behavior models
             layer_names: List of layer names
 
         Returns:
@@ -328,36 +287,18 @@ class DTSIGenerator:
             for i, name in enumerate(layer_names)
         }
 
-        for combo_data in combos_data:
-            logger.info(f"Processing combo: {combo_data}")
+        for combo in combos_data:
+            logger.info(f"Processing combo: {combo}")
+            name = combo.name
+            if not name:
+                logger.warning("Skipping combo with missing 'name'.")
+                continue
 
-            # Handle both ComboBehavior objects and dictionaries
-            if isinstance(combo_data, dict):
-                # Dictionary access for raw JSON data
-                name = combo_data.get("name")
-                if not name:
-                    logger.warning("Skipping combo with missing 'name'.")
-                    continue
-
-                node_name = re.sub(r"\W|^(?=\d)", "_", name)
-                binding_data = combo_data.get("binding")
-                key_positions_indices = combo_data.get("keyPositions")
-                timeout = combo_data.get("timeoutMs")
-                layers_spec = combo_data.get("layers")
-                combo_description = combo_data.get("description", node_name)
-            else:
-                # Object access for ComboBehavior models
-                name = combo_data.name
-                if not name:
-                    logger.warning("Skipping combo with missing 'name'.")
-                    continue
-
-                node_name = re.sub(r"\W|^(?=\d)", "_", name)
-                binding_data = combo_data.binding
-                key_positions_indices = combo_data.key_positions
-                timeout = combo_data.timeout_ms
-                layers_spec = combo_data.layers
-                combo_description = combo_data.description or node_name
+            node_name = re.sub(r"\W|^(?=\d)", "_", name)
+            binding_data = combo.binding
+            key_positions_indices = combo.key_positions
+            timeout = combo.timeout_ms
+            layers_spec = combo.layers
 
             if not binding_data or not key_positions_indices:
                 logger.warning(
@@ -365,7 +306,7 @@ class DTSIGenerator:
                 )
                 continue
 
-            description_lines = (combo_description or node_name).split("\n")
+            description_lines = (combo.description or node_name).split("\n")
             label = "\n".join([f"    // {line}" for line in description_lines])
 
             dtsi_parts.append(f"{label}")
@@ -422,13 +363,13 @@ class DTSIGenerator:
         return "\n".join(self._indent_array(dtsi_parts))
 
     def generate_input_listeners_node(
-        self, profile: "KeyboardProfile", input_listeners_data: Sequence[Any]
+        self, profile: "KeyboardProfile", input_listeners_data: Sequence[InputListener]
     ) -> str:
         """Generate input listener nodes string from input listener models.
 
         Args:
             profile: Keyboard profile containing configuration
-            input_listeners_data: List of input listener models or dictionaries
+            input_listeners_data: List of input listener models
 
         Returns:
             DTSI input listeners node content as string
@@ -437,102 +378,52 @@ class DTSIGenerator:
             return ""
 
         dtsi_parts = []
-        for listener_data in input_listeners_data:
-            # Handle both InputListener objects and dictionaries
-            if isinstance(listener_data, dict):
-                # Dictionary access for raw JSON data
-                listener_code = listener_data.get("code")
-                if not listener_code:
-                    logger.warning("Skipping input listener with missing 'code'.")
-                    continue
-
-                input_processors = listener_data.get("inputProcessors", [])
-                nodes = listener_data.get("nodes", [])
-            else:
-                # Object access for InputListener models
-                listener_code = listener_data.code
-                if not listener_code:
-                    logger.warning("Skipping input listener with missing 'code'.")
-                    continue
-
-                input_processors = listener_data.input_processors
-                nodes = listener_data.nodes
+        for listener in input_listeners_data:
+            listener_code = listener.code
+            if not listener_code:
+                logger.warning("Skipping input listener with missing 'code'.")
+                continue
 
             dtsi_parts.append(f"{listener_code} {{")
 
-            # Process global input processors
-            if input_processors:
-                if isinstance(input_processors[0], dict):
-                    # Dictionary style input processors
-                    processors_str = " ".join(
-                        f"{p.get('code', '')} {' '.join(map(str, p.get('params', [])))}".strip()
-                        for p in input_processors
-                    )
-                else:
-                    # Object style input processors
-                    processors_str = " ".join(
-                        f"{p.code} {' '.join(map(str, p.params))}".strip()
-                        for p in input_processors
-                    )
-
+            global_processors = listener.input_processors
+            if global_processors:
+                processors_str = " ".join(
+                    f"{p.code} {' '.join(map(str, p.params))}".strip()
+                    for p in global_processors
+                )
                 if processors_str:
                     dtsi_parts.append(f"    input-processors = <{processors_str}>;")
 
-            # Process nodes
+            nodes = listener.nodes
             if not nodes:
                 logger.warning(
                     f"Input listener '{listener_code}' has no nodes defined."
                 )
             else:
-                for node_data in nodes:
-                    # Handle both InputListenerNode objects and dictionaries
-                    if isinstance(node_data, dict):
-                        # Dictionary access for raw JSON data
-                        node_code = node_data.get("code")
-                        if not node_code:
-                            logger.warning(
-                                f"Skipping node in listener '{listener_code}' with missing 'code'."
-                            )
-                            continue
-
-                        node_description = node_data.get("description", node_code)
-                        layers = node_data.get("layers", [])
-                        node_processors = node_data.get("inputProcessors", [])
-                    else:
-                        # Object access for InputListenerNode models
-                        node_code = node_data.code
-                        if not node_code:
-                            logger.warning(
-                                f"Skipping node in listener '{listener_code}' with missing 'code'."
-                            )
-                            continue
-
-                        node_description = node_data.description or node_code
-                        layers = node_data.layers
-                        node_processors = node_data.input_processors
+                for node in nodes:
+                    node_code = node.code
+                    if not node_code:
+                        logger.warning(
+                            f"Skipping node in listener '{listener_code}' with missing 'code'."
+                        )
+                        continue
 
                     dtsi_parts.append("")
-                    dtsi_parts.append(f"    // {node_description}")
+                    dtsi_parts.append(f"    // {node.description or node_code}")
                     dtsi_parts.append(f"    {node_code} {{")
 
+                    layers = node.layers
                     if layers:
                         layers_str = " ".join(map(str, layers))
                         dtsi_parts.append(f"        layers = <{layers_str}>;")
 
+                    node_processors = node.input_processors
                     if node_processors:
-                        if isinstance(node_processors[0], dict):
-                            # Dictionary style input processors
-                            node_processors_str = " ".join(
-                                f"{p.get('code', '')} {' '.join(map(str, p.get('params', [])))}".strip()
-                                for p in node_processors
-                            )
-                        else:
-                            # Object style input processors
-                            node_processors_str = " ".join(
-                                f"{p.code} {' '.join(map(str, p.params))}".strip()
-                                for p in node_processors
-                            )
-
+                        node_processors_str = " ".join(
+                            f"{p.code} {' '.join(map(str, p.params))}".strip()
+                            for p in node_processors
+                        )
                         if node_processors_str:
                             dtsi_parts.append(
                                 f"        input-processors = <{node_processors_str}>;"
