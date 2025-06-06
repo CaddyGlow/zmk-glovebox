@@ -559,13 +559,13 @@ def test_firmware_compile_command_with_profile(
     assert call_args is not None
     args, kwargs = call_args
 
-    # Check build_config
+    # Check build_config (now using BuildServiceCompileOpts)
     build_config = args[0]
-    assert build_config["keymap_path"] == str(sample_keymap_dtsi)
-    assert build_config["kconfig_path"] == str(sample_config_file)
-    assert build_config["output_dir"] == str(output_dir)
-    assert build_config["branch"] == "main"
-    assert build_config["verbose"] is True
+    assert str(build_config.keymap_path) == str(sample_keymap_dtsi)
+    assert str(build_config.kconfig_path) == str(sample_config_file)
+    assert str(build_config.output_dir) == str(output_dir)
+    assert build_config.branch == "main"
+    assert build_config.verbose is True
 
     # Check profile was passed correctly
     assert kwargs.get("profile") == mock_keyboard_profile
@@ -623,14 +623,14 @@ def test_firmware_compile_command(
     assert call_args is not None
     args, kwargs = call_args
 
-    # Check build_config
+    # Check build_config (now using BuildServiceCompileOpts)
     build_config = args[0]
-    assert build_config["keyboard"] == "glove80"
-    assert build_config["keymap_path"] == str(sample_keymap_dtsi)
-    assert build_config["kconfig_path"] == str(sample_config_file)
-    assert build_config["output_dir"] == str(output_dir)
-    assert build_config["branch"] == "main"
-    assert build_config["verbose"] is True
+    # Note: keyboard parameter is no longer part of BuildServiceCompileOpts, it's handled via profile
+    assert str(build_config.keymap_path) == str(sample_keymap_dtsi)
+    assert str(build_config.kconfig_path) == str(sample_config_file)
+    assert str(build_config.output_dir) == str(output_dir)
+    assert build_config.branch == "main"
+    assert build_config.verbose is True
 
 
 @patch("glovebox.cli.commands.firmware.create_flash_service")
