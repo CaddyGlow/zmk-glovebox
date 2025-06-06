@@ -103,7 +103,7 @@ class TestBuildServiceWithKeyboardConfig:
             kconfig_path=Path("/path/to/config.conf"),
             output_dir=Path("/path/to/output"),
         )
-        
+
         # Need to mock is_available for test_keyboard special case
         with patch("sys.modules", {"__name__": ""}):
             env = self.service.get_build_environment(build_opts)
@@ -170,7 +170,9 @@ class TestBuildServiceWithKeyboardConfig:
         # Verify profile wasn't created from keyboard name
         mock_create_profile.assert_not_called()
 
-    @pytest.mark.skip(reason="This test needs to be rewritten to use BuildServiceCompileOpts")
+    @pytest.mark.skip(
+        reason="This test needs to be rewritten to use BuildServiceCompileOpts"
+    )
     @patch("glovebox.services.build_service.create_profile_from_keyboard_name")
     @patch("glovebox.services.build_service.get_available_keyboards")
     def test_compile_with_keyboard_config(

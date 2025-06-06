@@ -600,4 +600,3 @@ def flash_firmware(
         count=count,
         track_flashed=track_flashed,
     )
-
