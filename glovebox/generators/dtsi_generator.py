@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Optional, TypeAlias, cast  # UP035: Dict,
 
 from glovebox.formatters.behavior_formatter import BehaviorFormatterImpl
 from glovebox.generators.layout_generator import DtsiLayoutGenerator, LayoutConfig
+from glovebox.models.behavior import SystemBehavior
 from glovebox.models.keymap import (
     ComboBehavior,
     HoldTapBehavior,
@@ -109,7 +110,16 @@ class DTSIGenerator:
                 continue
 
             # Register the behavior
-            self._behavior_registry.register_behavior(name, 2, "user_hold_tap")
+            self._behavior_registry.register_behavior(
+                SystemBehavior(
+                    code=ht.name,
+                    name=ht.name,
+                    description=ht.description,
+                    expected_params=2,
+                    origin="user_hold_tap",
+                    params=[],
+                )
+            )
 
             label = (ht.description or node_name).split("\n")
             label = [f"// {line}" for line in label]
@@ -228,7 +238,14 @@ class DTSIGenerator:
 
             # Register the macro behavior
             self._behavior_registry.register_behavior(
-                name, int(binding_cells), "user_macro"
+                SystemBehavior(
+                    code=macro.name,
+                    name=macro.name,
+                    description=macro.description,
+                    expected_params=2,
+                    origin="user_macro",
+                    params=[],
+                )
             )
 
             macro_parts = []

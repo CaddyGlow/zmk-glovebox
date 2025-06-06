@@ -100,12 +100,11 @@ class BehaviorFormatterImpl:
         """Format a single parameter."""
         return self.get_keycode(str(param))
 
-    def format_kp_param_recursive(self, param_data: KeymapParam) -> str:
+    def format_param_recursive(self, param_data: KeymapParam) -> str:
         """Recursively format &kp parameters including modifiers."""
         mod_name = param_data.value
         inner_params_data = param_data.params
 
-        # SIM102: Combine conditions formatting :(
         if (
             mod_name in ["LA", "LC", "LS", "LG", "RA", "RC", "RS", "RG"]
             and not inner_params_data
@@ -122,7 +121,7 @@ class BehaviorFormatterImpl:
             "RS",
             "RG",
         ]:  # Original 'if' body
-            inner_formatted = self.format_kp_param_recursive(inner_params_data[0])
+            inner_formatted = self.format_param_recursive(inner_params_data[0])
             return f"{mod_name}({inner_formatted})"
 
         # Modifier aliases
@@ -148,13 +147,13 @@ class BehaviorFormatterImpl:
                     "RCTL": "RC",
                     "RSHFT": "RS",
                     "RGUI": "RG",
-                }.get(mod_name)
+                }.get(str(mod_name))
                 if not zmk_mod_func:
                     logger.error(
                         f"Could not map modifier alias '{mod_name}' to function."
                     )
                     return f"ERROR_MOD_ALIAS({mod_name})"
-                inner_formatted = self.format_kp_param_recursive(inner_params_data[0])
+                inner_formatted = self.format_param_recursive(inner_params_data[0])
                 return f"{zmk_mod_func}({inner_formatted})"
         else:
             return self.format_param(mod_name)
@@ -251,7 +250,7 @@ class KPBehavior(Behavior):
         # Get the first parameter and handle it based on its type
         param = self.params[0]
 
-        kp_param_formatted = self.formatter.format_kp_param_recursive(param)
+        kp_param_formatted = self.formatter.format_param_recursive(param)
         return f"&kp {kp_param_formatted}"
 
 
@@ -265,8 +264,8 @@ class LayerTapBehavior(Behavior):
             ) from None
 
     def format_dtsi(self) -> str:
-        layer = self.formatter.format_param(self.params[0])
-        tap_keycode = self.formatter.format_param(self.params[1])
+        layer = self.formatter.format_param_recursive(self.params[0])
+        tap_keycode = self.formatter.format_param_recursive(self.params[1])
         return f"&lt {layer} {tap_keycode}"
 
 
@@ -280,8 +279,8 @@ class ModTapBehavior(Behavior):
             ) from None
 
     def format_dtsi(self) -> str:
-        mod = self.formatter.format_param(self.params[0])
-        tap_keycode = self.formatter.format_param(self.params[1])
+        mod = self.formatter.format_param_recursive(self.params[0])
+        tap_keycode = self.formatter.format_param_recursive(self.params[1])
         return f"&mt {mod} {tap_keycode}"
 
 
@@ -295,7 +294,7 @@ class LayerToggleBehavior(Behavior):
             ) from None
 
     def format_dtsi(self) -> str:
-        layer = self.formatter.format_param(self.params[0])
+        layer = self.formatter.format_param_recursive(self.params[0])
         return f"{self.behavior_name} {layer}"
 
 
@@ -320,7 +319,7 @@ class OneParamBehavior(Behavior):
         #     param_cast = cast(SystemBehaviorParam, param_data)
         #     param_formatted = self.formatter.format_kp_param_recursive(param_cast)
         # else:
-        param_formatted = self.formatter.format_param(self.params[0])
+        param_formatted = self.formatter.format_param_recursive(self.params[0])
 
         return f"{self.behavior_name} {param_formatted}"
 
@@ -339,9 +338,9 @@ class BluetoothBehavior(Behavior):
             ) from None
 
     def format_dtsi(self) -> str:
-        command = self.formatter.format_param(self.params[0])
+        command = self.formatter.format_param_recursive(self.params[0])
         if len(self.params) == 2:
-            index = self.formatter.format_param(self.params[1])
+            index = self.formatter.format_param_recursive(self.params[1])
             return f"&bt {command} {index}"
         else:
             return f"&bt {command}"
@@ -404,7 +403,7 @@ class CustomBehaviorRef(Behavior):
                 params_to_format = self.params[:expected_params]
 
             for p in params_to_format:
-                formatted = self.formatter.format_param(p)
+                formatted = self.formatter.format_param_recursive(p)
                 formatted_params.append(formatted)
 
             if expected_params > 0 and num_params_received < expected_params:
@@ -422,7 +421,7 @@ class CustomBehaviorRef(Behavior):
             )
             formatted_params = []
             for p in self.params:
-                formatted = self.formatter.format_param(p)
+                formatted = self.formatter.format_param_recursive(p)
                 formatted_params.append(formatted)
 
             param_str = " ".join(formatted_params)

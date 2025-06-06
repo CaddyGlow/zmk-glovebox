@@ -107,10 +107,10 @@ class DeviceDetector:
         # Evaluate based on operator
         if operator == "=":
             # Perform case-insensitive comparison for '='
-            return device_value.lower() == compare_value
+            return bool(device_value.lower() == compare_value)
         elif operator == "!=":
             # Perform case-insensitive comparison for '!='
-            return device_value.lower() != compare_value
+            return bool(device_value.lower() != compare_value)
         elif operator == "~=":
             try:
                 # Use re.IGNORECASE for case-insensitive regex matching

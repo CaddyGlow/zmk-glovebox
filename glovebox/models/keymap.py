@@ -130,7 +130,7 @@ class ComboBehavior(BaseModel):
     timeout_ms: int | None = Field(default=None, alias="timeoutMs")
     key_positions: list[int] = Field(alias="keyPositions")
     layers: list[LayerIndex] | None = None
-    binding: list[KeymapBinding] = Field(default_factory=list)
+    binding: KeymapBinding = Field()
     behavior: str | None = Field(default=None, alias="behavior")
 
     @field_validator("key_positions")

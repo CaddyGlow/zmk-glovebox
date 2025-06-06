@@ -79,7 +79,7 @@ class SystemBehavior(TypedDict, total=False):
     bindings: dict[str, Any]
     code: str
     name: str
-    description: str
+    description: str | None
     expected_params: int
     origin: str
     params: ParamList
