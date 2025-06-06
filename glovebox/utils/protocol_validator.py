@@ -36,8 +36,8 @@ ImplT = TypeVar("ImplT")  # Implementation type
 
 
 def validate_protocol_implementation(
-    protocol_class: type[P],
-    implementation_class: type[ImplT],
+    protocol_class: Any,
+    implementation_class: Any,
     *,
     raise_on_error: bool = False,
 ) -> tuple[bool, list[str]]:

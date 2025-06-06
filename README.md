@@ -373,7 +373,7 @@ Glovebox uses a type-safe, file-based configuration system to support different 
 
 7. **Configuration Components**:
    - `get_available_keyboards()`: Lists available keyboard configurations
-   - `load_keyboard_config_typed()`: Loads typed configuration for a specific keyboard
+   - `load_keyboard_config()`: Loads typed configuration for a specific keyboard
    - `create_keyboard_profile()`: Creates a profile for a keyboard and firmware variant
 
 #### Usage Examples:
@@ -383,7 +383,7 @@ Glovebox uses a type-safe, file-based configuration system to support different 
 from glovebox.config.keyboard_config import load_keyboard_config_typed
 
 # Load keyboard configuration as a typed object
-keyboard_config = load_keyboard_config_typed("glove80")
+keyboard_config = load_keyboard_config("glove80")
 
 # Access properties directly with IDE autocompletion
 print(keyboard_config.description)

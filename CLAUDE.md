@@ -70,16 +70,22 @@ Note: The CLI tests have been simplified to focus on basic functionality and com
 ### Linting and Formatting
 
 ```bash
-# Run ruff linter
-ruff check .
-
-# Run ruff formatter
+# Format code
 ruff format .
+
+# Fix linting issues
+ruff check . --fix
+
+# Fix import ordering issues
+ruff check . --select I --fix
+
+# Apply unsafe automatic fixes (use with caution)
+ruff check . --fix --unsafe-fixes
 
 # Run type checking
 mypy glovebox/
 
-# Run all pre-commit hooks
+# Run all pre-commit hooks (includes ruff-check, ruff-format, and mypy)
 pre-commit run --all-files
 ```
 

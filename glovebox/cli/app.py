@@ -13,6 +13,10 @@ from typer.main import get_command_from_info
 from glovebox.core.logging import setup_logging
 
 
+# Export setup_logging to make it available when importing from this module
+__all__ = ["app", "main", "__version__", "setup_logging"]
+
+
 __version__ = distribution("glovebox").version
 
 logger = logging.getLogger(__name__)

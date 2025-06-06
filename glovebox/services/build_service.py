@@ -15,7 +15,7 @@ from glovebox.adapters.file_adapter import FileAdapter, create_file_adapter
 from glovebox.config.keyboard_config import (
     create_profile_from_keyboard_name,
     get_available_keyboards,
-    load_keyboard_config_raw,
+    load_keyboard_config,
 )
 from glovebox.core.errors import BuildError
 from glovebox.models.options import BuildServiceCompileOpts
@@ -47,7 +47,7 @@ class BuildService(BaseServiceImpl):
         self,
         docker_adapter: DockerAdapter | None = None,
         file_adapter: FileAdapter | None = None,
-        output_middleware: stream_process.OutputMiddleware | None = None,
+        output_middleware: stream_process.OutputMiddleware[str] | None = None,
         loglevel: str = "INFO",
     ):
         """Initialize the build service.
@@ -348,15 +348,17 @@ class BuildService(BaseServiceImpl):
                     build_env["REPO"] = "test/zmk"
                 else:
                     # Try to load keyboard config directly
-                    keyboard_config = load_keyboard_config_raw(keyboard_name)
+                    keyboard_config = load_keyboard_config(keyboard_name)
 
                     # Get build options
-                    build_info = keyboard_config.get("build", {})
-
                     # Set docker image if specified
-                    build_env["DOCKER_IMAGE"] = build_info.get(
-                        "docker_image", "moergo-zmk-build"
-                    )
+                    if (
+                        hasattr(keyboard_config.build, "docker_image")
+                        and keyboard_config.build.docker_image
+                    ):
+                        build_env["DOCKER_IMAGE"] = keyboard_config.build.docker_image
+                    else:
+                        build_env["DOCKER_IMAGE"] = "moergo-zmk-build"
 
                     # Set branch from build_config
                     build_env["BRANCH"] = build_config.branch
@@ -518,7 +520,7 @@ class BuildService(BaseServiceImpl):
 def create_build_service(
     docker_adapter: DockerAdapter | None = None,
     file_adapter: FileAdapter | None = None,
-    output_middleware: stream_process.OutputMiddleware | None = None,
+    output_middleware: stream_process.OutputMiddleware[str] | None = None,
     loglevel: str = "INFO",
 ) -> BuildService:
     """Create a BuildService instance with optional dependency injection.

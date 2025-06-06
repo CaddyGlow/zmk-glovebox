@@ -73,9 +73,9 @@ class KeyboardProfile:
         Raises:
             ConfigError: If configuration cannot be found
         """
-        from glovebox.config.keyboard_config import load_keyboard_config_typed
+        from glovebox.config.keyboard_config import load_keyboard_config
 
-        keyboard_config = load_keyboard_config_typed(keyboard_name)
+        keyboard_config = load_keyboard_config(keyboard_name)
         return cls(keyboard_config, firmware_version)
 
     @property

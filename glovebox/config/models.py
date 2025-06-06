@@ -20,6 +20,23 @@ from glovebox.models.behavior import (
 )
 
 
+# Re-export SystemBehavior for use in other modules
+__all__ = [
+    "KConfigOption",
+    "FlashConfig",
+    "BuildConfig",
+    "VisualLayout",
+    "FormattingConfig",
+    "BuildOptions",
+    "FirmwareConfig",
+    "KeymapSection",
+    "KeyboardConfig",
+    "SystemBehavior",
+    "BehaviorCommand",
+    "ParameterType",
+]
+
+
 # KConfig type definitions
 @dataclass
 class KConfigOption:

@@ -15,7 +15,7 @@ from glovebox.cli.helpers import (
 )
 from glovebox.config.keyboard_config import (
     get_available_keyboards,
-    load_keyboard_config_raw,
+    load_keyboard_config,
 )
 
 
@@ -53,8 +53,15 @@ def list_keyboards(
             # Get detailed information if verbose
             if verbose:
                 try:
-                    keyboard_config = load_keyboard_config_raw(keyboard_name)
-                    output["keyboards"].append(keyboard_config)
+                    typed_config = load_keyboard_config(keyboard_name)
+                    # Convert to dict for JSON serialization
+                    keyboard_dict = {
+                        "name": typed_config.keyboard,
+                        "description": typed_config.description,
+                        "vendor": typed_config.vendor,
+                        "key_count": typed_config.key_count,
+                    }
+                    output["keyboards"].append(keyboard_dict)
                 except Exception:
                     output["keyboards"].append({"name": keyboard_name})
             else:
@@ -71,10 +78,20 @@ def list_keyboards(
         # Get and display detailed information for each keyboard
         for keyboard_name in keyboards:
             try:
-                keyboard_config = load_keyboard_config_raw(keyboard_name)
-                description = keyboard_config.get("description", "N/A")
-                vendor = keyboard_config.get("vendor", "N/A")
-                version = keyboard_config.get("version", "N/A")
+                keyboard_config = load_keyboard_config(keyboard_name)
+                description = (
+                    keyboard_config.description
+                    if hasattr(keyboard_config, "description")
+                    else "N/A"
+                )
+                vendor = (
+                    keyboard_config.vendor
+                    if hasattr(keyboard_config, "vendor")
+                    else "N/A"
+                )
+                version = (
+                    "N/A"  # Version is not a top-level attribute in KeyboardConfig
+                )
 
                 print(f"• {keyboard_name}")
                 print(f"  Description: {description}")
@@ -101,11 +118,37 @@ def show_keyboard(
 ) -> None:
     """Show details of a specific keyboard configuration."""
     # Get the keyboard configuration
-    keyboard_config = load_keyboard_config_raw(keyboard_name)
+    keyboard_config = load_keyboard_config(keyboard_name)
 
     if format.lower() == "json":
+        # Convert the typed object to a dictionary for JSON serialization
+        config_dict = {
+            "keyboard": keyboard_config.keyboard,
+            "description": keyboard_config.description,
+            "vendor": keyboard_config.vendor,
+            "key_count": keyboard_config.key_count,
+            "flash": {
+                "method": keyboard_config.flash.method,
+                "query": keyboard_config.flash.query,
+                "usb_vid": keyboard_config.flash.usb_vid,
+                "usb_pid": keyboard_config.flash.usb_pid,
+            },
+            "build": {
+                "method": keyboard_config.build.method,
+                "docker_image": keyboard_config.build.docker_image,
+                "repository": keyboard_config.build.repository,
+                "branch": keyboard_config.build.branch,
+            },
+            "firmwares": {
+                name: {
+                    "version": fw.version,
+                    "description": fw.description,
+                }
+                for name, fw in keyboard_config.firmwares.items()
+            },
+        }
         # JSON output
-        print(json.dumps(keyboard_config, indent=2))
+        print(json.dumps(config_dict, indent=2))
         return
 
     # Text output
@@ -113,35 +156,39 @@ def show_keyboard(
     print("-" * 60)
 
     # Display basic information
-    description = keyboard_config.get("description", "N/A")
-    vendor = keyboard_config.get("vendor", "N/A")
-    version = keyboard_config.get("version", "N/A")
+    description = keyboard_config.description
+    vendor = keyboard_config.vendor
+    version = "N/A"  # Version is not a top-level attribute in KeyboardConfig
 
     print(f"Description: {description}")
     print(f"Vendor: {vendor}")
     print(f"Version: {version}")
 
     # Display flash configuration
-    flash_config = keyboard_config.get("flash", {})
+    flash_config = keyboard_config.flash
     if flash_config:
         print("\nFlash Configuration:")
-        for key, value in flash_config.items():
-            print(f"  {key}: {value}")
+        print(f"  method: {flash_config.method}")
+        print(f"  query: {flash_config.query}")
+        print(f"  usb_vid: {flash_config.usb_vid}")
+        print(f"  usb_pid: {flash_config.usb_pid}")
 
     # Display build configuration
-    build_config = keyboard_config.get("build", {})
+    build_config = keyboard_config.build
     if build_config:
         print("\nBuild Configuration:")
-        for key, value in build_config.items():
-            print(f"  {key}: {value}")
+        print(f"  method: {build_config.method}")
+        print(f"  docker_image: {build_config.docker_image}")
+        print(f"  repository: {build_config.repository}")
+        print(f"  branch: {build_config.branch}")
 
     # Display available firmware versions
-    firmwares = keyboard_config.get("firmwares", {})
+    firmwares = keyboard_config.firmwares
     if firmwares:
         print(f"\nAvailable Firmware Versions ({len(firmwares)}):")
         for name, firmware in firmwares.items():
-            version = firmware.get("version", "N/A")
-            description = firmware.get("description", "N/A")
+            version = firmware.version
+            description = firmware.description
             print_list_item(f"{name}: {version} - {description}")
 
 
@@ -158,10 +205,10 @@ def list_firmwares(
 ) -> None:
     """List available firmware configurations for a keyboard."""
     # Get keyboard configuration
-    keyboard_config = load_keyboard_config_raw(keyboard_name)
+    keyboard_config = load_keyboard_config(keyboard_name)
 
     # Get firmwares from keyboard config
-    firmwares = keyboard_config.get("firmwares", {})
+    firmwares = keyboard_config.firmwares
 
     if not firmwares:
         print(f"No firmwares found for {keyboard_name}")
@@ -188,19 +235,19 @@ def list_firmwares(
         print("-" * 60)
 
         for firmware_name, firmware in firmwares.items():
-            version = firmware.get("version", "N/A")
-            description = firmware.get("description", "N/A")
+            version = firmware.version
+            description = firmware.description
 
             print(f"• {firmware_name}")
             print(f"  Version: {version}")
             print(f"  Description: {description}")
 
             # Show build options if available
-            build_options = firmware.get("build_options", {})
+            build_options = firmware.build_options
             if build_options:
                 print("  Build Options:")
-                for key, value in build_options.items():
-                    print(f"    {key}: {value}")
+                print(f"    repository: {build_options.repository}")
+                print(f"    branch: {build_options.branch}")
 
             print("")
     else:
@@ -220,10 +267,10 @@ def show_firmware(
 ) -> None:
     """Show details of a specific firmware configuration."""
     # Get keyboard configuration
-    keyboard_config = load_keyboard_config_raw(keyboard_name)
+    keyboard_config = load_keyboard_config(keyboard_name)
 
     # Get firmware configuration
-    firmwares = keyboard_config.get("firmwares", {})
+    firmwares = keyboard_config.firmwares
     if firmware_name not in firmwares:
         print_error_message(f"Firmware {firmware_name} not found for {keyboard_name}")
         print("Available firmwares:")
@@ -248,29 +295,51 @@ def show_firmware(
     print("-" * 60)
 
     # Display basic information
-    version = firmware_config.get("version", "N/A")
-    description = firmware_config.get("description", "N/A")
+    version = firmware_config.version
+    description = firmware_config.description
 
     print(f"Version: {version}")
     print(f"Description: {description}")
 
     # Display build options
-    build_options = firmware_config.get("build_options", {})
+    build_options = firmware_config.build_options
     if build_options:
         print("\nBuild Options:")
-        for key, value in build_options.items():
-            print(f"  {key}: {value}")
+        print(f"  repository: {build_options.repository}")
+        print(f"  branch: {build_options.branch}")
 
     # Display kconfig options
-    kconfig = firmware_config.get("kconfig", {})
+    kconfig = (
+        firmware_config.kconfig
+        if hasattr(firmware_config, "kconfig") and firmware_config.kconfig is not None
+        else {}
+    )
     if kconfig:
         print("\nKconfig Options:")
         for key, config in kconfig.items():
             if isinstance(config, dict):
-                name = config.get("name", key)
-                type_str = config.get("type", "N/A")
-                default = config.get("default", "N/A")
-                description = config.get("description", "")
+                # KConfigOption might be a dataclass or dict depending on context
+                if hasattr(config, "name"):
+                    name = config.name
+                    type_str = config.type
+                    default = config.default
+                    description = config.description
+                else:
+                    # Fallback for dict cases
+                    name = config.get("name", key) if isinstance(config, dict) else key
+                    type_str = (
+                        config.get("type", "N/A") if isinstance(config, dict) else "N/A"
+                    )
+                    default = (
+                        config.get("default", "N/A")
+                        if isinstance(config, dict)
+                        else "N/A"
+                    )
+                    description = (
+                        config.get("description", "")
+                        if isinstance(config, dict)
+                        else ""
+                    )
 
                 print(f"  • {name} ({type_str})")
                 print(f"    Default: {default}")

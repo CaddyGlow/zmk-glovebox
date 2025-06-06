@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 def with_profile(
     default_profile: str = "glove80/default", profile_param_name: str = "profile"
-) -> Callable:
+) -> Callable[..., Any]:
     """Decorator to automatically handle profile parameter and profile not found errors.
 
     This decorator simplifies CLI commands that use keyboard profiles by:
@@ -33,7 +33,7 @@ def with_profile(
         Decorated function with profile handling
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Extract the profile from kwargs

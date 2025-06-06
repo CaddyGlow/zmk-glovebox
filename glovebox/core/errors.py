@@ -4,7 +4,7 @@ from pathlib import Path
 class GloveboxError(Exception):
     """Base exception for all Glovebox errors."""
 
-    def __init__(self, message: str, context: dict | None = None):
+    def __init__(self, message: str, context: dict[str, object] | None = None):
         """Initialize exception with message and optional context.
 
         Args:
@@ -123,7 +123,7 @@ class TemplateError(AdapterError):
         template: str | Path,
         operation: str,
         original_error: Exception,
-        context: dict | None = None,
+        context: dict[str, object] | None = None,
     ) -> "TemplateError":
         """Create a TemplateError from a template operation error.
 

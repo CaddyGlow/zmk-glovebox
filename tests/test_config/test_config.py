@@ -7,6 +7,7 @@ and KeyboardProfile pattern in one place.
 
 import os
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
@@ -19,9 +20,8 @@ from glovebox.config.keyboard_config import (
     create_keyboard_profile,
     get_available_firmwares,
     get_available_keyboards,
-    get_firmware_config_typed,
-    load_keyboard_config_raw,
-    load_keyboard_config_typed,
+    get_firmware_config,
+    load_keyboard_config,
 )
 from glovebox.config.models import (
     BuildConfig,
@@ -476,17 +476,15 @@ def mock_keyboard_profile() -> Mock:
 
 
 @pytest.fixture
-def mock_load_keyboard_config(mock_keyboard_config) -> Mock:
-    """Mock the load_keyboard_config_typed function."""
-    with patch(
-        "glovebox.config.keyboard_config.load_keyboard_config_typed"
-    ) as mock_load:
+def mock_load_keyboard_config(mock_keyboard_config) -> Generator[Mock, None, None]:
+    """Mock the load_keyboard_config function."""
+    with patch("glovebox.config.keyboard_config.load_keyboard_config") as mock_load:
         mock_load.return_value = mock_keyboard_config
         yield mock_load
 
 
 @pytest.fixture
-def mock_get_available_keyboards() -> Mock:
+def mock_get_available_keyboards() -> Generator[Mock, None, None]:
     """Mock the get_available_keyboards function."""
     with patch("glovebox.config.keyboard_config.get_available_keyboards") as mock_get:
         mock_get.return_value = ["test_keyboard", "glove80", "corne"]
@@ -494,15 +492,15 @@ def mock_get_available_keyboards() -> Mock:
 
 
 @pytest.fixture
-def mock_get_firmware_config(mock_firmware_config) -> Mock:
-    """Mock the get_firmware_config_typed function."""
-    with patch("glovebox.config.keyboard_config.get_firmware_config_typed") as mock_get:
+def mock_get_firmware_config(mock_firmware_config) -> Generator[Mock, None, None]:
+    """Mock the get_firmware_config function."""
+    with patch("glovebox.config.keyboard_config.get_firmware_config") as mock_get:
         mock_get.return_value = mock_firmware_config
         yield mock_get
 
 
 @pytest.fixture
-def mock_get_available_firmwares() -> Mock:
+def mock_get_available_firmwares() -> Generator[Mock, None, None]:
     """Mock the get_available_firmwares function."""
     with patch("glovebox.config.keyboard_config.get_available_firmwares") as mock_get:
         mock_get.return_value = ["default", "bluetooth", "v25.05"]
@@ -510,7 +508,7 @@ def mock_get_available_firmwares() -> Mock:
 
 
 @pytest.fixture
-def mock_create_keyboard_profile(mock_keyboard_profile) -> Mock:
+def mock_create_keyboard_profile(mock_keyboard_profile) -> Generator[Mock, None, None]:
     """Mock the create_keyboard_profile function."""
     with patch(
         "glovebox.config.keyboard_config.create_keyboard_profile"
@@ -617,30 +615,10 @@ def test_initialize_search_paths():
         mock_init.assert_called_once()
 
 
-def test_load_keyboard_config_raw(typed_config_file, mock_keyboard_config_dict):
-    """Test loading a keyboard configuration as a raw dictionary."""
-    with patch(
-        "glovebox.config.keyboard_config._find_keyboard_config_file"
-    ) as mock_find:
-        mock_find.return_value = typed_config_file
-
-        # Patch the validation function to avoid schema validation issues
-        with patch(
-            "glovebox.config.keyboard_config.validate_keyboard_config"
-        ) as mock_validate:
-            mock_validate.return_value = mock_keyboard_config_dict
-
-            # Load the raw config
-            config = load_keyboard_config_raw("test_keyboard")
-
-            # Verify it's a dictionary with expected keys
-            assert isinstance(config, dict)
-            assert config["keyboard"] == "test_keyboard"
-            assert "description" in config
-            assert "vendor" in config
+# This test has been removed as the _load_keyboard_config_raw function was merged into load_keyboard_config
 
 
-def test_load_keyboard_config_typed(typed_config_file, mock_keyboard_config_dict):
+def test_load_keyboard_config(typed_config_file, mock_keyboard_config_dict):
     """Test loading a keyboard configuration as a typed object."""
     with patch(
         "glovebox.config.keyboard_config._find_keyboard_config_file"
@@ -648,7 +626,7 @@ def test_load_keyboard_config_typed(typed_config_file, mock_keyboard_config_dict
         mock_find.return_value = typed_config_file
 
         # Load the typed config
-        config = load_keyboard_config_typed("test_keyboard")
+        config = load_keyboard_config("test_keyboard")
 
         # Verify the result is a KeyboardConfig instance
         assert isinstance(config, KeyboardConfig)
@@ -691,7 +669,7 @@ def test_create_keyboard_profile(typed_config_file, mock_keyboard_config_dict):
         assert profile.system_behaviors[0].code == "&kp"
 
 
-def test_get_firmware_config_typed(typed_config_file, mock_keyboard_config_dict):
+def test_get_firmware_config(typed_config_file, mock_keyboard_config_dict):
     """Test getting a firmware configuration as a typed object."""
     with patch(
         "glovebox.config.keyboard_config._find_keyboard_config_file"
@@ -699,7 +677,7 @@ def test_get_firmware_config_typed(typed_config_file, mock_keyboard_config_dict)
         mock_find.return_value = typed_config_file
 
         # Get the firmware config
-        firmware_config = get_firmware_config_typed("test_keyboard", "bluetooth")
+        firmware_config = get_firmware_config("test_keyboard", "bluetooth")
 
         # Verify the result is a FirmwareConfig instance
         assert isinstance(firmware_config, FirmwareConfig)
@@ -766,7 +744,7 @@ def test_nonexistent_keyboard():
         with pytest.raises(
             ConfigError, match="Keyboard configuration not found: nonexistent"
         ):
-            load_keyboard_config_typed("nonexistent")
+            load_keyboard_config("nonexistent")
 
 
 def test_nonexistent_firmware(typed_config_file, mock_keyboard_config_dict):
@@ -780,7 +758,7 @@ def test_nonexistent_firmware(typed_config_file, mock_keyboard_config_dict):
             ConfigError,
             match="Firmware 'nonexistent' not found for keyboard 'test_keyboard'",
         ):
-            get_firmware_config_typed("test_keyboard", "nonexistent")
+            get_firmware_config("test_keyboard", "nonexistent")
 
 
 def test_keyboard_name_mismatch(mock_keyboard_config_dict):
@@ -798,10 +776,12 @@ def test_keyboard_name_mismatch(mock_keyboard_config_dict):
             mock_find.return_value = Path(temp_file.name)
 
             # Load the config with a different name
-            config = load_keyboard_config_raw("test_name")
+            # Since we don't have direct access to raw config now, we'll load the typed config
+            # and test keyboard name that way
+            config = load_keyboard_config("test_name")
 
             # Check that the name was fixed
-            assert config["keyboard"] == "test_name"
+            assert config.keyboard == "test_name"
 
 
 def test_clear_cache(typed_config_file, mock_keyboard_config_dict):
@@ -812,23 +792,18 @@ def test_clear_cache(typed_config_file, mock_keyboard_config_dict):
         mock_find.return_value = typed_config_file
 
         # Load a configuration to populate the cache
-        load_keyboard_config_typed("test_keyboard")
+        load_keyboard_config("test_keyboard")
 
         # Verify the cache is populated
-        from glovebox.config.keyboard_config import (
-            _keyboard_configs,
-            _keyboard_configs_typed,
-        )
+        from glovebox.config.keyboard_config import _keyboard_configs
 
         assert "test_keyboard" in _keyboard_configs
-        assert "test_keyboard" in _keyboard_configs_typed
 
         # Clear the cache
         clear_cache()
 
         # Verify the cache is cleared
         assert "test_keyboard" not in _keyboard_configs
-        assert "test_keyboard" not in _keyboard_configs_typed
 
 
 # ---- Integration Tests ----
@@ -849,13 +824,18 @@ def test_real_config_file_integration(test_data_dir):
         assert "test_keyboard" in keyboards
 
         try:
-            # Test loading raw config
-            config_raw = load_keyboard_config_raw("test_keyboard")
+            # Test loading config (direct conversion to dict for raw testing)
+            typed_config = load_keyboard_config("test_keyboard")
+            config_raw = {
+                "keyboard": typed_config.keyboard,
+                "description": typed_config.description,
+                "vendor": typed_config.vendor,
+            }
             assert isinstance(config_raw, dict)
             assert config_raw["keyboard"] == "test_keyboard"
 
             # Test loading typed config
-            config_typed = load_keyboard_config_typed("test_keyboard")
+            config_typed = load_keyboard_config("test_keyboard")
             assert isinstance(config_typed, KeyboardConfig)
             assert config_typed.keyboard == "test_keyboard"
 
@@ -881,12 +861,14 @@ def test_real_keyboard_config_integration(keyboard_config_dir):
         assert "glove80" in keyboards
 
         # Test loading the glove80 keyboard configuration
-        config_raw = load_keyboard_config_raw("glove80")
+        # Convert typed config to raw for testing
+        typed_config = load_keyboard_config("glove80")
+        config_raw = {"keyboard": typed_config.keyboard}
         assert config_raw["keyboard"] == "glove80"
-        assert "description" in config_raw
+        # We know typed config has description, so we don't need to check the raw version
 
         # Test loading glove80 as typed object
-        config_typed = load_keyboard_config_typed("glove80")
+        config_typed = load_keyboard_config("glove80")
         assert isinstance(config_typed, KeyboardConfig)
         assert config_typed.keyboard == "glove80"
         assert hasattr(config_typed, "description")
@@ -898,7 +880,7 @@ def test_real_keyboard_config_integration(keyboard_config_dir):
         assert profile.firmware_version == "v25.05"
 
         # Test getting firmwares
-        glove_config = load_keyboard_config_typed("glove80")
+        glove_config = load_keyboard_config("glove80")
         firmwares = glove_config.firmwares
         assert "v25.05" in firmwares
         assert "v25.04-beta.1" in firmwares

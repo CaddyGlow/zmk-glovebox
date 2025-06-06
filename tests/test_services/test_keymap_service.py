@@ -263,18 +263,21 @@ class TestKeymapServiceWithKeyboardConfig:
         # Execute directly on the behavior registry
         mock_profile.register_behaviors(self.service._behavior_registry)
 
+        # Get behaviors using the public list_behaviors method
+        behaviors = self.service._behavior_registry.list_behaviors()
+
         # Verify behaviors were registered
-        assert len(self.service._behavior_registry._behaviors) > 0
+        assert len(behaviors) > 0
 
         # Check for expected behaviors
-        assert "&kp" in self.service._behavior_registry._behaviors
-        assert "&lt" in self.service._behavior_registry._behaviors
-        assert "&mo" in self.service._behavior_registry._behaviors
+        assert "&kp" in behaviors
+        assert "&lt" in behaviors
+        assert "&mo" in behaviors
 
         # Access expected_params from SystemBehavior objects
-        assert self.service._behavior_registry._behaviors["&kp"].expected_params == 1
-        assert self.service._behavior_registry._behaviors["&lt"].expected_params == 2
-        assert self.service._behavior_registry._behaviors["&mo"].expected_params == 1
+        assert behaviors["&kp"].expected_params == 1
+        assert behaviors["&lt"].expected_params == 2
+        assert behaviors["&mo"].expected_params == 1
 
 
 class TestKeymapServiceWithMockedConfig:

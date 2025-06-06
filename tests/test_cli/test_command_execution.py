@@ -100,7 +100,7 @@ def test_keymap_compile_command(
 
 @patch("glovebox.cli.commands.keymap.create_keymap_service")
 @patch("glovebox.cli.commands.keymap.Path")
-@patch("glovebox.config.keyboard_config.load_keyboard_config_raw")
+@patch("glovebox.config.keyboard_config.load_keyboard_config")
 @patch("glovebox.models.keymap.KeymapData.model_validate")
 def test_keymap_compile_failure(
     mock_model_validate,
@@ -137,43 +137,53 @@ def test_keymap_compile_failure(
     failed_result.errors.append("Invalid keymap structure")
     mock_keymap_service.compile.return_value = failed_result
 
-    # Setup config mock
-    mock_config = {
-        "keyboard": "glove80",
-        "description": "Test Keyboard Configuration",
-        "vendor": "MoErgo",
-        "key_count": 80,
-        "flash": {
-            "method": "mass_storage",
-            "query": "vendor=Adafruit and serial~=GLV80-.* and removable=true",
-            "usb_vid": "0x1209",
-            "usb_pid": "0x0080",
-        },
-        "build": {
-            "method": "docker",
-            "docker_image": "moergo-zmk-build",
-            "repository": "moergo-sc/zmk",
-            "branch": "v25.05",
-        },
-        # visual_layout removed - not part of KeyboardConfig
-        # Move formatting into keymap where it belongs
-        "firmwares": {
-            "v25.05": {
-                "version": "v25.05",
-                "description": "Default firmware",
-                "build_options": {"repository": "moergo-sc/zmk", "branch": "v25.05"},
-            }
-        },
-        "keymap": {
-            "includes": ["<dt-bindings/zmk/keys.h>"],
-            "system_behaviors": [],
-            "kconfig_options": {},
-            "keymap_dtsi": "test template",
-            "system_behaviors_dts": "test behaviors",
-            "key_position_header": "test header",
-            "formatting": {"default_key_width": 8, "key_gap": "  ", "base_indent": ""},
-        },
-    }
+    # Import needed model
+    from glovebox.config.models import KeyboardConfig
+
+    # Setup config mock using a Mock object that behaves like a KeyboardConfig
+    mock_config = Mock(spec=KeyboardConfig)
+    mock_config.keyboard = "glove80"
+    mock_config.description = "Test Keyboard Configuration"
+    mock_config.vendor = "MoErgo"
+    mock_config.key_count = 80
+
+    # Setup flash config
+    mock_config.flash = Mock()
+    mock_config.flash.method = "mass_storage"
+    mock_config.flash.query = "vendor=Adafruit and serial~=GLV80-.* and removable=true"
+    mock_config.flash.usb_vid = "0x1209"
+    mock_config.flash.usb_pid = "0x0080"
+
+    # Setup build config
+    mock_config.build = Mock()
+    mock_config.build.method = "docker"
+    mock_config.build.docker_image = "moergo-zmk-build"
+    mock_config.build.repository = "moergo-sc/zmk"
+    mock_config.build.branch = "v25.05"
+
+    # Setup firmwares
+    mock_firmware = Mock()
+    mock_firmware.version = "v25.05"
+    mock_firmware.description = "Default firmware"
+    mock_firmware.build_options = Mock()
+    mock_firmware.build_options.repository = "moergo-sc/zmk"
+    mock_firmware.build_options.branch = "v25.05"
+
+    mock_config.firmwares = {"v25.05": mock_firmware}
+
+    # Setup keymap
+    mock_config.keymap = Mock()
+    mock_config.keymap.includes = ["<dt-bindings/zmk/keys.h>"]
+    mock_config.keymap.system_behaviors = []
+    mock_config.keymap.kconfig_options = {}
+    mock_config.keymap.keymap_dtsi = "test template"
+    mock_config.keymap.system_behaviors_dts = "test behaviors"
+    mock_config.keymap.key_position_header = "test header"
+    mock_config.keymap.formatting = Mock()
+    mock_config.keymap.formatting.default_key_width = 8
+    mock_config.keymap.formatting.key_gap = "  "
+    mock_config.keymap.formatting.base_indent = ""
+
     mock_load_config.return_value = mock_config
 
     # Create a temporary sample file for the test
@@ -756,7 +766,7 @@ def test_config_list_command(mock_get_available, cli_runner):
     assert "glove80" in result.output
 
 
-@patch("glovebox.cli.commands.config.load_keyboard_config_raw")
+@patch("glovebox.cli.commands.config.load_keyboard_config")
 @pytest.mark.skip(reason="Test takes too long or runs real commands in background")
 def test_config_show_command(mock_load_config, cli_runner):
     """Test config show command."""
@@ -791,7 +801,7 @@ def test_status_command(cli_runner):
         mock_run.return_value = mock_process
 
         with patch(
-            "glovebox.cli.commands.status.load_keyboard_config_raw"
+            "glovebox.cli.commands.status.load_keyboard_config"
         ) as mock_load_config:
             # Mock config data
             mock_load_config.return_value = {"firmwares": {"v25.05": {}}}

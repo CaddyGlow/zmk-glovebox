@@ -11,9 +11,8 @@ from .keyboard_config import (
     create_keyboard_profile,
     get_available_firmwares,
     get_available_keyboards,
-    get_firmware_config_typed,
-    load_keyboard_config_raw,
-    load_keyboard_config_typed,
+    get_firmware_config,
+    load_keyboard_config,
 )
 from .models import (
     BuildConfig,
@@ -37,9 +36,8 @@ __all__ = [
     "create_keyboard_profile",
     "get_available_firmwares",
     "get_available_keyboards",
-    "get_firmware_config_typed",
-    "load_keyboard_config_raw",
-    "load_keyboard_config_typed",
+    "get_firmware_config",
+    "load_keyboard_config",
     # Data models
     "BuildConfig",
     "BuildOptions",

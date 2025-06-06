@@ -15,7 +15,7 @@ from glovebox.cli.decorators import handle_errors
 __version__ = distribution("glovebox").version
 from glovebox.config.keyboard_config import (
     get_available_keyboards,
-    load_keyboard_config_raw,
+    load_keyboard_config,
 )
 
 
@@ -57,8 +57,8 @@ def status_command() -> None:
 
         try:
             # Load keyboard config to get available firmwares
-            config = load_keyboard_config_raw(keyboard)
-            firmwares = config.get("firmwares", {})
+            config = load_keyboard_config(keyboard)
+            firmwares = config.firmwares
             if firmwares:
                 print(f"    Firmwares: {len(firmwares)}")
                 for firmware in firmwares:

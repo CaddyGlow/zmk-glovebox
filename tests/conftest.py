@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
@@ -223,17 +224,15 @@ def mock_keyboard_profile() -> Mock:
 
 
 @pytest.fixture
-def mock_load_keyboard_config(mock_keyboard_config) -> Mock:
-    """Mock the load_keyboard_config_typed function."""
-    with patch(
-        "glovebox.config.keyboard_config.load_keyboard_config_typed"
-    ) as mock_load:
+def mock_load_keyboard_config(mock_keyboard_config) -> Generator[Mock, None, None]:
+    """Mock the load_keyboard_config function."""
+    with patch("glovebox.config.keyboard_config.load_keyboard_config") as mock_load:
         mock_load.return_value = mock_keyboard_config
         yield mock_load
 
 
 @pytest.fixture
-def mock_get_available_keyboards() -> Mock:
+def mock_get_available_keyboards() -> Generator[Mock, None, None]:
     """Mock the get_available_keyboards function."""
     with patch("glovebox.config.keyboard_config.get_available_keyboards") as mock_get:
         mock_get.return_value = ["test_keyboard", "glove80", "corne"]
@@ -241,15 +240,15 @@ def mock_get_available_keyboards() -> Mock:
 
 
 @pytest.fixture
-def mock_get_firmware_config(mock_firmware_config) -> Mock:
-    """Mock the get_firmware_config_typed function."""
-    with patch("glovebox.config.keyboard_config.get_firmware_config_typed") as mock_get:
+def mock_get_firmware_config(mock_firmware_config) -> Generator[Mock, None, None]:
+    """Mock the get_firmware_config function."""
+    with patch("glovebox.config.keyboard_config.get_firmware_config") as mock_get:
         mock_get.return_value = mock_firmware_config
         yield mock_get
 
 
 @pytest.fixture
-def mock_get_available_firmwares() -> Mock:
+def mock_get_available_firmwares() -> Generator[Mock, None, None]:
     """Mock the get_available_firmwares function."""
     with patch("glovebox.config.keyboard_config.get_available_firmwares") as mock_get:
         mock_get.return_value = ["default", "bluetooth", "v25.05"]
@@ -257,38 +256,13 @@ def mock_get_available_firmwares() -> Mock:
 
 
 @pytest.fixture
-def mock_create_keyboard_profile(mock_keyboard_profile) -> Mock:
+def mock_create_keyboard_profile(mock_keyboard_profile) -> Generator[Mock, None, None]:
     """Mock the create_keyboard_profile function."""
     with patch(
         "glovebox.config.keyboard_config.create_keyboard_profile"
     ) as mock_create:
         mock_create.return_value = mock_keyboard_profile
         yield mock_create
-
-
-@pytest.fixture
-def mock_keyboard_config_service(mock_keyboard_config, mock_firmware_config) -> Mock:
-    """Mock the KeyboardConfigService class."""
-    with patch("glovebox.config.keyboard_config.KeyboardConfigService") as mock_cls:
-        mock_service = MagicMock()
-        mock_service.load_keyboard_config.return_value = mock_keyboard_config
-        mock_service.get_available_keyboards.return_value = [
-            "test_keyboard",
-            "glove80",
-            "corne",
-        ]
-        mock_service.get_firmware_config.return_value = mock_firmware_config
-        mock_service.get_available_firmwares.return_value = [
-            "default",
-            "bluetooth",
-            "v25.05",
-        ]
-
-        mock_cls.return_value = mock_service
-        yield mock_service
-
-
-# ---- Service Fixtures ----
 
 
 @pytest.fixture
@@ -393,7 +367,7 @@ def sample_keymap_json() -> dict[str, Any]:
 
 
 @pytest.fixture
-def sample_keymap_json_file(tmp_path) -> Path:
+def sample_keymap_json_file(tmp_path: Path) -> Path:
     """Create a sample keymap JSON file."""
     keymap_data = {
         "version": 1,
@@ -427,7 +401,7 @@ def sample_keymap_json_file(tmp_path) -> Path:
 
 
 @pytest.fixture
-def sample_keymap_dtsi(tmp_path) -> Path:
+def sample_keymap_dtsi(tmp_path: Path) -> Path:
     """Create a sample keymap dtsi file."""
     content = """
     / {
@@ -450,7 +424,7 @@ def sample_keymap_dtsi(tmp_path) -> Path:
 
 
 @pytest.fixture
-def sample_config_file(tmp_path) -> Path:
+def sample_config_file(tmp_path: Path) -> Path:
     """Create a sample config file."""
     content = """
     CONFIG_ZMK_KEYBOARD_NAME="Test Keyboard"
@@ -464,7 +438,7 @@ def sample_config_file(tmp_path) -> Path:
 
 
 @pytest.fixture
-def sample_firmware_file(tmp_path) -> Path:
+def sample_firmware_file(tmp_path: Path) -> Path:
     """Create a sample firmware file."""
     content = "FIRMWARE_BINARY_DATA"
 

@@ -34,7 +34,7 @@ class TestBuildServiceWithKeyboardConfig:
         pass
 
     @pytest.mark.skip(reason="validate method removed from BuildService")
-    @patch("glovebox.config.keyboard_config.load_keyboard_config_raw")
+    @patch("glovebox.config.keyboard_config._load_keyboard_config_raw")
     @patch("glovebox.config.keyboard_config.get_available_keyboards")
     def test_validate_invalid_keyboard(self, mock_get_keyboards, mock_load_config):
         """Test validation with an invalid keyboard."""
@@ -79,7 +79,7 @@ class TestBuildServiceWithKeyboardConfig:
         assert "REPO" in env
         assert env["REPO"] == "test/zmk"  # Value from mock_build_config
 
-    @patch("glovebox.services.build_service.load_keyboard_config_raw")
+    @patch("glovebox.services.build_service.load_keyboard_config")
     def test_get_build_environment_from_keyboard_config(
         self, mock_load_config, mock_keyboard_config
     ):
