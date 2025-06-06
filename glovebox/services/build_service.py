@@ -14,6 +14,7 @@ from glovebox.config.keyboard_config import (
     load_keyboard_config_raw,
 )
 from glovebox.core.errors import BuildError
+from glovebox.models.options import BuildServiceCompileOpts
 from glovebox.models.results import BuildResult
 from glovebox.services.base_service import BaseServiceImpl
 from glovebox.utils import stream_process
@@ -91,22 +92,14 @@ class BuildService(BaseServiceImpl):
 
     def compile(
         self,
-        build_config: dict[str, Any],
+        opts: BuildServiceCompileOpts,
         profile: Optional["KeyboardProfile"] = None,
     ) -> BuildResult:
         """
         Compile firmware using Docker.
 
         Args:
-            build_config: Build configuration containing:
-                - keyboard: Target keyboard name (not needed if profile is provided)
-                - keymap_path: Path to keymap file
-                - kconfig_path: Path to kconfig file
-                - output_dir: Output directory for firmware files
-                - branch: ZMK branch (optional, overrides profile value)
-                - repo: ZMK repository (optional, overrides profile value)
-                - jobs: Number of parallel jobs (optional)
-                - verbose: Enable verbose output (optional)
+            build_config: BuildServiceCompileOpts Build configuration
             profile: KeyboardProfile with configuration (preferred over keyboard name)
 
         Returns:
@@ -116,57 +109,30 @@ class BuildService(BaseServiceImpl):
         result = BuildResult(success=True)
 
         try:
-            # Try to create profile from keyboard name if not provided
-            if not profile and "keyboard" in build_config:
-                try:
-                    keyboard_name = build_config["keyboard"]
-                    profile = create_profile_from_keyboard_name(keyboard_name)
-                    if not profile:
-                        result.success = False
-                        result.add_error(
-                            f"Failed to create profile for keyboard: {keyboard_name}"
-                        )
-                        return result
-                except Exception as e:
-                    result.success = False
-                    result.add_error(f"Failed to create profile: {e}")
-                    return result
-
-            # Validate build configuration
-            validation_result = self.validate(build_config)
-            if not validation_result.success:
-                result.success = False
-                result.errors.extend(validation_result.errors)
-                return result
-
             # Check Docker availability
             if not self.docker_adapter.is_available():
                 result.success = False
                 result.add_error("Docker is not available")
                 return result
 
-            # Validate input files
-            keymap_path = Path(build_config["keymap_path"])
-            kconfig_path = Path(build_config["kconfig_path"])
-
-            if not self.file_adapter.exists(keymap_path):
+            if not self.file_adapter.exists(opts.keymap_path):
                 result.success = False
-                result.add_error(f"Keymap file not found: {keymap_path}")
+                result.add_error(f"Keymap file not found: {opts.keymap_path}")
                 return result
 
-            if not self.file_adapter.exists(kconfig_path):
+            if not self.file_adapter.exists(opts.kconfig_path):
                 result.success = False
-                result.add_error(f"Kconfig file not found: {kconfig_path}")
+                result.add_error(f"Kconfig file not found: {opts.kconfig_path}")
                 return result
 
             # Get build environment using profile
-            build_env = self.get_build_environment(build_config, profile)
+            build_env = self.get_build_environment(opts, profile)
 
             # Run Docker build
             docker_image = build_env.get("DOCKER_IMAGE", "moergo-zmk-build")
             return_code, stdout_lines, stderr_lines = self.docker_adapter.run_container(
                 image=f"{docker_image}:latest",
-                volumes=self._prepare_volumes(build_config),
+                volumes=self._prepare_volumes(opts),
                 environment=build_env,
                 middleware=self.output_middleware,
             )
@@ -182,7 +148,7 @@ class BuildService(BaseServiceImpl):
                 return result
 
             # Find and collect firmware files
-            output_dir = Path(build_config.get("output_dir", "."))
+            output_dir = Path(opts.get("output_dir", "."))
             firmware_files = self._find_firmware_files(output_dir)
 
             if not firmware_files:
@@ -279,7 +245,7 @@ class BuildService(BaseServiceImpl):
 
     def get_build_environment(
         self,
-        build_config: dict[str, Any],
+        build_config: BuildServiceCompileOpts,
         profile: Optional["KeyboardProfile"] = None,
     ) -> dict[str, str]:
         """
@@ -387,45 +353,6 @@ class BuildService(BaseServiceImpl):
             build_env["VERBOSE"] = "1"
 
         return build_env
-
-    def validate(self, config: dict[str, Any]) -> BuildResult:
-        """
-        Validate build configuration.
-
-        Args:
-            config: Build configuration to validate
-
-        Returns:
-            BuildResult indicating validation success/failure
-        """
-        result = BuildResult(success=True)
-
-        # Required fields
-        required_fields = ["keymap_path", "kconfig_path"]
-        for field in required_fields:
-            if field not in config:
-                result.success = False
-                result.add_error(f"Missing required field: {field}")
-
-        # Validate keyboard if specified (might not be needed when profile is provided)
-        if "keyboard" in config:
-            keyboard_name = config["keyboard"]
-            # Always check available keyboards, important for tests
-            available_keyboards = get_available_keyboards()
-            if (
-                keyboard_name not in available_keyboards
-                and keyboard_name != "test_keyboard"
-            ):
-                # Special handling for test_keyboard in test environments
-                result.success = False
-                result.add_error(
-                    f"Unsupported keyboard: {keyboard_name}. Available keyboards: {', '.join(available_keyboards)}"
-                )
-        else:
-            # If no keyboard specified, we need a profile
-            result.add_message("No keyboard specified, profile must be provided")
-
-        return result
 
     def prepare_build_context(
         self, config: dict[str, Any], build_dir: Path

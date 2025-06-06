@@ -255,7 +255,6 @@ class KeymapData(KeymapMetadata):
     config_parameters: list[ConfigParameter] = Field(
         default_factory=list, alias="config_parameters"
     )
-    kconfig: dict[str, ConfigValue] = Field(default_factory=dict)
 
     # Custom code
     custom_defined_behaviors: str = Field(default="", alias="custom_defined_behaviors")

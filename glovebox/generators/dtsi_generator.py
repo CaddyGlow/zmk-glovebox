@@ -533,34 +533,34 @@ class DTSIGenerator:
         """
         logger.info("Generating kconfig configuration")
 
-        # Extract behavior codes to get necessary includes
-        behavior_codes = profile.extract_behavior_codes(keymap_data)
-
-        # Extract user kconfig options from KeymapData
+        kconfig_options = profile.kconfig_options
         user_options = {}
 
-        # Get config parameters from keymap data
-        if keymap_data.config_parameters:
-            for param in keymap_data.config_parameters:
-                if param.param_name and param.value is not None:
-                    user_options[param.param_name] = param.value
+        lines = []
 
-        # Get explicitly defined kconfig options
-        if keymap_data.kconfig:
-            for key, value in keymap_data.kconfig.items():
-                user_options[key] = value
+        # Extract user config_parameters (kconfig) options from KeymapData
+        for opt in keymap_data.config_parameters:
+            line = ""
+            if opt.param_name in kconfig_options:
+                # get the real option name
+                name = kconfig_options[opt.param_name].name
+                if opt.value == kconfig_options[opt.param_name].default:
+                    # check if the user is setting same value as default
+                    # in that case, we set it but in comment
+                    # that allows the user to switch more easily firmware
+                    # without changing the kconfig
+                    line = "# "
+            else:
+                name = opt.param_name
+                if not name.startswith("CONFIG_"):
+                    name = "CONFIG_" + name
 
-        # Set keyboard name if not specified
-        if "CONFIG_ZMK_KEYBOARD_NAME" not in user_options:
-            user_options["CONFIG_ZMK_KEYBOARD_NAME"] = (
-                keymap_data.keyboard or profile.keyboard_name
-            )
-
-        # Resolve kconfig settings with user options
-        kconfig_settings = profile.resolve_kconfig_with_user_options(user_options)
+            line += f"{name}={opt.value}"
+            lines.append(line)
 
         # Generate formatted kconfig content
-        kconfig_content = profile.generate_kconfig_content(kconfig_settings)
+        lines.append("# Generated ZMK configuration")
+        lines.append("")
 
-        logger.info(f"Generated kconfig with {len(kconfig_settings)} settings")
-        return kconfig_content, kconfig_settings
+        kconfig_content = "\n".join(lines)
+        return kconfig_content, user_options

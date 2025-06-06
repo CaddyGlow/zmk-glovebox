@@ -436,7 +436,7 @@ class RawBehavior(Behavior):
 
     def format_dtsi(self) -> str:
         if self.params:
-            return str(self.params[0])
+            return str(self.params[0].value)
         else:
             logger.warning(
                 f"Raw/Custom behavior '{self.behavior_name}' used without parameters."

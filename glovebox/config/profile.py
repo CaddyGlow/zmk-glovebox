@@ -106,96 +106,32 @@ class KeyboardProfile:
 
         return combined
 
-    def resolve_kconfig_with_user_options(
-        self, user_options: dict[str, Any]
-    ) -> dict[str, str]:
-        """
-        Resolve kconfig settings with user-provided options.
-
-        Args:
-            user_options: User-provided kconfig settings
-
-        Returns:
-            Dictionary mapping kconfig names to their resolved values
-        """
-        options = self.kconfig_options
-        resolved: dict[str, str] = {}
-
-        # Apply defaults
-        for _, config in options.items():
-            resolved[config.name] = self._format_kconfig_value(
-                config.default, config.type
-            )
-
-        # Apply user overrides
-        for key, value in user_options.items():
-            if key in options:
-                option_type = options[key].type
-                resolved[options[key].name] = self._format_kconfig_value(
-                    value, option_type
-                )
-
-        return resolved
-
-    def _format_kconfig_value(self, value: Any, value_type: str) -> str:
-        """
-        Format a kconfig value based on its type.
-
-        Args:
-            value: The value to format
-            value_type: The type of the value (bool, int, string)
-
-        Returns:
-            Formatted string value for kconfig
-        """
-        if value_type == "bool":
-            # Handle boolean values
-            if isinstance(value, bool):
-                return "y" if value else "n"
-            if isinstance(value, str):
-                return "y" if value.lower() in ["true", "yes", "y", "1"] else "n"
-            return "y" if value else "n"
-        elif value_type == "int":
-            # Handle integer values
-            return str(int(value))
-        else:
-            # Default to string type
-            return str(value)
-
-    def generate_kconfig_content(self, kconfig_settings: dict[str, str]) -> str:
-        """
-        Generate formatted kconfig content from settings.
-
-        Args:
-            kconfig_settings: Dictionary of kconfig settings
-
-        Returns:
-            Formatted kconfig content as string
-        """
-        config_lines = []
-
-        # Add header
-        config_lines.append("# Generated ZMK configuration")
-        config_lines.append("")
-
-        # Process all settings
-        for config_key, value in kconfig_settings.items():
-            # Add CONFIG_ prefix if missing
-            if not config_key.startswith("CONFIG_"):
-                config_key = f"CONFIG_{config_key}"
-
-            # Format based on value
-            if value == "y":
-                config_lines.append(f"{config_key}=y")
-            elif value == "n":
-                config_lines.append(f"# {config_key} is not set")
-            elif config_key.endswith("_NAME") or isinstance(value, str):
-                # Use quotes for names and strings
-                config_lines.append(f'{config_key}="{value}"')
-            else:
-                config_lines.append(f"{config_key}={value}")
-
-        return "\n".join(config_lines)
+    # We are keeping this methods but commented out
+    # we should move it else where
+    # def _format_kconfig_value(self, value: Any, value_type: str) -> str:
+    #     """
+    #     Format a kconfig value based on its type.
+    #
+    #     Args:
+    #         value: The value to format
+    #         value_type: The type of the value (bool, int, string)
+    #
+    #     Returns:
+    #         Formatted string value for kconfig
+    #     """
+    #     if value_type == "bool":
+    #         # Handle boolean values
+    #         if isinstance(value, bool):
+    #             return "y" if value else "n"
+    #         if isinstance(value, str):
+    #             return "y" if value.lower() in ["true", "yes", "y", "1"] else "n"
+    #         return "y" if value else "n"
+    #     elif value_type == "int":
+    #         # Handle integer values
+    #         return str(int(value))
+    #     else:
+    #         # Default to string type
+    #         return str(value)
 
     def extract_behavior_codes(self, keymap_data: KeymapData) -> list[str]:
         """

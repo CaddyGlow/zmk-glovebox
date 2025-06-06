@@ -14,6 +14,7 @@ from glovebox.cli.helpers import (
     print_success_message,
 )
 from glovebox.config.profile import KeyboardProfile
+from glovebox.models.options import BuildServiceCompileOpts
 from glovebox.services import create_build_service, create_flash_service
 
 
@@ -70,21 +71,17 @@ def firmware_compile(
         raise typer.BadParameter(f"Kconfig file not found: {kconfig_file}")
 
     # Initialize build configuration
-    build_config = {
-        "keymap_path": str(keymap_file),
-        "kconfig_path": str(kconfig_file),
-        "output_dir": str(output_dir),
-        "branch": branch,
-        "repo": repo,
-        "jobs": jobs,
-        "verbose": verbose,
-    }
-
-    # Add keyboard/firmware if provided (for backward compatibility)
-    if keyboard:
-        build_config["keyboard"] = keyboard
-    if firmware:
-        build_config["firmware"] = firmware
+    build_config = BuildServiceCompileOpts(
+        **{
+            "keymap_path": keymap_file,
+            "kconfig_path": kconfig_file,
+            "output_dir": output_dir,
+            "branch": branch,
+            "repo": repo,
+            "jobs": jobs,
+            "verbose": verbose,
+        }
+    )
 
     # Create KeyboardProfile if profile is specified
     keyboard_profile = None
