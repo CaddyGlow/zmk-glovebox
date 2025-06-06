@@ -334,8 +334,11 @@ class BuildService(BaseServiceImpl):
 
             try:
                 # Special handling for test_keyboard in test environments
-                if keyboard_name == "test_keyboard" and "test" in sys.modules.get(
-                    "__name__", ""
+                module_name = sys.modules.get("__name__", "")
+                if (
+                    keyboard_name == "test_keyboard"
+                    and isinstance(module_name, str)
+                    and "test" in module_name
                 ):
                     # Use mock defaults for tests
                     build_env["DOCKER_IMAGE"] = "test-zmk-build"
@@ -373,13 +376,12 @@ class BuildService(BaseServiceImpl):
         if build_config.repo != "moergo-sc/zmk":
             build_env["REPO"] = build_config.repo
 
-        # Add number of jobs if specified
-        if build_config.jobs is not None:
-            num_jobs = build_config.jobs
-        else:
-            # Default to CPU count
-            num_jobs = multiprocessing.cpu_count()
-
+        # Set number of jobs
+        num_jobs = (
+            build_config.jobs
+            if build_config.jobs is not None
+            else multiprocessing.cpu_count()
+        )
         build_env["JOBS"] = str(num_jobs)
 
         # Enable verbose mode if requested

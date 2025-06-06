@@ -1,7 +1,9 @@
 """Keymap service for all keymap-related operations."""
 
 import logging
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any, Protocol, cast, runtime_checkable
 
 from glovebox.adapters.file_adapter import FileAdapter
 from glovebox.adapters.template_adapter import TemplateAdapter
@@ -10,9 +12,21 @@ from glovebox.builders.template_context_builder import (
 )
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import KeymapError
-from glovebox.formatters.behavior_formatter import BehaviorFormatterImpl
+from glovebox.formatters.behavior_formatter import (
+    BehaviorFormatterImpl,
+)
+from glovebox.formatters.behavior_formatter import (
+    BehaviorRegistry as FormatterBehaviorRegistry,
+)
 from glovebox.generators.dtsi_generator import DTSIGenerator
-from glovebox.models.keymap import KeymapData
+from glovebox.models.keymap import (
+    ComboBehavior,
+    HoldTapBehavior,
+    InputListener,
+    KeymapBinding,
+    KeymapData,
+    MacroBehavior,
+)
 from glovebox.models.results import KeymapResult
 from glovebox.services.base_service import BaseServiceImpl
 from glovebox.services.behavior_service import create_behavior_registry
@@ -28,6 +42,66 @@ from glovebox.utils.file_utils import prepare_output_paths
 
 
 logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class BehaviorRegistryAdapter(FormatterBehaviorRegistry, Protocol):
+    """Protocol to adapt between different BehaviorRegistry implementations."""
+
+    pass
+
+
+@runtime_checkable
+class DTSIGeneratorAdapter(Protocol):
+    """Protocol to adapt DTSIGenerator implementation."""
+
+    def generate_layer_defines(
+        self, profile: KeyboardProfile, layer_names: list[str]
+    ) -> str:
+        """Generate layer define statements."""
+        ...
+
+    def generate_keymap_node(
+        self,
+        profile: KeyboardProfile,
+        layer_names: list[str],
+        layers_data: list[list[dict[str, Any]]],
+    ) -> str:
+        """Generate keymap node content."""
+        ...
+
+    def generate_behaviors_dtsi(
+        self, profile: KeyboardProfile, hold_taps_data: Sequence[HoldTapBehavior]
+    ) -> str:
+        """Generate behaviors DTSI content."""
+        ...
+
+    def generate_combos_dtsi(
+        self,
+        profile: KeyboardProfile,
+        combos_data: Sequence[ComboBehavior],
+        layer_names: list[str],
+    ) -> str:
+        """Generate combos DTSI content."""
+        ...
+
+    def generate_macros_dtsi(
+        self, profile: KeyboardProfile, macros_data: Sequence[MacroBehavior]
+    ) -> str:
+        """Generate macros DTSI content."""
+        ...
+
+    def generate_input_listeners_node(
+        self, profile: KeyboardProfile, input_listeners_data: Sequence[InputListener]
+    ) -> str:
+        """Generate input listeners node content."""
+        ...
+
+    def generate_kconfig_conf(
+        self, keymap_data: KeymapData, profile: KeyboardProfile
+    ) -> tuple[str, dict[str, str]]:
+        """Generate kconfig content and settings."""
+        ...
 
 
 class KeymapService(BaseServiceImpl):
@@ -51,7 +125,10 @@ class KeymapService(BaseServiceImpl):
 
         # Initialize component services
         self._behavior_registry = create_behavior_registry()
-        self._behavior_formatter = BehaviorFormatterImpl(self._behavior_registry)
+        # Use cast to adapt behavior registry to the expected protocol
+        self._behavior_formatter = BehaviorFormatterImpl(
+            cast(FormatterBehaviorRegistry, self._behavior_registry)
+        )
         self._dtsi_generator = DTSIGenerator(self._behavior_formatter)
 
         # Initialize delegated services
@@ -61,7 +138,9 @@ class KeymapService(BaseServiceImpl):
         self._layout_service = layout_service or create_layout_display_service()
 
         # Initialize builder objects
-        self._context_builder = create_template_context_builder(self._dtsi_generator)
+        self._context_builder = create_template_context_builder(
+            cast(DTSIGeneratorAdapter, self._dtsi_generator)
+        )
 
     def compile(
         self,
@@ -401,3 +480,4 @@ def create_keymap_service(
     return KeymapService(
         file_adapter, template_adapter, component_service, layout_service
     )
+

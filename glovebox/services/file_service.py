@@ -680,3 +680,5 @@ def create_file_service(
         from glovebox.adapters.file_adapter import create_file_adapter
 
         file_adapter = create_file_adapter()
+
+    return KeymapFileService(file_adapter=file_adapter)
