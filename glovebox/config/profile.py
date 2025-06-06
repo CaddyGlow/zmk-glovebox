@@ -252,9 +252,7 @@ class KeyboardProfile:
             behavior_registry: The registry to register behaviors with
         """
         for behavior in self.system_behaviors:
-            behavior_registry.register_behavior(
-                behavior.name, behavior.expected_params, behavior.origin
-            )
+            behavior_registry.register_behavior(behavior)
 
     def resolve_includes(self, behaviors_used: list[str]) -> list[str]:
         """

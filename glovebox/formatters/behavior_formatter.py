@@ -4,13 +4,14 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, Protocol, cast
 
-from ..models.behavior import (
+from glovebox.models.behavior import (
     KeymapBehavior,
     RegistryBehavior,
     SystemBehaviorParam,
     SystemParamList,
 )
-from ..models.keymap import ParamValue
+
+from ..models.keymap import KeymapBinding, KeymapParam, ParamValue
 
 
 logger = logging.getLogger(__name__)
@@ -38,29 +39,30 @@ class BehaviorFormatterImpl:
         """
         self._registry = registry
         self._keycode_map = keycode_map or {}
-        self._behavior_classes: dict[str, Any] = {}
+        self._behavior_classes: dict[str, type[Behavior]] = {}
         self._init_behavior_class_map()
 
-    def format_binding(self, binding_data: Any) -> str:
+    def format_binding(self, binding_data: KeymapBinding) -> str:
         """Format a binding dictionary to DTSI string.
 
         Args:
             binding_data: KeymapBehavior or dictionary representing a key binding
         """
         # Runtime type check is necessary
-        if not isinstance(binding_data, dict):
-            logger.error(f"Invalid binding data format: {binding_data}")
-            return "&error /* Invalid binding data */"
+        # if not isinstance(binding_data, dict):
+        #     logger.error(f"Invalid binding data format: {binding_data}")
+        #     return "&error /* Invalid binding data */"
 
-        value = binding_data.get("value")
-        params_data = binding_data.get("params", [])
+        # value = binding_data.get("value")
+        # params_data = binding_data.get("params", [])
+        value = binding_data.value
+        params_data = binding_data.params
 
         if value is None:
             logger.warning("Binding data missing 'value'. Returning '&none'.")
             return "&none"
 
         behavior_class = self._behavior_classes.get(value)
-
         if behavior_class:
             try:
                 behavior_instance = behavior_class(value, params_data, self)
@@ -94,118 +96,68 @@ class BehaviorFormatterImpl:
         """Look up ZMK keycode, returning input if not found."""
         return self._keycode_map.get(key_name, key_name)
 
-    def format_param(self, param: Any) -> str:
+    def format_param(self, param: ParamValue) -> str:
         """Format a single parameter."""
-        # SIM102: Combine conditions
-        if isinstance(param, str) and (
-            param.startswith("LAYER_")
-            or param.isdigit()
-            or param.startswith("&")
-            or param == "MACRO_PLACEHOLDER"
-            or param
-            in [
-                "LALT",
-                "LCTL",
-                "LSHFT",
-                "LGUI",
-                "RALT",
-                "RCTL",
-                "RSHFT",
-                "RGUI",
-                "LA",
-                "LC",
-                "LS",
-                "LG",
-                "RA",
-                "RC",
-                "RS",
-                "RG",
-            ]
-        ):
-            return param
-        elif isinstance(
-            param, str
-        ):  # Handles the 'else' case from the original inner if
-            return self.get_keycode(param)
-        elif isinstance(param, int):
-            return str(param)
-        else:
-            logger.warning(
-                f"Unhandled parameter type: {type(param)} ({param}). Converting to string."
-            )
-            return str(param)
+        return self.get_keycode(str(param))
 
-    def format_kp_param_recursive(
-        self, param_data: SystemBehaviorParam | ParamValue
-    ) -> str:
+    def format_kp_param_recursive(self, param_data: KeymapParam) -> str:
         """Recursively format &kp parameters including modifiers."""
-        if isinstance(param_data, dict) and "value" in param_data:
-            mod_name = param_data["value"]
-            inner_params_data = param_data.get("params", [])
+        mod_name = param_data.value
+        inner_params_data = param_data.params
 
-            # SIM102: Combine conditions formatting :(
-            if (
-                mod_name in ["LA", "LC", "LS", "LG", "RA", "RC", "RS", "RG"]
-                and not inner_params_data
-            ):
-                logger.error(f"Modifier function '{mod_name}' missing inner parameter.")
-                return f"{mod_name}(ERROR_MOD_PARAM)"
-            elif mod_name in [
-                "LA",
-                "LC",
-                "LS",
-                "LG",
-                "RA",
-                "RC",
-                "RS",
-                "RG",
-            ]:  # Original 'if' body
-                inner_formatted = self.format_kp_param_recursive(inner_params_data[0])
-                return f"{mod_name}({inner_formatted})"
+        # SIM102: Combine conditions formatting :(
+        if (
+            mod_name in ["LA", "LC", "LS", "LG", "RA", "RC", "RS", "RG"]
+            and not inner_params_data
+        ):
+            logger.error(f"Modifier function '{mod_name}' missing inner parameter.")
+            return f"{mod_name}(ERROR_MOD_PARAM)"
+        elif mod_name in [
+            "LA",
+            "LC",
+            "LS",
+            "LG",
+            "RA",
+            "RC",
+            "RS",
+            "RG",
+        ]:  # Original 'if' body
+            inner_formatted = self.format_kp_param_recursive(inner_params_data[0])
+            return f"{mod_name}({inner_formatted})"
 
-            # Modifier aliases
-            elif mod_name in [
-                "LALT",
-                "LCTL",
-                "LSHFT",
-                "LGUI",
-                "RALT",
-                "RCTL",
-                "RSHFT",
-                "RGUI",
-            ]:
-                if not inner_params_data:
-                    return self.format_param(mod_name)
-                else:
-                    zmk_mod_func = {
-                        "LALT": "LA",
-                        "LCTL": "LC",
-                        "LSHFT": "LS",
-                        "LGUI": "LG",
-                        "RALT": "RA",
-                        "RCTL": "RC",
-                        "RSHFT": "RS",
-                        "RGUI": "RG",
-                    }.get(mod_name)
-                    if not zmk_mod_func:
-                        logger.error(
-                            f"Could not map modifier alias '{mod_name}' to function."
-                        )
-                        return f"ERROR_MOD_ALIAS({mod_name})"
-                    inner_formatted = self.format_kp_param_recursive(
-                        inner_params_data[0]
-                    )
-                    return f"{zmk_mod_func}({inner_formatted})"
-            else:
+        # Modifier aliases
+        elif mod_name in [
+            "LALT",
+            "LCTL",
+            "LSHFT",
+            "LGUI",
+            "RALT",
+            "RCTL",
+            "RSHFT",
+            "RGUI",
+        ]:
+            if not inner_params_data:
                 return self.format_param(mod_name)
-
-        elif isinstance(param_data, str | int):
-            return self.format_param(param_data)
+            else:
+                zmk_mod_func = {
+                    "LALT": "LA",
+                    "LCTL": "LC",
+                    "LSHFT": "LS",
+                    "LGUI": "LG",
+                    "RALT": "RA",
+                    "RCTL": "RC",
+                    "RSHFT": "RS",
+                    "RGUI": "RG",
+                }.get(mod_name)
+                if not zmk_mod_func:
+                    logger.error(
+                        f"Could not map modifier alias '{mod_name}' to function."
+                    )
+                    return f"ERROR_MOD_ALIAS({mod_name})"
+                inner_formatted = self.format_kp_param_recursive(inner_params_data[0])
+                return f"{zmk_mod_func}({inner_formatted})"
         else:
-            logger.error(
-                f"Unexpected parameter type in &kp formatting: {type(param_data)} ({param_data})"
-            )
-            return "ERROR_KP_PARAM"
+            return self.format_param(mod_name)
 
     def _create_behavior_class_map(self) -> dict[str, type]:
         """Create mapping of behavior names to their classes."""
@@ -246,23 +198,15 @@ class Behavior(ABC):
     """Base class for ZMK behaviors."""
 
     def __init__(
-        self, value: str, params_data: list[Any], formatter: BehaviorFormatterImpl
+        self,
+        value: str,
+        params_data: list[KeymapParam],
+        formatter: BehaviorFormatterImpl,
     ) -> None:
         self.behavior_name = value
-        self.raw_params = params_data
+        self.params = params_data
         self.formatter = formatter
-        self.params: list[Any] = self._parse_params(params_data)
         self._validate_params()
-
-    def _parse_params(self, params_data: list[Any]) -> list[Any]:
-        """Extract 'value' if params are dicts like {'value': X}."""
-        parsed = []
-        for p in params_data:
-            if isinstance(p, dict) and "value" in p:
-                parsed.append(p["value"])
-            else:
-                parsed.append(p)
-        return parsed
 
     @abstractmethod
     def _validate_params(self) -> None:
@@ -300,26 +244,14 @@ class KPBehavior(Behavior):
             ) from None
 
     def format_dtsi(self) -> str:
-        if not self.raw_params:
+        if not self.params:
             logger.error(f"Behavior {self.behavior_name} missing raw parameters.")
             return f"&error /* {self.behavior_name} missing params */"
 
         # Get the first parameter and handle it based on its type
-        param = self.raw_params[0]
+        param = self.params[0]
 
-        # Convert param to appropriate type for format_kp_param_recursive
-        if isinstance(param, dict):
-            # Cast to SystemBehaviorParam for type checking
-            param_cast = cast(SystemBehaviorParam, param)
-            kp_param_formatted = self.formatter.format_kp_param_recursive(param_cast)
-        elif isinstance(param, str | int):
-            # It's already a ParamValue
-            kp_param_formatted = self.formatter.format_kp_param_recursive(param)
-        else:
-            # Unexpected type - format as string
-            logger.warning(f"Unexpected param type in &kp: {type(param)}")
-            kp_param_formatted = str(param)
-
+        kp_param_formatted = self.formatter.format_kp_param_recursive(param)
         return f"&kp {kp_param_formatted}"
 
 
@@ -377,18 +309,18 @@ class OneParamBehavior(Behavior):
             ) from None
 
     def format_dtsi(self) -> str:
-        if not self.raw_params:
+        if not self.params:
             logger.error(f"Behavior {self.behavior_name} missing raw parameters.")
             return f"&error /* {self.behavior_name} missing params */"
 
-        param_data = self.raw_params[0]
+        param_data = self.params[0]
 
-        if isinstance(param_data, dict) and "value" in param_data:
-            # Cast to SystemBehaviorParam for type checking
-            param_cast = cast(SystemBehaviorParam, param_data)
-            param_formatted = self.formatter.format_kp_param_recursive(param_cast)
-        else:
-            param_formatted = self.formatter.format_param(self.params[0])
+        # if isinstance(param_data, dict) and "value" in param_data:
+        #     # Cast to SystemBehaviorParam for type checking
+        #     param_cast = cast(SystemBehaviorParam, param_data)
+        #     param_formatted = self.formatter.format_kp_param_recursive(param_cast)
+        # else:
+        param_formatted = self.formatter.format_param(self.params[0])
 
         return f"{self.behavior_name} {param_formatted}"
 
@@ -401,13 +333,9 @@ class BluetoothBehavior(Behavior):
             raise ValueError(
                 f"{self.behavior_name} requires 1 or 2 parameters."
             ) from None
-        if not isinstance(self.params[0], str) or not self.params[0].startswith("BT_"):
+        if not str(self.params[0].value).startswith("BT_"):
             raise ValueError(
                 f"{self.behavior_name} first parameter must be a BT_ command."
-            ) from None
-        if len(self.params) == 2 and self.params[0] not in ["BT_SEL", "BT_DISC"]:
-            raise ValueError(
-                f"{self.behavior_name} {self.params[0]} does not take a second parameter."
             ) from None
 
     def format_dtsi(self) -> str:
@@ -455,8 +383,8 @@ class CustomBehaviorRef(Behavior):
         registry_info = self.formatter._registry.get_behavior_info(self.behavior_name)
 
         if registry_info:
-            expected_params = registry_info["expected_params"]
-            origin = registry_info["origin"]
+            expected_params = registry_info.expected_params
+            origin = registry_info.origin
 
             if expected_params == 0:
                 if self.params:
