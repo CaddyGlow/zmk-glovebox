@@ -268,25 +268,64 @@ class BuildService(BaseServiceImpl):
             keyboard_name = profile.keyboard_name
             build_env["KEYBOARD"] = keyboard_name
 
-            # Get build options from profile
+            # First check firmware config's build options (more specific)
+            if (
+                hasattr(profile.firmware_config, "build_options")
+                and profile.firmware_config.build_options
+            ):
+                firmware_build_options = profile.firmware_config.build_options
+
+                # Set branch from firmware build options if specified
+                if (
+                    hasattr(firmware_build_options, "branch")
+                    and firmware_build_options.branch
+                ):
+                    build_env["BRANCH"] = firmware_build_options.branch
+                    logger.debug(
+                        "Using branch from firmware profile: %s", build_env["BRANCH"]
+                    )
+
+                # Set repository from firmware build options if specified
+                if (
+                    hasattr(firmware_build_options, "repository")
+                    and firmware_build_options.repository
+                ):
+                    build_env["REPO"] = firmware_build_options.repository
+                    logger.debug(
+                        "Using repo from firmware profile: %s", build_env["REPO"]
+                    )
+
+            # Fall back to keyboard's build options for remaining values
             build_options = profile.keyboard_config.build
 
-            # Set docker image if specified
-            if hasattr(build_options, "docker_image") and build_options.docker_image:
+            # Set docker image if specified and not already set
+            if (
+                "DOCKER_IMAGE" not in build_env
+                and hasattr(build_options, "docker_image")
+                and build_options.docker_image
+            ):
                 build_env["DOCKER_IMAGE"] = build_options.docker_image
-            else:
+            elif "DOCKER_IMAGE" not in build_env:
                 build_env["DOCKER_IMAGE"] = "moergo-zmk-build"
 
-            # Set branch if specified
-            if hasattr(build_options, "branch") and build_options.branch:
+            # Set branch if not already set from firmware config
+            if (
+                "BRANCH" not in build_env
+                and hasattr(build_options, "branch")
+                and build_options.branch
+            ):
                 build_env["BRANCH"] = build_options.branch
-            else:
+            elif "BRANCH" not in build_env:
                 build_env["BRANCH"] = "main"
 
-            # Set repository if specified
-            if hasattr(build_options, "repository") and build_options.repository:
+            # Set repository if not already set from firmware config
+            if (
+                "REPO" not in build_env
+                and hasattr(build_options, "repository")
+                and build_options.repository
+            ):
                 build_env["REPO"] = build_options.repository
-            else:
+            elif "REPO" not in build_env:
                 build_env["REPO"] = "moergo-sc/zmk"
         else:
             # Fallback to using config directly if no profile
@@ -328,9 +367,11 @@ class BuildService(BaseServiceImpl):
                 build_env["BRANCH"] = "main"
                 build_env["REPO"] = "moergo-sc/zmk"
 
-        # Override with explicit parameters from build_config
-        build_env["BRANCH"] = build_config.branch
-        build_env["REPO"] = build_config.repo
+        # Only override with explicit parameters from build_config if they're not the default values
+        if build_config.branch != "main":
+            build_env["BRANCH"] = build_config.branch
+        if build_config.repo != "moergo-sc/zmk":
+            build_env["REPO"] = build_config.repo
 
         # Add number of jobs if specified
         if build_config.jobs is not None:
@@ -417,7 +458,7 @@ class BuildService(BaseServiceImpl):
 
         # Map output directory
         output_dir = config.output_dir.absolute()
-        volumes.append((str(output_dir), "/build/output"))
+        volumes.append((str(output_dir), "/build"))
 
         # Map keymap file to expected location
         keymap_path = config.keymap_path.absolute()
@@ -434,9 +475,38 @@ class BuildService(BaseServiceImpl):
         firmware_files = []
 
         try:
+            # First check the direct output directory
             if self.file_adapter.exists(output_dir):
                 files = self.file_adapter.list_files(output_dir, "*.uf2")
-                firmware_files = files
+                firmware_files.extend(files)
+
+            # Check artifacts directory
+            artifacts_dir = output_dir / "artifacts"
+            if self.file_adapter.exists(artifacts_dir) and self.file_adapter.is_dir(
+                artifacts_dir
+            ):
+                # Get all subdirectories in artifacts
+                for build_dir in self.file_adapter.list_directory(artifacts_dir):
+                    if self.file_adapter.is_dir(build_dir):
+                        # Look for glove80.uf2 in the build directory
+                        glove_uf2 = build_dir / "glove80.uf2"
+                        if self.file_adapter.exists(glove_uf2):
+                            firmware_files.append(glove_uf2)
+
+                        # Also check lf and rh subdirectories for zmk.uf2
+                        for side in ["lf", "rh"]:
+                            side_dir = build_dir / side
+                            if self.file_adapter.exists(
+                                side_dir
+                            ) and self.file_adapter.is_dir(side_dir):
+                                side_uf2 = side_dir / "zmk.uf2"
+                                if self.file_adapter.exists(side_uf2):
+                                    firmware_files.append(side_uf2)
+
+            logger.debug(
+                f"Found {len(firmware_files)} firmware files in {output_dir} and subdirectories"
+            )
+
         except Exception as e:
             logger.warning(f"Failed to list firmware files in {output_dir}: {e}")
 

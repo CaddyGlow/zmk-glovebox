@@ -52,10 +52,14 @@ def firmware_compile(
         str | None,
         typer.Option("--firmware", "-f", help="Firmware version (e.g., 'v25.05')"),
     ] = None,
-    branch: Annotated[str, typer.Option("--branch", help="Git branch to use")] = "main",
+    branch: Annotated[
+        str | None,
+        typer.Option("--branch", help="Git branch to use (overrides profile branch)"),
+    ] = None,
     repo: Annotated[
-        str, typer.Option("--repo", help="Git repository")
-    ] = "moergo-sc/zmk",
+        str | None,
+        typer.Option("--repo", help="Git repository (overrides profile repo)"),
+    ] = None,
     jobs: Annotated[
         int | None, typer.Option("--jobs", "-j", help="Number of parallel jobs")
     ] = None,
@@ -75,8 +79,8 @@ def firmware_compile(
         keymap_path=keymap_file,
         kconfig_path=kconfig_file,
         output_dir=output_dir,
-        branch=branch,
-        repo=repo,
+        branch=branch if branch is not None else "main",
+        repo=repo if repo is not None else "moergo-sc/zmk",
         jobs=jobs if jobs is not None else 0,
         verbose=verbose,
     )
