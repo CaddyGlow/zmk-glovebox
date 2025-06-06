@@ -4,6 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Essential Commands
 
+### Command Execution
+
+If the virtual environment is not activated, prefix any Python command with `uv run` to ensure it runs with the correct dependencies:
+
+```bash
+# Run commands with uv
+uv run pytest
+uv run ruff check .
+uv run mypy glovebox/
+```
+
 ### Installation
 
 ```bash
@@ -20,9 +31,13 @@ pre-commit install
 ```bash
 # Run glovebox CLI directly
 python -m glovebox.cli [command]
+# or with uv:
+uv run python -m glovebox.cli [command]
 
 # Build a keymap
 glovebox keymap compile my_layout.json output/my_keymap --profile glove80/v25.05
+# or with uv:
+uv run glovebox keymap compile my_layout.json output/my_keymap --profile glove80/v25.05
 
 # Build firmware
 glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
