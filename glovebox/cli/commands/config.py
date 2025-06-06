@@ -3,12 +3,12 @@
 import json
 import logging
 from pathlib import Path
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, Optional, cast
 
 import typer
-from rich import print as rprint  # type: ignore
-from rich.console import Console  # type: ignore
-from rich.table import Table  # type: ignore
+from rich import print as rprint
+from rich.console import Console
+from rich.table import Table
 
 from glovebox.cli.app import AppContext
 from glovebox.cli.decorators import handle_errors
@@ -60,21 +60,27 @@ def set_config(
     # Variable to hold the converted value with appropriate type
     typed_value: Any = None
 
-    if isinstance(default_value, bool):  # type: ignore
-        # Boolean conversion
-        typed_value = value.lower() in ("true", "yes", "1", "y")  # type: ignore
-    elif isinstance(default_value, int):
-        try:
-            typed_value = int(value)
-        except ValueError as err:
+    # Use a dictionary to map types to conversion functions
+    # Define the conversion function type
+    from collections.abc import Callable
+
+    conversion_map: dict[type, Callable[[str], Any]] = {
+        bool: lambda v: v.lower() in ("true", "yes", "1", "y"),
+        int: lambda v: int(v),
+        list: lambda v: [item.strip() for item in v.split(",")],
+    }
+
+    # Get the conversion function or use default string conversion
+    converter: Callable[[str], Any] = conversion_map.get(
+        type(default_value), lambda v: v
+    )
+    try:
+        typed_value = converter(value)
+    except ValueError as err:
+        if isinstance(default_value, int):
             print_error_message(f"Invalid integer value: {value}")
             raise typer.Exit(1) from err
-    elif isinstance(default_value, list):
-        # List conversion
-        typed_value = [item.strip() for item in value.split(",")]
-    else:
-        # String values (default)
-        typed_value = value
+        raise
 
     # Set the value
     app_ctx.user_config.set(key, typed_value)

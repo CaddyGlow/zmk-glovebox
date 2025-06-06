@@ -15,6 +15,7 @@ import yaml
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
+    from glovebox.config.user_config import UserConfig
 
 from glovebox.config.schema import validate_keyboard_config
 from glovebox.core.errors import ConfigError
@@ -29,8 +30,12 @@ logger = get_logger(__name__)
 _keyboard_configs: dict[str, KeyboardConfig] = {}
 
 
-def _initialize_search_paths() -> list[Path]:
+def initialize_search_paths(user_config: Optional["UserConfig"] = None) -> list[Path]:
     """Initialize the paths where keyboard configurations are searched for.
+
+    Args:
+        user_config: Optional user configuration instance. If provided, user-defined
+                    keyboard paths from config will be included.
 
     Returns:
         List of paths to search for keyboard configurations
@@ -48,8 +53,13 @@ def _initialize_search_paths() -> list[Path]:
     env_paths = os.environ.get("GLOVEBOX_KEYBOARD_PATH", "")
     extra_paths = [Path(p) for p in env_paths.split(":") if p]
 
+    # Get additional paths from user config if provided
+    user_paths = []
+    if user_config:
+        user_paths = user_config.get_keyboard_paths()
+
     # Combine all paths
-    all_paths = builtin_paths + [user_config_dir] + extra_paths
+    all_paths = builtin_paths + [user_config_dir] + extra_paths + user_paths
 
     # Filter out non-existent paths
     search_paths = [p for p in all_paths if p.exists() and p.is_dir()]
@@ -58,16 +68,23 @@ def _initialize_search_paths() -> list[Path]:
     return search_paths
 
 
-def _find_keyboard_config_file(keyboard_name: str) -> Path | None:
+# Alias for backward compatibility
+_initialize_search_paths = initialize_search_paths
+
+
+def _find_keyboard_config_file(
+    keyboard_name: str, user_config: Optional["UserConfig"] = None
+) -> Path | None:
     """Find the configuration file for a keyboard.
 
     Args:
         keyboard_name: Name of the keyboard to find
+        user_config: Optional user configuration instance
 
     Returns:
         Path to the configuration file, or None if not found
     """
-    search_paths = _initialize_search_paths()
+    search_paths = initialize_search_paths(user_config)
 
     # Look for the configuration file in all search paths
     for path in search_paths:
@@ -85,11 +102,14 @@ def _find_keyboard_config_file(keyboard_name: str) -> Path | None:
     return None
 
 
-def load_keyboard_config(keyboard_name: str) -> KeyboardConfig:
+def load_keyboard_config(
+    keyboard_name: str, user_config: Optional["UserConfig"] = None
+) -> KeyboardConfig:
     """Load a keyboard configuration by name as a typed object.
 
     Args:
         keyboard_name: Name of the keyboard to load
+        user_config: Optional user configuration instance
 
     Returns:
         Typed KeyboardConfig object
@@ -102,7 +122,7 @@ def load_keyboard_config(keyboard_name: str) -> KeyboardConfig:
         return _keyboard_configs[keyboard_name]
 
     # Find the configuration file
-    config_file = _find_keyboard_config_file(keyboard_name)
+    config_file = _find_keyboard_config_file(keyboard_name, user_config)
     if not config_file:
         raise ConfigError(f"Keyboard configuration not found: {keyboard_name}")
 
@@ -145,12 +165,15 @@ def load_keyboard_config(keyboard_name: str) -> KeyboardConfig:
         ) from e
 
 
-def get_firmware_config(keyboard_name: str, firmware_name: str) -> FirmwareConfig:
+def get_firmware_config(
+    keyboard_name: str, firmware_name: str, user_config: Optional["UserConfig"] = None
+) -> FirmwareConfig:
     """Get a firmware configuration for a keyboard as a typed object.
 
     Args:
         keyboard_name: Name of the keyboard
         firmware_name: Name of the firmware
+        user_config: Optional user configuration instance
 
     Returns:
         Typed FirmwareConfig object
@@ -158,7 +181,7 @@ def get_firmware_config(keyboard_name: str, firmware_name: str) -> FirmwareConfi
     Raises:
         ConfigError: If the keyboard or firmware configuration cannot be found
     """
-    keyboard_config = load_keyboard_config(keyboard_name)
+    keyboard_config = load_keyboard_config(keyboard_name, user_config)
 
     # Check if the firmware exists
     if firmware_name not in keyboard_config.firmwares:
@@ -170,14 +193,17 @@ def get_firmware_config(keyboard_name: str, firmware_name: str) -> FirmwareConfi
     return keyboard_config.firmwares[firmware_name]
 
 
-def get_available_keyboards() -> list[str]:
+def get_available_keyboards(user_config: Optional["UserConfig"] = None) -> list[str]:
     """Get a list of available keyboard configurations.
+
+    Args:
+        user_config: Optional user configuration instance
 
     Returns:
         List of keyboard names that have configuration files
     """
     available_keyboards = set()
-    search_paths = _initialize_search_paths()
+    search_paths = initialize_search_paths(user_config)
 
     # Search all paths for keyboard configuration files
     for path in search_paths:
@@ -190,11 +216,14 @@ def get_available_keyboards() -> list[str]:
     return sorted(available_keyboards)
 
 
-def get_available_firmwares(keyboard_name: str) -> list[str]:
+def get_available_firmwares(
+    keyboard_name: str, user_config: Optional["UserConfig"] = None
+) -> list[str]:
     """Get a list of available firmware configurations for a keyboard.
 
     Args:
         keyboard_name: Name of the keyboard
+        user_config: Optional user configuration instance
 
     Returns:
         List of firmware names available for the keyboard
@@ -202,13 +231,15 @@ def get_available_firmwares(keyboard_name: str) -> list[str]:
     Raises:
         ConfigError: If the keyboard configuration cannot be found
     """
-    keyboard_config = load_keyboard_config(keyboard_name)
+    keyboard_config = load_keyboard_config(keyboard_name, user_config)
 
     # Return the firmware names
     return sorted(keyboard_config.firmwares.keys())
 
 
-def get_default_firmware(keyboard_name: str) -> str:
+def get_default_firmware(
+    keyboard_name: str, user_config: Optional["UserConfig"] = None
+) -> str:
     """Get the default firmware version for a keyboard.
 
     This returns the first available firmware version for the keyboard,
@@ -216,6 +247,7 @@ def get_default_firmware(keyboard_name: str) -> str:
 
     Args:
         keyboard_name: Name of the keyboard
+        user_config: Optional user configuration instance
 
     Returns:
         Default firmware version name
@@ -224,7 +256,7 @@ def get_default_firmware(keyboard_name: str) -> str:
         ConfigError: If the keyboard configuration cannot be found
         ValueError: If no firmware versions are available
     """
-    firmware_versions = get_available_firmwares(keyboard_name)
+    firmware_versions = get_available_firmwares(keyboard_name, user_config)
     if not firmware_versions:
         raise ValueError(
             f"No firmware versions available for keyboard: {keyboard_name}"
@@ -233,13 +265,16 @@ def get_default_firmware(keyboard_name: str) -> str:
 
 
 def create_keyboard_profile(
-    keyboard_name: str, firmware_version: str
+    keyboard_name: str,
+    firmware_version: str,
+    user_config: Optional["UserConfig"] = None,
 ) -> "KeyboardProfile":  # Forward reference
     """Create a KeyboardProfile for the given keyboard and firmware.
 
     Args:
         keyboard_name: Name of the keyboard
         firmware_version: Version of firmware to use
+        user_config: Optional user configuration instance
 
     Returns:
         KeyboardProfile configured for the keyboard and firmware
@@ -249,17 +284,19 @@ def create_keyboard_profile(
     """
     from glovebox.config.profile import KeyboardProfile
 
-    keyboard_config = load_keyboard_config(keyboard_name)
+    keyboard_config = load_keyboard_config(keyboard_name, user_config)
     return KeyboardProfile(keyboard_config, firmware_version)
 
 
 def create_profile_from_keyboard_name(
     keyboard_name: str,
+    user_config: Optional["UserConfig"] = None,
 ) -> Optional["KeyboardProfile"]:  # Forward reference
     """Create a KeyboardProfile from a keyboard name using the default firmware.
 
     Args:
         keyboard_name: Name of the keyboard
+        user_config: Optional user configuration instance
 
     Returns:
         KeyboardProfile for the keyboard with default firmware, or None if not found
@@ -270,7 +307,7 @@ def create_profile_from_keyboard_name(
 
     try:
         # Get available firmware versions
-        firmware_versions = get_available_firmwares(keyboard_name)
+        firmware_versions = get_available_firmwares(keyboard_name, user_config)
 
         if not firmware_versions:
             logger.warning(f"No firmware versions found for keyboard: {keyboard_name}")
@@ -280,7 +317,7 @@ def create_profile_from_keyboard_name(
         firmware_version = firmware_versions[0]
 
         # Create the profile
-        return create_keyboard_profile(keyboard_name, firmware_version)
+        return create_keyboard_profile(keyboard_name, firmware_version, user_config)
 
     except Exception as e:
         logger.warning(f"Failed to create profile for {keyboard_name}: {e}")

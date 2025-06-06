@@ -44,9 +44,9 @@ class AppContext:
         self.config_file = config_file
 
         # Initialize user config with CLI-provided config file
-        from glovebox.config.user_config import UserConfig
+        from glovebox.config.user_config import create_user_config
 
-        self.user_config = UserConfig(cli_config_path=config_file)
+        self.user_config = create_user_config(cli_config_path=config_file)
 
 
 # Create a custom exception handler that will print stack traces
@@ -114,7 +114,7 @@ def main_callback(
         log_level = logging.DEBUG
     elif not verbose and log_file is None:
         # If no explicit CLI flags are set, use the config file log level
-        log_level = app_context.user_config.get_log_level()
+        log_level = app_context.user_config.get_log_level_int()
 
     setup_logging(level=log_level, log_file=log_file)
 

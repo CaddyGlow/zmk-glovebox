@@ -14,15 +14,21 @@ import os
 from pathlib import Path
 from typing import Any, cast
 
-import yaml
-
+from glovebox.adapters.config_file_adapter import (
+    ConfigFileAdapter,
+    create_config_file_adapter,
+)
 from glovebox.core.errors import ConfigError
 from glovebox.core.logging import get_logger
+from glovebox.models.config import UserConfigData
 
 
 logger = get_logger(__name__)
 
-# Default configuration values
+# Environment variable prefixes
+ENV_PREFIX = "GLOVEBOX_"
+
+# Default configuration values for backward compatibility with CLI commands
 DEFAULT_CONFIG = {
     # Paths for user-defined keyboards and layouts
     "keyboard_paths": [],
@@ -32,9 +38,6 @@ DEFAULT_CONFIG = {
     # Logging
     "log_level": "INFO",
 }
-
-# Environment variable prefixes
-ENV_PREFIX = "GLOVEBOX_"
 
 
 class UserConfig:
@@ -50,118 +53,98 @@ class UserConfig:
     """
 
     def __init__(
-        self, cli_config_path: str | Path | None = None, search_current_dir: bool = True
+        self,
+        cli_config_path: str | Path | None = None,
+        config_adapter: ConfigFileAdapter[UserConfigData] | None = None,
     ):
         """
         Initialize the user configuration handler.
 
         Args:
             cli_config_path: Optional config file path provided via CLI
-            search_current_dir: Whether to search for config file in current directory
+            config_adapter: Optional adapter for file operations
         """
-        # Start with default config
-        self._config: dict[str, Any] = dict(DEFAULT_CONFIG)
-        self._config_sources: dict[
-            str, str
-        ] = {}  # Track where each config value came from
+        # Initialize adapter
+        self._adapter = config_adapter or create_config_file_adapter()
 
-        # Configuration file paths to try in order of precedence
-        self._config_paths: list[tuple[str, Path]] = []
+        # Initialize config data with defaults
+        self._config = UserConfigData()
+
+        # Track config sources
+        self._config_sources: dict[str, str] = {}
+
+        # Main config path for saving
+        self._main_config_path: Path | None = None
+
+        # Generate config paths to search
+        self._config_paths = self._generate_config_paths(cli_config_path)
+
+        # Load configuration from files
+        self._load_config()
+
+        # Apply environment variables
+        self._apply_env_vars()
+
+    def _generate_config_paths(self, cli_config_path: str | Path | None) -> list[Path]:
+        """Generate a list of config paths to search in order of precedence."""
+        config_paths = []
 
         # 1. CLI provided config path (if specified)
         if cli_config_path:
             cli_path = Path(cli_config_path).expanduser().resolve()
-            self._config_paths.append(("cli", cli_path))
+            config_paths.append(cli_path)
 
-        # 2. Current directory config file
-        if search_current_dir:
-            # Try both .yaml and .yml extensions in current directory
-            current_dir_yaml = Path.cwd() / "glovebox.yaml"
-            current_dir_yml = Path.cwd() / "glovebox.yml"
-
-            # Add both paths, the first existing one will be used
-            self._config_paths.append(("current_dir", current_dir_yaml))
-            self._config_paths.append(("current_dir", current_dir_yml))
+        # 2. Current directory config files
+        current_dir_yaml = Path.cwd() / "glovebox.yaml"
+        current_dir_yml = Path.cwd() / "glovebox.yml"
+        config_paths.extend([current_dir_yaml, current_dir_yml])
 
         # 3. XDG config directory
         xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
         if xdg_config_home:
             xdg_yaml = Path(xdg_config_home) / "glovebox" / "config.yaml"
-            self._config_paths.append(("xdg", xdg_yaml))
-
-            # Also try .yml extension as fallback
             xdg_yml = Path(xdg_config_home) / "glovebox" / "config.yml"
-            self._config_paths.append(("xdg", xdg_yml))
+            config_paths.extend([xdg_yaml, xdg_yml])
         else:
             # Default XDG location
             xdg_yaml = Path.home() / ".config" / "glovebox" / "config.yaml"
-            self._config_paths.append(("xdg", xdg_yaml))
-
-            # Also try .yml extension as fallback
             xdg_yml = Path.home() / ".config" / "glovebox" / "config.yml"
-            self._config_paths.append(("xdg", xdg_yml))
+            config_paths.extend([xdg_yaml, xdg_yml])
 
-        # Main config path for saving (use the highest priority existing path, or XDG if none exist)
-        self._main_config_path: Path | None = None
-
-        # Load configuration from all sources
-        self._load_config()
-
-        # Apply environment variable overrides (highest precedence)
-        self._apply_env_vars()
+        return config_paths
 
     def _load_config(self) -> None:
         """
-        Load configuration from all config files in order of precedence.
+        Load configuration from config files in order of precedence.
         """
-        found_config = False
+        # Use adapter to search for a valid config file
+        config_data, found_path = self._adapter.search_config_files(self._config_paths)
 
-        # Try each config path in order
-        for source, config_path in self._config_paths:
-            if not config_path.exists():
-                logger.debug("Config file not found: %s", config_path)
-                continue
+        if found_path:
+            # Update config and track sources
+            self._update_config_from_dict(config_data, f"file:{found_path.name}")
 
-            try:
-                with config_path.open("r", encoding="utf-8") as f:
-                    user_config = yaml.safe_load(f)
-
-                # Ensure we have a valid dictionary
-                if user_config is None:
-                    logger.warning("Empty YAML file: %s", config_path)
-                    continue
-
-                if not isinstance(user_config, dict):
-                    logger.warning(
-                        "Invalid YAML format in %s - expected a dictionary", config_path
-                    )
-                    continue
-
-                # Apply config values from this file
-                for key in DEFAULT_CONFIG:
-                    if key in user_config:
-                        self._config[key] = user_config[key]
-                        self._config_sources[key] = source
-
-                logger.debug("Loaded user configuration from %s", config_path)
-                found_config = True
-
-                # Use the first found config as the main config path for saving
-                if self._main_config_path is None:
-                    self._main_config_path = config_path  # Path instance
-
-            except yaml.YAMLError as e:
-                logger.warning("Error parsing YAML config file %s: %s", config_path, e)
-            except OSError as e:
-                logger.warning("Error reading config file %s: %s", config_path, e)
-
-        if not found_config:
+            logger.debug("Loaded user configuration from %s", found_path)
+            self._main_config_path = found_path
+        else:
             logger.info(
                 "No user configuration files found. Using default configuration."
             )
-            # Set main config path to XDG if no configs were found
+            # Set main config path to the default XDG location if no configs were found
             if self._config_paths:
-                self._main_config_path = self._config_paths[-1][1]  # XDG path
+                self._main_config_path = self._config_paths[-1]  # Last path is XDG yml
+
+    def _update_config_from_dict(self, data: dict[str, Any], source: str) -> None:
+        """Update configuration from a dictionary and track sources."""
+        # Only update fields that exist in our model
+        for field_name in UserConfigData.model_fields:
+            if field_name in data:
+                try:
+                    # Update the field with validation
+                    setattr(self._config, field_name, data[field_name])
+                    self._config_sources[field_name] = source
+                except Exception as e:
+                    logger.warning("Invalid value for %s: %s", field_name, e)
 
     def _apply_env_vars(self) -> None:
         """
@@ -177,46 +160,19 @@ class UserConfig:
             config_key = env_name[len(ENV_PREFIX) :].lower()
 
             # Convert to standard snake_case format
-            # Replace underscores with spaces first, then replace spaces with underscores
             config_key = "_".join(config_key.split("_"))
 
-            # Only apply if it's a known config key
-            if config_key in DEFAULT_CONFIG:
-                # Convert environment variable value to appropriate type
-                default_value = DEFAULT_CONFIG[config_key]
-
-                if isinstance(default_value, bool):  # type: ignore
-                    # Convert string to boolean for bool fields
-                    # Using a temporary variable to avoid type confusion
-                    bool_val = env_value.lower() in (  # type: ignore
-                        "true",
-                        "yes",
-                        "1",
-                        "y",
+            # Check if this is a valid config field
+            if config_key in UserConfigData.model_fields:
+                try:
+                    # Update the field with validation
+                    setattr(self._config, config_key, env_value)
+                    self._config_sources[config_key] = "environment"
+                    logger.debug(
+                        "Applied environment variable %s = %s", env_name, env_value
                     )
-                    self._config[config_key] = bool_val
-                elif isinstance(default_value, int):
-                    try:
-                        # Convert string to int for integer fields
-                        int_val = int(env_value)
-                        self._config[config_key] = int_val
-                    except ValueError:
-                        logger.warning(
-                            "Invalid integer value for %s: %s", env_name, env_value
-                        )
-                elif isinstance(default_value, list):
-                    # Convert comma-separated string to list for list fields
-                    list_val = [item.strip() for item in env_value.split(",")]
-                    self._config[config_key] = list_val
-                else:
-                    # String values for string fields
-                    # Just assign directly to avoid type confusion
-                    self._config[config_key] = env_value
-
-                self._config_sources[config_key] = "environment"
-                logger.debug(
-                    "Applied environment variable %s = %s", env_name, env_value
-                )
+                except Exception as e:
+                    logger.warning("Invalid value for %s: %s", config_key, e)
 
     def save(self) -> None:
         """
@@ -228,18 +184,115 @@ class UserConfig:
             return
 
         try:
-            # Create parent directories if they don't exist
-            self._main_config_path.parent.mkdir(parents=True, exist_ok=True)
-
-            with self._main_config_path.open("w", encoding="utf-8") as f:
-                yaml.dump(self._config, f, default_flow_style=False, sort_keys=True)
-
+            # Use adapter to save config
+            self._adapter.save_model(self._main_config_path, self._config)
             logger.debug("Saved user configuration to %s", self._main_config_path)
-        except OSError as e:
-            msg = f"Error writing user config file {self._main_config_path}: {e}"
-            logger.error(msg)
-            raise ConfigError(msg) from e
+        except ConfigError as e:
+            # Already logged in adapter
+            raise
 
+    def get_source(self, key: str) -> str:
+        """
+        Get the source of a configuration value.
+
+        Args:
+            key: The configuration key
+
+        Returns:
+            The source of the configuration value (environment, file:name, runtime, default)
+        """
+        return self._config_sources.get(key, "default")
+
+    def get_keyboard_paths(self) -> list[Path]:
+        """
+        Get a list of user-defined keyboard configuration paths with expansion.
+
+        Returns:
+            List of expanded Path objects for user keyboard configurations
+        """
+        return self._config.get_expanded_keyboard_paths()
+
+    def add_keyboard_path(self, path: str | Path) -> None:
+        """
+        Add a path to the keyboard paths if it's not already present.
+
+        Args:
+            path: The path to add
+        """
+        path_str = str(path)
+        if path_str not in self._config.keyboard_paths:
+            # Create a new list to ensure it's properly updated
+            paths = list(self._config.keyboard_paths)
+            paths.append(path_str)
+            self._config.keyboard_paths = paths
+            self._config_sources["keyboard_paths"] = "runtime"
+
+    def remove_keyboard_path(self, path: str | Path) -> None:
+        """
+        Remove a path from the keyboard paths if it exists.
+
+        Args:
+            path: The path to remove
+        """
+        path_str = str(path)
+        if path_str in self._config.keyboard_paths:
+            # Create a new list to ensure it's properly updated
+            paths = list(self._config.keyboard_paths)
+            paths.remove(path_str)
+            self._config.keyboard_paths = paths
+            self._config_sources["keyboard_paths"] = "runtime"
+
+    def reset_to_defaults(self) -> None:
+        """Reset the configuration to default values."""
+        self._config = UserConfigData()
+        self._config_sources = {}
+
+    # Direct property access to configuration values
+    @property
+    def default_keyboard(self) -> str:
+        """Get the default keyboard name."""
+        return self._config.default_keyboard
+
+    @default_keyboard.setter
+    def default_keyboard(self, value: str) -> None:
+        """Set the default keyboard name."""
+        self._config.default_keyboard = value
+        self._config_sources["default_keyboard"] = "runtime"
+
+    @property
+    def default_firmware(self) -> str:
+        """Get the default firmware version."""
+        return self._config.default_firmware
+
+    @default_firmware.setter
+    def default_firmware(self, value: str) -> None:
+        """Set the default firmware version."""
+        self._config.default_firmware = value
+        self._config_sources["default_firmware"] = "runtime"
+
+    @property
+    def log_level(self) -> str:
+        """Get the log level."""
+        return self._config.log_level
+
+    @log_level.setter
+    def log_level(self, value: str) -> None:
+        """Set the log level."""
+        self._config.log_level = value
+        self._config_sources["log_level"] = "runtime"
+
+    @property
+    def keyboard_paths(self) -> list[str]:
+        """Get the keyboard paths."""
+        return self._config.keyboard_paths
+
+    @keyboard_paths.setter
+    def keyboard_paths(self, value: list[str]) -> None:
+        """Set the keyboard paths."""
+        self._config.keyboard_paths = value
+        self._config_sources["keyboard_paths"] = "runtime"
+
+    # Helper methods to maintain compatibility with existing code
     def get(self, key: str, default: Any = None) -> Any:
         """
         Get a configuration value.
@@ -251,7 +304,9 @@ class UserConfig:
         Returns:
             The configuration value, or the default if not found
         """
-        return self._config.get(key, default)
+        if hasattr(self._config, key):
+            return getattr(self._config, key)
+        return default
 
     def set(self, key: str, value: Any) -> None:
         """
@@ -262,120 +317,57 @@ class UserConfig:
             value: The value to assign to the key
         """
         # Only allow setting known config keys
-        if key in DEFAULT_CONFIG:
-            self._config[key] = value
-            self._config_sources[key] = "runtime"
+        if key in UserConfigData.model_fields:
+            try:
+                setattr(self._config, key, value)
+                self._config_sources[key] = "runtime"
+            except Exception as e:
+                logger.warning("Invalid value for %s: %s", key, e)
+                raise ValueError(f"Invalid value for {key}: {e}") from e
         else:
             logger.warning("Ignoring unknown configuration key: %s", key)
+            raise ValueError(f"Unknown configuration key: {key}")
 
-    def get_source(self, key: str) -> str:
+    def get_log_level_int(self) -> int:
         """
-        Get the source of a configuration value.
-
-        Args:
-            key: The configuration key
-
-        Returns:
-            The source of the configuration value (environment, cli, current_dir, xdg, default)
-        """
-        # Always returns a string because default is provided
-        source: str = self._config_sources.get(key, "default")
-        return source
-
-    def get_keyboard_paths(self) -> list[Path]:
-        """
-        Get a list of user-defined keyboard configuration paths with expansion.
-
-        Returns:
-            List of expanded Path objects for user keyboard configurations
-        """
-        path_list = self.get("keyboard_paths", [])
-        if not isinstance(path_list, list):
-            return []
-
-        expanded_paths = []
-        for path_str in path_list:
-            if not isinstance(path_str, str):
-                continue
-
-            # Expand environment variables and user directory
-            expanded_path = os.path.expandvars(str(Path(path_str).expanduser()))
-            expanded_paths.append(Path(expanded_path))
-
-        return expanded_paths
-
-    def add_keyboard_path(self, path: str | Path) -> None:
-        """
-        Add a path to the keyboard paths if it's not already present.
-
-        Args:
-            path: The path to add
-        """
-        path_str = str(path)
-        path_list = self.get("keyboard_paths", [])
-
-        if not isinstance(path_list, list):
-            path_list = []
-
-        if path_str not in path_list:
-            path_list.append(path_str)
-            self.set("keyboard_paths", path_list)
-
-    def remove_keyboard_path(self, path: str | Path) -> None:
-        """
-        Remove a path from the keyboard paths if it exists.
-
-        Args:
-            path: The path to remove
-        """
-        path_str = str(path)
-        path_list = self.get("keyboard_paths", [])
-
-        if not isinstance(path_list, list):
-            return
-
-        if path_str in path_list:
-            path_list.remove(path_str)
-            self.set("keyboard_paths", path_list)
-
-    def get_default_keyboard(self) -> str:
-        """
-        Get the default keyboard name.
-
-        Returns:
-            The configured default keyboard name
-        """
-        return cast(str, self.get("default_keyboard", "glove80"))
-
-    def get_default_firmware(self) -> str:
-        """
-        Get the default firmware version.
-
-        Returns:
-            The configured default firmware version
-        """
-        return cast(str, self.get("default_firmware", "v25.05"))
-
-    def get_log_level(self) -> int:
-        """
-        Get the log level.
+        Get the log level as an integer value for use with logging module.
 
         Returns:
             The configured log level as an int (logging.INFO, etc.)
         """
-        level_name = self.get("log_level", "INFO")
-        if isinstance(level_name, str):
-            try:
-                return int(getattr(logging, level_name.upper()))
-            except AttributeError:
-                return logging.INFO
-        return logging.INFO
+        level_name = (
+            self._config.log_level.upper()
+        )  # Ensure uppercase for logging module
+        try:
+            # Define mapping for type safety
+            level_map = {
+                "DEBUG": logging.DEBUG,
+                "INFO": logging.INFO,
+                "WARNING": logging.WARNING,
+                "ERROR": logging.ERROR,
+                "CRITICAL": logging.CRITICAL,
+            }
+            return level_map.get(level_name, logging.INFO)
+        except (AttributeError, ValueError):
+            return logging.INFO
 
-    def reset_to_defaults(self) -> None:
-        """Reset the configuration to default values."""
-        self._config = dict(DEFAULT_CONFIG)
-        self._config_sources = {}
 
+# Factory function to create UserConfig instance
+def create_user_config(
+    cli_config_path: str | Path | None = None,
+    config_adapter: ConfigFileAdapter[UserConfigData] | None = None,
+) -> UserConfig:
+    """
+    Create a UserConfig instance with optional dependency injection.
 
-# Default instance for easy importing
-default_user_config = UserConfig()
+    Args:
+        cli_config_path: Optional config file path provided via CLI
+        config_adapter: Optional ConfigFileAdapter instance
+
+    Returns:
+        Configured UserConfig instance
+    """
+    return UserConfig(
+        cli_config_path=cli_config_path,
+        config_adapter=config_adapter,
+    )

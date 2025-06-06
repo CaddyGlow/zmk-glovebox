@@ -601,7 +601,7 @@ def test_initialize_search_paths():
     """Test initialization of search paths."""
     with (
         patch.dict(os.environ, {"GLOVEBOX_KEYBOARD_PATH": "/tmp/test:/tmp/test2"}),
-        patch("glovebox.config.keyboard_config._initialize_search_paths") as mock_init,
+        patch("glovebox.config.keyboard_config.initialize_search_paths") as mock_init,
     ):
         mock_init.return_value = [Path("/tmp/test"), Path("/tmp/test2")]
 
@@ -813,7 +813,7 @@ def test_clear_cache(typed_config_file, mock_keyboard_config_dict):
 def test_real_config_file_integration(test_data_dir):
     """Test integration with real keyboard config files."""
     # Set up the search path to use our test directory
-    with patch("glovebox.config.keyboard_config._initialize_search_paths") as mock_init:
+    with patch("glovebox.config.keyboard_config.initialize_search_paths") as mock_init:
         mock_init.return_value = [test_data_dir / "keyboards"]
 
         # Clear the cache to force reinitialization

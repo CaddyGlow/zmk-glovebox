@@ -18,6 +18,7 @@ from .config import (
     KConfigOption,
     KeyboardConfig,
     KeymapSection,
+    UserConfigData,
     VisualLayout,
 )
 from .keymap import (
@@ -68,5 +69,6 @@ __all__ = [
     "KConfigOption",
     "KeyboardConfig",
     "KeymapSection",
+    "UserConfigData",
     "VisualLayout",
 ]

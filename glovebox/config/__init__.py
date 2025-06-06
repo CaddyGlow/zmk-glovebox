@@ -2,7 +2,7 @@
 Configuration module for Glovebox.
 
 This module provides a simplified, direct approach to configuration management
-using YAML files for keyboard configurations and JSON for user preferences.
+using YAML files for keyboard configurations and user preferences.
 """
 
 # Import configuration functions and modules
@@ -28,7 +28,7 @@ from .keyboard_config import (
     load_keyboard_config,
 )
 from .profile import KeyboardProfile
-from .user_config import UserConfig, default_user_config
+from .user_config import UserConfig, create_user_config
 
 
 __all__ = [
@@ -42,7 +42,7 @@ __all__ = [
     # Config module classes
     "KeyboardProfile",
     "UserConfig",
-    "default_user_config",
+    "create_user_config",
     # Data models (re-exported from models package)
     "BuildConfig",
     "BuildOptions",
