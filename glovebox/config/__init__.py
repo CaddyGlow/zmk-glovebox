@@ -23,7 +23,6 @@ from .models import (
     KConfigOption,
     KeyboardConfig,
     KeymapSection,
-    SystemBehavior,
     VisualLayout,
 )
 from .profile import KeyboardProfile
@@ -47,7 +46,6 @@ __all__ = [
     "KConfigOption",
     "KeyboardConfig",
     "KeymapSection",
-    "SystemBehavior",
     "VisualLayout",
     "KeyboardProfile",
     # User config

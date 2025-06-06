@@ -44,15 +44,25 @@ uv run mypy glovebox/
 ### Installation
 
 ```bash
-# Regular installation
-pip install -e .
-
 # Development installation with development dependencies
-pip install -e ".[dev]"
+uv sync 
+
+# Normal installation 
+uv sync --no-dev
+
+# venv is normally created in .venv
+source .venv/bin/activate
+
+# if with devenv
+source .devenv/state/venv/bin/activate
+
+# Pre-commit setup
 pre-commit install
 
-# Install specific development dependencies with uv
-uv add --dev pytest-cov      # Add code coverage
+# Add dependencies with uv to the project
+uv add httpx 
+
+# Add specific development dependencies with uv to the project
 uv add --dev ruff            # Add linting/formatting
 ```
 

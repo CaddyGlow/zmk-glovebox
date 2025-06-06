@@ -12,10 +12,10 @@ from glovebox.config.models import (
     FirmwareConfig,
     KConfigOption,
     KeyboardConfig,
-    SystemBehavior,
 )
 from glovebox.core.errors import ConfigError
 from glovebox.core.logging import get_logger
+from glovebox.models import SystemBehavior
 from glovebox.models.keymap import KeymapData
 
 

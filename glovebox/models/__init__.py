@@ -1,5 +1,14 @@
 """Models package for Glovebox."""
 
+from .behavior import (
+    BehaviorCommand,
+    BehaviorParameter,
+    KeymapBehavior,
+    ParameterType,
+    RegistryBehavior,
+    SystemBehavior,
+    SystemBehaviorParam,
+)
 from .keymap import (
     ComboBehavior,
     ConfigParameter,
@@ -31,4 +40,12 @@ __all__ = [
     "InputProcessor",
     "InputListenerNode",
     "InputListener",
+    # Behavior models
+    "BehaviorCommand",
+    "BehaviorParameter",
+    "KeymapBehavior",
+    "ParameterType",
+    "RegistryBehavior",
+    "SystemBehavior",
+    "SystemBehaviorParam",
 ]

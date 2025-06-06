@@ -32,10 +32,10 @@ from glovebox.config.models import (
     KConfigOption,
     KeyboardConfig,
     KeymapSection,
-    SystemBehavior,
 )
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import ConfigError
+from glovebox.models import SystemBehavior
 from glovebox.models.results import BuildResult, FlashResult, KeymapResult
 
 

@@ -9,18 +9,15 @@ and help with IDE autocompletion.
 from dataclasses import dataclass, field
 from typing import Any, TypeAlias
 
-# Import consolidated behavior models
-from glovebox.models.behavior import (
+# Import behavior models from models package
+from glovebox.models import (
     BehaviorCommand,
-    ParameterType,
+    BehaviorParameter,
     SystemBehavior,
 )
-from glovebox.models.behavior import (
-    BehaviorParameter as Parameter,
-)
 
 
-# Re-export SystemBehavior for use in other modules
+# Export only config-specific models
 __all__ = [
     "KConfigOption",
     "FlashConfig",
@@ -31,9 +28,6 @@ __all__ = [
     "FirmwareConfig",
     "KeymapSection",
     "KeyboardConfig",
-    "SystemBehavior",
-    "BehaviorCommand",
-    "ParameterType",
 ]
 
 
@@ -196,7 +190,9 @@ class KeyboardConfig:
                         if "additionalParams" in cmd_data:
                             additional_params = []
                             for param_data in cmd_data["additionalParams"]:
-                                additional_params.append(Parameter(**param_data))
+                                additional_params.append(
+                                    BehaviorParameter(**param_data)
+                                )
 
                         commands.append(
                             BehaviorCommand(
@@ -212,7 +208,7 @@ class KeyboardConfig:
                 params = []
                 for param_data in behavior_data.get("params", []):
                     if isinstance(param_data, dict):
-                        params.append(Parameter(**param_data))
+                        params.append(BehaviorParameter(**param_data))
                     else:
                         params.append(param_data)
 
