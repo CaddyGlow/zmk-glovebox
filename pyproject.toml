@@ -9,6 +9,7 @@ dependencies = [
   "pydantic>=2.11.0",
   "pyudev>=0.24.0",
   "PyYAML>=6.0",
+  "rich>=13.3.0",
   "typer-slim>=0.16.0",
 ]
 

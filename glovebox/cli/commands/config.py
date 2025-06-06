@@ -6,7 +6,11 @@ from pathlib import Path
 from typing import Annotated, Any, Optional
 
 import typer
+from rich import print as rprint  # type: ignore
+from rich.console import Console  # type: ignore
+from rich.table import Table  # type: ignore
 
+from glovebox.cli.app import AppContext
 from glovebox.cli.decorators import handle_errors
 from glovebox.cli.helpers import (
     print_error_message,
@@ -17,6 +21,7 @@ from glovebox.config.keyboard_config import (
     get_available_keyboards,
     load_keyboard_config,
 )
+from glovebox.config.user_config import DEFAULT_CONFIG
 
 
 logger = logging.getLogger(__name__)
@@ -27,6 +32,104 @@ config_app = typer.Typer(
     help="Configuration management commands",
     no_args_is_help=True,
 )
+
+
+@config_app.command(name="set")
+@handle_errors
+def set_config(
+    ctx: typer.Context,
+    key: Annotated[str, typer.Argument(help="Configuration key to set")],
+    value: Annotated[str, typer.Argument(help="Value to set")],
+    save: Annotated[
+        bool, typer.Option("--save", help="Save configuration to file")
+    ] = True,
+) -> None:
+    """Set a configuration value."""
+    # Get app context with user config
+    app_ctx: AppContext = ctx.obj
+
+    # Check if key is valid
+    if key not in DEFAULT_CONFIG:
+        print_error_message(f"Unknown configuration key: {key}")
+        print_error_message(f"Valid keys: {', '.join(sorted(DEFAULT_CONFIG.keys()))}")
+        raise typer.Exit(1)
+
+    # Convert value to appropriate type based on default value
+    default_value = DEFAULT_CONFIG[key]
+
+    # Variable to hold the converted value with appropriate type
+    typed_value: Any = None
+
+    if isinstance(default_value, bool):  # type: ignore
+        # Boolean conversion
+        typed_value = value.lower() in ("true", "yes", "1", "y")  # type: ignore
+    elif isinstance(default_value, int):
+        try:
+            typed_value = int(value)
+        except ValueError as err:
+            print_error_message(f"Invalid integer value: {value}")
+            raise typer.Exit(1) from err
+    elif isinstance(default_value, list):
+        # List conversion
+        typed_value = [item.strip() for item in value.split(",")]
+    else:
+        # String values (default)
+        typed_value = value
+
+    # Set the value
+    app_ctx.user_config.set(key, typed_value)
+    print_success_message(f"Set {key} = {typed_value}")
+
+    # Save configuration if requested
+    if save:
+        app_ctx.user_config.save()
+        print_success_message("Configuration saved")
+
+
+@config_app.command(name="show")
+@handle_errors
+def show_config(
+    ctx: typer.Context,
+    show_sources: Annotated[
+        bool, typer.Option("--sources", help="Show configuration sources")
+    ] = False,
+) -> None:
+    """Show current configuration settings."""
+    # Get app context with user config
+    app_ctx: AppContext = ctx.obj
+
+    # Create a nice table display
+    console = Console()
+    table = Table(title="Glovebox Configuration")
+
+    # Add columns based on what to show
+    table.add_column("Setting", style="cyan")
+    table.add_column("Value", style="green")
+
+    if show_sources:
+        table.add_column("Source", style="yellow")
+
+    # Add rows for each configuration setting
+    for key in sorted(DEFAULT_CONFIG.keys()):
+        value = app_ctx.user_config.get(key)
+
+        # Format list values for display
+        if isinstance(value, list):
+            if not value:
+                value_str = "(empty list)"
+            else:
+                value_str = "\n".join(str(v) for v in value)
+        else:
+            value_str = str(value)
+
+        if show_sources:
+            source = app_ctx.user_config.get_source(key)
+            table.add_row(key, value_str, source)
+        else:
+            table.add_row(key, value_str)
+
+    # Print the table
+    console.print(table)
 
 
 @config_app.command(name="list")

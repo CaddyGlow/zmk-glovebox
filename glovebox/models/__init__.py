@@ -9,6 +9,17 @@ from .behavior import (
     SystemBehavior,
     SystemBehaviorParam,
 )
+from .config import (
+    BuildConfig,
+    BuildOptions,
+    FirmwareConfig,
+    FlashConfig,
+    FormattingConfig,
+    KConfigOption,
+    KeyboardConfig,
+    KeymapSection,
+    VisualLayout,
+)
 from .keymap import (
     ComboBehavior,
     ConfigParameter,
@@ -48,4 +59,14 @@ __all__ = [
     "RegistryBehavior",
     "SystemBehavior",
     "SystemBehaviorParam",
+    # Config models
+    "BuildConfig",
+    "BuildOptions",
+    "FirmwareConfig",
+    "FlashConfig",
+    "FormattingConfig",
+    "KConfigOption",
+    "KeyboardConfig",
+    "KeymapSection",
+    "VisualLayout",
 ]

@@ -26,15 +26,27 @@ logger = logging.getLogger(__name__)
 class AppContext:
     """Application context for storing shared state."""
 
-    def __init__(self, verbose: int = 0, log_file: str | None = None):
+    def __init__(
+        self,
+        verbose: int = 0,
+        log_file: str | None = None,
+        config_file: str | None = None,
+    ):
         """Initialize AppContext.
 
         Args:
             verbose: Verbosity level
             log_file: Path to log file
+            config_file: Path to configuration file
         """
         self.verbose = verbose
         self.log_file = log_file
+        self.config_file = config_file
+
+        # Initialize user config with CLI-provided config file
+        from glovebox.config.user_config import UserConfig
+
+        self.user_config = UserConfig(cli_config_path=config_file)
 
 
 # Create a custom exception handler that will print stack traces
@@ -70,6 +82,10 @@ def main_callback(
     log_file: Annotated[
         str | None, typer.Option("--log-file", help="Log to file")
     ] = None,
+    config_file: Annotated[
+        str | None,
+        typer.Option("-c", "--config", help="Path to configuration file"),
+    ] = None,
     version: Annotated[
         bool, typer.Option("--version", help="Show version and exit")
     ] = False,
@@ -84,17 +100,21 @@ def main_callback(
         print(ctx.get_help())
         raise typer.Exit()
 
-    # Store context
-    ctx.ensure_object(AppContext)
-    ctx.obj.verbose = verbose
-    ctx.obj.log_file = log_file
+    # Initialize and store context
+    app_context = AppContext(
+        verbose=verbose, log_file=log_file, config_file=config_file
+    )
+    ctx.obj = app_context
 
-    # Set log level based on verbosity
+    # Set log level based on verbosity or config
     log_level = logging.WARNING
     if verbose == 1:
         log_level = logging.INFO
     elif verbose >= 2:
         log_level = logging.DEBUG
+    elif not verbose and log_file is None:
+        # If no explicit CLI flags are set, use the config file log level
+        log_level = app_context.user_config.get_log_level()
 
     setup_logging(level=log_level, log_file=log_file)
 

@@ -23,7 +23,9 @@ from glovebox.config.keyboard_config import (
     get_firmware_config,
     load_keyboard_config,
 )
-from glovebox.config.models import (
+from glovebox.config.profile import KeyboardProfile
+from glovebox.core.errors import ConfigError
+from glovebox.models import (
     BuildConfig,
     BuildOptions,
     FirmwareConfig,
@@ -32,10 +34,8 @@ from glovebox.config.models import (
     KConfigOption,
     KeyboardConfig,
     KeymapSection,
+    SystemBehavior,
 )
-from glovebox.config.profile import KeyboardProfile
-from glovebox.core.errors import ConfigError
-from glovebox.models import SystemBehavior
 from glovebox.models.results import BuildResult, FlashResult, KeymapResult
 
 
