@@ -35,6 +35,9 @@ def get_device_path(device_name: str) -> str:
 
     Returns:
         Full device path
+
+    Raises:
+        FlashError: If running on an unsupported OS
     """
     import platform
 
@@ -42,18 +45,16 @@ def get_device_path(device_name: str) -> str:
 
     if system == "linux" or system == "darwin":
         return f"/dev/{device_name}"
-    elif system == "windows":
-        # Windows path might need different handling depending on the tool (udisksctl won't work)
-        # For now, just return the name, assuming a Windows-specific tool would be used.
-        logger.warning("Windows flashing path construction might need adjustment.")
-        raise FlashError("Unsupported operating system") from None
-    else:
-        # For other unsupported OS, return name and warn
-        logger.warning(f"Unsupported OS for device path construction: {system}")
-        raise FlashError("Unsupported operating system") from None
 
-    # This is unreachable but needed to satisfy mypy
-    return device_name
+    # Handle unsupported operating systems
+    if system == "windows":
+        # Windows path might need different handling depending on the tool (udisksctl won't work)
+        logger.warning("Windows flashing path construction might need adjustment.")
+    else:
+        # For other unsupported OS
+        logger.warning(f"Unsupported OS for device path construction: {system}")
+
+    raise FlashError(f"Unsupported operating system: {system}") from None
 
 
 def mount_and_flash(

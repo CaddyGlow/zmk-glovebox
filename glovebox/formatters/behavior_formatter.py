@@ -58,18 +58,12 @@ class BehaviorFormatterImpl:
         value = binding_data.value
         params_data = binding_data.params
 
-        if value is None:
-            logger.warning("Binding data missing 'value'. Returning '&none'.")
-            return "&none"
-
         behavior_class = self._behavior_classes.get(value)
         if behavior_class:
             try:
                 behavior_instance = behavior_class(value, params_data, self)
-                result = behavior_instance.format_dtsi()
-                if not isinstance(result, str):
-                    logger.error(f"Invalid format_dtsi result type: {type(result)}")
-                    return f"&error /* Type error: expected str, got {type(result)} */"
+                # format_dtsi should always return a string per the abstract method
+                result: str = behavior_instance.format_dtsi()
                 return result
             except Exception as e:
                 logger.error(
@@ -80,11 +74,9 @@ class BehaviorFormatterImpl:
         elif isinstance(value, str) and value.startswith("&"):
             try:
                 behavior_instance = CustomBehaviorRef(value, params_data, self)
-                result = behavior_instance.format_dtsi()
-                if not isinstance(result, str):
-                    logger.error(f"Invalid format_dtsi result type: {type(result)}")
-                    return f"&error /* Type error: expected str, got {type(result)} */"
-                return result
+                # format_dtsi should always return a string per the abstract method
+                custom_result: str = behavior_instance.format_dtsi()
+                return custom_result
             except Exception as e:
                 logger.error(f"Error formatting custom ref '{value}': {e}")
                 return f"&error /* CustomRef: {value} */"

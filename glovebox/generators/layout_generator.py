@@ -109,11 +109,7 @@ class DtsiLayoutGenerator:
 
         # Populate the matrix
         for r, row_indices in enumerate(fmt.rows):
-            if not isinstance(row_indices, list):
-                logger.error(
-                    f"Invalid row data found at index {r}: {row_indices}. Skipping row."
-                )
-                continue
+            # Each row_indices is already guaranteed to be a list by the type definition
             for c, key_index in enumerate(row_indices):
                 if c >= num_cols:
                     logger.warning(

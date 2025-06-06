@@ -535,7 +535,7 @@ class DTSIGenerator:
         logger.info("Generating kconfig configuration")
 
         kconfig_options = profile.kconfig_options
-        user_options = {}
+        user_options: dict[str, str] = {}
 
         lines = []
 

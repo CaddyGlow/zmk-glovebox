@@ -54,7 +54,9 @@ class UserConfig:
             config_path: Optional path to the configuration file.
                          If not provided, defaults to ~/.config/glovebox/config.json
         """
-        self._config: ConfigDict = dict(DEFAULT_CONFIG)  # Start with default config
+        self._config: ConfigDict = cast(
+            ConfigDict, dict(DEFAULT_CONFIG)
+        )  # Start with default config
 
         if config_path:
             self._config_path = Path(config_path).expanduser().resolve()
@@ -265,7 +267,7 @@ class UserConfig:
 
     def reset_to_defaults(self) -> None:
         """Reset the configuration to default values."""
-        self._config = dict(DEFAULT_CONFIG)
+        self._config = cast(ConfigDict, dict(DEFAULT_CONFIG))
 
 
 # Default instance for easy importing

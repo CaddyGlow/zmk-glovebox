@@ -111,9 +111,12 @@ class DockerAdapterImpl:
         logger.debug("Docker command: %s", cmd_str)
 
         try:
-            return_code, stdout_lines_raw, stderr_lines_raw = (
-                stream_process.run_command(docker_cmd, middleware)
+            result: tuple[int, list[str], list[str]] = stream_process.run_command(
+                docker_cmd, middleware
             )
+            return_code: int = result[0]
+            stdout_lines_raw: list[str] = result[1]
+            stderr_lines_raw: list[str] = result[2]
             stdout_lines: list[str] = stdout_lines_raw
             stderr_lines: list[str] = stderr_lines_raw
 

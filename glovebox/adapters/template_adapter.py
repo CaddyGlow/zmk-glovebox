@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, Union, assert_never, runtime_checkable
 
 from glovebox.core.errors import GloveboxError, TemplateError
 from glovebox.utils.error_utils import create_template_error
@@ -227,10 +227,9 @@ class JinjaTemplateAdapter:
             GloveboxError: If template cannot be parsed
         """
         # Handle Path objects directly
+        # Function accepts only Path or str as input types
         if isinstance(template_input, Path):
             return self._get_template_variables_from_path(template_input)
-
-        # Handle strings based on content
         elif isinstance(template_input, str):
             # If it looks like template content (contains template syntax)
             if "{{" in template_input or "{%" in template_input:
@@ -246,12 +245,10 @@ class JinjaTemplateAdapter:
             else:
                 # Treat as template content string by default
                 return self.get_template_variables_from_string(template_input)
-
-        # For any other type of input
-        error = TemplateError(f"Invalid template input type: {type(template_input)}")
-        error.add_context("input_type", str(type(template_input)))
-        logger.error("Invalid template input type: %s", type(template_input))
-        raise error
+        else:
+            # This else clause is needed for static type checking
+            # even though this point should be unreachable with proper typing
+            assert_never(template_input)  # Assertion for exhaustiveness checking
 
     def _get_template_variables_from_path(self, template_path: Path) -> list[str]:
         """Extract variable names from a template file.

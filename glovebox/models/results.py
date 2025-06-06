@@ -81,15 +81,16 @@ class KeymapResult(BaseResult):
 
     @field_validator("keymap_path", "conf_path", "json_path")
     @classmethod
-    def validate_paths(cls, v: Path | None) -> Path | None:
+    def validate_paths(cls, v: Any) -> Path | None:
         """Validate that paths are Path objects if provided."""
-        if v is not None and not isinstance(v, Path):
-            if isinstance(v, str):
-                return Path(v)
-            # This raises an error when the path isn't a string or Path
-            raise ValueError("Paths must be Path objects or strings") from None
-        # If v is None or already a Path, return it unchanged
-        return v
+        if v is None:
+            return None
+        if isinstance(v, Path):
+            return v
+        if isinstance(v, str):
+            return Path(v)
+        # If we get here, v is neither None, Path, nor str
+        raise ValueError("Paths must be Path objects or strings") from None
 
     @field_validator("layer_count")
     @classmethod
@@ -137,15 +138,16 @@ class BuildResult(BaseResult):
 
     @field_validator("firmware_path", "artifacts_dir", "output_dir")
     @classmethod
-    def validate_paths(cls, v: Path | None) -> Path | None:
+    def validate_paths(cls, v: Any) -> Path | None:
         """Validate that paths are Path objects if provided."""
-        if v is not None and not isinstance(v, Path):
-            if isinstance(v, str):
-                return Path(v)
-            # This raises an error when the path isn't a string or Path
-            raise ValueError("Paths must be Path objects or strings") from None
-        # If v is None or already a Path, return it unchanged
-        return v
+        if v is None:
+            return None
+        if isinstance(v, Path):
+            return v
+        if isinstance(v, str):
+            return Path(v)
+        # If we get here, v is neither None, Path, nor str
+        raise ValueError("Paths must be Path objects or strings") from None
 
     @field_validator("build_time_seconds")
     @classmethod
@@ -208,15 +210,16 @@ class FlashResult(BaseResult):
 
     @field_validator("firmware_path")
     @classmethod
-    def validate_firmware_path(cls, v: Path | None) -> Path | None:
+    def validate_firmware_path(cls, v: Any) -> Path | None:
         """Validate firmware path if provided."""
-        if v is not None and not isinstance(v, Path):
-            if isinstance(v, str):
-                return Path(v)
-            # This raises an error when the path isn't a string or Path
-            raise ValueError("Firmware path must be a Path object or string") from None
-        # If v is None or already a Path, return it unchanged
-        return v
+        if v is None:
+            return None
+        if isinstance(v, Path):
+            return v
+        if isinstance(v, str):
+            return Path(v)
+        # If we get here, v is neither None, Path, nor str
+        raise ValueError("Firmware path must be a Path object or string") from None
 
     @field_validator("device_details")
     @classmethod

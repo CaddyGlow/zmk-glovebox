@@ -3,7 +3,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated, Any, Optional
 
 import typer
 
@@ -48,7 +48,7 @@ def list_keyboards(
 
     if format.lower() == "json":
         # JSON output
-        output = {"keyboards": []}
+        output: dict[str, list[dict[str, Any]]] = {"keyboards": []}
         for keyboard_name in keyboards:
             # Get detailed information if verbose
             if verbose:
@@ -169,7 +169,7 @@ def list_firmwares(
 
     if format.lower() == "json":
         # JSON output
-        output = {"keyboard": keyboard_name, "firmwares": []}
+        output: dict[str, Any] = {"keyboard": keyboard_name, "firmwares": []}
 
         for firmware_name, firmware_config in firmwares.items():
             if verbose:
