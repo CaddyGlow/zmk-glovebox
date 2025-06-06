@@ -29,7 +29,7 @@ class TestJinjaTemplateAdapter:
         template_content = "Hello, {{ name }}!"
         variables = {"name": "World"}
 
-        result = adapter.render_template_from_string(template_content, variables)
+        result = adapter.render_string(template_content, variables)
 
         assert result == "Hello, World!"
 
@@ -38,7 +38,7 @@ class TestJinjaTemplateAdapter:
         adapter = JinjaTemplateAdapter()
         template_content = "Hello, World!"
 
-        result = adapter.render_template_from_string(template_content, {})
+        result = adapter.render_string(template_content, {})
 
         assert result == "Hello, World!"
 
@@ -54,7 +54,7 @@ class TestJinjaTemplateAdapter:
             "items": [{"name": "first", "value": "A"}, {"name": "second", "value": "B"}]
         }
 
-        result = adapter.render_template_from_string(template_content, variables)
+        result = adapter.render_string(template_content, variables)
         expected = "1. first: A2. second: B"
 
         assert result.strip() == expected
@@ -67,7 +67,7 @@ class TestJinjaTemplateAdapter:
         with pytest.raises(
             TemplateError, match="Template operation 'render_string' failed"
         ):
-            adapter.render_template_from_string(template_content, {})
+            adapter.render_string(template_content, {})
 
     def test_render_template_from_string_syntax_error(self):
         """Test template rendering handles syntax errors."""
@@ -77,7 +77,7 @@ class TestJinjaTemplateAdapter:
         with pytest.raises(
             TemplateError, match="Template operation 'render_string' failed"
         ):
-            adapter.render_template_from_string(template_content, {})
+            adapter.render_string(template_content, {})
 
     def test_render_template_from_file_success(self):
         """Test successful template rendering from file."""
@@ -228,7 +228,7 @@ Total: {{ total }}
         template_content = "Hello, {{ undefined_var }}!"
 
         with pytest.raises(TemplateError):
-            adapter.render_template_from_string(template_content, {})
+            adapter.render_string(template_content, {})
 
     def test_template_with_filters(self):
         """Test template rendering with Jinja2 filters."""
@@ -236,7 +236,7 @@ Total: {{ total }}
         template_content = "Hello, {{ name|upper }}! Count: {{ items|length }}"
         variables = {"name": "world", "items": [1, 2, 3, 4, 5]}
 
-        result = adapter.render_template_from_string(template_content, variables)
+        result = adapter.render_string(template_content, variables)
 
         assert result == "Hello, WORLD! Count: 5"
 
@@ -253,12 +253,12 @@ User: {{ user.name }}
 
         # Test admin user
         admin_vars = {"user": {"name": "Alice", "is_admin": True}}
-        result = adapter.render_template_from_string(template_content, admin_vars)
+        result = adapter.render_string(template_content, admin_vars)
         assert "Admin: Alice" in result
 
         # Test regular user
         user_vars = {"user": {"name": "Bob", "is_admin": False}}
-        result = adapter.render_template_from_string(template_content, user_vars)
+        result = adapter.render_string(template_content, user_vars)
         assert "User: Bob" in result
 
 
@@ -350,7 +350,7 @@ features: {{ features|join(', ') }}
             "features": ["feature1", "feature2", "feature3"],
         }
 
-        result = adapter.render_template_from_string(simple_template, variables)
+        result = adapter.render_string(simple_template, variables)
 
         assert "app: TestApp" in result
         assert "version: 2.0.0" in result

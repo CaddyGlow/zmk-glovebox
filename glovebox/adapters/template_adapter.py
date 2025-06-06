@@ -226,93 +226,94 @@ class JinjaTemplateAdapter:
         Raises:
             GloveboxError: If template cannot be parsed
         """
-        # Handle both Path objects and strings for backward compatibility
-        if isinstance(template_input, str | Path):
-            # If it's a string that looks like template content (contains template syntax)
-            if isinstance(template_input, str) and (
-                "{{" in template_input or "{%" in template_input
-            ):
+        # Handle Path objects directly
+        if isinstance(template_input, Path):
+            return self._get_template_variables_from_path(template_input)
+
+        # Handle strings based on content
+        elif isinstance(template_input, str):
+            # If it looks like template content (contains template syntax)
+            if "{{" in template_input or "{%" in template_input:
                 return self.get_template_variables_from_string(template_input)
-            # If it's a Path or a string that looks like a file path
-            elif isinstance(template_input, Path) or (
-                isinstance(template_input, str)
-                and ("/" in template_input or "\\" in template_input)
-            ):
-                template_path = (
-                    Path(template_input)
-                    if isinstance(template_input, str)
-                    else template_input
-                )
+            # If it looks like a file path, convert to Path and process
+            elif "/" in template_input or "\\" in template_input:
                 try:
-                    from jinja2 import Environment, FileSystemLoader, meta
-
-                    logger.debug(
-                        "Extracting variables from template file: %s", template_path
-                    )
-
-                    if not template_path.exists():
-                        error = create_template_error(
-                            template_path,
-                            "get_template_variables",
-                            FileNotFoundError("Template file not found"),
-                            {},
-                        )
-                        logger.error("Template file does not exist: %s", template_path)
-                        raise error
-
-                    # Create Jinja2 environment
-                    env = Environment(
-                        loader=FileSystemLoader(template_path.parent),
-                        trim_blocks=self.trim_blocks,
-                        lstrip_blocks=self.lstrip_blocks,
-                    )
-
-                    # Parse template and extract variables
-                    if env.loader:
-                        template_source = env.loader.get_source(
-                            env, template_path.name
-                        )[0]
-                        ast = env.parse(template_source)
-                        variables = list(meta.find_undeclared_variables(ast))
-                    else:
-                        # Fallback if loader is None
-                        with template_path.open("r", encoding="utf-8") as f:
-                            template_source = f.read()
-                        ast = env.parse(template_source)
-                        variables = list(meta.find_undeclared_variables(ast))
-
-                    logger.debug(
-                        "Found %d variables in template: %s", len(variables), variables
-                    )
-                    return sorted(variables)
-
+                    template_path = Path(template_input)
+                    return self._get_template_variables_from_path(template_path)
                 except Exception as e:
-                    error = create_template_error(
-                        template_path, "get_template_variables", e, {}
-                    )
-                    logger.error(
-                        "Error extracting variables from template %s: %s",
-                        template_path,
-                        e,
-                    )
-                    raise error from e
+                    # If conversion to Path failed, treat as template content
+                    return self.get_template_variables_from_string(template_input)
             else:
-                # Treat as template content string
+                # Treat as template content string by default
                 return self.get_template_variables_from_string(template_input)
+
         # For any other type of input
         error = TemplateError(f"Invalid template input type: {type(template_input)}")
         error.add_context("input_type", str(type(template_input)))
         logger.error("Invalid template input type: %s", type(template_input))
         raise error
 
-    def render_template_from_string(
-        self, template_string: str, context: dict[str, Any]
-    ) -> str:
-        """Render a template string with the given context.
+    def _get_template_variables_from_path(self, template_path: Path) -> list[str]:
+        """Extract variable names from a template file.
 
-        This is an alias for render_string to match test expectations.
+        Args:
+            template_path: Path to the template file
+
+        Returns:
+            List of variable names found in template
+
+        Raises:
+            GloveboxError: If template cannot be parsed
         """
-        return self.render_string(template_string, context)
+        try:
+            from jinja2 import Environment, FileSystemLoader, meta
+
+            logger.debug("Extracting variables from template file: %s", template_path)
+
+            if not template_path.exists():
+                error = create_template_error(
+                    template_path,
+                    "get_template_variables",
+                    FileNotFoundError("Template file not found"),
+                    {},
+                )
+                logger.error("Template file does not exist: %s", template_path)
+                raise error
+
+            # Create Jinja2 environment
+            env = Environment(
+                loader=FileSystemLoader(template_path.parent),
+                trim_blocks=self.trim_blocks,
+                lstrip_blocks=self.lstrip_blocks,
+            )
+
+            # Parse template and extract variables
+            if env.loader:
+                template_source = env.loader.get_source(env, template_path.name)[0]
+                ast = env.parse(template_source)
+                variables = list(meta.find_undeclared_variables(ast))
+            else:
+                # Fallback if loader is None
+                with template_path.open("r", encoding="utf-8") as f:
+                    template_source = f.read()
+                ast = env.parse(template_source)
+                variables = list(meta.find_undeclared_variables(ast))
+
+            logger.debug(
+                "Found %d variables in template: %s", len(variables), variables
+            )
+            return sorted(variables)
+
+        except Exception as e:
+            error = create_template_error(
+                template_path, "get_template_variables", e, {}
+            )
+            logger.error(
+                "Error extracting variables from template %s: %s",
+                template_path,
+                e,
+            )
+            raise error from e
 
     def render_template_from_file(
         self, template_path: Path, context: dict[str, Any], encoding: str = "utf-8"

@@ -480,4 +480,3 @@ def create_keymap_service(
     return KeymapService(
         file_adapter, template_adapter, component_service, layout_service
     )
-

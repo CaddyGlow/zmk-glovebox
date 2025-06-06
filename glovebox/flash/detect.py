@@ -3,7 +3,6 @@
 import logging
 import re
 import threading
-from typing import Optional  # UP035: Removed List, Tuple
 
 from glovebox.core.errors import FlashError
 from glovebox.flash.lsdev import BlockDevice, BlockDeviceError, Lsdev
@@ -316,7 +315,6 @@ def evaluate_condition(
 def detect_device(
     query_str: str,
     timeout: int = 60,
-    poll_interval: float = 0.5,  # Kept for backward compatibility but not used
     initial_devices: list[BlockDevice] | None = None,
 ) -> BlockDevice:
     """

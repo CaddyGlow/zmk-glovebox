@@ -6,7 +6,7 @@ import re
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Union, cast
+from typing import cast
 
 
 logger = logging.getLogger(__name__)

@@ -588,7 +588,6 @@ def flash_firmware(
     query: str = "vendor=Adafruit and serial~=GLV80-.* and removable=true",
     timeout: int = 60,
     count: int = 1,
-    poll_interval: float = 0.5,  # Kept for backward compatibility but not used
     track_flashed: bool = True,
 ) -> FlashResult:
     """

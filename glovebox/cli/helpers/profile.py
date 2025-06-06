@@ -1,7 +1,6 @@
 """Helper functions for working with keyboard profiles in CLI commands."""
 
 import logging
-from typing import Optional
 
 import typer
 

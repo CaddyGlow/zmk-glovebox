@@ -1,7 +1,6 @@
 """Tests for FlashService with keyboard profile."""
 
 from pathlib import Path
-from typing import Optional, Union
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
