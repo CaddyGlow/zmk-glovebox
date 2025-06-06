@@ -5,9 +5,24 @@ and keymap processing. These types ensure consistent representation of behaviors
 across the application and improve type safety.
 """
 
-from typing import Any, TypeAlias, TypedDict
+from dataclasses import dataclass, field
+from enum import Enum, auto
+from typing import Any, TypeAlias
 
 from .keymap import ParamValue
+
+
+# Parameter type definitions
+class ParameterType(Enum):
+    """Enum for behavior parameter types."""
+
+    INTEGER = auto()
+    STRING = auto()
+    BOOLEAN = auto()
+    ENUM = auto()
+    CODE = auto()
+    LAYER = auto()
+    COMMAND = auto()
 
 
 # Type aliases for common parameter types
@@ -17,31 +32,34 @@ StringList: TypeAlias = list[str]
 SystemParamList: TypeAlias = list["SystemBehaviorParam"]
 
 
-class BehaviorParameter(TypedDict, total=False):
-    """Type definition for a behavior parameter."""
+@dataclass
+class BehaviorParameter:
+    """Definition of a parameter for a behavior."""
 
     name: str
     type: str
-    min: int | None
-    max: int | None
-    values: list[Any] | None
-    default: Any
-    description: str
-    required: bool
+    min: int | None = None
+    max: int | None = None
+    values: list[Any] | None = None
+    default: Any = None
+    description: str = ""
+    required: bool = False
 
 
-class BehaviorCommand(TypedDict, total=False):
-    """Type definition for a behavior command."""
+@dataclass
+class BehaviorCommand:
+    """Definition of a command for a behavior."""
 
     code: str
-    name: str | None
-    description: str | None
-    flatten: bool
-    additional_params: ParamList | None
+    name: str | None = None
+    description: str | None = None
+    flatten: bool = False
+    additional_params: ParamList | None = None
 
 
-class RegistryBehavior(TypedDict):
-    """Type definition for a behavior in the registry.
+@dataclass
+class RegistryBehavior:
+    """Definition for a behavior in the registry.
     These are behaviors that are registered in the system and can be referenced
     by keymap bindings.
     """
@@ -49,51 +67,50 @@ class RegistryBehavior(TypedDict):
     expected_params: int
     origin: str
     description: str
-    url: str | None
     params: ParamList
-    commands: CommandList | None
-    includes: StringList | None
+    url: str | None = None
+    commands: CommandList | None = None
+    includes: StringList | None = None
 
 
-class SystemBehaviorParam(TypedDict, total=False):
-    """Type definition for system behavior parameter.
+@dataclass
+class SystemBehaviorParam:
+    """Definition for system behavior parameter.
     These are parameters used within keymap behavior references.
     """
 
-    value: Any
-    params: SystemParamList
+    value: Any = None
+    params: SystemParamList = field(default_factory=list)
 
 
-# Recursive type reference
-SystemBehaviorParam.__annotations__["params"] = SystemParamList
-
-
-class SystemBehavior(TypedDict, total=False):
-    """Type definition for a behavior directly referenced in a keymap.
+@dataclass
+class SystemBehavior:
+    """Definition for a behavior directly referenced in a keymap.
     This represents a complete behavior definition that can be used in a keymap,
     including all its parameters, commands, and metadata.
     """
 
-    type: str
-    parameters: dict[str, Any]
-    bindings: dict[str, Any]
     code: str
     name: str
     description: str | None
     expected_params: int
     origin: str
     params: ParamList
-    url: str | None
-    is_macro_control_behavior: bool
-    includes: StringList | None
-    commands: CommandList | None
+    url: str | None = None
+    is_macro_control_behavior: bool = False
+    includes: StringList | None = None
+    commands: CommandList | None = None
+    type: str | None = None
+    parameters: dict[str, Any] | None = None
+    bindings: dict[str, Any] | None = None
 
 
-class KeymapBehavior(TypedDict):
-    """Type definition for a behavior reference in a keymap.
+@dataclass
+class KeymapBehavior:
+    """Definition for a behavior reference in a keymap.
     This is a simplified representation of a behavior used in keymap bindings.
     It contains just the value and parameters needed for the binding.
     """
 
     value: str
-    params: SystemParamList
+    params: SystemParamList = field(default_factory=list)

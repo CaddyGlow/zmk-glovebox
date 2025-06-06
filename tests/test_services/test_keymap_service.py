@@ -9,6 +9,7 @@ from glovebox.adapters.file_adapter import FileAdapter
 from glovebox.adapters.template_adapter import TemplateAdapter
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import KeymapError
+from glovebox.models.behavior import SystemBehavior
 from glovebox.models.keymap import KeymapData
 from glovebox.models.results import KeymapResult
 from glovebox.services.keymap_service import KeymapService
@@ -25,19 +26,25 @@ def mock_profile():
     profile.firmware_version = "default"
 
     # Set up the system behaviors
-    behavior1 = MagicMock()
-    behavior1.name = "&kp"
-    behavior1.code = "&kp"
-    behavior1.expected_params = 1
-    behavior1.origin = "zmk"
-    behavior1.includes = None
+    behavior1 = SystemBehavior(
+        code="&kp",
+        name="&kp",
+        description=None,
+        expected_params=1,
+        origin="zmk",
+        params=[],
+        includes=None,
+    )
 
-    behavior2 = MagicMock()
-    behavior2.name = "&bt"
-    behavior2.code = "&bt"
-    behavior2.expected_params = 1
-    behavior2.origin = "zmk"
-    behavior2.includes = ["#include <dt-bindings/zmk/bt.h>"]
+    behavior2 = SystemBehavior(
+        code="&bt",
+        name="&bt",
+        description=None,
+        expected_params=1,
+        origin="zmk",
+        params=[],
+        includes=["#include <dt-bindings/zmk/bt.h>"],
+    )
 
     profile.system_behaviors = [behavior1, behavior2]
 
@@ -218,27 +225,39 @@ class TestKeymapServiceWithKeyboardConfig:
         mock_profile.keyboard_name = "test_keyboard"
 
         # Create system behaviors
-        behavior1 = MagicMock()
-        behavior1.name = "&kp"
-        behavior1.expected_params = 1
-        behavior1.origin = "zmk"
+        behavior1 = SystemBehavior(
+            code="&kp",
+            name="&kp",
+            description=None,
+            expected_params=1,
+            origin="zmk",
+            params=[],
+        )
 
-        behavior2 = MagicMock()
-        behavior2.name = "&lt"
-        behavior2.expected_params = 2
-        behavior2.origin = "zmk"
+        behavior2 = SystemBehavior(
+            code="&lt",
+            name="&lt",
+            description=None,
+            expected_params=2,
+            origin="zmk",
+            params=[],
+        )
 
-        behavior3 = MagicMock()
-        behavior3.name = "&mo"
-        behavior3.expected_params = 1
-        behavior3.origin = "zmk"
+        behavior3 = SystemBehavior(
+            code="&mo",
+            name="&mo",
+            description=None,
+            expected_params=1,
+            origin="zmk",
+            params=[],
+        )
 
         mock_profile.system_behaviors = [behavior1, behavior2, behavior3]
 
         # Add register_behaviors method to mock
         mock_profile.register_behaviors = lambda registry: [
-            registry.register_behavior(b.name, b.expected_params, b.origin)
-            for b in mock_profile.system_behaviors
+            registry.register_behavior(behavior)
+            for behavior in mock_profile.system_behaviors
         ]
 
         # Execute directly on the behavior registry
@@ -252,10 +271,10 @@ class TestKeymapServiceWithKeyboardConfig:
         assert "&lt" in self.service._behavior_registry._behaviors
         assert "&mo" in self.service._behavior_registry._behaviors
 
-        # Check behavior parameters
-        assert self.service._behavior_registry._behaviors["&kp"]["expected_params"] == 1
-        assert self.service._behavior_registry._behaviors["&lt"]["expected_params"] == 2
-        assert self.service._behavior_registry._behaviors["&mo"]["expected_params"] == 1
+        # Access expected_params from SystemBehavior objects
+        assert self.service._behavior_registry._behaviors["&kp"].expected_params == 1
+        assert self.service._behavior_registry._behaviors["&lt"].expected_params == 2
+        assert self.service._behavior_registry._behaviors["&mo"].expected_params == 1
 
 
 class TestKeymapServiceWithMockedConfig:
@@ -370,22 +389,30 @@ def test_register_behaviors(keymap_service, mock_profile):
     """Test registering system behaviors from a KeyboardProfile."""
     # First we need to make the mock do something useful
     # Create system behaviors
-    behavior1 = MagicMock()
-    behavior1.name = "&kp"
-    behavior1.expected_params = 1
-    behavior1.origin = "zmk"
+    behavior1 = SystemBehavior(
+        code="&kp",
+        name="&kp",
+        description=None,
+        expected_params=1,
+        origin="zmk",
+        params=[],
+    )
 
-    behavior2 = MagicMock()
-    behavior2.name = "&bt"
-    behavior2.expected_params = 1
-    behavior2.origin = "zmk"
+    behavior2 = SystemBehavior(
+        code="&bt",
+        name="&bt",
+        description=None,
+        expected_params=1,
+        origin="zmk",
+        params=[],
+    )
 
     mock_profile.system_behaviors = [behavior1, behavior2]
 
     # Add register_behaviors method to mock
     def register_behaviors_impl(registry):
-        for b in mock_profile.system_behaviors:
-            registry.register_behavior(b.name, b.expected_params, b.origin)
+        for behavior in mock_profile.system_behaviors:
+            registry.register_behavior(behavior)
 
     mock_profile.register_behaviors = register_behaviors_impl
 
@@ -396,8 +423,8 @@ def test_register_behaviors(keymap_service, mock_profile):
     behaviors = keymap_service._behavior_registry._behaviors
     assert "&kp" in behaviors
     assert "&bt" in behaviors
-    assert behaviors["&kp"]["expected_params"] == 1
-    assert behaviors["&bt"]["expected_params"] == 1
+    assert behaviors["&kp"].expected_params == 1
+    assert behaviors["&bt"].expected_params == 1
 
 
 # These tests were removed because they used non-existent private methods

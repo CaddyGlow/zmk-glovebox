@@ -7,59 +7,17 @@ and help with IDE autocompletion.
 """
 
 from dataclasses import dataclass, field
-from enum import Enum, auto
-from typing import Any
+from typing import Any, TypeAlias
 
-
-# Parameter type definitions
-class ParameterType(Enum):
-    """Enum for behavior parameter types."""
-
-    INTEGER = auto()
-    STRING = auto()
-    BOOLEAN = auto()
-    ENUM = auto()
-    CODE = auto()
-    LAYER = auto()
-    COMMAND = auto()
-
-
-@dataclass
-class Parameter:
-    """Definition of a parameter for a behavior."""
-
-    name: str
-    type: str
-    min: int | None = None
-    max: int | None = None
-    values: list[Any] | None = None
-
-
-@dataclass
-class BehaviorCommand:
-    """Definition of a command for a behavior."""
-
-    code: str
-    name: str | None = None
-    description: str | None = None
-    flatten: bool = False
-    additional_params: list[Parameter] | None = None
-
-
-@dataclass
-class SystemBehavior:
-    """Definition of a system behavior for a keyboard."""
-
-    code: str
-    name: str
-    description: str | None
-    expected_params: int
-    origin: str
-    params: list[Any]
-    url: str | None = None
-    is_macro_control_behavior: bool = False
-    includes: list[str] | None = None
-    commands: list[BehaviorCommand] | None = None
+# Import consolidated behavior models
+from glovebox.models.behavior import (
+    BehaviorCommand,
+    ParameterType,
+    SystemBehavior,
+)
+from glovebox.models.behavior import (
+    BehaviorParameter as Parameter,
+)
 
 
 # KConfig type definitions

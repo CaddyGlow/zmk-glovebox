@@ -99,7 +99,7 @@ class BuildService(BaseServiceImpl):
         Compile firmware using Docker.
 
         Args:
-            build_config: BuildServiceCompileOpts Build configuration
+            opts: BuildServiceCompileOpts Build configuration
             profile: KeyboardProfile with configuration (preferred over keyboard name)
 
         Returns:
@@ -148,7 +148,7 @@ class BuildService(BaseServiceImpl):
                 return result
 
             # Find and collect firmware files
-            output_dir = Path(opts.get("output_dir", "."))
+            output_dir = opts.output_dir
             firmware_files = self._find_firmware_files(output_dir)
 
             if not firmware_files:
@@ -290,7 +290,7 @@ class BuildService(BaseServiceImpl):
                 build_env["REPO"] = "moergo-sc/zmk"
         else:
             # Fallback to using config directly if no profile
-            keyboard_name = build_config.get("keyboard", "unknown")
+            keyboard_name = "unknown"  # Default if keyboard name isn't available
             build_env["KEYBOARD"] = keyboard_name
 
             try:
@@ -314,15 +314,11 @@ class BuildService(BaseServiceImpl):
                         "docker_image", "moergo-zmk-build"
                     )
 
-                    # Set branch if not overridden
-                    if "branch" not in build_config:
-                        build_env["BRANCH"] = build_info.get("branch", "main")
+                    # Set branch from build_config
+                    build_env["BRANCH"] = build_config.branch
 
-                    # Set repository if not overridden
-                    if "repo" not in build_config:
-                        build_env["REPO"] = build_info.get(
-                            "repository", "moergo-sc/zmk"
-                        )
+                    # Set repository from build_config
+                    build_env["REPO"] = build_config.repo
             except Exception as e:
                 logger.warning(
                     f"Failed to load keyboard config for {keyboard_name}: {e}"
@@ -333,15 +329,12 @@ class BuildService(BaseServiceImpl):
                 build_env["REPO"] = "moergo-sc/zmk"
 
         # Override with explicit parameters from build_config
-        if "branch" in build_config:
-            build_env["BRANCH"] = build_config["branch"]
-
-        if "repo" in build_config:
-            build_env["REPO"] = build_config["repo"]
+        build_env["BRANCH"] = build_config.branch
+        build_env["REPO"] = build_config.repo
 
         # Add number of jobs if specified
-        if "jobs" in build_config and build_config["jobs"] is not None:
-            num_jobs = build_config["jobs"]
+        if build_config.jobs is not None:
+            num_jobs = build_config.jobs
         else:
             # Default to CPU count
             num_jobs = multiprocessing.cpu_count()
@@ -349,7 +342,7 @@ class BuildService(BaseServiceImpl):
         build_env["JOBS"] = str(num_jobs)
 
         # Enable verbose mode if requested
-        if build_config.get("verbose", False):
+        if build_config.verbose:
             build_env["VERBOSE"] = "1"
 
         return build_env
@@ -416,24 +409,23 @@ class BuildService(BaseServiceImpl):
         except Exception as e:
             logger.warning(f"Failed to cleanup build context {build_dir}: {e}")
 
-    def _prepare_volumes(self, config: dict[str, Any]) -> list[tuple[str, str]]:
+    def _prepare_volumes(
+        self, config: BuildServiceCompileOpts
+    ) -> list[tuple[str, str]]:
         """Prepare Docker volume mappings."""
         volumes = []
 
         # Map output directory
-        if "output_dir" in config:
-            output_dir = Path(config["output_dir"]).absolute()
-            volumes.append((str(output_dir), "/build/output"))
+        output_dir = config.output_dir.absolute()
+        volumes.append((str(output_dir), "/build/output"))
 
         # Map keymap file to expected location
-        if "keymap_path" in config:
-            keymap_path = Path(config["keymap_path"]).absolute()
-            volumes.append((str(keymap_path), "/build/glove80.keymap:ro"))
+        keymap_path = config.keymap_path.absolute()
+        volumes.append((str(keymap_path), "/build/glove80.keymap:ro"))
 
         # Map kconfig file to expected location
-        if "kconfig_path" in config:
-            kconfig_path = Path(config["kconfig_path"]).absolute()
-            volumes.append((str(kconfig_path), "/build/glove80.conf:ro"))
+        kconfig_path = config.kconfig_path.absolute()
+        volumes.append((str(kconfig_path), "/build/glove80.conf:ro"))
 
         return volumes
 

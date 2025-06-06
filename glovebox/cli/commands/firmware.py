@@ -72,15 +72,13 @@ def firmware_compile(
 
     # Initialize build configuration
     build_config = BuildServiceCompileOpts(
-        **{
-            "keymap_path": keymap_file,
-            "kconfig_path": kconfig_file,
-            "output_dir": output_dir,
-            "branch": branch,
-            "repo": repo,
-            "jobs": jobs,
-            "verbose": verbose,
-        }
+        keymap_path=keymap_file,
+        kconfig_path=kconfig_file,
+        output_dir=output_dir,
+        branch=branch,
+        repo=repo,
+        jobs=jobs if jobs is not None else 0,
+        verbose=verbose,
     )
 
     # Create KeyboardProfile if profile is specified
