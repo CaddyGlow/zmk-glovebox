@@ -24,6 +24,10 @@ pip install -e .
 # Development installation with development dependencies
 pip install -e ".[dev]"
 pre-commit install
+
+# Install specific development dependencies with uv
+uv add --dev pytest-cov      # Add code coverage
+uv add --dev ruff            # Add linting/formatting
 ```
 
 ### Build and Run
@@ -54,6 +58,12 @@ pytest
 
 # Run with coverage
 pytest --cov=glovebox
+
+# Run with coverage and generate HTML report
+pytest --cov=glovebox --cov-report=html
+
+# Run with coverage and generate XML report (for CI tools)
+pytest --cov=glovebox --cov-report=xml
 
 # Run a specific test file
 pytest tests/test_services/test_keymap_service_config.py
