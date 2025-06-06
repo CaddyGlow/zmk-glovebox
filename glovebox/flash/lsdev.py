@@ -3,10 +3,10 @@ import logging
 import os
 import threading
 import time
-from collections.abc import Callable  # UP035: Re-added Callable
+from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from pathlib import Path  # PTH123: Added Path import
+from pathlib import Path
 from typing import Any, Optional
 
 import pyudev

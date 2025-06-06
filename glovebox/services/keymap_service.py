@@ -25,6 +25,7 @@ from glovebox.models.keymap import (
     InputListener,
     KeymapBinding,
     KeymapData,
+    LayerBindings,
     MacroBehavior,
 )
 from glovebox.models.results import KeymapResult
@@ -65,7 +66,7 @@ class DTSIGeneratorAdapter(Protocol):
         self,
         profile: KeyboardProfile,
         layer_names: list[str],
-        layers_data: list[list[dict[str, Any]]],
+        layers_data: list[LayerBindings],
     ) -> str:
         """Generate keymap node content."""
         ...
@@ -168,7 +169,7 @@ class KeymapService(BaseServiceImpl):
         result.profile_name = profile_name
 
         try:
-            # Convert to dictionary for internal processing
+            # Get layer count for result
             result.layer_count = len(keymap_data.layers)
 
             # Prepare output paths and create directory

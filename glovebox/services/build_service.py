@@ -68,8 +68,6 @@ class BuildService(BaseServiceImpl):
 
     def _create_default_middleware(self) -> stream_process.OutputMiddleware[str]:
         """Create default output middleware for build process."""
-        # Simple implementation without nested class - more maintainable
-        # for small team (1-2 developers)
 
         class BuildOutputMiddleware(stream_process.OutputMiddleware[str]):
             def __init__(self) -> None:

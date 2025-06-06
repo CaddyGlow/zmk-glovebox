@@ -18,8 +18,7 @@ ParamValue: TypeAlias = str | int
 ConfigValue: TypeAlias = str | int | bool
 LayerIndex: TypeAlias = int
 #
-# TODO: Update all occurrences of list[dict[str, Any]] and list[KeymapBinding] to use this type alias
-# This will improve type safety and make future changes easier
+# This type alias improves type safety and makes future changes easier
 LayerBindings: TypeAlias = list["KeymapBinding"]
 
 
@@ -263,8 +262,8 @@ class KeymapData(KeymapMetadata):
     @field_validator("layers")
     @classmethod
     def validate_layers_structure(
-        cls, v: list[list[KeymapBinding]]
-    ) -> list[list[KeymapBinding]]:
+        cls, v: list[LayerBindings]
+    ) -> list[LayerBindings]:
         """Validate layers structure."""
         if not v:
             raise ValueError("Keymap must have at least one layer") from None

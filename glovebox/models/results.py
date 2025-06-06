@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional  # UP035: Dict, List, Union
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 

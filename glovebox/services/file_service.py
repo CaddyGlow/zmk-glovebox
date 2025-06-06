@@ -55,12 +55,10 @@ class KeymapFileService(BaseServiceImpl):
             if file_ext == ".json":
                 return self._load_json_keymap(file_path)
             elif file_ext == ".keymap":
-                # If profile is not provided, we can't parse .keymap files
                 if not profile:
                     raise KeymapError(
                         f"Cannot load .keymap file without a keyboard profile: {file_path}"
                     )
-                # This would be implemented in a real system to parse keymap files
                 raise KeymapError("Loading from .keymap files not yet implemented")
             else:
                 raise KeymapError(f"Unsupported keymap file type: {file_ext}")
@@ -99,7 +97,6 @@ class KeymapFileService(BaseServiceImpl):
             if format_type == "json":
                 return self._save_json_keymap(keymap_data, file_path)
             elif format_type in ("keymap", "conf"):
-                # These would be implemented in a real system
                 raise KeymapError(f"Saving to {format_type} format not yet implemented")
             else:
                 raise KeymapError(f"Unsupported output format: {format_type}")

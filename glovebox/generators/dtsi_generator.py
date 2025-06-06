@@ -5,7 +5,7 @@ import re
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, TypeAlias, cast  # UP035: Dict, List
+from typing import TYPE_CHECKING, Any, Optional, TypeAlias, cast
 
 from glovebox.formatters.behavior_formatter import BehaviorFormatterImpl
 from glovebox.generators.layout_generator import DtsiLayoutGenerator, LayoutConfig
@@ -15,6 +15,7 @@ from glovebox.models.keymap import (
     HoldTapBehavior,
     InputListener,
     KeymapBinding,
+    LayerBindings,
     MacroBehavior,
 )
 from glovebox.services.behavior_service import BehaviorRegistryImpl
@@ -448,7 +449,7 @@ class DTSIGenerator:
         self,
         profile: "KeyboardProfile",
         layer_names: list[str],
-        layers_data: list[list["KeymapBinding"]],
+        layers_data: list[LayerBindings],
     ) -> str:
         """Generate ZMK keymap node string from layer data.
 

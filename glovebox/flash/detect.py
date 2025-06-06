@@ -221,7 +221,7 @@ class DeviceDetector:
                 )
                 raise TimeoutError(
                     f"Device matching '{query_str}' not found after {timeout} seconds."
-                ) from None  # B904
+                ) from None
 
             # Return the first detected device
             with self._lock:
@@ -232,7 +232,7 @@ class DeviceDetector:
                     # This shouldn't happen if _event was set, but just in case
                     raise TimeoutError(
                         f"Device matching '{query_str}' not found after {timeout} seconds."
-                    ) from None  # B904
+                    ) from None
 
         finally:
             # Clean up

@@ -11,6 +11,7 @@ from glovebox.models.keymap import (
     HoldTapBehavior,
     InputListener,
     KeymapData,
+    LayerBindings,
     MacroBehavior,
 )
 
@@ -35,7 +36,7 @@ class DtsiGenerator(Protocol):
         self,
         profile: KeyboardProfile,
         layer_names: list[str],
-        layers_data: list[list[dict[str, Any]]],
+        layers_data: list[LayerBindings],
     ) -> str:
         """Generate keymap node content."""
         ...

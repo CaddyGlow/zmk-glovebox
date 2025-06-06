@@ -9,7 +9,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Any  # UP035: Removed Dict, Union
+from typing import Any
 
 from glovebox.core.errors import FlashError
 from glovebox.flash.lsdev import (
@@ -46,11 +46,11 @@ def get_device_path(device_name: str) -> str:
         # Windows path might need different handling depending on the tool (udisksctl won't work)
         # For now, just return the name, assuming a Windows-specific tool would be used.
         logger.warning("Windows flashing path construction might need adjustment.")
-        raise FlashError("Unsupported operating system") from None  # B904
+        raise FlashError("Unsupported operating system") from None
     else:
         # For other unsupported OS, return name and warn
         logger.warning(f"Unsupported OS for device path construction: {system}")
-        raise FlashError("Unsupported operating system") from None  # B904
+        raise FlashError("Unsupported operating system") from None
 
     # This is unreachable but needed to satisfy mypy
     return device_name
@@ -84,16 +84,14 @@ def mount_and_flash(
     firmware_path = Path(firmware_file).resolve()
     if not firmware_path.exists():
         # Use FileNotFoundError for missing files
-        raise FileNotFoundError(
-            f"Firmware file not found: {firmware_path}"
-        ) from None  # B904
+        raise FileNotFoundError(f"Firmware file not found: {firmware_path}") from None
 
     system = platform.system().lower()
     if system not in ["linux"]:
         # udisksctl is primarily a Linux tool. macOS/Windows need different approaches.
         raise BlockDeviceError(
             f"Automated mounting with udisksctl is not supported on {system}."
-        ) from None  # B904
+        ) from None
 
     # Construct the full device path (e.g., /dev/sda)
     device_path = get_device_path(device.name)
@@ -105,7 +103,7 @@ def mount_and_flash(
     if not shutil.which("udisksctl"):
         raise FileNotFoundError(
             "`udisksctl` command not found. Please install udisks2."
-        ) from None  # B904
+        ) from None
 
     for attempt in range(max_retries):
         mount_point = None
@@ -139,7 +137,7 @@ def mount_and_flash(
                     # Raise PermissionError for auth issues
                     raise PermissionError(
                         f"Authorization failed for mounting {device_path}"
-                    ) from None  # B904
+                    ) from None
                 else:
                     logger.warning(
                         f"Mount command failed (exit code {mount_result.returncode}). Retrying..."
@@ -391,7 +389,7 @@ class FirmwareFlasher:
         if not firmware_path.exists():
             raise FileNotFoundError(
                 f"Firmware file not found: {firmware_path}"
-            ) from None  # B904
+            ) from None
 
         if not firmware_path.name.lower().endswith(".uf2"):
             result.add_message(
@@ -602,3 +600,4 @@ def flash_firmware(
         count=count,
         track_flashed=track_flashed,
     )
+
