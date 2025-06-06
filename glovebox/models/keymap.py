@@ -1,7 +1,7 @@
 """Keymap models for Glove80 keyboard."""
 
 from datetime import datetime
-from typing import Any, Literal, Optional, TypeAlias, Union
+from typing import Any, Literal, TypeAlias, Union
 
 from pydantic import (
     BaseModel,
@@ -20,6 +20,12 @@ LayerIndex: TypeAlias = int
 #
 # This type alias improves type safety and makes future changes easier
 LayerBindings: TypeAlias = list["KeymapBinding"]
+# Type alias for collections of behaviors
+BehaviorList: TypeAlias = list[
+    Union["HoldTapBehavior", "ComboBehavior", "MacroBehavior", "InputListener"]
+]
+# Type alias for configuration parameters
+ConfigParamList: TypeAlias = list["ConfigParameter"]
 
 
 class KeymapParam(BaseModel):
@@ -251,7 +257,7 @@ class KeymapData(KeymapMetadata):
     )
 
     # Configuration
-    config_parameters: list[ConfigParameter] = Field(
+    config_parameters: ConfigParamList = Field(
         default_factory=list, alias="config_parameters"
     )
 
@@ -261,9 +267,7 @@ class KeymapData(KeymapMetadata):
 
     @field_validator("layers")
     @classmethod
-    def validate_layers_structure(
-        cls, v: list[LayerBindings]
-    ) -> list[LayerBindings]:
+    def validate_layers_structure(cls, v: list[LayerBindings]) -> list[LayerBindings]:
         """Validate layers structure."""
         if not v:
             raise ValueError("Keymap must have at least one layer") from None

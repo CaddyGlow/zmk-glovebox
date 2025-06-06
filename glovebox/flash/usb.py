@@ -9,7 +9,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeAlias
 
 from glovebox.core.errors import FlashError
 from glovebox.flash.lsdev import (
@@ -58,7 +58,7 @@ def get_device_path(device_name: str) -> str:
 
 def mount_and_flash(
     device: BlockDevice,
-    firmware_file: str | Path,  # UP035
+    firmware_file: str | Path,
     max_retries: int = 3,
     retry_delay: float = 2.0,  # Allow float for delay
 ) -> bool:
@@ -360,7 +360,7 @@ class FirmwareFlasher:
 
     def flash_firmware(
         self,
-        firmware_file: str | Path,  # UP035
+        firmware_file: str | Path,
         query: str = "vendor=Adafruit and serial~=GLV80-.* and removable=true",
         timeout: int = 60,
         count: int = 1,  # Default to flashing one device
@@ -582,7 +582,7 @@ _flasher = FirmwareFlasher()
 
 
 def flash_firmware(
-    firmware_file: str | Path,  # UP035
+    firmware_file: str | Path,
     query: str = "vendor=Adafruit and serial~=GLV80-.* and removable=true",
     timeout: int = 60,
     count: int = 1,

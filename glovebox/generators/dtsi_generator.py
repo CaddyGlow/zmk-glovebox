@@ -5,7 +5,7 @@ import re
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 from glovebox.formatters.behavior_formatter import BehaviorFormatterImpl
 from glovebox.generators.layout_generator import DtsiLayoutGenerator, LayoutConfig

@@ -7,7 +7,7 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, TypeAlias, Union
 
 import pyudev
 

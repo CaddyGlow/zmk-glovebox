@@ -4,11 +4,18 @@ import logging
 import shlex
 import subprocess
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, TypeAlias, runtime_checkable
 
 from glovebox.core.errors import BuildError, DockerError
 from glovebox.utils.error_utils import create_docker_error
 
+
+# Type aliases for Docker operations
+DockerVolume: TypeAlias = tuple[str, str]  # (host_path, container_path)
+DockerEnv: TypeAlias = dict[str, str]  # Environment variables
+DockerResult: TypeAlias = tuple[
+    int, list[str], list[str]
+]  # (return_code, stdout, stderr)
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +31,11 @@ class DockerAdapter(Protocol):
     def run_container(
         self,
         image: str,
-        volumes: list[tuple[str, str]],
-        environment: dict[str, str],
+        volumes: list[DockerVolume],
+        environment: DockerEnv,
         command: list[str] | None = None,
         middleware: Any | None = None,
-    ) -> tuple[int, list[str], list[str]]:
+    ) -> DockerResult:
         """Run a Docker container with specified configuration."""
         ...
 
@@ -75,11 +82,11 @@ class DockerAdapterImpl:
     def run_container(
         self,
         image: str,
-        volumes: list[tuple[str, str]],
-        environment: dict[str, str],
+        volumes: list[DockerVolume],
+        environment: DockerEnv,
         command: list[str] | None = None,
         middleware: Any | None = None,
-    ) -> tuple[int, list[str], list[str]]:
+    ) -> DockerResult:
         """Run a Docker container with specified configuration."""
         from glovebox.utils import stream_process
 

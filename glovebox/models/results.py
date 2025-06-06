@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, TypeAlias
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 

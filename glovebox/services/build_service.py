@@ -4,9 +4,13 @@ import logging
 import multiprocessing
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, TypeAlias
 
-from glovebox.adapters.docker_adapter import DockerAdapter, create_docker_adapter
+from glovebox.adapters.docker_adapter import (
+    DockerAdapter,
+    DockerVolume,
+    create_docker_adapter,
+)
 from glovebox.adapters.file_adapter import FileAdapter, create_file_adapter
 from glovebox.config.keyboard_config import (
     create_profile_from_keyboard_name,
@@ -450,9 +454,7 @@ class BuildService(BaseServiceImpl):
         except Exception as e:
             logger.warning(f"Failed to cleanup build context {build_dir}: {e}")
 
-    def _prepare_volumes(
-        self, config: BuildServiceCompileOpts
-    ) -> list[tuple[str, str]]:
+    def _prepare_volumes(self, config: BuildServiceCompileOpts) -> list[DockerVolume]:
         """Prepare Docker volume mappings."""
         volumes = []
 

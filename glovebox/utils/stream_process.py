@@ -25,10 +25,13 @@ Example:
 import shlex
 import subprocess
 from threading import Thread
-from typing import Any, Generic, Optional, TypeVar, cast
+from typing import Any, Generic, TypeAlias, TypeVar, cast
 
 
 T = TypeVar("T")  # Type of processed output
+
+# Type alias for the result of run_command
+ProcessResult: TypeAlias = tuple[int, list[T], list[T]]  # (return_code, stdout, stderr)
 
 
 class OutputMiddleware(Generic[T]):
@@ -93,7 +96,7 @@ class DefaultOutputMiddleware(OutputMiddleware[str]):
 def run_command(
     cmd: str | list[str],
     middleware: OutputMiddleware[T] | None = None,
-) -> tuple[int, list[T], list[T]]:
+) -> ProcessResult[T]:
     """Run a command and process its output through middleware.
 
     This function executes a command as a subprocess and streams its output
