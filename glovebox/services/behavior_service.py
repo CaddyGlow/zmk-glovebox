@@ -1,7 +1,17 @@
 """Behavior service for tracking and managing ZMK behaviors."""
 
 import logging
-from typing import Any, Optional, Protocol
+from typing import Any, Protocol
+
+from ..models.behavior import (
+    BehaviorCommand,
+    BehaviorParameter,
+    KeymapBehavior,
+    ParamList,
+    RegistryBehavior,
+    SystemBehavior,
+    SystemBehaviorParam,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -11,7 +21,7 @@ class BehaviorRegistryImpl:
     """Implementation of behavior registry for tracking ZMK behaviors."""
 
     def __init__(self) -> None:
-        self._behaviors: dict[str, dict[str, Any]] = {}
+        self._behaviors: dict[str, RegistryBehavior] = {}
         logger.debug("BehaviorRegistryImpl initialized")
 
     def register_behavior(self, name: str, expected_params: int, origin: str) -> None:
@@ -27,9 +37,17 @@ class BehaviorRegistryImpl:
             f"Registering behavior {name} with {expected_params} params from {origin}"
         )
 
-        self._behaviors[name] = {"expected_params": expected_params, "origin": origin}
+        self._behaviors[name] = {
+            "expected_params": expected_params,
+            "origin": origin,
+            "description": "",
+            "url": None,
+            "params": [],
+            "commands": None,
+            "includes": None,
+        }
 
-    def get_behavior_info(self, name: str) -> dict[str, Any] | None:
+    def get_behavior_info(self, name: str) -> RegistryBehavior | None:
         """
         Get information about a registered behavior.
 
@@ -41,7 +59,7 @@ class BehaviorRegistryImpl:
         """
         return self._behaviors.get(name)
 
-    def list_behaviors(self) -> dict[str, dict[str, Any]]:
+    def list_behaviors(self) -> dict[str, RegistryBehavior]:
         """
         Get all registered behaviors.
 
@@ -87,6 +105,11 @@ class BehaviorRegistryImpl:
                     self._behaviors[name] = {
                         "expected_params": expected_params,
                         "origin": origin,
+                        "description": getattr(behavior, "description", ""),
+                        "url": getattr(behavior, "url", None),
+                        "params": getattr(behavior, "params", []),
+                        "commands": getattr(behavior, "commands", None),
+                        "includes": getattr(behavior, "includes", None),
                     }
                 else:
                     logger.warning(f"Skipping behavior without name: {behavior}")
@@ -161,11 +184,11 @@ class BehaviorRegistry(Protocol):
         """Register a behavior with its expected parameter count."""
         ...
 
-    def get_behavior_info(self, name: str) -> dict[str, Any] | None:
+    def get_behavior_info(self, name: str) -> RegistryBehavior | None:
         """Get information about a registered behavior."""
         ...
 
-    def list_behaviors(self) -> dict[str, dict[str, Any]]:
+    def list_behaviors(self) -> dict[str, RegistryBehavior]:
         """Get all registered behaviors."""
         ...
 

@@ -275,6 +275,12 @@ This project is maintained by a small team (2-3 developers), so:
   - `chore`: Changes to the build process or auxiliary tools
   - Example: `feat: add support for wireless keyboard detection`
 
+### Before Working on Code
+
+1. Always read and understand the model classes in `glovebox/models/` to understand the data structures
+2. Check `glovebox/config/models.py` for configuration data structures
+3. Read the `docs/keymap_file_format.md` document to understand the keymap file format
+
 ### Before Committing
 
 1. Run the linter and fix any issues:

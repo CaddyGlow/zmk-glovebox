@@ -2,7 +2,15 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Protocol
+from typing import Any, Protocol, cast
+
+from ..models.behavior import (
+    KeymapBehavior,
+    RegistryBehavior,
+    SystemBehaviorParam,
+    SystemParamList,
+)
+from ..models.keymap import ParamValue
 
 
 logger = logging.getLogger(__name__)
@@ -11,7 +19,7 @@ logger = logging.getLogger(__name__)
 class BehaviorRegistry(Protocol):
     """Protocol for behavior registry."""
 
-    def get_behavior_info(self, name: str) -> dict[str, Any] | None:
+    def get_behavior_info(self, name: str) -> RegistryBehavior | None:
         """Get information about a registered behavior."""
         ...
 
@@ -33,9 +41,13 @@ class BehaviorFormatterImpl:
         self._behavior_classes: dict[str, Any] = {}
         self._init_behavior_class_map()
 
-    # TODO: Update this method to use proper KeymapBinding type instead of dict
     def format_binding(self, binding_data: Any) -> str:
-        """Format a binding dictionary to DTSI string."""
+        """Format a binding dictionary to DTSI string.
+
+        Args:
+            binding_data: KeymapBehavior or dictionary representing a key binding
+        """
+        # Runtime type check is necessary
         if not isinstance(binding_data, dict):
             logger.error(f"Invalid binding data format: {binding_data}")
             return "&error /* Invalid binding data */"
@@ -123,7 +135,9 @@ class BehaviorFormatterImpl:
             )
             return str(param)
 
-    def format_kp_param_recursive(self, param_data: Any) -> str:
+    def format_kp_param_recursive(
+        self, param_data: SystemBehaviorParam | ParamValue
+    ) -> str:
         """Recursively format &kp parameters including modifiers."""
         if isinstance(param_data, dict) and "value" in param_data:
             mod_name = param_data["value"]
@@ -193,7 +207,7 @@ class BehaviorFormatterImpl:
             )
             return "ERROR_KP_PARAM"
 
-    def _create_behavior_class_map(self) -> dict[str, Any]:
+    def _create_behavior_class_map(self) -> dict[str, type]:
         """Create mapping of behavior names to their classes."""
         # This is a placeholder that will be updated by _init_behavior_class_map method
         # which will be called during initialization
@@ -289,9 +303,23 @@ class KPBehavior(Behavior):
         if not self.raw_params:
             logger.error(f"Behavior {self.behavior_name} missing raw parameters.")
             return f"&error /* {self.behavior_name} missing params */"
-        kp_param_formatted = self.formatter.format_kp_param_recursive(
-            self.raw_params[0]
-        )
+
+        # Get the first parameter and handle it based on its type
+        param = self.raw_params[0]
+
+        # Convert param to appropriate type for format_kp_param_recursive
+        if isinstance(param, dict):
+            # Cast to SystemBehaviorParam for type checking
+            param_cast = cast(SystemBehaviorParam, param)
+            kp_param_formatted = self.formatter.format_kp_param_recursive(param_cast)
+        elif isinstance(param, str | int):
+            # It's already a ParamValue
+            kp_param_formatted = self.formatter.format_kp_param_recursive(param)
+        else:
+            # Unexpected type - format as string
+            logger.warning(f"Unexpected param type in &kp: {type(param)}")
+            kp_param_formatted = str(param)
+
         return f"&kp {kp_param_formatted}"
 
 
@@ -356,7 +384,9 @@ class OneParamBehavior(Behavior):
         param_data = self.raw_params[0]
 
         if isinstance(param_data, dict) and "value" in param_data:
-            param_formatted = self.formatter.format_kp_param_recursive(param_data)
+            # Cast to SystemBehaviorParam for type checking
+            param_cast = cast(SystemBehaviorParam, param_data)
+            param_formatted = self.formatter.format_kp_param_recursive(param_cast)
         else:
             param_formatted = self.formatter.format_param(self.params[0])
 
