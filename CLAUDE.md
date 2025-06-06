@@ -4,6 +4,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Essential Commands
 
+### Quick Commands
+
+Use these simplified commands for common development tasks:
+
+```bash
+# Using npm-style commands
+npm run test        # Run all tests
+npm run lint        # Run linting checks
+npm run format      # Format code and fix linting issues
+npm run coverage    # Run tests with coverage reporting
+npm run setup       # Install development dependencies
+npm run clean       # Clean build artifacts and coverage reports
+
+# Using make
+make test           # Run all tests
+make lint           # Run linting checks
+make format         # Format code and fix linting issues
+make coverage       # Run tests with coverage reporting
+make setup          # Install development dependencies
+make clean          # Clean build artifacts and coverage reports
+```
+
 ### Command Execution
 
 If the virtual environment is not activated, prefix any Python command with `uv run` to ensure it runs with the correct dependencies:
