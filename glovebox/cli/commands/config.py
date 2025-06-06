@@ -211,7 +211,7 @@ def list_keyboards(
             print_list_item(keyboard)
 
 
-@config_app.command(name="show")
+@config_app.command(name="show-keyboard")
 @handle_errors
 def show_keyboard(
     keyboard_name: str = typer.Argument(..., help="Keyboard name to show"),

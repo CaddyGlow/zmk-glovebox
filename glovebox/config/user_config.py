@@ -9,11 +9,12 @@ This module handles user-specific configuration settings with multiple sources:
 5. Default values (lowest precedence)
 """
 
-import json
 import logging
 import os
 from pathlib import Path
 from typing import Any, cast
+
+import yaml
 
 from glovebox.core.errors import ConfigError
 from glovebox.core.logging import get_logger
@@ -44,7 +45,7 @@ class UserConfig:
     1. Environment variables (highest precedence)
     2. Command-line provided config file
     3. Config file in current directory
-    4. User's XDG config directory (~/.config/glovebox/config.json)
+    4. User's XDG config directory (~/.config/glovebox/config.yaml)
     5. Default values (lowest precedence)
     """
 
@@ -74,17 +75,31 @@ class UserConfig:
 
         # 2. Current directory config file
         if search_current_dir:
-            current_dir_config = Path.cwd() / "glovebox.json"
-            self._config_paths.append(("current_dir", current_dir_config))
+            # Try both .yaml and .yml extensions in current directory
+            current_dir_yaml = Path.cwd() / "glovebox.yaml"
+            current_dir_yml = Path.cwd() / "glovebox.yml"
+
+            # Add both paths, the first existing one will be used
+            self._config_paths.append(("current_dir", current_dir_yaml))
+            self._config_paths.append(("current_dir", current_dir_yml))
 
         # 3. XDG config directory
         xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
         if xdg_config_home:
-            xdg_path = Path(xdg_config_home) / "glovebox" / "config.json"
+            xdg_yaml = Path(xdg_config_home) / "glovebox" / "config.yaml"
+            self._config_paths.append(("xdg", xdg_yaml))
+
+            # Also try .yml extension as fallback
+            xdg_yml = Path(xdg_config_home) / "glovebox" / "config.yml"
+            self._config_paths.append(("xdg", xdg_yml))
         else:
             # Default XDG location
-            xdg_path = Path.home() / ".config" / "glovebox" / "config.json"
-        self._config_paths.append(("xdg", xdg_path))
+            xdg_yaml = Path.home() / ".config" / "glovebox" / "config.yaml"
+            self._config_paths.append(("xdg", xdg_yaml))
+
+            # Also try .yml extension as fallback
+            xdg_yml = Path.home() / ".config" / "glovebox" / "config.yml"
+            self._config_paths.append(("xdg", xdg_yml))
 
         # Main config path for saving (use the highest priority existing path, or XDG if none exist)
         self._main_config_path: Path | None = None
@@ -109,7 +124,18 @@ class UserConfig:
 
             try:
                 with config_path.open("r", encoding="utf-8") as f:
-                    user_config = json.load(f)
+                    user_config = yaml.safe_load(f)
+
+                # Ensure we have a valid dictionary
+                if user_config is None:
+                    logger.warning("Empty YAML file: %s", config_path)
+                    continue
+
+                if not isinstance(user_config, dict):
+                    logger.warning(
+                        "Invalid YAML format in %s - expected a dictionary", config_path
+                    )
+                    continue
 
                 # Apply config values from this file
                 for key in DEFAULT_CONFIG:
@@ -124,8 +150,8 @@ class UserConfig:
                 if self._main_config_path is None:
                     self._main_config_path = config_path  # Path instance
 
-            except json.JSONDecodeError as e:
-                logger.warning("Error parsing config file %s: %s", config_path, e)
+            except yaml.YAMLError as e:
+                logger.warning("Error parsing YAML config file %s: %s", config_path, e)
             except OSError as e:
                 logger.warning("Error reading config file %s: %s", config_path, e)
 
@@ -206,7 +232,7 @@ class UserConfig:
             self._main_config_path.parent.mkdir(parents=True, exist_ok=True)
 
             with self._main_config_path.open("w", encoding="utf-8") as f:
-                json.dump(self._config, f, indent=2, sort_keys=True)
+                yaml.dump(self._config, f, default_flow_style=False, sort_keys=True)
 
             logger.debug("Saved user configuration to %s", self._main_config_path)
         except OSError as e:
