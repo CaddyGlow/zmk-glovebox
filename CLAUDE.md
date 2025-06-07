@@ -309,6 +309,28 @@ For example:
 - `glovebox firmware flash firmware.uf2 --profile glove80/v25.05`
 - `glovebox keymap show my_layout.json --profile glove80/v25.05`
 
+### Protocol Implementation Guidelines
+
+When implementing Protocol interfaces:
+
+1. **Use Protocol Classes**: All interfaces should be defined as Protocol classes in the `protocols` package
+   - Prefer `TypeAdapterProtocol` naming over just `TypeAdapter` for clarity
+   - Always mark protocols with `@runtime_checkable` decorator
+   - Import protocols from the central `protocols` package
+
+2. **Runtime Type Checking**: Use `isinstance()` for runtime type verification
+   - Prefer `isinstance(obj, MyProtocol)` over custom validation logic
+   - Use in tests to verify implementation compliance
+   - Rely on mypy for static type checking during development
+
+3. **Factory Functions**: Create factory functions that return protocol types
+   - Return the protocol type, not the concrete implementation
+   - Example: `def create_file_adapter() -> FileAdapterProtocol`
+
+4. **Type Hints**: Consistently use protocol types in function signatures
+   - Function parameters should use protocol types: `def process(adapter: FileAdapterProtocol)`
+   - Return types should use protocol types when appropriate
+
 ### Maintainability Guidelines
 
 This project is maintained by a small team (2-3 developers), so:

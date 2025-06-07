@@ -4,50 +4,19 @@ import logging
 import shlex
 import subprocess
 from pathlib import Path
-from typing import Any, Protocol, TypeAlias, runtime_checkable
+from typing import Any
 
 from glovebox.core.errors import BuildError, DockerError
+from glovebox.protocols.docker_adapter_protocol import (
+    DockerAdapterProtocol,
+    DockerEnv,
+    DockerResult,
+    DockerVolume,
+)
 from glovebox.utils.error_utils import create_docker_error
 
 
-# Type aliases for Docker operations
-DockerVolume: TypeAlias = tuple[str, str]  # (host_path, container_path)
-DockerEnv: TypeAlias = dict[str, str]  # Environment variables
-DockerResult: TypeAlias = tuple[
-    int, list[str], list[str]
-]  # (return_code, stdout, stderr)
-
 logger = logging.getLogger(__name__)
-
-
-@runtime_checkable
-class DockerAdapter(Protocol):
-    """Protocol for Docker operations."""
-
-    def is_available(self) -> bool:
-        """Check if Docker is available on the system."""
-        ...
-
-    def run_container(
-        self,
-        image: str,
-        volumes: list[DockerVolume],
-        environment: DockerEnv,
-        command: list[str] | None = None,
-        middleware: Any | None = None,
-    ) -> DockerResult:
-        """Run a Docker container with specified configuration."""
-        ...
-
-    def build_image(
-        self,
-        dockerfile_dir: Path,
-        image_name: str,
-        image_tag: str = "latest",
-        no_cache: bool = False,
-    ) -> bool:
-        """Build a Docker image from a Dockerfile."""
-        ...
 
 
 class DockerAdapterImpl:
@@ -275,7 +244,7 @@ class DockerAdapterImpl:
             raise error from e
 
 
-def create_docker_adapter() -> DockerAdapter:
+def create_docker_adapter() -> DockerAdapterProtocol:
     """
     Factory function to create a DockerAdapter instance.
 

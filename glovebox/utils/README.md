@@ -4,29 +4,7 @@ This directory contains utility modules that provide shared functionality used a
 
 ## Module Overview
 
-### 1. Protocol Validation (`protocol_validator.py`)
-
-Provides tools for validating Protocol implementations at runtime:
-
-- `validate_protocol_implementation()`: Checks if a class correctly implements a Protocol
-- `assert_implements_protocol()`: Asserts that an instance implements a Protocol
-
-**When to use**:
-- When you need to verify adapter implementations against their protocols
-- For runtime validation of dependency implementations
-- In test code to ensure implementations satisfy their interfaces
-
-**Example**:
-```python
-from glovebox.utils import validate_protocol_implementation
-from my_protocol import MyProtocol
-
-is_valid, errors = validate_protocol_implementation(MyProtocol, MyImplementation)
-if not is_valid:
-    print(f"Implementation errors: {errors}")
-```
-
-### 2. Process Streaming (`stream_process.py`)
+### 1. Process Streaming (`stream_process.py`)
 
 Provides utilities for executing and handling output from subprocess operations:
 
@@ -46,7 +24,7 @@ middleware = DefaultOutputMiddleware(stdout_prefix="INFO: ")
 return_code, stdout, stderr = run_command("ls -la", middleware)
 ```
 
-### 3. Error Utilities (`error_utils.py`)
+### 2. Error Utilities (`error_utils.py`)
 
 Provides standardized error creation functions for consistent error handling:
 
@@ -73,7 +51,7 @@ except FileNotFoundError as e:
     raise error from e
 ```
 
-### 4. File Utilities (`file_utils.py`)
+### 3. File Utilities (`file_utils.py`)
 
 Provides common file system operations and path handling functions:
 
@@ -97,7 +75,7 @@ output_paths = prepare_output_paths("/tmp/my_keymap")
 ensure_directory_exists(output_paths["keymap"].parent)
 ```
 
-### 5. Serialization (`serialization.py`)
+### 4. Serialization (`serialization.py`)
 
 Provides utilities for data serialization and conversion:
 
@@ -120,21 +98,6 @@ serializable = make_json_serializable(data)
 # Now safe to use with json.dumps()
 ```
 
-### 6. Adapter Validation (`validate_adapters.py`)
-
-Command-line utility script for validating all adapter implementations:
-
-- `validate_all_adapters()`: Validates all adapter implementations against their protocols
-
-**When to use**:
-- During development to verify adapter implementations
-- In CI/CD pipelines to ensure interface consistency
-- After making changes to protocol definitions
-
-**Usage**:
-```bash
-python -m glovebox.utils.validate_adapters
-```
 
 ## Design Principles
 

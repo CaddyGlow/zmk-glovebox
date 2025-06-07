@@ -13,12 +13,14 @@ from glovebox.adapters.config_file_adapter import (
 )
 from glovebox.core.errors import ConfigError
 from glovebox.models.config import UserConfigData
+from glovebox.protocols.config_file_adapter_protocol import ConfigFileAdapterProtocol
 
 
 def test_config_file_adapter_create():
     """Test creating ConfigFileAdapter."""
     adapter = create_config_file_adapter()
     assert isinstance(adapter, ConfigFileAdapter)
+    assert isinstance(adapter, ConfigFileAdapterProtocol)
 
 
 def test_config_file_adapter_load():

@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, TypeAlias
 
-from glovebox.adapters.file_adapter import FileAdapter
+from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.core.errors import KeymapError
 from glovebox.models.keymap import KeymapData, KeymapMetadata
 from glovebox.models.results import KeymapResult
@@ -26,7 +26,7 @@ class KeymapComponentService(BaseServiceImpl):
     and recombining those files into complete keymap data.
     """
 
-    def __init__(self, file_adapter: FileAdapter):
+    def __init__(self, file_adapter: FileAdapterProtocol):
         """Initialize keymap component service with adapter dependencies."""
         super().__init__(service_name="KeymapComponentService", service_version="1.0.0")
         self._file_adapter = file_adapter
@@ -358,7 +358,7 @@ class KeymapComponentService(BaseServiceImpl):
 
 
 def create_keymap_component_service(
-    file_adapter: FileAdapter | None = None,
+    file_adapter: FileAdapterProtocol | None = None,
 ) -> KeymapComponentService:
     """Create a KeymapComponentService instance with optional dependency injection.
 

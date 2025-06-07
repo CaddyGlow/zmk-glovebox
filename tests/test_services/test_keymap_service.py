@@ -5,13 +5,13 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from glovebox.adapters.file_adapter import FileAdapter
-from glovebox.adapters.template_adapter import TemplateAdapter
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import KeymapError
 from glovebox.models.behavior import SystemBehavior
 from glovebox.models.keymap import KeymapData
 from glovebox.models.results import KeymapResult
+from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
+from glovebox.protocols.template_adapter_protocol import TemplateAdapterProtocol
 from glovebox.services.keymap_service import KeymapService
 
 
@@ -108,8 +108,8 @@ def mock_create_keyboard_profile(mock_profile):
 @pytest.fixture
 def keymap_service():
     """Create a KeymapService for testing."""
-    file_adapter = MagicMock(spec=FileAdapter)
-    template_adapter = MagicMock(spec=TemplateAdapter)
+    file_adapter = MagicMock(spec=FileAdapterProtocol)
+    template_adapter = MagicMock(spec=TemplateAdapterProtocol)
 
     # Set up the template_adapter to render something
     template_adapter.render_string.return_value = "// Generated keymap content"
@@ -150,8 +150,8 @@ class TestKeymapServiceWithKeyboardConfig:
 
     def setup_method(self):
         """Set up test environment."""
-        self.mock_file_adapter = Mock(spec=FileAdapter)
-        self.mock_template_adapter = Mock(spec=TemplateAdapter)
+        self.mock_file_adapter = Mock(spec=FileAdapterProtocol)
+        self.mock_template_adapter = Mock(spec=TemplateAdapterProtocol)
 
         # Mock all required dependencies
         self.mock_behavior_registry = Mock()

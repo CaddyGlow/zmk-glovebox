@@ -7,10 +7,10 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 from glovebox.adapters.config_file_adapter import (
-    ConfigFileAdapter,
     create_keymap_config_adapter,
 )
-from glovebox.adapters.file_adapter import FileAdapter
+from glovebox.adapters.file_adapter import create_file_adapter
+from glovebox.protocols import ConfigFileAdapterProtocol, FileAdapterProtocol
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import ConfigError, KeymapError
 from glovebox.models.config import KeymapConfigData
@@ -33,8 +33,8 @@ class KeymapFileService(BaseServiceImpl):
 
     def __init__(
         self,
-        file_adapter: FileAdapter,
-        config_adapter: ConfigFileAdapter[KeymapConfigData] | None = None,
+        file_adapter: FileAdapterProtocol,
+        config_adapter: ConfigFileAdapterProtocol[KeymapConfigData] | None = None,
     ):
         """Initialize keymap file service with adapter dependencies.
 
@@ -696,8 +696,8 @@ class KeymapFileService(BaseServiceImpl):
 
 
 def create_file_service(
-    file_adapter: FileAdapter | None = None,
-    config_adapter: ConfigFileAdapter[KeymapConfigData] | None = None,
+    file_adapter: FileAdapterProtocol | None = None,
+    config_adapter: ConfigFileAdapterProtocol[KeymapConfigData] | None = None,
 ) -> KeymapFileService:
     """Create a KeymapFileService instance.
 

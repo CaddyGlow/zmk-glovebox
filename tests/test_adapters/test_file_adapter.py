@@ -6,12 +6,11 @@ from unittest.mock import Mock, mock_open, patch
 import pytest
 
 from glovebox.adapters.file_adapter import (
-    FileAdapter,
     FileSystemAdapter,
     create_file_adapter,
 )
 from glovebox.core.errors import FileSystemError, GloveboxError
-from glovebox.utils.protocol_validator import validate_protocol_implementation
+from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 
 
 class TestFileSystemAdapter:
@@ -312,7 +311,7 @@ class TestCreateFileAdapter:
         """Test factory function creates FileAdapter instance."""
         adapter = create_file_adapter()
         assert isinstance(adapter, FileSystemAdapter)
-        assert isinstance(adapter, FileAdapter)
+        assert isinstance(adapter, FileAdapterProtocol)
 
 
 class TestFileAdapterIntegration:
@@ -391,14 +390,14 @@ class TestFileAdapterProtocol:
 
     def test_file_adapter_implements_protocol(self):
         """Test that FileSystemAdapter correctly implements FileAdapter protocol."""
-        valid, errors = validate_protocol_implementation(FileAdapter, FileSystemAdapter)
-        assert valid, (
-            f"FileSystemAdapter does not implement FileAdapter protocol: {errors}"
+        adapter = FileSystemAdapter()
+        assert isinstance(adapter, FileAdapterProtocol), (
+            "FileSystemAdapter must implement FileAdapterProtocol"
         )
 
     def test_runtime_protocol_check(self):
         """Test that FileSystemAdapter passes runtime protocol check."""
         adapter = FileSystemAdapter()
-        assert isinstance(adapter, FileAdapter), (
-            "FileSystemAdapter should be instance of FileAdapter"
+        assert isinstance(adapter, FileAdapterProtocol), (
+            "FileSystemAdapter should be instance of FileAdapterProtocol"
         )

@@ -5,10 +5,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from glovebox.adapters.usb_adapter import USBAdapter, USBAdapterImpl, create_usb_adapter
+from glovebox.adapters.usb_adapter import USBAdapterImpl, create_usb_adapter
 from glovebox.core.errors import FlashError, USBError
 from glovebox.flash.lsdev import BlockDevice
-from glovebox.utils.protocol_validator import validate_protocol_implementation
+from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
 
 
 class TestUSBAdapterImpl:
@@ -217,7 +217,7 @@ class TestCreateUSBAdapter:
         """Test factory function creates USBAdapter instance."""
         adapter = create_usb_adapter()
         assert isinstance(adapter, USBAdapterImpl)
-        assert isinstance(adapter, USBAdapter)
+        assert isinstance(adapter, USBAdapterProtocol)
 
 
 class TestUSBAdapterProtocol:
@@ -225,12 +225,14 @@ class TestUSBAdapterProtocol:
 
     def test_usb_adapter_implements_protocol(self):
         """Test that USBAdapterImpl correctly implements USBAdapter protocol."""
-        valid, errors = validate_protocol_implementation(USBAdapter, USBAdapterImpl)
-        assert valid, f"USBAdapterImpl does not implement USBAdapter protocol: {errors}"
+        adapter = USBAdapterImpl()
+        assert isinstance(adapter, USBAdapterProtocol), (
+            "USBAdapterImpl must implement USBAdapterProtocol"
+        )
 
     def test_runtime_protocol_check(self):
         """Test that USBAdapterImpl passes runtime protocol check."""
         adapter = USBAdapterImpl()
-        assert isinstance(adapter, USBAdapter), (
-            "USBAdapterImpl should be instance of USBAdapter"
+        assert isinstance(adapter, USBAdapterProtocol), (
+            "USBAdapterImpl should be instance of USBAdapterProtocol"
         )

@@ -6,12 +6,10 @@ import sys
 from pathlib import Path
 from typing import Any, Optional
 
-from glovebox.adapters.docker_adapter import (
-    DockerAdapter,
-    DockerVolume,
-    create_docker_adapter,
-)
-from glovebox.adapters.file_adapter import FileAdapter, create_file_adapter
+from glovebox.adapters.docker_adapter import create_docker_adapter
+from glovebox.adapters.file_adapter import create_file_adapter
+from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
+from glovebox.protocols.docker_adapter_protocol import DockerVolume
 from glovebox.config.keyboard_config import (
     get_available_keyboards,
     load_keyboard_config,
@@ -42,8 +40,8 @@ class BuildService(BaseServiceImpl):
 
     def __init__(
         self,
-        docker_adapter: DockerAdapter,
-        file_adapter: FileAdapter,
+        docker_adapter: DockerAdapterProtocol,
+        file_adapter: FileAdapterProtocol,
         output_middleware: stream_process.OutputMiddleware[str],
         loglevel: str = "INFO",
     ):
@@ -766,8 +764,8 @@ class BuildService(BaseServiceImpl):
 
 
 def create_build_service(
-    docker_adapter: DockerAdapter | None = None,
-    file_adapter: FileAdapter | None = None,
+    docker_adapter: DockerAdapterProtocol | None = None,
+    file_adapter: FileAdapterProtocol | None = None,
     output_middleware: stream_process.OutputMiddleware[str] | None = None,
     loglevel: str = "INFO",
 ) -> BuildService:
@@ -778,8 +776,8 @@ def create_build_service(
     configuration of services.
 
     Args:
-        docker_adapter: Optional DockerAdapter instance (creates default if None)
-        file_adapter: Optional FileAdapter instance (creates default if None)
+        docker_adapter: Optional DockerAdapterProtocol instance (creates default if None)
+        file_adapter: Optional FileAdapterProtocol instance (creates default if None)
         output_middleware: Optional output middleware (creates default if None)
         loglevel: Log level for subprocess operations
 

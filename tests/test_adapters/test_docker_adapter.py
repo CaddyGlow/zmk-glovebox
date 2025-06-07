@@ -7,12 +7,11 @@ from unittest.mock import Mock, call, patch
 import pytest
 
 from glovebox.adapters.docker_adapter import (
-    DockerAdapter,
     DockerAdapterImpl,
     create_docker_adapter,
 )
 from glovebox.core.errors import DockerError
-from glovebox.utils.protocol_validator import validate_protocol_implementation
+from glovebox.protocols.docker_adapter_protocol import DockerAdapterProtocol
 
 
 class TestDockerAdapterImpl:
@@ -303,7 +302,7 @@ class TestCreateDockerAdapter:
         """Test factory function creates DockerAdapter instance."""
         adapter = create_docker_adapter()
         assert isinstance(adapter, DockerAdapterImpl)
-        assert isinstance(adapter, DockerAdapter)
+        assert isinstance(adapter, DockerAdapterProtocol)
 
 
 class TestDockerAdapterProtocol:
@@ -311,16 +310,14 @@ class TestDockerAdapterProtocol:
 
     def test_docker_adapter_implements_protocol(self):
         """Test that DockerAdapterImpl correctly implements DockerAdapter protocol."""
-        valid, errors = validate_protocol_implementation(
-            DockerAdapter, DockerAdapterImpl
-        )
-        assert valid, (
-            f"DockerAdapterImpl does not implement DockerAdapter protocol: {errors}"
+        adapter = DockerAdapterImpl()
+        assert isinstance(adapter, DockerAdapterProtocol), (
+            "DockerAdapterImpl must implement DockerAdapterProtocol"
         )
 
     def test_runtime_protocol_check(self):
         """Test that DockerAdapterImpl passes runtime protocol check."""
         adapter = DockerAdapterImpl()
-        assert isinstance(adapter, DockerAdapter), (
-            "DockerAdapterImpl should be instance of DockerAdapter"
+        assert isinstance(adapter, DockerAdapterProtocol), (
+            "DockerAdapterImpl should be instance of DockerAdapterProtocol"
         )

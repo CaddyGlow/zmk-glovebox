@@ -7,11 +7,10 @@ import pytest
 
 from glovebox.adapters.template_adapter import (
     JinjaTemplateAdapter,
-    TemplateAdapter,
     create_template_adapter,
 )
 from glovebox.core.errors import GloveboxError, TemplateError
-from glovebox.utils.protocol_validator import validate_protocol_implementation
+from glovebox.protocols.template_adapter_protocol import TemplateAdapterProtocol
 
 
 class TestJinjaTemplateAdapter:
@@ -269,7 +268,7 @@ class TestCreateTemplateAdapter:
         """Test factory function creates TemplateAdapter instance."""
         adapter = create_template_adapter()
         assert isinstance(adapter, JinjaTemplateAdapter)
-        assert isinstance(adapter, TemplateAdapter)
+        assert isinstance(adapter, TemplateAdapterProtocol)
 
 
 class TestTemplateAdapterIntegration:
@@ -362,16 +361,14 @@ class TestTemplateAdapterProtocol:
 
     def test_template_adapter_implements_protocol(self):
         """Test that JinjaTemplateAdapter correctly implements TemplateAdapter protocol."""
-        valid, errors = validate_protocol_implementation(
-            TemplateAdapter, JinjaTemplateAdapter
-        )
-        assert valid, (
-            f"JinjaTemplateAdapter does not implement TemplateAdapter protocol: {errors}"
+        adapter = JinjaTemplateAdapter()
+        assert isinstance(adapter, TemplateAdapterProtocol), (
+            "JinjaTemplateAdapter must implement TemplateAdapterProtocol"
         )
 
     def test_runtime_protocol_check(self):
         """Test that JinjaTemplateAdapter passes runtime protocol check."""
         adapter = JinjaTemplateAdapter()
-        assert isinstance(adapter, TemplateAdapter), (
-            "JinjaTemplateAdapter should be instance of TemplateAdapter"
+        assert isinstance(adapter, TemplateAdapterProtocol), (
+            "JinjaTemplateAdapter should be instance of TemplateAdapterProtocol"
         )

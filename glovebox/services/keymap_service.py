@@ -6,8 +6,9 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, Optional, TypeVar, cast
 
-from glovebox.adapters.file_adapter import FileAdapter
-from glovebox.adapters.template_adapter import TemplateAdapter
+from glovebox.adapters.file_adapter import create_file_adapter
+from glovebox.adapters.template_adapter import create_template_adapter
+from glovebox.protocols import FileAdapterProtocol, TemplateAdapterProtocol
 from glovebox.builders.template_context_builder import create_template_context_builder
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import KeymapError
@@ -82,8 +83,8 @@ class KeymapService(BaseServiceImpl):
 
     def __init__(
         self,
-        file_adapter: FileAdapter,
-        template_adapter: TemplateAdapter,
+        file_adapter: FileAdapterProtocol,
+        template_adapter: TemplateAdapterProtocol,
         behavior_registry: FormatterBehaviorRegistry,
         behavior_formatter: BehaviorFormatterImpl,
         dtsi_generator: DTSIGenerator,
@@ -502,8 +503,8 @@ class KeymapService(BaseServiceImpl):
 
 
 def create_keymap_service(
-    file_adapter: FileAdapter | None = None,
-    template_adapter: TemplateAdapter | None = None,
+    file_adapter: FileAdapterProtocol | None = None,
+    template_adapter: TemplateAdapterProtocol | None = None,
     behavior_registry: FormatterBehaviorRegistry | None = None,
     component_service: KeymapComponentService | None = None,
     layout_service: LayoutDisplayService | None = None,

@@ -5,8 +5,9 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from glovebox.adapters.file_adapter import FileAdapter, create_file_adapter
-from glovebox.adapters.usb_adapter import USBAdapter, create_usb_adapter
+from glovebox.adapters.file_adapter import create_file_adapter
+from glovebox.adapters.usb_adapter import create_usb_adapter
+from glovebox.protocols import FileAdapterProtocol, USBAdapterProtocol
 from glovebox.flash.lsdev import BlockDevice
 from glovebox.models.results import FlashResult
 from glovebox.services.base_service import BaseServiceImpl
@@ -32,8 +33,8 @@ class FlashService(BaseServiceImpl):
 
     def __init__(
         self,
-        usb_adapter: USBAdapter,
-        file_adapter: FileAdapter,
+        usb_adapter: USBAdapterProtocol,
+        file_adapter: FileAdapterProtocol,
         loglevel: str = "INFO",
     ):
         """Initialize flash service with explicit dependencies.
@@ -413,8 +414,8 @@ class FlashService(BaseServiceImpl):
 
 
 def create_flash_service(
-    usb_adapter: USBAdapter | None = None,
-    file_adapter: FileAdapter | None = None,
+    usb_adapter: USBAdapterProtocol | None = None,
+    file_adapter: FileAdapterProtocol | None = None,
     loglevel: str = "INFO",
 ) -> FlashService:
     """Create a FlashService instance with optional dependency injection.
@@ -424,8 +425,8 @@ def create_flash_service(
     configuration of services.
 
     Args:
-        usb_adapter: Optional USB adapter for device operations
-        file_adapter: Optional file adapter for file operations
+        usb_adapter: Optional USBAdapterProtocol instance for device operations
+        file_adapter: Optional FileAdapterProtocol instance for file operations
         loglevel: Log level for subprocess operations (used when executing docker)
 
     Returns:

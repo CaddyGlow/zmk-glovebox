@@ -11,8 +11,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from typer.testing import CliRunner
 
-from glovebox.adapters.file_adapter import FileAdapter
-from glovebox.adapters.template_adapter import TemplateAdapter
+from glovebox.protocols import FileAdapterProtocol, TemplateAdapterProtocol
 from glovebox.config.models import (
     BuildConfig,
     BuildOptions,
@@ -41,14 +40,14 @@ def cli_runner() -> CliRunner:
 @pytest.fixture
 def mock_file_adapter() -> Mock:
     """Create a mock file adapter for testing."""
-    adapter = Mock(spec=FileAdapter)
+    adapter = Mock(spec=FileAdapterProtocol)
     return adapter
 
 
 @pytest.fixture
 def mock_template_adapter() -> Mock:
     """Create a mock template adapter for testing."""
-    adapter = Mock(spec=TemplateAdapter)
+    adapter = Mock(spec=TemplateAdapterProtocol)
     return adapter
 
 

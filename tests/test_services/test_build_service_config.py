@@ -5,14 +5,14 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from glovebox.adapters.docker_adapter import DockerAdapter
-from glovebox.adapters.file_adapter import FileAdapter
 from glovebox.config.models import BuildConfig, KeyboardConfig
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import BuildError
 from glovebox.models.build import FirmwareOutputFiles
 from glovebox.models.options import BuildServiceCompileOpts
 from glovebox.models.results import BuildResult
+from glovebox.protocols.docker_adapter_protocol import DockerAdapterProtocol
+from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.services.build_service import BuildService, create_build_service
 from glovebox.utils import stream_process
 
@@ -22,8 +22,8 @@ class TestBuildServiceWithKeyboardConfig:
 
     def setup_method(self):
         """Set up test environment."""
-        self.mock_file_adapter = Mock(spec=FileAdapter)
-        self.mock_docker_adapter = Mock(spec=DockerAdapter)
+        self.mock_file_adapter = Mock(spec=FileAdapterProtocol)
+        self.mock_docker_adapter = Mock(spec=DockerAdapterProtocol)
         self.mock_output_middleware = Mock(spec=stream_process.OutputMiddleware)
         self.service = BuildService(
             self.mock_docker_adapter,

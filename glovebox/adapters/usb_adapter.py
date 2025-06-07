@@ -4,60 +4,17 @@ import logging
 import threading
 import time
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any
 
 from glovebox.core.errors import FlashError, USBError
 from glovebox.flash.detect import DeviceDetector
 from glovebox.flash.lsdev import BlockDevice, Lsdev
 from glovebox.flash.usb import mount_and_flash
+from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
 from glovebox.utils.error_utils import create_usb_error
 
 
 logger = logging.getLogger(__name__)
-
-
-@runtime_checkable
-class USBAdapter(Protocol):
-    """Protocol for USB device operations."""
-
-    def detect_device(
-        self,
-        query: str,
-        timeout: int = 60,
-        initial_devices: list[BlockDevice] | None = None,
-    ) -> BlockDevice:
-        """Detect a USB device matching the query."""
-        ...
-
-    def list_matching_devices(self, query: str) -> list[BlockDevice]:
-        """List all devices matching the query."""
-        ...
-
-    def flash_device(
-        self,
-        device: BlockDevice,
-        firmware_file: str | Path,
-        max_retries: int = 3,
-        retry_delay: float = 2.0,
-    ) -> bool:
-        """Flash firmware to a specific device."""
-        ...
-
-    def get_all_devices(self, query: str = "") -> list[BlockDevice]:
-        """Get all available block devices, optionally filtered by query."""
-        ...
-
-    def mount(self, device: BlockDevice) -> list[str]:
-        """Mount a block device and return the mount points."""
-        ...
-
-    def unmount(self, device: BlockDevice) -> bool:
-        """Unmount a block device."""
-        ...
-
-    def copy_file(self, source: Path, destination: Path) -> bool:
-        """Copy a file from source to destination."""
-        ...
 
 
 class USBAdapterImpl:
@@ -323,7 +280,7 @@ class USBAdapterImpl:
             raise error from e
 
 
-def create_usb_adapter() -> USBAdapter:
+def create_usb_adapter() -> USBAdapterProtocol:
     """
     Factory function to create a USBAdapter instance.
 
@@ -336,5 +293,5 @@ def create_usb_adapter() -> USBAdapter:
         >>> print(f"Found {len(devices)} devices")
     """
     logger.debug("Creating USBAdapter")
-    adapter: USBAdapter = USBAdapterImpl()
+    adapter: USBAdapterProtocol = USBAdapterImpl()
     return adapter

@@ -5,11 +5,11 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from glovebox.adapters.file_adapter import FileAdapter
-from glovebox.adapters.usb_adapter import USBAdapter
 from glovebox.config.models import FlashConfig, KeyboardConfig
 from glovebox.flash.lsdev import BlockDevice
 from glovebox.models.results import FlashResult
+from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
+from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
 from glovebox.services.flash_service import FlashService, create_flash_service
 
 
@@ -18,9 +18,9 @@ class TestFlashServiceWithProfile:
 
     def setup_method(self):
         """Set up test environment."""
-        self.mock_file_adapter = Mock(spec=FileAdapter)
+        self.mock_file_adapter = Mock(spec=FileAdapterProtocol)
         # Create a more complete mock for USBAdapter with all needed methods
-        self.mock_usb_adapter = Mock()
+        self.mock_usb_adapter = Mock(spec=USBAdapterProtocol)
         self.mock_usb_adapter.get_all_devices = Mock()
         self.mock_usb_adapter.mount = Mock()
         self.mock_usb_adapter.unmount = Mock()
@@ -214,8 +214,8 @@ class TestFlashServiceWithProfile:
 def test_query_resolution_parameterized(profile, query, expected_query_source):
     """Test query resolution with various parameters."""
     # Create mocked service
-    mock_file_adapter = Mock(spec=FileAdapter)
-    mock_usb_adapter = Mock()
+    mock_file_adapter = Mock(spec=FileAdapterProtocol)
+    mock_usb_adapter = Mock(spec=USBAdapterProtocol)
     mock_usb_adapter.get_all_devices = Mock(return_value=[])
 
     service = FlashService(
