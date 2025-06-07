@@ -8,67 +8,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import cast
 
+from glovebox.models.build import OutputPaths
+
 
 logger = logging.getLogger(__name__)
-
-
-def prepare_output_paths(target_prefix: str) -> dict[str, Path]:
-    """Prepare standardized output file paths.
-
-    Given a target prefix (which can be a path and base name),
-    generates a dictionary of standardized output paths.
-
-    Args:
-        target_prefix: Base path and name for output files
-
-    Returns:
-        Dictionary of output paths with standardized keys
-
-    Examples:
-        >>> prepare_output_paths("/tmp/my_keymap")
-        {
-            'keymap': PosixPath('/tmp/my_keymap.keymap'),
-            'conf': PosixPath('/tmp/my_keymap.conf'),
-            'json': PosixPath('/tmp/my_keymap.json')
-        }
-    """
-    target_prefix_path = Path(target_prefix).resolve()
-    output_dir = target_prefix_path.parent
-    base_name = target_prefix_path.name
-
-    return {
-        "keymap": output_dir / f"{base_name}.keymap",
-        "conf": output_dir / f"{base_name}.conf",
-        "json": output_dir / f"{base_name}.json",
-    }
-
-
-def sanitize_filename(filename: str) -> str:
-    """Sanitize a string for use as a filename.
-
-    Removes or replaces characters that are invalid in filenames
-    across major operating systems.
-
-    Args:
-        filename: The string to sanitize
-
-    Returns:
-        A sanitized string safe to use as a filename
-
-    Examples:
-        >>> sanitize_filename("Layer: My Layer!")
-        "Layer_My_Layer_"
-    """
-    # Replace invalid filename characters with underscores
-    safe_name = "".join(
-        c if c.isalnum() or c in ["-", "_", "."] else "_" for c in filename
-    )
-
-    # Ensure the name isn't empty
-    if not safe_name:
-        safe_name = "unnamed"
-
-    return safe_name
 
 
 def create_timestamped_backup(file_path: Path) -> Path | None:

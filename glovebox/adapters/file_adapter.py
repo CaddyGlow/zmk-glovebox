@@ -188,6 +188,34 @@ class FileAdapter(Protocol):
         """
         ...
 
+    def create_timestamped_backup(self, file_path: Path) -> Path | None:
+        """Create a timestamped backup of a file.
+
+        If the file exists, creates a backup with the current timestamp
+        appended to the filename.
+
+        Args:
+            file_path: Path to the file to back up
+
+        Returns:
+            Path to the backup file if created, None otherwise
+        """
+        ...
+
+    def sanitize_filename(self, filename: str) -> str:
+        """Sanitize a string for use as a filename.
+
+        Removes or replaces characters that are invalid in filenames
+        across major operating systems.
+
+        Args:
+            filename: The string to sanitize
+
+        Returns:
+            A sanitized string safe to use as a filename
+        """
+        ...
+
 
 class FileSystemAdapter:
     """File system adapter implementation."""
@@ -475,6 +503,43 @@ class FileSystemAdapter:
             error = create_file_error(path, "remove_file", e, {})
             logger.error("Error removing file %s: %s", path, e)
             raise error from e
+
+    def create_timestamped_backup(self, file_path: Path) -> Path | None:
+        """Create a timestamped backup of a file."""
+        try:
+            if not self.is_file(file_path):
+                logger.debug("No backup created for non-existent file: %s", file_path)
+                return None
+
+            from datetime import datetime
+
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            backup_path = file_path.with_suffix(f"{file_path.suffix}.{timestamp}.bak")
+
+            self.copy_file(file_path, backup_path)
+            logger.debug("Created backup: %s", backup_path)
+            return backup_path
+        except Exception as e:
+            error = create_file_error(file_path, "create_timestamped_backup", e, {})
+            logger.error("Failed to create backup of %s: %s", file_path, e)
+            return None
+
+    def sanitize_filename(self, filename: str) -> str:
+        """Sanitize a string for use as a filename."""
+        try:
+            # Replace invalid filename characters with underscores
+            safe_name = "".join(
+                c if c.isalnum() or c in ["-", "_", "."] else "_" for c in filename
+            )
+
+            # Ensure the name isn't empty
+            if not safe_name:
+                safe_name = "unnamed"
+
+            return safe_name
+        except Exception as e:
+            logger.error("Error sanitizing filename '%s': %s", filename, e)
+            return "unnamed"
 
 
 def create_file_adapter() -> FileAdapter:

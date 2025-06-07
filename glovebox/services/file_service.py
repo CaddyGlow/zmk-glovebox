@@ -473,9 +473,9 @@ class KeymapFileService(BaseServiceImpl):
             layer_name = layer.name
 
             # Sanitize layer name for use as filename
-            from glovebox.utils.file_utils import sanitize_filename
-
-            safe_layer_name = sanitize_filename(layer_name) or f"layer_{i}"
+            safe_layer_name = (
+                self._file_adapter.sanitize_filename(layer_name) or f"layer_{i}"
+            )
 
             # Create a minimal keymap structure for the single layer
             # Let Pydantic set most defaults automatically
@@ -556,10 +556,10 @@ class KeymapFileService(BaseServiceImpl):
         ]
 
         # Process each layer defined in metadata.json
-        from glovebox.utils.file_utils import sanitize_filename
-
         for i, layer_name in enumerate(layer_names):
-            safe_layer_name = sanitize_filename(layer_name) or f"layer_{i}"
+            safe_layer_name = (
+                self._file_adapter.sanitize_filename(layer_name) or f"layer_{i}"
+            )
             layer_file = layers_dir / f"{safe_layer_name}.json"
 
             if not self._file_adapter.is_file(layer_file):

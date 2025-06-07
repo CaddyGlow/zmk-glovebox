@@ -119,7 +119,27 @@ def keymap_service():
     file_adapter.write_text.return_value = True
     file_adapter.write_json.return_value = True
 
-    return KeymapService(file_adapter, template_adapter)
+    # Create all required mocks
+    behavior_registry = MagicMock()
+    behavior_formatter = MagicMock()
+    dtsi_generator = MagicMock()
+    component_service = MagicMock()
+    layout_service = MagicMock()
+    context_builder = MagicMock()
+
+    # Generate mock config
+    dtsi_generator.generate_kconfig_conf.return_value = ("// Config content", {})
+
+    return KeymapService(
+        file_adapter=file_adapter,
+        template_adapter=template_adapter,
+        behavior_registry=behavior_registry,
+        behavior_formatter=behavior_formatter,
+        dtsi_generator=dtsi_generator,
+        component_service=component_service,
+        layout_service=layout_service,
+        context_builder=context_builder,
+    )
 
 
 # Using sample_keymap_json fixture from conftest.py
@@ -132,7 +152,25 @@ class TestKeymapServiceWithKeyboardConfig:
         """Set up test environment."""
         self.mock_file_adapter = Mock(spec=FileAdapter)
         self.mock_template_adapter = Mock(spec=TemplateAdapter)
-        self.service = KeymapService(self.mock_file_adapter, self.mock_template_adapter)
+
+        # Mock all required dependencies
+        self.mock_behavior_registry = Mock()
+        self.mock_behavior_formatter = Mock()
+        self.mock_dtsi_generator = Mock()
+        self.mock_component_service = Mock()
+        self.mock_layout_service = Mock()
+        self.mock_context_builder = Mock()
+
+        self.service = KeymapService(
+            file_adapter=self.mock_file_adapter,
+            template_adapter=self.mock_template_adapter,
+            behavior_registry=self.mock_behavior_registry,
+            behavior_formatter=self.mock_behavior_formatter,
+            dtsi_generator=self.mock_dtsi_generator,
+            component_service=self.mock_component_service,
+            layout_service=self.mock_layout_service,
+            context_builder=self.mock_context_builder,
+        )
 
     def test_validate_config_success(self, sample_keymap_json, mock_profile):
         """Test successful keymap-keyboard config validation."""
@@ -206,7 +244,7 @@ class TestKeymapServiceWithKeyboardConfig:
         with pytest.raises(KeymapError):
             self.service.show(profile=mock_profile, keymap_data=keymap_data)
 
-    @patch("glovebox.utils.file_utils.prepare_output_paths")
+    @patch("glovebox.services.keymap_service.prepare_output_paths")
     @pytest.mark.skip("Needs more mock setup for actual file generation")
     def test_compile_with_keyboard_config(
         self,
@@ -285,7 +323,7 @@ class TestKeymapServiceWithMockedConfig:
 
     @patch("glovebox.config.keyboard_config.create_keyboard_profile")
     @patch("glovebox.config.keyboard_config.get_available_keyboards")
-    @patch("glovebox.utils.file_utils.prepare_output_paths")
+    @patch("glovebox.services.keymap_service.prepare_output_paths")
     def test_integrated_keymap_workflow(
         self,
         mock_prepare_paths,
@@ -296,11 +334,12 @@ class TestKeymapServiceWithMockedConfig:
     ):
         """Test integrated keymap workflow with mocked config API."""
         # Setup path mock
-        mock_prepare_paths.return_value = {
-            "keymap": Path(tmp_path / "output/test.keymap"),
-            "conf": Path(tmp_path / "output/test.conf"),
-            "json": Path(tmp_path / "output/test.json"),
-        }
+        from glovebox.models.build import OutputPaths
+        mock_prepare_paths.return_value = OutputPaths(
+            keymap=Path(tmp_path / "output/test.keymap"),
+            conf=Path(tmp_path / "output/test.conf"),
+            json=Path(tmp_path / "output/test.json"),
+        )
 
         # Setup mocks
         mock_get_keyboards.return_value = ["test_keyboard", "glove80"]
@@ -349,7 +388,26 @@ class TestKeymapServiceWithMockedConfig:
         template_adapter = MagicMock()
         template_adapter.render_string.return_value = "// Generated keymap"
 
-        service = KeymapService(file_adapter, template_adapter)
+        behavior_registry = MagicMock()
+        behavior_formatter = MagicMock()
+        dtsi_generator = MagicMock()
+        component_service = MagicMock()
+        layout_service = MagicMock()
+        context_builder = MagicMock()
+
+        # Configure mocks
+        dtsi_generator.generate_kconfig_conf.return_value = ("// Config content", {})
+
+        service = KeymapService(
+            file_adapter=file_adapter,
+            template_adapter=template_adapter,
+            behavior_registry=behavior_registry,
+            behavior_formatter=behavior_formatter,
+            dtsi_generator=dtsi_generator,
+            component_service=component_service,
+            layout_service=layout_service,
+            context_builder=context_builder,
+        )
 
         # Convert to KeymapData
         keymap_data = KeymapData.model_validate(sample_keymap_json)
@@ -375,7 +433,7 @@ class TestKeymapServiceWithMockedConfig:
 # Tests from test_keymap_service_typed.py
 
 
-@patch("glovebox.utils.file_utils.prepare_output_paths")
+@patch("glovebox.services.keymap_service.prepare_output_paths")
 @pytest.mark.skip("Needs more mock setup for actual file generation")
 def test_compile_with_profile(
     mock_prepare_paths,

@@ -10,7 +10,6 @@ from glovebox.core.errors import KeymapError
 from glovebox.models.keymap import KeymapData, KeymapMetadata
 from glovebox.models.results import KeymapResult
 from glovebox.services.base_service import BaseServiceImpl
-from glovebox.utils.file_utils import sanitize_filename
 
 
 logger = logging.getLogger(__name__)
@@ -190,7 +189,7 @@ class KeymapComponentService(BaseServiceImpl):
 
         for i, layer_name in enumerate(layer_names):
             # Sanitize layer name for filename
-            safe_layer_name = sanitize_filename(layer_name)
+            safe_layer_name = self._file_adapter.sanitize_filename(layer_name)
             if not safe_layer_name:
                 safe_layer_name = f"layer_{i}"
 
@@ -258,7 +257,7 @@ class KeymapComponentService(BaseServiceImpl):
         found_layer_count = 0
 
         for i, layer_name in enumerate(layer_names):
-            safe_layer_name = sanitize_filename(layer_name)
+            safe_layer_name = self._file_adapter.sanitize_filename(layer_name)
             if not safe_layer_name:
                 safe_layer_name = f"layer_{i}"
             layer_file = layers_dir / f"{safe_layer_name}.json"
