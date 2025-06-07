@@ -55,13 +55,11 @@ class KeymapComponentService(BaseServiceImpl):
             self._file_adapter.mkdir(output_dir)
             self._file_adapter.mkdir(output_layer_dir)
 
-            # Convert to dictionary for processing (future: refactor internal methods)
-            keymap_dict = keymap.model_dump()
-
-            # Extract components
-            self._extract_dtsi_snippets(keymap_dict, output_dir)
-            self._extract_metadata_config(keymap_dict, output_dir)
-            self._extract_individual_layers(keymap_dict, output_layer_dir)
+            # Extract components directly using the Pydantic model
+            # Our helper methods already support handling KeymapData objects
+            self._extract_dtsi_snippets(keymap, output_dir)
+            self._extract_metadata_config(keymap, output_dir)
+            self._extract_individual_layers(keymap, output_layer_dir)
 
             result.success = True
             result.layer_count = len(keymap.layers)
@@ -79,7 +77,7 @@ class KeymapComponentService(BaseServiceImpl):
 
     def combine_components(
         self, metadata_keymap: KeymapData, layers_dir: Path
-    ) -> ResultDict:
+    ) -> KeymapData:
         """Combine extracted components into a complete keymap.
 
         Args:
@@ -87,7 +85,7 @@ class KeymapComponentService(BaseServiceImpl):
             layers_dir: Directory containing individual layer files
 
         Returns:
-            Combined keymap dictionary
+            Combined keymap as KeymapData model
 
         Raises:
             KeymapError: If combination fails
@@ -100,33 +98,33 @@ class KeymapComponentService(BaseServiceImpl):
         if not self._file_adapter.is_dir(layers_dir):
             raise KeymapError(f"Layers directory not found: {layers_dir}")
 
-        # Make a copy of the metadata keymap as dictionary for processing
-        combined_keymap = metadata_keymap.model_dump()
+        # Create a new combined keymap starting with metadata
+        # We'll work directly with the Pydantic model throughout the process
+        combined_keymap = KeymapData.model_validate(metadata_keymap)
 
-        # Process layers
+        # Process layers and add them to the model
         self._process_layers_for_combination(combined_keymap, layers_dir)
 
         # Add DTSI content from separate files
         parent_dir = layers_dir.parent
         self._add_dtsi_content_from_files(combined_keymap, parent_dir)
 
-        logger.info(
-            "Successfully combined %d layers", len(combined_keymap.get("layers", []))
-        )
+        logger.info("Successfully combined %d layers", len(combined_keymap.layers))
 
         return combined_keymap
 
     # Private helper methods for extraction
 
-    def _extract_dtsi_snippets(self, keymap: dict[str, Any], output_dir: Path) -> None:
+    def _extract_dtsi_snippets(self, keymap: KeymapData, output_dir: Path) -> None:
         """Extract custom DTSI snippets to separate files.
 
         Args:
-            keymap: Keymap data
+            keymap: Keymap data model
             output_dir: Directory to write snippet files
         """
-        device_dtsi = keymap.get("custom_devicetree", "")
-        behaviors_dtsi = keymap.get("custom_defined_behaviors", "")
+        # Access the DTSI content directly from the model
+        device_dtsi = keymap.custom_devicetree
+        behaviors_dtsi = keymap.custom_defined_behaviors
 
         if device_dtsi:
             device_dtsi_path = output_dir / "device.dtsi"
@@ -138,43 +136,37 @@ class KeymapComponentService(BaseServiceImpl):
             self._file_adapter.write_text(keymap_dtsi_path, behaviors_dtsi)
             logger.info("Extracted custom_defined_behaviors to %s", keymap_dtsi_path)
 
-    def _extract_metadata_config(
-        self, keymap: dict[str, Any], output_dir: Path
-    ) -> None:
+    def _extract_metadata_config(self, keymap: KeymapData, output_dir: Path) -> None:
         """Extract metadata configuration to metadata.json.
 
         Args:
-            keymap: Keymap data
+            keymap: Keymap data model
             output_dir: Directory to write metadata configuration
         """
-        # Create a KeymapData model from the keymap data, which includes all metadata fields
-        full_keymap = KeymapData.model_validate(keymap)
-
-        # Extract just the KeymapMetadata portion
-        # Since KeymapData inherits from KeymapMetadata, we can use model_dump
-        # with include to get just the base class fields
-        metadata_dict = full_keymap.model_dump(
+        # We use model_dump with include to only get the KeymapMetadata fields
+        metadata_dict = keymap.model_dump(
             mode="json", by_alias=True, include=set(KeymapMetadata.model_fields.keys())
         )
 
-        # Add empty layers list
-        metadata_dict["layers"] = []
-
+        # Save with proper serialization
         output_file = output_dir / "metadata.json"
         self._file_adapter.write_json(output_file, metadata_dict)
         logger.info("Extracted metadata configuration to %s", output_file)
 
     def _extract_individual_layers(
-        self, keymap: dict[str, Any], output_layer_dir: Path
+        self, keymap: KeymapData, output_layer_dir: Path
     ) -> None:
         """Extract individual layers to separate JSON files.
 
         Args:
-            keymap: Keymap data
+            keymap: Keymap data model
             output_layer_dir: Directory to write individual layer files
         """
-        layer_names = keymap.get("layer_names", [])
-        layers_data = keymap.get("layers", [])
+        from glovebox.models.keymap import KeymapBinding
+
+        # Access layer data directly from the model
+        layer_names = keymap.layer_names
+        layers_data = keymap.layers
 
         if not layer_names or not layers_data:
             logger.warning(
@@ -183,9 +175,6 @@ class KeymapComponentService(BaseServiceImpl):
             return
 
         logger.info("Extracting %d layers...", len(layer_names))
-
-        # Get original date or use current date
-        original_date_str = keymap.get("date") or datetime.now().isoformat()
 
         for i, layer_name in enumerate(layer_names):
             # Sanitize layer name for filename
@@ -205,45 +194,49 @@ class KeymapComponentService(BaseServiceImpl):
                 )
                 continue
 
-            # Create minimal keymap structure for the single layer
-            layer_keymap: dict[str, Any] = {
-                "keyboard": keymap.get("keyboard", "unknown"),
-                "firmware_api_version": keymap.get("firmware_api_version", "1"),
-                "locale": keymap.get("locale", "en-US"),
-                "uuid": "",
-                "parent_uuid": keymap.get("uuid", ""),
-                "date": original_date_str,
-                "creator": keymap.get("creator", ""),
-                "title": f"Layer: {layer_name}",
-                "notes": f"Extracted layer '{layer_name}'",
-                "tags": [layer_name.lower().replace("_", "-").replace(" ", "-")],
-                "layer_names": [layer_name],
-                "layers": [layer_bindings],
-                "custom_defined_behaviors": "",
-                "custom_devicetree": "",
-                "kconfig": {},
-                "macros": [],
-                "combos": [],
-                "holdTaps": [],
-            }
+            # Create a minimal KeymapData model for the single layer
+            single_layer_keymap = KeymapData(
+                # Copy metadata fields from the original keymap
+                keyboard=keymap.keyboard,
+                firmware_api_version=keymap.firmware_api_version,
+                locale=keymap.locale,
+                uuid="",  # New unique ID for the layer file
+                parent_uuid=keymap.uuid,  # Reference original keymap as parent
+                date=keymap.date,
+                creator=keymap.creator,
+                # Add layer-specific metadata
+                title=f"Layer: {layer_name}",
+                notes=f"Extracted layer '{layer_name}'",
+                tags=[layer_name.lower().replace("_", "-").replace(" ", "-")],
+                # Just this single layer
+                layer_names=[layer_name],
+                layers=[layer_bindings],
+            )
 
             output_file = output_layer_dir / f"{safe_layer_name}.json"
-            self._file_adapter.write_json(output_file, layer_keymap)
+            # Save as JSON using model_dump to ensure proper serialization with aliases
+            self._file_adapter.write_json(
+                output_file, single_layer_keymap.model_dump(mode="json", by_alias=True)
+            )
             logger.info("Extracted layer '%s' to %s", layer_name, output_file)
 
     # Helper methods for layer combination
 
     def _process_layers_for_combination(
-        self, combined_keymap: dict[str, Any], layers_dir: Path
+        self, combined_keymap: KeymapData, layers_dir: Path
     ) -> None:
         """Process and combine layer files.
 
         Args:
-            combined_keymap: Base keymap data to which layers will be added
+            combined_keymap: Base keymap data model to which layers will be added
             layers_dir: Directory containing layer files
         """
-        combined_keymap["layers"] = []
-        layer_names = combined_keymap.get("layer_names", [])
+        from glovebox.models.keymap import KeymapBinding, LayerBindings
+
+        # Clear existing layers while preserving layer names
+        combined_keymap.layers = []
+        layer_names = combined_keymap.layer_names
+
         logger.info(
             "Expecting %d layers based on metadata.json: %s",
             len(layer_names),
@@ -252,7 +245,8 @@ class KeymapComponentService(BaseServiceImpl):
 
         # Determine expected number of keys per layer
         num_keys = 80  # Default for Glove80
-        empty_layer = [{"value": "&none", "params": []} for _ in range(num_keys)]
+        empty_binding = KeymapBinding(value="&none", params=[])
+        empty_layer = [KeymapBinding(value="&none", params=[]) for _ in range(num_keys)]
 
         found_layer_count = 0
 
@@ -268,7 +262,7 @@ class KeymapComponentService(BaseServiceImpl):
                     layer_file.name,
                     layer_name,
                 )
-                combined_keymap["layers"].append(empty_layer)
+                combined_keymap.layers.append(empty_layer)
                 continue
 
             logger.info(
@@ -276,7 +270,7 @@ class KeymapComponentService(BaseServiceImpl):
             )
 
             try:
-                layer_data: dict[str, Any] = self._file_adapter.read_json(layer_file)
+                layer_data = self._file_adapter.read_json(layer_file)
 
                 # Find the actual layer data within the layer file
                 if (
@@ -296,11 +290,27 @@ class KeymapComponentService(BaseServiceImpl):
                             num_keys,
                         )
                         # Pad or truncate the layer to match expected size
-                        actual_layer_content = (actual_layer_content + empty_layer)[
-                            :num_keys
+                        padded_content = actual_layer_content + [
+                            {"value": "&none", "params": []} for _ in range(num_keys)
                         ]
+                        actual_layer_content = padded_content[:num_keys]
 
-                    combined_keymap["layers"].append(actual_layer_content)
+                    # Convert layer content to properly typed KeymapBinding models
+                    # This ensures proper validation of the layer data
+                    typed_layer: list[KeymapBinding] = []
+                    for binding_data in actual_layer_content:
+                        try:
+                            # Validate each binding with the model
+                            binding = KeymapBinding.model_validate(binding_data)
+                            typed_layer.append(binding)
+                        except Exception as binding_err:
+                            logger.warning(
+                                f"Invalid binding in layer '{layer_name}': {binding_err}. "
+                                f"Using empty binding."
+                            )
+                            typed_layer.append(empty_binding)
+
+                    combined_keymap.layers.append(typed_layer)
                     logger.info("Added layer '%s' (index %d)", layer_name, i)
                     found_layer_count += 1
                 else:
@@ -310,7 +320,7 @@ class KeymapComponentService(BaseServiceImpl):
                         layer_file.name,
                         layer_name,
                     )
-                    combined_keymap["layers"].append(empty_layer)
+                    combined_keymap.layers.append(empty_layer)
 
             except Exception as e:
                 logger.error(
@@ -318,7 +328,7 @@ class KeymapComponentService(BaseServiceImpl):
                     layer_file.name,
                     e,
                 )
-                combined_keymap["layers"].append(empty_layer)
+                combined_keymap.layers.append(empty_layer)
 
         logger.info(
             "Successfully processed %d out of %d expected layers.",
@@ -327,12 +337,12 @@ class KeymapComponentService(BaseServiceImpl):
         )
 
     def _add_dtsi_content_from_files(
-        self, combined_keymap: dict[str, Any], input_dir: Path
+        self, combined_keymap: KeymapData, input_dir: Path
     ) -> None:
         """Add DTSI content from separate files to combined keymap.
 
         Args:
-            combined_keymap: Keymap data to which DTSI content will be added
+            combined_keymap: Keymap data model to which DTSI content will be added
             input_dir: Directory containing DTSI files
         """
         device_dtsi_path = input_dir / "device.dtsi"
@@ -340,21 +350,21 @@ class KeymapComponentService(BaseServiceImpl):
 
         # Read device.dtsi if exists
         if self._file_adapter.is_file(device_dtsi_path):
-            combined_keymap["custom_devicetree"] = self._file_adapter.read_text(
+            combined_keymap.custom_devicetree = self._file_adapter.read_text(
                 device_dtsi_path
             )
             logger.info("Restored custom_devicetree from device.dtsi.")
         else:
-            combined_keymap["custom_devicetree"] = ""
+            combined_keymap.custom_devicetree = ""
 
         # Read keymap.dtsi if exists
         if self._file_adapter.is_file(keymap_dtsi_path):
-            combined_keymap["custom_defined_behaviors"] = self._file_adapter.read_text(
+            combined_keymap.custom_defined_behaviors = self._file_adapter.read_text(
                 keymap_dtsi_path
             )
             logger.info("Restored custom_defined_behaviors from keymap.dtsi.")
         else:
-            combined_keymap["custom_defined_behaviors"] = ""
+            combined_keymap.custom_defined_behaviors = ""
 
 
 def create_keymap_component_service(

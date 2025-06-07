@@ -3,9 +3,10 @@
 import enum
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Optional, Protocol
+from typing import Any, Optional, Protocol, Union, cast
 
 from glovebox.config.profile import KeyboardProfile
+from glovebox.models.keymap import KeymapBinding
 
 
 logger = logging.getLogger(__name__)
@@ -373,7 +374,7 @@ class DtsiLayoutGenerator:
             output_lines.append("-" * total_width)
 
     def _format_key(
-        self, idx: int, layer_data: list[str], layer_size: int, key_width: int
+        self, idx: int, layer_data: list[Any], layer_size: int, key_width: int
     ) -> str:
         """Format a single key for display.
 
@@ -388,15 +389,22 @@ class DtsiLayoutGenerator:
         """
         if 0 <= idx < layer_size:
             binding = layer_data[idx]
-            if binding == "&none":
-                return "&none".center(key_width)
-            elif binding == "&trans":
-                return "▽".center(key_width)
-            elif len(binding) > key_width:
-                # Truncate with ellipsis
-                return (binding[: key_width - 1] + "…").center(key_width)
+
+            # Handle KeymapBinding objects
+            if isinstance(binding, KeymapBinding):
+                binding_str = binding.value
             else:
-                return binding.center(key_width)
+                binding_str = str(binding)
+
+            if binding_str == "&none":
+                return "&none".center(key_width)
+            elif binding_str == "&trans":
+                return "▽".center(key_width)
+            elif len(binding_str) > key_width:
+                # Truncate with ellipsis
+                return (binding_str[: key_width - 1] + "…").center(key_width)
+            else:
+                return binding_str.center(key_width)
         return " " * key_width
 
 

@@ -1,9 +1,11 @@
 """Tests for FileAdapter implementation."""
 
+import json
 from pathlib import Path
 from unittest.mock import Mock, mock_open, patch
 
 import pytest
+from pydantic import BaseModel, Field
 
 from glovebox.adapters.file_adapter import (
     FileSystemAdapter,
@@ -20,6 +22,22 @@ class TestFileSystemAdapter:
         """Test FileAdapter can be initialized."""
         adapter = FileSystemAdapter()
         assert adapter is not None
+
+    def test_read_json_with_aliases(self):
+        """Test read_json preserves original field names for aliased Pydantic models."""
+        adapter = FileSystemAdapter()
+        mock_json_content = (
+            '{"camelCase": "test", "withNumber1": 42, "normal_field": "value"}'
+        )
+
+        with patch("pathlib.Path.open", mock_open(read_data=mock_json_content)):
+            result = adapter.read_json(Path("/test/aliased.json"))
+
+        # Verify original field names are preserved
+        assert "camelCase" in result
+        assert "withNumber1" in result
+        assert result["camelCase"] == "test"
+        assert result["withNumber1"] == 42
 
     def test_read_text_success(self):
         """Test successful text file reading."""
@@ -333,6 +351,67 @@ class TestFileAdapterIntegration:
         # Read content back
         result = adapter.read_text(test_file)
         assert result == test_content
+
+    def test_read_write_json_roundtrip(self, tmp_path):
+        """Test reading and writing JSON files with real file system."""
+        adapter = FileSystemAdapter()
+        test_file = tmp_path / "test.json"
+        test_data = {
+            "name": "Test Name",
+            "values": [1, 2, 3],
+            "nested": {"key": "value"},
+        }
+
+        # Write JSON
+        adapter.write_json(test_file, test_data)
+
+        # Verify file exists
+        assert adapter.exists(test_file)
+        assert adapter.is_file(test_file)
+
+        # Read JSON back
+        result = adapter.read_json(test_file)
+        assert result == test_data
+
+    def test_read_json_with_pydantic_model_aliases(self, tmp_path):
+        """Test reading JSON with aliased field names for Pydantic models."""
+
+        # Define a Pydantic model with field aliases
+        class TestModel(BaseModel):
+            snake_case: str = Field(alias="camelCase")
+            with_number_1: int = Field(alias="withNumber1")
+            normal_field: str
+
+        adapter = FileSystemAdapter()
+        test_file = tmp_path / "test_aliased.json"
+
+        # Create JSON with camelCase fields (as would be found in external JSON)
+        json_data = {
+            "camelCase": "test value",
+            "withNumber1": 42,
+            "normal_field": "normal value",
+        }
+
+        # Write the JSON with camelCase fields directly
+        with test_file.open("w") as f:
+            json.dump(json_data, f)
+
+        # Read the JSON using the adapter
+        result = adapter.read_json(test_file)
+
+        # Verify the raw JSON maintains original field names
+        assert "camelCase" in result
+        assert "withNumber1" in result
+        assert result["camelCase"] == "test value"
+        assert result["withNumber1"] == 42
+
+        # Create Pydantic model from the JSON data
+        model = TestModel.model_validate(result)
+
+        # Verify the Pydantic model correctly maps aliases to snake_case
+        assert model.snake_case == "test value"
+        assert model.with_number_1 == 42
+        assert model.normal_field == "normal value"
 
     def test_directory_operations(self, tmp_path):
         """Test directory operations with real file system."""

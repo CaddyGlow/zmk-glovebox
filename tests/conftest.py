@@ -668,8 +668,8 @@ def sample_keymap_json() -> dict[str, Any]:
         ],
         "macros": [],
         "combos": [],
-        "holdTaps": [],
-        "inputListeners": [],
+        "hold_taps": [],
+        "input_listeners": [],
     }
 
 

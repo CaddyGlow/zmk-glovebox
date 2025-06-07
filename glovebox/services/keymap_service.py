@@ -276,7 +276,7 @@ class KeymapService(BaseServiceImpl):
 
             # Save JSON file to output directory
             self._file_adapter.write_json(
-                output_paths.json, keymap_data.model_dump(mode="json")
+                output_paths.json, keymap_data.model_dump(mode="json", by_alias=True)
             )
 
             # Set result paths
@@ -351,12 +351,14 @@ class KeymapService(BaseServiceImpl):
                 base_data, layers_dir
             )
 
-            # Write the final combined keymap
-            self._file_adapter.write_json(output_file, combined_keymap)
+            # Write the final combined keymap using model_dump to ensure proper serialization with aliases
+            self._file_adapter.write_json(
+                output_file, combined_keymap.model_dump(mode="json", by_alias=True)
+            )
 
             result.success = True
             result.json_path = output_file
-            result.layer_count = len(combined_keymap.get("layers", []))
+            result.layer_count = len(combined_keymap.layers)
             result.add_message(
                 f"Successfully combined keymap and saved to {output_file}"
             )

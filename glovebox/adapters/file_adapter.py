@@ -75,7 +75,12 @@ class FileSystemAdapter:
             raise error from e
 
     def read_json(self, path: Path, encoding: str = "utf-8") -> dict[str, Any]:
-        """Read and parse JSON content from a file."""
+        """Read and parse JSON content from a file.
+
+        This method reads and parses a JSON file, returning the data as a dictionary.
+        It preserves the original field names to ensure compatibility with Pydantic models
+        that use field aliases.
+        """
         try:
             logger.debug("Reading JSON file: %s", path)
             content = self.read_text(path, encoding)
