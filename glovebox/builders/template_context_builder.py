@@ -3,8 +3,9 @@
 import logging
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Protocol, TypeAlias
+from typing import Any, TypeAlias
 
+from glovebox.protocols.dtsi_generator_protocol import DtsiGeneratorProtocol
 from glovebox.config.profile import KeyboardProfile
 from glovebox.models.keymap import (
     ComboBehavior,
@@ -23,56 +24,10 @@ logger = logging.getLogger(__name__)
 TemplateContext: TypeAlias = dict[str, Any]
 
 
-class DtsiGenerator(Protocol):
-    """Protocol for DTSI generator."""
-
-    def generate_layer_defines(
-        self, profile: KeyboardProfile, layer_names: list[str]
-    ) -> str:
-        """Generate layer define statements."""
-        ...
-
-    def generate_keymap_node(
-        self,
-        profile: KeyboardProfile,
-        layer_names: list[str],
-        layers_data: list[LayerBindings],
-    ) -> str:
-        """Generate keymap node content."""
-        ...
-
-    def generate_behaviors_dtsi(
-        self, profile: KeyboardProfile, hold_taps_data: Sequence[HoldTapBehavior]
-    ) -> str:
-        """Generate behaviors DTSI content."""
-        ...
-
-    def generate_combos_dtsi(
-        self,
-        profile: KeyboardProfile,
-        combos_data: Sequence[ComboBehavior],
-        layer_names: list[str],
-    ) -> str:
-        """Generate combos DTSI content."""
-        ...
-
-    def generate_macros_dtsi(
-        self, profile: KeyboardProfile, macros_data: Sequence[MacroBehavior]
-    ) -> str:
-        """Generate macros DTSI content."""
-        ...
-
-    def generate_input_listeners_node(
-        self, profile: KeyboardProfile, input_listeners_data: Sequence[InputListener]
-    ) -> str:
-        """Generate input listeners node content."""
-        ...
-
-
 class TemplateContextBuilder:
     """Builder for template contexts used in keymap generation."""
 
-    def __init__(self, dtsi_generator: DtsiGenerator):
+    def __init__(self, dtsi_generator: DtsiGeneratorProtocol):
         """Initialize with DTSI generator dependency."""
         self._dtsi_generator = dtsi_generator
 
@@ -162,7 +117,7 @@ class TemplateContextBuilder:
 
 
 def create_template_context_builder(
-    dtsi_generator: DtsiGenerator,
+    dtsi_generator: DtsiGeneratorProtocol,
 ) -> TemplateContextBuilder:
     """Create a TemplateContextBuilder instance.
 

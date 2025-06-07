@@ -14,8 +14,9 @@ from glovebox.core.errors import KeymapError
 from glovebox.formatters.behavior_formatter import (
     BehaviorFormatterImpl,
 )
-from glovebox.formatters.behavior_formatter import (
-    BehaviorRegistry as FormatterBehaviorRegistry,
+from glovebox.protocols.behavior_protocols import (
+    BehaviorRegistryProtocol,
+    BehaviorRegistry,
 )
 from glovebox.generators.dtsi_generator import DTSIGenerator
 from glovebox.models.build import OutputPaths
@@ -85,7 +86,7 @@ class KeymapService(BaseServiceImpl):
         self,
         file_adapter: FileAdapterProtocol,
         template_adapter: TemplateAdapterProtocol,
-        behavior_registry: FormatterBehaviorRegistry,
+        behavior_registry: BehaviorRegistryProtocol,
         behavior_formatter: BehaviorFormatterImpl,
         dtsi_generator: DTSIGenerator,
         component_service: KeymapComponentService,
@@ -261,9 +262,7 @@ class KeymapService(BaseServiceImpl):
             self._file_adapter.mkdir(output_paths.keymap.parent)
 
             # Register system behaviors directly from profile
-            from glovebox.services.behavior_service import BehaviorRegistry
-
-            profile.register_behaviors(cast(BehaviorRegistry, self._behavior_registry))
+            profile.register_behaviors(self._behavior_registry)
 
             # Generate files
             self._generate_config_file(
@@ -539,7 +538,7 @@ class KeymapService(BaseServiceImpl):
 def create_keymap_service(
     file_adapter: FileAdapterProtocol | None = None,
     template_adapter: TemplateAdapterProtocol | None = None,
-    behavior_registry: FormatterBehaviorRegistry | None = None,
+    behavior_registry: BehaviorRegistryProtocol | None = None,
     component_service: KeymapComponentService | None = None,
     layout_service: LayoutDisplayService | None = None,
     behavior_formatter: BehaviorFormatterImpl | None = None,
@@ -564,7 +563,7 @@ def create_keymap_service(
 
     if behavior_registry is None:
         temp_registry = create_behavior_registry()
-        behavior_registry = cast(FormatterBehaviorRegistry, temp_registry)
+        behavior_registry = temp_registry
 
     if behavior_formatter is None:
         behavior_formatter = BehaviorFormatterImpl(behavior_registry)

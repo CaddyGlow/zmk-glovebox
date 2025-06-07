@@ -2,7 +2,7 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Protocol, cast
+from typing import Any, cast
 
 from glovebox.models.behavior import (
     KeymapBehavior,
@@ -17,19 +17,14 @@ from ..models.keymap import KeymapBinding, KeymapParam, ParamValue
 logger = logging.getLogger(__name__)
 
 
-class BehaviorRegistry(Protocol):
-    """Protocol for behavior registry."""
-
-    def get_behavior_info(self, name: str) -> RegistryBehavior | None:
-        """Get information about a registered behavior."""
-        ...
+from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
 
 
 class BehaviorFormatterImpl:
     """Implementation of behavior formatter."""
 
     def __init__(
-        self, registry: BehaviorRegistry, keycode_map: dict[str, str] | None = None
+        self, registry: BehaviorRegistryProtocol, keycode_map: dict[str, str] | None = None
     ) -> None:
         """Initialize with behavior registry dependency.
 

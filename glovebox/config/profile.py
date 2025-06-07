@@ -19,9 +19,8 @@ from glovebox.models import (
 from glovebox.models.keymap import KeymapData
 
 
-# Handle circular import using TYPE_CHECKING
-if TYPE_CHECKING:
-    from glovebox.services.behavior_service import BehaviorRegistry
+# Use the protocol directly
+from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
 
 
 logger = get_logger(__name__)
@@ -180,7 +179,7 @@ class KeyboardProfile:
 
         return list(behavior_codes)
 
-    def register_behaviors(self, behavior_registry: "BehaviorRegistry") -> None:
+    def register_behaviors(self, behavior_registry: BehaviorRegistryProtocol) -> None:
         """
         Register all behaviors from this profile with a behavior registry.
 

@@ -18,7 +18,7 @@ from glovebox.models.keymap import (
     LayerBindings,
     MacroBehavior,
 )
-from glovebox.services.behavior_service import BehaviorRegistryImpl
+from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
 
 
 if TYPE_CHECKING:
@@ -43,9 +43,7 @@ class DTSIGenerator:
             behavior_formatter: Formatter for converting bindings to DTSI format
         """
         self._behavior_formatter = behavior_formatter
-        self._behavior_registry = cast(
-            BehaviorRegistryImpl, behavior_formatter._registry
-        )
+        self._behavior_registry = behavior_formatter._registry
         self._layout_generator = DtsiLayoutGenerator()
 
     def generate_layer_defines(

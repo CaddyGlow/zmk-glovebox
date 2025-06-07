@@ -1,7 +1,7 @@
 """Behavior service for tracking and managing ZMK behaviors."""
 
 import logging
-from typing import Any, Protocol
+from typing import Any
 
 from ..models.behavior import (
     RegistryBehavior,
@@ -59,27 +59,10 @@ class BehaviorRegistryImpl:
         self._behaviors.clear()
 
 
-class BehaviorRegistry(Protocol):
-    """Protocol defining the behavior registry interface."""
-
-    def register_behavior(self, behavior: SystemBehavior) -> None:
-        """Register a behavior with its expected parameter count."""
-        ...
-
-    def get_behavior_info(self, name: str) -> SystemBehavior | None:
-        """Get information about a registered behavior."""
-        ...
-
-    def list_behaviors(self) -> dict[str, SystemBehavior]:
-        """Get all registered behaviors."""
-        ...
-
-    def clear(self) -> None:
-        """Clear all registered behaviors."""
-        ...
+from ..protocols.behavior_protocols import BehaviorRegistryProtocol
 
 
-def create_behavior_registry() -> BehaviorRegistry:
+def create_behavior_registry() -> BehaviorRegistryProtocol:
     """
     Create a BehaviorRegistryImpl instance.
 
