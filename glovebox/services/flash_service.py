@@ -98,7 +98,7 @@ class FlashService(BaseServiceImpl):
                 timeout=timeout,
                 count=count,
                 track_flashed=track_flashed,
-                skip_file_check=True  # Skip the duplicate file check
+                skip_file_check=True,  # Skip the duplicate file check
             )
         except Exception as e:
             logger.error(f"Error preparing flash operation: {e}")
@@ -443,5 +443,3 @@ def create_flash_service(
         file_adapter=file_adapter,
         loglevel=loglevel,
     )
-
-
