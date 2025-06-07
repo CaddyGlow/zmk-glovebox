@@ -75,6 +75,7 @@ def firmware_compile(
     elif keyboard and firmware:
         # If no profile but keyboard and firmware are provided, create profile from them
         from glovebox.config.keyboard_config import create_keyboard_profile
+
         keyboard_profile = create_keyboard_profile(keyboard, firmware)
 
     # Use the branch and repo parameters if provided, otherwise use defaults
@@ -163,7 +164,9 @@ def flash(
                     if device["status"] == "success":
                         print_list_item(f"{device['name']}: SUCCESS")
         else:
-            print_error_message(f"Flash completed with {result.devices_failed} failure(s)")
+            print_error_message(
+                f"Flash completed with {result.devices_failed} failure(s)"
+            )
             if result.device_details:
                 for device in result.device_details:
                     if device["status"] == "failed":
@@ -197,14 +200,12 @@ def list_devices(
         # Use profile-based method if profile is provided
         if profile:
             result = flash_service.list_devices_with_profile(
-                profile_name=profile,
-                query=query
+                profile_name=profile, query=query
             )
         else:
             # Use direct list_devices method if no profile
             result = flash_service.list_devices(
-                profile=None,
-                query=query or "removable=true"
+                profile=None, query=query or "removable=true"
             )
 
         if result.success and result.device_details:

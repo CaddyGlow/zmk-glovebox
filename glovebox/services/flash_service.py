@@ -81,7 +81,9 @@ class FlashService(BaseServiceImpl):
         Returns:
             FlashResult with details of the flash operation
         """
-        logger.info(f"Starting firmware flash operation from file: {firmware_file_path}")
+        logger.info(
+            f"Starting firmware flash operation from file: {firmware_file_path}"
+        )
         result = FlashResult(success=False)
 
         try:
@@ -97,7 +99,7 @@ class FlashService(BaseServiceImpl):
                 query=query,
                 timeout=timeout,
                 count=count,
-                track_flashed=track_flashed
+                track_flashed=track_flashed,
             )
 
         except Exception as e:
@@ -318,6 +320,7 @@ class FlashService(BaseServiceImpl):
         try:
             # Create profile from name
             from glovebox.cli.helpers.profile import create_profile_from_option
+
             profile = create_profile_from_option(profile_name)
 
             # Use the profile-based method

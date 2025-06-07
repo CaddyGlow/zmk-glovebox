@@ -77,6 +77,7 @@ class BuildService(BaseServiceImpl):
         Returns:
             A new instance of the default output middleware
         """
+
         class BuildOutputMiddleware(stream_process.OutputMiddleware[str]):
             def __init__(self) -> None:
                 self.collected_data: list[tuple[str, str]] = []
@@ -125,7 +126,9 @@ class BuildService(BaseServiceImpl):
         Returns:
             BuildResult with success status and firmware file paths
         """
-        logger.info(f"Starting firmware build from files: {keymap_file_path}, {kconfig_file_path}")
+        logger.info(
+            f"Starting firmware build from files: {keymap_file_path}, {kconfig_file_path}"
+        )
         result = BuildResult(success=False)
 
         try:
@@ -267,7 +270,9 @@ class BuildService(BaseServiceImpl):
         Returns:
             BuildResult with success status and image information
         """
-        logger.info(f"Building Docker image {image_name}:{image_tag} from {dockerfile_dir_path}")
+        logger.info(
+            f"Building Docker image {image_name}:{image_tag} from {dockerfile_dir_path}"
+        )
         result = BuildResult(success=False)
 
         try:
@@ -278,13 +283,17 @@ class BuildService(BaseServiceImpl):
 
             # Validate Dockerfile directory
             if not self.file_adapter.exists(dockerfile_dir_path):
-                result.add_error(f"Dockerfile directory not found: {dockerfile_dir_path}")
+                result.add_error(
+                    f"Dockerfile directory not found: {dockerfile_dir_path}"
+                )
                 return result
 
             # Check for Dockerfile in the directory
             dockerfile_path = dockerfile_dir_path / "Dockerfile"
             if not self.file_adapter.exists(dockerfile_path):
-                result.add_error(f"Dockerfile not found in directory: {dockerfile_dir_path}")
+                result.add_error(
+                    f"Dockerfile not found in directory: {dockerfile_dir_path}"
+                )
                 return result
 
             # Call the main build_image method
@@ -292,7 +301,7 @@ class BuildService(BaseServiceImpl):
                 dockerfile_dir=dockerfile_dir_path,
                 image_name=image_name,
                 image_tag=image_tag,
-                no_cache=no_cache
+                no_cache=no_cache,
             )
 
         except Exception as e:

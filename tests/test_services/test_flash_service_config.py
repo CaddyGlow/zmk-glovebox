@@ -29,7 +29,7 @@ class TestFlashServiceWithProfile:
         self.service = FlashService(
             usb_adapter=self.mock_usb_adapter,
             file_adapter=self.mock_file_adapter,
-            loglevel="INFO"
+            loglevel="INFO",
         )
 
         # Create a mock device
@@ -219,9 +219,7 @@ def test_query_resolution_parameterized(profile, query, expected_query_source):
     mock_usb_adapter.get_all_devices = Mock(return_value=[])
 
     service = FlashService(
-        usb_adapter=mock_usb_adapter,
-        file_adapter=mock_file_adapter,
-        loglevel="INFO"
+        usb_adapter=mock_usb_adapter, file_adapter=mock_file_adapter, loglevel="INFO"
     )
     mock_file_adapter.exists.return_value = True
 
