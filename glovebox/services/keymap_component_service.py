@@ -5,10 +5,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, TypeAlias
 
-from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.core.errors import KeymapError
 from glovebox.models.keymap import KeymapData, KeymapMetadata
 from glovebox.models.results import KeymapResult
+from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.services.base_service import BaseServiceImpl
 
 

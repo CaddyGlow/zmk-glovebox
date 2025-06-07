@@ -10,7 +10,6 @@ from glovebox.adapters.config_file_adapter import (
     create_keymap_config_adapter,
 )
 from glovebox.adapters.file_adapter import create_file_adapter
-from glovebox.protocols import ConfigFileAdapterProtocol, FileAdapterProtocol
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import ConfigError, KeymapError
 from glovebox.models.config import KeymapConfigData
@@ -22,6 +21,7 @@ from glovebox.models.keymap import (
     LayerBindings,
 )
 from glovebox.models.results import KeymapResult
+from glovebox.protocols import ConfigFileAdapterProtocol, FileAdapterProtocol
 from glovebox.services.base_service import BaseServiceImpl
 
 

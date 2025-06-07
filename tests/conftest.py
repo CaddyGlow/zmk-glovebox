@@ -11,7 +11,6 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from typer.testing import CliRunner
 
-from glovebox.protocols import FileAdapterProtocol, TemplateAdapterProtocol
 from glovebox.config.models import (
     BuildConfig,
     BuildOptions,
@@ -26,6 +25,7 @@ from glovebox.config.profile import KeyboardProfile
 from glovebox.models import SystemBehavior
 from glovebox.models.build import FirmwareOutputFiles
 from glovebox.models.results import BuildResult, FlashResult, KeymapResult
+from glovebox.protocols import FileAdapterProtocol, TemplateAdapterProtocol
 
 
 # ---- Base Fixtures ----

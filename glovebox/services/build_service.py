@@ -8,8 +8,6 @@ from typing import Any, Optional
 
 from glovebox.adapters.docker_adapter import create_docker_adapter
 from glovebox.adapters.file_adapter import create_file_adapter
-from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
-from glovebox.protocols.docker_adapter_protocol import DockerVolume
 from glovebox.config.keyboard_config import (
     get_available_keyboards,
     load_keyboard_config,
@@ -19,6 +17,8 @@ from glovebox.core.errors import BuildError
 from glovebox.models.build import FirmwareOutputFiles
 from glovebox.models.options import BuildServiceCompileOpts
 from glovebox.models.results import BuildResult
+from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
+from glovebox.protocols.docker_adapter_protocol import DockerVolume
 from glovebox.services.base_service import BaseServiceImpl
 from glovebox.utils import stream_process
 
@@ -515,21 +515,15 @@ class BuildService(BaseServiceImpl):
         if hasattr(build_options, "docker_image") and build_options.docker_image:
             build_env["DOCKER_IMAGE"] = build_options.docker_image
 
-        # Apply branch setting if not already set from firmware config
-        if (
-            "BRANCH" not in build_env
-            and hasattr(build_options, "branch")
-            and build_options.branch
-        ):
+        # Apply branch setting from keyboard config - it takes precedence now
+        if hasattr(build_options, "branch") and build_options.branch:
             build_env["BRANCH"] = build_options.branch
+            logger.debug("Using branch from keyboard config: %s", build_env["BRANCH"])
 
-        # Apply repository setting if not already set from firmware config
-        if (
-            "REPO" not in build_env
-            and hasattr(build_options, "repository")
-            and build_options.repository
-        ):
+        # Apply repository setting from keyboard config
+        if hasattr(build_options, "repository") and build_options.repository:
             build_env["REPO"] = build_options.repository
+            logger.debug("Using repo from keyboard config: %s", build_env["REPO"])
 
     def _apply_fallback_settings(
         self, build_env: dict[str, str], build_config: BuildServiceCompileOpts

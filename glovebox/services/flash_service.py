@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, Optional
 
 from glovebox.adapters.file_adapter import create_file_adapter
 from glovebox.adapters.usb_adapter import create_usb_adapter
-from glovebox.protocols import FileAdapterProtocol, USBAdapterProtocol
 from glovebox.flash.lsdev import BlockDevice
 from glovebox.models.results import FlashResult
+from glovebox.protocols import FileAdapterProtocol, USBAdapterProtocol
 from glovebox.services.base_service import BaseServiceImpl
 
 

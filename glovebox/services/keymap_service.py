@@ -8,7 +8,6 @@ from typing import Any, Optional, TypeVar, cast
 
 from glovebox.adapters.file_adapter import create_file_adapter
 from glovebox.adapters.template_adapter import create_template_adapter
-from glovebox.protocols import FileAdapterProtocol, TemplateAdapterProtocol
 from glovebox.builders.template_context_builder import create_template_context_builder
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import KeymapError
@@ -24,6 +23,7 @@ from glovebox.models.keymap import (
     KeymapData,
 )
 from glovebox.models.results import KeymapResult
+from glovebox.protocols import FileAdapterProtocol, TemplateAdapterProtocol
 from glovebox.services.base_service import BaseServiceImpl
 from glovebox.services.behavior_service import create_behavior_registry
 from glovebox.services.keymap_component_service import (
