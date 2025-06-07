@@ -274,9 +274,9 @@ def show(
                 key_width=key_width,
             )
             # If we somehow get here, raise a clear error
-            raise NotImplementedError(
-                "The layout display feature is not yet implemented. Coming in a future release."
-            )
+            # raise NotImplementedError(
+            #     "The layout display feature is not yet implemented. Coming in a future release."
+            # )
         else:
             result = keymap_service.show_from_file(
                 profile=keyboard_profile,
