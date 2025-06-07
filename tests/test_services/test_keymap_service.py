@@ -121,6 +121,15 @@ def keymap_service():
 
     # Create all required mocks
     behavior_registry = MagicMock()
+    # Add a dictionary for behaviors and behaviors methods to the mock
+    behavior_registry._behaviors = {}
+    behavior_registry.list_behaviors = Mock(return_value=behavior_registry._behaviors)
+    behavior_registry.register_behavior = Mock(
+        side_effect=lambda behavior: behavior_registry._behaviors.update(
+            {behavior.code: behavior}
+        )
+    )
+
     behavior_formatter = MagicMock()
     dtsi_generator = MagicMock()
     component_service = MagicMock()
@@ -155,6 +164,17 @@ class TestKeymapServiceWithKeyboardConfig:
 
         # Mock all required dependencies
         self.mock_behavior_registry = Mock()
+        # Add a dictionary for behaviors and a list_behaviors method to the mock
+        self.mock_behavior_registry._behaviors = {}
+        self.mock_behavior_registry.list_behaviors = Mock(
+            return_value=self.mock_behavior_registry._behaviors
+        )
+        self.mock_behavior_registry.register_behavior = Mock(
+            side_effect=lambda behavior: self.mock_behavior_registry._behaviors.update(
+                {behavior.code: behavior}
+            )
+        )
+
         self.mock_behavior_formatter = Mock()
         self.mock_dtsi_generator = Mock()
         self.mock_component_service = Mock()
@@ -228,15 +248,12 @@ class TestKeymapServiceWithKeyboardConfig:
         # Verify
         assert result is True
 
-    @patch(
-        "glovebox.services.layout_display_service.LayoutDisplayService.generate_display"
-    )
-    def test_show_error_handling(
-        self, mock_generate_display, sample_keymap_json, mock_profile
-    ):
+    def test_show_error_handling(self, sample_keymap_json, mock_profile):
         """Test error handling in the show method."""
-        # Make the layout generation raise an error
-        mock_generate_display.side_effect = Exception("Layout generation failed")
+        # Make the layout service's generate_display method raise an error
+        self.mock_layout_service.generate_display.side_effect = Exception(
+            "Layout generation failed"
+        )
 
         # Convert to KeymapData
         keymap_data = KeymapData.model_validate(sample_keymap_json)
@@ -301,21 +318,32 @@ class TestKeymapServiceWithKeyboardConfig:
         # Execute directly on the behavior registry
         mock_profile.register_behaviors(self.service._behavior_registry)
 
-        # Get behaviors using the public list_behaviors method
-        behaviors = self.service._behavior_registry.list_behaviors()
+        # Since we're using a mock, we need to ensure it has the right methods
+        # We'll check that register_behavior was called with the right behaviors
+        expected_behavior_codes = ["&kp", "&lt", "&mo"]
 
-        # Verify behaviors were registered
-        assert len(behaviors) > 0
+        # Check that all behaviors were registered (3 behaviors, 3 calls)
+        assert self.mock_behavior_registry.register_behavior.call_count == 3
 
-        # Check for expected behaviors
-        assert "&kp" in behaviors
-        assert "&lt" in behaviors
-        assert "&mo" in behaviors
+        # Verify the behavior codes that were registered
+        registered_behaviors = []
+        for call in self.mock_behavior_registry.register_behavior.call_args_list:
+            behavior = call[0][0]  # First positional argument
+            registered_behaviors.append(behavior.code)
 
-        # Access expected_params from SystemBehavior objects
-        assert behaviors["&kp"].expected_params == 1
-        assert behaviors["&lt"].expected_params == 2
-        assert behaviors["&mo"].expected_params == 1
+        # Verify all expected behavior codes were registered
+        for code in expected_behavior_codes:
+            assert code in registered_behaviors
+
+        # Verify behavior properties were preserved during registration
+        for call in self.mock_behavior_registry.register_behavior.call_args_list:
+            behavior = call[0][0]
+            if behavior.code == "&kp":
+                assert behavior.expected_params == 1
+            elif behavior.code == "&lt":
+                assert behavior.expected_params == 2
+            elif behavior.code == "&mo":
+                assert behavior.expected_params == 1
 
 
 class TestKeymapServiceWithMockedConfig:
@@ -481,12 +509,24 @@ def test_register_behaviors(keymap_service, mock_profile):
     # Call the profile's register_behaviors method
     mock_profile.register_behaviors(keymap_service._behavior_registry)
 
-    # Check that behaviors were registered
-    behaviors = keymap_service._behavior_registry._behaviors
-    assert "&kp" in behaviors
-    assert "&bt" in behaviors
-    assert behaviors["&kp"].expected_params == 1
-    assert behaviors["&bt"].expected_params == 1
+    # Since we're using a mock, check that register_behavior was called for each behavior
+    assert keymap_service._behavior_registry.register_behavior.call_count == 2
+
+    # Verify the behavior codes that were registered
+    registered_behaviors = []
+    for call in keymap_service._behavior_registry.register_behavior.call_args_list:
+        behavior = call[0][0]  # First positional argument
+        registered_behaviors.append(behavior.code)
+
+    # Check for expected behaviors
+    assert "&kp" in registered_behaviors
+    assert "&bt" in registered_behaviors
+
+    # Verify behavior properties
+    for call in keymap_service._behavior_registry.register_behavior.call_args_list:
+        behavior = call[0][0]
+        if behavior.code == "&kp" or behavior.code == "&bt":
+            assert behavior.expected_params == 1
 
 
 # These tests were removed because they used non-existent private methods

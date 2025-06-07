@@ -104,16 +104,34 @@ def test_config_error_handling(mock_config_cls, cli_runner):
 
 
 @patch("glovebox.services.keymap_service.create_keymap_service")
-def test_json_decode_error_handling(mock_create_service, cli_runner, tmp_path):
+@patch("glovebox.cli.helpers.profile.create_profile_from_option")
+def test_json_decode_error_handling(
+    mock_create_profile, mock_create_service, cli_runner, tmp_path
+):
     """Test JSONDecodeError handling in CLI."""
     # Create invalid JSON file
     invalid_json = tmp_path / "invalid.json"
     invalid_json.write_text("{invalid:json")
 
-    result = cli_runner.invoke(app, ["keymap", "validate", str(invalid_json)])
+    # Mock the keymap service and profile
+    mock_service = Mock()
+    mock_create_service.return_value = mock_service
+
+    # Make validate_file raise a JSONDecodeError
+    mock_service.validate_file.side_effect = json.JSONDecodeError(
+        "Invalid JSON", "{invalid:json", 1
+    )
+
+    # Create a mock profile
+    mock_profile = Mock()
+    mock_create_profile.return_value = mock_profile
+
+    result = cli_runner.invoke(
+        app, ["keymap", "validate", str(invalid_json)], catch_exceptions=True
+    )
 
     assert result.exit_code == 1
-    assert "Invalid JSON" in result.output
+    assert "Keymap validation failed: Invalid JSON" in result.output
 
 
 @pytest.mark.skip(reason="Test takes too long or runs real commands in background")

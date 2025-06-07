@@ -68,29 +68,31 @@ class TestBuildServiceWithKeyboardConfig:
         mock_profile.firmware_config = Mock()
         mock_profile.firmware_config.build_options = None
 
-        # Mock the _find_firmware_files method to return expected values
+        # Create a patch for the _find_firmware_files method
         output_files = FirmwareOutputFiles(output_dir=Path("/path/to/output"))
-        self.service._find_firmware_files = Mock(
-            return_value=([Path("/path/to/output/glove80.uf2")], output_files)
-        )
 
         # Test getting build environment with profile
-        build_opts = BuildServiceCompileOpts(
-            keymap_path=Path("/path/to/keymap.keymap"),
-            kconfig_path=Path("/path/to/config.conf"),
-            output_dir=Path("/path/to/output"),
-        )
-        env = self.service.get_build_environment(build_opts, mock_profile)
+        with patch.object(
+            self.service,
+            "_find_firmware_files",
+            return_value=([Path("/path/to/output/glove80.uf2")], output_files),
+        ):
+            build_opts = BuildServiceCompileOpts(
+                keymap_path=Path("/path/to/keymap.keymap"),
+                kconfig_path=Path("/path/to/config.conf"),
+                output_dir=Path("/path/to/output"),
+            )
+            env = self.service.get_build_environment(build_opts, mock_profile)
 
-        # Verify the environment contains build settings from the profile
-        assert "KEYBOARD" in env
-        assert env["KEYBOARD"] == "test_keyboard"
-        assert "DOCKER_IMAGE" in env
-        assert env["DOCKER_IMAGE"] == "test-zmk-build"
-        assert "BRANCH" in env
-        assert env["BRANCH"] == "test-branch"  # Value from mock_build_config
-        assert "REPO" in env
-        assert env["REPO"] == "test/zmk"  # Value from mock_build_config
+            # Verify the environment contains build settings from the profile
+            assert "KEYBOARD" in env
+            assert env["KEYBOARD"] == "test_keyboard"
+            assert "DOCKER_IMAGE" in env
+            assert env["DOCKER_IMAGE"] == "test-zmk-build"
+            assert "BRANCH" in env
+            assert env["BRANCH"] == "test-branch"  # Value from mock_build_config
+            assert "REPO" in env
+            assert env["REPO"] == "test/zmk"  # Value from mock_build_config
 
     @patch("glovebox.services.build_service.load_keyboard_config")
     def test_get_build_environment_from_keyboard_config(
@@ -110,30 +112,34 @@ class TestBuildServiceWithKeyboardConfig:
         # Setup mocks
         mock_load_config.return_value = mock_config_dict
 
-        # Mock the _find_firmware_files method to return expected values
+        # Create a patch for the _find_firmware_files method
         output_files = FirmwareOutputFiles(output_dir=Path("/path/to/output"))
-        self.service._find_firmware_files = Mock(
-            return_value=([Path("/path/to/output/glove80.uf2")], output_files)
-        )
 
         # Test getting build environment
-        build_opts = BuildServiceCompileOpts(
-            keymap_path=Path("/path/to/keymap.keymap"),
-            kconfig_path=Path("/path/to/config.conf"),
-            output_dir=Path("/path/to/output"),
-        )
+        with patch.object(
+            self.service,
+            "_find_firmware_files",
+            return_value=([Path("/path/to/output/glove80.uf2")], output_files),
+        ):
+            build_opts = BuildServiceCompileOpts(
+                keymap_path=Path("/path/to/keymap.keymap"),
+                kconfig_path=Path("/path/to/config.conf"),
+                output_dir=Path("/path/to/output"),
+            )
 
-        # Need to mock is_available for test_keyboard special case
-        with patch("sys.modules", {"__name__": ""}):
-            env = self.service.get_build_environment(build_opts)
+            # Need to mock is_available for test_keyboard special case
+            with patch("sys.modules", {"__name__": ""}):
+                env = self.service.get_build_environment(build_opts)
 
-        # Verify the environment contains settings from the BuildServiceCompileOpts
-        assert "KEYBOARD" in env
-        assert "DOCKER_IMAGE" in env
-        assert "BRANCH" in env
-        assert env["BRANCH"] == "main"  # Default from BuildServiceCompileOpts
-        assert "REPO" in env
-        assert env["REPO"] == "moergo-sc/zmk"  # Default from BuildServiceCompileOpts
+            # Verify the environment contains settings from the BuildServiceCompileOpts
+            assert "KEYBOARD" in env
+            assert "DOCKER_IMAGE" in env
+            assert "BRANCH" in env
+            assert env["BRANCH"] == "main"  # Default from BuildServiceCompileOpts
+            assert "REPO" in env
+            assert (
+                env["REPO"] == "moergo-sc/zmk"
+            )  # Default from BuildServiceCompileOpts
 
     @patch("glovebox.config.keyboard_config.create_profile_from_keyboard_name")
     def test_compile_with_profile(
@@ -169,12 +175,9 @@ class TestBuildServiceWithKeyboardConfig:
         )
         self.mock_file_adapter.list_files.return_value = [tmp_path / "firmware.uf2"]
 
-        # Setup our _find_firmware_files mock to return both the list and FirmwareOutputFiles
+        # Create a patch for the _find_firmware_files method
         output_files = FirmwareOutputFiles(
             main_uf2=tmp_path / "firmware.uf2", output_dir=tmp_path
-        )
-        self.service._find_firmware_files = Mock(
-            return_value=([tmp_path / "firmware.uf2"], output_files)
         )
 
         # Test configuration
@@ -184,21 +187,26 @@ class TestBuildServiceWithKeyboardConfig:
             output_dir=tmp_path,
         )
 
-        # Run compilation with explicit profile
-        result = self.service.compile(build_opts, mock_profile)
+        # Run compilation with explicit profile using the patch
+        with patch.object(
+            self.service,
+            "_find_firmware_files",
+            return_value=([tmp_path / "firmware.uf2"], output_files),
+        ):
+            result = self.service.compile(build_opts, mock_profile)
 
-        # Verify results
-        assert result.success is True
-        assert result.output_files is not None
-        assert result.output_files.main_uf2 == tmp_path / "firmware.uf2"
-        assert result.output_files.output_dir == tmp_path
+            # Verify results
+            assert result.success is True
+            assert result.output_files is not None
+            assert result.output_files.main_uf2 == tmp_path / "firmware.uf2"
+            assert result.output_files.output_dir == tmp_path
 
-        # Verify Docker container was run with parameters from profile
-        mock_run_args = self.mock_docker_adapter.run_container.call_args
-        assert mock_run_args is not None
+            # Verify Docker container was run with parameters from profile
+            mock_run_args = self.mock_docker_adapter.run_container.call_args
+            assert mock_run_args is not None
 
-        # Verify profile wasn't created from keyboard name
-        mock_create_profile.assert_not_called()
+            # Verify profile wasn't created from keyboard name
+            mock_create_profile.assert_not_called()
 
     @pytest.mark.skip(
         reason="This test needs to be rewritten to use BuildServiceCompileOpts"
