@@ -120,7 +120,10 @@ def test_json_decode_error_handling(
 
     # Make validate_file raise a KeymapError with the specific error message
     from glovebox.core.errors import KeymapError
-    mock_service.validate_file.side_effect = KeymapError("Keymap validation failed: Invalid JSON")
+
+    mock_service.validate_file.side_effect = KeymapError(
+        "Keymap validation failed: Invalid JSON"
+    )
 
     # Create a mock profile
     mock_profile = Mock()

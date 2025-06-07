@@ -161,7 +161,7 @@ def test_keymap_commands(
         keymap_result = KeymapResult(success=success)
         setup_keymap_command_test[
             "mock_keymap_service"
-        ].extract_layers_from_file.return_value = keymap_result
+        ].extract_keymap_components_from_file.return_value = keymap_result
     elif "validate" in command:
         setup_keymap_command_test[
             "mock_keymap_service"

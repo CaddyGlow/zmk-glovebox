@@ -116,7 +116,7 @@ def extract(
     keymap_service = create_keymap_service()
 
     try:
-        result = keymap_service.extract_layers_from_file(
+        result = keymap_service.extract_keymap_components_from_file(
             profile=keyboard_profile,
             keymap_file_path=keymap_file,
             output_dir=output_dir,
@@ -126,12 +126,12 @@ def extract(
         if result.success:
             print_success_message(f"Keymap layers extracted to {output_dir}")
         else:
-            print_error_message("Layer extraction failed")
+            print_error_message("Keymap component extraction failed")
             for error in result.errors:
                 print_list_item(error)
             raise typer.Exit(1)
     except Exception as e:
-        print_error_message(f"Layer extraction failed: {str(e)}")
+        print_error_message(f"Keymap component extraction failed: {str(e)}")
         raise typer.Exit(1) from None
 
 
@@ -167,7 +167,7 @@ def merge(
     keymap_service = create_keymap_service()
 
     try:
-        result = keymap_service.merge_layers_from_files(
+        result = keymap_service.merge_keymap_components_from_directory(
             profile=keyboard_profile,
             input_dir=input_dir,
             output_file=output,

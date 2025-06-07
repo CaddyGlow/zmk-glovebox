@@ -231,8 +231,10 @@ The first phase of service layer improvements has been implemented for the `Keym
    - `compile_from_file()`: Compiles keymap from a JSON file path
    - `validate_file()`: Validates a keymap file
    - `show_from_file()`: Displays a keymap from a file
-   - `split_keymap_from_file()`: Splits a keymap file into individual layers
-   - `merge_layers_from_files()`: Merges layer files into a single keymap
+   - `extract_keymap_components_from_file()`: Extracts keymap components (layers, metadata, DTSI) into separate files
+   - `merge_keymap_components_from_directory()`: Merges keymap components from a directory into a single keymap
+   - `extract_keymap_components()`: Extracts components from keymap data object
+   - `merge_keymap_components()`: Merges components from a directory into a single keymap
 
 2. **Helper Methods Added**:
    - `_load_json_file()`: Handles file loading and JSON parsing

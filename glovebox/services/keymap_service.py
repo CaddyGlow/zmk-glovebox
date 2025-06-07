@@ -149,30 +149,43 @@ class KeymapService(BaseServiceImpl):
             profile,
         )
 
-    def extract_layers_from_file(
+    def extract_keymap_components_from_file(
         self,
         profile: KeyboardProfile,
         keymap_file_path: Path,
         output_dir: Path,
         force: bool = False,
     ) -> KeymapResult:
-        """Extract layers from a keymap JSON file into individual layer files."""
+        """Extract keymap components from a JSON file into separate files.
+
+        This extracts:
+        - Metadata to metadata.json
+        - Individual layers to layer/*.json files
+        - Custom DTSI content to device.dtsi and keymap.dtsi
+        """
         return self._process_json_file(
             keymap_file_path,
-            "Layer extraction",
-            lambda data: self.extract_layers(profile, data, output_dir),
+            "Keymap component extraction",
+            lambda data: self.extract_keymap_components(profile, data, output_dir),
             profile,
         )
 
-    def merge_layers_from_files(
+    def merge_keymap_components_from_directory(
         self,
         profile: KeyboardProfile,
         input_dir: Path,
         output_file: Path,
         force: bool = False,
     ) -> KeymapResult:
-        """Merge layer files into a single keymap file."""
-        logger.info("Combining layers from %s to %s...", input_dir, output_file)
+        """Merge keymap components from a directory structure into a single JSON file.
+
+        The directory must contain:
+        - metadata.json: Base keymap data
+        - layers/: Directory with individual layer files
+        """
+        logger.info(
+            "Combining keymap components from %s to %s...", input_dir, output_file
+        )
 
         try:
             # Check if the input directory exists
@@ -199,12 +212,14 @@ class KeymapService(BaseServiceImpl):
                     f"Output file already exists: {output_file}. Use --force to overwrite."
                 )
 
-            # Merge layers using the validated data
-            return self.merge_layers(profile, metadata_data, layers_dir, output_file)
+            # Merge components using the validated data
+            return self.merge_keymap_components(
+                profile, metadata_data, layers_dir, output_file
+            )
 
         except Exception as e:
-            logger.error("Layer combination failed: %s", e)
-            raise KeymapError(f"Layer combination failed: {e}") from e
+            logger.error("Keymap component merging failed: %s", e)
+            raise KeymapError(f"Keymap component merging failed: {e}") from e
 
     # Core implementation methods (used by file-based methods)
 
@@ -283,33 +298,46 @@ class KeymapService(BaseServiceImpl):
             logger.error("Keymap generation failed: %s", e)
             raise KeymapError(f"Keymap generation failed: {e}") from e
 
-    def extract_layers(
+    def extract_keymap_components(
         self,
         profile: KeyboardProfile,
         keymap_data: KeymapData,
         output_dir: Path,
     ) -> KeymapResult:
-        """Extract each layer from a keymap into separate files."""
-        logger.info("Extracting layers for %s to %s", profile.keyboard_name, output_dir)
+        """Extract keymap components including layers, metadata, and DTSI content to separate files."""
+        logger.info(
+            "Extracting keymap components for %s to %s",
+            profile.keyboard_name,
+            output_dir,
+        )
 
         try:
             # Delegate to component service
             return self._component_service.extract_components(keymap_data, output_dir)
 
         except Exception as e:
-            logger.error("Layer extraction failed: %s", e)
-            raise KeymapError(f"Layer extraction failed: {e}") from e
+            logger.error("Keymap component extraction failed: %s", e)
+            raise KeymapError(f"Keymap component extraction failed: {e}") from e
 
-    def merge_layers(
+    def merge_keymap_components(
         self,
         profile: KeyboardProfile,
         base_data: KeymapData,
         layers_dir: Path,
         output_file: Path,
     ) -> KeymapResult:
-        """Merge layer files into a single keymap JSON file."""
+        """Merge keymap components into a single keymap JSON file.
+
+        Args:
+            profile: Keyboard profile containing configuration
+            base_data: Base keymap data with metadata
+            layers_dir: Directory containing individual layer files
+            output_file: Path to write the combined keymap
+        """
         logger.info(
-            "Combining layers from %s for %s", layers_dir, profile.keyboard_name
+            "Combining keymap components from %s for %s",
+            layers_dir,
+            profile.keyboard_name,
         )
 
         result = KeymapResult(success=False)
@@ -339,9 +367,9 @@ class KeymapService(BaseServiceImpl):
             return result
 
         except Exception as e:
-            result.add_error(f"Layer combination failed: {e}")
-            logger.error("Layer combination failed: %s", e)
-            raise KeymapError(f"Layer combination failed: {e}") from e
+            result.add_error(f"Keymap component merging failed: {e}")
+            logger.error("Keymap component merging failed: %s", e)
+            raise KeymapError(f"Keymap component merging failed: {e}") from e
 
     def show(
         self,

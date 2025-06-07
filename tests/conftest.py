@@ -563,12 +563,18 @@ def mock_keymap_service() -> Mock:
 
     # Mock successful extract result
     extract_result = KeymapResult(success=True)
-    mock.extract_layers.return_value = extract_result
-    mock.extract_layers_from_file.return_value = extract_result
+    mock.extract_keymap_components.return_value = extract_result
+    mock.extract_keymap_components_from_file.return_value = extract_result
+    # For backward compatibility
+    mock.extract_layers = mock.extract_keymap_components
+    mock.extract_layers_from_file = mock.extract_keymap_components_from_file
 
     # Mock successful merge result
     merge_result = KeymapResult(success=True)
-    mock.merge_layers.return_value = merge_result
+    mock.merge_keymap_components.return_value = merge_result
+    mock.merge_keymap_components_from_directory.return_value = merge_result
+    # For backward compatibility
+    mock.merge_layers = mock.merge_keymap_components
 
     # Mock show result
     mock.show.return_value = ["Layer 1", "Layer 2"]
