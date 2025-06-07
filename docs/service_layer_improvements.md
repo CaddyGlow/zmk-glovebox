@@ -275,6 +275,47 @@ The second phase of service layer improvements has been implemented for the `Key
    - Dependencies are created in the correct order to handle dependencies between them
    - Named parameters are used for constructor call for clarity
 
+### 3. BuildService Improvements
+
+The service layer improvements have been extended to `BuildService`:
+
+1. **New File-Based Methods**:
+   - Added `compile_from_files()` method that handles file existence checks and builds options:
+     ```python
+     def compile_from_files(
+         self,
+         keymap_file_path: Path,
+         kconfig_file_path: Path,
+         output_dir: Path = Path("build"),
+         profile: Optional["KeyboardProfile"] = None,
+         branch: str = "main",
+         repo: str = "moergo-sc/zmk",
+         jobs: int | None = None,
+         verbose: bool = False,
+     ) -> BuildResult:
+     ```
+   - Added `build_image_from_directory()` method for Docker image building with directory validation
+   - Both methods handle validation and convert to the appropriate models
+
+2. **Strict Dependency Injection**:
+   - Updated constructor to require all dependencies explicitly:
+     ```python
+     def __init__(
+         self,
+         docker_adapter: DockerAdapter,
+         file_adapter: FileAdapter,
+         output_middleware: stream_process.OutputMiddleware[str],
+         loglevel: str = "INFO",
+     ):
+     ```
+   - Made `_create_default_middleware()` a static method
+   - Factory function creates all dependencies if not provided
+
+3. **CLI Command Updates**:
+   - Updated `firmware_compile` command to use the new file-based method
+   - Removed duplicate validation logic from CLI
+   - Improved error handling in CLI commands
+
 ### Next Steps
 
 1. **Implement Behavior Registration Service**:
