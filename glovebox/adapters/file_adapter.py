@@ -11,7 +11,6 @@ from typing import Any, Optional
 from glovebox.core.errors import FileSystemError, GloveboxError
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.utils.error_utils import create_file_error
-from glovebox.utils.serialization import GloveboxJSONEncoder
 
 
 logger = logging.getLogger(__name__)
@@ -105,7 +104,7 @@ class FileSystemAdapter:
         data: dict[str, Any],
         encoding: str = "utf-8",
         indent: int = 2,
-        encoder_cls: type[json.JSONEncoder] = GloveboxJSONEncoder,
+        encoder_cls: type[json.JSONEncoder] = json.JSONEncoder,
     ) -> None:
         """Write data as JSON to a file.
 

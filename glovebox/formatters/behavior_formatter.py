@@ -24,7 +24,9 @@ class BehaviorFormatterImpl:
     """Implementation of behavior formatter."""
 
     def __init__(
-        self, registry: BehaviorRegistryProtocol, keycode_map: dict[str, str] | None = None
+        self,
+        registry: BehaviorRegistryProtocol,
+        keycode_map: dict[str, str] | None = None,
     ) -> None:
         """Initialize with behavior registry dependency.
 

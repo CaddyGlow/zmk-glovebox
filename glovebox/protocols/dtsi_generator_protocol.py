@@ -1,7 +1,7 @@
 """Protocol definition for DTSI generator."""
 
-from typing import Protocol, runtime_checkable, TypeAlias
 from collections.abc import Sequence
+from typing import Protocol, TypeAlias, runtime_checkable
 
 from glovebox.models.keymap import (
     ComboBehavior,
@@ -10,6 +10,7 @@ from glovebox.models.keymap import (
     LayerBindings,
     MacroBehavior,
 )
+
 
 # Type alias for kconfig settings
 KConfigSettings: TypeAlias = dict[str, str]
@@ -72,6 +73,8 @@ class DtsiGeneratorProtocol(Protocol):
 
 # Avoid circular imports with TYPE_CHECKING
 from typing import TYPE_CHECKING
+
+
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
     from glovebox.models.keymap import KeymapData

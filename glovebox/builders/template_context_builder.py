@@ -5,7 +5,6 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, TypeAlias
 
-from glovebox.protocols.dtsi_generator_protocol import DtsiGeneratorProtocol
 from glovebox.config.profile import KeyboardProfile
 from glovebox.models.keymap import (
     ComboBehavior,
@@ -15,6 +14,7 @@ from glovebox.models.keymap import (
     LayerBindings,
     MacroBehavior,
 )
+from glovebox.protocols.dtsi_generator_protocol import DtsiGeneratorProtocol
 
 
 logger = logging.getLogger(__name__)

@@ -14,10 +14,6 @@ from glovebox.core.errors import KeymapError
 from glovebox.formatters.behavior_formatter import (
     BehaviorFormatterImpl,
 )
-from glovebox.protocols.behavior_protocols import (
-    BehaviorRegistryProtocol,
-    BehaviorRegistry,
-)
 from glovebox.generators.dtsi_generator import DTSIGenerator
 from glovebox.models.build import OutputPaths
 from glovebox.models.keymap import (
@@ -25,6 +21,10 @@ from glovebox.models.keymap import (
 )
 from glovebox.models.results import KeymapResult
 from glovebox.protocols import FileAdapterProtocol, TemplateAdapterProtocol
+from glovebox.protocols.behavior_protocols import (
+    BehaviorRegistry,
+    BehaviorRegistryProtocol,
+)
 from glovebox.services.base_service import BaseServiceImpl
 from glovebox.services.behavior_service import create_behavior_registry
 from glovebox.services.keymap_component_service import (

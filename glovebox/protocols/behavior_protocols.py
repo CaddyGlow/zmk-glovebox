@@ -1,10 +1,11 @@
 """Protocol definitions for behavior-related interfaces."""
 
-from typing import Protocol, Optional, Any
+from typing import Any, Optional, Protocol, runtime_checkable
 
 from glovebox.models.behavior import RegistryBehavior
 
 
+@runtime_checkable
 class BehaviorRegistryProtocol(Protocol):
     """Protocol for behavior registry."""
 

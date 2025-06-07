@@ -32,7 +32,7 @@ class BehaviorRegistryImpl:
 
         self._behaviors[behavior.code] = behavior
 
-    def get_behavior_info(self, name: str) -> SystemBehavior | None:
+    def get_behavior_info(self, name: str) -> RegistryBehavior | None:
         """
         Get information about a registered behavior.
 
@@ -40,9 +40,22 @@ class BehaviorRegistryImpl:
             name: Behavior name to look up
 
         Returns:
-            Dictionary with behavior info or None if not found
+            Behavior info or None if not found
         """
-        return self._behaviors.get(name)
+        behavior = self._behaviors.get(name)
+        if behavior is None:
+            return None
+
+        # Convert SystemBehavior to RegistryBehavior
+        return RegistryBehavior(
+            expected_params=behavior.expected_params,
+            origin=behavior.origin,
+            description=behavior.description or "",
+            params=behavior.params,
+            url=behavior.url,
+            commands=behavior.commands,
+            includes=behavior.includes,
+        )
 
     def list_behaviors(self) -> dict[str, SystemBehavior]:
         """

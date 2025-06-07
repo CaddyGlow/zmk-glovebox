@@ -1,6 +1,9 @@
 """Services package for unified business logic services."""
 
-from glovebox.protocols.behavior_protocols import BehaviorRegistry, BehaviorRegistryProtocol
+from glovebox.protocols.behavior_protocols import (
+    BehaviorRegistry,
+    BehaviorRegistryProtocol,
+)
 
 from .base_service import BaseService, BaseServiceImpl
 from .behavior_service import BehaviorRegistryImpl, create_behavior_registry

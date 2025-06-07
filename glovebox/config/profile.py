@@ -18,7 +18,6 @@ from glovebox.models import (
 )
 from glovebox.models.keymap import KeymapData
 
-
 # Use the protocol directly
 from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
 

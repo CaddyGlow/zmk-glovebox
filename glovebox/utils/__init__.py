@@ -19,21 +19,6 @@ from glovebox.utils.error_utils import (
     create_usb_error,
 )
 
-# Group 3: File Utilities
-from glovebox.utils.file_utils import (
-    create_timestamped_backup,
-    ensure_directory_exists,
-    find_files_by_extension,
-    get_parent_directory,
-)
-
-# Group 4: Serialization
-from glovebox.utils.serialization import (
-    make_json_serializable,
-    normalize_dict,
-    parse_iso_datetime,
-)
-
 # Group 1: Process Streaming
 from glovebox.utils.stream_process import (
     DefaultOutputMiddleware,
