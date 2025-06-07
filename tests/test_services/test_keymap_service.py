@@ -581,16 +581,16 @@ def test_register_behaviors_with_fixture(keymap_service):
         mock_profile, "register_behaviors", side_effect=register_behaviors_impl
     ):
         # Call the profile's register_behaviors method
-        mock_profile.register_behaviors(keymap_service._mock_behavior_registry)
+        mock_profile.register_behaviors(keymap_service.mock_behavior_registry)
 
         # Since we're using a mock, check that register_behavior was called for each behavior
-        assert keymap_service._mock_behavior_registry.register_behavior.call_count == 2
+        assert keymap_service.mock_behavior_registry.register_behavior.call_count == 2
 
         # Verify the behavior codes that were registered
         registered_behaviors = []
         for (
             call
-        ) in keymap_service._mock_behavior_registry.register_behavior.call_args_list:
+        ) in keymap_service.mock_behavior_registry.register_behavior.call_args_list:
             behavior = call[0][0]  # First positional argument
             registered_behaviors.append(behavior.code)
 
@@ -601,7 +601,7 @@ def test_register_behaviors_with_fixture(keymap_service):
         # Verify behavior properties
         for (
             call
-        ) in keymap_service._mock_behavior_registry.register_behavior.call_args_list:
+        ) in keymap_service.mock_behavior_registry.register_behavior.call_args_list:
             behavior = call[0][0]
             if behavior.code == "&kp" or behavior.code == "&bt":
                 assert behavior.expected_params == 1
