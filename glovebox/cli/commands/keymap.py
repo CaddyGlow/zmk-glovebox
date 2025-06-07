@@ -29,13 +29,13 @@ keymap_app = typer.Typer(
 )
 
 
-@keymap_app.command(name="compile")
+@keymap_app.command(name="generate")
 @handle_errors
-def keymap_compile(
-    target_prefix: Annotated[
+def keymap_generate(
+    output_file_prefix: Annotated[
         str,
         typer.Argument(
-            help="Target directory and base filename (e.g., 'config/my_glove80')"
+            help="Output directory and base filename (e.g., 'config/my_glove80')"
         ),
     ],
     json_file: Annotated[
@@ -54,36 +54,36 @@ def keymap_compile(
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
 ) -> None:
-    """Compile a keymap JSON file into ZMK keymap and config files."""
+    """Generate ZMK keymap and config files from a JSON keymap file."""
     # Create profile from profile option
     from glovebox.cli.helpers.profile import create_profile_from_option
 
     keyboard_profile = create_profile_from_option(profile)
 
-    # Compile keymap using the file-based service method
+    # Generate keymap using the file-based service method
     keymap_service = create_keymap_service()
 
     try:
-        result = keymap_service.compile_from_file(
+        result = keymap_service.generate_from_file(
             profile=keyboard_profile,
             json_file_path=Path(json_file),
-            target_prefix=target_prefix,
+            output_file_prefix=output_file_prefix,
             force=force,
         )
 
         if result.success:
-            print_success_message("Keymap compiled successfully")
+            print_success_message("Keymap generated successfully")
             output_files = result.get_output_files()
             for file_type, file_path in output_files.items():
                 print_list_item(f"{file_type}: {file_path}")
         else:
-            print_error_message("Keymap compilation failed")
+            print_error_message("Keymap generation failed")
             for error in result.errors:
                 print_list_item(error)
             raise typer.Exit(1)
 
     except Exception as e:
-        print_error_message(f"Keymap compilation failed: {str(e)}")
+        print_error_message(f"Keymap generation failed: {str(e)}")
         raise typer.Exit(1) from None
 
 

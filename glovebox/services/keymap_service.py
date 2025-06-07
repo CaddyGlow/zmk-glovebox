@@ -43,14 +43,14 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-def prepare_output_paths(target_prefix: str) -> OutputPaths:
+def prepare_output_paths(output_file_prefix: str) -> OutputPaths:
     """Prepare standardized output file paths.
 
-    Given a target prefix (which can be a path and base name),
+    Given an output file prefix (which can be a path and base name),
     generates an OutputPaths object with standardized paths.
 
     Args:
-        target_prefix: Base path and name for output files
+        output_file_prefix: Base path and name for output files
 
     Returns:
         OutputPaths with standardized paths for keymap, conf, and json files
@@ -63,9 +63,9 @@ def prepare_output_paths(target_prefix: str) -> OutputPaths:
             json=PosixPath('/tmp/my_keymap.json')
         )
     """
-    target_prefix_path = Path(target_prefix).resolve()
-    output_dir = target_prefix_path.parent
-    base_name = target_prefix_path.name
+    output_prefix_path = Path(output_file_prefix).resolve()
+    output_dir = output_prefix_path.parent
+    base_name = output_prefix_path.name
 
     return OutputPaths(
         keymap=output_dir / f"{base_name}.keymap",
@@ -107,18 +107,18 @@ class KeymapService(BaseServiceImpl):
 
     # File-based public methods - all use _process_json_file helper
 
-    def compile_from_file(
+    def generate_from_file(
         self,
         profile: KeyboardProfile,
         json_file_path: Path,
-        target_prefix: str,
+        output_file_prefix: str,
         force: bool = False,
     ) -> KeymapResult:
-        """Compile ZMK keymap files from a JSON file path."""
+        """Generate ZMK keymap files from a JSON file path."""
         return self._process_json_file(
             json_file_path,
-            "Keymap compilation",
-            lambda data: self.compile(profile, data, target_prefix, force),
+            "Keymap generation",
+            lambda data: self.generate(profile, data, output_file_prefix, force),
             profile,
         )
 
@@ -208,16 +208,16 @@ class KeymapService(BaseServiceImpl):
 
     # Core implementation methods (used by file-based methods)
 
-    def compile(
+    def generate(
         self,
         profile: KeyboardProfile,
         keymap_data: KeymapData,
-        target_prefix: str,
+        output_file_prefix: str,
         force: bool = False,
     ) -> KeymapResult:
-        """Compile ZMK keymap files from keymap data."""
+        """Generate ZMK keymap files from keymap data."""
         profile_name = f"{profile.keyboard_name}/{profile.firmware_version}"
-        logger.info("Starting keymap build using profile: %s", profile_name)
+        logger.info("Starting keymap generation using profile: %s", profile_name)
 
         result = KeymapResult(success=False)
         result.profile_name = profile_name
@@ -226,7 +226,7 @@ class KeymapService(BaseServiceImpl):
             result.layer_count = len(keymap_data.layers)
 
             # Prepare output paths and create directory
-            output_paths = prepare_output_paths(target_prefix)
+            output_paths = prepare_output_paths(output_file_prefix)
 
             # Check if files exist and force is not set
             if output_paths.keymap.exists() and not force:
@@ -270,17 +270,18 @@ class KeymapService(BaseServiceImpl):
             result.json_path = output_paths.json
             result.success = True
 
-            result.add_message(f"Keymap built successfully for {profile_name}")
+            result.add_message(f"Keymap generated successfully for {profile_name}")
             logger.info(
-                "Keymap build completed successfully for target '%s'", target_prefix
+                "Keymap generation completed successfully for output '%s'",
+                output_file_prefix,
             )
 
             return result
 
         except Exception as e:
-            result.add_error(f"Keymap build failed: {e}")
-            logger.error("Keymap build failed: %s", e)
-            raise KeymapError(f"Keymap build failed: {e}") from e
+            result.add_error(f"Keymap generation failed: {e}")
+            logger.error("Keymap generation failed: %s", e)
+            raise KeymapError(f"Keymap generation failed: {e}") from e
 
     def split_keymap(
         self,
@@ -373,15 +374,19 @@ class KeymapService(BaseServiceImpl):
         try:
             # Keymap data is already validated through Pydantic
             # We just need to check that it matches the profile requirements
-            keyboard_name = profile.keyboard_name
-            keymap_keyboard = keymap_data.keyboard
+            profile_keyboard_type = profile.keyboard_name
+            keymap_keyboard_type = keymap_data.keyboard
 
             # Check keyboard type compatibility
-            if keymap_keyboard and keyboard_name and keymap_keyboard != keyboard_name:
+            if (
+                keymap_keyboard_type
+                and profile_keyboard_type
+                and keymap_keyboard_type != profile_keyboard_type
+            ):
                 logger.warning(
                     "Keyboard type mismatch: keymap has '%s', config has '%s'",
-                    keymap_keyboard,
-                    keyboard_name,
+                    keymap_keyboard_type,
+                    profile_keyboard_type,
                 )
 
             # Check layer count is reasonable
