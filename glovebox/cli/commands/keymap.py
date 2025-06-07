@@ -89,7 +89,7 @@ def keymap_generate(
 
 @keymap_app.command()
 @handle_errors
-def split(
+def extract(
     keymap_file: Annotated[Path, typer.Argument(help="Path to keymap JSON file")],
     output_dir: Annotated[
         Path, typer.Argument(help="Directory to save extracted files")
@@ -106,7 +106,7 @@ def split(
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
 ) -> None:
-    """Split a keymap file into individual layer files."""
+    """Extract layers from a keymap file into individual layer files."""
     # Create profile from profile option
     from glovebox.cli.helpers.profile import create_profile_from_option
 
@@ -116,7 +116,7 @@ def split(
     keymap_service = create_keymap_service()
 
     try:
-        result = keymap_service.split_keymap_from_file(
+        result = keymap_service.extract_layers_from_file(
             profile=keyboard_profile,
             keymap_file_path=keymap_file,
             output_dir=output_dir,
@@ -124,14 +124,14 @@ def split(
         )
 
         if result.success:
-            print_success_message(f"Keymap split into layers at {output_dir}")
+            print_success_message(f"Keymap layers extracted to {output_dir}")
         else:
-            print_error_message("Keymap split failed")
+            print_error_message("Layer extraction failed")
             for error in result.errors:
                 print_list_item(error)
             raise typer.Exit(1)
     except Exception as e:
-        print_error_message(f"Keymap split failed: {str(e)}")
+        print_error_message(f"Layer extraction failed: {str(e)}")
         raise typer.Exit(1) from None
 
 

@@ -149,18 +149,18 @@ class KeymapService(BaseServiceImpl):
             profile,
         )
 
-    def split_keymap_from_file(
+    def extract_layers_from_file(
         self,
         profile: KeyboardProfile,
         keymap_file_path: Path,
         output_dir: Path,
         force: bool = False,
     ) -> KeymapResult:
-        """Split a keymap file into individual layer files."""
+        """Extract layers from a keymap JSON file into individual layer files."""
         return self._process_json_file(
             keymap_file_path,
             "Layer extraction",
-            lambda data: self.split_keymap(profile, data, output_dir),
+            lambda data: self.extract_layers(profile, data, output_dir),
             profile,
         )
 
@@ -283,13 +283,13 @@ class KeymapService(BaseServiceImpl):
             logger.error("Keymap generation failed: %s", e)
             raise KeymapError(f"Keymap generation failed: {e}") from e
 
-    def split_keymap(
+    def extract_layers(
         self,
         profile: KeyboardProfile,
         keymap_data: KeymapData,
         output_dir: Path,
     ) -> KeymapResult:
-        """Split each layer from a keymap into separate files."""
+        """Extract each layer from a keymap into separate files."""
         logger.info("Extracting layers for %s to %s", profile.keyboard_name, output_dir)
 
         try:
@@ -434,10 +434,9 @@ class KeymapService(BaseServiceImpl):
             raise KeymapError(f"{operation_name} failed: {e}") from e
 
     def _load_json_file(self, file_path: Path) -> dict[str, Any]:
-        """Load and parse JSON from a file."""
+        """Load and parse JSON from a file using the file adapter."""
         try:
-            json_text = file_path.read_text()
-            result = json.loads(json_text)
+            result = self._file_adapter.read_json(file_path)
             if not isinstance(result, dict):
                 raise KeymapError(
                     f"Expected JSON object in file {file_path}, got {type(result)}"

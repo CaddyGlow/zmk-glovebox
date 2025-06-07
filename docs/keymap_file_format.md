@@ -72,9 +72,9 @@ The complete flow from editing to flashing:
 
 2. **Export**: Download the JSON keymap file from the editor
 
-3. **Compile Keymap**: Process the JSON into ZMK-compatible files
+3. **Generate Keymap**: Process the JSON into ZMK-compatible files
    ```bash
-   glovebox keymap compile layout.json output/my_keymap --profile glove80/v25.05
+   glovebox keymap generate layout.json output/my_keymap --profile glove80/v25.05
    ```
    This creates:
    - `output/my_keymap.keymap` (ZMK devicetree source)
@@ -97,12 +97,12 @@ The complete flow from editing to flashing:
 
 For easier maintenance of complex layouts, Glovebox allows splitting and merging keymap components:
 
-### Split Keymap
+### Extract Layers
 
-Split a complete keymap into manageable components:
+Extract a complete keymap into manageable layer components:
 
 ```bash
-glovebox keymap split my_layout.json my_layout/
+glovebox keymap extract my_layout.json my_layout/
 ```
 
 This creates:

@@ -339,7 +339,9 @@ class TestKeymapServiceWithKeyboardConfig:
                                     result = self.service.generate(
                                         profile=self.mock_profile,
                                         keymap_data=keymap_data,
-                                        output_file_prefix=str(tmp_path / "output/test"),
+                                        output_file_prefix=str(
+                                            tmp_path / "output/test"
+                                        ),
                                     )
 
                                     # Verify
@@ -529,14 +531,14 @@ class TestKeymapServiceWithMockedConfig:
                             # Convert to KeymapData
                             keymap_data = KeymapData.model_validate(sample_keymap_json)
 
-                            target_prefix = str(tmp_path / "output/test")
+                            output_file_prefix = str(tmp_path / "output/test")
 
                             try:
                                 # We're only testing that the integration points don't raise exceptions
                                 result = service.generate(
                                     mock_profile,
                                     keymap_data,
-                                    output_file_prefix=target_prefix,
+                                    output_file_prefix=output_file_prefix,
                                 )
                                 success = True
                                 assert result.success is True

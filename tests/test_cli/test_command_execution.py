@@ -109,10 +109,10 @@ def setup_firmware_command_test(mock_build_service, mock_keyboard_profile):
             "valid",
         ),
         (
-            "keymap split",
-            ["input.json", "split_output"],
+            "keymap extract",
+            ["input.json", "extract_output"],
             True,
-            "Keymap split into layers",
+            "Keymap layers extracted to",
         ),
     ],
 )
@@ -157,11 +157,11 @@ def test_keymap_commands(
         setup_keymap_command_test[
             "mock_keymap_service"
         ].generate_from_file.return_value = keymap_result
-    elif "split" in command:
+    elif "extract" in command:
         keymap_result = KeymapResult(success=success)
         setup_keymap_command_test[
             "mock_keymap_service"
-        ].split_keymap_from_file.return_value = keymap_result
+        ].extract_layers_from_file.return_value = keymap_result
     elif "validate" in command:
         setup_keymap_command_test[
             "mock_keymap_service"

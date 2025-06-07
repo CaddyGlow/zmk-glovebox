@@ -51,8 +51,8 @@ def test_keymap_help(cli_runner):
     """Test keymap help shows subcommands."""
     result = cli_runner.invoke(app, ["keymap", "--help"])
     assert result.exit_code == 0
-    assert "compile" in result.output
-    assert "split" in result.output
+    assert "generate" in result.output
+    assert "extract" in result.output
     assert "merge" in result.output
     assert "show" in result.output
     assert "validate" in result.output
@@ -76,13 +76,13 @@ def test_config_help(cli_runner):
 
 def test_missing_required_args(cli_runner):
     """Test missing required arguments return error."""
-    # Test keymap compile missing args
-    result = cli_runner.invoke(app, ["keymap", "compile"])
+    # Test keymap generate missing args
+    result = cli_runner.invoke(app, ["keymap", "generate"])
     assert result.exit_code != 0
     assert "Missing argument" in result.output
 
-    # Test keymap split missing args
-    result = cli_runner.invoke(app, ["keymap", "split"])
+    # Test keymap extract missing args
+    result = cli_runner.invoke(app, ["keymap", "extract"])
     assert result.exit_code != 0
     assert "Missing argument" in result.output
 

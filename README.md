@@ -56,13 +56,13 @@ pre-commit install
 
 ```bash
 # Build a keymap with a specific keyboard profile
-glovebox keymap compile my_layout.json output/my_keymap --profile glove80/v25.05
+glovebox keymap generate my_layout.json output/my_keymap --profile glove80/v25.05
 
 # Read from stdin
-cat my_layout.json | glovebox keymap compile - output/my_keymap --profile glove80/v25.05
+cat my_layout.json | glovebox keymap generate - output/my_keymap --profile glove80/v25.05
 
 # Force overwrite of existing files
-glovebox keymap compile my_layout.json output/my_keymap --profile glove80/v25.05 --force
+glovebox keymap generate my_layout.json output/my_keymap --profile glove80/v25.05 --force
 ```
 
 ### Build Firmware
@@ -196,23 +196,23 @@ export GLOVEBOX_DEFAULT_FIRMWARE=v25.05
 export GLOVEBOX_LOG_LEVEL=DEBUG
 
 # Run command with environment configuration
-glovebox keymap compile my_layout.json output/
+glovebox keymap generate my_layout.json output/
 ```
 
 ## CLI Reference
 
 ### Keymap Commands
 
-#### `glovebox keymap compile`
+#### `glovebox keymap generate`
 
-Compile a keymap JSON file into ZMK keymap and config files.
+Generate ZMK keymap and config files from a JSON keymap file.
 
 ```bash
-glovebox keymap compile [OPTIONS] TARGET_PREFIX JSON_FILE
+glovebox keymap generate [OPTIONS] OUTPUT_FILE_PREFIX JSON_FILE
 ```
 
 **Arguments:**
-- `TARGET_PREFIX`: Target directory and base filename (e.g., 'config/my_glove80')
+- `OUTPUT_FILE_PREFIX`: Output directory and base filename (e.g., 'config/my_glove80')
 - `JSON_FILE`: Path to keymap JSON file (use '-' or omit for stdin)
 
 **Options:**
@@ -222,18 +222,18 @@ glovebox keymap compile [OPTIONS] TARGET_PREFIX JSON_FILE
 **Examples:**
 ```bash
 # Using a specific profile (keyboard/firmware)
-glovebox keymap compile output/glove80 layout.json --profile glove80/v25.05
+glovebox keymap generate output/glove80 layout.json --profile glove80/v25.05
 
 # Reading from stdin
-cat layout.json | glovebox keymap compile output/glove80 - --profile glove80/v25.05
+cat layout.json | glovebox keymap generate output/glove80 - --profile glove80/v25.05
 ```
 
-#### `glovebox keymap split`
+#### `glovebox keymap extract`
 
-Split a keymap file into individual layer files.
+Extract layers from a keymap file into individual layer files.
 
 ```bash
-glovebox keymap split [OPTIONS] KEYMAP_FILE OUTPUT_DIR
+glovebox keymap extract [OPTIONS] KEYMAP_FILE OUTPUT_DIR
 ```
 
 **Arguments:**
@@ -517,18 +517,21 @@ user_config.save()
 
 **Keymap Configuration**:
 ```python
-from glovebox.services.file_service import create_file_service
+from glovebox.services.keymap_service import create_keymap_service
 from pathlib import Path
 
-# Create file service with config adapter
-file_service = create_file_service()
+# Create keymap service
+keymap_service = create_keymap_service()
 
-# Load keymap with validation
-keymap_data = file_service.load_keymap(Path("my_keymap.json"))
+# Validate keymap
+keymap_valid = keymap_service.validate_file(profile, Path("my_keymap.json"))
 
-# Access validated data
-print(f"Keyboard: {keymap_data.keyboard}")
-print(f"Layers: {len(keymap_data.layers)}")
+# Generate keymap
+result = keymap_service.generate_from_file(profile, Path("my_keymap.json"), "output/my_keymap")
+
+# Access generated files
+print(f"Keymap file: {result.keymap_path}")
+print(f"Config file: {result.conf_path}")
 ```
 
 **Using the ConfigFileAdapter**:

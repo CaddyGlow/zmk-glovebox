@@ -561,10 +561,10 @@ def mock_keymap_service() -> Mock:
     mock.generate.return_value = result
     mock.generate_from_file.return_value = result
 
-    # Mock successful split result
-    split_result = KeymapResult(success=True)
-    mock.split_keymap.return_value = split_result
-    mock.split_keymap_from_file.return_value = split_result
+    # Mock successful extract result
+    extract_result = KeymapResult(success=True)
+    mock.extract_layers.return_value = extract_result
+    mock.extract_layers_from_file.return_value = extract_result
 
     # Mock successful merge result
     merge_result = KeymapResult(success=True)
