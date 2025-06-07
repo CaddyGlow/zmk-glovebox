@@ -297,6 +297,7 @@ class TestKeymapServiceWithKeyboardConfig:
         mock_prepare_paths.return_value = output_paths
 
         # Setup file adapter mock
+        # ruff: noqa: SIM117 - Nested with statements are more readable here
         with patch.object(self.mock_file_adapter, "mkdir", return_value=True):
             with patch.object(self.mock_file_adapter, "write_text", return_value=True):
                 with patch.object(
@@ -305,6 +306,7 @@ class TestKeymapServiceWithKeyboardConfig:
                     # Setup DTSI generator mock
                     kconfig_content = 'CONFIG_ZMK_KEYBOARD_NAME="Test Keyboard"'
                     kconfig_settings = {"CONFIG_ZMK_KEYBOARD_NAME": "Test Keyboard"}
+                    # ruff: noqa: SIM117 - Nested with statements are more readable here
                     with patch.object(
                         self.mock_dtsi_generator,
                         "generate_kconfig_conf",
@@ -488,6 +490,7 @@ class TestKeymapServiceWithMockedConfig:
         file_adapter = Mock(spec=FileAdapterProtocol)
 
         # Set up file adapter methods
+        # ruff: noqa: SIM117 - Nested with statements are more readable here
         with patch.object(file_adapter, "mkdir", return_value=None):
             with patch.object(file_adapter, "write_text", return_value=None):
                 with patch.object(file_adapter, "write_json", return_value=None):

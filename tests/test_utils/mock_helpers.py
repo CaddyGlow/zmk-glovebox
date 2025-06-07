@@ -117,6 +117,7 @@ def patch_behavior_registry(registry: Mock):
     """Patch a behavior registry with proper protocol methods."""
     registry._behaviors = {}
 
+    # ruff: noqa: SIM117 - Nested with statements are more readable here
     with patch.object(registry, "list_behaviors", return_value=registry._behaviors):
         with patch.object(
             registry,
