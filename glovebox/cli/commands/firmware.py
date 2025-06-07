@@ -68,23 +68,6 @@ def firmware_compile(
     ] = False,
 ) -> None:
     """Compile firmware from keymap and config files."""
-    # Validate input files
-    if not keymap_file.exists():
-        raise typer.BadParameter(f"Keymap file not found: {keymap_file}")
-    if not kconfig_file.exists():
-        raise typer.BadParameter(f"Kconfig file not found: {kconfig_file}")
-
-    # Initialize build configuration
-    build_config = BuildServiceCompileOpts(
-        keymap_path=keymap_file,
-        kconfig_path=kconfig_file,
-        output_dir=output_dir,
-        branch=branch if branch is not None else "main",
-        repo=repo if repo is not None else "moergo-sc/zmk",
-        jobs=jobs if jobs is not None else 0,
-        verbose=verbose,
-    )
-
     # Create KeyboardProfile if profile is specified
     keyboard_profile = None
     if profile:
@@ -92,22 +75,39 @@ def firmware_compile(
     elif keyboard and firmware:
         # If no profile but keyboard and firmware are provided, create profile from them
         from glovebox.config.keyboard_config import create_keyboard_profile
-
         keyboard_profile = create_keyboard_profile(keyboard, firmware)
 
-    # Compile firmware using the build service with profile if available
-    build_service = create_build_service()
-    result = build_service.compile(build_config, profile=keyboard_profile)
+    # Use the branch and repo parameters if provided, otherwise use defaults
+    branch_value = branch if branch is not None else "main"
+    repo_value = repo if repo is not None else "moergo-sc/zmk"
 
-    if result.success:
-        print_success_message("Firmware compiled successfully")
-        for message in result.messages:
-            print_list_item(message)
-    else:
-        print_error_message("Firmware compilation failed")
-        for error in result.errors:
-            print_list_item(error)
-        raise typer.Exit(1)
+    # Compile firmware using the file-based method with profile if available
+    build_service = create_build_service()
+
+    try:
+        result = build_service.compile_from_files(
+            keymap_file_path=keymap_file,
+            kconfig_file_path=kconfig_file,
+            output_dir=output_dir,
+            profile=keyboard_profile,
+            branch=branch_value,
+            repo=repo_value,
+            jobs=jobs,
+            verbose=verbose,
+        )
+
+        if result.success:
+            print_success_message("Firmware compiled successfully")
+            for message in result.messages:
+                print_list_item(message)
+        else:
+            print_error_message("Firmware compilation failed")
+            for error in result.errors:
+                print_list_item(error)
+            raise typer.Exit(1)
+    except Exception as e:
+        print_error_message(f"Firmware compilation failed: {str(e)}")
+        raise typer.Exit(1) from None
 
 
 @firmware_app.command()

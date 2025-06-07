@@ -45,23 +45,23 @@ class BuildService(BaseServiceImpl):
 
     def __init__(
         self,
-        docker_adapter: DockerAdapter | None = None,
-        file_adapter: FileAdapter | None = None,
-        output_middleware: stream_process.OutputMiddleware[str] | None = None,
+        docker_adapter: DockerAdapter,
+        file_adapter: FileAdapter,
+        output_middleware: stream_process.OutputMiddleware[str],
         loglevel: str = "INFO",
     ):
-        """Initialize the build service.
+        """Initialize the build service with explicit dependencies.
 
         Args:
-            docker_adapter: Optional Docker adapter (creates default if None)
-            file_adapter: Optional file adapter (creates default if None)
-            output_middleware: Optional output middleware (creates default if None)
+            docker_adapter: Docker adapter for container operations
+            file_adapter: File adapter for filesystem operations
+            output_middleware: Output middleware for processing build output
             loglevel: Log level for subprocess operations (used when executing docker)
         """
         super().__init__(service_name="BuildService", service_version="1.0.0")
-        self.docker_adapter = docker_adapter or create_docker_adapter()
-        self.file_adapter = file_adapter or create_file_adapter()
-        self.output_middleware = output_middleware or self._create_default_middleware()
+        self.docker_adapter = docker_adapter
+        self.file_adapter = file_adapter
+        self.output_middleware = output_middleware
         self.loglevel = loglevel
         logger.debug(
             "BuildService initialized with Docker adapter: %s, File adapter: %s, Log level: %s",
@@ -70,9 +70,13 @@ class BuildService(BaseServiceImpl):
             self.loglevel,
         )
 
-    def _create_default_middleware(self) -> stream_process.OutputMiddleware[str]:
-        """Create default output middleware for build process."""
+    @staticmethod
+    def _create_default_middleware() -> stream_process.OutputMiddleware[str]:
+        """Create default output middleware for build process.
 
+        Returns:
+            A new instance of the default output middleware
+        """
         class BuildOutputMiddleware(stream_process.OutputMiddleware[str]):
             def __init__(self) -> None:
                 self.collected_data: list[tuple[str, str]] = []
@@ -91,6 +95,67 @@ class BuildService(BaseServiceImpl):
                 return line
 
         return BuildOutputMiddleware()
+
+    def compile_from_files(
+        self,
+        keymap_file_path: Path,
+        kconfig_file_path: Path,
+        output_dir: Path = Path("build"),
+        profile: Optional["KeyboardProfile"] = None,
+        branch: str = "main",
+        repo: str = "moergo-sc/zmk",
+        jobs: int | None = None,
+        verbose: bool = False,
+    ) -> BuildResult:
+        """
+        Compile firmware from keymap and config files.
+
+        This method handles file existence checks and builds a BuildServiceCompileOpts object.
+
+        Args:
+            keymap_file_path: Path to the keymap (.keymap) file
+            kconfig_file_path: Path to the kconfig (.conf) file
+            output_dir: Directory where build artifacts will be stored
+            profile: KeyboardProfile with configuration (preferred over keyboard name)
+            branch: Git branch to use for the ZMK firmware repository
+            repo: Git repository to use for the ZMK firmware
+            jobs: Number of parallel jobs for compilation (None uses CPU count)
+            verbose: Enable verbose build output for debugging
+
+        Returns:
+            BuildResult with success status and firmware file paths
+        """
+        logger.info(f"Starting firmware build from files: {keymap_file_path}, {kconfig_file_path}")
+        result = BuildResult(success=False)
+
+        try:
+            # Check if files exist
+            if not self.file_adapter.exists(keymap_file_path):
+                result.add_error(f"Keymap file not found: {keymap_file_path}")
+                return result
+
+            if not self.file_adapter.exists(kconfig_file_path):
+                result.add_error(f"Kconfig file not found: {kconfig_file_path}")
+                return result
+
+            # Create build options
+            build_opts = BuildServiceCompileOpts(
+                keymap_path=keymap_file_path,
+                kconfig_path=kconfig_file_path,
+                output_dir=output_dir,
+                branch=branch,
+                repo=repo,
+                jobs=jobs,
+                verbose=verbose,
+            )
+
+            # Call the main compile method
+            return self.compile(build_opts, profile)
+
+        except Exception as e:
+            logger.error(f"Failed to prepare build: {e}")
+            result.add_error(f"Build preparation failed: {str(e)}")
+            return result
 
     def compile(
         self,
@@ -180,6 +245,60 @@ class BuildService(BaseServiceImpl):
             result.add_error(f"Unexpected error: {str(e)}")
 
         return result
+
+    def build_image_from_directory(
+        self,
+        dockerfile_dir_path: Path,
+        image_name: str = "moergo-zmk-build",
+        image_tag: str = "latest",
+        no_cache: bool = False,
+    ) -> BuildResult:
+        """
+        Build Docker image for ZMK builds from a directory.
+
+        This method handles directory existence checks before building the image.
+
+        Args:
+            dockerfile_dir_path: Directory containing Dockerfile
+            image_name: Name for the Docker image
+            image_tag: Tag for the Docker image
+            no_cache: Don't use cache when building the image
+
+        Returns:
+            BuildResult with success status and image information
+        """
+        logger.info(f"Building Docker image {image_name}:{image_tag} from {dockerfile_dir_path}")
+        result = BuildResult(success=False)
+
+        try:
+            # Check Docker availability
+            if not self.docker_adapter.is_available():
+                result.add_error("Docker is not available")
+                return result
+
+            # Validate Dockerfile directory
+            if not self.file_adapter.exists(dockerfile_dir_path):
+                result.add_error(f"Dockerfile directory not found: {dockerfile_dir_path}")
+                return result
+
+            # Check for Dockerfile in the directory
+            dockerfile_path = dockerfile_dir_path / "Dockerfile"
+            if not self.file_adapter.exists(dockerfile_path):
+                result.add_error(f"Dockerfile not found in directory: {dockerfile_dir_path}")
+                return result
+
+            # Call the main build_image method
+            return self.build_image(
+                dockerfile_dir=dockerfile_dir_path,
+                image_name=image_name,
+                image_tag=image_tag,
+                no_cache=no_cache
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to prepare Docker image build: {e}")
+            result.add_error(f"Docker image build preparation failed: {str(e)}")
+            return result
 
     def build_image(
         self,
@@ -538,6 +657,20 @@ def create_build_service(
     Returns:
         Configured BuildService instance
     """
+    # Create default docker adapter if not provided
+    if docker_adapter is None:
+        docker_adapter = create_docker_adapter()
+
+    # Create default file adapter if not provided
+    if file_adapter is None:
+        file_adapter = create_file_adapter()
+
+    # Create default output middleware if not provided
+    if output_middleware is None:
+        # Use the static method to create default middleware
+        output_middleware = BuildService._create_default_middleware()
+
+    # Create and return service instance with all dependencies
     return BuildService(
         docker_adapter=docker_adapter,
         file_adapter=file_adapter,
