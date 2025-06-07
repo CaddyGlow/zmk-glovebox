@@ -3,12 +3,10 @@
 import logging
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Optional
 
 from glovebox.adapters.file_adapter import FileAdapter, create_file_adapter
 from glovebox.adapters.usb_adapter import USBAdapter, create_usb_adapter
-from glovebox.config.keyboard_config import create_profile_from_keyboard_name
-from glovebox.core.errors import FlashError
 from glovebox.flash.lsdev import BlockDevice
 from glovebox.models.results import FlashResult
 from glovebox.services.base_service import BaseServiceImpl
@@ -84,15 +82,15 @@ class FlashService(BaseServiceImpl):
         logger.info(
             f"Starting firmware flash operation from file: {firmware_file_path}"
         )
-        result = FlashResult(success=False)
 
+        # Validate firmware file existence
+        if not self.file_adapter.exists(firmware_file_path):
+            result = FlashResult(success=False)
+            result.add_error(f"Firmware file not found: {firmware_file_path}")
+            return result
+
+        # Call the main flash method with path already verified
         try:
-            # Validate firmware file
-            if not self.file_adapter.exists(firmware_file_path):
-                result.add_error(f"Firmware file not found: {firmware_file_path}")
-                return result
-
-            # Call the main flash method
             return self.flash(
                 firmware_file=firmware_file_path,
                 profile=profile,
@@ -100,10 +98,11 @@ class FlashService(BaseServiceImpl):
                 timeout=timeout,
                 count=count,
                 track_flashed=track_flashed,
+                skip_file_check=True  # Skip the duplicate file check
             )
-
         except Exception as e:
             logger.error(f"Error preparing flash operation: {e}")
+            result = FlashResult(success=False)
             result.add_error(f"Flash preparation failed: {str(e)}")
             return result
 
@@ -115,13 +114,10 @@ class FlashService(BaseServiceImpl):
         timeout: int = 60,
         count: int = 1,
         track_flashed: bool = True,
+        skip_file_check: bool = False,
     ) -> FlashResult:
         """
         Flash firmware to devices matching the query.
-
-        Preferred usage: Pass a KeyboardProfile object instead of using keyboard name.
-        To convert from a keyboard name to a profile, use the create_profile_from_keyboard_name
-        helper function from this module.
 
         Args:
             firmware_file: Path to the firmware file to flash
@@ -130,6 +126,7 @@ class FlashService(BaseServiceImpl):
             timeout: Timeout in seconds for waiting for devices
             count: Number of devices to flash (0 for unlimited)
             track_flashed: Whether to track which devices have been flashed
+            skip_file_check: Skip the file existence check (used by flash_from_file)
 
         Returns:
             FlashResult with details of the flash operation
@@ -137,12 +134,12 @@ class FlashService(BaseServiceImpl):
         logger.info("Starting firmware flash operation")
         result = FlashResult(success=True)
 
-        # Convert firmware_file to Path
+        # Convert firmware_file to Path if it's a string
         if isinstance(firmware_file, str):
             firmware_file = Path(firmware_file)
 
-        # Validate firmware file
-        if not self.file_adapter.exists(firmware_file):
+        # Validate firmware file if check not skipped
+        if not skip_file_check and not self.file_adapter.exists(firmware_file):
             result.success = False
             result.add_error(f"Firmware file not found: {firmware_file}")
             return result
@@ -448,4 +445,3 @@ def create_flash_service(
     )
 
 
-# Helper function moved to keyboard_config.py
