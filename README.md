@@ -112,11 +112,91 @@ glovebox config list --verbose
 # Show details of a specific profile
 glovebox config show glove80/main
 
+# Show current configuration settings
+glovebox config show
+
+# Show configuration with sources
+glovebox config show --sources
+
+# Set a configuration value
+glovebox config set default_keyboard glove80
+
+# Set a boolean configuration value
+glovebox config set debug true
+
+# Set a list configuration value
+glovebox config set keyboard_paths /path/to/keyboards,/another/path
+
 # Show system status
 glovebox status
 
 # Install shell completion
 glovebox --install-completion
+```
+
+### User Configuration
+
+Glovebox allows users to customize their experience through a configuration system:
+
+#### Configuration Locations
+
+Configuration is loaded from multiple sources with the following precedence:
+1. Environment variables (`GLOVEBOX_LOG_LEVEL`, `GLOVEBOX_DEFAULT_KEYBOARD`, etc.)
+2. User configuration file (`~/.config/glovebox/config.yaml`)
+3. Local project configuration file (`./.glovebox.yaml`)
+4. Default values
+
+#### Available Settings
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `default_keyboard` | string | `"glove80"` | Default keyboard to use when not specified |
+| `default_firmware` | string | `"v25.05"` | Default firmware to use when not specified |
+| `log_level` | string | `"INFO"` | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
+| `keyboard_paths` | list | `[]` | Additional paths to search for keyboard configurations |
+
+#### Viewing Configuration
+
+View the current configuration settings:
+
+```bash
+# Show all configuration settings
+glovebox config show
+
+# Show configuration with their sources
+glovebox config show --sources
+```
+
+#### Setting Configuration
+
+Set configuration values that persist between runs:
+
+```bash
+# Set default keyboard
+glovebox config set default_keyboard glove80
+
+# Set default firmware version
+glovebox config set default_firmware v25.05
+
+# Set logging level
+glovebox config set log_level DEBUG
+
+# Set custom keyboard paths (comma-separated)
+glovebox config set keyboard_paths ~/custom-keyboards,~/projects/keyboards
+```
+
+#### Using Environment Variables
+
+For temporary settings or CI/CD environments, use environment variables:
+
+```bash
+# Set temporary configuration
+export GLOVEBOX_DEFAULT_KEYBOARD=glove80
+export GLOVEBOX_DEFAULT_FIRMWARE=v25.05
+export GLOVEBOX_LOG_LEVEL=DEBUG
+
+# Run command with environment configuration
+glovebox keymap compile my_layout.json output/
 ```
 
 ## CLI Reference
@@ -341,7 +421,7 @@ Show system status and diagnostics.
 
 ### Typed Configuration System
 
-Glovebox uses a type-safe, file-based configuration system to support different keyboards and firmware versions:
+Glovebox uses a comprehensive type-safe configuration system to support different keyboards, firmware versions, and user preferences:
 
 #### Key Components:
 
@@ -353,34 +433,46 @@ Glovebox uses a type-safe, file-based configuration system to support different 
    - Each keyboard configuration can define multiple firmware variants
    - Firmware variants can override keyboard-level settings
 
-3. **Configuration Files**:
+3. **User Configuration**:
+   - User-specific settings using Pydantic models for validation
+   - Multi-source configuration with precedence (environment, global, local)
+   - Direct property access with type safety
+
+4. **Keymap Configuration**:
+   - Type-safe representation of keymap JSON files
+   - Validation and serialization using Pydantic models
+
+5. **Configuration Files**:
    - Stored in a discoverable directory structure
    - Simple hierarchy: keyboard → firmware variants
-   - Files include templates, build settings, and flash configurations
+   - YAML files for keyboard/firmware configurations
+   - JSON files for keymaps
 
-4. **Schema Validation**:
-   - Configuration files are validated against schemas
-   - Provides early error detection and helpful error messages
+6. **Adapter Pattern**:
+   - `ConfigFileAdapter`: Generic adapter for config file operations
+   - Type-parametrized for different configuration models
+   - Unified loading, saving, and validation
 
-5. **Type Safety**:
-   - All configuration objects are strongly typed with Python dataclasses
+7. **Type Safety**:
+   - All configuration objects are strongly typed with dataclasses and Pydantic models
    - Better IDE support with autocompletion
    - Early validation of configuration structure
 
-6. **KeyboardProfile**:
+8. **KeyboardProfile**:
    - Unified access to keyboard and firmware configuration
    - Simplifies working with combined settings
 
-7. **Configuration Components**:
+9. **Configuration Components**:
    - `get_available_keyboards()`: Lists available keyboard configurations
    - `load_keyboard_config()`: Loads typed configuration for a specific keyboard
    - `create_keyboard_profile()`: Creates a profile for a keyboard and firmware variant
+   - `create_config_file_adapter()`: Creates an adapter for a specific config type
 
 #### Usage Examples:
 
 **Keyboard Configuration Loading**:
 ```python
-from glovebox.config.keyboard_config import load_keyboard_config_typed
+from glovebox.config.keyboard_config import load_keyboard_config
 
 # Load keyboard configuration as a typed object
 keyboard_config = load_keyboard_config("glove80")
@@ -404,6 +496,55 @@ print(profile.firmware_version)
 
 # Access firmware configuration
 build_options = profile.firmware_config.build_options
+```
+
+**User Configuration**:
+```python
+from glovebox.config.user_config import create_user_config
+from glovebox.models.config import UserConfigData
+
+# Create user configuration
+user_config = create_user_config()
+
+# Direct property access with type safety
+log_level = user_config.log_level
+default_keyboard = user_config.default_keyboard
+
+# Set and save configuration
+user_config.set("default_keyboard", "glove80")
+user_config.save()
+```
+
+**Keymap Configuration**:
+```python
+from glovebox.services.file_service import create_file_service
+from pathlib import Path
+
+# Create file service with config adapter
+file_service = create_file_service()
+
+# Load keymap with validation
+keymap_data = file_service.load_keymap(Path("my_keymap.json"))
+
+# Access validated data
+print(f"Keyboard: {keymap_data.keyboard}")
+print(f"Layers: {len(keymap_data.layers)}")
+```
+
+**Using the ConfigFileAdapter**:
+```python
+from glovebox.adapters.config_file_adapter import create_keymap_config_adapter
+from glovebox.models.config import KeymapConfigData
+from pathlib import Path
+
+# Create typed adapter
+config_adapter = create_keymap_config_adapter()
+
+# Load configuration with validation
+keymap_config = config_adapter.load_model(Path("my_keymap.json"), KeymapConfigData)
+
+# Save with validation
+config_adapter.save_model(Path("output.json"), keymap_config)
 ```
 
 For detailed information about the typed configuration system, see [Typed Configuration Guide](docs/typed_configuration.md).

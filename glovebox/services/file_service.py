@@ -4,11 +4,16 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
+from glovebox.adapters.config_file_adapter import (
+    ConfigFileAdapter,
+    create_keymap_config_adapter,
+)
 from glovebox.adapters.file_adapter import FileAdapter
 from glovebox.config.profile import KeyboardProfile
-from glovebox.core.errors import KeymapError
+from glovebox.core.errors import ConfigError, KeymapError
+from glovebox.models.config import KeymapConfigData
 from glovebox.models.keymap import (
     KeymapBinding,
     KeymapData,
@@ -26,10 +31,20 @@ logger = logging.getLogger(__name__)
 class KeymapFileService(BaseServiceImpl):
     """Service for keymap file operations including loading, saving, extraction and combination."""
 
-    def __init__(self, file_adapter: FileAdapter):
-        """Initialize keymap file service with adapter dependencies."""
+    def __init__(
+        self,
+        file_adapter: FileAdapter,
+        config_adapter: ConfigFileAdapter[KeymapConfigData] | None = None,
+    ):
+        """Initialize keymap file service with adapter dependencies.
+
+        Args:
+            file_adapter: Adapter for general file operations
+            config_adapter: Adapter for keymap config operations (optional)
+        """
         super().__init__(service_name="KeymapFileService", service_version="1.0.0")
         self._file_adapter = file_adapter
+        self._config_adapter = config_adapter or create_keymap_config_adapter()
 
     def load_keymap(
         self, file_path: Path, profile: KeyboardProfile | None = None
@@ -120,11 +135,24 @@ class KeymapFileService(BaseServiceImpl):
             KeymapError: If file cannot be loaded or parsed
         """
         try:
-            # Read JSON file using the file adapter
-            json_data = self._file_adapter.read_json(file_path)
+            # Use the config adapter to load and validate the JSON file
+            try:
+                # Load using the ConfigFileAdapter for better validation and error handling
+                config_data = self._config_adapter.load_model(
+                    file_path, KeymapConfigData
+                )
 
-            # Parse into KeymapData model
-            keymap_data = KeymapData.model_validate(json_data)
+                # Convert the validated KeymapConfigData to KeymapData for backward compatibility
+                json_data = config_data.model_dump(by_alias=True)
+                keymap_data = KeymapData.model_validate(json_data)
+
+            except ConfigError as ce:
+                # Fall back to direct loading if the adapter fails
+                logger.warning(
+                    "Config adapter failed, falling back to direct loading: %s", ce
+                )
+                json_data = self._file_adapter.read_json(file_path)
+                keymap_data = KeymapData.model_validate(json_data)
 
             logger.info(
                 "Successfully loaded keymap with %d layers from %s",
@@ -152,14 +180,24 @@ class KeymapFileService(BaseServiceImpl):
             KeymapError: If file cannot be saved
         """
         try:
-            # Convert model to dictionary with proper field names
+            # Convert to JSON-compatible dictionary with proper field names
             json_data = keymap_data.model_dump(mode="json", by_alias=True)
 
-            # Write JSON file using the file adapter
-            self._file_adapter.write_json(file_path, json_data)
+            try:
+                # Create a KeymapConfigData model and save using the adapter for better validation
+                config_data = KeymapConfigData.model_validate(json_data)
+                self._config_adapter.save_model(file_path, config_data)
+
+            except Exception as adapter_err:
+                # Fall back to direct file writing if adapter method fails
+                logger.warning(
+                    "Config adapter failed to save, falling back to direct saving: %s",
+                    adapter_err,
+                )
+                # Write JSON file using the file adapter
+                self._file_adapter.write_json(file_path, json_data)
 
             logger.info("Successfully saved keymap to %s", file_path)
-
             return file_path
 
         except Exception as e:
@@ -659,18 +697,21 @@ class KeymapFileService(BaseServiceImpl):
 
 def create_file_service(
     file_adapter: FileAdapter | None = None,
+    config_adapter: ConfigFileAdapter[KeymapConfigData] | None = None,
 ) -> KeymapFileService:
     """Create a KeymapFileService instance.
 
     Args:
         file_adapter: Optional file adapter (creates default if None)
+        config_adapter: Optional config file adapter (creates default if None)
 
     Returns:
         KeymapFileService instance
     """
     logger.debug(
-        "Creating KeymapFileService with%s file adapter",
+        "Creating KeymapFileService with%s file adapter and%s config adapter",
         "" if file_adapter else " default",
+        "" if config_adapter else " default",
     )
 
     if file_adapter is None:
@@ -678,4 +719,10 @@ def create_file_service(
 
         file_adapter = create_file_adapter()
 
-    return KeymapFileService(file_adapter=file_adapter)
+    if config_adapter is None:
+        config_adapter = create_keymap_config_adapter()
+
+    return KeymapFileService(
+        file_adapter=file_adapter,
+        config_adapter=config_adapter,
+    )

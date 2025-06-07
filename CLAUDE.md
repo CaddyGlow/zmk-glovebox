@@ -180,18 +180,32 @@ Glovebox is a comprehensive tool for ZMK keyboard firmware management with a cle
   - `BuildService`: Manages firmware building
   - `FlashService`: Controls device detection and firmware flashing
   - `DisplayService`: Renders keyboard layouts in the terminal
+  - `KeymapFileService`: Manages keymap file operations
 
 - **Adapter Pattern**: External system interfaces
   - `DockerAdapter`: Docker interaction for builds
   - `FileAdapter`: File system operations
   - `USBAdapter`: USB device detection and mounting
   - `TemplateAdapter`: Template rendering
+  - `ConfigFileAdapter`: Configuration file loading and saving with type safety
 
-- **Configuration System**: Type-safe configuration with KeyboardProfile pattern
-  - Typed dataclasses for all configuration components
-  - KeyboardProfile combines keyboard and firmware configurations
-  - YAML-based configuration files with schema validation
-  - Helper functions for profile creation and management
+- **Configuration System**: Comprehensive type-safe configuration system
+  - **Pydantic Models**:
+    - `UserConfigData`: User settings model with validation
+    - `KeymapConfigData`: Keymap file format model with validation
+  - **Dataclasses**:
+    - Typed dataclasses for keyboard and firmware configurations
+    - `KeyboardConfig`, `FirmwareConfig`, etc.
+  - **Profile System**:
+    - `KeyboardProfile` combines keyboard and firmware configurations
+    - Provides unified access to all configuration options
+  - **Multi-source Configuration**:
+    - Environment variables, global config, local config
+    - Clear precedence rules
+    - Simple property-based access
+  - **File Formats**:
+    - YAML for keyboard/firmware configurations
+    - JSON for keymap files
 
 - **Build Chains**: Pluggable build system for different toolchains all based on ZMK
 
@@ -205,14 +219,16 @@ Glovebox is a comprehensive tool for ZMK keyboard firmware management with a cle
 6. **Dependency Injection**: Services accept dependencies rather than creating them
 7. **Factory Functions**: Simplify creation of properly configured services
 
-### KeyboardProfile Pattern
+### Key Configuration Patterns
+
+#### KeyboardProfile Pattern
 
 The KeyboardProfile pattern is a central concept in the architecture:
 
-1. **Creation**: 
+1. **Creation**:
    ```python
    from glovebox.config.keyboard_config import create_keyboard_profile
-   
+
    profile = create_keyboard_profile("glove80", "v25.05")
    ```
 
@@ -233,6 +249,50 @@ The KeyboardProfile pattern is a central concept in the architecture:
    # Access nested configuration
    profile.keyboard_config.description
    profile.firmware_config.version
+   ```
+
+#### ConfigFileAdapter Pattern
+
+The ConfigFileAdapter pattern provides type-safe configuration file handling:
+
+1. **Creation**:
+   ```python
+   from glovebox.adapters.config_file_adapter import create_config_file_adapter, create_keymap_config_adapter
+
+   # For user configuration
+   user_config_adapter = create_config_file_adapter()
+
+   # For keymap configuration
+   keymap_config_adapter = create_keymap_config_adapter()
+   ```
+
+2. **Loading Models**:
+   ```python
+   # Load and validate configuration
+   config_data = config_adapter.load_model(file_path, UserConfigData)
+
+   # Access typed properties
+   print(config_data.default_keyboard)
+   ```
+
+3. **Saving Models**:
+   ```python
+   # Save with validation
+   config_adapter.save_model(file_path, config_data)
+   ```
+
+4. **Type Safety**:
+   ```python
+   # Generic type parameter ensures type safety
+   from typing import Generic, TypeVar
+   from pydantic import BaseModel
+
+   T = TypeVar("T", bound=BaseModel)
+
+   class ConfigFileAdapter(Generic[T]):
+       # Type-safe operations for specific model type
+       def load_model(self, file_path: Path, model_class: type[T]) -> T:
+           ...
    ```
 
 ### CLI Structure
