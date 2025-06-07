@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import Mock, patch
 
 import pytest
@@ -148,19 +149,19 @@ def test_keymap_commands(
 
     # Configure service mocks based on command
     if "compile" in command:
-        result = KeymapResult(success=success)
-        result.keymap_path = Path(tmp_path / "output/keymap.keymap")
-        result.conf_path = Path(tmp_path / "output/keymap.conf")
+        keymap_result = KeymapResult(success=success)
+        keymap_result.keymap_path = Path(tmp_path / "output/keymap.keymap")
+        keymap_result.conf_path = Path(tmp_path / "output/keymap.conf")
         if not success:
-            result.errors.append("Invalid keymap structure")
+            keymap_result.errors.append("Invalid keymap structure")
         setup_keymap_command_test[
             "mock_keymap_service"
-        ].compile_from_file.return_value = result
+        ].compile_from_file.return_value = keymap_result
     elif "split" in command:
-        result = KeymapResult(success=success)
+        keymap_result = KeymapResult(success=success)
         setup_keymap_command_test[
             "mock_keymap_service"
-        ].split_keymap_from_file.return_value = result
+        ].split_keymap_from_file.return_value = keymap_result
     elif "validate" in command:
         setup_keymap_command_test[
             "mock_keymap_service"
