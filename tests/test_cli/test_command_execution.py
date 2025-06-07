@@ -97,10 +97,10 @@ def setup_firmware_command_test(mock_build_service, mock_keyboard_profile):
     "command,args,success,output_contains",
     [
         (
-            "keymap compile",
+            "keymap generate",
             ["output/test", "--profile", "glove80/v25.05", "input.json"],
             True,
-            "Keymap compiled successfully",
+            "Keymap generated successfully",
         ),
         (
             "keymap validate",
@@ -148,7 +148,7 @@ def test_keymap_commands(
             real_args.append(arg)
 
     # Configure service mocks based on command
-    if "compile" in command:
+    if "generate" in command:
         keymap_result = KeymapResult(success=success)
         keymap_result.keymap_path = Path(tmp_path / "output/keymap.keymap")
         keymap_result.conf_path = Path(tmp_path / "output/keymap.conf")
@@ -156,7 +156,7 @@ def test_keymap_commands(
             keymap_result.errors.append("Invalid keymap structure")
         setup_keymap_command_test[
             "mock_keymap_service"
-        ].compile_from_file.return_value = keymap_result
+        ].generate_from_file.return_value = keymap_result
     elif "split" in command:
         keymap_result = KeymapResult(success=success)
         setup_keymap_command_test[
@@ -260,7 +260,7 @@ def test_firmware_compile_commands(
     "command,args",
     [
         (
-            "keymap compile",
+            "keymap generate",
             ["output/test", "--profile", "glove80/v25.05", "nonexistent.json"],
         ),
         (

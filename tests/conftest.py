@@ -554,12 +554,12 @@ def mock_keymap_service() -> Mock:
     """Mock KeymapService with common behaviors."""
     mock = Mock()
 
-    # Mock successful compile result
+    # Mock successful generate result
     result = KeymapResult(success=True)
     result.keymap_path = Path("/tmp/output/keymap.keymap")
     result.conf_path = Path("/tmp/output/keymap.conf")
-    mock.compile.return_value = result
-    mock.compile_from_file.return_value = result
+    mock.generate.return_value = result
+    mock.generate_from_file.return_value = result
 
     # Mock successful split result
     split_result = KeymapResult(success=True)
@@ -577,6 +577,10 @@ def mock_keymap_service() -> Mock:
     # Mock validation result
     mock.validate.return_value = True
     mock.validate_file.return_value = True
+
+    # For backward compatibility during testing
+    mock.compile = mock.generate
+    mock.compile_from_file = mock.generate_from_file
 
     return mock
 

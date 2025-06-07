@@ -279,7 +279,7 @@ class TestKeymapServiceWithKeyboardConfig:
                 self.service.show(profile=self.mock_profile, keymap_data=keymap_data)
 
     @patch("glovebox.services.keymap_service.prepare_output_paths")
-    def test_compile_with_keyboard_config(
+    def test_generate_with_keyboard_config(
         self,
         mock_prepare_paths,
         sample_keymap_json,
@@ -336,10 +336,10 @@ class TestKeymapServiceWithKeyboardConfig:
                                     )
 
                                     # Execute
-                                    result = self.service.compile(
+                                    result = self.service.generate(
                                         profile=self.mock_profile,
                                         keymap_data=keymap_data,
-                                        target_prefix=str(tmp_path / "output/test"),
+                                        output_file_prefix=str(tmp_path / "output/test"),
                                     )
 
                                     # Verify
@@ -533,10 +533,10 @@ class TestKeymapServiceWithMockedConfig:
 
                             try:
                                 # We're only testing that the integration points don't raise exceptions
-                                result = service.compile(
+                                result = service.generate(
                                     mock_profile,
                                     keymap_data,
-                                    target_prefix,
+                                    output_file_prefix=target_prefix,
                                 )
                                 success = True
                                 assert result.success is True
