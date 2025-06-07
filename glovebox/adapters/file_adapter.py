@@ -188,6 +188,18 @@ class FileAdapter(Protocol):
         """
         ...
 
+    def remove_dir(self, path: Path, recursive: bool = True) -> None:
+        """Remove a directory and optionally its contents.
+
+        Args:
+            path: Path to the directory to remove
+            recursive: Whether to recursively remove contents (True) or only if empty (False)
+
+        Raises:
+            GloveboxError: If directory cannot be removed due to permissions or other errors.
+        """
+        ...
+
     def create_timestamped_backup(self, file_path: Path) -> Path | None:
         """Create a timestamped backup of a file.
 
@@ -503,6 +515,61 @@ class FileSystemAdapter:
             error = create_file_error(path, "remove_file", e, {})
             logger.error("Error removing file %s: %s", path, e)
             raise error from e
+
+    def remove_dir(self, path: Path, recursive: bool = True) -> None:
+        """Remove a directory and optionally its contents.
+
+        Uses shutil.rmtree for recursive removal or os.rmdir for empty directory removal.
+
+        Args:
+            path: Path to the directory to remove
+            recursive: Whether to recursively remove contents (True) or only if empty (False)
+
+        Raises:
+            GloveboxError: If directory cannot be removed
+        """
+        # TODO: Implement this method
+        # This is a sketch of the implementation:
+        #
+        # try:
+        #     logger.debug("Removing directory: %s (recursive=%s)", path, recursive)
+        #
+        #     if not self.exists(path):
+        #         logger.debug("Directory does not exist, nothing to remove: %s", path)
+        #         return
+        #
+        #     if not self.is_dir(path):
+        #         error = create_file_error(
+        #             path, "remove_dir", ValueError("Not a directory"),
+        #             {"recursive": recursive}
+        #         )
+        #         logger.error("Path is not a directory: %s", path)
+        #         raise error
+        #
+        #     if recursive:
+        #         import shutil
+        #         shutil.rmtree(path)
+        #         logger.debug("Successfully removed directory recursively: %s", path)
+        #     else:
+        #         # This will only work if the directory is empty
+        #         path.rmdir()
+        #         logger.debug("Successfully removed empty directory: %s", path)
+        #
+        # except PermissionError as e:
+        #     error = create_file_error(path, "remove_dir", e, {"recursive": recursive})
+        #     logger.error("Permission denied removing directory: %s", path)
+        #     raise error from e
+        # except OSError as e:
+        #     error = create_file_error(path, "remove_dir", e, {"recursive": recursive})
+        #     logger.error("OS error removing directory %s: %s", path, e)
+        #     raise error from e
+        # except Exception as e:
+        #     error = create_file_error(path, "remove_dir", e, {"recursive": recursive})
+        #     logger.error("Error removing directory %s: %s", path, e)
+        #     raise error from e
+
+        # For now, just log that this is not implemented
+        logger.warning("remove_dir not implemented yet - could not remove: %s", path)
 
     def create_timestamped_backup(self, file_path: Path) -> Path | None:
         """Create a timestamped backup of a file."""

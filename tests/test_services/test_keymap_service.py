@@ -335,6 +335,7 @@ class TestKeymapServiceWithMockedConfig:
         """Test integrated keymap workflow with mocked config API."""
         # Setup path mock
         from glovebox.models.build import OutputPaths
+
         mock_prepare_paths.return_value = OutputPaths(
             keymap=Path(tmp_path / "output/test.keymap"),
             conf=Path(tmp_path / "output/test.conf"),

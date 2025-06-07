@@ -25,6 +25,7 @@ from glovebox.config.models import (
 )
 from glovebox.config.profile import KeyboardProfile
 from glovebox.models import SystemBehavior
+from glovebox.models.build import FirmwareOutputFiles
 from glovebox.models.results import BuildResult, FlashResult, KeymapResult
 
 
@@ -298,13 +299,22 @@ def mock_build_service() -> Mock:
     """Mock BuildService with common behaviors."""
     mock = Mock()
 
+    # Create a mock FirmwareOutputFiles for the result
+
+    output_files = FirmwareOutputFiles(
+        main_uf2=Path("/tmp/output/glove80.uf2"), output_dir=Path("/tmp/output")
+    )
+
     # Mock successful compile result
     result = BuildResult(
         success=True,
         messages=["Firmware built successfully", "Output: /tmp/output/glove80.uf2"],
+        output_files=output_files,
     )
-    result.firmware_path = Path("/tmp/output/glove80.uf2")
     mock.compile.return_value = result
+
+    # Also set the compile_from_files method to return the same result
+    mock.compile_from_files.return_value = result
 
     return mock
 

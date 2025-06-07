@@ -18,6 +18,7 @@ from glovebox.config.keyboard_config import (
 )
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import BuildError
+from glovebox.models.build import FirmwareOutputFiles
 from glovebox.models.options import BuildServiceCompileOpts
 from glovebox.models.results import BuildResult
 from glovebox.services.base_service import BaseServiceImpl
@@ -81,24 +82,44 @@ class BuildService(BaseServiceImpl):
             return False
         return True
 
-    def _check_file_exists(
-        self, file_path: Path, result: BuildResult, error_message: str | None = None
+    def _check_path_exists(
+        self,
+        path: Path,
+        result: BuildResult,
+        error_message: str | None = None,
+        check_type: str = "file",
     ) -> bool:
-        """Check if a file exists and update result if not.
+        """Check if a path exists and update result if not.
 
         Args:
-            file_path: Path to check
-            result: BuildResult to update with error if file doesn't exist
+            path: Path to check
+            result: BuildResult to update with error if path doesn't exist
             error_message: Custom error message (defaults to standard not found message)
+            check_type: Type of check to perform ("file", "directory", or "any")
 
         Returns:
-            True if file exists, False otherwise
+            True if path exists and meets the check_type requirement, False otherwise
         """
-        if not self.file_adapter.exists(file_path):
+        # First check if path exists at all
+        if not self.file_adapter.exists(path):
             result.success = False
-            msg = error_message or f"File not found: {file_path}"
+            msg = error_message or f"Path not found: {path}"
             result.add_error(msg)
             return False
+
+        # If path exists, check if it's the right type
+        if check_type == "file" and not self.file_adapter.is_file(path):
+            result.success = False
+            msg = error_message or f"Path is not a file: {path}"
+            result.add_error(msg)
+            return False
+
+        if check_type == "directory" and not self.file_adapter.is_dir(path):
+            result.success = False
+            msg = error_message or f"Path is not a directory: {path}"
+            result.add_error(msg)
+            return False
+
         return True
 
     @staticmethod
@@ -164,15 +185,19 @@ class BuildService(BaseServiceImpl):
 
         try:
             # Check if files exist
-            if not self._check_file_exists(
-                keymap_file_path, result, f"Keymap file not found: {keymap_file_path}"
+            if not self._check_path_exists(
+                keymap_file_path,
+                result,
+                f"Keymap file not found: {keymap_file_path}",
+                "file",
             ):
                 return result
 
-            if not self._check_file_exists(
+            if not self._check_path_exists(
                 kconfig_file_path,
                 result,
                 f"Kconfig file not found: {kconfig_file_path}",
+                "file",
             ):
                 return result
 
@@ -223,17 +248,19 @@ class BuildService(BaseServiceImpl):
 
             # Only check files if not skipped
             if not skip_file_check:
-                if not self._check_file_exists(
+                if not self._check_path_exists(
                     opts.keymap_path,
                     result,
                     f"Keymap file not found: {opts.keymap_path}",
+                    "file",
                 ):
                     return result
 
-                if not self._check_file_exists(
+                if not self._check_path_exists(
                     opts.kconfig_path,
                     result,
                     f"Kconfig file not found: {opts.kconfig_path}",
+                    "file",
                 ):
                     return result
 
@@ -261,18 +288,22 @@ class BuildService(BaseServiceImpl):
 
             # Find and collect firmware files
             output_dir = opts.output_dir
-            firmware_files = self._find_firmware_files(output_dir)
+            firmware_files, output_files = self._find_firmware_files(output_dir)
 
             if not firmware_files:
                 result.success = False
                 result.add_error("No firmware files generated")
                 return result
 
-            # Store firmware files in the result
+            # Store firmware files in the result object
+            result.output_files = output_files
+
+            # Add message with summary of generated files
             result.add_message(
                 f"Build completed successfully. Generated {len(firmware_files)} firmware files."
             )
 
+            # Add details for each firmware file
             for firmware_file in firmware_files:
                 result.add_message(f"Firmware file: {firmware_file}")
 
@@ -301,7 +332,7 @@ class BuildService(BaseServiceImpl):
         """
         Build Docker image for ZMK builds from a directory.
 
-        This method handles directory existence checks before building the image.
+        This method is now a direct alias to build_image for simplicity.
 
         Args:
             dockerfile_dir_path: Directory containing Dockerfile
@@ -312,46 +343,12 @@ class BuildService(BaseServiceImpl):
         Returns:
             BuildResult with success status and image information
         """
-        logger.info(
-            f"Building Docker image {image_name}:{image_tag} from {dockerfile_dir_path}"
+        return self.build_image(
+            dockerfile_dir=dockerfile_dir_path,
+            image_name=image_name,
+            image_tag=image_tag,
+            no_cache=no_cache,
         )
-        result = BuildResult(success=True)
-
-        try:
-            # Check Docker availability
-            if not self._check_docker_available(result):
-                return result
-
-            # Validate Dockerfile directory
-            if not self._check_file_exists(
-                dockerfile_dir_path,
-                result,
-                f"Dockerfile directory not found: {dockerfile_dir_path}",
-            ):
-                return result
-
-            # Check for Dockerfile in the directory
-            dockerfile_path = dockerfile_dir_path / "Dockerfile"
-            if not self._check_file_exists(
-                dockerfile_path,
-                result,
-                f"Dockerfile not found in directory: {dockerfile_dir_path}",
-            ):
-                return result
-
-            # Call the main build_image method
-            return self.build_image(
-                dockerfile_dir=dockerfile_dir_path,
-                image_name=image_name,
-                image_tag=image_tag,
-                no_cache=no_cache,
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to prepare Docker image build: {e}")
-            result.success = False
-            result.add_error(f"Docker image build preparation failed: {str(e)}")
-            return result
 
     def build_image(
         self,
@@ -381,10 +378,11 @@ class BuildService(BaseServiceImpl):
                 return result
 
             # Validate Dockerfile directory
-            if not self._check_file_exists(
+            if not self._check_path_exists(
                 dockerfile_dir,
                 result,
                 f"Dockerfile directory not found: {dockerfile_dir}",
+                check_type="directory",
             ):
                 return result
 
@@ -432,8 +430,26 @@ class BuildService(BaseServiceImpl):
         Returns:
             Dictionary of environment variables for the build
         """
-        # Start with base environment and defaults
-        build_env = {
+        # 1. Start with base environment and defaults
+        build_env = self._get_default_build_environment()
+
+        # 2. Apply profile-specific settings if available
+        if profile:
+            self._apply_profile_settings(build_env, profile)
+        else:
+            self._apply_fallback_settings(build_env, build_config)
+
+        # 3. Override with explicit parameters from build_config (highest priority)
+        self._apply_build_config_overrides(build_env, build_config)
+
+        # 4. Set number of jobs and verbose mode
+        self._configure_build_options(build_env, build_config)
+
+        return build_env
+
+    def _get_default_build_environment(self) -> dict[str, str]:
+        """Get default build environment values."""
+        return {
             "ZMK_CONFIG": "/zmk-config",
             "DOCKER_IMAGE": "moergo-zmk-build",
             "BRANCH": "main",
@@ -441,67 +457,128 @@ class BuildService(BaseServiceImpl):
             "KEYBOARD": "unknown",
         }
 
-        # Set profile-specific values if available
-        if profile:
-            # Set keyboard name
-            build_env["KEYBOARD"] = profile.keyboard_name
+    def _apply_profile_settings(
+        self, build_env: dict[str, str], profile: KeyboardProfile
+    ) -> None:
+        """Apply settings from a keyboard profile to the build environment.
 
-            # Extract values from firmware config (higher priority)
-            if (
-                hasattr(profile.firmware_config, "build_options")
-                and profile.firmware_config.build_options
-            ):
-                opts = profile.firmware_config.build_options
-                if hasattr(opts, "branch") and opts.branch:
-                    build_env["BRANCH"] = opts.branch
-                    logger.debug(
-                        "Using branch from firmware profile: %s", build_env["BRANCH"]
-                    )
+        Args:
+            build_env: Build environment dictionary to modify
+            profile: Keyboard profile with configuration settings
+        """
+        # Set keyboard name
+        build_env["KEYBOARD"] = profile.keyboard_name
 
-                if hasattr(opts, "repository") and opts.repository:
-                    build_env["REPO"] = opts.repository
-                    logger.debug(
-                        "Using repo from firmware profile: %s", build_env["REPO"]
-                    )
+        # Extract values from firmware config (higher priority)
+        self._apply_firmware_config_settings(build_env, profile)
 
-            # Extract values from keyboard config (lower priority)
-            build_options = profile.keyboard_config.build
+        # Extract values from keyboard config (lower priority)
+        self._apply_keyboard_config_settings(build_env, profile)
 
-            # Only set if not already set from firmware config
-            if hasattr(build_options, "docker_image") and build_options.docker_image:
-                build_env["DOCKER_IMAGE"] = build_options.docker_image
+    def _apply_firmware_config_settings(
+        self, build_env: dict[str, str], profile: KeyboardProfile
+    ) -> None:
+        """Apply firmware-specific settings from a profile.
 
-            if (
-                "BRANCH" not in build_env
-                and hasattr(build_options, "branch")
-                and build_options.branch
-            ):
-                build_env["BRANCH"] = build_options.branch
+        Args:
+            build_env: Build environment dictionary to modify
+            profile: Keyboard profile with firmware configuration
+        """
+        if (
+            not hasattr(profile.firmware_config, "build_options")
+            or not profile.firmware_config.build_options
+        ):
+            return
 
-            if (
-                "REPO" not in build_env
-                and hasattr(build_options, "repository")
-                and build_options.repository
-            ):
-                build_env["REPO"] = build_options.repository
+        opts = profile.firmware_config.build_options
+
+        # Apply branch setting if available
+        if hasattr(opts, "branch") and opts.branch:
+            build_env["BRANCH"] = opts.branch
+            logger.debug("Using branch from firmware profile: %s", build_env["BRANCH"])
+
+        # Apply repository setting if available
+        if hasattr(opts, "repository") and opts.repository:
+            build_env["REPO"] = opts.repository
+            logger.debug("Using repo from firmware profile: %s", build_env["REPO"])
+
+    def _apply_keyboard_config_settings(
+        self, build_env: dict[str, str], profile: KeyboardProfile
+    ) -> None:
+        """Apply keyboard-specific settings from a profile.
+
+        Args:
+            build_env: Build environment dictionary to modify
+            profile: Keyboard profile with keyboard configuration
+        """
+        build_options = profile.keyboard_config.build
+
+        # Apply docker image setting if available
+        if hasattr(build_options, "docker_image") and build_options.docker_image:
+            build_env["DOCKER_IMAGE"] = build_options.docker_image
+
+        # Apply branch setting if not already set from firmware config
+        if (
+            "BRANCH" not in build_env
+            and hasattr(build_options, "branch")
+            and build_options.branch
+        ):
+            build_env["BRANCH"] = build_options.branch
+
+        # Apply repository setting if not already set from firmware config
+        if (
+            "REPO" not in build_env
+            and hasattr(build_options, "repository")
+            and build_options.repository
+        ):
+            build_env["REPO"] = build_options.repository
+
+    def _apply_fallback_settings(
+        self, build_env: dict[str, str], build_config: BuildServiceCompileOpts
+    ) -> None:
+        """Apply fallback settings when no profile is available.
+
+        Args:
+            build_env: Build environment dictionary to modify
+            build_config: Build configuration options
+        """
+        # Special handling for tests
+        module_name = sys.modules.get("__name__", "")
+        if "test" in str(module_name) and build_env["KEYBOARD"] == "test_keyboard":
+            build_env["DOCKER_IMAGE"] = "test-zmk-build"
+            build_env["REPO"] = "test/zmk"
         else:
-            # Special handling for tests
-            module_name = sys.modules.get("__name__", "")
-            if "test" in str(module_name) and build_env["KEYBOARD"] == "test_keyboard":
-                build_env["DOCKER_IMAGE"] = "test-zmk-build"
-                build_env["REPO"] = "test/zmk"
-            else:
-                # Use values from build_config directly
-                build_env["BRANCH"] = build_config.branch
-                build_env["REPO"] = build_config.repo
+            # Use values from build_config directly
+            build_env["BRANCH"] = build_config.branch
+            build_env["REPO"] = build_config.repo
 
-        # Override with explicit parameters from build_config (highest priority)
+    def _apply_build_config_overrides(
+        self, build_env: dict[str, str], build_config: BuildServiceCompileOpts
+    ) -> None:
+        """Apply explicit overrides from build configuration.
+
+        Args:
+            build_env: Build environment dictionary to modify
+            build_config: Build configuration with possible overrides
+        """
+        # Override branch if explicitly specified
         if build_config.branch != "main":
             build_env["BRANCH"] = build_config.branch
+
+        # Override repo if explicitly specified
         if build_config.repo != "moergo-sc/zmk":
             build_env["REPO"] = build_config.repo
 
-        # Set number of jobs
+    def _configure_build_options(
+        self, build_env: dict[str, str], build_config: BuildServiceCompileOpts
+    ) -> None:
+        """Configure build-specific options like jobs and verbose mode.
+
+        Args:
+            build_env: Build environment dictionary to modify
+            build_config: Build configuration with job settings
+        """
+        # Set number of jobs (use CPU count if not specified)
         build_env["JOBS"] = str(
             build_config.jobs
             if build_config.jobs is not None
@@ -511,8 +588,6 @@ class BuildService(BaseServiceImpl):
         # Enable verbose mode if requested
         if build_config.verbose:
             build_env["VERBOSE"] = "1"
-
-        return build_env
 
     def prepare_build_context(
         self, config: dict[str, Any], build_dir: Path
@@ -535,8 +610,8 @@ class BuildService(BaseServiceImpl):
 
             # Copy keymap file
             keymap_path = Path(config["keymap_path"])
-            if not self._check_file_exists(
-                keymap_path, result, f"Source file not found: {keymap_path}"
+            if not self._check_path_exists(
+                keymap_path, result, f"Source file not found: {keymap_path}", "file"
             ):
                 return result
 
@@ -545,8 +620,8 @@ class BuildService(BaseServiceImpl):
 
             # Copy kconfig file
             kconfig_path = Path(config["kconfig_path"])
-            if not self._check_file_exists(
-                kconfig_path, result, f"Config file not found: {kconfig_path}"
+            if not self._check_path_exists(
+                kconfig_path, result, f"Config file not found: {kconfig_path}", "file"
             ):
                 return result
 
@@ -572,12 +647,20 @@ class BuildService(BaseServiceImpl):
         try:
             if self.file_adapter.exists(build_dir):
                 logger.debug(f"Cleaning up build context directory: {build_dir}")
-                # For better implementation, FileAdapter should have a remove_dir method
-                # This implementation currently just logs the cleanup request since
-                # FileAdapter doesn't have recursive directory removal capability
+                # TODO: Add recursive directory removal to FileAdapter
                 #
-                # TODO: Add recursive removal to FileAdapter or remove this method
-                # if the functionality is not needed
+                # The current FileAdapter implementation doesn't have a method
+                # for recursive directory removal, which would be useful here.
+                #
+                # For a proper implementation, we should:
+                # 1. Add a remove_dir method to the FileAdapter protocol
+                # 2. Implement it in FileSystemAdapter using shutil.rmtree
+                # 3. Call it here to clean up the build context
+                #
+                # For now, we just log the operation but don't perform it
+                logger.info(
+                    f"Directory cleanup skipped for {build_dir} - add remove_dir to FileAdapter"
+                )
         except Exception as e:
             logger.warning(f"Failed to cleanup build context {build_dir}: {e}")
 
@@ -599,47 +682,87 @@ class BuildService(BaseServiceImpl):
 
         return volumes
 
-    def _find_firmware_files(self, output_dir: Path) -> list[Path]:
-        """Find firmware files in output directory."""
+    def _find_firmware_files(
+        self, output_dir: Path
+    ) -> tuple[list[Path], FirmwareOutputFiles]:
+        """Find firmware files in output directory.
+
+        Args:
+            output_dir: Base output directory for the build
+
+        Returns:
+            A tuple containing:
+              - List of all firmware files found (for backward compatibility)
+              - FirmwareOutputFiles object with structured file paths
+        """
         firmware_files = []
+        output_files = FirmwareOutputFiles(output_dir=output_dir)
 
         try:
             # First check the direct output directory
-            if self.file_adapter.exists(output_dir):
-                files = self.file_adapter.list_files(output_dir, "*.uf2")
-                firmware_files.extend(files)
+            if not self.file_adapter.exists(output_dir):
+                logger.warning(f"Output directory does not exist: {output_dir}")
+                return [], output_files
+
+            # Look for .uf2 files in the base output directory
+            files = self.file_adapter.list_files(output_dir, "*.uf2")
+            firmware_files.extend(files)
+
+            # The first .uf2 file found in the output directory is considered the main firmware
+            if files and not output_files.main_uf2:
+                output_files.main_uf2 = files[0]
 
             # Check artifacts directory
             artifacts_dir = output_dir / "artifacts"
             if self.file_adapter.exists(artifacts_dir) and self.file_adapter.is_dir(
                 artifacts_dir
             ):
-                # Get all subdirectories in artifacts
-                for build_dir in self.file_adapter.list_directory(artifacts_dir):
-                    if self.file_adapter.is_dir(build_dir):
-                        # Look for glove80.uf2 in the build directory
-                        glove_uf2 = build_dir / "glove80.uf2"
-                        if self.file_adapter.exists(glove_uf2):
-                            firmware_files.append(glove_uf2)
+                output_files.artifacts_dir = artifacts_dir
 
-                        # Also check lf and rh subdirectories for zmk.uf2
-                        for side in ["lf", "rh"]:
-                            side_dir = build_dir / side
-                            if self.file_adapter.exists(
-                                side_dir
-                            ) and self.file_adapter.is_dir(side_dir):
-                                side_uf2 = side_dir / "zmk.uf2"
-                                if self.file_adapter.exists(side_uf2):
-                                    firmware_files.append(side_uf2)
+                # Get all subdirectories in artifacts
+                build_dirs = self.file_adapter.list_directory(artifacts_dir)
+                for build_dir in build_dirs:
+                    if not self.file_adapter.is_dir(build_dir):
+                        continue
+
+                    # Look for glove80.uf2 in the build directory
+                    glove_uf2 = build_dir / "glove80.uf2"
+                    if self.file_adapter.exists(glove_uf2):
+                        firmware_files.append(glove_uf2)
+                        if not output_files.main_uf2:
+                            output_files.main_uf2 = glove_uf2
+
+                    # Check lf and rh subdirectories for zmk.uf2
+                    left_side_dir = build_dir / "lf"
+                    right_side_dir = build_dir / "rh"
+
+                    # Check left hand
+                    if self.file_adapter.exists(
+                        left_side_dir
+                    ) and self.file_adapter.is_dir(left_side_dir):
+                        left_uf2 = left_side_dir / "zmk.uf2"
+                        if self.file_adapter.exists(left_uf2):
+                            firmware_files.append(left_uf2)
+                            output_files.left_uf2 = left_uf2
+
+                    # Check right hand
+                    if self.file_adapter.exists(
+                        right_side_dir
+                    ) and self.file_adapter.is_dir(right_side_dir):
+                        right_uf2 = right_side_dir / "zmk.uf2"
+                        if self.file_adapter.exists(right_uf2):
+                            firmware_files.append(right_uf2)
+                            output_files.right_uf2 = right_uf2
 
             logger.debug(
                 f"Found {len(firmware_files)} firmware files in {output_dir} and subdirectories"
             )
 
         except Exception as e:
-            logger.warning(f"Failed to list firmware files in {output_dir}: {e}")
+            logger.error(f"Failed to list firmware files in {output_dir}: {str(e)}")
+            # Continue with what we have - don't re-raise the exception
 
-        return firmware_files
+        return firmware_files, output_files
 
 
 def create_build_service(

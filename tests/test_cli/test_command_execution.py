@@ -12,6 +12,7 @@ import typer
 from glovebox.cli import app
 from glovebox.cli.commands import register_all_commands
 from glovebox.cli.helpers.profile import create_profile_from_option
+from glovebox.models.build import FirmwareOutputFiles
 from glovebox.models.results import BuildResult, FlashResult, KeymapResult
 from glovebox.services.build_service import create_build_service
 from glovebox.services.flash_service import create_flash_service

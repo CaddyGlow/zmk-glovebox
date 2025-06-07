@@ -3,9 +3,11 @@
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, TypeAlias
+from typing import Any, Optional, TypeAlias
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from glovebox.models.build import FirmwareOutputFiles
 
 
 logger = logging.getLogger(__name__)
@@ -130,24 +132,9 @@ class KeymapResult(BaseResult):
 class BuildResult(BaseResult):
     """Result of firmware build operations."""
 
-    firmware_path: Path | None = None
+    output_files: FirmwareOutputFiles | None = None
     build_id: str | None = None
-    artifacts_dir: Path | None = None
-    output_dir: Path | None = None
     build_time_seconds: float | None = None
-
-    @field_validator("firmware_path", "artifacts_dir", "output_dir")
-    @classmethod
-    def validate_paths(cls, v: Any) -> Path | None:
-        """Validate that paths are Path objects if provided."""
-        if v is None:
-            return None
-        if isinstance(v, Path):
-            return v
-        if isinstance(v, str):
-            return Path(v)
-        # If we get here, v is neither None, Path, nor str
-        raise ValueError("Paths must be Path objects or strings") from None
 
     @field_validator("build_time_seconds")
     @classmethod
@@ -169,24 +156,59 @@ class BuildResult(BaseResult):
         """Get build information dictionary."""
         return {
             "build_id": self.build_id,
-            "firmware_path": str(self.firmware_path) if self.firmware_path else None,
-            "artifacts_dir": str(self.artifacts_dir) if self.artifacts_dir else None,
-            "output_dir": str(self.output_dir) if self.output_dir else None,
+            "main_firmware_path": str(self.output_files.main_uf2)
+            if self.output_files and self.output_files.main_uf2
+            else None,
+            "left_firmware_path": str(self.output_files.left_uf2)
+            if self.output_files and self.output_files.left_uf2
+            else None,
+            "right_firmware_path": str(self.output_files.right_uf2)
+            if self.output_files and self.output_files.right_uf2
+            else None,
+            "artifacts_dir": str(self.output_files.artifacts_dir)
+            if self.output_files and self.output_files.artifacts_dir
+            else None,
+            "output_dir": str(self.output_files.output_dir)
+            if self.output_files
+            else None,
             "build_time_seconds": self.build_time_seconds,
             "success": self.success,
         }
 
     def validate_build_artifacts(self) -> bool:
         """Check if build artifacts are valid and accessible."""
-        if not self.success:
+        if not self.success or not self.output_files:
             return False
 
-        if self.firmware_path and not self.firmware_path.exists():
-            self.add_error(f"Firmware file not found: {self.firmware_path}")
+        # Check main UF2 file
+        if self.output_files.main_uf2 and not self.output_files.main_uf2.exists():
+            self.add_error(
+                f"Main firmware file not found: {self.output_files.main_uf2}"
+            )
             return False
 
-        if self.artifacts_dir and not self.artifacts_dir.exists():
-            self.add_error(f"Artifacts directory not found: {self.artifacts_dir}")
+        # Check left-hand UF2 file
+        if self.output_files.left_uf2 and not self.output_files.left_uf2.exists():
+            self.add_error(
+                f"Left-hand firmware file not found: {self.output_files.left_uf2}"
+            )
+            return False
+
+        # Check right-hand UF2 file
+        if self.output_files.right_uf2 and not self.output_files.right_uf2.exists():
+            self.add_error(
+                f"Right-hand firmware file not found: {self.output_files.right_uf2}"
+            )
+            return False
+
+        # Check artifacts directory
+        if (
+            self.output_files.artifacts_dir
+            and not self.output_files.artifacts_dir.exists()
+        ):
+            self.add_error(
+                f"Artifacts directory not found: {self.output_files.artifacts_dir}"
+            )
             return False
 
         return True

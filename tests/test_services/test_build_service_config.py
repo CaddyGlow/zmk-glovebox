@@ -10,9 +10,11 @@ from glovebox.adapters.file_adapter import FileAdapter
 from glovebox.config.models import BuildConfig, KeyboardConfig
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import BuildError
+from glovebox.models.build import FirmwareOutputFiles
 from glovebox.models.options import BuildServiceCompileOpts
 from glovebox.models.results import BuildResult
 from glovebox.services.build_service import BuildService, create_build_service
+from glovebox.utils import stream_process
 
 
 class TestBuildServiceWithKeyboardConfig:
@@ -22,7 +24,12 @@ class TestBuildServiceWithKeyboardConfig:
         """Set up test environment."""
         self.mock_file_adapter = Mock(spec=FileAdapter)
         self.mock_docker_adapter = Mock(spec=DockerAdapter)
-        self.service = BuildService(self.mock_docker_adapter, self.mock_file_adapter)
+        self.mock_output_middleware = Mock(spec=stream_process.OutputMiddleware)
+        self.service = BuildService(
+            self.mock_docker_adapter,
+            self.mock_file_adapter,
+            self.mock_output_middleware,
+        )
 
     # Note: The validate method has been removed from BuildService, so these tests are skipped
     @pytest.mark.skip(reason="validate method removed from BuildService")
@@ -61,6 +68,12 @@ class TestBuildServiceWithKeyboardConfig:
         mock_profile.firmware_config = Mock()
         mock_profile.firmware_config.build_options = None
 
+        # Mock the _find_firmware_files method to return expected values
+        output_files = FirmwareOutputFiles(output_dir=Path("/path/to/output"))
+        self.service._find_firmware_files = Mock(
+            return_value=([Path("/path/to/output/glove80.uf2")], output_files)
+        )
+
         # Test getting build environment with profile
         build_opts = BuildServiceCompileOpts(
             keymap_path=Path("/path/to/keymap.keymap"),
@@ -96,6 +109,12 @@ class TestBuildServiceWithKeyboardConfig:
 
         # Setup mocks
         mock_load_config.return_value = mock_config_dict
+
+        # Mock the _find_firmware_files method to return expected values
+        output_files = FirmwareOutputFiles(output_dir=Path("/path/to/output"))
+        self.service._find_firmware_files = Mock(
+            return_value=([Path("/path/to/output/glove80.uf2")], output_files)
+        )
 
         # Test getting build environment
         build_opts = BuildServiceCompileOpts(
@@ -150,6 +169,14 @@ class TestBuildServiceWithKeyboardConfig:
         )
         self.mock_file_adapter.list_files.return_value = [tmp_path / "firmware.uf2"]
 
+        # Setup our _find_firmware_files mock to return both the list and FirmwareOutputFiles
+        output_files = FirmwareOutputFiles(
+            main_uf2=tmp_path / "firmware.uf2", output_dir=tmp_path
+        )
+        self.service._find_firmware_files = Mock(
+            return_value=([tmp_path / "firmware.uf2"], output_files)
+        )
+
         # Test configuration
         build_opts = BuildServiceCompileOpts(
             keymap_path=tmp_path / "keymap.keymap",
@@ -162,6 +189,9 @@ class TestBuildServiceWithKeyboardConfig:
 
         # Verify results
         assert result.success is True
+        assert result.output_files is not None
+        assert result.output_files.main_uf2 == tmp_path / "firmware.uf2"
+        assert result.output_files.output_dir == tmp_path
 
         # Verify Docker container was run with parameters from profile
         mock_run_args = self.mock_docker_adapter.run_container.call_args
