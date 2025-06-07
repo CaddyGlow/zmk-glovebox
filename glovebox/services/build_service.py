@@ -4,7 +4,7 @@ import logging
 import multiprocessing
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, TypeAlias
+from typing import Any, Optional
 
 from glovebox.adapters.docker_adapter import (
     DockerAdapter,
@@ -13,19 +13,15 @@ from glovebox.adapters.docker_adapter import (
 )
 from glovebox.adapters.file_adapter import FileAdapter, create_file_adapter
 from glovebox.config.keyboard_config import (
-    create_profile_from_keyboard_name,
     get_available_keyboards,
     load_keyboard_config,
 )
+from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import BuildError
 from glovebox.models.options import BuildServiceCompileOpts
 from glovebox.models.results import BuildResult
 from glovebox.services.base_service import BaseServiceImpl
 from glovebox.utils import stream_process
-
-
-if TYPE_CHECKING:
-    from glovebox.config.profile import KeyboardProfile
 
 
 logger = logging.getLogger(__name__)
@@ -70,6 +66,41 @@ class BuildService(BaseServiceImpl):
             self.loglevel,
         )
 
+    def _check_docker_available(self, result: BuildResult) -> bool:
+        """Check if Docker is available and update result if not.
+
+        Args:
+            result: BuildResult to update with error if Docker is unavailable
+
+        Returns:
+            True if Docker is available, False otherwise
+        """
+        if not self.docker_adapter.is_available():
+            result.success = False
+            result.add_error("Docker is not available")
+            return False
+        return True
+
+    def _check_file_exists(
+        self, file_path: Path, result: BuildResult, error_message: str | None = None
+    ) -> bool:
+        """Check if a file exists and update result if not.
+
+        Args:
+            file_path: Path to check
+            result: BuildResult to update with error if file doesn't exist
+            error_message: Custom error message (defaults to standard not found message)
+
+        Returns:
+            True if file exists, False otherwise
+        """
+        if not self.file_adapter.exists(file_path):
+            result.success = False
+            msg = error_message or f"File not found: {file_path}"
+            result.add_error(msg)
+            return False
+        return True
+
     @staticmethod
     def _create_default_middleware() -> stream_process.OutputMiddleware[str]:
         """Create default output middleware for build process.
@@ -102,7 +133,7 @@ class BuildService(BaseServiceImpl):
         keymap_file_path: Path,
         kconfig_file_path: Path,
         output_dir: Path = Path("build"),
-        profile: Optional["KeyboardProfile"] = None,
+        profile: KeyboardProfile | None = None,
         branch: str = "main",
         repo: str = "moergo-sc/zmk",
         jobs: int | None = None,
@@ -129,16 +160,20 @@ class BuildService(BaseServiceImpl):
         logger.info(
             f"Starting firmware build from files: {keymap_file_path}, {kconfig_file_path}"
         )
-        result = BuildResult(success=False)
+        result = BuildResult(success=True)
 
         try:
             # Check if files exist
-            if not self.file_adapter.exists(keymap_file_path):
-                result.add_error(f"Keymap file not found: {keymap_file_path}")
+            if not self._check_file_exists(
+                keymap_file_path, result, f"Keymap file not found: {keymap_file_path}"
+            ):
                 return result
 
-            if not self.file_adapter.exists(kconfig_file_path):
-                result.add_error(f"Kconfig file not found: {kconfig_file_path}")
+            if not self._check_file_exists(
+                kconfig_file_path,
+                result,
+                f"Kconfig file not found: {kconfig_file_path}",
+            ):
                 return result
 
             # Create build options
@@ -152,18 +187,20 @@ class BuildService(BaseServiceImpl):
                 verbose=verbose,
             )
 
-            # Call the main compile method
-            return self.compile(build_opts, profile)
+            # Call the main compile method with skip_file_check=True since we already checked
+            return self.compile(build_opts, profile, skip_file_check=True)
 
         except Exception as e:
             logger.error(f"Failed to prepare build: {e}")
+            result.success = False
             result.add_error(f"Build preparation failed: {str(e)}")
             return result
 
     def compile(
         self,
         opts: BuildServiceCompileOpts,
-        profile: Optional["KeyboardProfile"] = None,
+        profile: KeyboardProfile | None = None,
+        skip_file_check: bool = False,
     ) -> BuildResult:
         """
         Compile firmware using Docker.
@@ -171,6 +208,7 @@ class BuildService(BaseServiceImpl):
         Args:
             opts: BuildServiceCompileOpts Build configuration
             profile: KeyboardProfile with configuration (preferred over keyboard name)
+            skip_file_check: Skip file existence checks (useful when already validated)
 
         Returns:
             BuildResult with success status and firmware file paths
@@ -180,20 +218,24 @@ class BuildService(BaseServiceImpl):
 
         try:
             # Check Docker availability
-            if not self.docker_adapter.is_available():
-                result.success = False
-                result.add_error("Docker is not available")
+            if not self._check_docker_available(result):
                 return result
 
-            if not self.file_adapter.exists(opts.keymap_path):
-                result.success = False
-                result.add_error(f"Keymap file not found: {opts.keymap_path}")
-                return result
+            # Only check files if not skipped
+            if not skip_file_check:
+                if not self._check_file_exists(
+                    opts.keymap_path,
+                    result,
+                    f"Keymap file not found: {opts.keymap_path}",
+                ):
+                    return result
 
-            if not self.file_adapter.exists(opts.kconfig_path):
-                result.success = False
-                result.add_error(f"Kconfig file not found: {opts.kconfig_path}")
-                return result
+                if not self._check_file_exists(
+                    opts.kconfig_path,
+                    result,
+                    f"Kconfig file not found: {opts.kconfig_path}",
+                ):
+                    return result
 
             # Get build environment using profile
             build_env = self.get_build_environment(opts, profile)
@@ -273,27 +315,28 @@ class BuildService(BaseServiceImpl):
         logger.info(
             f"Building Docker image {image_name}:{image_tag} from {dockerfile_dir_path}"
         )
-        result = BuildResult(success=False)
+        result = BuildResult(success=True)
 
         try:
             # Check Docker availability
-            if not self.docker_adapter.is_available():
-                result.add_error("Docker is not available")
+            if not self._check_docker_available(result):
                 return result
 
             # Validate Dockerfile directory
-            if not self.file_adapter.exists(dockerfile_dir_path):
-                result.add_error(
-                    f"Dockerfile directory not found: {dockerfile_dir_path}"
-                )
+            if not self._check_file_exists(
+                dockerfile_dir_path,
+                result,
+                f"Dockerfile directory not found: {dockerfile_dir_path}",
+            ):
                 return result
 
             # Check for Dockerfile in the directory
             dockerfile_path = dockerfile_dir_path / "Dockerfile"
-            if not self.file_adapter.exists(dockerfile_path):
-                result.add_error(
-                    f"Dockerfile not found in directory: {dockerfile_dir_path}"
-                )
+            if not self._check_file_exists(
+                dockerfile_path,
+                result,
+                f"Dockerfile not found in directory: {dockerfile_dir_path}",
+            ):
                 return result
 
             # Call the main build_image method
@@ -306,6 +349,7 @@ class BuildService(BaseServiceImpl):
 
         except Exception as e:
             logger.error(f"Failed to prepare Docker image build: {e}")
+            result.success = False
             result.add_error(f"Docker image build preparation failed: {str(e)}")
             return result
 
@@ -333,15 +377,15 @@ class BuildService(BaseServiceImpl):
 
         try:
             # Check Docker availability
-            if not self.docker_adapter.is_available():
-                result.success = False
-                result.add_error("Docker is not available")
+            if not self._check_docker_available(result):
                 return result
 
             # Validate Dockerfile directory
-            if not self.file_adapter.exists(dockerfile_dir):
-                result.success = False
-                result.add_error(f"Dockerfile directory not found: {dockerfile_dir}")
+            if not self._check_file_exists(
+                dockerfile_dir,
+                result,
+                f"Dockerfile directory not found: {dockerfile_dir}",
+            ):
                 return result
 
             # Build image
@@ -376,7 +420,7 @@ class BuildService(BaseServiceImpl):
     def get_build_environment(
         self,
         build_config: BuildServiceCompileOpts,
-        profile: Optional["KeyboardProfile"] = None,
+        profile: KeyboardProfile | None = None,
     ) -> dict[str, str]:
         """
         Get build environment for Docker container.
@@ -388,133 +432,81 @@ class BuildService(BaseServiceImpl):
         Returns:
             Dictionary of environment variables for the build
         """
-        # Start with base environment
+        # Start with base environment and defaults
         build_env = {
             "ZMK_CONFIG": "/zmk-config",
+            "DOCKER_IMAGE": "moergo-zmk-build",
+            "BRANCH": "main",
+            "REPO": "moergo-sc/zmk",
+            "KEYBOARD": "unknown",
         }
 
-        # Get keyboard name from profile or config
+        # Set profile-specific values if available
         if profile:
-            keyboard_name = profile.keyboard_name
-            build_env["KEYBOARD"] = keyboard_name
+            # Set keyboard name
+            build_env["KEYBOARD"] = profile.keyboard_name
 
-            # First check firmware config's build options (more specific)
+            # Extract values from firmware config (higher priority)
             if (
                 hasattr(profile.firmware_config, "build_options")
                 and profile.firmware_config.build_options
             ):
-                firmware_build_options = profile.firmware_config.build_options
-
-                # Set branch from firmware build options if specified
-                if (
-                    hasattr(firmware_build_options, "branch")
-                    and firmware_build_options.branch
-                ):
-                    build_env["BRANCH"] = firmware_build_options.branch
+                opts = profile.firmware_config.build_options
+                if hasattr(opts, "branch") and opts.branch:
+                    build_env["BRANCH"] = opts.branch
                     logger.debug(
                         "Using branch from firmware profile: %s", build_env["BRANCH"]
                     )
 
-                # Set repository from firmware build options if specified
-                if (
-                    hasattr(firmware_build_options, "repository")
-                    and firmware_build_options.repository
-                ):
-                    build_env["REPO"] = firmware_build_options.repository
+                if hasattr(opts, "repository") and opts.repository:
+                    build_env["REPO"] = opts.repository
                     logger.debug(
                         "Using repo from firmware profile: %s", build_env["REPO"]
                     )
 
-            # Fall back to keyboard's build options for remaining values
+            # Extract values from keyboard config (lower priority)
             build_options = profile.keyboard_config.build
 
-            # Set docker image if specified and not already set
-            if (
-                "DOCKER_IMAGE" not in build_env
-                and hasattr(build_options, "docker_image")
-                and build_options.docker_image
-            ):
+            # Only set if not already set from firmware config
+            if hasattr(build_options, "docker_image") and build_options.docker_image:
                 build_env["DOCKER_IMAGE"] = build_options.docker_image
-            elif "DOCKER_IMAGE" not in build_env:
-                build_env["DOCKER_IMAGE"] = "moergo-zmk-build"
 
-            # Set branch if not already set from firmware config
             if (
                 "BRANCH" not in build_env
                 and hasattr(build_options, "branch")
                 and build_options.branch
             ):
                 build_env["BRANCH"] = build_options.branch
-            elif "BRANCH" not in build_env:
-                build_env["BRANCH"] = "main"
 
-            # Set repository if not already set from firmware config
             if (
                 "REPO" not in build_env
                 and hasattr(build_options, "repository")
                 and build_options.repository
             ):
                 build_env["REPO"] = build_options.repository
-            elif "REPO" not in build_env:
-                build_env["REPO"] = "moergo-sc/zmk"
         else:
-            # Fallback to using config directly if no profile
-            keyboard_name = "unknown"  # Default if keyboard name isn't available
-            build_env["KEYBOARD"] = keyboard_name
+            # Special handling for tests
+            module_name = sys.modules.get("__name__", "")
+            if "test" in str(module_name) and build_env["KEYBOARD"] == "test_keyboard":
+                build_env["DOCKER_IMAGE"] = "test-zmk-build"
+                build_env["REPO"] = "test/zmk"
+            else:
+                # Use values from build_config directly
+                build_env["BRANCH"] = build_config.branch
+                build_env["REPO"] = build_config.repo
 
-            try:
-                # Special handling for test_keyboard in test environments
-                module_name = sys.modules.get("__name__", "")
-                if (
-                    keyboard_name == "test_keyboard"
-                    and isinstance(module_name, str)
-                    and "test" in module_name
-                ):
-                    # Use mock defaults for tests
-                    build_env["DOCKER_IMAGE"] = "test-zmk-build"
-                    build_env["BRANCH"] = "main"
-                    build_env["REPO"] = "test/zmk"
-                else:
-                    # Try to load keyboard config directly
-                    keyboard_config = load_keyboard_config(keyboard_name)
-
-                    # Get build options
-                    # Set docker image if specified
-                    if (
-                        hasattr(keyboard_config.build, "docker_image")
-                        and keyboard_config.build.docker_image
-                    ):
-                        build_env["DOCKER_IMAGE"] = keyboard_config.build.docker_image
-                    else:
-                        build_env["DOCKER_IMAGE"] = "moergo-zmk-build"
-
-                    # Set branch from build_config
-                    build_env["BRANCH"] = build_config.branch
-
-                    # Set repository from build_config
-                    build_env["REPO"] = build_config.repo
-            except Exception as e:
-                logger.warning(
-                    f"Failed to load keyboard config for {keyboard_name}: {e}"
-                )
-                # Use defaults
-                build_env["DOCKER_IMAGE"] = "moergo-zmk-build"
-                build_env["BRANCH"] = "main"
-                build_env["REPO"] = "moergo-sc/zmk"
-
-        # Only override with explicit parameters from build_config if they're not the default values
+        # Override with explicit parameters from build_config (highest priority)
         if build_config.branch != "main":
             build_env["BRANCH"] = build_config.branch
         if build_config.repo != "moergo-sc/zmk":
             build_env["REPO"] = build_config.repo
 
         # Set number of jobs
-        num_jobs = (
+        build_env["JOBS"] = str(
             build_config.jobs
             if build_config.jobs is not None
             else multiprocessing.cpu_count()
         )
-        build_env["JOBS"] = str(num_jobs)
 
         # Enable verbose mode if requested
         if build_config.verbose:
@@ -543,9 +535,9 @@ class BuildService(BaseServiceImpl):
 
             # Copy keymap file
             keymap_path = Path(config["keymap_path"])
-            if not self.file_adapter.exists(keymap_path):
-                result.success = False
-                result.add_error(f"Source file not found: {keymap_path}")
+            if not self._check_file_exists(
+                keymap_path, result, f"Source file not found: {keymap_path}"
+            ):
                 return result
 
             dest_keymap = build_dir / keymap_path.name
@@ -553,9 +545,9 @@ class BuildService(BaseServiceImpl):
 
             # Copy kconfig file
             kconfig_path = Path(config["kconfig_path"])
-            if not self.file_adapter.exists(kconfig_path):
-                result.success = False
-                result.add_error(f"Config file not found: {kconfig_path}")
+            if not self._check_file_exists(
+                kconfig_path, result, f"Config file not found: {kconfig_path}"
+            ):
                 return result
 
             dest_config = build_dir / kconfig_path.name
@@ -564,6 +556,7 @@ class BuildService(BaseServiceImpl):
             result.add_message("Build context prepared successfully")
 
         except Exception as e:
+            logger.error(f"Failed to prepare build context: {e}")
             result.success = False
             result.add_error(f"Failed to prepare build context: {str(e)}")
 
@@ -578,9 +571,13 @@ class BuildService(BaseServiceImpl):
         """
         try:
             if self.file_adapter.exists(build_dir):
-                # Remove build directory and contents
-                # Note: FileAdapter doesn't have recursive remove, so we'll just log
-                logger.debug(f"Build context cleanup requested for: {build_dir}")
+                logger.debug(f"Cleaning up build context directory: {build_dir}")
+                # For better implementation, FileAdapter should have a remove_dir method
+                # This implementation currently just logs the cleanup request since
+                # FileAdapter doesn't have recursive directory removal capability
+                #
+                # TODO: Add recursive removal to FileAdapter or remove this method
+                # if the functionality is not needed
         except Exception as e:
             logger.warning(f"Failed to cleanup build context {build_dir}: {e}")
 
