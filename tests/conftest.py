@@ -9,6 +9,7 @@ from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+import yaml
 from typer.testing import CliRunner
 
 from glovebox.config.models import (
@@ -49,6 +50,21 @@ def mock_template_adapter() -> Mock:
     """Create a mock template adapter for testing."""
     adapter = Mock(spec=TemplateAdapterProtocol)
     return adapter
+
+
+# ---- Test Data Directories ----
+
+
+@pytest.fixture
+def test_data_dir():
+    """Return the path to the test data directory."""
+    return Path(__file__).parent / "test_config" / "test_data"
+
+
+@pytest.fixture
+def keyboard_search_path(test_data_dir):
+    """Return the keyboard search path for testing."""
+    return str(test_data_dir / "keyboards")
 
 
 # ---- Configuration Fixtures ----
@@ -125,6 +141,185 @@ def mock_firmware_config_dict() -> dict[str, Any]:
         "version": "v1.0.0",
         "build_options": {"repository": "test/zmk", "branch": "main"},
     }
+
+
+@pytest.fixture
+def keyboard_config_dir(tmp_path):
+    """Create a temporary directory with test keyboard configurations."""
+    # Create keyboards directory
+    keyboards_dir = tmp_path / "keyboards"
+    keyboards_dir.mkdir()
+
+    # Create test keyboard configuration
+    test_keyboard_config = {
+        "keyboard": "test_keyboard",
+        "description": "Test keyboard for integration testing",
+        "vendor": "Test Vendor",
+        "key_count": 80,
+        "flash": {
+            "method": "mass_storage",
+            "query": "vendor=Test and removable=true",
+            "usb_vid": "0x1234",
+            "usb_pid": "0x5678",
+        },
+        "build": {
+            "method": "docker",
+            "docker_image": "test-zmk-build",
+            "repository": "test/zmk",
+            "branch": "main",
+        },
+        "firmwares": {
+            "default": {
+                "version": "v1.0.0",
+                "description": "Default test firmware",
+                "build_options": {
+                    "repository": "test/zmk",
+                    "branch": "main",
+                },
+            },
+            "bluetooth": {
+                "version": "bluetooth",
+                "description": "Bluetooth-focused test firmware",
+                "build_options": {
+                    "repository": "test/zmk",
+                    "branch": "bluetooth",
+                },
+                "kconfig": {
+                    "CONFIG_ZMK_BLE": {
+                        "name": "CONFIG_ZMK_BLE",
+                        "type": "bool",
+                        "default": "y",
+                        "description": "Enable BLE support",
+                    },
+                    "CONFIG_ZMK_USB": {
+                        "name": "CONFIG_ZMK_USB",
+                        "type": "bool",
+                        "default": "n",
+                        "description": "Enable USB support",
+                    },
+                },
+            },
+        },
+        "keymap": {
+            "includes": ["#include <dt-bindings/zmk/keys.h>"],
+            "system_behaviors": [
+                {
+                    "code": "&kp",
+                    "name": "&kp",
+                    "description": "Key press behavior",
+                    "expected_params": 1,
+                    "origin": "zmk",
+                    "params": [],
+                }
+            ],
+            "kconfig_options": {
+                "CONFIG_ZMK_KEYBOARD_NAME": {
+                    "name": "CONFIG_ZMK_KEYBOARD_NAME",
+                    "type": "string",
+                    "default": "Test Keyboard",
+                    "description": "Keyboard name",
+                }
+            },
+            "keymap_dtsi": """
+            #include <behaviors.dtsi>
+            #include <dt-bindings/zmk/keys.h>
+            {{ resolved_includes }}
+
+            / {
+                keymap {
+                    compatible = "zmk,keymap";
+                    {{ keymap_node }}
+                };
+            };
+            """,
+            "key_position_header": """
+            // Key positions
+            #define KEY_0 0
+            #define KEY_1 1
+            // ... more keys
+            """,
+        },
+        "formatting": {"default_key_width": 8, "key_gap": "  ", "base_indent": "    "},
+    }
+
+    # Create glove80 configuration
+    glove80_config = {
+        "keyboard": "glove80",
+        "description": "MoErgo Glove80 split ergonomic keyboard",
+        "vendor": "MoErgo",
+        "key_count": 80,
+        "flash": {
+            "method": "mass_storage",
+            "query": "vendor=Adafruit and serial~=GLV80-.* and removable=true",
+            "usb_vid": "0x1209",
+            "usb_pid": "0x0080",
+        },
+        "build": {
+            "method": "docker",
+            "docker_image": "moergo-zmk-build",
+            "repository": "moergo-sc/zmk",
+            "branch": "v25.05",
+        },
+        "firmwares": {
+            "v25.05": {
+                "version": "v25.05",
+                "description": "Stable MoErgo firmware v25.05",
+                "build_options": {
+                    "repository": "moergo-sc/zmk",
+                    "branch": "v25.05",
+                },
+            },
+            "v25.04-beta.1": {
+                "version": "v25.04-beta.1",
+                "description": "Beta MoErgo firmware v25.04-beta.1",
+                "build_options": {
+                    "repository": "moergo-sc/zmk",
+                    "branch": "v25.04-beta.1",
+                },
+            },
+        },
+        "keymap": {
+            "includes": ["#include <dt-bindings/zmk/keys.h>"],
+            "system_behaviors": [
+                {
+                    "code": "&kp",
+                    "name": "&kp",
+                    "description": "Key press behavior",
+                    "expected_params": 1,
+                    "origin": "zmk",
+                    "params": [],
+                }
+            ],
+            "kconfig_options": {
+                "CONFIG_ZMK_KEYBOARD_NAME": {
+                    "name": "CONFIG_ZMK_KEYBOARD_NAME",
+                    "type": "string",
+                    "default": "Glove80",
+                    "description": "Keyboard name",
+                }
+            },
+            "keymap_dtsi": "// Glove80 keymap template",
+        },
+        "formatting": {"default_key_width": 8, "key_gap": "  ", "base_indent": "    "},
+    }
+
+    # Write config files
+    (keyboards_dir / "test_keyboard.yaml").write_text(yaml.dump(test_keyboard_config))
+    (keyboards_dir / "glove80.yaml").write_text(yaml.dump(glove80_config))
+
+    # Return the parent directory
+    return tmp_path
+
+
+@pytest.fixture
+def typed_config_file(tmp_path, mock_keyboard_config_dict):
+    """Create a temporary YAML file with the mock config."""
+    config_file = tmp_path / "test_keyboard.yaml"
+    config_file.write_text(yaml.dump(mock_keyboard_config_dict))
+    return config_file
+
+
+# ---- Typed Object Fixtures ----
 
 
 @pytest.fixture
@@ -210,17 +405,106 @@ def mock_firmware_config() -> Mock:
 
 
 @pytest.fixture
-def mock_keyboard_profile() -> Mock:
-    """Create a mocked KeyboardProfile."""
-    mock_profile = Mock(spec=KeyboardProfile)
-    mock_profile.keyboard_name = "test_keyboard"
-    mock_profile.firmware_version = "default"
+def create_keyboard_profile_fixture():
+    """Factory fixture to create mock KeyboardProfile with customizable properties."""
 
-    # Set up properties that use the above mocks
-    mock_profile.keyboard_config = Mock(spec=KeyboardConfig)
-    mock_profile.firmware_config = Mock(spec=FirmwareConfig)
+    def _create_profile(
+        keyboard_name="test_keyboard",
+        firmware_version="default",
+        system_behaviors=None,
+        kconfig_options=None,
+    ):
+        mock_profile = Mock(spec=KeyboardProfile)
+        mock_profile.keyboard_name = keyboard_name
+        mock_profile.firmware_version = firmware_version
 
-    return mock_profile
+        # Set up properties that use the above mocks
+        mock_profile.keyboard_config = Mock(spec=KeyboardConfig)
+        mock_profile.firmware_config = Mock(spec=FirmwareConfig)
+
+        # Set up the system behaviors
+        if system_behaviors is None:
+            # Default system behaviors
+            behavior1 = SystemBehavior(
+                code="&kp",
+                name="&kp",
+                description=None,
+                expected_params=1,
+                origin="zmk",
+                params=[],
+                includes=None,
+            )
+
+            behavior2 = SystemBehavior(
+                code="&bt",
+                name="&bt",
+                description=None,
+                expected_params=1,
+                origin="zmk",
+                params=[],
+                includes=["#include <dt-bindings/zmk/bt.h>"],
+            )
+
+            mock_profile.system_behaviors = [behavior1, behavior2]
+        else:
+            mock_profile.system_behaviors = system_behaviors
+
+        # Set up the keyboard_config mock with keymap
+        mock_profile.keyboard_config.keymap = Mock(spec=KeymapSection)
+        mock_profile.keyboard_config.keymap.keymap_dtsi = (
+            "#include <behaviors.dtsi>\n{{ keymap_node }}"
+        )
+        mock_profile.keyboard_config.keymap.key_position_header = "// Key positions"
+        mock_profile.keyboard_config.keymap.system_behaviors_dts = "// System behaviors"
+
+        # Set up the get_template method
+        mock_profile.get_template = lambda name, default=None: {
+            "keymap_dtsi": mock_profile.keyboard_config.keymap.keymap_dtsi,
+            "key_position_header": mock_profile.keyboard_config.keymap.key_position_header,
+            "system_behaviors_dts": mock_profile.keyboard_config.keymap.system_behaviors_dts,
+        }.get(name, default)
+
+        # Set up kconfig options
+        if kconfig_options is None:
+            # Default kconfig option
+            kconfig_option = Mock(spec=KConfigOption)
+            kconfig_option.name = "CONFIG_ZMK_KEYBOARD_NAME"
+            kconfig_option.default = "Test Keyboard"
+            kconfig_option.type = "string"
+            kconfig_option.description = "Keyboard name"
+
+            mock_profile.kconfig_options = {"CONFIG_ZMK_KEYBOARD_NAME": kconfig_option}
+        else:
+            mock_profile.kconfig_options = kconfig_options
+
+        # Set up resolve_includes method
+        mock_profile.resolve_includes = lambda behaviors_used: [
+            "#include <dt-bindings/zmk/keys.h>",
+            "#include <dt-bindings/zmk/bt.h>",
+        ]
+
+        # Set up extract_behavior_codes method
+        mock_profile.extract_behavior_codes = lambda keymap_data: ["&kp", "&bt", "&lt"]
+
+        # Set up resolve_kconfig_with_user_options method
+        mock_profile.resolve_kconfig_with_user_options = lambda user_options: {
+            "CONFIG_ZMK_KEYBOARD_NAME": "Test Keyboard"
+        }
+
+        # Set up generate_kconfig_content method
+        mock_profile.generate_kconfig_content = lambda kconfig_settings: (
+            '# Generated ZMK configuration\n\nCONFIG_ZMK_KEYBOARD_NAME="Test Keyboard"\n'
+        )
+
+        return mock_profile
+
+    return _create_profile
+
+
+@pytest.fixture
+def mock_keyboard_profile(create_keyboard_profile_fixture):
+    """Create a standard mocked KeyboardProfile."""
+    return create_keyboard_profile_fixture()
 
 
 @pytest.fixture
@@ -275,10 +559,12 @@ def mock_keymap_service() -> Mock:
     result.keymap_path = Path("/tmp/output/keymap.keymap")
     result.conf_path = Path("/tmp/output/keymap.conf")
     mock.compile.return_value = result
+    mock.compile_from_file.return_value = result
 
     # Mock successful split result
     split_result = KeymapResult(success=True)
     mock.split_keymap.return_value = split_result
+    mock.split_keymap_from_file.return_value = split_result
 
     # Mock successful merge result
     merge_result = KeymapResult(success=True)
@@ -286,9 +572,11 @@ def mock_keymap_service() -> Mock:
 
     # Mock show result
     mock.show.return_value = ["Layer 1", "Layer 2"]
+    mock.show_from_file.return_value = ["Layer 1", "Layer 2"]
 
     # Mock validation result
     mock.validate.return_value = True
+    mock.validate_file.return_value = True
 
     return mock
 
@@ -299,7 +587,6 @@ def mock_build_service() -> Mock:
     mock = Mock()
 
     # Create a mock FirmwareOutputFiles for the result
-
     output_files = FirmwareOutputFiles(
         main_uf2=Path("/tmp/output/glove80.uf2"), output_dir=Path("/tmp/output")
     )
@@ -318,7 +605,7 @@ def mock_build_service() -> Mock:
     return mock
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def mock_flash_service() -> Mock:
     """Mock FlashService with common behaviors."""
     mock = Mock()
@@ -334,6 +621,7 @@ def mock_flash_service() -> Mock:
         ],
     )
     mock.flash.return_value = result
+    mock.flash_from_file.return_value = result
 
     return mock
 

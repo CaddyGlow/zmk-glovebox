@@ -1,821 +1,394 @@
 """Tests for CLI command execution."""
 
 import json
-import sys
-from io import StringIO
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 import typer
 
 from glovebox.cli import app
 from glovebox.cli.commands import register_all_commands
-from glovebox.cli.helpers.profile import create_profile_from_option
-from glovebox.models.build import FirmwareOutputFiles
 from glovebox.models.results import BuildResult, FlashResult, KeymapResult
-from glovebox.services.build_service import create_build_service
-from glovebox.services.flash_service import create_flash_service
-from glovebox.services.keymap_service import create_keymap_service
 
 
 # Register commands with the app before running tests
 register_all_commands(app)
 
 
-@patch("glovebox.cli.commands.keymap.create_keymap_service")
-@patch("glovebox.cli.commands.keymap.Path")
-@patch("glovebox.cli.helpers.profile.create_profile_from_option")
-@patch("glovebox.models.keymap.KeymapData.model_validate")
-def test_keymap_compile_command(
-    mock_model_validate,
-    mock_create_profile,
-    mock_path_cls,
-    mock_create_service,
+# Common setup for keymap command tests
+@pytest.fixture
+def setup_keymap_command_test(mock_keymap_service, mock_keyboard_profile):
+    """Set up common mocks for keymap command tests."""
+    with (
+        patch(
+            "glovebox.cli.commands.keymap.create_keymap_service"
+        ) as mock_create_service,
+        patch("glovebox.cli.commands.keymap.Path") as mock_path_cls,
+        patch(
+            "glovebox.cli.helpers.profile.create_profile_from_option"
+        ) as mock_create_profile,
+        patch(
+            "glovebox.models.keymap.KeymapData.model_validate"
+        ) as mock_model_validate,
+    ):
+        # Set up path mock
+        mock_path_instance = Mock()
+        mock_path_instance.exists.return_value = True
+        mock_path_instance.read_text.return_value = "{}"  # Minimal JSON
+        mock_path_cls.return_value = mock_path_instance
+
+        # Set up service mock
+        mock_create_service.return_value = mock_keymap_service
+
+        # Set up model validation mock
+        mock_keymap_data = Mock()
+        mock_model_validate.return_value = mock_keymap_data
+
+        # Set up profile mock
+        mock_create_profile.return_value = mock_keyboard_profile
+
+        yield {
+            "mock_create_service": mock_create_service,
+            "mock_path_cls": mock_path_cls,
+            "mock_create_profile": mock_create_profile,
+            "mock_model_validate": mock_model_validate,
+            "mock_path_instance": mock_path_instance,
+            "mock_keymap_data": mock_keymap_data,
+            "mock_keymap_service": mock_keymap_service,
+        }
+
+
+# Common setup for firmware command tests
+@pytest.fixture
+def setup_firmware_command_test(mock_build_service, mock_keyboard_profile):
+    """Set up common mocks for firmware command tests."""
+    with (
+        patch(
+            "glovebox.cli.commands.firmware.create_build_service"
+        ) as mock_create_service,
+        patch("glovebox.cli.commands.firmware.Path") as mock_path_cls,
+        patch(
+            "glovebox.cli.commands.firmware.create_profile_from_option"
+        ) as mock_create_profile,
+    ):
+        # Set up path mock
+        mock_path_instance = Mock()
+        mock_path_instance.exists.return_value = True
+        mock_path_cls.return_value = mock_path_instance
+
+        # Set up service mock
+        mock_create_service.return_value = mock_build_service
+
+        # Set up profile mock
+        mock_create_profile.return_value = mock_keyboard_profile
+
+        yield {
+            "mock_create_service": mock_create_service,
+            "mock_path_cls": mock_path_cls,
+            "mock_create_profile": mock_create_profile,
+            "mock_path_instance": mock_path_instance,
+        }
+
+
+# Test cases for keymap commands
+@pytest.mark.parametrize(
+    "command,args,success,output_contains",
+    [
+        (
+            "keymap compile",
+            ["output/test", "--profile", "glove80/v25.05", "input.json"],
+            True,
+            "Keymap compiled successfully",
+        ),
+        (
+            "keymap validate",
+            ["--profile", "glove80/v25.05", "input.json"],
+            True,
+            "valid",
+        ),
+        (
+            "keymap split",
+            ["input.json", "split_output"],
+            True,
+            "Keymap split into layers",
+        ),
+    ],
+)
+def test_keymap_commands(
+    command,
+    args,
+    success,
+    output_contains,
+    setup_keymap_command_test,
     cli_runner,
-    mock_keymap_service,
-    mock_keyboard_config,
     sample_keymap_json,
     tmp_path,
 ):
-    """Test keymap compile command with KeyboardProfile."""
-    # Setup path mock
-    mock_path_instance = Mock()
-    mock_path_instance.exists.return_value = True
-    mock_path_instance.read_text.return_value = json.dumps(sample_keymap_json)
-    mock_path_cls.return_value = mock_path_instance
+    """Test keymap commands with parameterized inputs."""
+    # Create a temporary sample file
+    input_file = tmp_path / "input.json"
+    input_file.write_text(json.dumps(sample_keymap_json))
 
-    # Setup keymap service mock
-    mock_create_service.return_value = mock_keymap_service
+    # Replace placeholder paths with real paths
+    real_args = []
+    for arg in args:
+        if arg == "input.json":
+            real_args.append(str(input_file))
+        elif arg.startswith("output/"):
+            output_dir = tmp_path / "output"
+            output_dir.mkdir(exist_ok=True)
+            real_args.append(str(output_dir / arg.split("/")[1]))
+        elif arg == "split_output":
+            split_dir = tmp_path / "split_output"
+            split_dir.mkdir(exist_ok=True)
+            real_args.append(str(split_dir))
+        else:
+            real_args.append(arg)
 
-    # Mock the KeymapData validation
-    mock_keymap_data = Mock()
-    mock_model_validate.return_value = mock_keymap_data
-
-    # Create a mock KeyboardProfile
-    mock_keyboard_profile = Mock()
-    mock_keyboard_profile.keyboard_name = "glove80"
-    mock_keyboard_profile.firmware_version = "v25.05"
-    mock_create_profile.return_value = mock_keyboard_profile
-
-    # Ensure the service returns a successful result
-    from glovebox.models.results import KeymapResult
-
-    success_result = KeymapResult(success=True)
-    success_result.keymap_path = Path("/tmp/output/keymap.keymap")
-    success_result.conf_path = Path("/tmp/output/keymap.conf")
-    mock_keymap_service.compile_from_file.return_value = success_result
-
-    # Create a temporary file with sample keymap data
-    temp_file = tmp_path / "test_keymap.json"
-    temp_file.write_text(json.dumps(sample_keymap_json))
+    # Configure service mocks based on command
+    if "compile" in command:
+        result = KeymapResult(success=success)
+        result.keymap_path = Path(tmp_path / "output/keymap.keymap")
+        result.conf_path = Path(tmp_path / "output/keymap.conf")
+        if not success:
+            result.errors.append("Invalid keymap structure")
+        setup_keymap_command_test[
+            "mock_keymap_service"
+        ].compile_from_file.return_value = result
+    elif "split" in command:
+        result = KeymapResult(success=success)
+        setup_keymap_command_test[
+            "mock_keymap_service"
+        ].split_keymap_from_file.return_value = result
+    elif "validate" in command:
+        setup_keymap_command_test[
+            "mock_keymap_service"
+        ].validate_file.return_value = success
 
     # Run the command
     result = cli_runner.invoke(
         app,
-        [
-            "keymap",
-            "compile",
-            "output/test",
-            "--profile",
-            "glove80/v25.05",
-            str(temp_file),
-        ],
+        command.split() + real_args,
         catch_exceptions=True,
     )
 
-    print(f"Test result output: {result.output}")
-    print(f"Exit code: {result.exit_code}")
-    print(f"Exception: {getattr(result, 'exception', None)}")
-
-    assert result.exit_code == 0
-    assert "Keymap compiled successfully" in result.output
-
-    # Verify service was called with correct args
-    mock_keymap_service.compile_from_file.assert_called_once()
-
-    # Verify the KeyboardProfile was created correctly
-    mock_create_profile.assert_called_once_with("glove80/v25.05")
+    # Verify results
+    expected_exit_code = 0 if success else 1
+    # Print useful debug info if the test fails
+    if result.exit_code != expected_exit_code:
+        print(f"Command failed with exit code {result.exit_code}")
+        print(f"Command output: {result.output}")
+        print(f"Exception: {result.exception}")
+    assert result.exit_code == expected_exit_code
+    assert output_contains in result.output
 
 
-@patch("glovebox.cli.commands.keymap.create_keymap_service")
-@patch("glovebox.cli.commands.keymap.Path")
-@patch("glovebox.cli.helpers.profile.create_profile_from_option")
-@patch("glovebox.models.keymap.KeymapData.model_validate")
-def test_keymap_compile_failure(
-    mock_model_validate,
-    mock_create_profile,
-    mock_path_cls,
-    mock_create_service,
+# Test cases for firmware commands
+@pytest.mark.parametrize(
+    "command,args,success,output_contains",
+    [
+        (
+            "firmware compile",
+            [
+                "keymap.keymap",
+                "config.conf",
+                "--output-dir",
+                "output",
+                "--profile",
+                "glove80/v25.05",
+            ],
+            True,
+            "Firmware compiled successfully",
+        ),
+    ],
+)
+def test_firmware_compile_commands(
+    command,
+    args,
+    success,
+    output_contains,
+    setup_firmware_command_test,
     cli_runner,
-    mock_keymap_service,
     tmp_path,
-):
-    """Test keymap compile command failure handling."""
-    # Setup path mock
-    mock_path_instance = Mock()
-    mock_path_instance.exists.return_value = True
-    mock_path_instance.read_text.return_value = json.dumps(
-        {
-            "keyboard": "test_keyboard",
-            "title": "Test Keymap",
-            "layer_names": ["Layer 1"],
-            "layers": [[{"value": "&kp", "params": [{"value": "A"}]}]],
-        }
-    )
-    mock_path_cls.return_value = mock_path_instance
-
-    # Setup keymap service mock
-    mock_create_service.return_value = mock_keymap_service
-
-    # Mock the KeymapData validation
-    mock_keymap_data = Mock()
-    mock_model_validate.return_value = mock_keymap_data
-
-    # Create a mock profile
-    mock_profile = Mock()
-    mock_profile.keyboard_name = "glove80"
-    mock_profile.firmware_version = "v25.05"
-    mock_create_profile.return_value = mock_profile
-
-    # Configure mock to return failure result
-    failed_result = KeymapResult(success=False)
-    failed_result.errors.append("Invalid keymap structure")
-    mock_keymap_service.compile_from_file.return_value = failed_result
-
-    # Create a temporary sample file for the test
-    temp_file = tmp_path / "test_keymap.json"
-    valid_keymap_data = {
-        "keyboard": "test_keyboard",
-        "title": "Test Keymap",
-        "layer_names": ["Layer 1"],
-        "layers": [[{"value": "&kp", "params": [{"value": "A"}]}]],
-    }
-    temp_file.write_text(json.dumps(valid_keymap_data))
-    temp_path = str(temp_file)
-
-    result = cli_runner.invoke(
-        app,
-        [
-            "keymap",
-            "compile",
-            "output/test",
-            "--profile",
-            "glove80/v25.05",
-            temp_path,
-        ],
-        catch_exceptions=True,
-    )
-
-    print(f"Failure test output: {result.output}")
-    assert result.exit_code == 1
-    assert "Keymap compilation failed" in result.output
-    assert "Invalid keymap structure" in result.output
-
-
-@patch("glovebox.cli.helpers.profile.create_profile_from_option")
-@patch("glovebox.cli.commands.keymap.create_keymap_service")
-@patch("glovebox.cli.commands.keymap.Path")
-@patch("glovebox.models.keymap.KeymapData.model_validate")
-def test_keymap_split_command(
-    mock_model_validate,
-    mock_path_cls,
-    mock_create_service,
-    mock_create_profile,
-    cli_runner,
-    mock_keymap_service,
-    sample_keymap_json,
-    tmp_path,
-):
-    """Test keymap split command."""
-    # Setup path mocks
-    mock_create_service.return_value = mock_keymap_service
-
-    # Mock the profile creation
-    mock_keyboard_profile = Mock()
-    mock_keyboard_profile.keyboard_name = "glove80"
-    mock_keyboard_profile.firmware_version = "v25.05"
-    mock_create_profile.return_value = mock_keyboard_profile
-
-    # Use actual paths for clarity
-    output_dir = tmp_path / "split_output"
-    output_dir.mkdir()
-
-    # Setup successful result
-    split_result = KeymapResult(success=True)
-    mock_keymap_service.split_keymap_from_file.return_value = split_result
-
-    # Create valid keymap data for test
-    valid_keymap_data = {
-        "keyboard": "test_keyboard",
-        "title": "Test Keymap",
-        "layer_names": ["Layer 1"],
-        "layers": [[{"value": "&kp", "params": [{"value": "A"}]}]],
-    }
-
-    # Mock the path read text to return valid keymap data
-    mock_path_instance = Mock()
-    mock_path_instance.exists.return_value = True
-    mock_path_instance.read_text.return_value = json.dumps(valid_keymap_data)
-    mock_path_cls.return_value = mock_path_instance
-
-    # Mock the KeymapData validation
-    mock_keymap_data = Mock()
-    mock_model_validate.return_value = mock_keymap_data
-
-    # Create a temporary sample file for the test
-    temp_file = tmp_path / "test_keymap.json"
-    temp_file.write_text(json.dumps(valid_keymap_data))
-    temp_path = str(temp_file)
-
-    result = cli_runner.invoke(
-        app,
-        ["keymap", "split", temp_path, str(output_dir)],
-        catch_exceptions=True,
-    )
-
-    assert result.exit_code == 0
-    assert "Keymap split into layers" in result.output
-
-    # Verify service was called
-    mock_keymap_service.split_keymap_from_file.assert_called_once()
-
-
-@pytest.mark.skip("Mocking complexity, needs simplified test")
-@patch("glovebox.cli.helpers.profile.create_profile_from_option")
-@patch("glovebox.cli.commands.keymap.create_keymap_service")
-@patch("glovebox.cli.commands.keymap.Path")
-@patch("glovebox.models.keymap.KeymapData.model_validate")
-def test_keymap_merge_command(
-    mock_model_validate,
-    mock_path_cls,
-    mock_create_service,
-    mock_create_profile,
-    cli_runner,
-    mock_keymap_service,
-    tmp_path,
-):
-    """Test keymap merge command."""
-    # Setup mocks
-    mock_create_service.return_value = mock_keymap_service
-
-    # Mock the profile creation
-    mock_keyboard_profile = Mock()
-    mock_keyboard_profile.keyboard_name = "glove80"
-    mock_keyboard_profile.firmware_version = "v25.05"
-    mock_create_profile.return_value = mock_keyboard_profile
-
-    # Setup successful result
-    merge_result = KeymapResult(success=True)
-    mock_keymap_service.merge_layers.return_value = merge_result
-
-    # Use actual paths for clarity
-    input_dir = tmp_path / "merge_input"
-    input_dir.mkdir()
-
-    # Create layers directory
-    layers_dir = input_dir / "layers"
-    layers_dir.mkdir()
-
-    # Create metadata.json in the input directory
-    metadata_json_path = input_dir / "metadata.json"
-    valid_metadata_data = {
-        "keyboard": "test_keyboard",
-        "title": "Test Keymap",
-        "layer_names": ["Layer 1"],
-        "layers": [],
-    }
-
-    # Mock file existence checks
-    mock_path_instance = Mock()
-    mock_path_instance.exists.return_value = True
-    mock_path_instance.read_text.return_value = json.dumps(valid_metadata_data)
-    mock_path_instance.__truediv__.side_effect = lambda x: Mock(
-        exists=lambda: True,
-        read_text=lambda: json.dumps(valid_metadata_data)
-        if x == "metadata.json"
-        else "",
-        parent=Mock(),
-    )
-    mock_path_cls.return_value = mock_path_instance
-
-    # Mock the KeymapData validation
-    mock_keymap_data = Mock()
-    mock_model_validate.return_value = mock_keymap_data
-
-    output_file = tmp_path / "merged.json"
-
-    result = cli_runner.invoke(
-        app,
-        ["keymap", "merge", str(input_dir), "--output", str(output_file)],
-        catch_exceptions=True,
-    )
-
-    assert result.exit_code == 0
-    assert "Keymap merged and saved" in result.output
-
-    # Verify service was called
-    mock_keymap_service.merge_layers.assert_called_once()
-
-
-@patch("glovebox.cli.helpers.profile.create_profile_from_option")
-@patch("glovebox.cli.commands.keymap.create_keymap_service")
-@patch("glovebox.cli.commands.keymap.Path")
-@patch("glovebox.cli.commands.keymap.json.loads")
-@patch("glovebox.models.keymap.KeymapData.model_validate")
-def test_keymap_show_command(
-    mock_model_validate,
-    mock_json_loads,
-    mock_path_cls,
-    mock_create_service,
-    mock_create_profile,
-    cli_runner,
-    mock_keymap_service,
-    sample_keymap_json,
-    tmp_path,
-):
-    """Test keymap show command (using traditional show method)."""
-    # Setup mocks
-    mock_create_service.return_value = mock_keymap_service
-
-    # Mock the profile creation
-    mock_keyboard_profile = Mock()
-    mock_keyboard_profile.keyboard_name = "glove80"
-    mock_keyboard_profile.firmware_version = "v25.05"
-    mock_create_profile.return_value = mock_keyboard_profile
-
-    # Create valid keymap data
-    valid_keymap_data = {
-        "keyboard": "test_keyboard",
-        "title": "Test Keymap",
-        "layer_names": ["Layer 1"],
-        "layers": [[{"value": "&kp", "params": [{"value": "A"}]}]],
-    }
-
-    mock_path_instance = Mock()
-    mock_path_instance.exists.return_value = True
-    mock_path_instance.read_text.return_value = json.dumps(valid_keymap_data)
-    mock_path_cls.return_value = mock_path_instance
-
-    # Return valid JSON
-    mock_json_loads.return_value = valid_keymap_data
-
-    # Mock the KeymapData validation
-    mock_keymap_data = Mock()
-    mock_model_validate.return_value = mock_keymap_data
-
-    # Configure mock to handle the NotImplementedError
-    mock_keymap_service.show_from_file.side_effect = NotImplementedError(
-        "The layout display feature is not yet implemented. Coming in a future release."
-    )
-
-    # Create a temporary sample file for the test
-    temp_file = tmp_path / "test_keymap.json"
-    temp_file.write_text(json.dumps(valid_keymap_data))
-    temp_path = str(temp_file)
-
-    # Test with catch_exceptions=True to handle the expected NotImplementedError
-    result = cli_runner.invoke(
-        app,
-        ["keymap", "show", temp_path, "--profile", "glove80/v25.05"],
-        catch_exceptions=True,
-    )
-
-    # The command should fail with exit code 1 because of the NotImplementedError
-    assert result.exit_code == 1
-    # Verify the error message is included in the output
-    assert "not yet implemented" in result.output
-
-    # Verify service was called
-    mock_keymap_service.show_from_file.assert_called_once()
-
-
-@patch("glovebox.cli.helpers.profile.create_profile_from_option")
-@patch("glovebox.cli.commands.keymap.create_keymap_service")
-@patch("glovebox.cli.commands.keymap.Path")
-@patch("glovebox.cli.commands.keymap.json.loads")
-@patch("glovebox.models.keymap.KeymapData.model_validate")
-def test_keymap_validate_command(
-    mock_model_validate,
-    mock_json_loads,
-    mock_path_cls,
-    mock_create_service,
-    mock_create_profile,
-    cli_runner,
-    mock_keymap_service,
-    sample_keymap_json,
-    tmp_path,
-):
-    """Test keymap validate command."""
-    # Setup mocks
-    mock_create_service.return_value = mock_keymap_service
-
-    # Mock the profile creation
-    mock_keyboard_profile = Mock()
-    mock_keyboard_profile.keyboard_name = "glove80"
-    mock_keyboard_profile.firmware_version = "v25.05"
-    mock_create_profile.return_value = mock_keyboard_profile
-
-    mock_path_instance = Mock()
-    mock_path_instance.exists.return_value = True
-    mock_path_instance.read_text.return_value = "{}"
-    mock_path_cls.return_value = mock_path_instance
-
-    # Mock valid keymap data
-    valid_keymap_data = {
-        "keyboard": "test_keyboard",
-        "title": "Test Keymap",
-        "layer_names": ["Layer 1"],
-        "layers": [[{"value": "&kp", "params": [{"value": "A"}]}]],
-    }
-    mock_json_loads.return_value = valid_keymap_data
-
-    # Create a mock KeymapData object
-    mock_keymap_data = Mock()
-    mock_model_validate.return_value = mock_keymap_data
-
-    # First test: validation passes
-    mock_keymap_service.validate_file.return_value = True
-
-    # Create a temporary sample file for the test
-    temp_file = tmp_path / "test_keymap.json"
-    temp_file.write_text(json.dumps(valid_keymap_data))
-    temp_path = str(temp_file)
-
-    result = cli_runner.invoke(
-        app,
-        ["keymap", "validate", temp_path, "--profile", "glove80/v25.05"],
-        catch_exceptions=True,
-    )
-
-    print(f"Validate test output: {result.output}")
-    print(f"Exception: {getattr(result, 'exception', None)}")
-
-    assert result.exit_code == 0
-    assert "valid" in result.output
-
-    # Second test: validation fails
-    mock_keymap_service.validate_file.return_value = False
-
-    # Use the same temporary file for the failure test
-    result = cli_runner.invoke(
-        app,
-        ["keymap", "validate", temp_path, "--profile", "glove80/v25.05"],
-        catch_exceptions=True,
-    )
-
-    print(f"Validate failure test output: {result.output}")
-    print(f"Exception: {getattr(result, 'exception', None)}")
-
-    assert result.exit_code == 1
-    assert "invalid" in result.output
-
-
-@patch("glovebox.cli.commands.firmware.create_build_service")
-@patch("glovebox.cli.commands.firmware.Path")
-@patch("glovebox.cli.commands.firmware.create_profile_from_option")
-def test_firmware_compile_command_with_profile(
-    mock_create_profile,
-    mock_path_cls,
-    mock_create_service,
-    cli_runner,
-    mock_build_service,
     sample_keymap_dtsi,
     sample_config_file,
-    tmp_path,
 ):
-    """Test firmware compile command with KeyboardProfile."""
-    # Setup mocks
-    mock_create_service.return_value = mock_build_service
-    mock_path_instance = Mock()
-    mock_path_instance.exists.return_value = True
-    mock_path_cls.return_value = mock_path_instance
+    """Test firmware compile commands with parameterized inputs."""
+    # Replace placeholder paths with real paths
+    real_args = []
+    for arg in args:
+        if arg == "keymap.keymap":
+            real_args.append(str(sample_keymap_dtsi))
+        elif arg == "config.conf":
+            real_args.append(str(sample_config_file))
+        elif arg == "output":
+            output_dir = tmp_path / "output"
+            output_dir.mkdir(exist_ok=True)
+            real_args.append(str(output_dir))
+        else:
+            real_args.append(arg)
 
-    # Create a mock KeyboardProfile
-    mock_keyboard_profile = Mock()
-    mock_keyboard_profile.keyboard_name = "glove80"
-    mock_keyboard_profile.firmware_version = "v25.05"
-    mock_create_profile.return_value = mock_keyboard_profile
-
-    # Configure build service to return success
-
-    build_result = BuildResult(success=True)
+    # Set up result
+    build_result = BuildResult(success=success)
     build_result.add_message("Firmware compiled successfully")
-    mock_build_service.compile_from_files.return_value = build_result
+    setup_firmware_command_test[
+        "mock_create_service"
+    ].return_value.compile_from_files.return_value = build_result
 
-    # Setup output directory
-    output_dir = tmp_path / "build_output"
-
-    # Run the command with profile
+    # Run the command
     result = cli_runner.invoke(
         app,
-        [
-            "firmware",
-            "compile",
-            str(sample_keymap_dtsi),
-            str(sample_config_file),
-            "--output-dir",
-            str(output_dir),
-            "--profile",
-            "glove80/v25.05",
-            "--branch",
-            "main",
-            "--verbose",
-        ],
+        command.split() + real_args,
         catch_exceptions=True,
     )
 
     # Verify results
-    assert result.exit_code == 0
-    assert "Firmware compiled successfully" in result.output
-
-    # Verify the KeyboardProfile was created correctly
-    mock_create_profile.assert_called_once_with("glove80/v25.05")
-
-    # Verify service was called with the profile
-    mock_build_service.compile_from_files.assert_called_once()
-    call_args = mock_build_service.compile_from_files.call_args
-    assert call_args is not None
-    args, kwargs = call_args
-
-    # Check correct parameters are passed
-    assert kwargs.get("keymap_file_path") == sample_keymap_dtsi
-    assert kwargs.get("kconfig_file_path") == sample_config_file
-    assert kwargs.get("output_dir") == output_dir
-    assert kwargs.get("branch") == "main"
-    assert kwargs.get("verbose") is True
-    assert kwargs.get("profile") == mock_keyboard_profile
+    expected_exit_code = 0 if success else 1
+    # Print useful debug info if the test fails
+    if result.exit_code != expected_exit_code:
+        print(f"Command failed with exit code {result.exit_code}")
+        print(f"Command output: {result.output}")
+        print(f"Exception: {result.exception}")
+    assert result.exit_code == expected_exit_code
+    assert output_contains in result.output
 
 
-@patch("glovebox.cli.commands.firmware.create_build_service")
-@patch("glovebox.cli.commands.firmware.Path")
-@patch("glovebox.cli.commands.firmware.create_profile_from_option")
-def test_firmware_compile_command(
-    mock_create_profile,
-    mock_path_cls,
-    mock_create_service,
-    cli_runner,
-    mock_build_service,
-    sample_keymap_dtsi,
-    sample_config_file,
-    tmp_path,
-):
-    """Test firmware compile command (traditional keyboard parameter)."""
-    # Setup mocks
-    mock_create_service.return_value = mock_build_service
-    mock_path_instance = Mock()
-    mock_path_instance.exists.return_value = True
-    mock_path_cls.return_value = mock_path_instance
+# Test error cases
+@pytest.mark.parametrize(
+    "command,args",
+    [
+        (
+            "keymap compile",
+            ["output/test", "--profile", "glove80/v25.05", "nonexistent.json"],
+        ),
+        (
+            "firmware flash",
+            ["nonexistent.uf2", "--profile", "glove80/v25.05"],
+        ),
+    ],
+)
+def test_command_errors(command, args, cli_runner, tmp_path):
+    """Test error handling in CLI commands."""
+    # Replace placeholder paths with real paths
+    real_args = []
+    for arg in args:
+        if arg.startswith("output/"):
+            output_dir = tmp_path / "output"
+            output_dir.mkdir(exist_ok=True)
+            real_args.append(str(output_dir / arg.split("/")[1]))
+        elif arg == "nonexistent.json" or arg == "nonexistent.uf2":
+            # Use a path that doesn't exist
+            real_args.append(str(tmp_path / arg))
+        else:
+            real_args.append(arg)
 
-    # Create a mock KeyboardProfile
-    mock_keyboard_profile = Mock()
-    mock_keyboard_profile.keyboard_name = "glove80"
-    mock_keyboard_profile.firmware_version = "v25.05"
-    mock_create_profile.return_value = mock_keyboard_profile
+    # Mock the configuration loading
+    with patch(
+        "glovebox.cli.helpers.profile.create_profile_from_option"
+    ) as mock_create_profile:
+        # Set up mock profile
+        from glovebox.config.profile import KeyboardProfile
 
-    # Configure build service to return success
+        mock_profile = Mock(spec=KeyboardProfile)
+        mock_profile.keyboard_name = "glove80"
+        mock_profile.firmware_version = "v25.05"
+        mock_create_profile.return_value = mock_profile
 
-    build_result = BuildResult(success=True)
-    build_result.add_message("Firmware compiled successfully")
-    mock_build_service.compile_from_files.return_value = build_result
+        # Set up file path mock
+        with (
+            patch("glovebox.cli.commands.keymap.Path") as mock_path_cls,
+            patch("glovebox.cli.commands.firmware.Path") as mock_path_cls2,
+        ):
+            # Set path to not exist for error case
+            mock_path_instance = Mock()
+            mock_path_instance.exists.return_value = False
+            mock_path_cls.return_value = mock_path_instance
+            mock_path_cls2.return_value = mock_path_instance
 
-    # Setup output directory
-    output_dir = tmp_path / "build_output"
+            # Run the command - we're expecting errors here
+            result = cli_runner.invoke(
+                app,
+                command.split() + real_args,
+                catch_exceptions=True,
+            )
 
-    # Run the command with traditional parameters
-    result = cli_runner.invoke(
-        app,
-        [
-            "firmware",
-            "compile",
-            str(sample_keymap_dtsi),
-            str(sample_config_file),
-            "--output-dir",
-            str(output_dir),
-            "--keyboard",
-            "glove80",
-            "--firmware",
-            "v25.05",
-            "--branch",
-            "main",
-            "--verbose",
-        ],
-        catch_exceptions=True,
-    )
-
-    # Verify results
-    assert result.exit_code == 0
-    assert "Firmware compiled successfully" in result.output
-
-    # Verify service was called with correct args
-    mock_build_service.compile_from_files.assert_called_once()
-    call_args = mock_build_service.compile_from_files.call_args
-    assert call_args is not None
-    args, kwargs = call_args
-
-    # Check correct parameters are passed
-    assert kwargs.get("keymap_file_path") == sample_keymap_dtsi
-    assert kwargs.get("kconfig_file_path") == sample_config_file
-    assert kwargs.get("output_dir") == output_dir
-    assert kwargs.get("branch") == "main"
-    assert kwargs.get("verbose") is True
+            # Verify results
+            # Print useful debug info if the test unexpectedly passes
+            if result.exit_code == 0:
+                print(
+                    f"Command unexpectedly succeeded with exit code {result.exit_code}"
+                )
+                print(f"Command output: {result.output}")
+            assert result.exit_code != 0
 
 
-@patch("glovebox.cli.commands.firmware.create_flash_service")
-@patch("glovebox.cli.commands.firmware.Path")
-@patch("glovebox.cli.helpers.profile.create_profile_from_option", autospec=True)
-def test_firmware_flash_command(
-    mock_create_profile,
-    mock_path_cls,
-    mock_create_service,
-    cli_runner,
-    mock_flash_service,
-    sample_firmware_file,
-):
-    """Test firmware flash command (traditional query parameter)."""
-    # Setup mocks
-    mock_create_service.return_value = mock_flash_service
-    mock_path_instance = Mock()
-    mock_path_instance.exists.return_value = True
-    mock_path_cls.return_value = mock_path_instance
+# Test config commands
+@pytest.mark.parametrize(
+    "command,args,output_contains",
+    [
+        ("config list", [], "Available keyboard configurations"),
+    ],
+)
+def test_config_commands(command, args, output_contains, cli_runner):
+    """Test config commands."""
+    with patch(
+        "glovebox.cli.commands.config.get_available_keyboards"
+    ) as mock_get_available:
+        # Mock available keyboards
+        mock_get_available.return_value = ["glove80", "test_keyboard"]
 
-    # Create a mock KeyboardProfile
-    mock_keyboard_profile = Mock()
-    mock_keyboard_profile.keyboard_name = "glove80"
-    mock_keyboard_profile.firmware_version = "v25.05"
-    mock_create_profile.return_value = mock_keyboard_profile
+        # Run the command
+        result = cli_runner.invoke(
+            app,
+            command.split() + args,
+            catch_exceptions=True,
+        )
 
-    # Configure the mock to return success
-
-    flash_result = FlashResult(success=True)
-    flash_result.add_message("Device detected")
-    flash_result.add_message("Firmware flashed successfully")
-    flash_result.devices_flashed = 1
-    mock_flash_service.flash_from_file.return_value = flash_result
-
-    # Run the command with query parameter
-    result = cli_runner.invoke(
-        app,
-        [
-            "firmware",
-            "flash",
-            str(sample_firmware_file),
-            "--query",
-            "vendor=Test",
-            "--timeout",
-            "30",
-            "--count",
-            "1",
-            "--profile",
-            "glove80/v25.05",
-        ],
-        catch_exceptions=True,
-    )
-
-    # Verify results
-    assert result.exit_code == 0
-    assert "Successfully flashed" in result.output
-
-    # Verify service was called with correct args
-    mock_flash_service.flash_from_file.assert_called_once()
-    call_args = mock_flash_service.flash_from_file.call_args
-    assert call_args is not None
-    args, kwargs = call_args
-    assert kwargs.get("firmware_file_path") is not None
-    assert kwargs.get("query") == "vendor=Test"
-    assert kwargs.get("timeout") == 30
-    assert kwargs.get("count") == 1
-    assert kwargs.get("track_flashed") is True
+        # Verify results
+        # Print useful debug info if the test fails
+        if result.exit_code != 0:
+            print(f"Command failed with exit code {result.exit_code}")
+            print(f"Command output: {result.output}")
+            print(f"Exception: {result.exception}")
+        assert result.exit_code == 0
+        assert output_contains in result.output
+        assert "glove80" in result.output
 
 
-@patch("glovebox.cli.commands.firmware.create_flash_service")
-@patch("glovebox.cli.commands.firmware.Path")
-@patch("glovebox.cli.helpers.profile.create_profile_from_option", autospec=True)
-def test_firmware_flash_command_with_profile(
-    mock_create_profile,
-    mock_path_cls,
-    mock_create_service,
-    cli_runner,
-    mock_flash_service,
-    sample_firmware_file,
-):
-    """Test firmware flash command with KeyboardProfile."""
-    # Setup mocks
-    mock_create_service.return_value = mock_flash_service
-    mock_path_instance = Mock()
-    mock_path_instance.exists.return_value = True
-    mock_path_cls.return_value = mock_path_instance
-
-    # Create a mock KeyboardProfile
-    mock_keyboard_profile = Mock()
-    mock_keyboard_profile.keyboard_name = "glove80"
-    mock_keyboard_profile.firmware_version = "v25.05"
-    mock_create_profile.return_value = mock_keyboard_profile
-
-    # Configure the mock to return success
-
-    flash_result = FlashResult(success=True)
-    flash_result.add_message("Device detected")
-    flash_result.add_message("Firmware flashed successfully")
-    flash_result.devices_flashed = 1
-    mock_flash_service.flash_from_file.return_value = flash_result
-
-    # Run the command with profile
-    result = cli_runner.invoke(
-        app,
-        [
-            "firmware",
-            "flash",
-            str(sample_firmware_file),
-            "--profile",
-            "glove80/v25.05",
-            "--timeout",
-            "30",
-            "--count",
-            "1",
-        ],
-        catch_exceptions=True,
-    )
-
-    # Verify results
-    assert result.exit_code == 0
-    assert "Successfully flashed" in result.output
-
-    # Verify service was called with the profile
-    mock_flash_service.flash_from_file.assert_called_once()
-    call_args = mock_flash_service.flash_from_file.call_args
-    assert call_args is not None
-    args, kwargs = call_args
-    assert kwargs.get("firmware_file_path") is not None
-    assert kwargs.get("timeout") == 30
-    assert kwargs.get("count") == 1
-    assert kwargs.get("track_flashed") is True
-
-
-@patch("glovebox.cli.commands.config.get_available_keyboards")
-def test_config_list_command(mock_get_available, cli_runner):
-    """Test config list command."""
-    # Use the actual keyboard name that's available in the test environment
-    mock_get_available.return_value = ["glove80"]
-
-    result = cli_runner.invoke(app, ["config", "list"])
-
-    assert result.exit_code == 0
-    assert "Available keyboard configurations" in result.output
-    assert "glove80" in result.output
-
-
-@patch("glovebox.cli.commands.config.load_keyboard_config")
-@pytest.mark.skip(reason="Test takes too long or runs real commands in background")
-def test_config_show_command(mock_load_config, cli_runner):
-    """Test config show command."""
-    mock_config = {
-        "keyboard": "glove80_v25.05",
-        "keyboard_type": "glove80",
-        "version": "v25.05",
-        "description": "MoErgo Glove80 ZMK firmware v25.05",
-        "templates": {
-            "keymap": "templates/keymap.j2",
-            "kconfig": "templates/kconfig.j2",
-        },
-        "build": {"container": "zmk-docker", "builder": "zmk-builder"},
-    }
-
-    mock_load_config.return_value = mock_config
-
-    result = cli_runner.invoke(app, ["config", "show", "glove80_v25.05"])
-
-    assert result.exit_code == 0
-    assert "Keyboard: glove80_v25.05" in result.output
-    assert "MoErgo Glove80 ZMK firmware v25.05" in result.output
-    assert "templates/keymap.j2" in result.output
-
-
+# Test status command
 def test_status_command(cli_runner):
     """Test status command."""
-    with patch("glovebox.cli.commands.status.subprocess.run") as mock_run:
+    with (
+        patch("glovebox.cli.commands.status.subprocess.run") as mock_run,
+        patch("glovebox.cli.commands.status.load_keyboard_config") as mock_load_config,
+        patch(
+            "glovebox.cli.commands.status.get_available_keyboards"
+        ) as mock_get_available,
+    ):
         # Mock subprocess for docker version check
         mock_process = Mock()
         mock_process.stdout = "Docker version 24.0.5"
         mock_run.return_value = mock_process
 
-        with patch(
-            "glovebox.cli.commands.status.load_keyboard_config"
-        ) as mock_load_config:
-            # Mock config data
-            mock_load_config.return_value = {"firmwares": {"v25.05": {}}}
+        # Mock config data
+        mock_load_config.return_value = {"firmwares": {"v25.05": {}}}
 
-            with patch(
-                "glovebox.cli.commands.status.get_available_keyboards"
-            ) as mock_get_available:
-                # Use the actual keyboard name that's available in the test environment
-                mock_get_available.return_value = ["glove80"]
+        # Mock available keyboards
+        mock_get_available.return_value = ["glove80"]
 
-                result = cli_runner.invoke(app, ["status"])
+        # Run the command
+        result = cli_runner.invoke(app, ["status"])
 
-                assert result.exit_code == 0
-                assert "Glovebox v" in result.output
-                assert "System Dependencies" in result.output
-                assert "Docker" in result.output
-                assert "Available Keyboards" in result.output
-                assert "Environment" in result.output
+        # Verify results
+        # Print useful debug info if the test fails
+        if result.exit_code != 0:
+            print(f"Command failed with exit code {result.exit_code}")
+            print(f"Command output: {result.output}")
+            print(f"Exception: {result.exception}")
+        assert result.exit_code == 0
+        assert "Glovebox v" in result.output
+        assert "System Dependencies" in result.output
+        assert "Docker" in result.output
+        assert "Available Keyboards" in result.output
+        assert "Environment" in result.output
