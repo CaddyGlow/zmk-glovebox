@@ -220,3 +220,93 @@ class KeymapService(BaseServiceImpl):
 ```
 
 These changes will significantly improve the service layer design, making it more maintainable, testable, and easier to understand for new developers.
+
+## Implementation Progress
+
+### 1. File-Based Service Methods Implementation
+
+The first phase of service layer improvements has been implemented for the `KeymapService`:
+
+1. **New File-Based Methods Added**:
+   - `compile_from_file()`: Compiles keymap from a JSON file path
+   - `validate_file()`: Validates a keymap file
+   - `show_from_file()`: Displays a keymap from a file
+   - `split_keymap_from_file()`: Splits a keymap file into individual layers
+   - `merge_layers_from_files()`: Merges layer files into a single keymap
+
+2. **Helper Methods Added**:
+   - `_load_json_file()`: Handles file loading and JSON parsing
+   - `_validate_keymap_data()`: Validates JSON data as KeymapData
+
+3. **CLI Command Updates**:
+   - All CLI commands have been updated to use the file-based methods
+   - Validation logic has been moved from CLI to service layer
+   - Error handling is more consistent
+
+4. **Factory Function Enhancement**:
+   - Enhanced factory function signature to include all dependencies
+   - Documented all dependencies with clear parameter descriptions
+
+### 2. Strict Dependency Injection Implementation
+
+The second phase of service layer improvements has been implemented for the `KeymapService`:
+
+1. **Updated Constructor**:
+   - Constructor now accepts all dependencies explicitly:
+     ```python
+     def __init__(
+         self,
+         file_adapter: FileAdapter,
+         template_adapter: TemplateAdapter,
+         behavior_registry: FormatterBehaviorRegistry,
+         behavior_formatter: BehaviorFormatterImpl,
+         dtsi_generator: DTSIGeneratorAdapter,
+         component_service: KeymapComponentService,
+         layout_service: LayoutDisplayService,
+         context_builder: Any,
+     ):
+     ```
+   - Added detailed documentation for all parameters
+   - Removed internal dependency creation
+
+2. **Enhanced Factory Function**:
+   - Factory function now creates all required dependencies if not provided
+   - All dependencies are properly typed
+   - Dependencies are created in the correct order to handle dependencies between them
+   - Named parameters are used for constructor call for clarity
+
+### Next Steps
+
+1. **Implement Behavior Registration Service**:
+   - Create a dedicated service for behavior registration
+   - Make behavior registry immutable after initial setup
+
+2. **Extend to Other Services**:
+   - Apply the same pattern to other services (BuildService, FlashService)
+   - Ensure consistent patterns across all services
+
+## Conclusion
+
+The service layer improvements implemented so far have significantly enhanced the codebase:
+
+1. **Cleaner Separation of Concerns**:
+   - CLI layer is now focused on user interaction, parameter handling, and output formatting
+   - Service layer handles all business logic, validation, and data processing
+   - File operations are consistently managed in the service layer
+
+2. **Improved Testability**:
+   - Services can be tested with mock dependencies
+   - CLI commands are simpler and easier to test
+   - File operations can be mocked more effectively
+
+3. **Better Maintainability**:
+   - Dependencies are explicitly defined and documented
+   - Consistent patterns make the code easier to understand
+   - Factory functions provide a clean way to create properly configured services
+
+4. **More Robust Error Handling**:
+   - Validation happens at the appropriate layer
+   - Error messages are more specific and helpful
+   - Consistent error handling pattern across operations
+
+These improvements align with the project's goals of maintaining a clean, understandable codebase that's easy for new developers to work with. The next steps will further enhance these benefits by addressing behavior registration and extending the patterns to other services.
