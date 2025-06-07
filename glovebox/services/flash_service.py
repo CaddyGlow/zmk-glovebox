@@ -34,20 +34,20 @@ class FlashService(BaseServiceImpl):
 
     def __init__(
         self,
-        usb_adapter: USBAdapter | None = None,
-        file_adapter: FileAdapter | None = None,
+        usb_adapter: USBAdapter,
+        file_adapter: FileAdapter,
         loglevel: str = "INFO",
     ):
-        """Initialize flash service with adapter dependencies.
+        """Initialize flash service with explicit dependencies.
 
         Args:
-            usb_adapter: USB adapter for device operations (creates default if None)
-            file_adapter: File adapter for file operations (creates default if None)
+            usb_adapter: USB adapter for device operations
+            file_adapter: File adapter for file operations
             loglevel: Log level for subprocess operations (used when executing docker)
         """
         super().__init__(service_name="FlashService", service_version="1.0.0")
-        self.usb_adapter = usb_adapter or create_usb_adapter()
-        self.file_adapter = file_adapter or create_file_adapter()
+        self.usb_adapter = usb_adapter
+        self.file_adapter = file_adapter
         self.loglevel = loglevel
         logger.debug(
             "FlashService initialized with USB adapter: %s, File adapter: %s, Log level: %s",
@@ -55,6 +55,55 @@ class FlashService(BaseServiceImpl):
             type(self.file_adapter).__name__,
             self.loglevel,
         )
+
+    def flash_from_file(
+        self,
+        firmware_file_path: Path,
+        profile: Optional["KeyboardProfile"] = None,
+        query: str = "",
+        timeout: int = 60,
+        count: int = 1,
+        track_flashed: bool = True,
+    ) -> FlashResult:
+        """
+        Flash firmware from a file to devices matching the query.
+
+        This method handles file existence checks before flashing.
+
+        Args:
+            firmware_file_path: Path to the firmware file to flash
+            profile: KeyboardProfile with flash configuration
+            query: Device query string (overrides profile-specific query)
+            timeout: Timeout in seconds for waiting for devices
+            count: Number of devices to flash (0 for unlimited)
+            track_flashed: Whether to track which devices have been flashed
+
+        Returns:
+            FlashResult with details of the flash operation
+        """
+        logger.info(f"Starting firmware flash operation from file: {firmware_file_path}")
+        result = FlashResult(success=False)
+
+        try:
+            # Validate firmware file
+            if not self.file_adapter.exists(firmware_file_path):
+                result.add_error(f"Firmware file not found: {firmware_file_path}")
+                return result
+
+            # Call the main flash method
+            return self.flash(
+                firmware_file=firmware_file_path,
+                profile=profile,
+                query=query,
+                timeout=timeout,
+                count=count,
+                track_flashed=track_flashed
+            )
+
+        except Exception as e:
+            logger.error(f"Error preparing flash operation: {e}")
+            result.add_error(f"Flash preparation failed: {str(e)}")
+            return result
 
     def flash(
         self,
@@ -250,6 +299,35 @@ class FlashService(BaseServiceImpl):
 
         return result
 
+    def list_devices_with_profile(
+        self, profile_name: str, query: str = ""
+    ) -> FlashResult:
+        """
+        List devices matching a query using a profile name.
+
+        Args:
+            profile_name: Name of the profile to use (e.g., 'glove80/v25.05')
+            query: Device query string (overrides profile-specific query)
+
+        Returns:
+            FlashResult with details of matched devices
+        """
+        logger.info(f"Listing devices with profile: {profile_name}")
+        result = FlashResult(success=False)
+
+        try:
+            # Create profile from name
+            from glovebox.cli.helpers.profile import create_profile_from_option
+            profile = create_profile_from_option(profile_name)
+
+            # Use the profile-based method
+            return self.list_devices(profile=profile, query=query)
+
+        except Exception as e:
+            logger.error(f"Error creating profile from name: {e}")
+            result.add_error(f"Failed to create profile: {str(e)}")
+            return result
+
     def list_devices(
         self, profile: Optional["KeyboardProfile"] = None, query: str = ""
     ) -> FlashResult:
@@ -353,8 +431,17 @@ def create_flash_service(
     Returns:
         Configured FlashService instance
     """
+    # Create default adapters if not provided
+    if usb_adapter is None:
+        usb_adapter = create_usb_adapter()
+    if file_adapter is None:
+        file_adapter = create_file_adapter()
+
+    # Return service with explicit dependencies
     return FlashService(
-        usb_adapter=usb_adapter, file_adapter=file_adapter, loglevel=loglevel
+        usb_adapter=usb_adapter,
+        file_adapter=file_adapter,
+        loglevel=loglevel,
     )
 
 

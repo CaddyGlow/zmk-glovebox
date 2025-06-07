@@ -137,40 +137,89 @@ def flash(
     ] = False,
 ) -> None:
     """Flash firmware to keyboard(s)."""
-    if not firmware_file.exists():
-        raise typer.BadParameter(f"Firmware file not found: {firmware_file}")
-
     # Create KeyboardProfile if profile is specified
     keyboard_profile = None
     if profile:
         keyboard_profile = create_profile_from_option(profile)
 
+    # Use the new file-based method which handles file existence checks
     flash_service = create_flash_service()
-    result = flash_service.flash(
-        firmware_file=firmware_file,
-        profile=keyboard_profile,
-        query=query,  # query parameter will override profile's query if provided
-        timeout=timeout,
-        count=count,
-        track_flashed=not no_track,
-    )
-
-    if result.success:
-        print_success_message(
-            f"Successfully flashed {result.devices_flashed} device(s)"
+    try:
+        result = flash_service.flash_from_file(
+            firmware_file_path=firmware_file,
+            profile=keyboard_profile,
+            query=query,  # query parameter will override profile's query if provided
+            timeout=timeout,
+            count=count,
+            track_flashed=not no_track,
         )
-        if result.device_details:
+
+        if result.success:
+            print_success_message(
+                f"Successfully flashed {result.devices_flashed} device(s)"
+            )
+            if result.device_details:
+                for device in result.device_details:
+                    if device["status"] == "success":
+                        print_list_item(f"{device['name']}: SUCCESS")
+        else:
+            print_error_message(f"Flash completed with {result.devices_failed} failure(s)")
+            if result.device_details:
+                for device in result.device_details:
+                    if device["status"] == "failed":
+                        error_msg = device.get("error", "Unknown error")
+                        print_list_item(f"{device['name']}: FAILED - {error_msg}")
+            raise typer.Exit(1)
+    except Exception as e:
+        print_error_message(f"Flash operation failed: {str(e)}")
+        raise typer.Exit(1) from None
+
+
+@firmware_app.command()
+@handle_errors
+def list_devices(
+    profile: Annotated[
+        str | None,
+        typer.Option(
+            "--profile",
+            "-p",
+            help="Profile to use (e.g., 'glove80/v25.05')",
+        ),
+    ] = None,
+    query: Annotated[
+        str, typer.Option("--query", "-q", help="Device query string")
+    ] = "",
+) -> None:
+    """List available devices for flashing."""
+    flash_service = create_flash_service()
+
+    try:
+        # Use profile-based method if profile is provided
+        if profile:
+            result = flash_service.list_devices_with_profile(
+                profile_name=profile,
+                query=query
+            )
+        else:
+            # Use direct list_devices method if no profile
+            result = flash_service.list_devices(
+                profile=None,
+                query=query or "removable=true"
+            )
+
+        if result.success and result.device_details:
+            print_success_message(f"Found {len(result.device_details)} device(s)")
             for device in result.device_details:
-                if device["status"] == "success":
-                    print_list_item(f"{device['name']}: SUCCESS")
-    else:
-        print_error_message(f"Flash completed with {result.devices_failed} failure(s)")
-        if result.device_details:
-            for device in result.device_details:
-                if device["status"] == "failed":
-                    error_msg = device.get("error", "Unknown error")
-                    print_list_item(f"{device['name']}: FAILED - {error_msg}")
-        raise typer.Exit(1)
+                print_list_item(
+                    f"{device['name']} - Serial: {device['serial']} - Path: {device['path']}"
+                )
+        else:
+            print_error_message("No devices found matching criteria")
+            for message in result.messages:
+                print_list_item(message)
+    except Exception as e:
+        print_error_message(f"Error listing devices: {str(e)}")
+        raise typer.Exit(1) from None
 
 
 def register_commands(app: typer.Typer) -> None:

@@ -316,6 +316,68 @@ The service layer improvements have been extended to `BuildService`:
    - Removed duplicate validation logic from CLI
    - Improved error handling in CLI commands
 
+### 4. FlashService Improvements
+
+The service layer improvements have been extended to `FlashService`:
+
+1. **New File-Based Methods**:
+   - Added `flash_from_file()` method that handles file existence checks:
+     ```python
+     def flash_from_file(
+         self,
+         firmware_file_path: Path,
+         profile: Optional["KeyboardProfile"] = None,
+         query: str = "",
+         timeout: int = 60,
+         count: int = 1,
+         track_flashed: bool = True,
+     ) -> FlashResult:
+     ```
+   - Added `list_devices_with_profile()` method that accepts a profile name string:
+     ```python
+     def list_devices_with_profile(
+         self, profile_name: str, query: str = ""
+     ) -> FlashResult:
+     ```
+   - Both methods handle validation and proper error handling
+
+2. **Strict Dependency Injection**:
+   - Updated constructor to require all dependencies explicitly:
+     ```python
+     def __init__(
+         self,
+         usb_adapter: USBAdapter,
+         file_adapter: FileAdapter,
+         loglevel: str = "INFO",
+     ):
+     ```
+   - Factory function creates all dependencies if not provided:
+     ```python
+     def create_flash_service(
+         usb_adapter: USBAdapter | None = None,
+         file_adapter: FileAdapter | None = None,
+         loglevel: str = "INFO",
+     ) -> FlashService:
+         # Create default adapters if not provided
+         if usb_adapter is None:
+             usb_adapter = create_usb_adapter()
+         if file_adapter is None:
+             file_adapter = create_file_adapter()
+
+         # Return service with explicit dependencies
+         return FlashService(
+             usb_adapter=usb_adapter,
+             file_adapter=file_adapter,
+             loglevel=loglevel,
+         )
+     ```
+
+3. **CLI Command Updates**:
+   - Updated `firmware flash` command to use the new file-based method
+   - Added new `firmware list_devices` command that uses the profile-based method
+   - Removed file existence check from CLI layer
+   - Improved error handling in CLI commands
+
 ### Next Steps
 
 1. **Implement Behavior Registration Service**:
@@ -323,7 +385,7 @@ The service layer improvements have been extended to `BuildService`:
    - Make behavior registry immutable after initial setup
 
 2. **Extend to Other Services**:
-   - Apply the same pattern to other services (BuildService, FlashService)
+   - Apply the same pattern to any remaining services
    - Ensure consistent patterns across all services
 
 ## Conclusion
