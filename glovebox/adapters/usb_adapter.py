@@ -241,38 +241,40 @@ class USBAdapterImpl:
             USBError: If there's an error mounting the device
         """
         logger.debug("Mounting device: %s", device.name)
-        
+
         # Check if device already has mount points
         if device.mountpoints:
             mount_points = list(device.mountpoints.values())
             logger.debug("Device already mounted at: %s", mount_points)
             return mount_points
-        
+
         # Platform-specific mounting
         import platform
         import subprocess
-        
+
         mount_points = []
-        
+
         try:
             if platform.system() == "Darwin":  # macOS
                 # Use diskutil to mount the device
-                logger.debug("Attempting to mount device %s using diskutil", device.name)
-                
+                logger.debug(
+                    "Attempting to mount device %s using diskutil", device.name
+                )
+
                 # First try to mount the whole disk
                 result = subprocess.run(
-                    ["diskutil", "mount", device.name],
-                    capture_output=True,
-                    text=True
+                    ["diskutil", "mount", device.name], capture_output=True, text=True
                 )
-                
+
                 if result.returncode == 0:
                     # Parse the output to get the mount point
                     output = result.stdout.strip()
                     if "mounted on" in output:
                         mount_point = output.split("mounted on")[-1].strip()
                         mount_points.append(mount_point)
-                        logger.info("Successfully mounted %s at %s", device.name, mount_point)
+                        logger.info(
+                            "Successfully mounted %s at %s", device.name, mount_point
+                        )
                 else:
                     # Try mounting partitions if whole disk mount failed
                     logger.debug("Whole disk mount failed, trying partitions")
@@ -280,30 +282,66 @@ class USBAdapterImpl:
                         result = subprocess.run(
                             ["diskutil", "mount", partition],
                             capture_output=True,
-                            text=True
+                            text=True,
                         )
                         if result.returncode == 0:
                             output = result.stdout.strip()
                             if "mounted on" in output:
                                 mount_point = output.split("mounted on")[-1].strip()
                                 mount_points.append(mount_point)
+                                logger.info(
+                                    "Successfully mounted partition %s at %s",
+                                    partition,
+                                    mount_point,
+                                )
+
+                if not mount_points:
+                    logger.warning("No mount points found for device %s", device.name)
+
+            elif platform.system() == "Linux":
+                # Use udisksctl for Linux (modern approach)
+                logger.debug("Attempting to mount device %s using udisksctl", device.name)
+                
+                # Try to mount the whole device first
+                result = subprocess.run(
+                    ["udisksctl", "mount", "-b", device.device_node],
+                    capture_output=True,
+                    text=True
+                )
+                
+                if result.returncode == 0:
+                    # Parse the output to get the mount point
+                    output = result.stdout.strip()
+                    if "Mounted" in output and "at" in output:
+                        mount_point = output.split("at")[-1].strip()
+                        mount_points.append(mount_point)
+                        logger.info("Successfully mounted %s at %s", device.name, mount_point)
+                else:
+                    # Try mounting partitions if whole device mount failed
+                    logger.debug("Whole device mount failed, trying partitions")
+                    for partition in device.partitions:
+                        result = subprocess.run(
+                            ["udisksctl", "mount", "-b", f"/dev/{partition}"],
+                            capture_output=True,
+                            text=True
+                        )
+                        if result.returncode == 0:
+                            output = result.stdout.strip()
+                            if "Mounted" in output and "at" in output:
+                                mount_point = output.split("at")[-1].strip()
+                                mount_points.append(mount_point)
                                 logger.info("Successfully mounted partition %s at %s", partition, mount_point)
                 
                 if not mount_points:
                     logger.warning("No mount points found for device %s", device.name)
-                    
-            elif platform.system() == "Linux":
-                # Linux mounting would use udisksctl or mount command
-                logger.warning("Linux mounting not implemented yet")
             else:
-                logger.warning("Unsupported platform for mounting: %s", platform.system())
-                
+                logger.warning(
+                    "Unsupported platform for mounting: %s", platform.system()
+                )
+
         except subprocess.CalledProcessError as e:
             error = create_usb_error(
-                device.name,
-                "mount", 
-                e,
-                {"stdout": e.stdout, "stderr": e.stderr}
+                device.name, "mount", e, {"stdout": e.stdout, "stderr": e.stderr}
             )
             logger.error("Failed to mount device %s: %s", device.name, e)
             raise error from e
@@ -311,7 +349,7 @@ class USBAdapterImpl:
             error = create_usb_error(device.name, "mount", e)
             logger.error("Unexpected error mounting device %s: %s", device.name, e)
             raise error from e
-            
+
         return mount_points
 
     def unmount(self, device: BlockDevice) -> bool:
@@ -328,9 +366,94 @@ class USBAdapterImpl:
             USBError: If there's an error unmounting the device
         """
         logger.debug("Unmounting device: %s", device.name)
-        # This is a stub implementation
-        # In a real implementation, this would use platform-specific code to unmount the device
-        return True
+        
+        # Platform-specific unmounting
+        import platform
+        import subprocess
+        
+        try:
+            if platform.system() == "Darwin":  # macOS
+                # Use diskutil to unmount the device
+                logger.debug("Attempting to unmount device %s using diskutil", device.name)
+                
+                unmounted = False
+                
+                # Try to unmount all mount points for this device
+                if device.mountpoints:
+                    for mount_point in device.mountpoints.values():
+                        result = subprocess.run(
+                            ["diskutil", "unmount", mount_point],
+                            capture_output=True,
+                            text=True
+                        )
+                        if result.returncode == 0:
+                            logger.info("Successfully unmounted %s from %s", device.name, mount_point)
+                            unmounted = True
+                        else:
+                            logger.warning("Failed to unmount %s from %s: %s", device.name, mount_point, result.stderr)
+                
+                # Also try unmounting by device name
+                result = subprocess.run(
+                    ["diskutil", "unmount", device.name],
+                    capture_output=True,
+                    text=True
+                )
+                if result.returncode == 0:
+                    logger.info("Successfully unmounted device %s", device.name)
+                    unmounted = True
+                
+                return unmounted
+                
+            elif platform.system() == "Linux":
+                # Use udisksctl for Linux
+                logger.debug("Attempting to unmount device %s using udisksctl", device.name)
+                
+                unmounted = False
+                
+                # Try to unmount all mount points for this device
+                if device.mountpoints:
+                    for partition, mount_point in device.mountpoints.items():
+                        # Try udisksctl first (modern way)
+                        result = subprocess.run(
+                            ["udisksctl", "unmount", "-b", f"/dev/{partition}"],
+                            capture_output=True,
+                            text=True
+                        )
+                        if result.returncode == 0:
+                            logger.info("Successfully unmounted partition %s from %s", partition, mount_point)
+                            unmounted = True
+                        else:
+                            # Fallback to umount command
+                            result = subprocess.run(
+                                ["umount", mount_point],
+                                capture_output=True,
+                                text=True
+                            )
+                            if result.returncode == 0:
+                                logger.info("Successfully unmounted %s using umount", mount_point)
+                                unmounted = True
+                            else:
+                                logger.warning("Failed to unmount %s: %s", mount_point, result.stderr)
+                
+                return unmounted
+                
+            else:
+                logger.warning("Unsupported platform for unmounting: %s", platform.system())
+                return False
+                
+        except subprocess.CalledProcessError as e:
+            error = create_usb_error(
+                device.name,
+                "unmount", 
+                e,
+                {"stdout": e.stdout, "stderr": e.stderr}
+            )
+            logger.error("Failed to unmount device %s: %s", device.name, e)
+            raise error from e
+        except Exception as e:
+            error = create_usb_error(device.name, "unmount", e)
+            logger.error("Unexpected error unmounting device %s: %s", device.name, e)
+            raise error from e
 
     def copy_file(self, source: Path, destination: Path) -> bool:
         """

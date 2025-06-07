@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, TypeAlias, Union
 
+
 # pyudev import moved to platform-specific implementation
 
 
@@ -425,6 +426,7 @@ class Lsdev:
                 return
             # Use platform-specific USB monitor
             from glovebox.flash.usb_monitor import create_usb_monitor
+
             self._monitor = create_usb_monitor()
             self._initialized = True
 

@@ -124,7 +124,10 @@ def flash(
         ),
     ] = None,
     query: Annotated[
-        str, typer.Option("--query", "-q", help="Device query string (overrides profile query)")
+        str,
+        typer.Option(
+            "--query", "-q", help="Device query string (overrides profile query)"
+        ),
     ] = "",
     timeout: Annotated[int, typer.Option("--timeout", help="Timeout in seconds")] = 60,
     count: Annotated[
