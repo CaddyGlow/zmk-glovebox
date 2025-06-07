@@ -288,8 +288,16 @@ class DeviceDetector:
             raise FlashError(f"Unexpected error listing devices: {e}") from e
 
 
-# Create a singleton instance for global use
-_detector = DeviceDetector()
+# Create a singleton instance for global use (lazy initialization)
+_detector: DeviceDetector | None = None
+
+
+def _get_detector() -> DeviceDetector:
+    """Get or create the global detector instance."""
+    global _detector
+    if _detector is None:
+        _detector = DeviceDetector()
+    return _detector
 
 
 def parse_query(query_str: str) -> list[tuple[str, str, str]]:
@@ -298,7 +306,7 @@ def parse_query(query_str: str) -> list[tuple[str, str, str]]:
 
     This is a wrapper around the DeviceDetector method for backward compatibility.
     """
-    return _detector.parse_query(query_str)
+    return _get_detector().parse_query(query_str)
 
 
 def evaluate_condition(
@@ -309,7 +317,7 @@ def evaluate_condition(
 
     This is a wrapper around the DeviceDetector method for backward compatibility.
     """
-    return _detector.evaluate_condition(device, field, operator, value)
+    return _get_detector().evaluate_condition(device, field, operator, value)
 
 
 def detect_device(
@@ -322,7 +330,7 @@ def detect_device(
 
     This is a wrapper around the DeviceDetector method for backward compatibility.
     """
-    return _detector.detect_device(query_str, timeout, initial_devices)
+    return _get_detector().detect_device(query_str, timeout, initial_devices)
 
 
 def list_matching_devices(query_str: str) -> list[BlockDevice]:
@@ -331,4 +339,4 @@ def list_matching_devices(query_str: str) -> list[BlockDevice]:
 
     This is a wrapper around the DeviceDetector method for backward compatibility.
     """
-    return _detector.list_matching_devices(query_str)
+    return _get_detector().list_matching_devices(query_str)

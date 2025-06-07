@@ -578,8 +578,16 @@ class FirmwareFlasher:
         return result
 
 
-# Create a singleton instance for global use
-_flasher = FirmwareFlasher()
+# Create a singleton instance for global use (lazy initialization)
+_flasher: FirmwareFlasher | None = None
+
+
+def _get_flasher() -> FirmwareFlasher:
+    """Get or create the global flasher instance."""
+    global _flasher
+    if _flasher is None:
+        _flasher = FirmwareFlasher()
+    return _flasher
 
 
 def flash_firmware(
@@ -594,7 +602,7 @@ def flash_firmware(
 
     This is a wrapper around the FirmwareFlasher method for backward compatibility.
     """
-    return _flasher.flash_firmware(
+    return _get_flasher().flash_firmware(
         firmware_file=firmware_file,
         query=query,
         timeout=timeout,

@@ -1,0 +1,90 @@
+keyboard: "kingston_test"
+description: "Test config for Kingston DataTraveler 3.0"
+vendor: "Kingston"
+key_count: 80
+
+flash:
+  method: "mass_storage"
+  query: "vendor~=Kingston and serial~=E0D55EA.* and removable=true"
+  usb_vid: "0x0951"
+  usb_pid: "0x1666"
+
+build:
+  method: "docker"
+  docker_image: "test-build"
+  repository: "test/zmk"
+  branch: "main"
+
+firmwares:
+  default:
+    version: "v25.05"
+    description: "Stable MoErgo firmware v25.05"
+    build_options:
+      repository: "moergo-sc/zmk"
+      branch: "v25.05"
+
+  test:
+    version: "test"
+    description: "Test firmware for Kingston USB detection"
+    build_options:
+      repository: "test/zmk"
+      branch: "main"
+
+keymap:
+  includes:
+    - "#include <behaviors.dtsi>"
+    - "#include <dt-bindings/zmk/keys.h>"
+
+  formatting:
+    default_key_width: 8
+    key_gap: "  "
+    base_indent: ""
+    rows:
+      - [0, 1, 2, 3, 4]
+
+  kconfig_options:
+    DEEP_SLEEP:
+      name: "CONFIG_ZMK_SLEEP"
+      type: "bool"
+      default: false
+      description: "Enable deep sleep"
+
+  system_behaviors:
+    - code: "&kp"
+      name: "Key Press"
+      description: "Standard key press"
+      expected_params: 1
+      origin: "zmk"
+      params:
+        - "code"
+      includes:
+        - "#include <dt-bindings/zmk/keys.h>"
+
+  keymap_dtsi: |
+    /*
+    * Test keymap for Kingston DataTraveler detection
+    */
+    / {
+        keymap {
+            compatible = "zmk,keymap";
+            default_layer {
+                bindings = <
+                    &kp A &kp B &kp C &kp D &kp E
+                >;
+            };
+        };
+    };
+
+  system_behaviors_dts: |
+    / {
+        behaviors {
+            // Test behaviors
+        };
+    };
+
+  key_position_header: |
+    #define POS_0 0
+    #define POS_1 1
+    #define POS_2 2
+    #define POS_3 3
+    #define POS_4 4

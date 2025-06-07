@@ -22,10 +22,24 @@ class USBAdapterImpl:
 
     def __init__(self) -> None:
         """Initialize the USB adapter."""
-        self.detector = DeviceDetector()
-        self.lsdev = Lsdev()
+        self._detector: DeviceDetector | None = None
+        self._lsdev: Lsdev | None = None
         self._lock = threading.RLock()
         logger.debug("USBAdapter initialized")
+
+    @property
+    def detector(self) -> DeviceDetector:
+        """Get or create the detector instance."""
+        if self._detector is None:
+            self._detector = DeviceDetector()
+        return self._detector
+
+    @property
+    def lsdev(self) -> Lsdev:
+        """Get or create the lsdev instance."""
+        if self._lsdev is None:
+            self._lsdev = Lsdev()
+        return self._lsdev
 
     def detect_device(
         self,
@@ -204,10 +218,10 @@ class USBAdapterImpl:
         logger.debug("Getting all block devices")
 
         try:
-            devices = self.lsdev.get_devices()
             if query:
                 return self.detector.list_matching_devices(query)
-            return devices
+            else:
+                return self.lsdev.get_devices()
         except Exception as e:
             error = create_usb_error("all", "get_all_devices", e, {"query": query})
             logger.error("Failed to get block devices: %s", e)
@@ -227,9 +241,78 @@ class USBAdapterImpl:
             USBError: If there's an error mounting the device
         """
         logger.debug("Mounting device: %s", device.name)
-        # This is a stub implementation
-        # In a real implementation, this would use platform-specific code to mount the device
-        return []
+        
+        # Check if device already has mount points
+        if device.mountpoints:
+            mount_points = list(device.mountpoints.values())
+            logger.debug("Device already mounted at: %s", mount_points)
+            return mount_points
+        
+        # Platform-specific mounting
+        import platform
+        import subprocess
+        
+        mount_points = []
+        
+        try:
+            if platform.system() == "Darwin":  # macOS
+                # Use diskutil to mount the device
+                logger.debug("Attempting to mount device %s using diskutil", device.name)
+                
+                # First try to mount the whole disk
+                result = subprocess.run(
+                    ["diskutil", "mount", device.name],
+                    capture_output=True,
+                    text=True
+                )
+                
+                if result.returncode == 0:
+                    # Parse the output to get the mount point
+                    output = result.stdout.strip()
+                    if "mounted on" in output:
+                        mount_point = output.split("mounted on")[-1].strip()
+                        mount_points.append(mount_point)
+                        logger.info("Successfully mounted %s at %s", device.name, mount_point)
+                else:
+                    # Try mounting partitions if whole disk mount failed
+                    logger.debug("Whole disk mount failed, trying partitions")
+                    for partition in device.partitions:
+                        result = subprocess.run(
+                            ["diskutil", "mount", partition],
+                            capture_output=True,
+                            text=True
+                        )
+                        if result.returncode == 0:
+                            output = result.stdout.strip()
+                            if "mounted on" in output:
+                                mount_point = output.split("mounted on")[-1].strip()
+                                mount_points.append(mount_point)
+                                logger.info("Successfully mounted partition %s at %s", partition, mount_point)
+                
+                if not mount_points:
+                    logger.warning("No mount points found for device %s", device.name)
+                    
+            elif platform.system() == "Linux":
+                # Linux mounting would use udisksctl or mount command
+                logger.warning("Linux mounting not implemented yet")
+            else:
+                logger.warning("Unsupported platform for mounting: %s", platform.system())
+                
+        except subprocess.CalledProcessError as e:
+            error = create_usb_error(
+                device.name,
+                "mount", 
+                e,
+                {"stdout": e.stdout, "stderr": e.stderr}
+            )
+            logger.error("Failed to mount device %s: %s", device.name, e)
+            raise error from e
+        except Exception as e:
+            error = create_usb_error(device.name, "mount", e)
+            logger.error("Unexpected error mounting device %s: %s", device.name, e)
+            raise error from e
+            
+        return mount_points
 
     def unmount(self, device: BlockDevice) -> bool:
         """

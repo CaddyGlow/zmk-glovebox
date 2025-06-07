@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, TypeAlias, Union
 
-import pyudev
+# pyudev import moved to platform-specific implementation
 
 
 # Configure logger
@@ -105,7 +105,7 @@ class BlockDevice:
             return self.name
 
     @classmethod
-    def from_pyudev_device(cls, device: pyudev.Device) -> "BlockDevice":
+    def from_pyudev_device(cls, device: Any) -> "BlockDevice":
         """Create a BlockDevice from a pyudev Device."""
         name = device.sys_name
         device_node = device.device_node
@@ -218,11 +218,14 @@ class MountPointCache:
             logger.warning(f"Failed to read mount points: {e}")
 
 
+# USBDeviceMonitor has been moved to usb_monitor.py for platform-specific implementations
+# The original Linux-specific implementation is preserved below for reference
+"""
 class USBDeviceMonitor:
-    """Monitor for USB block devices with event handling."""
+    "Monitor for USB block devices with event handling."
 
     def __init__(self) -> None:
-        """Initialize the USB device monitor."""
+        # Initialize the USB device monitor.
         self.context = pyudev.Context()
         self.known_devices: set[str] = set()
         self.devices: list[BlockDevice] = []
@@ -233,7 +236,7 @@ class USBDeviceMonitor:
         self.scan_existing_devices()
 
     def scan_existing_devices(self) -> None:
-        """Scan existing USB block devices and populate the device list."""
+        #Scan existing USB block devices and populate the device list.#
         with self._lock:
             self.devices = []
             mount_points = self._mount_cache.get_mountpoints()
@@ -249,7 +252,7 @@ class USBDeviceMonitor:
     def _update_mountpoints(
         self, device: BlockDevice, mount_points: dict[str, str]
     ) -> None:
-        """Update device mount points from the cache."""
+        #Update device mount points from the cache.#
         for part in device.partitions:
             if part in mount_points:
                 device.mountpoints[part] = mount_points[part]
@@ -259,14 +262,14 @@ class USBDeviceMonitor:
             device.mountpoints[device.name] = mount_points[device.name]
 
     def is_usb_device(self, device: pyudev.Device) -> bool:
-        """Check if a device is USB-connected storage."""
+        #Check if a device is USB-connected storage.#
         if device.subsystem != "block":
             return False
 
         return any(parent.subsystem == "usb" for parent in device.ancestors)
 
     def start_monitoring(self) -> None:
-        """Start monitoring for USB device events."""
+        #Start monitoring for USB device events.#
         if self._observer is not None:
             logger.warning("Monitor already started")
             return
@@ -278,7 +281,7 @@ class USBDeviceMonitor:
         logger.info("USB device monitoring started")
 
     def stop_monitoring(self) -> None:
-        """Stop the USB device monitor."""
+        #Stop the USB device monitor.#
         if self._observer is not None:
             self._observer.stop()
             self._observer = None
@@ -286,7 +289,7 @@ class USBDeviceMonitor:
 
     @contextmanager
     def monitor(self) -> Any:
-        """Context manager for temporary monitoring."""
+        #Context manager for temporary monitoring.#
         try:
             self.start_monitoring()
             yield self
@@ -296,22 +299,22 @@ class USBDeviceMonitor:
     def register_callback(
         self, callback: Callable[[str, BlockDevice], None]
     ) -> None:  # UP035
-        """Register a callback function for device events.
+        #Register a callback function for device events.
 
         Args:
             callback: Function taking action ("add"/"remove") and device as arguments
-        """
+        #
         self._callbacks.add(callback)
 
     def unregister_callback(
         self, callback: Callable[[str, BlockDevice], None]
     ) -> None:  # UP035
-        """Unregister a previously registered callback."""
+        #Unregister a previously registered callback.#
         if callback in self._callbacks:
             self._callbacks.remove(callback)
 
     def _device_event(self, action: str, device: pyudev.Device) -> None:
-        """Handle device events."""
+        #Handle device events.#
         if device.subsystem != "block":
             return
 
@@ -355,7 +358,7 @@ class USBDeviceMonitor:
                         break
 
     def get_devices(self) -> list[BlockDevice]:
-        """Get the current list of USB block devices."""
+        #Get the current list of USB block devices.#
         with self._lock:
             # Refresh mount points for all devices
             mount_points = self._mount_cache.get_mountpoints()
@@ -366,7 +369,7 @@ class USBDeviceMonitor:
     def wait_for_device(
         self, timeout: int = 60, poll_interval: float = 0.5
     ) -> BlockDevice | None:
-        """Wait for any new USB storage device to be connected.
+        #Wait for any new USB storage device to be connected.
 
         Args:
             timeout: Maximum time to wait in seconds
@@ -374,7 +377,7 @@ class USBDeviceMonitor:
 
         Returns:
             BlockDevice or None if timeout occurs
-        """
+        #
         initial_devices = {d.device_node for d in self.get_devices()}
         new_device: BlockDevice | None = None
         event = threading.Event()
@@ -398,6 +401,7 @@ class USBDeviceMonitor:
         finally:
             # Unregister callback
             self.unregister_callback(device_callback)
+"""
 
 
 class Lsdev:
@@ -419,7 +423,9 @@ class Lsdev:
         with self._lock:
             if getattr(self, "_initialized", False):
                 return
-            self._monitor = USBDeviceMonitor()
+            # Use platform-specific USB monitor
+            from glovebox.flash.usb_monitor import create_usb_monitor
+            self._monitor = create_usb_monitor()
             self._initialized = True
 
     def get_devices(self) -> list[BlockDevice]:
