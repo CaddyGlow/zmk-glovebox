@@ -79,7 +79,7 @@ class USBDeviceMonitorBase(abc.ABC):
     ) -> BlockDevice | None:
         """Wait for a new USB device to be connected."""
         start_time = time.time()
-        initial_devices = set(d.path for d in self.get_devices())
+        initial_devices = {d.path for d in self.get_devices()}
 
         while time.time() - start_time < timeout:
             current_devices = self.get_devices()
@@ -408,9 +408,9 @@ class MacOSUSBDeviceMonitor(USBDeviceMonitorBase):
         """Main monitoring loop for macOS."""
         # Simple polling approach for macOS
         while self._monitoring:
-            old_devices = set(d.path for d in self.devices)
+            old_devices = {d.path for d in self.devices}
             self.scan_existing_devices()
-            new_devices = set(d.path for d in self.devices)
+            new_devices = {d.path for d in self.devices}
 
             # Check for added devices
             for path in new_devices - old_devices:

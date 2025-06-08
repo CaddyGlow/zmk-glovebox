@@ -25,7 +25,10 @@ A comprehensive tool for ZMK keyboard firmware management, supporting multiple k
 
 - Python 3.11 or higher
 - Docker (required for firmware building)
-- Linux with udisksctl (required for device flashing)
+- **Cross-Platform Device Flashing**:
+  - **Linux**: udisksctl (part of udisks2 package)
+  - **macOS**: diskutil (built-in)
+  - **Windows**: Not yet supported
 
 ### Install from PyPI
 
@@ -682,7 +685,12 @@ glovebox/
 ├── config/                  # Configuration and profiles
 ├── formatters/              # Output formatting
 ├── generators/              # Content generation
-├── flash/                   # USB device operations
+├── flash/                   # USB device and OS-specific operations
+│   ├── os_adapters.py       # Platform-specific implementations
+│   ├── flash_operations.py  # High-level flash operations
+│   └── usb_monitor.py       # Cross-platform USB monitoring
+├── protocols/               # Interface definitions
+│   └── flash_os_protocol.py # OS abstraction interface
 └── cli.py                   # Command-line interface
 ```
 
@@ -692,6 +700,7 @@ glovebox/
 - **Adapter Pattern**: External system interfaces (Docker, USB, File)
 - **Profile System**: Keyboard-specific configuration inheritance
 - **Build Chains**: Pluggable build system for different toolchains
+- **OS Abstraction**: Platform-specific operations isolated and testable
 
 ### Running Tests
 
@@ -746,11 +755,15 @@ sudo systemctl start docker
 
 **USB device not detected:**
 ```bash
-# Check device permissions (Linux)
+# Linux: Check device permissions and groups
 ls -la /dev/disk/by-id/
-
-# Add user to appropriate groups
 sudo usermod -a -G plugdev,dialout $USER
+
+# macOS: Check device is mountable
+diskutil list
+
+# Check if device matches query
+glovebox firmware flash --list-devices --profile glove80/v25.05
 ```
 
 **Build failures:**

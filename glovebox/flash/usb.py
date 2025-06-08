@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, TypeAlias
 
 from glovebox.core.errors import FlashError
+from glovebox.flash.flash_operations import create_flash_operations
 from glovebox.flash.lsdev import (
     BlockDevice,
     BlockDeviceError,
@@ -20,8 +21,6 @@ from glovebox.flash.lsdev import (
 )
 from glovebox.models.results import FlashResult
 
-
-# Import detect_device from the correct module
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +38,6 @@ def get_device_path(device_name: str) -> str:
     Raises:
         FlashError: If running on an unsupported OS
     """
-    import platform
 
     system = platform.system().lower()
 
@@ -61,259 +59,36 @@ def mount_and_flash(
     device: BlockDevice,
     firmware_file: str | Path,
     max_retries: int = 3,
-    retry_delay: float = 2.0,  # Allow float for delay
+    retry_delay: float = 2.0,
 ) -> bool:
     """
-    Mount device using udisksctl and flash firmware with retry logic.
+    Mount device and flash firmware with retry logic using OS abstraction.
 
     Args:
-        device: BlockDevice object representing the target device.
-        firmware_file: Path to firmware file to flash.
+        device: BlockDevice object representing the target device
+        firmware_file: Path to firmware file to flash
         max_retries: Maximum number of retries
         retry_delay: Delay between retries in seconds
 
     Returns:
-    Returns:
-        Boolean indicating success or failure.
+        Boolean indicating success or failure
 
     Raises:
-        FileNotFoundError: If firmware file or udisksctl is not found.
-        BlockDeviceError: If the platform is not supported for mounting (non-Linux).
-        PermissionError: If authorization fails during mount.
-        FlashError: For other flashing related errors.
+        FileNotFoundError: If firmware file is not found
+        FlashError: For other flashing related errors
     """
-    firmware_path = Path(firmware_file).resolve()
-    if not firmware_path.exists():
-        # Use FileNotFoundError for missing files
-        raise FileNotFoundError(f"Firmware file not found: {firmware_path}") from None
+    logger.info(f"Flashing firmware to device {device.name}")
 
-    system = platform.system().lower()
-    if system not in ["linux"]:
-        # udisksctl is primarily a Linux tool. macOS/Windows need different approaches.
-        raise BlockDeviceError(
-            f"Automated mounting with udisksctl is not supported on {system}."
-        ) from None
+    # Use the new OS abstraction layer
+    flash_ops = create_flash_operations()
 
-    # Construct the full device path (e.g., /dev/sda)
-    device_path = get_device_path(device.name)
-    device_identifier = (
-        f"{device.serial}_{device.label}" if device.serial else device.label
-    )
-
-    # Check if udisksctl exists
-    if not shutil.which("udisksctl"):
-        raise FileNotFoundError(
-            "`udisksctl` command not found. Please install udisks2."
-        ) from None
-
-    for attempt in range(max_retries):
-        mount_point = None
-        try:
-            logger.info(
-                f"Attempt {attempt + 1}/{max_retries}: Mounting device {device_path} ({device_identifier})..."
-            )
-
-            # Mount using udisksctl
-            mount_result = subprocess.run(
-                ["udisksctl", "mount", "--no-user-interaction", "-b", device_path],
-                capture_output=True,
-                text=True,
-                check=False,  # Don't check=True, handle errors manually
-                timeout=10,  # Add a timeout
-            )
-            logger.debug(f"Mount command stdout: {mount_result.stdout}")
-            logger.debug(f"Mount command stderr: {mount_result.stderr}")
-
-            if mount_result.returncode != 0:
-                # Check stderr for common errors
-                if "already mounted" in mount_result.stderr.lower():
-                    logger.warning(
-                        f"Device {device_path} already mounted. Trying to find mount point."
-                    )
-                    # Proceed to find mount point below
-                elif "not authorized" in mount_result.stderr.lower():
-                    logger.error(
-                        f"Authorization failed for mounting {device_path}. Check polkit rules."
-                    )
-                    # Raise PermissionError for auth issues
-                    raise PermissionError(
-                        f"Authorization failed for mounting {device_path}"
-                    ) from None
-                else:
-                    logger.warning(
-                        f"Mount command failed (exit code {mount_result.returncode}). Retrying..."
-                    )
-                    if attempt < max_retries - 1:
-                        time.sleep(retry_delay)
-                        continue
-                    else:
-                        logger.error(
-                            f"Failed to mount {device_path} after {max_retries} attempts."
-                        )
-                        return False  # Failed after retries
-
-            # Extract mount point from udisksctl output or info
-            if mount_result.returncode == 0 and " at " in mount_result.stdout:
-                # Example output: "Mounted /dev/sda at /run/media/user/GLV80RHBOOT"
-                mount_point_match = re.search(r" at (/\S+)", mount_result.stdout)
-                if mount_point_match:
-                    mount_point = mount_point_match.group(1).strip()
-
-            # If mount_point not found from output, try getting info
-            if not mount_point:
-                logger.debug(
-                    f"Mount point not found in mount output, querying udisksctl info for {device_path}..."
-                )
-                try:
-                    info_result = subprocess.run(
-                        ["udisksctl", "info", "-b", device_path],
-                        capture_output=True,
-                        text=True,
-                        check=True,  # Check info success
-                        timeout=5,
-                    )
-                    logger.debug(f"Info command stdout: {info_result.stdout}")
-                    # More robust regex for MountPoints, handling potential spaces and variations
-                    mount_point_line = re.search(
-                        r"^\s*MountPoints?:\s*(/\S+)", info_result.stdout, re.MULTILINE
-                    )
-                    if mount_point_line:
-                        mount_point = mount_point_line.group(1).strip()
-                    else:
-                        # Handle cases where MountPoints might be on the next line (less common now)
-                        lines = info_result.stdout.splitlines()
-                        for i, line in enumerate(lines):
-                            if "MountPoints:" in line and i + 1 < len(lines):
-                                possible_mount = lines[i + 1].strip()
-                                if possible_mount.startswith("/"):
-                                    mount_point = possible_mount
-                                    break
-                except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-                    logger.warning(
-                        f"Failed to get udisksctl info for {device_path}: {e}"
-                    )
-                except Exception as e:
-                    logger.error(f"Unexpected error getting udisksctl info: {e}")
-
-            if not mount_point or not Path(mount_point).is_dir():
-                logger.warning(
-                    f"Could not reliably determine mount point for {device_path}."
-                )
-                if attempt < max_retries - 1:
-                    logger.info(f"Retrying mount/info in {retry_delay} seconds...")
-                    time.sleep(retry_delay)
-                    continue
-                else:
-                    logger.error(
-                        f"Failed to find mount point for {device_path} after {max_retries} attempts."
-                    )
-                    return False  # Failed to find mount point
-
-            logger.info(f"Device {device_identifier} mounted at {mount_point}")
-
-            # Copy the firmware file
-            dest_path = Path(mount_point) / firmware_path.name  # Use Path object
-            logger.info(f"Copying {firmware_path} to {dest_path}")
-            # Use copy2 to preserve metadata, copy to directory preserves filename
-            shutil.copy2(firmware_path, mount_point)
-            # Optional: Add fsync to ensure data is written
-            try:
-                # fsync the directory containing the new file
-                fd = os.open(mount_point, os.O_RDONLY)
-                os.fsync(fd)
-                os.close(fd)
-                logger.debug(f"fsync successful on directory {mount_point}")
-            except OSError as e:
-                logger.warning(
-                    f"Could not fsync mount point directory {mount_point}: {e}"
-                )
-            except Exception as e:
-                logger.warning(f"Unexpected error during fsync: {e}")
-
-            logger.info("Firmware file copied successfully.")
-
-            # Trying to unmount, but it might fail as the device disconnects quickly
-            try:
-                logger.debug(f"Attempting to unmount {mount_point} ({device_path})")
-                # Use --force as the device might already be gone
-                unmount_result = subprocess.run(
-                    [
-                        "udisksctl",
-                        "unmount",
-                        "--no-user-interaction",
-                        "-b",
-                        device_path,
-                        "--force",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,  # Short timeout
-                    check=False,  # Don't fail on error
-                )
-                logger.debug(f"Unmount stdout: {unmount_result.stdout}")
-                logger.debug(f"Unmount stderr: {unmount_result.stderr}")
-                if unmount_result.returncode == 0:
-                    logger.debug("Unmount command successful")
-                else:
-                    # Log non-zero exit code as debug, it's often expected
-                    logger.debug(
-                        f"Unmount command finished (exit code {unmount_result.returncode}), device likely disconnected."
-                    )
-
-            except (subprocess.SubprocessError, subprocess.TimeoutExpired) as e:
-                logger.debug(f"Unmount failed or timed out (likely expected): {e}")
-            except Exception as e:
-                logger.warning(f"Unexpected error during unmount: {e}")
-
-            return True  # Flash successful
-
-        except FileNotFoundError as e:
-            # Handle missing udisksctl specifically
-            logger.error(f"Error: {e}. Please ensure udisks2 is installed.")
-            raise  # Re-raise critical error
-        except PermissionError as e:
-            # Handle permission errors during mount
-            logger.error(f"Permission error during mount/flash: {e}")
-            raise  # Re-raise critical error
-        except (OSError, subprocess.SubprocessError) as e:
-            # Catch errors during copy or other subprocess calls
-            logger.error(
-                f"OS or Subprocess error during mount/flash attempt {attempt + 1}: {e}"
-            )
-            if attempt < max_retries - 1:
-                logger.info(f"Retrying in {retry_delay} seconds...")
-                time.sleep(retry_delay)
-            else:
-                logger.error(
-                    "All mount/flash attempts failed due to OS/Subprocess error."
-                )
-                # Attempt cleanup unmount if possible
-                if mount_point:
-                    # (Cleanup unmount logic as before)
-                    pass
-                raise FlashError(
-                    f"Failed to flash after retries due to OS/Subprocess error: {e}"
-                ) from e
-        except Exception as e:
-            # Catch any other unexpected errors
-            logger.error(
-                f"Unexpected error during mount/flash attempt {attempt + 1}: {e}"
-            )
-            if attempt < max_retries - 1:
-                logger.info(f"Retrying in {retry_delay} seconds...")
-                time.sleep(retry_delay)
-            else:
-                logger.error("All mount/flash attempts failed due to unexpected error.")
-                # Attempt cleanup unmount if possible
-                if mount_point:
-                    # (Cleanup unmount logic as before)
-                    pass
-                # Wrap unexpected errors in FlashError
-                raise FlashError(
-                    f"Failed to flash after retries due to unexpected error: {e}"
-                ) from e
-
-    return False  # Should only be reached if all retries fail without raising
+    try:
+        return flash_ops.mount_and_flash(
+            device, Path(firmware_file), max_retries, retry_delay
+        )
+    except Exception as e:
+        logger.error(f"Flash operation failed: {e}")
+        raise
 
 
 class FirmwareFlasher:

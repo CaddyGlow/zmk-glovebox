@@ -309,6 +309,68 @@ For example:
 - `glovebox firmware flash firmware.uf2 --profile glove80/v25.05`
 - `glovebox keymap show my_layout.json --profile glove80/v25.05`
 
+### OS Abstraction Layer for Flash Operations
+
+Glovebox implements a clean OS abstraction layer for firmware flashing operations to support multiple platforms:
+
+#### FlashOSProtocol Pattern
+
+The flash operations use a protocol-based architecture for platform-specific operations:
+
+1. **Protocol Definition**:
+   ```python
+   from glovebox.protocols.flash_os_protocol import FlashOSProtocol
+   
+   # Protocol defines interface for OS-specific operations
+   class FlashOSProtocol(Protocol):
+       def get_device_path(self, device_name: str) -> str: ...
+       def mount_device(self, device: BlockDevice) -> list[str]: ...
+       def unmount_device(self, device: BlockDevice) -> bool: ...
+       def copy_firmware_file(self, firmware_file: Path, mount_point: str) -> bool: ...
+       def sync_filesystem(self, mount_point: str) -> bool: ...
+   ```
+
+2. **Platform-Specific Implementations**:
+   ```python
+   from glovebox.flash.os_adapters import create_flash_os_adapter
+   
+   # Factory function creates appropriate adapter for current platform
+   os_adapter = create_flash_os_adapter()
+   # Returns: LinuxFlashOS, MacOSFlashOS, or StubFlashOS
+   ```
+
+3. **High-Level Operations**:
+   ```python
+   from glovebox.flash.flash_operations import create_flash_operations
+   
+   # High-level operations using OS abstraction
+   flash_ops = create_flash_operations()
+   success = flash_ops.mount_and_flash(device, firmware_file, max_retries=3)
+   ```
+
+4. **Integration with Services**:
+   ```python
+   from glovebox.adapters.usb_adapter import create_usb_adapter
+   
+   # USB adapter automatically uses OS abstraction
+   usb_adapter = create_usb_adapter()
+   result = usb_adapter.flash_device(device, firmware_file)
+   ```
+
+#### Platform Support
+
+- **Linux**: Uses `udisksctl` for mounting/unmounting operations
+- **macOS**: Uses `diskutil` for mounting/unmounting operations  
+- **Windows**: Stub implementation (not yet supported)
+- **Testing**: Mock implementations can be injected for testing
+
+#### Key Benefits
+
+1. **Platform Independence**: Core logic works on all supported platforms
+2. **Testability**: OS-specific behavior can be mocked and tested independently
+3. **Maintainability**: Platform-specific code is isolated and follows consistent interfaces
+4. **Extensibility**: Easy to add support for new platforms
+
 ### Protocol Implementation Guidelines
 
 When implementing Protocol interfaces:

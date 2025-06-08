@@ -14,6 +14,7 @@ from .docker_adapter_protocol import (
     DockerVolume,
 )
 from .file_adapter_protocol import FileAdapterProtocol
+from .flash_os_protocol import FlashOSProtocol
 from .template_adapter_protocol import TemplateAdapterProtocol
 from .usb_adapter_protocol import USBAdapterProtocol
 
@@ -25,6 +26,7 @@ __all__ = [
     "DockerResult",
     "DockerVolume",
     "FileAdapterProtocol",
+    "FlashOSProtocol",
     "TemplateAdapterProtocol",
     "USBAdapterProtocol",
 ]
