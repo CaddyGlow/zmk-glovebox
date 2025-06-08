@@ -11,8 +11,8 @@ from glovebox.adapters.config_file_adapter import (
     ConfigFileAdapter,
     create_config_file_adapter,
 )
+from glovebox.config.models import UserConfigData
 from glovebox.core.errors import ConfigError
-from glovebox.models.config import UserConfigData
 from glovebox.protocols.config_file_adapter_protocol import ConfigFileAdapterProtocol
 
 

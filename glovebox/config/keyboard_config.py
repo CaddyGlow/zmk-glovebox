@@ -17,10 +17,10 @@ if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
     from glovebox.config.user_config import UserConfig
 
+from glovebox.config.models import FirmwareConfig, KeyboardConfig
 from glovebox.config.schema import validate_keyboard_config
 from glovebox.core.errors import ConfigError
 from glovebox.core.logging import get_logger
-from glovebox.models.config import FirmwareConfig, KeyboardConfig
 
 
 logger = get_logger(__name__)

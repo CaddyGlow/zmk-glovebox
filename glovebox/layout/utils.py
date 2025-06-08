@@ -13,8 +13,8 @@ if TYPE_CHECKING:
     from glovebox.layout.zmk_generator import ZmkFileContentGenerator
 
 from glovebox.core.errors import LayoutError
+from glovebox.firmware.models import OutputPaths
 from glovebox.layout.models import LayoutData
-from glovebox.models.build import OutputPaths
 from glovebox.protocols import FileAdapterProtocol
 
 
@@ -353,12 +353,12 @@ def convert_keymap_section_from_dict(keymap_dict: dict[str, Any]) -> Any:
     Returns:
         KeymapSection object with converted data
     """
+    from glovebox.config.models import FormattingConfig, KConfigOption, KeymapSection
     from glovebox.layout.models import (
         BehaviorCommand,
         BehaviorParameter,
         SystemBehavior,
     )
-    from glovebox.models.config import FormattingConfig, KConfigOption, KeymapSection
 
     # Convert system behaviors
     system_behaviors = []

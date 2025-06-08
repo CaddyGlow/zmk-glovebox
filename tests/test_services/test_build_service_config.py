@@ -5,13 +5,12 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from glovebox.config.models import BuildConfig, KeyboardConfig
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import BuildError
 from glovebox.firmware.build_service import BuildService, create_build_service
-from glovebox.models.build import FirmwareOutputFiles
-from glovebox.models.config import BuildConfig, KeyboardConfig
-from glovebox.models.options import BuildServiceCompileOpts
-from glovebox.models.results import BuildResult
+from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
+from glovebox.firmware.options import BuildServiceCompileOpts
 from glovebox.protocols.docker_adapter_protocol import DockerAdapterProtocol
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.utils import stream_process

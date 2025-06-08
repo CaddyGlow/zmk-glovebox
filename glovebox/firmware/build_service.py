@@ -17,9 +17,8 @@ from glovebox.config.keyboard_config import (
     load_keyboard_config,
 )
 from glovebox.core.errors import BuildError
-from glovebox.models.build import FirmwareOutputFiles
-from glovebox.models.options import BuildServiceCompileOpts
-from glovebox.models.results import BuildResult
+from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
+from glovebox.firmware.options import BuildServiceCompileOpts
 from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
 from glovebox.protocols.docker_adapter_protocol import DockerVolume
 from glovebox.services.base_service import BaseServiceImpl

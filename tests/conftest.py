@@ -12,11 +12,7 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from glovebox.config.profile import KeyboardProfile
-from glovebox.firmware.flash.models import FlashResult
-from glovebox.layout.models import SystemBehavior
-from glovebox.models.build import FirmwareOutputFiles
-from glovebox.models.config import (
+from glovebox.config.models import (
     BuildConfig,
     BuildOptions,
     FirmwareConfig,
@@ -26,7 +22,10 @@ from glovebox.models.config import (
     KeyboardConfig,
     KeymapSection,
 )
-from glovebox.models.results import BuildResult, LayoutResult
+from glovebox.config.profile import KeyboardProfile
+from glovebox.firmware.flash.models import FlashResult
+from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
+from glovebox.layout.models import LayoutResult, SystemBehavior
 from glovebox.protocols import FileAdapterProtocol, TemplateAdapterProtocol
 
 

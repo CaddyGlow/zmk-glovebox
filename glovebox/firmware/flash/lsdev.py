@@ -7,7 +7,11 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional, TypeAlias, Union
+from typing import TYPE_CHECKING, Any, Optional, TypeAlias, Union
+
+
+if TYPE_CHECKING:
+    from glovebox.firmware.flash.models import DiskInfo, USBDeviceInfo
 
 
 logger = logging.getLogger(__name__)
@@ -174,6 +178,39 @@ class BlockDevice:
 
         # Get mount points (done externally to avoid reading /proc/mounts for each device)
         return block_device
+
+    @classmethod
+    def from_macos_disk_info(
+        cls,
+        disk_name: str,
+        disk_info: "DiskInfo",
+        usb_info: "USBDeviceInfo | None" = None,
+        mounted_volumes: set[str] | None = None,
+    ) -> "BlockDevice":
+        """Create a BlockDevice from macOS disk and USB info."""
+
+        if mounted_volumes is None:
+            mounted_volumes = set()
+
+        volume_name = disk_info.volume_name
+
+        return cls(
+            name=disk_name,
+            device_node=f"/dev/{disk_name}",
+            model=(
+                usb_info.name if usb_info and usb_info.name else disk_info.media_name
+            )
+            or "Unknown",
+            vendor=usb_info.vendor if usb_info and usb_info.vendor else "Unknown",
+            serial=usb_info.serial if usb_info else "",
+            size=disk_info.size,
+            removable=disk_info.removable,
+            type="usb" if usb_info else "disk",
+            partitions=disk_info.partitions,
+            mountpoints={volume_name: f"/Volumes/{volume_name}"}
+            if volume_name in mounted_volumes
+            else {},
+        )
 
 
 class MountPointCache:

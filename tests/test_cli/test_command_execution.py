@@ -11,7 +11,8 @@ import typer
 from glovebox.cli import app
 from glovebox.cli.commands import register_all_commands
 from glovebox.firmware.flash.models import FlashResult
-from glovebox.models.results import BuildResult, LayoutResult
+from glovebox.firmware.models import BuildResult
+from glovebox.layout.models import LayoutResult
 
 
 # Register commands with the app before running tests

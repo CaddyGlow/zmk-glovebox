@@ -8,14 +8,14 @@ provides convenient methods for accessing and manipulating that configuration.
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from glovebox.core.errors import ConfigError
-from glovebox.core.logging import get_logger
-from glovebox.layout.models import SystemBehavior
-from glovebox.models import (
+from glovebox.config.models import (
     FirmwareConfig,
     KConfigOption,
     KeyboardConfig,
 )
+from glovebox.core.errors import ConfigError
+from glovebox.core.logging import get_logger
+from glovebox.layout.models import SystemBehavior
 
 
 logger = get_logger(__name__)

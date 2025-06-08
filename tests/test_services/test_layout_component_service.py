@@ -19,8 +19,8 @@ from glovebox.layout.models import (
     LayoutData,
     LayoutMetadata,
     LayoutParam,
+    LayoutResult,
 )
-from glovebox.models.results import LayoutResult
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 
 

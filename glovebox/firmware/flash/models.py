@@ -1,6 +1,7 @@
 """Models and type definitions for flash operations."""
 
 import logging
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -15,8 +16,29 @@ logger = logging.getLogger(__name__)
 BlockDeviceDict = dict[str, Any]
 BlockDevicePathMap = dict[str, str]
 BlockDeviceSymlinks = set[str]
-USBDeviceInfo = dict[str, str]
-DiskInfo = dict[str, Any]
+
+
+@dataclass
+class USBDeviceInfo:
+    """USB device information from system profiler."""
+
+    name: str = ""
+    vendor: str = ""
+    vendor_id: str = ""
+    product_id: str = ""
+    serial: str = ""
+
+
+@dataclass
+class DiskInfo:
+    """Disk information from diskutil."""
+
+    size: int = 0
+    media_name: str = ""
+    volume_name: str = ""
+    removable: bool = False
+    protocol: str = ""
+    partitions: list[str] = field(default_factory=list)
 
 
 class BaseResult(BaseModel):

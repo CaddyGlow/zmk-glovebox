@@ -24,7 +24,7 @@ from glovebox.layout.display_service import (
     LayoutDisplayService,
     create_layout_display_service,
 )
-from glovebox.layout.models import LayoutData
+from glovebox.layout.models import LayoutData, LayoutResult
 from glovebox.layout.utils import (
     generate_config_file,
     generate_keymap_file,
@@ -32,7 +32,6 @@ from glovebox.layout.utils import (
     process_json_file,
 )
 from glovebox.layout.zmk_generator import ZmkFileContentGenerator
-from glovebox.models.results import LayoutResult
 from glovebox.protocols import FileAdapterProtocol, TemplateAdapterProtocol
 from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
 from glovebox.services.base_service import BaseServiceImpl

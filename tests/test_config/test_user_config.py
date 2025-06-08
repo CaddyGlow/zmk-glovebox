@@ -10,9 +10,9 @@ import pytest
 import yaml
 
 from glovebox.adapters.config_file_adapter import ConfigFileAdapter
+from glovebox.config.models import UserConfigData
 from glovebox.config.user_config import UserConfig, create_user_config
 from glovebox.core.errors import ConfigError
-from glovebox.models.config import UserConfigData
 
 
 def test_user_config_create():

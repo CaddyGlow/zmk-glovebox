@@ -8,7 +8,7 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Optional, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from glovebox.firmware.flash.lsdev import BlockDevice
 from glovebox.firmware.flash.models import (
@@ -17,6 +17,7 @@ from glovebox.firmware.flash.models import (
     DiskInfo,
     USBDeviceInfo,
 )
+from glovebox.protocols.mount_cache_protocol import MountCacheProtocol
 
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,12 @@ class USBDeviceMonitorBase(abc.ABC):
 
     @abc.abstractmethod
     def is_usb_device(self, device_info: Any) -> bool:
-        """Check if a device is USB-connected storage."""
+        """Check if a device is USB-connected storage.
+
+        Args:
+            device_info: Platform-specific device info (pyudev Device on Linux,
+                        BlockDeviceDict on macOS, etc.)
+        """
         pass
 
     def get_devices(self) -> list[BlockDevice]:
@@ -113,13 +119,16 @@ class LinuxUSBDeviceMonitor(USBDeviceMonitorBase):
         super().__init__()
 
         # Import pyudev only on Linux
-        import pyudev
+        try:
+            import pyudev  # type: ignore[import-untyped]
+        except ImportError as e:
+            raise ImportError("pyudev is required for Linux USB monitoring") from e
 
         self.pyudev = pyudev
 
         self.context = pyudev.Context()
-        self._observer: pyudev.MonitorObserver | None = None
-        self._mount_cache = MountPointCache()
+        self._observer: Any | None = None
+        self._mount_cache: MountCacheProtocol = _create_mount_cache()
         self.scan_existing_devices()
 
     def scan_existing_devices(self) -> None:
@@ -136,7 +145,7 @@ class LinuxUSBDeviceMonitor(USBDeviceMonitorBase):
                     self.devices.append(block_device)
                     logger.debug(f"Found existing device: {device.device_node}")
 
-    def is_usb_device(self, device) -> bool:
+    def is_usb_device(self, device: Any) -> bool:
         """Check if a device is USB-connected storage."""
         if hasattr(device, "subsystem") and device.subsystem != "block":
             return False
@@ -161,7 +170,7 @@ class LinuxUSBDeviceMonitor(USBDeviceMonitorBase):
         monitor = self.pyudev.Monitor.from_netlink(self.context)
         monitor.filter_by(subsystem="block")
 
-        def device_event(action, device):
+        def device_event(action: str, device: Any) -> None:
             if action in ("add", "remove") and self.is_usb_device(device):
                 if action == "add":
                     block_device = BlockDevice.from_pyudev_device(device)
@@ -216,13 +225,13 @@ class MacOSUSBDeviceMonitor(USBDeviceMonitorBase):
                 for disk_name, disk_data in disk_info.items():
                     # Try to find matching USB info
                     usb_data = None
-                    volume_name = disk_data.get("VolumeName", "")
-                    media_name = disk_data.get("MediaName", "")
+                    volume_name = disk_data.volume_name
+                    media_name = disk_data.media_name
 
                     # Look for USB device by matching volume name, media name, disk identifier, or vendor
                     for usb_device in usb_info:
-                        usb_name = usb_device.get("name", "").lower().strip()
-                        usb_vendor = usb_device.get("vendor", "").lower().strip()
+                        usb_name = usb_device.name.lower().strip()
+                        usb_vendor = usb_device.vendor.lower().strip()
                         vol_name_lower = volume_name.lower().strip()
                         media_name_lower = media_name.lower().strip()
 
@@ -264,30 +273,16 @@ class MacOSUSBDeviceMonitor(USBDeviceMonitorBase):
                             )
                             break
 
-                    # Create BlockDevice with real information
-                    device = BlockDevice(
-                        name=disk_name,
-                        device_node=f"/dev/{disk_name}",
-                        model=usb_data.get(
-                            "name", disk_data.get("MediaName", "Unknown")
-                        )
-                        if usb_data
-                        else disk_data.get("MediaName", "Unknown"),
-                        vendor=usb_data.get("vendor", "Unknown")
-                        if usb_data
-                        else "Unknown",
-                        serial=usb_data.get("serial", "") if usb_data else "",
-                        size=disk_data.get("Size", 0),
-                        removable=disk_data.get("Removable", False),
-                        type="usb" if usb_data else "disk",
-                        partitions=disk_data.get("Partitions", []),
-                        mountpoints={volume_name: f"/Volumes/{volume_name}"}
-                        if volume_name in mounted_volumes
-                        else {},
+                    # Create BlockDevice using factory method
+                    device = BlockDevice.from_macos_disk_info(
+                        disk_name=disk_name,
+                        disk_info=disk_data,
+                        usb_info=usb_data,
+                        mounted_volumes=mounted_volumes,
                     )
 
                     # Only add if it's a removable device or has USB info
-                    if device.removable or usb_data:
+                    if disk_data.removable or usb_data:
                         self.devices.append(device)
                         logger.debug(
                             f"Found device: {disk_name} - {device.model} (Vendor: {device.vendor}, Serial: {device.serial})"
@@ -311,20 +306,21 @@ class MacOSUSBDeviceMonitor(USBDeviceMonitorBase):
             data = json.loads(result.stdout)
             usb_devices = []
 
-            def extract_devices(items, parent_name=""):
+            def extract_devices(items: list[Any], parent_name: str = "") -> None:
                 """Recursively extract USB device information."""
                 for item in items:
-                    device_info = {
-                        "name": item.get("_name", "Unknown"),
-                        "vendor": item.get("manufacturer", ""),
-                        "vendor_id": item.get("vendor_id", ""),
-                        "product_id": item.get("product_id", ""),
-                        "serial": item.get("serial_num", ""),
-                    }
-
+                    vendor_id = item.get("vendor_id", "")
                     # Clean up vendor ID format (remove "0x" prefix if present)
-                    if device_info["vendor_id"].startswith("0x"):
-                        device_info["vendor_id"] = device_info["vendor_id"][2:]
+                    if vendor_id.startswith("0x"):
+                        vendor_id = vendor_id[2:]
+
+                    device_info = USBDeviceInfo(
+                        name=item.get("_name", "Unknown"),
+                        vendor=item.get("manufacturer", ""),
+                        vendor_id=vendor_id,
+                        product_id=item.get("product_id", ""),
+                        serial=item.get("serial_num", ""),
+                    )
 
                     usb_devices.append(device_info)
 
@@ -371,20 +367,21 @@ class MacOSUSBDeviceMonitor(USBDeviceMonitorBase):
 
                 detail_data = plistlib.loads(detail_result.stdout)
 
-                disk_info[disk_id] = {
-                    "Size": detail_data.get("Size", 0),
-                    "MediaName": detail_data.get("MediaName", ""),
-                    "VolumeName": detail_data.get("VolumeName", ""),
-                    "Removable": detail_data.get("Removable", False),
-                    "Protocol": detail_data.get("Protocol", ""),
-                    "Partitions": [],
-                }
+                partitions_list: list[str] = []
+                disk_info[disk_id] = DiskInfo(
+                    size=detail_data.get("Size", 0),
+                    media_name=detail_data.get("MediaName", ""),
+                    volume_name=detail_data.get("VolumeName", ""),
+                    removable=detail_data.get("Removable", False),
+                    protocol=detail_data.get("Protocol", ""),
+                    partitions=partitions_list,
+                )
 
                 # Add partition info
                 for partition in disk_dict.get("Partitions", []):
                     part_id = partition.get("DeviceIdentifier", "")
                     if part_id:
-                        disk_info[disk_id]["Partitions"].append(part_id)
+                        partitions_list.append(part_id)
 
                         # Also get volume name for partitions
                         part_detail_result = subprocess.run(
@@ -394,9 +391,9 @@ class MacOSUSBDeviceMonitor(USBDeviceMonitorBase):
                         )
                         part_detail_data = plistlib.loads(part_detail_result.stdout)
                         part_volume_name = part_detail_data.get("VolumeName", "")
-                        if part_volume_name and not disk_info[disk_id]["VolumeName"]:
+                        if part_volume_name and not disk_info[disk_id].volume_name:
                             # Use partition volume name if disk doesn't have one
-                            disk_info[disk_id]["VolumeName"] = part_volume_name
+                            disk_info[disk_id].volume_name = part_volume_name
 
             return disk_info
 
@@ -408,7 +405,7 @@ class MacOSUSBDeviceMonitor(USBDeviceMonitorBase):
         """Check if a device is USB-connected storage."""
         # On macOS, we'd need to check the device protocol
         # For now, assume removable devices are USB
-        return device_info.get("removable", False)
+        return bool(device_info.get("removable", False))
 
     def _monitor_loop(self) -> None:
         """Main monitoring loop for macOS."""
@@ -457,16 +454,21 @@ class StubUSBDeviceMonitor(USBDeviceMonitorBase):
             time.sleep(1.0)
 
 
-# Import MountPointCache only if we're on Linux
-if platform.system() == "Linux":
-    from glovebox.firmware.flash.lsdev import MountPointCache
-else:
+def _create_mount_cache() -> MountCacheProtocol:
+    """Create appropriate mount cache for the current platform."""
+    if platform.system() == "Linux":
+        from glovebox.firmware.flash.lsdev import MountPointCache
 
-    class MountPointCache:
-        """Stub MountPointCache for non-Linux platforms."""
+        return MountPointCache()
+    else:
 
-        def get_mountpoints(self) -> BlockDevicePathMap:
-            return {}
+        class MountPointCacheStub:
+            """Stub MountPointCache for non-Linux platforms."""
+
+            def get_mountpoints(self) -> BlockDevicePathMap:
+                return {}
+
+        return MountPointCacheStub()
 
 
 def create_usb_monitor() -> USBDeviceMonitorBase:

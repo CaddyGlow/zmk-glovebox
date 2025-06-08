@@ -18,9 +18,9 @@ from glovebox.adapters.config_file_adapter import (
     ConfigFileAdapter,
     create_config_file_adapter,
 )
+from glovebox.config.models import UserConfigData
 from glovebox.core.errors import ConfigError
 from glovebox.core.logging import get_logger
-from glovebox.models.config import UserConfigData
 
 
 logger = get_logger(__name__)

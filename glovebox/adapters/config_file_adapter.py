@@ -6,9 +6,9 @@ from typing import Any, Generic, TypeVar
 import yaml
 from pydantic import BaseModel
 
+from glovebox.config.models import UserConfigData
 from glovebox.core.errors import ConfigError
 from glovebox.core.logging import get_logger
-from glovebox.models.config import UserConfigData
 from glovebox.protocols.config_file_adapter_protocol import ConfigFileAdapterProtocol
 
 

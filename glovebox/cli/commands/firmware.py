@@ -16,7 +16,7 @@ from glovebox.cli.helpers import (
 from glovebox.config.profile import KeyboardProfile
 from glovebox.firmware import create_build_service
 from glovebox.firmware.flash import create_flash_service
-from glovebox.models.options import BuildServiceCompileOpts
+from glovebox.firmware.options import BuildServiceCompileOpts
 
 
 logger = logging.getLogger(__name__)

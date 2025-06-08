@@ -6,8 +6,7 @@ from pathlib import Path
 from typing import Any, TypeAlias
 
 from glovebox.core.errors import LayoutError
-from glovebox.layout.models import LayoutData, LayoutMetadata
-from glovebox.models.results import LayoutResult
+from glovebox.layout.models import LayoutData, LayoutMetadata, LayoutResult
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.services.base_service import BaseServiceImpl
 

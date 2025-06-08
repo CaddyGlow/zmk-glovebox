@@ -5,12 +5,11 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
+from glovebox.config.models import KConfigOption, KeyboardConfig, KeymapSection
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import LayoutError
-from glovebox.layout.models import LayoutData, SystemBehavior
+from glovebox.layout.models import LayoutData, LayoutResult, SystemBehavior
 from glovebox.layout.service import LayoutService
-from glovebox.models.config import KConfigOption, KeyboardConfig, KeymapSection
-from glovebox.models.results import LayoutResult
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.protocols.template_adapter_protocol import TemplateAdapterProtocol
 
@@ -270,7 +269,7 @@ class TestLayoutServiceWithKeyboardConfig:
     ):
         """Test keymap compilation with keyboard configuration."""
         # Setup path mock
-        from glovebox.models.build import OutputPaths
+        from glovebox.firmware.models import OutputPaths
 
         output_paths = OutputPaths(
             keymap=Path(tmp_path / "output/test.keymap"),
@@ -427,7 +426,7 @@ class TestLayoutServiceWithMockedConfig:
     ):
         """Test integrated keymap workflow with mocked config API."""
         # Setup path mock
-        from glovebox.models.build import OutputPaths
+        from glovebox.firmware.models import OutputPaths
 
         mock_prepare_paths.return_value = OutputPaths(
             keymap=Path(tmp_path / "output/test.keymap"),

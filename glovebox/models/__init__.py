@@ -1,34 +1,8 @@
-"""Models package for Glovebox core models."""
+"""Models package for cross-domain core models."""
 
-from .config import (
-    BuildConfig,
-    BuildOptions,
-    FirmwareConfig,
-    FlashConfig,
-    FormattingConfig,
-    KConfigOption,
-    KeyboardConfig,
-    KeymapSection,
-    UserConfigData,
-    VisualLayout,
-)
-from .results import BuildResult, KeymapResult, LayoutResult
+from .results import BaseResult
 
 
 __all__ = [
-    # Result models
-    "BuildResult",
-    "KeymapResult",
-    "LayoutResult",
-    # Config models
-    "BuildConfig",
-    "BuildOptions",
-    "FirmwareConfig",
-    "FlashConfig",
-    "FormattingConfig",
-    "KConfigOption",
-    "KeyboardConfig",
-    "KeymapSection",
-    "UserConfigData",
-    "VisualLayout",
+    "BaseResult",
 ]
