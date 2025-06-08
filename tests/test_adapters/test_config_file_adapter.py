@@ -92,7 +92,7 @@ def test_config_file_adapter_save():
     try:
         # Save config
         adapter = create_config_file_adapter()
-        config_data = {"default_keyboard": "test_keyboard"}
+        config_data = {"profile": "test_keyboard/v1.0"}
         adapter.save_config(temp_path, config_data)
 
         # Verify the file was created
@@ -101,7 +101,7 @@ def test_config_file_adapter_save():
         # Verify content
         with temp_path.open() as f:
             loaded_data = yaml.safe_load(f)
-            assert loaded_data.get("default_keyboard") == "test_keyboard"
+            assert loaded_data.get("profile") == "test_keyboard/v1.0"
 
     finally:
         # Clean up
@@ -112,7 +112,7 @@ def test_config_file_adapter_model():
     """Test loading and saving Pydantic model."""
     # Create a temporary config file
     with tempfile.NamedTemporaryFile(suffix=".yaml", mode="w+", delete=False) as f:
-        yaml.dump({"default_keyboard": "test_keyboard", "log_level": "DEBUG"}, f)
+        yaml.dump({"profile": "test_keyboard/v1.0", "log_level": "DEBUG"}, f)
         temp_path = Path(f.name)
 
     try:
@@ -122,16 +122,16 @@ def test_config_file_adapter_model():
 
         # Verify the model
         assert isinstance(model, UserConfigData)
-        assert model.default_keyboard == "test_keyboard"
+        assert model.profile == "test_keyboard/v1.0"
         assert model.log_level == "DEBUG"
 
         # Modify and save the model
-        model.default_firmware = "test_firmware"
+        model.keyboard_paths = ["/test/path"]
         adapter.save_model(temp_path, model)
 
         # Reload and verify changes
         new_model = adapter.load_model(temp_path, UserConfigData)
-        assert new_model.default_firmware == "test_firmware"
+        assert new_model.keyboard_paths == ["/test/path"]
 
     finally:
         # Clean up

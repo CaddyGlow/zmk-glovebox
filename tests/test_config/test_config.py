@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 import yaml
 
-from glovebox.config.keyboard_config import (
+from glovebox.config.keyboard_profile import (
     clear_cache,
     create_keyboard_profile,
     get_available_firmwares,
@@ -479,7 +479,7 @@ def mock_keyboard_profile() -> Mock:
 @pytest.fixture
 def mock_load_keyboard_config(mock_keyboard_config) -> Generator[Mock, None, None]:
     """Mock the load_keyboard_config function."""
-    with patch("glovebox.config.keyboard_config.load_keyboard_config") as mock_load:
+    with patch("glovebox.config.keyboard_profile.load_keyboard_config") as mock_load:
         mock_load.return_value = mock_keyboard_config
         yield mock_load
 
@@ -487,7 +487,7 @@ def mock_load_keyboard_config(mock_keyboard_config) -> Generator[Mock, None, Non
 @pytest.fixture
 def mock_get_available_keyboards() -> Generator[Mock, None, None]:
     """Mock the get_available_keyboards function."""
-    with patch("glovebox.config.keyboard_config.get_available_keyboards") as mock_get:
+    with patch("glovebox.config.keyboard_profile.get_available_keyboards") as mock_get:
         mock_get.return_value = ["test_keyboard", "glove80", "corne"]
         yield mock_get
 
@@ -495,7 +495,7 @@ def mock_get_available_keyboards() -> Generator[Mock, None, None]:
 @pytest.fixture
 def mock_get_firmware_config(mock_firmware_config) -> Generator[Mock, None, None]:
     """Mock the get_firmware_config function."""
-    with patch("glovebox.config.keyboard_config.get_firmware_config") as mock_get:
+    with patch("glovebox.config.keyboard_profile.get_firmware_config") as mock_get:
         mock_get.return_value = mock_firmware_config
         yield mock_get
 
@@ -503,7 +503,7 @@ def mock_get_firmware_config(mock_firmware_config) -> Generator[Mock, None, None
 @pytest.fixture
 def mock_get_available_firmwares() -> Generator[Mock, None, None]:
     """Mock the get_available_firmwares function."""
-    with patch("glovebox.config.keyboard_config.get_available_firmwares") as mock_get:
+    with patch("glovebox.config.keyboard_profile.get_available_firmwares") as mock_get:
         mock_get.return_value = ["default", "bluetooth", "v25.05"]
         yield mock_get
 
@@ -512,7 +512,7 @@ def mock_get_available_firmwares() -> Generator[Mock, None, None]:
 def mock_create_keyboard_profile(mock_keyboard_profile) -> Generator[Mock, None, None]:
     """Mock the create_keyboard_profile function."""
     with patch(
-        "glovebox.config.keyboard_config.create_keyboard_profile"
+        "glovebox.config.keyboard_profile.create_keyboard_profile"
     ) as mock_create:
         mock_create.return_value = mock_keyboard_profile
         yield mock_create
@@ -602,7 +602,7 @@ def test_initialize_search_paths():
     """Test initialization of search paths."""
     with (
         patch.dict(os.environ, {"GLOVEBOX_KEYBOARD_PATH": "/tmp/test:/tmp/test2"}),
-        patch("glovebox.config.keyboard_config.initialize_search_paths") as mock_init,
+        patch("glovebox.config.keyboard_profile.initialize_search_paths") as mock_init,
     ):
         mock_init.return_value = [Path("/tmp/test"), Path("/tmp/test2")]
 
@@ -622,7 +622,7 @@ def test_initialize_search_paths():
 def test_load_keyboard_config(typed_config_file, mock_keyboard_config_dict):
     """Test loading a keyboard configuration as a typed object."""
     with patch(
-        "glovebox.config.keyboard_config._find_keyboard_config_file"
+        "glovebox.config.keyboard_profile._find_keyboard_config_file"
     ) as mock_find:
         mock_find.return_value = typed_config_file
 
@@ -649,7 +649,7 @@ def test_load_keyboard_config(typed_config_file, mock_keyboard_config_dict):
 def test_create_keyboard_profile(typed_config_file, mock_keyboard_config_dict):
     """Test creating a KeyboardProfile."""
     with patch(
-        "glovebox.config.keyboard_config._find_keyboard_config_file"
+        "glovebox.config.keyboard_profile._find_keyboard_config_file"
     ) as mock_find:
         mock_find.return_value = typed_config_file
 
@@ -673,7 +673,7 @@ def test_create_keyboard_profile(typed_config_file, mock_keyboard_config_dict):
 def test_get_firmware_config(typed_config_file, mock_keyboard_config_dict):
     """Test getting a firmware configuration as a typed object."""
     with patch(
-        "glovebox.config.keyboard_config._find_keyboard_config_file"
+        "glovebox.config.keyboard_profile._find_keyboard_config_file"
     ) as mock_find:
         mock_find.return_value = typed_config_file
 
@@ -694,7 +694,7 @@ def test_get_firmware_config(typed_config_file, mock_keyboard_config_dict):
 def test_kconfig_options_from_profile(typed_config_file, mock_keyboard_config_dict):
     """Test getting combined kconfig options from a profile."""
     with patch(
-        "glovebox.config.keyboard_config._find_keyboard_config_file"
+        "glovebox.config.keyboard_profile._find_keyboard_config_file"
     ) as mock_find:
         mock_find.return_value = typed_config_file
 
@@ -738,7 +738,7 @@ def test_resolve_includes(mock_keyboard_profile):
 def test_nonexistent_keyboard():
     """Test trying to load a nonexistent keyboard configuration."""
     with patch(
-        "glovebox.config.keyboard_config._find_keyboard_config_file"
+        "glovebox.config.keyboard_profile._find_keyboard_config_file"
     ) as mock_find:
         mock_find.return_value = None
 
@@ -751,7 +751,7 @@ def test_nonexistent_keyboard():
 def test_nonexistent_firmware(typed_config_file, mock_keyboard_config_dict):
     """Test trying to get a nonexistent firmware configuration."""
     with patch(
-        "glovebox.config.keyboard_config._find_keyboard_config_file"
+        "glovebox.config.keyboard_profile._find_keyboard_config_file"
     ) as mock_find:
         mock_find.return_value = typed_config_file
 
@@ -772,7 +772,7 @@ def test_keyboard_name_mismatch(mock_keyboard_config_dict):
 
         # Patch to return our temp file
         with patch(
-            "glovebox.config.keyboard_config._find_keyboard_config_file"
+            "glovebox.config.keyboard_profile._find_keyboard_config_file"
         ) as mock_find:
             mock_find.return_value = Path(temp_file.name)
 
@@ -788,7 +788,7 @@ def test_keyboard_name_mismatch(mock_keyboard_config_dict):
 def test_clear_cache(typed_config_file, mock_keyboard_config_dict):
     """Test clearing the configuration cache."""
     with patch(
-        "glovebox.config.keyboard_config._find_keyboard_config_file"
+        "glovebox.config.keyboard_profile._find_keyboard_config_file"
     ) as mock_find:
         mock_find.return_value = typed_config_file
 
@@ -796,7 +796,7 @@ def test_clear_cache(typed_config_file, mock_keyboard_config_dict):
         load_keyboard_config("test_keyboard")
 
         # Verify the cache is populated
-        from glovebox.config.keyboard_config import _keyboard_configs
+        from glovebox.config.keyboard_profile import _keyboard_configs
 
         assert "test_keyboard" in _keyboard_configs
 
@@ -814,7 +814,7 @@ def test_clear_cache(typed_config_file, mock_keyboard_config_dict):
 def test_real_config_file_integration(test_data_dir):
     """Test integration with real keyboard config files."""
     # Set up the search path to use our test directory
-    with patch("glovebox.config.keyboard_config.initialize_search_paths") as mock_init:
+    with patch("glovebox.config.keyboard_profile.initialize_search_paths") as mock_init:
         mock_init.return_value = [test_data_dir / "keyboards"]
 
         # Clear the cache to force reinitialization

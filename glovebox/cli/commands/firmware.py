@@ -75,7 +75,7 @@ def firmware_compile(
         keyboard_profile = create_profile_from_option(profile)
     elif keyboard and firmware:
         # If no profile but keyboard and firmware are provided, create profile from them
-        from glovebox.config.keyboard_config import create_keyboard_profile
+        from glovebox.config.keyboard_profile import create_keyboard_profile
 
         keyboard_profile = create_keyboard_profile(keyboard, firmware)
 
@@ -151,16 +151,23 @@ def flash(
     if profile:
         keyboard_profile = create_profile_from_option(profile)
 
-    # Get user config to check default skip_existing behavior
+    # Get user config to check default firmware flash behavior
     from glovebox.config.user_config import create_user_config
 
     user_config = create_user_config()
 
-    # Use user config default if skip_existing wasn't explicitly set via CLI
-    # Note: typer doesn't provide a way to detect if a flag was explicitly set,
-    # so we can't differentiate between --skip-existing=False and not using the flag.
-    # For now, we'll use the CLI value as-is, but users can set the default in config.
-    effective_skip_existing = skip_existing or user_config.flash_skip_existing
+    # Apply user config defaults for flash parameters
+    # CLI values override config values when explicitly provided
+    effective_timeout = (
+        timeout if timeout != 60 else user_config._config.firmware.flash.timeout
+    )
+    effective_count = count if count != 2 else user_config._config.firmware.flash.count
+    effective_track_flashed = (
+        not no_track if no_track else user_config._config.firmware.flash.track_flashed
+    )
+    effective_skip_existing = (
+        skip_existing or user_config._config.firmware.flash.skip_existing
+    )
 
     # Use the new file-based method which handles file existence checks
     flash_service = create_flash_service()
@@ -169,9 +176,9 @@ def flash(
             firmware_file_path=firmware_file,
             profile=keyboard_profile,
             query=query,  # query parameter will override profile's query if provided
-            timeout=timeout,
-            count=count,
-            track_flashed=not no_track,
+            timeout=effective_timeout,
+            count=effective_count,
+            track_flashed=effective_track_flashed,
             skip_existing=effective_skip_existing,
         )
 

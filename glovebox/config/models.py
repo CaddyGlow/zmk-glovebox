@@ -7,16 +7,22 @@ and help with IDE autocompletion.
 """
 
 import os
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, TypeAlias
+from typing import Annotated, Any, Optional, Union
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    Field,
+    PlainValidator,
+    field_validator,
+    model_validator,
+)
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 # KConfig type definitions
-@dataclass
-class KConfigOption:
+class KConfigOption(BaseModel):
     """Definition of a KConfig option."""
 
     name: str
@@ -26,8 +32,7 @@ class KConfigOption:
 
 
 # Flash configuration
-@dataclass
-class FlashConfig:
+class FlashConfig(BaseModel):
     """Flash configuration for a keyboard."""
 
     method: str
@@ -35,10 +40,17 @@ class FlashConfig:
     usb_vid: str
     usb_pid: str
 
+    @field_validator("method", "query", "usb_vid", "usb_pid")
+    @classmethod
+    def validate_non_empty_strings(cls, v: str) -> str:
+        """Validate that string fields are not empty."""
+        if not v or not v.strip():
+            raise ValueError("Field cannot be empty")
+        return v.strip()
+
 
 # Build configuration
-@dataclass
-class BuildConfig:
+class BuildConfig(BaseModel):
     """Build configuration for a keyboard."""
 
     method: str
@@ -46,29 +58,44 @@ class BuildConfig:
     repository: str
     branch: str
 
+    @field_validator("method", "docker_image", "repository", "branch")
+    @classmethod
+    def validate_non_empty_strings(cls, v: str) -> str:
+        """Validate that string fields are not empty."""
+        if not v or not v.strip():
+            raise ValueError("Field cannot be empty")
+        return v.strip()
+
 
 # Visual layout configuration
-@dataclass
-class VisualLayout:
+class VisualLayout(BaseModel):
     """Visual layout for a keyboard."""
 
     rows: list[list[int]]
 
 
 # Formatting configuration
-@dataclass
-class FormattingConfig:
+class FormattingConfig(BaseModel):
     """Formatting configuration for a keyboard."""
 
-    default_key_width: int
+    default_key_width: int = Field(
+        gt=0, description="Default key width must be positive"
+    )
     key_gap: str
     base_indent: str = ""
     rows: list[list[int]] | None = None
 
+    @field_validator("key_gap")
+    @classmethod
+    def validate_key_gap(cls, v: str) -> str:
+        """Validate that key_gap is provided (can be spaces)."""
+        if v is None:
+            raise ValueError("Key gap cannot be None")
+        return v
+
 
 # Firmware build options
-@dataclass
-class BuildOptions:
+class BuildOptions(BaseModel):
     """Build options for a firmware."""
 
     repository: str
@@ -76,8 +103,7 @@ class BuildOptions:
 
 
 # Firmware configuration
-@dataclass
-class FirmwareConfig:
+class FirmwareConfig(BaseModel):
     """Firmware configuration for a keyboard."""
 
     version: str
@@ -87,8 +113,7 @@ class FirmwareConfig:
 
 
 # Keymap section
-@dataclass
-class KeymapSection:
+class KeymapSection(BaseModel):
     """Keymap section of a keyboard configuration."""
 
     includes: list[str]
@@ -101,90 +126,121 @@ class KeymapSection:
 
 
 # Complete keyboard configuration
-@dataclass
-class KeyboardConfig:
+class KeyboardConfig(BaseModel):
     """Complete keyboard configuration."""
 
     keyboard: str
     description: str
     vendor: str
-    key_count: int
+    key_count: int = Field(gt=0, description="Number of keys must be positive")
     flash: FlashConfig
     build: BuildConfig
-    firmwares: dict[str, FirmwareConfig]
+    firmwares: dict[str, FirmwareConfig] = Field(default_factory=dict)
     keymap: KeymapSection
 
-    def __post_init__(self) -> None:
-        """Convert nested dictionaries to proper dataclasses."""
-        # Convert flash config
-        if isinstance(self.flash, dict):
-            self.flash = FlashConfig(**self.flash)
+    @field_validator("keyboard", "description", "vendor")
+    @classmethod
+    def validate_non_empty_strings(cls, v: str) -> str:
+        """Validate that string fields are not empty."""
+        if not v or not v.strip():
+            raise ValueError("Field cannot be empty")
+        return v.strip()
 
-        # Convert build config
-        if isinstance(self.build, dict):
-            self.build = BuildConfig(**self.build)
+    @model_validator(mode="before")
+    @classmethod
+    def validate_and_convert_data(cls, data: Any) -> Any:
+        """Convert nested dictionaries to proper models."""
+        if not isinstance(data, dict):
+            return data
 
-        # Convert firmwares
-        if isinstance(self.firmwares, dict):
-            converted_firmwares = {}
-            for firmware_name, firmware_data in self.firmwares.items():
-                # Cast to dict for type safety
-                firmware_dict = firmware_data if isinstance(firmware_data, dict) else {}
-
-                # Convert build options
-                build_options_dict = firmware_dict.get("build_options", {})
-                if isinstance(build_options_dict, dict):
-                    build_options = BuildOptions(**build_options_dict)
-                else:
-                    build_options = BuildOptions(repository="", branch="")
-
-                # Convert kconfig options
-                kconfig_dict = firmware_dict.get("kconfig", {})
-                if isinstance(kconfig_dict, dict):
-                    converted_kconfig = {}
-                    for k_name, k_data in kconfig_dict.items():
-                        if isinstance(k_data, dict):
-                            converted_kconfig[k_name] = KConfigOption(**k_data)
-                    kconfig = converted_kconfig
-                else:
-                    kconfig = None
-
-                # Create firmware config
-                converted_firmwares[firmware_name] = FirmwareConfig(
-                    version=firmware_dict.get("version", ""),
-                    description=firmware_dict.get("description", ""),
-                    build_options=build_options,
-                    kconfig=kconfig,
-                )
-            self.firmwares = converted_firmwares
-
-        # Convert keymap section
-        if isinstance(self.keymap, dict):
-            # Use layout domain utility to convert keymap section
+        # Convert keymap section using layout domain utility (if present)
+        if data.get("keymap") and isinstance(data["keymap"], dict):
             from glovebox.layout.utils import convert_keymap_section_from_dict
 
-            self.keymap = convert_keymap_section_from_dict(self.keymap)
+            data["keymap"] = convert_keymap_section_from_dict(data["keymap"])
+
+        return data
 
 
-# User configuration model
-class UserConfigData(BaseModel):
-    """User configuration data model.
+# Firmware flash configuration
+class UserFlashConfig(BaseModel):
+    """Firmware flash configuration settings."""
 
-    This model represents user-specific configuration settings with validation.
+    # Device detection and flashing behavior
+    timeout: int = Field(
+        default=60, ge=1, description="Timeout in seconds for flash operations"
+    )
+    count: int = Field(
+        default=2, ge=0, description="Number of devices to flash (0 for infinite)"
+    )
+    track_flashed: bool = Field(
+        default=True, description="Enable device tracking during flash"
+    )
+    skip_existing: bool = Field(
+        default=False, description="Skip devices already present at startup"
+    )
+
+
+# Firmware configuration subsection
+class UserFirmwareConfig(BaseModel):
+    """Firmware-related configuration settings."""
+
+    flash: UserFlashConfig = Field(default_factory=UserFlashConfig)
+
+
+# User configuration model using Pydantic Settings
+class UserConfigData(BaseSettings):
+    """User configuration data model with automatic environment variable support.
+
+    This model represents user-specific configuration settings with validation
+    and automatic environment variable parsing.
     """
 
-    # Paths for user-defined keyboards and layouts
-    keyboard_paths: list[str] = Field(default_factory=list)
+    model_config = SettingsConfigDict(
+        env_prefix="GLOVEBOX_",
+        env_nested_delimiter="__",
+        case_sensitive=False,
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
-    # Default preferences
-    default_keyboard: str = "glove80"
-    default_firmware: str = "v25.05"
+    # Paths for user-defined keyboards and layouts (comma-separated string)
+    keyboard_paths: str = Field(default="")
+
+    # Default profile (keyboard/firmware combination)
+    profile: str = Field(
+        default="glove80/v25.05",
+        description="Default keyboard/firmware profile (e.g., 'glove80/v25.05')",
+    )
 
     # Logging
     log_level: str = "INFO"
 
-    # Flash behavior
-    flash_skip_existing: bool = False
+    # Firmware settings
+    firmware: UserFirmwareConfig = Field(default_factory=UserFirmwareConfig)
+
+    # Backward compatibility - deprecated, use firmware.flash.skip_existing instead
+    flash_skip_existing: bool = Field(
+        default=False, description="Deprecated: use firmware.flash.skip_existing"
+    )
+
+    @field_validator("profile")
+    @classmethod
+    def validate_profile(cls, v: str) -> str:
+        """Validate profile follows keyboard/firmware format."""
+        if not v or "/" not in v:
+            raise ValueError(
+                "Profile must be in format 'keyboard/firmware' (e.g., 'glove80/v25.05')"
+            )
+
+        parts = v.split("/")
+        if len(parts) != 2 or not all(part.strip() for part in parts):
+            raise ValueError(
+                "Profile must be in format 'keyboard/firmware' (e.g., 'glove80/v25.05')"
+            )
+
+        return v
 
     @field_validator("log_level")
     @classmethod
@@ -196,22 +252,16 @@ class UserConfigData(BaseModel):
             raise ValueError(f"Log level must be one of {valid_levels}")
         return upper_v  # Always normalize to uppercase
 
-    @field_validator("keyboard_paths")
+    @field_validator("keyboard_paths", mode="before")
     @classmethod
-    def validate_keyboard_paths(cls, v: list[str]) -> list[str]:
-        """Validate keyboard paths are strings."""
-        if not isinstance(v, list):
-            raise ValueError("keyboard_paths must be a list")
-
-        # Ensure all paths are strings
-        return [str(path) for path in v]
-
-    def get_expanded_keyboard_paths(self) -> list[Path]:
-        """Get a list of expanded Path objects for keyboard_paths."""
-        expanded_paths = []
-        for path_str in self.keyboard_paths:
-            # Expand environment variables and user directory
-            expanded_path = os.path.expandvars(str(Path(path_str).expanduser()))
-            expanded_paths.append(Path(expanded_path))
-
-        return expanded_paths
+    def validate_keyboard_paths(cls, v: Any) -> str:
+        """Convert keyboard paths from various formats to comma-separated string."""
+        if isinstance(v, str):
+            return v
+        elif isinstance(v, list):
+            # Convert list to comma-separated string
+            return ",".join(str(path) for path in v)
+        elif v is None:
+            return ""
+        else:
+            raise ValueError("keyboard_paths must be a string or list")

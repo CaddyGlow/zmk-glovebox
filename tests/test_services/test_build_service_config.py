@@ -184,7 +184,7 @@ class TestBuildServiceWithKeyboardConfig:
                     return_value=([tmp_path / "firmware.uf2"], output_files),
                 ),
                 patch(
-                    "glovebox.config.keyboard_config.create_profile_from_keyboard_name"
+                    "glovebox.config.keyboard_profile.create_profile_from_keyboard_name"
                 ) as mock_create_profile,
             ):
                 result = self.service.compile(build_opts, mock_profile)

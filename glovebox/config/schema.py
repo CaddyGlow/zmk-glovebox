@@ -184,8 +184,6 @@ KEYBOARD_CONFIG_SCHEMA = {
         "key_count",
         "flash",
         "build",
-        "firmwares",
-        "keymap",
     ],
 }
 

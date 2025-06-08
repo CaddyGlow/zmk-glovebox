@@ -28,7 +28,7 @@ def test_verbose_flag(cli_runner):
     with (
         patch("glovebox.cli.app.setup_logging") as mock_setup_logging,
         patch("subprocess.run"),  # Mock subprocess to avoid running actual commands
-        patch("glovebox.config.keyboard_config.KeyboardConfig"),  # Mock config
+        patch("glovebox.config.keyboard_profile.KeyboardConfig"),  # Mock config
     ):
         result = cli_runner.invoke(app, ["-vv", "status"], catch_exceptions=False)
         mock_setup_logging.assert_called_once()

@@ -295,6 +295,10 @@ The codebase is organized into self-contained domains, each owning their models,
   - Multi-source configuration (environment variables, global config, local config)
   - Clear precedence rules and validation
   - Profile-based keyboard + firmware combinations
+  - **Optional sections**: `keymap` and `firmwares` sections are now optional in keyboard configurations
+    - Enables minimal keyboard configs with only core fields (keyboard, description, vendor, key_count, flash, build)
+    - Supports partial configs (firmware-only, keymap-only, or neither)
+    - Functions gracefully handle missing sections with appropriate defaults (empty lists/dicts)
 
 #### Core Models (`glovebox/models/`)
 - **Purpose**: Core data models shared across domains
@@ -374,7 +378,7 @@ The KeyboardProfile pattern is a central concept in the architecture:
 
 1. **Creation**:
    ```python
-   from glovebox.config.keyboard_config import create_keyboard_profile
+   from glovebox.config.keyboard_profile import create_keyboard_profile
 
    profile = create_keyboard_profile("glove80", "v25.05")
    ```
@@ -396,6 +400,24 @@ The KeyboardProfile pattern is a central concept in the architecture:
    # Access nested configuration
    profile.keyboard_config.description
    profile.firmware_config.version
+   
+   # Handle optional sections gracefully
+   system_behaviors = profile.system_behaviors  # Returns [] if no keymap
+   kconfig_options = profile.kconfig_options   # Returns {} if no keymap
+   ```
+
+5. **Optional Sections Support**:
+   ```python
+   # Minimal config example (no keymap, no firmwares)
+   minimal_config = KeyboardConfig.model_validate({
+       'keyboard': 'minimal_test',
+       'description': 'Test minimal keyboard',
+       'vendor': 'Test Vendor', 
+       'key_count': 10,
+       'flash': {...},  # Required
+       'build': {...}   # Required
+       # keymap and firmwares are optional
+   })
    ```
 
 #### Service Usage Patterns

@@ -413,8 +413,8 @@ class TestLayoutServiceWithKeyboardConfig:
 class TestLayoutServiceWithMockedConfig:
     """Tests using mocked config API."""
 
-    @patch("glovebox.config.keyboard_config.create_keyboard_profile")
-    @patch("glovebox.config.keyboard_config.get_available_keyboards")
+    @patch("glovebox.config.keyboard_profile.create_keyboard_profile")
+    @patch("glovebox.config.keyboard_profile.get_available_keyboards")
     @patch("glovebox.layout.service.prepare_output_paths")
     def test_integrated_keymap_workflow(
         self,

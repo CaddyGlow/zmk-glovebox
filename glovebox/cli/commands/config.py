@@ -17,7 +17,7 @@ from glovebox.cli.helpers import (
     print_list_item,
     print_success_message,
 )
-from glovebox.config.keyboard_config import (
+from glovebox.config.keyboard_profile import (
     get_available_keyboards,
     load_keyboard_config,
 )
@@ -48,10 +48,21 @@ def set_config(
     # Get app context with user config
     app_ctx: AppContext = ctx.obj
 
+    # Define a flattened list of valid keys for both top-level and nested config
+    valid_keys = list(DEFAULT_CONFIG.keys())
+    valid_keys.extend(
+        [
+            "firmware.flash.timeout",
+            "firmware.flash.count",
+            "firmware.flash.track_flashed",
+            "firmware.flash.skip_existing",
+        ]
+    )
+
     # Check if key is valid
-    if key not in DEFAULT_CONFIG:
+    if key not in valid_keys:
         print_error_message(f"Unknown configuration key: {key}")
-        print_error_message(f"Valid keys: {', '.join(sorted(DEFAULT_CONFIG.keys()))}")
+        print_error_message(f"Valid keys: {', '.join(sorted(valid_keys))}")
         raise typer.Exit(1)
 
     # Convert value to appropriate type based on default value

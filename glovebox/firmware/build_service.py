@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 from glovebox.adapters.docker_adapter import create_docker_adapter
 from glovebox.adapters.file_adapter import create_file_adapter
-from glovebox.config.keyboard_config import (
+from glovebox.config.keyboard_profile import (
     get_available_keyboards,
     load_keyboard_config,
 )

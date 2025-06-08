@@ -1,4 +1,4 @@
-.PHONY: test lint format coverage setup clean help
+.PHONY: test lint format fmt coverage setup clean help
 
 help:
 	@echo "Available commands:"
@@ -17,6 +17,7 @@ lint:
 
 format:
 	uv run scripts/format.sh
+fmt: format
 
 coverage:
 	uv run scripts/coverage.sh

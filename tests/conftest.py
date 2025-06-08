@@ -510,7 +510,7 @@ def mock_keyboard_profile(create_keyboard_profile_fixture):
 @pytest.fixture
 def mock_load_keyboard_config(mock_keyboard_config) -> Generator[Mock, None, None]:
     """Mock the load_keyboard_config function."""
-    with patch("glovebox.config.keyboard_config.load_keyboard_config") as mock_load:
+    with patch("glovebox.config.keyboard_profile.load_keyboard_config") as mock_load:
         mock_load.return_value = mock_keyboard_config
         yield mock_load
 
@@ -518,7 +518,7 @@ def mock_load_keyboard_config(mock_keyboard_config) -> Generator[Mock, None, Non
 @pytest.fixture
 def mock_get_available_keyboards() -> Generator[Mock, None, None]:
     """Mock the get_available_keyboards function."""
-    with patch("glovebox.config.keyboard_config.get_available_keyboards") as mock_get:
+    with patch("glovebox.config.keyboard_profile.get_available_keyboards") as mock_get:
         mock_get.return_value = ["test_keyboard", "glove80", "corne"]
         yield mock_get
 
@@ -526,7 +526,7 @@ def mock_get_available_keyboards() -> Generator[Mock, None, None]:
 @pytest.fixture
 def mock_get_firmware_config(mock_firmware_config) -> Generator[Mock, None, None]:
     """Mock the get_firmware_config function."""
-    with patch("glovebox.config.keyboard_config.get_firmware_config") as mock_get:
+    with patch("glovebox.config.keyboard_profile.get_firmware_config") as mock_get:
         mock_get.return_value = mock_firmware_config
         yield mock_get
 
@@ -534,7 +534,7 @@ def mock_get_firmware_config(mock_firmware_config) -> Generator[Mock, None, None
 @pytest.fixture
 def mock_get_available_firmwares() -> Generator[Mock, None, None]:
     """Mock the get_available_firmwares function."""
-    with patch("glovebox.config.keyboard_config.get_available_firmwares") as mock_get:
+    with patch("glovebox.config.keyboard_profile.get_available_firmwares") as mock_get:
         mock_get.return_value = ["default", "bluetooth", "v25.05"]
         yield mock_get
 
@@ -543,7 +543,7 @@ def mock_get_available_firmwares() -> Generator[Mock, None, None]:
 def mock_create_keyboard_profile(mock_keyboard_profile) -> Generator[Mock, None, None]:
     """Mock the create_keyboard_profile function."""
     with patch(
-        "glovebox.config.keyboard_config.create_keyboard_profile"
+        "glovebox.config.keyboard_profile.create_keyboard_profile"
     ) as mock_create:
         mock_create.return_value = mock_keyboard_profile
         yield mock_create

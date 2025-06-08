@@ -4,7 +4,7 @@ import logging
 
 import typer
 
-from glovebox.config.keyboard_config import (
+from glovebox.config.keyboard_profile import (
     create_keyboard_profile,
     get_available_firmwares,
     get_available_keyboards,

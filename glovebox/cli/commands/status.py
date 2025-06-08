@@ -13,7 +13,7 @@ from glovebox.cli.decorators import handle_errors
 
 # Import version directly to avoid circular imports
 __version__ = distribution("glovebox").version
-from glovebox.config.keyboard_config import (
+from glovebox.config.keyboard_profile import (
     get_available_keyboards,
     load_keyboard_config,
 )

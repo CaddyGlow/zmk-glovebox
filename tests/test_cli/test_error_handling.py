@@ -22,7 +22,7 @@ def test_layout_error_handling(mock_create_service, cli_runner):
     mock_service.compile.side_effect = LayoutError("Invalid layout structure")
     mock_create_service.return_value = mock_service
 
-    with patch("glovebox.config.keyboard_config.KeyboardConfig") as mock_config_cls:
+    with patch("glovebox.config.keyboard_profile.KeyboardConfig") as mock_config_cls:
         mock_config = Mock()
         mock_config.name = "test_keyboard"
         mock_config.keyboard_type = "glove80"
@@ -83,7 +83,7 @@ def test_flash_error_handling(mock_create_service, cli_runner, tmp_path):
     assert "Flash error: Device not found" in result.output
 
 
-@patch("glovebox.config.keyboard_config.KeyboardConfig")
+@patch("glovebox.config.keyboard_profile.KeyboardConfig")
 @pytest.mark.skip(reason="Test takes too long or runs real commands in background")
 def test_config_error_handling(mock_config_cls, cli_runner):
     """Test ConfigError handling in CLI."""

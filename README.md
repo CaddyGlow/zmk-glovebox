@@ -479,6 +479,7 @@ Glovebox uses a comprehensive type-safe configuration system to support differen
 8. **KeyboardProfile**:
    - Unified access to keyboard and firmware configuration
    - Simplifies working with combined settings
+   - **Optional Sections**: Supports keyboards with optional `keymap` and `firmwares` sections
 
 9. **Configuration Components**:
    - `get_available_keyboards()`: Lists available keyboard configurations
@@ -490,7 +491,7 @@ Glovebox uses a comprehensive type-safe configuration system to support differen
 
 **Keyboard Configuration Loading**:
 ```python
-from glovebox.config.keyboard_config import load_keyboard_config
+from glovebox.config.keyboard_profile import load_keyboard_config
 
 # Load keyboard configuration as a typed object
 keyboard_config = load_keyboard_config("glove80")
@@ -503,7 +504,7 @@ print(keyboard_config.key_count)
 
 **Keyboard Profile Usage**:
 ```python
-from glovebox.config.keyboard_config import create_keyboard_profile
+from glovebox.config.keyboard_profile import create_keyboard_profile
 
 # Create a profile for a specific keyboard and firmware
 profile = create_keyboard_profile("glove80", "v25.05")
@@ -603,6 +604,66 @@ firmwares:
     version: v25.04-beta.1
     branch: v25.04-beta.1
 ```
+
+#### Optional Configuration Sections
+
+As of the latest version, keyboard configurations support **optional `keymap` and `firmwares` sections**. This enables:
+
+1. **Minimal Configurations**: Keyboards can be defined with only the core required fields:
+   ```yaml
+   # keyboards/minimal_keyboard.yaml
+   keyboard: minimal_keyboard
+   description: Minimal keyboard configuration
+   vendor: Custom Keyboards
+   key_count: 60
+   
+   # Required sections
+   flash:
+     method: mass_storage
+     query: vendor=Custom
+     usb_vid: 0x1234
+     usb_pid: 0x5678
+   
+   build:
+     method: docker
+     docker_image: zmk-build
+     repository: zmkfirmware/zmk
+     branch: main
+   
+   # keymap and firmwares sections are optional
+   ```
+
+2. **Firmware-Only Configurations**: Define firmware variants without keymap templates:
+   ```yaml
+   keyboard: firmware_only
+   # ... other required fields ...
+   
+   firmwares:
+     stable:
+       version: v1.0
+       description: Stable firmware
+       build_options:
+         repository: custom/zmk
+         branch: stable
+   # No keymap section needed
+   ```
+
+3. **Keymap-Only Configurations**: Define keymap templates without firmware variants:
+   ```yaml
+   keyboard: keymap_only
+   # ... other required fields ...
+   
+   keymap:
+     includes: ['#include <dt-bindings/zmk/keys.h>']
+     formatting:
+       default_key_width: 8
+       key_gap: '  '
+     system_behaviors: []
+     kconfig_options: {}
+   # No firmwares section needed
+   ```
+
+This flexibility allows for more modular configuration management and supports keyboards at different stages of development or with specific use cases.
 
 ### Keyboard Support
 

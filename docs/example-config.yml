@@ -7,9 +7,8 @@
 # - ./glovebox.yml (project-specific)
 # - ./glovebox.yaml (project-specific)
 
-# Default keyboard and firmware to use when not specified
-default_keyboard: "glove80"
-default_firmware: "v25.05"
+# Default profile (keyboard/firmware combination) to use when not specified  
+profile: "glove80/v25.05"
 
 # Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 log_level: "INFO"
@@ -20,13 +19,35 @@ keyboard_paths:
   - "~/my-keyboards"
   - "/path/to/custom/keyboards"
 
-# Flash behavior settings
-# When set to true, skip devices already present at startup and only wait for newly plugged devices
-# When set to false (default), flash existing matching devices immediately
+# Firmware-related settings
+firmware:
+  # Flash behavior settings
+  flash:
+    # Timeout in seconds for flash operations (default: 60)
+    timeout: 60
+    
+    # Number of devices to flash (0 for infinite, default: 2)
+    count: 2
+    
+    # Enable device tracking during flash operations (default: true)
+    track_flashed: true
+    
+    # Skip devices already present at startup (default: false)
+    # When false, flash existing matching devices immediately
+    # When true, only wait for newly plugged devices
+    skip_existing: false
+
+# Backward compatibility: Deprecated flash setting (use firmware.flash.skip_existing instead)
 flash_skip_existing: false
 
 # Configuration precedence (highest to lowest):
-# 1. Environment variables (GLOVEBOX_FLASH_SKIP_EXISTING=true)
-# 2. Command-line flags (--skip-existing)
+# 1. Environment variables (using Pydantic Settings with double underscore for nesting):
+#    - GLOVEBOX_PROFILE="glove80/v25.05"
+#    - GLOVEBOX_FIRMWARE__FLASH__TIMEOUT=120
+#    - GLOVEBOX_FIRMWARE__FLASH__COUNT=5
+#    - GLOVEBOX_FIRMWARE__FLASH__TRACK_FLASHED=false
+#    - GLOVEBOX_FIRMWARE__FLASH__SKIP_EXISTING=true
+#    - GLOVEBOX_FLASH_SKIP_EXISTING=true (deprecated)
+# 2. Command-line flags (--profile, --timeout, --count, --no-track, --skip-existing)
 # 3. This configuration file
 # 4. Built-in defaults

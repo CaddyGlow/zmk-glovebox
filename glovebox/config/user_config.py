@@ -32,26 +32,32 @@ ENV_PREFIX = "GLOVEBOX_"
 DEFAULT_CONFIG = {
     # Paths for user-defined keyboards and layouts
     "keyboard_paths": [],
-    # Default preferences
-    "default_keyboard": "glove80",
-    "default_firmware": "v25.05",
+    # Default profile
+    "profile": "glove80/v25.05",
     # Logging
     "log_level": "INFO",
-    # Flash behavior
+    # Flash behavior (deprecated - use firmware.flash.skip_existing)
     "flash_skip_existing": False,
+    # Firmware configuration
+    "firmware": {
+        "flash": {
+            "timeout": 60,
+            "count": 2,
+            "track_flashed": True,
+            "skip_existing": False,
+        }
+    },
 }
 
 
 class UserConfig:
     """
-    Manages user-specific configuration for Glovebox.
+    Manages user-specific configuration for Glovebox using Pydantic Settings.
 
     The configuration is loaded from multiple sources with the following precedence:
-    1. Environment variables (highest precedence)
-    2. Command-line provided config file
-    3. Config file in current directory
-    4. User's XDG config directory (~/.config/glovebox/config.yaml)
-    5. Default values (lowest precedence)
+    1. Environment variables (highest precedence) - handled by Pydantic Settings
+    2. Config files (.env, YAML) - handled by custom logic + Pydantic Settings
+    3. Default values (lowest precedence) - defined in model
     """
 
     def __init__(
@@ -69,9 +75,6 @@ class UserConfig:
         # Initialize adapter
         self._adapter = config_adapter or create_config_file_adapter()
 
-        # Initialize config data with defaults
-        self._config = UserConfigData()
-
         # Track config sources
         self._config_sources: dict[str, str] = {}
 
@@ -81,11 +84,8 @@ class UserConfig:
         # Generate config paths to search
         self._config_paths = self._generate_config_paths(cli_config_path)
 
-        # Load configuration from files
+        # Load configuration from files and environment variables
         self._load_config()
-
-        # Apply environment variables
-        self._apply_env_vars()
 
     def _generate_config_paths(self, cli_config_path: str | Path | None) -> list[Path]:
         """Generate a list of config paths to search in order of precedence."""
@@ -117,64 +117,49 @@ class UserConfig:
 
     def _load_config(self) -> None:
         """
-        Load configuration from config files in order of precedence.
+        Load configuration from config files and environment variables using Pydantic Settings.
         """
-        # Use adapter to search for a valid config file
+        # Load configuration from YAML files and merge with environment variables
         config_data, found_path = self._adapter.search_config_files(self._config_paths)
 
         if found_path:
-            # Update config and track sources
-            self._update_config_from_dict(config_data, f"file:{found_path.name}")
-
             logger.debug("Loaded user configuration from %s", found_path)
             self._main_config_path = found_path
+
+            # Create UserConfigData with file data and automatic env var handling
+            self._config = UserConfigData(**config_data)
+
+            # Track sources for file-based values
+            for key in config_data:
+                self._config_sources[key] = f"file:{found_path.name}"
         else:
             logger.info(
-                "No user configuration files found. Using default configuration."
+                "No user configuration files found. Using defaults with environment variables."
             )
-            # Set main config path to the default XDG location if no configs were found
+            # Create UserConfigData with just environment variables
+            self._config = UserConfigData()
+            # Set main config path to the default XDG location
             if self._config_paths:
                 self._main_config_path = self._config_paths[-1]  # Last path is XDG yml
 
-    def _update_config_from_dict(self, data: dict[str, Any], source: str) -> None:
-        """Update configuration from a dictionary and track sources."""
-        # Only update fields that exist in our model
-        for field_name in UserConfigData.model_fields:
-            if field_name in data:
-                try:
-                    # Update the field with validation
-                    setattr(self._config, field_name, data[field_name])
-                    self._config_sources[field_name] = source
-                except Exception as e:
-                    logger.warning("Invalid value for %s: %s", field_name, e)
+        # Track environment variable sources
+        self._track_env_var_sources()
 
-    def _apply_env_vars(self) -> None:
-        """
-        Apply configuration from environment variables.
-        Environment variables have the highest precedence.
-        Format: GLOVEBOX_UPPERCASE_KEY_NAME
-        """
-        for env_name, env_value in os.environ.items():
+    def _track_env_var_sources(self) -> None:
+        """Track which configuration values came from environment variables."""
+        for env_name, _env_value in os.environ.items():
             if not env_name.startswith(ENV_PREFIX):
                 continue
 
-            # Extract config key from env var name (GLOVEBOX_DEFAULT_KEYBOARD -> default_keyboard)
+            # Convert env var name to config key format
             config_key = env_name[len(ENV_PREFIX) :].lower()
 
-            # Convert to standard snake_case format
-            config_key = "_".join(config_key.split("_"))
-
-            # Check if this is a valid config field
-            if config_key in UserConfigData.model_fields:
-                try:
-                    # Update the field with validation
-                    setattr(self._config, config_key, env_value)
-                    self._config_sources[config_key] = "environment"
-                    logger.debug(
-                        "Applied environment variable %s = %s", env_name, env_value
-                    )
-                except Exception as e:
-                    logger.warning("Invalid value for %s: %s", config_key, e)
+            # Handle nested firmware configuration
+            if config_key.startswith("firmware__flash__"):
+                nested_key = config_key.replace("firmware__flash__", "")
+                self._config_sources[f"firmware.flash.{nested_key}"] = "environment"
+            elif config_key in UserConfigData.model_fields:
+                self._config_sources[config_key] = "environment"
 
     def save(self) -> None:
         """
@@ -207,12 +192,18 @@ class UserConfig:
 
     def get_keyboard_paths(self) -> list[Path]:
         """
-        Get a list of user-defined keyboard configuration paths with expansion.
+        Get a list of user-defined keyboard configuration paths.
 
         Returns:
-            List of expanded Path objects for user keyboard configurations
+            List of Path objects for user keyboard configurations
         """
-        return self._config.get_expanded_keyboard_paths()
+        if not self._config.keyboard_paths.strip():
+            return []
+        return [
+            Path(path.strip()).expanduser()
+            for path in self._config.keyboard_paths.split(",")
+            if path.strip()
+        ]
 
     def add_keyboard_path(self, path: str | Path) -> None:
         """
@@ -222,11 +213,17 @@ class UserConfig:
             path: The path to add
         """
         path_str = str(path)
-        if path_str not in self._config.keyboard_paths:
-            # Create a new list to ensure it's properly updated
-            paths = list(self._config.keyboard_paths)
-            paths.append(path_str)
-            self._config.keyboard_paths = paths
+        current_paths = self.get_keyboard_paths()
+        path_obj = Path(path).expanduser()
+
+        if path_obj not in current_paths:
+            # Add to the comma-separated string
+            if self._config.keyboard_paths.strip():
+                self._config.keyboard_paths = (
+                    f"{self._config.keyboard_paths},{path_str}"
+                )
+            else:
+                self._config.keyboard_paths = path_str
             self._config_sources["keyboard_paths"] = "runtime"
 
     def remove_keyboard_path(self, path: str | Path) -> None:
@@ -236,12 +233,13 @@ class UserConfig:
         Args:
             path: The path to remove
         """
-        path_str = str(path)
-        if path_str in self._config.keyboard_paths:
-            # Create a new list to ensure it's properly updated
-            paths = list(self._config.keyboard_paths)
-            paths.remove(path_str)
-            self._config.keyboard_paths = paths
+        path_obj = Path(path).expanduser()
+        current_paths = self.get_keyboard_paths()
+
+        if path_obj in current_paths:
+            # Remove from list and rebuild comma-separated string
+            remaining_paths = [p for p in current_paths if p != path_obj]
+            self._config.keyboard_paths = ",".join(str(p) for p in remaining_paths)
             self._config_sources["keyboard_paths"] = "runtime"
 
     def reset_to_defaults(self) -> None:
@@ -249,61 +247,8 @@ class UserConfig:
         self._config = UserConfigData()
         self._config_sources = {}
 
-    # Direct property access to configuration values
-    @property
-    def default_keyboard(self) -> str:
-        """Get the default keyboard name."""
-        return self._config.default_keyboard
-
-    @default_keyboard.setter
-    def default_keyboard(self, value: str) -> None:
-        """Set the default keyboard name."""
-        self._config.default_keyboard = value
-        self._config_sources["default_keyboard"] = "runtime"
-
-    @property
-    def default_firmware(self) -> str:
-        """Get the default firmware version."""
-        return self._config.default_firmware
-
-    @default_firmware.setter
-    def default_firmware(self, value: str) -> None:
-        """Set the default firmware version."""
-        self._config.default_firmware = value
-        self._config_sources["default_firmware"] = "runtime"
-
-    @property
-    def log_level(self) -> str:
-        """Get the log level."""
-        return self._config.log_level
-
-    @log_level.setter
-    def log_level(self, value: str) -> None:
-        """Set the log level."""
-        self._config.log_level = value
-        self._config_sources["log_level"] = "runtime"
-
-    @property
-    def keyboard_paths(self) -> list[str]:
-        """Get the keyboard paths."""
-        return self._config.keyboard_paths
-
-    @keyboard_paths.setter
-    def keyboard_paths(self, value: list[str]) -> None:
-        """Set the keyboard paths."""
-        self._config.keyboard_paths = value
-        self._config_sources["keyboard_paths"] = "runtime"
-
-    @property
-    def flash_skip_existing(self) -> bool:
-        """Get the flash skip existing behavior."""
-        return self._config.flash_skip_existing
-
-    @flash_skip_existing.setter
-    def flash_skip_existing(self, value: bool) -> None:
-        """Set the flash skip existing behavior."""
-        self._config.flash_skip_existing = value
-        self._config_sources["flash_skip_existing"] = "runtime"
+    # Direct access to configuration is available via self._config
+    # No need for property wrappers with Pydantic Settings
 
     # Helper methods to maintain compatibility with existing code
     def get(self, key: str, default: Any = None) -> Any:

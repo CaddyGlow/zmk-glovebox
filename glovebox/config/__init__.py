@@ -7,8 +7,9 @@ using YAML files for keyboard configurations and user preferences.
 
 # Import configuration functions and modules
 
-from .keyboard_config import (
+from .keyboard_profile import (
     clear_cache,
+    create_flash_profile,
     create_keyboard_profile,
     get_available_firmwares,
     get_available_keyboards,
@@ -34,6 +35,7 @@ from .user_config import UserConfig, create_user_config
 __all__ = [
     # Keyboard config functions
     "clear_cache",
+    "create_flash_profile",
     "create_keyboard_profile",
     "get_available_firmwares",
     "get_available_keyboards",
