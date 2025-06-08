@@ -12,9 +12,9 @@ from glovebox.adapters.file_adapter import create_file_adapter
 from glovebox.adapters.template_adapter import create_template_adapter
 from glovebox.builders.template_context_builder import create_template_context_builder
 from glovebox.core.errors import LayoutError
-from glovebox.layout.behavior_analysis import register_layout_behaviors
-from glovebox.layout.behavior_formatter import BehaviorFormatterImpl
-from glovebox.layout.behavior_service import create_behavior_registry
+from glovebox.layout.behavior.analysis import register_layout_behaviors
+from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
+from glovebox.layout.behavior.service import create_behavior_registry
 from glovebox.layout.component_service import (
     LayoutComponentService,
     create_layout_component_service,

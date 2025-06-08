@@ -5,7 +5,7 @@ import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from glovebox.layout.behavior_formatter import BehaviorFormatterImpl
+from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
 from glovebox.layout.formatting import GridLayoutFormatter
 from glovebox.layout.kconfig_generator import KConfigGenerator
 from glovebox.layout.models import (

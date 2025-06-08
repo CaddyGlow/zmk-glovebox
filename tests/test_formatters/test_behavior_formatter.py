@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from glovebox.layout.behavior_formatter import BehaviorFormatterImpl
+from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
 from glovebox.layout.models import (
     LayoutBinding,
     LayoutParam,

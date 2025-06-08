@@ -13,7 +13,7 @@ from pydantic import (
 )
 
 # Import behavior models that are now part of the layout domain
-from glovebox.layout.behavior_models import (
+from glovebox.layout.behavior.models import (
     BehaviorCommand,
     BehaviorParameter,
     KeymapBehavior,

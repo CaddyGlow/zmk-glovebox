@@ -11,15 +11,8 @@ This package contains all layout-related functionality including:
 
 from typing import TYPE_CHECKING
 
-# Import other factory functions
-from glovebox.layout.behavior_analysis import (
-    extract_behavior_codes_from_layout,
-    get_required_includes_for_layout,
-    register_layout_behaviors,
-)
-
-# Import and re-export all models from layout domain
-from glovebox.layout.behavior_models import (
+# Import and re-export behavior functionality from behavior package
+from glovebox.layout.behavior import (
     BehaviorCommand,
     BehaviorParameter,
     KeymapBehavior,
@@ -29,8 +22,11 @@ from glovebox.layout.behavior_models import (
     SystemBehavior,
     SystemBehaviorParam,
     SystemParamList,
+    create_behavior_registry,
+    extract_behavior_codes_from_layout,
+    get_required_includes_for_layout,
+    register_layout_behaviors,
 )
-from glovebox.layout.behavior_service import create_behavior_registry
 
 # Import and re-export service factory functions
 from glovebox.layout.component_service import create_layout_component_service
@@ -63,7 +59,7 @@ from glovebox.layout.zmk_generator import create_zmk_file_generator
 
 
 if TYPE_CHECKING:
-    from glovebox.layout.behavior_formatter import BehaviorFormatterImpl
+    from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
     from glovebox.layout.display_service import LayoutDisplayService
 
     # from glovebox.layout.generator import LayoutGenerator  # Module missing

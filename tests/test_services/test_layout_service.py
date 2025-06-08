@@ -345,7 +345,7 @@ class TestLayoutServiceWithKeyboardConfig:
     def test_register_behaviors(self, mock_keyboard_config):
         """Test registration of system behaviors using functional approach."""
         # Import the functional approach
-        from glovebox.layout.behavior_analysis import register_layout_behaviors
+        from glovebox.layout.behavior.analysis import register_layout_behaviors
 
         # Create a mock profile with behaviors
         mock_profile = Mock(spec=KeyboardProfile)
@@ -536,7 +536,7 @@ class TestLayoutServiceWithMockedConfig:
 def test_register_behaviors_with_fixture(keymap_service):
     """Test registering system behaviors using functional approach with fixture."""
     # Import the functional approach
-    from glovebox.layout.behavior_analysis import register_layout_behaviors
+    from glovebox.layout.behavior.analysis import register_layout_behaviors
 
     # Create a mock profile
     mock_profile = Mock(spec=KeyboardProfile)

@@ -2,7 +2,7 @@
 
 from typing import Any, Optional, Protocol, runtime_checkable
 
-from glovebox.layout import RegistryBehavior
+from glovebox.layout.behavior.models import RegistryBehavior
 
 
 @runtime_checkable
