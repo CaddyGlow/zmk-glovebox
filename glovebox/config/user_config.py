@@ -37,6 +37,8 @@ DEFAULT_CONFIG = {
     "default_firmware": "v25.05",
     # Logging
     "log_level": "INFO",
+    # Flash behavior
+    "flash_skip_existing": False,
 }
 
 
@@ -291,6 +293,17 @@ class UserConfig:
         """Set the keyboard paths."""
         self._config.keyboard_paths = value
         self._config_sources["keyboard_paths"] = "runtime"
+
+    @property
+    def flash_skip_existing(self) -> bool:
+        """Get the flash skip existing behavior."""
+        return self._config.flash_skip_existing
+
+    @flash_skip_existing.setter
+    def flash_skip_existing(self, value: bool) -> None:
+        """Set the flash skip existing behavior."""
+        self._config.flash_skip_existing = value
+        self._config_sources["flash_skip_existing"] = "runtime"
 
     # Helper methods to maintain compatibility with existing code
     def get(self, key: str, default: Any = None) -> Any:

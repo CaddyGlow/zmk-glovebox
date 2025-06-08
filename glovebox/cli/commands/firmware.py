@@ -140,12 +140,27 @@ def flash(
     no_track: Annotated[
         bool, typer.Option("--no-track", help="Disable device tracking")
     ] = False,
+    skip_existing: Annotated[
+        bool,
+        typer.Option("--skip-existing", help="Skip devices already present at startup"),
+    ] = False,
 ) -> None:
     """Flash firmware to keyboard(s)."""
     # Create KeyboardProfile if profile is specified
     keyboard_profile = None
     if profile:
         keyboard_profile = create_profile_from_option(profile)
+
+    # Get user config to check default skip_existing behavior
+    from glovebox.config.user_config import create_user_config
+
+    user_config = create_user_config()
+
+    # Use user config default if skip_existing wasn't explicitly set via CLI
+    # Note: typer doesn't provide a way to detect if a flag was explicitly set,
+    # so we can't differentiate between --skip-existing=False and not using the flag.
+    # For now, we'll use the CLI value as-is, but users can set the default in config.
+    effective_skip_existing = skip_existing or user_config.flash_skip_existing
 
     # Use the new file-based method which handles file existence checks
     flash_service = create_flash_service()
@@ -157,6 +172,7 @@ def flash(
             timeout=timeout,
             count=count,
             track_flashed=not no_track,
+            skip_existing=effective_skip_existing,
         )
 
         if result.success:

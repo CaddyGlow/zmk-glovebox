@@ -1,5 +1,6 @@
 """Flash service for firmware flashing operations."""
 
+import contextlib
 import logging
 import time
 from pathlib import Path
@@ -61,6 +62,7 @@ class FlashService:
         timeout: int = 60,
         count: int = 1,
         track_flashed: bool = True,
+        skip_existing: bool = False,
     ) -> FlashResult:
         """
         Flash firmware from a file to devices matching the query.
@@ -74,6 +76,7 @@ class FlashService:
             timeout: Timeout in seconds for waiting for devices
             count: Number of devices to flash (0 for unlimited)
             track_flashed: Whether to track which devices have been flashed
+            skip_existing: Whether to skip devices already present at startup
 
         Returns:
             FlashResult with details of the flash operation
@@ -97,6 +100,7 @@ class FlashService:
                 timeout=timeout,
                 count=count,
                 track_flashed=track_flashed,
+                skip_existing=skip_existing,
                 skip_file_check=True,  # Skip the duplicate file check
             )
         except Exception as e:
@@ -113,10 +117,11 @@ class FlashService:
         timeout: int = 60,
         count: int = 1,
         track_flashed: bool = True,
+        skip_existing: bool = False,
         skip_file_check: bool = False,
     ) -> FlashResult:
         """
-        Flash firmware to devices matching the query.
+        Flash firmware to devices matching the query using event-driven detection.
 
         Args:
             firmware_file: Path to the firmware file to flash
@@ -125,6 +130,7 @@ class FlashService:
             timeout: Timeout in seconds for waiting for devices
             count: Number of devices to flash (0 for unlimited)
             track_flashed: Whether to track which devices have been flashed
+            skip_existing: Whether to skip devices already present at startup
             skip_file_check: Skip the file existence check (used by flash_from_file)
 
         Returns:
@@ -148,42 +154,38 @@ class FlashService:
             query = self._get_device_query_from_profile(profile)
 
         logger.info(f"Using device query: {query}")
+
+        # Debug: Print all currently detected devices
+        existing_devices = self.usb_adapter.get_all_devices()
+        logger.debug(f"Currently detected devices at startup: {len(existing_devices)}")
+        for device in existing_devices:
+            logger.debug(
+                f"  {device.name}: vendor='{device.vendor}', model='{device.model}', serial='{device.serial}', removable={device.removable}"
+            )
+
+        # Track flash state
         devices_flashed = 0
         devices_failed = 0
-        flashed_devices = set()  # Track flashed devices
+        flashed_devices = set()  # Track flashed devices by serial
+        operation_complete = False
 
         try:
             # Use the original firmware file directly
             temp_firmware_file = firmware_file
 
-            # Check if we're trying to flash multiple devices
-            if count != 1:
-                result.add_message(
-                    f"Watching for {count if count > 0 else 'unlimited'} devices matching query: {query}"
+            # Check for existing devices that match the query and flash them first (unless skipped)
+            if not skip_existing:
+                matching_existing_devices = self.usb_adapter.list_matching_devices(
+                    query
                 )
-                result.add_message(f"Timeout: {timeout} seconds")
-                result.add_message("Waiting for devices... (Ctrl+C to cancel)")
+                logger.debug(
+                    f"Found {len(matching_existing_devices)} existing devices matching query"
+                )
 
-            # Track start time for timeout
-            start_time = time.time()
-
-            # Flash to the specified number of devices
-            while (count == 0 or devices_flashed < count) and (
-                time.time() - start_time < timeout
-            ):
-                # Find devices matching query
-                # Note: In the future, we'll pass environment variables here
-                devices = self.usb_adapter.get_all_devices(query)
-
-                if not devices:
-                    # No devices found, wait a bit and try again
-                    time.sleep(0.5)
-                    continue
-
-                for device in devices:
-                    # Skip already flashed devices if tracking is enabled
-                    if track_flashed and device.serial in flashed_devices:
-                        continue
+                for device in matching_existing_devices:
+                    logger.info(
+                        f"Flashing existing device: {device.description or device.name}"
+                    )
 
                     # Flash to this device
                     device_result = self._flash_device(device, temp_firmware_file)
@@ -209,12 +211,115 @@ class FlashService:
 
                     result.device_details.append(device_details)
 
-                    # If we've flashed enough devices, break
+                    # Check if we've flashed enough devices
                     if count > 0 and devices_flashed >= count:
+                        operation_complete = True
                         break
 
-                # Wait a bit before checking for more devices
-                time.sleep(0.5)
+                # If we've already flashed enough devices, we're done
+                if operation_complete:
+                    result.devices_flashed = devices_flashed
+                    result.devices_failed = devices_failed
+                    result.add_message(
+                        f"Successfully flashed {devices_flashed} existing device(s)"
+                    )
+                    return result
+            else:
+                logger.info("Skipping existing devices, waiting for new devices only")
+
+            # Check if we're trying to flash multiple devices
+            if count != 1:
+                remaining_count = count - devices_flashed if count > 0 else 0
+                result.add_message(
+                    f"Watching for {remaining_count if count > 0 else 'unlimited'} more devices matching query: {query}"
+                )
+                result.add_message(f"Timeout: {timeout} seconds")
+                result.add_message("Waiting for devices... (Ctrl+C to cancel)")
+
+            # Get initial devices to exclude from new device detection (all current devices)
+            initial_devices = existing_devices.copy()
+
+            # Set up event-driven device detection with callback
+            def device_callback(action: str, device: "BlockDevice") -> None:
+                nonlocal devices_flashed, devices_failed, operation_complete
+
+                if action != "add" or operation_complete:
+                    return
+
+                logger.debug(
+                    f"Device added: {device.name} - {device.vendor} {device.model}"
+                )
+
+                # Skip devices that were present initially
+                if any(d.name == device.name for d in initial_devices):
+                    logger.debug(f"Skipping initial device: {device.name}")
+                    return
+
+                # Skip already flashed devices if tracking is enabled
+                if track_flashed and device.serial in flashed_devices:
+                    logger.debug(f"Skipping already flashed device: {device.name}")
+                    return
+
+                # Check if device matches query
+                try:
+                    matching_devices = self.usb_adapter.list_matching_devices(query)
+                    device_matches = any(
+                        d.name == device.name for d in matching_devices
+                    )
+                except Exception as e:
+                    logger.error(f"Error checking device match: {e}")
+                    return
+
+                if not device_matches:
+                    logger.debug(f"Device {device.name} does not match query: {query}")
+                    return
+
+                logger.info(
+                    f"New matching device detected: {device.description or device.name}"
+                )
+
+                # Flash to this device
+                device_result = self._flash_device(device, temp_firmware_file)
+
+                # Store detailed device info
+                device_details = {
+                    "name": device.description or device.path,
+                    "serial": device.serial,
+                    "status": "success" if device_result.success else "failed",
+                }
+
+                if not device_result.success:
+                    device_details["error"] = (
+                        device_result.errors[0]
+                        if device_result.errors
+                        else "Unknown error"
+                    )
+                    devices_failed += 1
+                else:
+                    devices_flashed += 1
+                    if track_flashed:
+                        flashed_devices.add(device.serial)
+
+                result.device_details.append(device_details)
+
+                # Check if we've flashed enough devices
+                if count > 0 and devices_flashed >= count:
+                    operation_complete = True
+
+            # Register callback and start monitoring
+            self.usb_adapter.detector.register_callback(device_callback)
+            self.usb_adapter.detector.start_monitoring()
+
+            # Track start time for timeout
+            start_time = time.time()
+
+            # Wait for devices or timeout
+            while not operation_complete and (time.time() - start_time < timeout):
+                time.sleep(0.1)  # Small sleep to prevent busy waiting
+
+            # Stop monitoring and unregister callback
+            self.usb_adapter.detector.stop_monitoring()
+            self.usb_adapter.detector.unregister_callback(device_callback)
 
             # Check if we timed out
             if (
@@ -242,10 +347,16 @@ class FlashService:
             # Handle Ctrl+C gracefully
             result.add_message("Operation cancelled by user")
             result.success = devices_flashed > 0
+            # Make sure to stop monitoring
+            with contextlib.suppress(Exception):
+                self.usb_adapter.detector.stop_monitoring()
         except Exception as e:
             logger.error(f"Error in flash operation: {e}")
             result.success = False
             result.add_error(f"Flash operation failed: {str(e)}")
+            # Make sure to stop monitoring
+            with contextlib.suppress(Exception):
+                self.usb_adapter.detector.stop_monitoring()
 
         return result
 

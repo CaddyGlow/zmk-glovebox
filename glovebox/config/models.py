@@ -183,6 +183,9 @@ class UserConfigData(BaseModel):
     # Logging
     log_level: str = "INFO"
 
+    # Flash behavior
+    flash_skip_existing: bool = False
+
     @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, v: str) -> str:

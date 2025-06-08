@@ -1,0 +1,32 @@
+# Example Glovebox User Configuration
+# 
+# This file shows all available configuration options for Glovebox.
+# Save this file as one of:
+# - ~/.config/glovebox/config.yml (recommended)
+# - ~/.config/glovebox/config.yaml
+# - ./glovebox.yml (project-specific)
+# - ./glovebox.yaml (project-specific)
+
+# Default keyboard and firmware to use when not specified
+default_keyboard: "glove80"
+default_firmware: "v25.05"
+
+# Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+log_level: "INFO"
+
+# Additional paths to search for keyboard configurations
+# Supports environment variable expansion (e.g., $HOME, ${USER})
+keyboard_paths:
+  - "~/my-keyboards"
+  - "/path/to/custom/keyboards"
+
+# Flash behavior settings
+# When set to true, skip devices already present at startup and only wait for newly plugged devices
+# When set to false (default), flash existing matching devices immediately
+flash_skip_existing: false
+
+# Configuration precedence (highest to lowest):
+# 1. Environment variables (GLOVEBOX_FLASH_SKIP_EXISTING=true)
+# 2. Command-line flags (--skip-existing)
+# 3. This configuration file
+# 4. Built-in defaults

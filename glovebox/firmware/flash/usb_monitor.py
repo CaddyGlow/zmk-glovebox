@@ -170,7 +170,9 @@ class LinuxUSBDeviceMonitor(USBDeviceMonitorBase):
         monitor = self.pyudev.Monitor.from_netlink(self.context)
         monitor.filter_by(subsystem="block")
 
-        def device_event(action: str, device: Any) -> None:
+        def device_event(device: Any) -> None:
+            # The device object has an action attribute
+            action = device.action
             if action in ("add", "remove") and self.is_usb_device(device):
                 if action == "add":
                     block_device = BlockDevice.from_pyudev_device(device)

@@ -6,11 +6,17 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from glovebox.firmware.flash.models import BlockDevice
+    from glovebox.protocols.device_detector_protocol import DeviceDetectorProtocol
 
 
 @runtime_checkable
 class USBAdapterProtocol(Protocol):
     """Protocol for USB device operations."""
+
+    @property
+    def detector(self) -> "DeviceDetectorProtocol":
+        """Get the device detector instance."""
+        ...
 
     def detect_device(
         self,
