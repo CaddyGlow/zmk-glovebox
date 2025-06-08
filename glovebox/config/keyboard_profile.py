@@ -175,12 +175,6 @@ def get_firmware_config(
     """
     keyboard_config = load_keyboard_config(keyboard_name, user_config)
 
-    # Check if firmwares are configured
-    if not keyboard_config.firmwares:
-        raise ConfigError(
-            f"No firmware configurations available for keyboard '{keyboard_name}'"
-        )
-
     # Check if the firmware exists
     if firmware_name not in keyboard_config.firmwares:
         raise ConfigError(
@@ -231,9 +225,7 @@ def get_available_firmwares(
     """
     keyboard_config = load_keyboard_config(keyboard_name, user_config)
 
-    # Return the firmware names (empty list if no firmwares configured)
-    if not keyboard_config.firmwares:
-        return []
+    # Return the firmware names
     return sorted(keyboard_config.firmwares.keys())
 
 
@@ -266,21 +258,21 @@ def get_default_firmware(
 
 def create_keyboard_profile(
     keyboard_name: str,
-    firmware_version: str | None = None,
+    firmware_version: str,
     user_config: Optional["UserConfig"] = None,
 ) -> "KeyboardProfile":  # Forward reference
     """Create a KeyboardProfile for the given keyboard and firmware.
 
     Args:
         keyboard_name: Name of the keyboard
-        firmware_version: Version of firmware to use (optional, uses first available or default)
+        firmware_version: Version of firmware to use
         user_config: Optional user configuration instance
 
     Returns:
         KeyboardProfile configured for the keyboard and firmware
 
     Raises:
-        ConfigError: If the keyboard configuration cannot be found
+        ConfigError: If the keyboard or firmware configuration cannot be found
     """
     from glovebox.config.profile import KeyboardProfile
 
@@ -322,31 +314,6 @@ def create_profile_from_keyboard_name(
     except Exception as e:
         logger.warning(f"Failed to create profile for {keyboard_name}: {e}")
         return None
-
-
-def create_flash_profile(
-    keyboard_name: str,
-    user_config: Optional["UserConfig"] = None,
-) -> "KeyboardProfile":  # Forward reference
-    """Create a KeyboardProfile optimized for flashing operations.
-
-    This function creates a profile that only requires the keyboard's flash configuration.
-    It doesn't require keymap or firmware definitions, making it ideal for flash-only operations.
-
-    Args:
-        keyboard_name: Name of the keyboard
-        user_config: Optional user configuration instance
-
-    Returns:
-        KeyboardProfile configured for flashing operations
-
-    Raises:
-        ConfigError: If the keyboard configuration cannot be found
-    """
-    from glovebox.config.profile import KeyboardProfile
-
-    keyboard_config = load_keyboard_config(keyboard_name, user_config)
-    return KeyboardProfile(keyboard_config, firmware_version=None)
 
 
 def clear_cache() -> None:

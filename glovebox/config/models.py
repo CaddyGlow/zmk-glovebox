@@ -135,8 +135,8 @@ class KeyboardConfig(BaseModel):
     key_count: int = Field(gt=0, description="Number of keys must be positive")
     flash: FlashConfig
     build: BuildConfig
-    firmwares: dict[str, FirmwareConfig] | None = None
-    keymap: KeymapSection | None = None
+    firmwares: dict[str, FirmwareConfig]
+    keymap: KeymapSection
 
     @field_validator("keyboard", "description", "vendor")
     @classmethod

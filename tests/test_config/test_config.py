@@ -26,7 +26,7 @@ from glovebox.config.keyboard_profile import (
 from glovebox.config.models import (
     BuildConfig,
     BuildOptions,
-    FirmwareFlashConfig,
+    FirmwareConfig,
     FlashConfig,
     FormattingConfig,
     KConfigOption,
@@ -379,9 +379,9 @@ def mock_keyboard_config() -> Mock:
 
     # Create mock firmwares
     mock_config.firmwares = {
-        "default": Mock(spec=FirmwareFlashConfig),
-        "bluetooth": Mock(spec=FirmwareFlashConfig),
-        "v25.05": Mock(spec=FirmwareFlashConfig),
+        "default": Mock(spec=FirmwareConfig),
+        "bluetooth": Mock(spec=FirmwareConfig),
+        "v25.05": Mock(spec=FirmwareConfig),
     }
 
     # Set up firmware attributes
@@ -419,7 +419,7 @@ def mock_keyboard_config() -> Mock:
 @pytest.fixture
 def mock_firmware_config() -> Mock:
     """Create a mocked FirmwareConfig instance."""
-    mock_config = Mock(spec=FirmwareFlashConfig)
+    mock_config = Mock(spec=FirmwareConfig)
     mock_config.version = "v1.0.0"
     mock_config.description = "Default test firmware"
 
@@ -443,7 +443,7 @@ def mock_keyboard_profile() -> Mock:
 
     # Set up properties that use the above mocks
     mock_profile.keyboard_config = Mock(spec=KeyboardConfig)
-    mock_profile.firmware_config = Mock(spec=FirmwareFlashConfig)
+    mock_profile.firmware_config = Mock(spec=FirmwareConfig)
 
     # Mock the system_behaviors property
     mock_profile.system_behaviors = [
@@ -637,7 +637,7 @@ def test_load_keyboard_config(typed_config_file, mock_keyboard_config_dict):
 
         # Check nested objects
         assert isinstance(config.firmwares, dict)
-        assert isinstance(config.firmwares["default"], FirmwareFlashConfig)
+        assert isinstance(config.firmwares["default"], FirmwareConfig)
         assert config.firmwares["default"].version == "v1.0.0"
 
         # Check nested objects in keymap section
@@ -663,7 +663,7 @@ def test_create_keyboard_profile(typed_config_file, mock_keyboard_config_dict):
 
         # Check that the profile has the correct config objects
         assert isinstance(profile.keyboard_config, KeyboardConfig)
-        assert isinstance(profile.firmware_config, FirmwareFlashConfig)
+        assert isinstance(profile.firmware_config, FirmwareConfig)
 
         # Check system behaviors
         assert len(profile.system_behaviors) == 2
@@ -681,7 +681,7 @@ def test_get_firmware_config(typed_config_file, mock_keyboard_config_dict):
         firmware_config = get_firmware_config("test_keyboard", "bluetooth")
 
         # Verify the result is a FirmwareConfig instance
-        assert isinstance(firmware_config, FirmwareFlashConfig)
+        assert isinstance(firmware_config, FirmwareConfig)
         assert firmware_config.version == "bluetooth"
         assert firmware_config.description == "Bluetooth-focused test firmware"
 
