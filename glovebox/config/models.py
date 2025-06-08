@@ -135,8 +135,8 @@ class KeyboardConfig(BaseModel):
     key_count: int = Field(gt=0, description="Number of keys must be positive")
     flash: FlashConfig
     build: BuildConfig
-    firmwares: dict[str, FirmwareConfig] = Field(default_factory=dict)
-    keymap: KeymapSection
+    firmwares: dict[str, FirmwareConfig] | None = None
+    keymap: KeymapSection | None = None
 
     @field_validator("keyboard", "description", "vendor")
     @classmethod
@@ -163,7 +163,7 @@ class KeyboardConfig(BaseModel):
 
 
 # Firmware flash configuration
-class UserFlashConfig(BaseModel):
+class FirmwareFlashConfig(BaseModel):
     """Firmware flash configuration settings."""
 
     # Device detection and flashing behavior
@@ -185,7 +185,7 @@ class UserFlashConfig(BaseModel):
 class UserFirmwareConfig(BaseModel):
     """Firmware-related configuration settings."""
 
-    flash: UserFlashConfig = Field(default_factory=UserFlashConfig)
+    flash: FirmwareFlashConfig = Field(default_factory=FirmwareFlashConfig)
 
 
 # User configuration model using Pydantic Settings

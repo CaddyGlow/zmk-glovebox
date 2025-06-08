@@ -6,16 +6,6 @@ from pathlib import Path
 from typing import Any, Optional, Protocol, Union
 from unittest.mock import Mock, patch
 
-from glovebox.config.models import (
-    BuildConfig,
-    BuildOptions,
-    FirmwareConfig,
-    FlashConfig,
-    FormattingConfig,
-    KConfigOption,
-    KeyboardConfig,
-    KeymapSection,
-)
 from glovebox.config.profile import KeyboardProfile
 from glovebox.firmware.flash.models import FlashResult
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
