@@ -2,6 +2,48 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## CRITICAL: Code Convention Enforcement
+
+**MANDATORY REQUIREMENTS - MUST BE FOLLOWED WITHOUT EXCEPTION:**
+
+1. **ALWAYS run linting before any code changes are considered complete**:
+   ```bash
+   ruff check . --fix
+   ruff format .
+   mypy glovebox/
+   ```
+
+2. **NEVER commit code that fails linting or type checking**:
+   - All code MUST pass `ruff check .` without warnings
+   - All code MUST pass `mypy glovebox/` without errors
+   - All code MUST be formatted with `ruff format .`
+
+3. **FOLLOW PROJECT CONVENTIONS STRICTLY**:
+   - Maximum 500 lines per file (ENFORCED)
+   - Maximum 50 lines per method (ENFORCED)
+   - Use comprehensive typing without complexity
+   - Use pathlib for ALL file operations
+   - Use modern typing (`dict` not `typing.Dict`, etc.)
+   - Use `Path.open()` instead of built-in `open()`
+   - Use lazy logging formatting (`%` style, not f-strings)
+   - Use single `with` statements with multiple contexts when possible
+
+4. **MANDATORY PRE-COMMIT CHECKS**:
+   ```bash
+   pre-commit run --all-files
+   pytest
+   ```
+
+5. **ZERO TOLERANCE for common linting violations**:
+   - **SIM117**: Must use single with statement with multiple contexts
+   - **UP035**: Must use modern typing (`dict` not `typing.Dict`)
+   - **PTH123**: Must use `Path.open()` not `open()`
+   - **B904**: Must use `raise ... from err` in except clauses
+   - **N815**: No mixedCase variable names in class scope
+   - **SIM102**: Use single if statement instead of nested if statements
+
+**If you encounter ANY linting errors, you MUST fix them immediately before proceeding with other tasks.**
+
 ## Essential Commands
 
 ### Quick Commands

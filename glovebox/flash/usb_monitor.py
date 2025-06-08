@@ -11,7 +11,12 @@ from pathlib import Path
 from typing import Any, Optional, TypeAlias, cast
 
 from glovebox.flash.lsdev import BlockDevice
-from glovebox.models.flash import BlockDeviceDict, BlockDevicePathMap, USBDeviceInfo, DiskInfo
+from glovebox.models.flash import (
+    BlockDeviceDict,
+    BlockDevicePathMap,
+    DiskInfo,
+    USBDeviceInfo,
+)
 
 
 logger = logging.getLogger(__name__)
