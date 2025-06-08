@@ -58,42 +58,6 @@ def get_device_path(device_name: str) -> str:
     raise FlashError(f"Unsupported operating system: {system}") from None
 
 
-def mount_and_flash(
-    device: BlockDevice,
-    firmware_file: str | Path,
-    max_retries: int = 3,
-    retry_delay: float = 2.0,
-) -> bool:
-    """
-    Mount device and flash firmware with retry logic using OS abstraction.
-
-    Args:
-        device: BlockDevice object representing the target device
-        firmware_file: Path to firmware file to flash
-        max_retries: Maximum number of retries
-        retry_delay: Delay between retries in seconds
-
-    Returns:
-        Boolean indicating success or failure
-
-    Raises:
-        FileNotFoundError: If firmware file is not found
-        FlashError: For other flashing related errors
-    """
-    logger.info(f"Flashing firmware to device {device.name}")
-
-    # Use the new OS abstraction layer
-    flash_ops = create_flash_operations()
-
-    try:
-        return flash_ops.mount_and_flash(
-            device, Path(firmware_file), max_retries, retry_delay
-        )
-    except Exception as e:
-        logger.error(f"Flash operation failed: {e}")
-        raise
-
-
 class FirmwareFlasherImpl:
     """Implementation class for flashing firmware to devices."""
 
@@ -281,7 +245,9 @@ class FirmwareFlasherImpl:
 
                     # Attempt to flash the detected device
                     logger.info(f"Attempting to flash {device.name}...")
-                    if mount_and_flash(device, firmware_path):
+                    # Use flash operations for mounting and flashing
+                    flash_ops = create_flash_operations()
+                    if flash_ops.mount_and_flash(device, firmware_path):
                         device_info = {
                             "model": device.model,
                             "vendor": device.vendor,
@@ -376,26 +342,3 @@ def create_firmware_flasher(
     return FirmwareFlasherImpl(detector=detector, lsdev=lsdev)
 
 
-# For backward compatibility, create a single instance
-_flasher: FirmwareFlasherProtocol = create_firmware_flasher()
-
-
-def flash_firmware(
-    firmware_file: str | Path,
-    query: str = "vendor=Adafruit and serial~=GLV80-.* and removable=true",
-    timeout: int = 60,
-    count: int = 1,
-    track_flashed: bool = True,
-) -> FlashResult:
-    """
-    Detect and flash firmware to one or more devices matching the query.
-
-    This is a wrapper around the FirmwareFlasher method for backward compatibility.
-    """
-    return _flasher.flash_firmware(
-        firmware_file=firmware_file,
-        query=query,
-        timeout=timeout,
-        count=count,
-        track_flashed=track_flashed,
-    )

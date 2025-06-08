@@ -41,4 +41,3 @@ class FirmwareFlasherProtocol(Protocol):
             ValueError: If the query string is invalid.
         """
         ...
-

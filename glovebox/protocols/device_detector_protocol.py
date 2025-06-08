@@ -84,4 +84,3 @@ class DeviceDetectorProtocol(Protocol):
             ValueError: If the query string is invalid.
         """
         ...
-
