@@ -123,12 +123,14 @@ def user_config_data_factory():
         from pathlib import Path
 
         # Handle special conversion for keyboard_paths
-        if "keyboard_paths" in kwargs and kwargs["keyboard_paths"]:
-            if isinstance(kwargs["keyboard_paths"], list) and kwargs["keyboard_paths"]:
-                if isinstance(kwargs["keyboard_paths"][0], str):
-                    kwargs["keyboard_paths"] = [
-                        Path(p) for p in kwargs["keyboard_paths"]
-                    ]
+        if (
+            "keyboard_paths" in kwargs
+            and kwargs["keyboard_paths"]
+            and isinstance(kwargs["keyboard_paths"], list)
+            and kwargs["keyboard_paths"]
+            and isinstance(kwargs["keyboard_paths"][0], str)
+        ):
+            kwargs["keyboard_paths"] = [Path(p) for p in kwargs["keyboard_paths"]]
 
         # Set defaults for missing fields
         config_data = {

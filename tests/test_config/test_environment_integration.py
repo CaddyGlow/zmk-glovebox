@@ -192,7 +192,7 @@ class TestEnvironmentVariableOverrides:
             ),  # Mixed formats
         ]
 
-        for env_value, expected_list in list_test_cases:
+        for env_value, _expected_list in list_test_cases:
             # Clear previous env var
             if "GLOVEBOX_KEYBOARD_PATHS" in os.environ:
                 del os.environ["GLOVEBOX_KEYBOARD_PATHS"]
@@ -283,7 +283,7 @@ class TestEnvironmentSourceTracking:
         os.environ["GLOVEBOX_FIRMWARE__FLASH__TIMEOUT"] = "777"
 
         # Change to temp directory to avoid picking up existing config files
-        original_cwd = os.getcwd()
+        original_cwd = Path.cwd()
         original_xdg = os.environ.get("XDG_CONFIG_HOME")
         os.chdir(temp_config_dir)
         os.environ["XDG_CONFIG_HOME"] = str(temp_config_dir)

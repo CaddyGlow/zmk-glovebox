@@ -18,6 +18,7 @@ from unittest.mock import Mock
 
 import pytest
 import yaml
+from pydantic import ValidationError
 
 from glovebox.config.user_config import UserConfig, create_user_config
 
@@ -467,7 +468,7 @@ class TestErrorHandlingInPrecedence:
             os.environ["GLOVEBOX_PROFILE"] = "invalid_format"  # Missing slash
 
             # Should raise validation error despite valid file
-            with pytest.raises(Exception):  # ValidationError from Pydantic
+            with pytest.raises(ValidationError):  # ValidationError from Pydantic
                 create_user_config(cli_config_path=config_file_path)
 
         finally:
@@ -480,7 +481,7 @@ class TestErrorHandlingInPrecedence:
         os.environ["GLOVEBOX_FIRMWARE__FLASH__TIMEOUT"] = "-1"  # Invalid (negative)
 
         # Should raise validation error for invalid timeout
-        with pytest.raises(Exception):  # ValidationError from Pydantic
+        with pytest.raises(ValidationError):  # ValidationError from Pydantic
             create_user_config()
 
     @pytest.mark.skip(
