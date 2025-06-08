@@ -44,7 +44,7 @@ def test_config_functions_mocked():
     mock_get_keyboards.assert_called_once()
 
 
-def test_keymap_service_with_keyboard_config():
+def test_layout_service_with_keyboard_config():
     """Test that a mocked KeymapService can handle keyboard configuration."""
     # Create a mock service with a mocked validate_config method
     mock_service = Mock()

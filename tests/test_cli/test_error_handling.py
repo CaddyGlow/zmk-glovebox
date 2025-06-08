@@ -8,16 +8,16 @@ import pytest
 import typer
 
 from glovebox.cli import app
-from glovebox.core.errors import BuildError, ConfigError, FlashError, KeymapError
-from glovebox.models.results import BuildResult, FlashResult, KeymapResult
+from glovebox.core.errors import BuildError, ConfigError, FlashError, LayoutError
+from glovebox.models.results import BuildResult, FlashResult, LayoutResult
 
 
-@patch("glovebox.services.keymap_service.create_keymap_service")
+@patch("glovebox.layout.create_layout_service")
 @pytest.mark.skip(reason="Test takes too long or runs real commands in background")
-def test_keymap_error_handling(mock_create_service, cli_runner):
-    """Test KeymapError handling in CLI."""
+def test_layout_error_handling(mock_create_service, cli_runner):
+    """Test LayoutError handling in CLI."""
     mock_service = Mock()
-    mock_service.compile.side_effect = KeymapError("Invalid keymap structure")
+    mock_service.compile.side_effect = LayoutError("Invalid layout structure")
     mock_create_service.return_value = mock_service
 
     with patch("glovebox.config.keyboard_config.KeyboardConfig") as mock_config_cls:
@@ -30,7 +30,7 @@ def test_keymap_error_handling(mock_create_service, cli_runner):
         result = cli_runner.invoke(
             app,
             [
-                "keymap",
+                "layout",
                 "compile",
                 "output/test",
                 "--profile",
@@ -40,7 +40,7 @@ def test_keymap_error_handling(mock_create_service, cli_runner):
         )
 
         assert result.exit_code == 1
-        assert "Keymap error: Invalid keymap structure" in result.output
+        assert "Layout error: Invalid layout structure" in result.output
 
 
 @patch("glovebox.services.build_service.create_build_service")
@@ -104,7 +104,7 @@ def test_config_error_handling(mock_config_cls, cli_runner):
 
 
 @pytest.mark.skip(reason="Implementation has changed, needs to be rewritten")
-@patch("glovebox.services.keymap_service.create_keymap_service")
+@patch("glovebox.layout.create_layout_service")
 @patch("glovebox.cli.helpers.profile.create_profile_from_option")
 def test_json_decode_error_handling(
     mock_create_profile, mock_create_service, cli_runner, tmp_path
@@ -118,10 +118,10 @@ def test_json_decode_error_handling(
     mock_service = Mock()
     mock_create_service.return_value = mock_service
 
-    # Make validate_file raise a KeymapError with the specific error message
-    from glovebox.core.errors import KeymapError
+    # Make validate_file raise a LayoutError with the specific error message
+    from glovebox.core.errors import LayoutError
 
-    mock_service.validate_file.side_effect = KeymapError(
+    mock_service.validate_file.side_effect = LayoutError(
         "Keymap validation failed: Invalid JSON"
     )
 
@@ -152,7 +152,7 @@ def test_file_not_found_error_handling(cli_runner):
         assert "File not found" in result.output
 
 
-@patch("glovebox.services.keymap_service.create_keymap_service")
+@patch("glovebox.layout.create_layout_service")
 @pytest.mark.skip(reason="Test takes too long or runs real commands in background")
 def test_unexpected_error_handling(mock_create_service, cli_runner, tmp_path):
     """Test unexpected error handling in CLI."""

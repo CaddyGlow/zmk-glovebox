@@ -309,5 +309,3 @@ def create_device_detector(lsdev: Lsdev | None = None) -> DeviceDetectorProtocol
     """
     logger.debug("Creating DeviceDetector")
     return DeviceDetectorImpl(lsdev=lsdev)
-
-

@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, TypeAlias
 
-from .keymap import ParamValue
+from glovebox.layout.models import ParamValue
 
 
 # Parameter type definitions

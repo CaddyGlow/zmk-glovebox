@@ -9,7 +9,7 @@ from glovebox.generators.layout_generator import (
     LayoutMetadata,
     ViewMode,
 )
-from glovebox.models.keymap import KeymapData
+from glovebox.layout.models import LayoutData
 from glovebox.services.base_service import BaseServiceImpl
 
 
@@ -34,7 +34,7 @@ class LayoutDisplayService(BaseServiceImpl):
 
     def generate_display(
         self,
-        keymap_data: KeymapData,
+        keymap_data: LayoutData,
         keyboard: str,
         key_width: int = 10,
         view_mode: ViewMode = ViewMode.NORMAL,

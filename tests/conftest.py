@@ -25,7 +25,7 @@ from glovebox.config.models import (
 from glovebox.config.profile import KeyboardProfile
 from glovebox.models import SystemBehavior
 from glovebox.models.build import FirmwareOutputFiles
-from glovebox.models.results import BuildResult, FlashResult, KeymapResult
+from glovebox.models.results import BuildResult, FlashResult, LayoutResult
 from glovebox.protocols import FileAdapterProtocol, TemplateAdapterProtocol
 
 
@@ -550,31 +550,31 @@ def mock_create_keyboard_profile(mock_keyboard_profile) -> Generator[Mock, None,
 
 
 @pytest.fixture
-def mock_keymap_service() -> Mock:
-    """Mock KeymapService with common behaviors."""
+def mock_layout_service() -> Mock:
+    """Mock LayoutService with common behaviors."""
     mock = Mock()
 
     # Mock successful generate result
-    result = KeymapResult(success=True)
+    result = LayoutResult(success=True)
     result.keymap_path = Path("/tmp/output/keymap.keymap")
     result.conf_path = Path("/tmp/output/keymap.conf")
     mock.generate.return_value = result
     mock.generate_from_file.return_value = result
 
     # Mock successful extract result
-    extract_result = KeymapResult(success=True)
-    mock.extract_keymap_components.return_value = extract_result
-    mock.extract_keymap_components_from_file.return_value = extract_result
+    extract_result = LayoutResult(success=True)
+    mock.extract_components.return_value = extract_result
+    mock.extract_components_from_file.return_value = extract_result
     # For backward compatibility
-    mock.extract_layers = mock.extract_keymap_components
-    mock.extract_layers_from_file = mock.extract_keymap_components_from_file
+    mock.extract_layers = mock.extract_components
+    mock.extract_layers_from_file = mock.extract_components_from_file
 
     # Mock successful merge result
-    merge_result = KeymapResult(success=True)
-    mock.merge_keymap_components.return_value = merge_result
-    mock.merge_keymap_components_from_directory.return_value = merge_result
+    merge_result = LayoutResult(success=True)
+    mock.combine_components.return_value = merge_result
+    mock.combine_components_from_directory.return_value = merge_result
     # For backward compatibility
-    mock.merge_layers = mock.merge_keymap_components
+    mock.merge_layers = mock.combine_components
 
     # Mock show result
     mock.show.return_value = ["Layer 1", "Layer 2"]
@@ -589,6 +589,12 @@ def mock_keymap_service() -> Mock:
     mock.compile_from_file = mock.generate_from_file
 
     return mock
+
+
+@pytest.fixture
+def mock_keymap_service(mock_layout_service) -> Mock:
+    """Backward compatibility alias for mock_layout_service."""
+    return mock_layout_service
 
 
 @pytest.fixture

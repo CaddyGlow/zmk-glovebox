@@ -9,21 +9,21 @@ from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 from glovebox.formatters.behavior_formatter import BehaviorFormatterImpl
 from glovebox.generators.layout_generator import DtsiLayoutGenerator, LayoutConfig
-from glovebox.models.behavior import SystemBehavior
-from glovebox.models.keymap import (
+from glovebox.layout.models import (
     ComboBehavior,
     HoldTapBehavior,
     InputListener,
-    KeymapBinding,
     LayerBindings,
+    LayoutBinding,
     MacroBehavior,
 )
+from glovebox.models.behavior import SystemBehavior
 from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
 
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
-    from glovebox.models.keymap import KeymapData
+    from glovebox.layout.models import LayoutData
 
 
 # Type alias for kconfig settings
@@ -518,7 +518,7 @@ class DTSIGenerator:
 
     def generate_kconfig_conf(
         self,
-        keymap_data: "KeymapData",
+        keymap_data: "LayoutData",
         profile: "KeyboardProfile",
     ) -> tuple[str, KConfigSettings]:
         """Generate kconfig content and settings from keymap data.
@@ -537,7 +537,7 @@ class DTSIGenerator:
 
         lines = []
 
-        # Extract user config_parameters (kconfig) options from KeymapData
+        # Extract user config_parameters (kconfig) options from LayoutData
         for opt in keymap_data.config_parameters:
             line = ""
             if opt.param_name in kconfig_options:

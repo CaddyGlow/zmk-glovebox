@@ -10,7 +10,7 @@ import typer
 
 from glovebox.cli import app
 from glovebox.cli.commands import register_all_commands
-from glovebox.models.results import BuildResult, FlashResult, KeymapResult
+from glovebox.models.results import BuildResult, FlashResult, LayoutResult
 
 
 # Register commands with the app before running tests
@@ -19,18 +19,18 @@ register_all_commands(app)
 
 # Common setup for keymap command tests
 @pytest.fixture
-def setup_keymap_command_test(mock_keymap_service, mock_keyboard_profile):
-    """Set up common mocks for keymap command tests."""
+def setup_layout_command_test(mock_layout_service, mock_keyboard_profile):
+    """Set up common mocks for layout command tests."""
     with (
         patch(
-            "glovebox.cli.commands.keymap.create_keymap_service"
+            "glovebox.cli.commands.layout.create_layout_service"
         ) as mock_create_service,
-        patch("glovebox.cli.commands.keymap.Path") as mock_path_cls,
+        patch("glovebox.cli.commands.layout.Path") as mock_path_cls,
         patch(
             "glovebox.cli.helpers.profile.create_profile_from_option"
         ) as mock_create_profile,
         patch(
-            "glovebox.models.keymap.KeymapData.model_validate"
+            "glovebox.layout.models.LayoutData.model_validate"
         ) as mock_model_validate,
     ):
         # Set up path mock
@@ -40,11 +40,11 @@ def setup_keymap_command_test(mock_keymap_service, mock_keyboard_profile):
         mock_path_cls.return_value = mock_path_instance
 
         # Set up service mock
-        mock_create_service.return_value = mock_keymap_service
+        mock_create_service.return_value = mock_layout_service
 
         # Set up model validation mock
-        mock_keymap_data = Mock()
-        mock_model_validate.return_value = mock_keymap_data
+        mock_layout_data = Mock()
+        mock_model_validate.return_value = mock_layout_data
 
         # Set up profile mock
         mock_create_profile.return_value = mock_keyboard_profile
@@ -55,8 +55,8 @@ def setup_keymap_command_test(mock_keymap_service, mock_keyboard_profile):
             "mock_create_profile": mock_create_profile,
             "mock_model_validate": mock_model_validate,
             "mock_path_instance": mock_path_instance,
-            "mock_keymap_data": mock_keymap_data,
-            "mock_keymap_service": mock_keymap_service,
+            "mock_layout_data": mock_layout_data,
+            "mock_layout_service": mock_layout_service,
         }
 
 
@@ -97,19 +97,19 @@ def setup_firmware_command_test(mock_build_service, mock_keyboard_profile):
     "command,args,success,output_contains",
     [
         (
-            "keymap generate",
+            "layout generate",
             ["output/test", "--profile", "glove80/v25.05", "input.json"],
             True,
             "Keymap generated successfully",
         ),
         (
-            "keymap validate",
+            "layout validate",
             ["--profile", "glove80/v25.05", "input.json"],
             True,
             "valid",
         ),
         (
-            "keymap extract",
+            "layout extract",
             ["input.json", "extract_output"],
             True,
             "Keymap layers extracted to",
@@ -121,15 +121,15 @@ def test_keymap_commands(
     args,
     success,
     output_contains,
-    setup_keymap_command_test,
+    setup_layout_command_test,
     cli_runner,
-    sample_keymap_json,
+    sample_layout_json,
     tmp_path,
 ):
     """Test keymap commands with parameterized inputs."""
     # Create a temporary sample file
     input_file = tmp_path / "input.json"
-    input_file.write_text(json.dumps(sample_keymap_json))
+    input_file.write_text(json.dumps(sample_layout_json))
 
     # Replace placeholder paths with real paths
     real_args = []
@@ -149,22 +149,22 @@ def test_keymap_commands(
 
     # Configure service mocks based on command
     if "generate" in command:
-        keymap_result = KeymapResult(success=success)
-        keymap_result.keymap_path = Path(tmp_path / "output/keymap.keymap")
-        keymap_result.conf_path = Path(tmp_path / "output/keymap.conf")
+        layout_result = LayoutResult(success=success)
+        layout_result.keymap_path = Path(tmp_path / "output/keymap.keymap")
+        layout_result.conf_path = Path(tmp_path / "output/keymap.conf")
         if not success:
-            keymap_result.errors.append("Invalid keymap structure")
-        setup_keymap_command_test[
-            "mock_keymap_service"
-        ].generate_from_file.return_value = keymap_result
+            layout_result.errors.append("Invalid keymap structure")
+        setup_layout_command_test[
+            "mock_layout_service"
+        ].generate_from_file.return_value = layout_result
     elif "extract" in command:
-        keymap_result = KeymapResult(success=success)
-        setup_keymap_command_test[
-            "mock_keymap_service"
-        ].extract_keymap_components_from_file.return_value = keymap_result
+        layout_result = LayoutResult(success=success)
+        setup_layout_command_test[
+            "mock_layout_service"
+        ].extract_components_from_file.return_value = layout_result
     elif "validate" in command:
-        setup_keymap_command_test[
-            "mock_keymap_service"
+        setup_layout_command_test[
+            "mock_layout_service"
         ].validate_file.return_value = success
 
     # Run the command
@@ -260,7 +260,7 @@ def test_firmware_compile_commands(
     "command,args",
     [
         (
-            "keymap generate",
+            "layout generate",
             ["output/test", "--profile", "glove80/v25.05", "nonexistent.json"],
         ),
         (
@@ -298,7 +298,7 @@ def test_command_errors(command, args, cli_runner, tmp_path):
 
         # Set up file path mock
         with (
-            patch("glovebox.cli.commands.keymap.Path") as mock_path_cls,
+            patch("glovebox.cli.commands.layout.Path") as mock_path_cls,
             patch("glovebox.cli.commands.firmware.Path") as mock_path_cls2,
         ):
             # Set path to not exist for error case

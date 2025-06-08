@@ -41,15 +41,15 @@ def test_help_command(cli_runner):
     result = cli_runner.invoke(app, ["--help"])
     assert result.exit_code == 0
     assert "Glovebox ZMK Keyboard Management Tool" in result.output
-    assert "keymap" in result.output
+    assert "layout" in result.output
     assert "firmware" in result.output
     assert "config" in result.output
     assert "status" in result.output
 
 
-def test_keymap_help(cli_runner):
-    """Test keymap help shows subcommands."""
-    result = cli_runner.invoke(app, ["keymap", "--help"])
+def test_layout_help(cli_runner):
+    """Test layout help shows subcommands."""
+    result = cli_runner.invoke(app, ["layout", "--help"])
     assert result.exit_code == 0
     assert "generate" in result.output
     assert "extract" in result.output
@@ -76,13 +76,13 @@ def test_config_help(cli_runner):
 
 def test_missing_required_args(cli_runner):
     """Test missing required arguments return error."""
-    # Test keymap generate missing args
-    result = cli_runner.invoke(app, ["keymap", "generate"])
+    # Test layout generate missing args
+    result = cli_runner.invoke(app, ["layout", "generate"])
     assert result.exit_code != 0
     assert "Missing argument" in result.output
 
-    # Test keymap extract missing args
-    result = cli_runner.invoke(app, ["keymap", "extract"])
+    # Test layout extract missing args
+    result = cli_runner.invoke(app, ["layout", "extract"])
     assert result.exit_code != 0
     assert "Missing argument" in result.output
 
@@ -106,6 +106,6 @@ def test_invalid_command(cli_runner):
 
 def test_invalid_subcommand(cli_runner):
     """Test invalid subcommand returns error."""
-    result = cli_runner.invoke(app, ["keymap", "invalid-subcommand"])
+    result = cli_runner.invoke(app, ["layout", "invalid-subcommand"])
     assert result.exit_code != 0
     assert "No such command" in result.output

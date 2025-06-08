@@ -1,5 +1,26 @@
 """Models package for Glovebox."""
 
+# Layout models moved to glovebox.layout.models
+# Import them here for backward compatibility
+from glovebox.layout.models import (
+    ComboBehavior,
+    ConfigParameter,
+    HoldTapBehavior,
+    InputListener,
+    InputListenerNode,
+    InputProcessor,
+    MacroBehavior,
+)
+from glovebox.layout.models import (
+    LayoutBinding as KeymapBinding,  # Keep old name for compatibility
+)
+from glovebox.layout.models import (
+    LayoutData as KeymapData,  # Keep old name for compatibility
+)
+from glovebox.layout.models import (
+    LayoutLayer as KeymapLayer,  # Keep old name for compatibility
+)
+
 from .behavior import (
     BehaviorCommand,
     BehaviorParameter,
@@ -26,19 +47,7 @@ from .flash import (
     BlockDevicePathMap,
     BlockDeviceSymlinks,
 )
-from .keymap import (
-    ComboBehavior,
-    ConfigParameter,
-    HoldTapBehavior,
-    InputListener,
-    InputListenerNode,
-    InputProcessor,
-    KeymapBinding,
-    KeymapData,
-    KeymapLayer,
-    MacroBehavior,
-)
-from .results import BuildResult, FlashResult, KeymapResult
+from .results import BuildResult, FlashResult, KeymapResult, LayoutResult
 
 
 __all__ = [
@@ -46,6 +55,7 @@ __all__ = [
     "BuildResult",
     "FlashResult",
     "KeymapResult",
+    "LayoutResult",
     # Keymap models
     "KeymapData",
     "KeymapBinding",

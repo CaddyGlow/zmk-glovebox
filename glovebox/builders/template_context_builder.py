@@ -6,12 +6,12 @@ from datetime import datetime
 from typing import Any, TypeAlias
 
 from glovebox.config.profile import KeyboardProfile
-from glovebox.models.keymap import (
+from glovebox.layout.models import (
     ComboBehavior,
     HoldTapBehavior,
     InputListener,
-    KeymapData,
     LayerBindings,
+    LayoutData,
     MacroBehavior,
 )
 from glovebox.protocols.dtsi_generator_protocol import DtsiGeneratorProtocol
@@ -32,7 +32,7 @@ class TemplateContextBuilder:
         self._dtsi_generator = dtsi_generator
 
     def build_context(
-        self, keymap_data: KeymapData, profile: KeyboardProfile
+        self, keymap_data: LayoutData, profile: KeyboardProfile
     ) -> TemplateContext:
         """Build template context with generated DTSI content.
 

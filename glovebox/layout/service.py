@@ -15,10 +15,14 @@ from glovebox.formatters.behavior_formatter import (
     BehaviorFormatterImpl,
 )
 from glovebox.generators.dtsi_generator import DTSIGenerator
-from glovebox.models.build import OutputPaths
+from glovebox.layout.component_service import (
+    LayoutComponentService,
+    create_layout_component_service,
+)
 from glovebox.layout.models import (
     LayoutData,
 )
+from glovebox.models.build import OutputPaths
 from glovebox.models.results import LayoutResult
 from glovebox.protocols import FileAdapterProtocol, TemplateAdapterProtocol
 from glovebox.protocols.behavior_protocols import (
@@ -27,10 +31,6 @@ from glovebox.protocols.behavior_protocols import (
 )
 from glovebox.services.base_service import BaseServiceImpl
 from glovebox.services.behavior_service import create_behavior_registry
-from glovebox.layout.component_service import (
-    LayoutComponentService,
-    create_layout_component_service,
-)
 from glovebox.services.layout_display_service import (
     LayoutDisplayService,
     create_layout_display_service,
@@ -191,12 +191,12 @@ class LayoutService(BaseServiceImpl):
         try:
             # Check if the input directory exists
             if not input_dir.exists():
-                raise KeymapError(f"Input directory not found: {input_dir}")
+                raise LayoutError(f"Input directory not found: {input_dir}")
 
             # Check for metadata.json
             metadata_json_path = input_dir / "metadata.json"
             if not metadata_json_path.exists():
-                raise KeymapError(f"Metadata JSON file not found: {metadata_json_path}")
+                raise LayoutError(f"Metadata JSON file not found: {metadata_json_path}")
 
             # Load metadata data
             metadata_json = self._load_json_file(metadata_json_path)
@@ -205,11 +205,11 @@ class LayoutService(BaseServiceImpl):
             # Check for layers directory
             layers_dir = input_dir / "layers"
             if not layers_dir.exists():
-                raise KeymapError(f"Layers directory not found: {layers_dir}")
+                raise LayoutError(f"Layers directory not found: {layers_dir}")
 
             # Check if output file exists and force is not set
             if output_file.exists() and not force:
-                raise KeymapError(
+                raise LayoutError(
                     f"Output file already exists: {output_file}. Use --force to overwrite."
                 )
 
@@ -220,7 +220,7 @@ class LayoutService(BaseServiceImpl):
 
         except Exception as e:
             logger.error("Keymap component merging failed: %s", e)
-            raise KeymapError(f"Keymap component merging failed: {e}") from e
+            raise LayoutError(f"Keymap component merging failed: {e}") from e
 
     # Core implementation methods (used by file-based methods)
 
@@ -235,7 +235,7 @@ class LayoutService(BaseServiceImpl):
         profile_name = f"{profile.keyboard_name}/{profile.firmware_version}"
         logger.info("Starting keymap generation using profile: %s", profile_name)
 
-        result = KeymapResult(success=False)
+        result = LayoutResult(success=False)
         result.profile_name = profile_name
 
         try:
@@ -246,15 +246,15 @@ class LayoutService(BaseServiceImpl):
 
             # Check if files exist and force is not set
             if output_paths.keymap.exists() and not force:
-                raise KeymapError(
+                raise LayoutError(
                     f"Keymap file already exists: {output_paths.keymap}. Use --force to overwrite."
                 )
             if output_paths.conf.exists() and not force:
-                raise KeymapError(
+                raise LayoutError(
                     f"Config file already exists: {output_paths.conf}. Use --force to overwrite."
                 )
             if output_paths.json.exists() and not force:
-                raise KeymapError(
+                raise LayoutError(
                     f"JSON file already exists: {output_paths.json}. Use --force to overwrite."
                 )
 
@@ -295,7 +295,7 @@ class LayoutService(BaseServiceImpl):
         except Exception as e:
             result.add_error(f"Keymap generation failed: {e}")
             logger.error("Keymap generation failed: %s", e)
-            raise KeymapError(f"Keymap generation failed: {e}") from e
+            raise LayoutError(f"Keymap generation failed: {e}") from e
 
     def extract_keymap_components(
         self,
@@ -316,7 +316,7 @@ class LayoutService(BaseServiceImpl):
 
         except Exception as e:
             logger.error("Keymap component extraction failed: %s", e)
-            raise KeymapError(f"Keymap component extraction failed: {e}") from e
+            raise LayoutError(f"Keymap component extraction failed: {e}") from e
 
     def merge_keymap_components(
         self,
@@ -339,7 +339,7 @@ class LayoutService(BaseServiceImpl):
             profile.keyboard_name,
         )
 
-        result = KeymapResult(success=False)
+        result = LayoutResult(success=False)
 
         try:
             # Create output directory if needed
@@ -370,7 +370,7 @@ class LayoutService(BaseServiceImpl):
         except Exception as e:
             result.add_error(f"Keymap component merging failed: {e}")
             logger.error("Keymap component merging failed: %s", e)
-            raise KeymapError(f"Keymap component merging failed: {e}") from e
+            raise LayoutError(f"Keymap component merging failed: {e}") from e
 
     def show(
         self,
@@ -390,7 +390,7 @@ class LayoutService(BaseServiceImpl):
 
         except Exception as e:
             logger.error("Error generating layout display: %s", e)
-            raise KeymapError(f"Failed to generate layout display: {e}") from e
+            raise LayoutError(f"Failed to generate layout display: {e}") from e
 
     def validate(
         self,
@@ -430,7 +430,7 @@ class LayoutService(BaseServiceImpl):
             return True
         except Exception as e:
             logger.error("Keymap data validation failed: %s", e)
-            raise KeymapError(f"Keymap validation failed: {e}") from e
+            raise LayoutError(f"Keymap validation failed: {e}") from e
 
     # Private helper methods
 
@@ -447,7 +447,7 @@ class LayoutService(BaseServiceImpl):
         try:
             # Check if the file exists
             if not file_path.exists():
-                raise KeymapError(f"Input file not found: {file_path}")
+                raise LayoutError(f"Input file not found: {file_path}")
 
             # Load JSON data
             json_data = self._load_json_file(file_path)
@@ -460,28 +460,28 @@ class LayoutService(BaseServiceImpl):
 
         except Exception as e:
             logger.error("%s failed: %s", operation_name, e)
-            raise KeymapError(f"{operation_name} failed: {e}") from e
+            raise LayoutError(f"{operation_name} failed: {e}") from e
 
     def _load_json_file(self, file_path: Path) -> dict[str, Any]:
         """Load and parse JSON from a file using the file adapter."""
         try:
             result = self._file_adapter.read_json(file_path)
             if not isinstance(result, dict):
-                raise KeymapError(
+                raise LayoutError(
                     f"Expected JSON object in file {file_path}, got {type(result)}"
                 )
             return result
         except json.JSONDecodeError as e:
-            raise KeymapError(f"Invalid JSON in file {file_path}: {e}") from e
+            raise LayoutError(f"Invalid JSON in file {file_path}: {e}") from e
         except Exception as e:
-            raise KeymapError(f"Error reading file {file_path}: {e}") from e
+            raise LayoutError(f"Error reading file {file_path}: {e}") from e
 
     def _validate_keymap_data(self, json_data: dict[str, Any]) -> LayoutData:
         """Validate JSON data as LayoutData."""
         try:
             return LayoutData.model_validate(json_data)
         except Exception as e:
-            raise KeymapError(f"Invalid keymap data: {e}") from e
+            raise LayoutError(f"Invalid keymap data: {e}") from e
 
     def _generate_config_file(
         self,
@@ -527,7 +527,7 @@ class LayoutService(BaseServiceImpl):
                 template_content, context
             )
         else:
-            raise KeymapError(
+            raise LayoutError(
                 "No keymap_dtsi template available in keyboard configuration"
             )
 
@@ -544,10 +544,10 @@ def create_layout_service(
     behavior_formatter: BehaviorFormatterImpl | None = None,
     dtsi_generator: DTSIGenerator | None = None,
     context_builder: Any | None = None,
-) -> KeymapService:
-    """Create a KeymapService instance with optional dependency injection."""
+) -> LayoutService:
+    """Create a LayoutService instance with optional dependency injection."""
     logger.debug(
-        "Creating KeymapService with dependencies (using defaults where None provided)",
+        "Creating LayoutService with dependencies (using defaults where None provided)",
     )
 
     # Create default dependencies if not provided

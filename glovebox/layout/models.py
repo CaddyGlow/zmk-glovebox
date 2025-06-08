@@ -28,6 +28,7 @@ BehaviorList: TypeAlias = list[
 ConfigParamList: TypeAlias = list["ConfigParameter"]
 
 
+# TODO: rename to maybe KeyPararm to avoid confusion with LayoutParam
 class LayoutParam(BaseModel):
     """Model for parameter values in key bindings."""
 

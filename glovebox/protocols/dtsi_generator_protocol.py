@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from typing import Protocol, TypeAlias, runtime_checkable
 
-from glovebox.models.keymap import (
+from glovebox.layout.models import (
     ComboBehavior,
     HoldTapBehavior,
     InputListener,
@@ -64,7 +64,7 @@ class DtsiGeneratorProtocol(Protocol):
 
     def generate_kconfig_conf(
         self,
-        keymap_data: "KeymapData",
+        keymap_data: "LayoutData",
         profile: "KeyboardProfile",
     ) -> tuple[str, KConfigSettings]:
         """Generate kconfig configuration."""
@@ -77,4 +77,4 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
-    from glovebox.models.keymap import KeymapData
+    from glovebox.layout.models import LayoutData

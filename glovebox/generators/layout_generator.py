@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional, Protocol, Union, cast
 
 from glovebox.config.profile import KeyboardProfile
-from glovebox.models.keymap import KeymapBinding
+from glovebox.layout.models import LayoutBinding
 
 
 logger = logging.getLogger(__name__)
@@ -390,8 +390,8 @@ class DtsiLayoutGenerator:
         if 0 <= idx < layer_size:
             binding = layer_data[idx]
 
-            # Handle KeymapBinding objects
-            if isinstance(binding, KeymapBinding):
+            # Handle LayoutBinding objects
+            if isinstance(binding, LayoutBinding):
                 binding_str = binding.value
             else:
                 binding_str = str(binding)

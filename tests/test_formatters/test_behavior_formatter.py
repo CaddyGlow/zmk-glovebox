@@ -5,8 +5,8 @@ from unittest.mock import Mock, patch
 import pytest
 
 from glovebox.formatters.behavior_formatter import BehaviorFormatterImpl
+from glovebox.layout.models import LayoutBinding, LayoutParam
 from glovebox.models.behavior import RegistryBehavior, SystemBehavior
-from glovebox.models.keymap import KeymapBinding, KeymapParam
 from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
 
 
@@ -118,22 +118,22 @@ def test_formatter_instantiation(behavior_registry):
 
 def test_format_simple_binding(behavior_formatter):
     """Test formatting a simple binding."""
-    binding = KeymapBinding(value="&kp", params=[KeymapParam(value="A")])
+    binding = LayoutBinding(value="&kp", params=[LayoutParam(value="A")])
     result = behavior_formatter.format_binding(binding)
     assert result == "&kp A"
 
 
 def test_format_zero_param_binding(behavior_formatter):
     """Test formatting a binding with no parameters."""
-    binding = KeymapBinding(value="&none", params=[])
+    binding = LayoutBinding(value="&none", params=[])
     result = behavior_formatter.format_binding(binding)
     assert result == "&none"
 
 
 def test_format_multi_param_binding(behavior_formatter):
     """Test formatting a binding with multiple parameters."""
-    binding = KeymapBinding(
-        value="&lt", params=[KeymapParam(value="1"), KeymapParam(value="SPACE")]
+    binding = LayoutBinding(
+        value="&lt", params=[LayoutParam(value="1"), LayoutParam(value="SPACE")]
     )
     result = behavior_formatter.format_binding(binding)
     assert result == "&lt 1 SPACE"
@@ -142,9 +142,9 @@ def test_format_multi_param_binding(behavior_formatter):
 def test_format_binding_with_nested_params(behavior_formatter):
     """Test formatting a binding with nested parameters (modifiers)."""
     # Create a binding with nested structure for testing modifiers
-    binding = KeymapBinding(
+    binding = LayoutBinding(
         value="&kp",
-        params=[KeymapParam(value="LSHFT", params=[KeymapParam(value="A")])],
+        params=[LayoutParam(value="LSHFT", params=[LayoutParam(value="A")])],
     )
 
     result = behavior_formatter.format_binding(binding)
@@ -165,9 +165,9 @@ def test_format_custom_behavior(behavior_formatter, behavior_registry):
         )
     )
 
-    binding = KeymapBinding(
+    binding = LayoutBinding(
         value="&custom_behavior",
-        params=[KeymapParam(value="1"), KeymapParam(value="2")],
+        params=[LayoutParam(value="1"), LayoutParam(value="2")],
     )
 
     result = behavior_formatter.format_binding(binding)
@@ -176,10 +176,10 @@ def test_format_custom_behavior(behavior_formatter, behavior_registry):
 
 def test_behavior_with_missing_params(behavior_formatter, behavior_registry):
     """Test a behavior with missing parameters generates an appropriate error."""
-    binding = KeymapBinding(
+    binding = LayoutBinding(
         value="&lt",
         params=[
-            KeymapParam(value="1")
+            LayoutParam(value="1")
             # Missing second parameter
         ],
     )
@@ -192,7 +192,7 @@ def test_behavior_with_missing_params(behavior_formatter, behavior_registry):
 
 def test_format_invalid_behavior(behavior_formatter):
     """Test formatting an invalid behavior."""
-    binding = KeymapBinding(value="&invalid", params=[])
+    binding = LayoutBinding(value="&invalid", params=[])
     result = behavior_formatter.format_binding(binding)
     # Should return an error binding or similar
     assert "&error" in result or "invalid" in result.lower()

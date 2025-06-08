@@ -340,5 +340,3 @@ def create_firmware_flasher(
     """
     logger.debug("Creating FirmwareFlasher")
     return FirmwareFlasherImpl(detector=detector, lsdev=lsdev)
-
-

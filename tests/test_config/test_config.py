@@ -36,7 +36,7 @@ from glovebox.models import (
     KeymapSection,
     SystemBehavior,
 )
-from glovebox.models.results import BuildResult, FlashResult, KeymapResult
+from glovebox.models.results import BuildResult, FlashResult, LayoutResult
 
 
 # ---- Test Data Fixtures ----

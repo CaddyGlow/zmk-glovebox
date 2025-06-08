@@ -4,14 +4,13 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, cast
 
+from glovebox.layout.models import LayoutBinding, LayoutParam, ParamValue
 from glovebox.models.behavior import (
     KeymapBehavior,
     RegistryBehavior,
     SystemBehaviorParam,
     SystemParamList,
 )
-
-from ..models.keymap import KeymapBinding, KeymapParam, ParamValue
 
 
 logger = logging.getLogger(__name__)
@@ -39,7 +38,7 @@ class BehaviorFormatterImpl:
         self._behavior_classes: dict[str, type[Behavior]] = {}
         self._init_behavior_class_map()
 
-    def format_binding(self, binding_data: KeymapBinding) -> str:
+    def format_binding(self, binding_data: LayoutBinding) -> str:
         """Format a binding dictionary to DTSI string.
 
         Args:
@@ -89,7 +88,7 @@ class BehaviorFormatterImpl:
         """Format a single parameter."""
         return self.get_keycode(str(param))
 
-    def format_param_recursive(self, param_data: KeymapParam) -> str:
+    def format_param_recursive(self, param_data: LayoutParam) -> str:
         """Recursively format &kp parameters including modifiers."""
         mod_name = param_data.value
         inner_params_data = param_data.params
@@ -188,7 +187,7 @@ class Behavior(ABC):
     def __init__(
         self,
         value: str,
-        params_data: list[KeymapParam],
+        params_data: list[LayoutParam],
         formatter: BehaviorFormatterImpl,
     ) -> None:
         self.behavior_name = value

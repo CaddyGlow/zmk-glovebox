@@ -19,7 +19,7 @@ from glovebox.config.models import (
 from glovebox.config.profile import KeyboardProfile
 from glovebox.models import SystemBehavior
 from glovebox.models.build import FirmwareOutputFiles
-from glovebox.models.results import BuildResult, FlashResult, KeymapResult
+from glovebox.models.results import BuildResult, FlashResult, LayoutResult
 
 
 def create_mock_build_result(
@@ -50,15 +50,15 @@ def create_mock_build_result(
     )
 
 
-def create_mock_keymap_result(
+def create_mock_layout_result(
     success: bool = True,
     keymap_path: Path | None = None,
     conf_path: Path | None = None,
     json_path: Path | None = None,
     errors: list[str] | None = None,
-) -> KeymapResult:
-    """Create a standardized KeymapResult for testing."""
-    result = KeymapResult(success=success)
+) -> LayoutResult:
+    """Create a standardized LayoutResult for testing."""
+    result = LayoutResult(success=success)
 
     if keymap_path is not None:
         result.keymap_path = keymap_path
@@ -80,6 +80,12 @@ def create_mock_keymap_result(
             result.errors.append(error)
 
     return result
+
+
+# Backward compatibility alias
+def create_mock_keymap_result(*args, **kwargs) -> LayoutResult:
+    """Backward compatibility alias for create_mock_layout_result."""
+    return create_mock_layout_result(*args, **kwargs)
 
 
 def create_mock_flash_result(

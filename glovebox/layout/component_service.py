@@ -143,9 +143,9 @@ class LayoutComponentService(BaseServiceImpl):
             layout: Keymap data model
             output_dir: Directory to write metadata configuration
         """
-        # We use model_dump with include to only get the KeymapMetadata fields
+        # We use model_dump with include to only get the LayoutMetadata fields
         metadata_dict = layout.model_dump(
-            mode="json", by_alias=True, include=set(KeymapMetadata.model_fields.keys())
+            mode="json", by_alias=True, include=set(LayoutMetadata.model_fields.keys())
         )
 
         # Save with proper serialization

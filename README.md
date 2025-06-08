@@ -75,13 +75,13 @@ pre-commit install
 
 ```bash
 # Build a keymap with a specific keyboard profile
-glovebox keymap generate my_layout.json output/my_keymap --profile glove80/v25.05
+glovebox layout generate my_layout.json output/my_keymap --profile glove80/v25.05
 
 # Read from stdin
-cat my_layout.json | glovebox keymap generate - output/my_keymap --profile glove80/v25.05
+cat my_layout.json | glovebox layout generate - output/my_keymap --profile glove80/v25.05
 
 # Force overwrite of existing files
-glovebox keymap generate my_layout.json output/my_keymap --profile glove80/v25.05 --force
+glovebox layout generate my_layout.json output/my_keymap --profile glove80/v25.05 --force
 ```
 
 ### Build Firmware
@@ -215,19 +215,19 @@ export GLOVEBOX_DEFAULT_FIRMWARE=v25.05
 export GLOVEBOX_LOG_LEVEL=DEBUG
 
 # Run command with environment configuration
-glovebox keymap generate my_layout.json output/
+glovebox layout generate my_layout.json output/
 ```
 
 ## CLI Reference
 
-### Keymap Commands
+### Layout Commands
 
-#### `glovebox keymap generate`
+#### `glovebox layout generate`
 
 Generate ZMK keymap and config files from a JSON keymap file.
 
 ```bash
-glovebox keymap generate [OPTIONS] OUTPUT_FILE_PREFIX JSON_FILE
+glovebox layout generate [OPTIONS] OUTPUT_FILE_PREFIX JSON_FILE
 ```
 
 **Arguments:**
@@ -241,18 +241,18 @@ glovebox keymap generate [OPTIONS] OUTPUT_FILE_PREFIX JSON_FILE
 **Examples:**
 ```bash
 # Using a specific profile (keyboard/firmware)
-glovebox keymap generate output/glove80 layout.json --profile glove80/v25.05
+glovebox layout generate output/glove80 layout.json --profile glove80/v25.05
 
 # Reading from stdin
-cat layout.json | glovebox keymap generate output/glove80 - --profile glove80/v25.05
+cat layout.json | glovebox layout generate output/glove80 - --profile glove80/v25.05
 ```
 
-#### `glovebox keymap extract`
+#### `glovebox layout extract`
 
 Extract layers from a keymap file into individual layer files.
 
 ```bash
-glovebox keymap extract [OPTIONS] KEYMAP_FILE OUTPUT_DIR
+glovebox layout extract [OPTIONS] KEYMAP_FILE OUTPUT_DIR
 ```
 
 **Arguments:**
@@ -274,12 +274,12 @@ output_dir/
     └── ...
 ```
 
-#### `glovebox keymap merge`
+#### `glovebox layout merge`
 
 Merge layer files into a single keymap file.
 
 ```bash
-glovebox keymap merge [OPTIONS] INPUT_DIR
+glovebox layout merge [OPTIONS] INPUT_DIR
 ```
 
 **Arguments:**
@@ -289,12 +289,12 @@ glovebox keymap merge [OPTIONS] INPUT_DIR
 - `--output, -o`: Output keymap JSON file path
 - `--force`: Overwrite existing files
 
-#### `glovebox keymap show`
+#### `glovebox layout show`
 
 Display keymap layout in terminal.
 
 ```bash
-glovebox keymap show [OPTIONS] JSON_FILE
+glovebox layout show [OPTIONS] JSON_FILE
 ```
 
 **Arguments:**
@@ -303,12 +303,12 @@ glovebox keymap show [OPTIONS] JSON_FILE
 **Options:**
 - `--key-width, -w`: Width for displaying each key (default: 10)
 
-#### `glovebox keymap validate`
+#### `glovebox layout validate`
 
 Validate keymap syntax and structure.
 
 ```bash
-glovebox keymap validate JSON_FILE
+glovebox layout validate JSON_FILE
 ```
 
 **Arguments:**

@@ -4,25 +4,25 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from glovebox.models.keymap import (
+from glovebox.layout.models import (
     ConfigParameter,
-    KeymapBinding,
-    KeymapData,
-    KeymapParam,
+    LayoutBinding,
+    LayoutData,
+    LayoutParam,
 )
 
 
 def test_generate_keymap_dtsi():
     """Test the generation of keymap DTSI content."""
     # Create a test keymap data object
-    keymap_data = KeymapData(
+    keymap_data = LayoutData(
         keyboard="test_keyboard",
         uuid="test-uuid",
         title="Test Keymap",
         layer_names=["DEFAULT"],
         layers=[
             [
-                KeymapBinding(value="&kp", params=[KeymapParam(value="A")])
+                LayoutBinding(value="&kp", params=[LayoutParam(value="A")])
                 for _ in range(80)
             ]
         ],
@@ -81,14 +81,14 @@ def test_generate_keymap_dtsi():
 def test_generate_kconfig_conf():
     """Test the generation of kconfig content."""
     # Create a test keymap data object
-    keymap_data = KeymapData(
+    keymap_data = LayoutData(
         keyboard="test_keyboard",
         uuid="test-uuid",
         title="Test Keymap",
         layer_names=["DEFAULT"],
         layers=[
             [
-                KeymapBinding(value="&kp", params=[KeymapParam(value="A")])
+                LayoutBinding(value="&kp", params=[LayoutParam(value="A")])
                 for _ in range(80)
             ]
         ],
@@ -114,7 +114,7 @@ def test_generate_kconfig_conf():
         lines = []
         user_options: dict[str, str] = {}
 
-        # Extract user config_parameters (kconfig) options from KeymapData
+        # Extract user config_parameters (kconfig) options from LayoutData
         for opt in keymap_data.config_parameters:
             line = ""
             if opt.param_name.startswith("CONFIG_"):
@@ -156,7 +156,7 @@ def test_generate_kconfig_conf():
 def test_generate_behaviors_dtsi():
     """Test the generation of behaviors DTSI content."""
     # Create a test keymap data object
-    keymap_data = KeymapData(
+    keymap_data = LayoutData(
         keyboard="test_keyboard",
         uuid="test-uuid",
         title="Test Keymap",
@@ -211,7 +211,7 @@ def test_generate_behaviors_dtsi():
 def test_generate_device_dtsi():
     """Test the generation of device DTSI content."""
     # Create a test keymap data object
-    keymap_data = KeymapData(
+    keymap_data = LayoutData(
         keyboard="test_keyboard",
         uuid="test-uuid",
         title="Test Keymap",

@@ -10,13 +10,13 @@ from typing import TYPE_CHECKING, Any
 
 from glovebox.core.errors import ConfigError
 from glovebox.core.logging import get_logger
+from glovebox.layout.models import LayoutData
 from glovebox.models import (
     FirmwareConfig,
     KConfigOption,
     KeyboardConfig,
     SystemBehavior,
 )
-from glovebox.models.keymap import KeymapData
 
 # Use the protocol directly
 from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
@@ -131,12 +131,12 @@ class KeyboardProfile:
     #         # Default to string type
     #         return str(value)
 
-    def extract_behavior_codes(self, keymap_data: KeymapData) -> list[str]:
+    def extract_behavior_codes(self, keymap_data: LayoutData) -> list[str]:
         """
         Extract behavior codes used in a keymap.
 
         Args:
-            keymap_data: KeymapData object with layers and behaviors
+            keymap_data: LayoutData object with layers and behaviors
 
         Returns:
             List of behavior codes used in the keymap
