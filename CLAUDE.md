@@ -2,6 +2,29 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project Overview
+
+**Glovebox** is a comprehensive tool for ZMK keyboard firmware management that transforms keyboard layouts through a multi-stage pipeline:
+
+```
+Layout Editor → JSON File → ZMK Files → Firmware → Flash
+  (Design)    →  (.json)  → (.keymap + .conf) → (.uf2) → (Keyboard)
+```
+
+### Key File Formats:
+- **`.json`** - Human-readable keyboard layout from Layout Editor
+- **`.keymap`** - **ZMK Device Tree Source Interface (DTSI)** files defining keyboard behavior
+- **`.conf`** - ZMK Kconfig options for firmware features  
+- **`.uf2`** - Compiled firmware binary for flashing
+
+### Core Architecture:
+- **Service Layer**: Business logic (KeymapService, BuildService, FlashService)
+- **Adapter Pattern**: External interfaces (Docker, USB, File, Template, Config)
+- **Configuration System**: Type-safe profiles combining keyboard + firmware configs
+- **Cross-Platform**: OS abstraction for USB device detection and flashing
+
+The keymap domain handles complex JSON→DTSI conversion with behaviors like macros, hold-taps, combos, and component extraction/merging.
+
 ## CRITICAL: Code Convention Enforcement
 
 **MANDATORY REQUIREMENTS - MUST BE FOLLOWED WITHOUT EXCEPTION:**

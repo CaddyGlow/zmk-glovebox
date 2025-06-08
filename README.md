@@ -12,6 +12,22 @@ A comprehensive tool for ZMK keyboard firmware management, supporting multiple k
 - **Layout Visualization**: Display keyboard layouts in terminal
 - **Behavior Management**: Keyboard-specific behavior registration and validation
 
+## How It Works
+
+Glovebox transforms keyboard layouts through a multi-stage pipeline:
+
+```
+Layout Editor → JSON File → ZMK Files → Firmware → Flash
+  (Design)    →  (.json)  → (.keymap + .conf) → (.uf2) → (Keyboard)
+```
+
+1. **Design**: Create layouts using the [Glove80 Layout Editor](https://my.glove80.com/#/edit)
+2. **Generate**: Convert JSON to ZMK Device Tree Source (`.keymap`) and config (`.conf`) files
+3. **Build**: Compile ZMK files into firmware binary (`.uf2`)
+4. **Flash**: Transfer firmware to your keyboard via USB
+
+The `.keymap` files use ZMK's Device Tree Source Interface (DTSI) format to define keyboard behavior at the firmware level.
+
 ## Supported Keyboards
 
 - **Glove80**: Full support with MoErgo Docker build chain

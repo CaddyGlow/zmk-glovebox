@@ -2,6 +2,31 @@
 
 This document explains the keymap file format, processing flow, and the relationships between different file types in the Glovebox system.
 
+## Overview
+
+Glovebox processes keyboard layouts through a multi-stage pipeline that transforms human-readable JSON into ZMK firmware:
+
+```
+JSON Layout → ZMK Files → Firmware Binary
+   (.json)   →  (.keymap + .conf)  →  (.uf2)
+```
+
+### File Format Summary
+
+| Format | Type | Purpose | Content |
+|--------|------|---------|---------|
+| **`.json`** | Input | Human-readable layout | Complete keyboard definition from Layout Editor |
+| **`.keymap`** | ZMK Build | Device Tree Source | ZMK DTSI format with layers, behaviors, macros |
+| **`.conf`** | ZMK Build | Configuration | Kconfig options for firmware features |
+| **`.uf2`** | Output | Firmware Binary | Compiled firmware ready for flashing |
+
+### Key Technical Details
+
+- **`.keymap` files are ZMK Device Tree Source Interface (DTSI) files**
+- Device Tree syntax defines keyboard behavior at the firmware level
+- JSON → DTSI conversion handles complex behaviors (macros, hold-taps, combos)
+- Modular component system supports layer extraction and merging
+
 ## Keymap File Types
 
 Glovebox works with several file types throughout the keymap processing and firmware build flow:
