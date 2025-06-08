@@ -10,7 +10,8 @@ if TYPE_CHECKING:
 
 from glovebox.adapters.file_adapter import create_file_adapter
 from glovebox.adapters.template_adapter import create_template_adapter
-from glovebox.builders.template_context_builder import create_template_context_builder
+
+# Template context building moved to layout/utils.py as build_template_context()
 from glovebox.core.errors import LayoutError
 from glovebox.layout.behavior.analysis import register_layout_behaviors
 from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
@@ -56,7 +57,6 @@ class LayoutService(BaseServiceImpl):
         dtsi_generator: ZmkFileContentGenerator,
         component_service: LayoutComponentService,
         layout_service: LayoutDisplayService,
-        context_builder: Any,
     ):
         """Initialize layout service with all dependencies explicitly provided."""
         super().__init__(service_name="LayoutService", service_version="1.0.0")
@@ -69,7 +69,6 @@ class LayoutService(BaseServiceImpl):
         self._dtsi_generator = dtsi_generator
         self._component_service = component_service
         self._layout_service = layout_service
-        self._context_builder = context_builder
 
     # File-based public methods
 
@@ -198,7 +197,6 @@ class LayoutService(BaseServiceImpl):
             # Generate config file (.conf)
             generate_config_file(
                 self._file_adapter,
-                self._dtsi_generator,
                 profile,
                 keymap_data,
                 output_paths.conf,
@@ -209,7 +207,7 @@ class LayoutService(BaseServiceImpl):
             generate_keymap_file(
                 self._file_adapter,
                 self._template_adapter,
-                self._context_builder,
+                self._dtsi_generator,
                 keymap_data,
                 profile,
                 output_paths.keymap,
@@ -310,7 +308,6 @@ def create_layout_service(
     layout_service: LayoutDisplayService | None = None,
     behavior_formatter: BehaviorFormatterImpl | None = None,
     dtsi_generator: ZmkFileContentGenerator | None = None,
-    context_builder: Any | None = None,
 ) -> LayoutService:
     """Create a LayoutService instance with optional dependency injection."""
     logger.debug(
@@ -340,9 +337,6 @@ def create_layout_service(
     if layout_service is None:
         layout_service = create_layout_display_service()
 
-    if context_builder is None:
-        context_builder = create_template_context_builder(dtsi_generator)
-
     # Create service instance with all dependencies
     return LayoutService(
         file_adapter=file_adapter,
@@ -352,5 +346,4 @@ def create_layout_service(
         dtsi_generator=dtsi_generator,
         component_service=component_service,
         layout_service=layout_service,
-        context_builder=context_builder,
     )

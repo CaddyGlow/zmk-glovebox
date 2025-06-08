@@ -3,6 +3,7 @@
 import json
 import logging
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -141,7 +142,6 @@ def validate_keymap_data(json_data: dict[str, Any]) -> LayoutData:
 
 def generate_config_file(
     file_adapter: FileAdapterProtocol,
-    dtsi_generator: "ZmkFileContentGenerator",
     profile: "KeyboardProfile",
     keymap_data: LayoutData,
     output_path: Path,
@@ -150,7 +150,6 @@ def generate_config_file(
 
     Args:
         file_adapter: File adapter for writing files
-        dtsi_generator: Generator for creating configuration content
         profile: Keyboard profile with configuration
         keymap_data: Layout data for configuration generation
         output_path: Path to write the configuration file
@@ -160,10 +159,8 @@ def generate_config_file(
     """
     logger.info("Generating Kconfig .conf file...")
 
-    # Use the ZmkFileContentGenerator to generate the config
-    conf_content, kconfig_settings = dtsi_generator.generate_kconfig_conf(
-        keymap_data, profile
-    )
+    # Generate the config using the function
+    conf_content, kconfig_settings = generate_kconfig_conf(keymap_data, profile)
 
     # Write the config file
     file_adapter.write_text(output_path, conf_content)
@@ -171,10 +168,140 @@ def generate_config_file(
     return kconfig_settings
 
 
+def build_template_context(
+    keymap_data: LayoutData,
+    profile: "KeyboardProfile",
+    dtsi_generator: "ZmkFileContentGenerator",
+) -> dict[str, Any]:
+    """Build template context with generated DTSI content.
+
+    Args:
+        keymap_data: Keymap data model
+        profile: Keyboard profile with configuration
+        dtsi_generator: DTSI generator for creating template content
+
+    Returns:
+        Dictionary with template context
+    """
+    # Extract data for generation with fallback to empty lists
+    layer_names = keymap_data.layer_names
+    layers_data = keymap_data.layers
+    hold_taps_data = keymap_data.hold_taps
+    combos_data = keymap_data.combos
+    macros_data = keymap_data.macros
+    input_listeners_data = getattr(keymap_data, "input_listeners", [])
+
+    # Get resolved includes from the profile
+    resolved_includes = []
+    if (
+        hasattr(profile.keyboard_config.keymap, "includes")
+        and profile.keyboard_config.keymap.includes is not None
+    ):
+        resolved_includes = profile.keyboard_config.keymap.includes
+
+    # Generate DTSI components
+    layer_defines = dtsi_generator.generate_layer_defines(profile, layer_names)
+    keymap_node = dtsi_generator.generate_keymap_node(profile, layer_names, layers_data)
+    behaviors_dtsi = dtsi_generator.generate_behaviors_dtsi(profile, hold_taps_data)
+    combos_dtsi = dtsi_generator.generate_combos_dtsi(profile, combos_data, layer_names)
+    macros_dtsi = dtsi_generator.generate_macros_dtsi(profile, macros_data)
+    input_listeners_dtsi = dtsi_generator.generate_input_listeners_node(
+        profile, input_listeners_data
+    )
+
+    # Get template elements from the keyboard profile
+    key_position_header = (
+        profile.keyboard_config.keymap.key_position_header
+        if hasattr(profile.keyboard_config.keymap, "key_position_header")
+        else ""
+    )
+    system_behaviors_dts = (
+        profile.keyboard_config.keymap.system_behaviors_dts
+        if hasattr(profile.keyboard_config.keymap, "system_behaviors_dts")
+        else ""
+    )
+
+    # Profile identifiers
+    profile_name = f"{profile.keyboard_name}/{profile.firmware_version}"
+    firmware_version = profile.firmware_version
+
+    # Build and return the template context with defaults for missing values
+    context = {
+        "keyboard": keymap_data.keyboard,
+        "layer_names": layer_names,
+        "layers": layers_data,
+        "layer_defines": layer_defines,
+        "keymap_node": keymap_node,
+        "user_behaviors_dtsi": behaviors_dtsi,
+        "combos_dtsi": combos_dtsi,
+        "input_listeners_dtsi": input_listeners_dtsi,
+        "user_macros_dtsi": macros_dtsi,
+        "resolved_includes": "\n".join(resolved_includes),
+        "key_position_header": key_position_header,
+        "system_behaviors_dts": system_behaviors_dts,
+        "custom_defined_behaviors": keymap_data.custom_defined_behaviors or "",
+        "custom_devicetree": keymap_data.custom_devicetree or "",
+        "profile_name": profile_name,
+        "firmware_version": firmware_version,
+        "generation_timestamp": datetime.now().isoformat(),
+    }
+
+    return context
+
+
+def generate_kconfig_conf(
+    keymap_data: LayoutData,
+    profile: "KeyboardProfile",
+) -> tuple[str, dict[str, str]]:
+    """Generate kconfig content and settings from keymap data.
+
+    Args:
+        keymap_data: Keymap data with configuration parameters
+        profile: Keyboard profile with kconfig options
+
+    Returns:
+        Tuple of (kconfig_content, kconfig_settings)
+    """
+    logger.info("Generating kconfig configuration")
+
+    kconfig_options = profile.kconfig_options
+    user_options: dict[str, str] = {}
+
+    lines = []
+
+    # Extract user config_parameters (kconfig) options from LayoutData
+    for opt in keymap_data.config_parameters:
+        line = ""
+        if opt.param_name in kconfig_options:
+            # get the real option name
+            name = kconfig_options[opt.param_name].name
+            if opt.value == kconfig_options[opt.param_name].default:
+                # TODO: rewrite this comment
+                # check if the user is setting same value as default
+                # in that case, we set it but in comment
+                # that allows the user to switch more easily firmware
+                # without changing the kconfig
+                line = "# "
+        else:
+            name = opt.param_name
+            if not name.startswith("CONFIG_"):
+                name = "CONFIG_" + name
+
+        line += f"{name}={opt.value}"
+        lines.append(line)
+
+    # Generate formatted kconfig content
+    lines.append("# Generated ZMK configuration")
+    lines.append("")
+
+    kconfig_content = "\n".join(lines)
+    return kconfig_content, user_options
+
+
 def generate_keymap_file(
     file_adapter: FileAdapterProtocol,
     template_adapter: Any,
-    context_builder: Any,
+    dtsi_generator: "ZmkFileContentGenerator",
     keymap_data: LayoutData,
     profile: "KeyboardProfile",
     output_path: Path,
@@ -184,7 +311,7 @@ def generate_keymap_file(
     Args:
         file_adapter: File adapter for writing files
         template_adapter: Template adapter for rendering
-        context_builder: Builder for template context
+        dtsi_generator: DTSI generator for creating template content
         keymap_data: Layout data for keymap generation
         profile: Keyboard profile with configuration
         output_path: Path to write the keymap file
@@ -198,8 +325,8 @@ def generate_keymap_file(
         profile.firmware_version,
     )
 
-    # Build template context using the context builder
-    context = context_builder.build_context(keymap_data, profile)
+    # Build template context using the function
+    context = build_template_context(keymap_data, profile, dtsi_generator)
 
     # Get template content from keymap configuration
     template_content = profile.keyboard_config.keymap.keymap_dtsi

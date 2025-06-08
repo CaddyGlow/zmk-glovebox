@@ -49,7 +49,6 @@ def keymap_service():
     dtsi_generator = Mock()
     component_service = Mock()
     layout_service = Mock()
-    context_builder = Mock()
 
     # Generate mock config
     dtsi_generator.generate_kconfig_conf.return_value = ("// Config content", {})
@@ -62,7 +61,6 @@ def keymap_service():
         dtsi_generator=dtsi_generator,
         component_service=component_service,
         layout_service=layout_service,
-        context_builder=context_builder,
     )
 
     # Add test-only attributes to store references to the mocks
@@ -77,7 +75,6 @@ def keymap_service():
     service.mock_dtsi_generator = dtsi_generator  # type: ignore
     service.mock_component_service = component_service  # type: ignore
     service.mock_layout_service = layout_service  # type: ignore
-    service.mock_context_builder = context_builder  # type: ignore
 
     yield service
 
@@ -182,7 +179,6 @@ class TestLayoutServiceWithKeyboardConfig:
         self.mock_dtsi_generator = Mock()
         self.mock_component_service = Mock()
         self.mock_layout_service = Mock()
-        self.mock_context_builder = Mock()
 
         # Create the service
         self.service = LayoutService(
@@ -193,7 +189,6 @@ class TestLayoutServiceWithKeyboardConfig:
             dtsi_generator=self.mock_dtsi_generator,
             component_service=self.mock_component_service,
             layout_service=self.mock_layout_service,
-            context_builder=self.mock_context_builder,
         )
 
     def test_validate_config_success(self, sample_keymap_json):
@@ -458,6 +453,7 @@ class TestLayoutServiceWithMockedConfig:
         mock_profile.keyboard_config.keymap.keymap_dtsi = "// Template content"
         mock_profile.keyboard_config.keymap.key_position_header = "// Key positions"
         mock_profile.keyboard_config.keymap.system_behaviors_dts = "// Behaviors"
+        mock_profile.keyboard_config.keymap.includes = []
 
         # Create mock formatting
         mock_profile.keyboard_config.keymap.formatting = Mock()
@@ -493,7 +489,6 @@ class TestLayoutServiceWithMockedConfig:
                         dtsi_generator = Mock()
                         component_service = Mock()
                         layout_service = Mock()
-                        context_builder = Mock()
 
                         # Configure mocks
                         with patch.object(
@@ -509,7 +504,6 @@ class TestLayoutServiceWithMockedConfig:
                                 dtsi_generator=dtsi_generator,
                                 component_service=component_service,
                                 layout_service=layout_service,
-                                context_builder=context_builder,
                             )
 
                             # Convert to LayoutData

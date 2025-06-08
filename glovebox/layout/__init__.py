@@ -32,9 +32,6 @@ from glovebox.layout.behavior import (
 from glovebox.layout.component_service import create_layout_component_service
 from glovebox.layout.display_service import create_layout_display_service
 from glovebox.layout.formatting import create_grid_layout_formatter
-
-# from glovebox.layout.generator import create_layout_generator  # Module missing
-from glovebox.layout.kconfig_generator import create_kconfig_generator
 from glovebox.layout.models import (
     BehaviorList,
     ComboBehavior,
@@ -61,8 +58,6 @@ from glovebox.layout.zmk_generator import create_zmk_file_generator
 if TYPE_CHECKING:
     from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
     from glovebox.layout.display_service import LayoutDisplayService
-
-    # from glovebox.layout.generator import LayoutGenerator  # Module missing
     from glovebox.layout.service import LayoutService
 
 
@@ -99,10 +94,8 @@ __all__ = [
     "create_layout_service",
     "create_layout_component_service",
     "create_layout_display_service",
-    # "create_layout_generator",  # Module missing
     "create_grid_layout_formatter",
     "create_zmk_file_generator",
-    "create_kconfig_generator",
     "create_behavior_registry",
     # Behavior analysis functions
     "extract_behavior_codes_from_layout",

@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 
 from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
 from glovebox.layout.formatting import GridLayoutFormatter
-from glovebox.layout.kconfig_generator import KConfigGenerator
 from glovebox.layout.models import (
     ComboBehavior,
     HoldTapBehavior,
@@ -16,6 +15,7 @@ from glovebox.layout.models import (
     MacroBehavior,
     SystemBehavior,
 )
+from glovebox.layout.utils import generate_kconfig_conf
 
 
 if TYPE_CHECKING:
@@ -38,7 +38,6 @@ class ZmkFileContentGenerator:
         self._behavior_formatter = behavior_formatter
         self._behavior_registry = behavior_formatter._registry
         self._layout_formatter = GridLayoutFormatter()
-        self._kconfig_generator = KConfigGenerator()
 
     def generate_layer_defines(
         self, profile: "KeyboardProfile", layer_names: list[str]
@@ -511,8 +510,6 @@ class ZmkFileContentGenerator:
     ) -> tuple[str, dict[str, str]]:
         """Generate kconfig content and settings from keymap data.
 
-        Delegates to KConfigGenerator for backward compatibility.
-
         Args:
             keymap_data: Keymap data with configuration parameters
             profile: Keyboard profile with kconfig options
@@ -520,7 +517,7 @@ class ZmkFileContentGenerator:
         Returns:
             Tuple of (kconfig_content, kconfig_settings)
         """
-        return self._kconfig_generator.generate_kconfig_conf(keymap_data, profile)
+        return generate_kconfig_conf(keymap_data, profile)
 
     def _indent_array(self, lines: list[str], indent: str = "    ") -> list[str]:
         """Indent all lines in an array with the specified indent string."""
