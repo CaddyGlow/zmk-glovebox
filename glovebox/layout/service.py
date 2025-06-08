@@ -30,7 +30,6 @@ from glovebox.models.build import OutputPaths
 from glovebox.models.results import LayoutResult
 from glovebox.protocols import FileAdapterProtocol, TemplateAdapterProtocol
 from glovebox.protocols.behavior_protocols import (
-    BehaviorRegistry,
     BehaviorRegistryProtocol,
 )
 from glovebox.services.base_service import BaseServiceImpl

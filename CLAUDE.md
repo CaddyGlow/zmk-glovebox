@@ -18,12 +18,13 @@ Layout Editor → JSON File → ZMK Files → Firmware → Flash
 - **`.uf2`** - Compiled firmware binary for flashing
 
 ### Core Architecture:
-- **Service Layer**: Business logic (KeymapService, BuildService, FlashService)
+- **Domain-Driven Design**: Business logic organized by domains (layout, flash, behavior)
+- **Service Layer**: Domain services with single responsibility 
 - **Adapter Pattern**: External interfaces (Docker, USB, File, Template, Config)
 - **Configuration System**: Type-safe profiles combining keyboard + firmware configs
 - **Cross-Platform**: OS abstraction for USB device detection and flashing
 
-The keymap domain handles complex JSON→DTSI conversion with behaviors like macros, hold-taps, combos, and component extraction/merging.
+The layout domain handles complex JSON→DTSI conversion with behaviors like macros, hold-taps, combos, and component extraction/merging.
 
 ## CRITICAL: Code Convention Enforcement
 
@@ -139,10 +140,10 @@ python -m glovebox.cli [command]
 # or with uv:
 uv run python -m glovebox.cli [command]
 
-# Build a keymap
-glovebox keymap compile my_layout.json output/my_keymap --profile glove80/v25.05
+# Build a layout
+glovebox layout compile my_layout.json output/my_layout --profile glove80/v25.05
 # or with uv:
-uv run glovebox keymap compile my_layout.json output/my_keymap --profile glove80/v25.05
+uv run glovebox layout compile my_layout.json output/my_layout --profile glove80/v25.05
 
 # Build firmware
 glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
@@ -167,10 +168,10 @@ pytest --cov=glovebox --cov-report=html
 pytest --cov=glovebox --cov-report=xml
 
 # Run a specific test file
-pytest tests/test_services/test_keymap_service_config.py
+pytest tests/test_services/test_layout_service.py
 
 # Run a specific test function
-pytest tests/test_services/test_keymap_service_config.py::test_function_name
+pytest tests/test_services/test_layout_service.py::test_function_name
 
 # Run CLI tests
 pytest tests/test_cli/test_command_execution.py
@@ -238,14 +239,36 @@ mcp__language-server__rename_symbol
 
 Glovebox is a comprehensive tool for ZMK keyboard firmware management with a clean, modular architecture:
 
-### Core Structure
+### Domain-Driven Structure
 
-- **Service Layer**: Business logic with single responsibility classes
-  - `KeymapService`: Handles keymap operations
-  - `BuildService`: Manages firmware building
-  - `FlashService`: Controls device detection and firmware flashing
-  - `DisplayService`: Renders keyboard layouts in the terminal
-  - `KeymapFileService`: Manages keymap file operations
+The codebase is organized into self-contained domains, each owning their models, services, and business logic:
+
+#### Layout Domain (`glovebox/layout/`)
+- **Purpose**: Keyboard layout processing, JSON→DTSI conversion, component operations
+- **Components**:
+  - `LayoutService`: Main layout operations (generate, validate, compile)
+  - `LayoutComponentService`: Layer extraction and merging operations
+  - `LayoutDisplayService`: Layout visualization and terminal display
+  - `LayoutGenerator`: Layout formatting and view generation
+  - `LayoutData`, `LayoutBinding`, `LayoutLayer`: Core layout models
+- **Factory Functions**: `create_layout_service()`, `create_layout_display_service()`
+
+#### Flash Domain (`glovebox/flash/`)
+- **Purpose**: Firmware flashing, USB device operations, cross-platform support
+- **Components**:
+  - `FlashService`: Main flash operations (flash devices, list devices)
+  - `DeviceDetector`: USB device detection and monitoring
+  - `FlashOperations`: Low-level mount/unmount operations  
+  - `FlashResult`: Flash operation results and device tracking
+  - `BlockDevice`: USB device models and metadata
+- **Factory Functions**: `create_flash_service()`, `create_device_detector()`
+
+#### Core Services (`glovebox/services/`)
+- **Purpose**: Cross-domain services and base patterns
+- **Components**:
+  - `BuildService`: Firmware compilation using Docker
+  - `BehaviorService`: Behavior registry and management
+  - `BaseService`: Common service patterns and interfaces
 
 - **Adapter Pattern**: External system interfaces
   - `DockerAdapter`: Docker interaction for builds
@@ -254,35 +277,72 @@ Glovebox is a comprehensive tool for ZMK keyboard firmware management with a cle
   - `TemplateAdapter`: Template rendering
   - `ConfigFileAdapter`: Configuration file loading and saving with type safety
 
-- **Configuration System**: Comprehensive type-safe configuration system
-  - **Pydantic Models**:
-    - `UserConfigData`: User settings model with validation
-    - `KeymapConfigData`: Keymap file format model with validation
-  - **Dataclasses**:
-    - Typed dataclasses for keyboard and firmware configurations
-    - `KeyboardConfig`, `FirmwareConfig`, etc.
-  - **Profile System**:
-    - `KeyboardProfile` combines keyboard and firmware configurations
-    - Provides unified access to all configuration options
-  - **Multi-source Configuration**:
-    - Environment variables, global config, local config
-    - Clear precedence rules
-    - Simple property-based access
-  - **File Formats**:
-    - YAML for keyboard/firmware configurations
-    - JSON for keymap files
+#### Configuration System (`glovebox/config/`)
+- **Purpose**: Type-safe configuration management, keyboard profiles, user settings
+- **Components**:
+  - `KeyboardProfile`: Unified keyboard + firmware configuration access
+  - `UserConfig`: User preferences and environment settings
+  - `UserConfigData`: Pydantic model for user settings validation
+  - Configuration loading and caching with YAML support
+- **Key Features**:
+  - Multi-source configuration (environment variables, global config, local config)
+  - Clear precedence rules and validation
+  - Profile-based keyboard + firmware combinations
 
-- **Build Chains**: Pluggable build system for different toolchains all based on ZMK
+#### Core Models (`glovebox/models/`)
+- **Purpose**: Core data models shared across domains
+- **Components**:
+  - `config.py`: Configuration models (`KeyboardConfig`, `FirmwareConfig`, etc.)
+  - `behavior.py`: Behavior and registry models (`SystemBehavior`, etc.)
+  - `results.py`: Operation results (`BuildResult`, `LayoutResult`, etc.)
+  - `build.py`: Build artifacts and output models
+  - `options.py`: Service option models
+
+#### Generators (`glovebox/generators/`)
+- **Purpose**: Multi-domain code generation utilities
+- **Components**:
+  - `DTSIGenerator`: Cross-domain DTSI file generation from layouts, behaviors, and configs
+
+### Domain Import Patterns
+
+**IMPORTANT**: The codebase uses clean domain boundaries with no backward compatibility layers.
+
+#### Correct Import Patterns:
+```python
+# Domain-specific models from their domains
+from glovebox.layout.models import LayoutData, LayoutBinding
+from glovebox.flash.models import FlashResult, BlockDevice
+
+# Core models from models package
+from glovebox.models.config import KeyboardConfig, FirmwareConfig
+from glovebox.models.results import BuildResult, LayoutResult
+from glovebox.models.behavior import SystemBehavior
+
+# Domain services from their domains
+from glovebox.layout import create_layout_service
+from glovebox.flash import create_flash_service
+
+# Configuration from config package
+from glovebox.config import create_keyboard_profile, KeyboardProfile
+```
+
+#### Forbidden Patterns:
+```python
+# ❌ NO backward compatibility imports
+from glovebox.models import FlashResult  # FlashResult is in flash domain
+from glovebox.models import LayoutData   # LayoutData is in layout domain
+from glovebox.config.models import KeyboardConfig  # File removed
+```
 
 ### Key Design Patterns
 
-1. **Simplicity First**: Functions over classes when state isn't needed
-2. **Minimal Dependencies**: Carefully selected external libraries
-3. **Clear Error Handling**: Specific exceptions with context
-4. **Service Oriented**: Business logic organized by feature areas
-5. **File Organization**: Logical size limits and function grouping
-6. **Dependency Injection**: Services accept dependencies rather than creating them
-7. **Factory Functions**: Simplify creation of properly configured services
+1. **Domain-Driven Design**: Business logic organized by domains with clear boundaries
+2. **Factory Functions**: Consistent creation patterns for all services and components
+3. **Protocol-Based Interfaces**: Type-safe abstractions with runtime checking
+4. **Dependency Injection**: Services accept dependencies rather than creating them
+5. **Domain Ownership**: Each domain owns its models, services, and business logic
+6. **Clean Imports**: No backward compatibility layers - single source of truth for imports
+7. **Simplicity First**: Functions over classes when state isn't needed
 
 ### Key Configuration Patterns
 
@@ -306,7 +366,7 @@ The KeyboardProfile pattern is a central concept in the architecture:
 3. **Service Usage**:
    ```python
    # Service methods accept profile
-   result = keymap_service.compile(profile, json_data, target_prefix)
+   result = layout_service.generate(profile, json_data, target_prefix)
    ```
 
 4. **Configuration Access**:
@@ -369,10 +429,10 @@ glovebox [command] [subcommand] [--profile KEYBOARD/FIRMWARE] [options]
 ```
 
 For example:
-- `glovebox keymap compile my_layout.json output/my_keymap --profile glove80/v25.05`
+- `glovebox layout compile my_layout.json output/my_keymap --profile glove80/v25.05`
 - `glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05`
 - `glovebox firmware flash firmware.uf2 --profile glove80/v25.05`
-- `glovebox keymap show my_layout.json --profile glove80/v25.05`
+- `glovebox layout show my_layout.json --profile glove80/v25.05`
 
 ### OS Abstraction Layer for Flash Operations
 
@@ -480,7 +540,7 @@ This project is maintained by a small team (2-3 developers), so:
 4. **Focused Changes**: Keep changes small and targeted rather than large refactors
    - Make incremental improvements that are easy to review
    - Test changes thoroughly before committing
-   - Maintain backward compatibility whenever possible
+   - Prefer clean breaks over maintaining legacy compatibility
 
 5. **Comment Rationale**: Document WHY something is done a certain way, not just what it does
    - Explain complex logic or non-obvious design decisions
@@ -553,9 +613,9 @@ This project is maintained by a small team (2-3 developers), so:
 
 ### Before Working on Code
 
-1. Always read and understand the model classes in `glovebox/models/` to understand the data structures
-2. Check `glovebox/config/models.py` for configuration data structures
-3. Read the `docs/keymap_file_format.md` document to understand the keymap file format
+1. Always read and understand the model classes in `glovebox/models/` to understand the core data structures
+2. Check the appropriate domain models (`glovebox/layout/models.py`, `glovebox/flash/models.py`) for domain-specific structures
+3. Read the `docs/keymap_file_format.md` document to understand the layout file format
 
 ### Before Committing
 

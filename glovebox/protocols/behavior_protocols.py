@@ -20,7 +20,3 @@ class BehaviorRegistryProtocol(Protocol):
     def list_behaviors(self) -> dict[str, Any]:
         """List all registered behaviors."""
         ...
-
-
-# Type alias for backwards compatibility
-BehaviorRegistry = BehaviorRegistryProtocol

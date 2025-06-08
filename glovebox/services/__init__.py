@@ -1,7 +1,6 @@
 """Services package for unified business logic services."""
 
 from glovebox.protocols.behavior_protocols import (
-    BehaviorRegistry,
     BehaviorRegistryProtocol,
 )
 
@@ -15,7 +14,6 @@ __all__ = [
     "BaseService",
     "BaseServiceImpl",
     # Protocol types
-    "BehaviorRegistry",
     "BehaviorRegistryProtocol",
     # Service implementations
     "BehaviorRegistryImpl",

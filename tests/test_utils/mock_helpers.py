@@ -6,7 +6,11 @@ from pathlib import Path
 from typing import Any, Optional, Protocol, Union
 from unittest.mock import Mock, patch
 
-from glovebox.config.models import (
+from glovebox.config.profile import KeyboardProfile
+from glovebox.flash.models import FlashResult
+from glovebox.models import SystemBehavior
+from glovebox.models.build import FirmwareOutputFiles
+from glovebox.models.config import (
     BuildConfig,
     BuildOptions,
     FirmwareConfig,
@@ -16,10 +20,6 @@ from glovebox.config.models import (
     KeyboardConfig,
     KeymapSection,
 )
-from glovebox.config.profile import KeyboardProfile
-from glovebox.flash.models import FlashResult
-from glovebox.models import SystemBehavior
-from glovebox.models.build import FirmwareOutputFiles
 from glovebox.models.results import BuildResult, LayoutResult
 
 
@@ -81,12 +81,6 @@ def create_mock_layout_result(
             result.errors.append(error)
 
     return result
-
-
-# Backward compatibility alias
-def create_mock_keymap_result(*args, **kwargs) -> LayoutResult:
-    """Backward compatibility alias for create_mock_layout_result."""
-    return create_mock_layout_result(*args, **kwargs)
 
 
 def create_mock_flash_result(

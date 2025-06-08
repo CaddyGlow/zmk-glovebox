@@ -5,12 +5,12 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from glovebox.config.models import KConfigOption, KeyboardConfig, KeymapSection
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import LayoutError
 from glovebox.layout.models import LayoutData
 from glovebox.layout.service import LayoutService
 from glovebox.models.behavior import SystemBehavior
+from glovebox.models.config import KConfigOption, KeyboardConfig, KeymapSection
 from glovebox.models.results import LayoutResult
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.protocols.template_adapter_protocol import TemplateAdapterProtocol

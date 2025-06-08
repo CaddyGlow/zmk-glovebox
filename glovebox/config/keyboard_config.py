@@ -68,10 +68,6 @@ def initialize_search_paths(user_config: Optional["UserConfig"] = None) -> list[
     return search_paths
 
 
-# Alias for backward compatibility
-_initialize_search_paths = initialize_search_paths
-
-
 def _find_keyboard_config_file(
     keyboard_name: str, user_config: Optional["UserConfig"] = None
 ) -> Path | None:

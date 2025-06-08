@@ -2,7 +2,8 @@
 
 from importlib.metadata import distribution
 
-from .models import BuildResult, FlashResult, KeymapResult
+from .flash.models import FlashResult
+from .models import BuildResult, KeymapResult
 
 
 __version__ = distribution(__package__ or "glovebox").version

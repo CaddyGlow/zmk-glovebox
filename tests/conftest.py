@@ -12,7 +12,11 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from glovebox.config.models import (
+from glovebox.config.profile import KeyboardProfile
+from glovebox.flash.models import FlashResult
+from glovebox.models import SystemBehavior
+from glovebox.models.build import FirmwareOutputFiles
+from glovebox.models.config import (
     BuildConfig,
     BuildOptions,
     FirmwareConfig,
@@ -22,10 +26,6 @@ from glovebox.config.models import (
     KeyboardConfig,
     KeymapSection,
 )
-from glovebox.config.profile import KeyboardProfile
-from glovebox.flash.models import FlashResult
-from glovebox.models import SystemBehavior
-from glovebox.models.build import FirmwareOutputFiles
 from glovebox.models.results import BuildResult, LayoutResult
 from glovebox.protocols import FileAdapterProtocol, TemplateAdapterProtocol
 
@@ -566,16 +566,11 @@ def mock_layout_service() -> Mock:
     extract_result = LayoutResult(success=True)
     mock.extract_components.return_value = extract_result
     mock.extract_components_from_file.return_value = extract_result
-    # For backward compatibility
-    mock.extract_layers = mock.extract_components
-    mock.extract_layers_from_file = mock.extract_components_from_file
 
     # Mock successful merge result
     merge_result = LayoutResult(success=True)
     mock.combine_components.return_value = merge_result
     mock.combine_components_from_directory.return_value = merge_result
-    # For backward compatibility
-    mock.merge_layers = mock.combine_components
 
     # Mock show result
     mock.show.return_value = ["Layer 1", "Layer 2"]
@@ -585,17 +580,7 @@ def mock_layout_service() -> Mock:
     mock.validate.return_value = True
     mock.validate_file.return_value = True
 
-    # For backward compatibility during testing
-    mock.compile = mock.generate
-    mock.compile_from_file = mock.generate_from_file
-
     return mock
-
-
-@pytest.fixture
-def mock_keymap_service(mock_layout_service) -> Mock:
-    """Backward compatibility alias for mock_layout_service."""
-    return mock_layout_service
 
 
 @pytest.fixture

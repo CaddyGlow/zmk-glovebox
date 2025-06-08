@@ -6,18 +6,6 @@ using YAML files for keyboard configurations and user preferences.
 """
 
 # Import configuration functions and modules
-# Re-export models from models package for backward compatibility
-from glovebox.models import (
-    BuildConfig,
-    BuildOptions,
-    FirmwareConfig,
-    FlashConfig,
-    FormattingConfig,
-    KConfigOption,
-    KeyboardConfig,
-    KeymapSection,
-    VisualLayout,
-)
 
 from .keyboard_config import (
     clear_cache,
@@ -43,14 +31,4 @@ __all__ = [
     "KeyboardProfile",
     "UserConfig",
     "create_user_config",
-    # Data models (re-exported from models package)
-    "BuildConfig",
-    "BuildOptions",
-    "FirmwareConfig",
-    "FlashConfig",
-    "FormattingConfig",
-    "KConfigOption",
-    "KeyboardConfig",
-    "KeymapSection",
-    "VisualLayout",
 ]
