@@ -8,14 +8,14 @@ This package contains all layout-related functionality including:
 
 
 # Lazy imports to avoid circular dependencies
-def create_layout_service(*args, **kwargs):
+def create_layout_service(*args, **kwargs):  # type: ignore[no-untyped-def]
     """Create a layout service instance."""
     from glovebox.layout.service import create_layout_service as _create_layout_service
 
     return _create_layout_service(*args, **kwargs)
 
 
-def create_layout_component_service(*args, **kwargs):
+def create_layout_component_service(*args, **kwargs):  # type: ignore[no-untyped-def]
     """Create a layout component service instance."""
     from glovebox.layout.component_service import (
         create_layout_component_service as _create_layout_component_service,

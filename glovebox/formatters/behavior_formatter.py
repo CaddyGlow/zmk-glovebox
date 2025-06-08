@@ -11,12 +11,10 @@ from glovebox.models.behavior import (
     SystemBehaviorParam,
     SystemParamList,
 )
+from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
 
 
 logger = logging.getLogger(__name__)
-
-
-from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
 
 
 class BehaviorFormatterImpl:

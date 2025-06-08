@@ -278,7 +278,7 @@ class TestLayoutServiceWithKeyboardConfig:
             with pytest.raises(LayoutError):
                 self.service.show(profile=self.mock_profile, keymap_data=keymap_data)
 
-    @patch("glovebox.services.keymap_service.prepare_output_paths")
+    @patch("glovebox.layout.service.prepare_output_paths")
     def test_generate_with_keyboard_config(
         self,
         mock_prepare_paths,
@@ -435,7 +435,7 @@ class TestLayoutServiceWithMockedConfig:
 
     @patch("glovebox.config.keyboard_config.create_keyboard_profile")
     @patch("glovebox.config.keyboard_config.get_available_keyboards")
-    @patch("glovebox.services.keymap_service.prepare_output_paths")
+    @patch("glovebox.layout.service.prepare_output_paths")
     def test_integrated_keymap_workflow(
         self,
         mock_prepare_paths,

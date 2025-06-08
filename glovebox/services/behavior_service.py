@@ -7,6 +7,7 @@ from ..models.behavior import (
     RegistryBehavior,
     SystemBehavior,
 )
+from ..protocols.behavior_protocols import BehaviorRegistryProtocol
 
 
 logger = logging.getLogger(__name__)
@@ -70,9 +71,6 @@ class BehaviorRegistryImpl:
         """Clear all registered behaviors."""
         logger.debug("Clearing all registered behaviors")
         self._behaviors.clear()
-
-
-from ..protocols.behavior_protocols import BehaviorRegistryProtocol
 
 
 def create_behavior_registry() -> BehaviorRegistryProtocol:

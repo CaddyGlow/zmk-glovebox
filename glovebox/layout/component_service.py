@@ -162,7 +162,7 @@ class LayoutComponentService(BaseServiceImpl):
             layout: Keymap data model
             output_layer_dir: Directory to write individual layer files
         """
-        from glovebox.models.layout import KeymapBinding
+        from glovebox.layout.models import LayoutBinding
 
         # Access layer data directly from the model
         layer_names = layout.layer_names
@@ -231,7 +231,7 @@ class LayoutComponentService(BaseServiceImpl):
             combined_layout: Base layout data model to which layers will be added
             layers_dir: Directory containing layer files
         """
-        from glovebox.models.layout import KeymapBinding, LayerBindings
+        from glovebox.layout.models import LayerBindings, LayoutBinding
 
         # Clear existing layers while preserving layer names
         combined_layout.layers = []
@@ -245,8 +245,8 @@ class LayoutComponentService(BaseServiceImpl):
 
         # Determine expected number of keys per layer
         num_keys = 80  # Default for Glove80
-        empty_binding = KeymapBinding(value="&none", params=[])
-        empty_layer = [KeymapBinding(value="&none", params=[]) for _ in range(num_keys)]
+        empty_binding = LayoutBinding(value="&none", params=[])
+        empty_layer = [LayoutBinding(value="&none", params=[]) for _ in range(num_keys)]
 
         found_layer_count = 0
 
@@ -295,13 +295,13 @@ class LayoutComponentService(BaseServiceImpl):
                         ]
                         actual_layer_content = padded_content[:num_keys]
 
-                    # Convert layer content to properly typed KeymapBinding models
+                    # Convert layer content to properly typed LayoutBinding models
                     # This ensures proper validation of the layer data
-                    typed_layer: list[KeymapBinding] = []
+                    typed_layer: list[LayoutBinding] = []
                     for binding_data in actual_layer_content:
                         try:
                             # Validate each binding with the model
-                            binding = KeymapBinding.model_validate(binding_data)
+                            binding = LayoutBinding.model_validate(binding_data)
                             typed_layer.append(binding)
                         except Exception as binding_err:
                             logger.warning(

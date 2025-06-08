@@ -1,7 +1,7 @@
 """Protocol definition for DTSI generator."""
 
 from collections.abc import Sequence
-from typing import Protocol, TypeAlias, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, TypeAlias, runtime_checkable
 
 from glovebox.layout.models import (
     ComboBehavior,
@@ -72,9 +72,6 @@ class DtsiGeneratorProtocol(Protocol):
 
 
 # Avoid circular imports with TYPE_CHECKING
-from typing import TYPE_CHECKING
-
-
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
     from glovebox.layout.models import LayoutData

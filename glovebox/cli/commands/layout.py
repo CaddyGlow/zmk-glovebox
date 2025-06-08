@@ -72,18 +72,18 @@ def layout_generate(
         )
 
         if result.success:
-            print_success_message("Keymap generated successfully")
+            print_success_message("Layout generated successfully")
             output_files = result.get_output_files()
             for file_type, file_path in output_files.items():
                 print_list_item(f"{file_type}: {file_path}")
         else:
-            print_error_message("Keymap generation failed")
+            print_error_message("Layout generation failed")
             for error in result.errors:
                 print_list_item(error)
             raise typer.Exit(1)
 
     except Exception as e:
-        print_error_message(f"Keymap generation failed: {str(e)}")
+        print_error_message(f"Layout generation failed: {str(e)}")
         raise typer.Exit(1) from None
 
 
@@ -124,14 +124,14 @@ def extract(
         )
 
         if result.success:
-            print_success_message(f"Keymap layers extracted to {output_dir}")
+            print_success_message(f"Layout layers extracted to {output_dir}")
         else:
-            print_error_message("Keymap component extraction failed")
+            print_error_message("Layout component extraction failed")
             for error in result.errors:
                 print_list_item(error)
             raise typer.Exit(1)
     except Exception as e:
-        print_error_message(f"Keymap component extraction failed: {str(e)}")
+        print_error_message(f"Layout component extraction failed: {str(e)}")
         raise typer.Exit(1) from None
 
 
@@ -175,14 +175,14 @@ def merge(
         )
 
         if result.success:
-            print_success_message(f"Keymap merged and saved to {output}")
+            print_success_message(f"Layout merged and saved to {output}")
         else:
-            print_error_message("Keymap merge failed")
+            print_error_message("Layout merge failed")
             for error in result.errors:
                 print_list_item(error)
             raise typer.Exit(1)
     except Exception as e:
-        print_error_message(f"Keymap merge failed: {str(e)}")
+        print_error_message(f"Layout merge failed: {str(e)}")
         raise typer.Exit(1) from None
 
 
@@ -212,12 +212,12 @@ def validate(
         if keymap_service.validate_file(
             profile=keyboard_profile, json_file_path=json_file
         ):
-            print_success_message(f"Keymap file {json_file} is valid")
+            print_success_message(f"Layout file {json_file} is valid")
         else:
-            print_error_message(f"Keymap file {json_file} is invalid")
+            print_error_message(f"Layout file {json_file} is invalid")
             raise typer.Exit(1)
     except Exception as e:
-        print_error_message(f"Keymap validation failed: {str(e)}")
+        print_error_message(f"Layout validation failed: {str(e)}")
         raise typer.Exit(1) from None
 
 

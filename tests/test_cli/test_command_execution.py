@@ -100,7 +100,7 @@ def setup_firmware_command_test(mock_build_service, mock_keyboard_profile):
             "layout generate",
             ["output/test", "--profile", "glove80/v25.05", "input.json"],
             True,
-            "Keymap generated successfully",
+            "Layout generated successfully",
         ),
         (
             "layout validate",
@@ -112,24 +112,24 @@ def setup_firmware_command_test(mock_build_service, mock_keyboard_profile):
             "layout extract",
             ["input.json", "extract_output"],
             True,
-            "Keymap layers extracted to",
+            "Layout layers extracted to",
         ),
     ],
 )
-def test_keymap_commands(
+def test_layout_commands(
     command,
     args,
     success,
     output_contains,
     setup_layout_command_test,
     cli_runner,
-    sample_layout_json,
+    sample_keymap_json,
     tmp_path,
 ):
-    """Test keymap commands with parameterized inputs."""
+    """Test layout commands with parameterized inputs."""
     # Create a temporary sample file
     input_file = tmp_path / "input.json"
-    input_file.write_text(json.dumps(sample_layout_json))
+    input_file.write_text(json.dumps(sample_keymap_json))
 
     # Replace placeholder paths with real paths
     real_args = []
