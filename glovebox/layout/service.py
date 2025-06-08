@@ -19,6 +19,10 @@ from glovebox.layout.component_service import (
     LayoutComponentService,
     create_layout_component_service,
 )
+from glovebox.layout.display_service import (
+    LayoutDisplayService,
+    create_layout_display_service,
+)
 from glovebox.layout.models import (
     LayoutData,
 )
@@ -31,10 +35,6 @@ from glovebox.protocols.behavior_protocols import (
 )
 from glovebox.services.base_service import BaseServiceImpl
 from glovebox.services.behavior_service import create_behavior_registry
-from glovebox.services.layout_display_service import (
-    LayoutDisplayService,
-    create_layout_display_service,
-)
 
 
 # TODO: Move this function to a more appropriate location in the future

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 from glovebox.formatters.behavior_formatter import BehaviorFormatterImpl
-from glovebox.generators.layout_generator import DtsiLayoutGenerator, LayoutConfig
+from glovebox.layout.generator import DtsiLayoutGenerator, LayoutConfig
 from glovebox.layout.models import (
     ComboBehavior,
     HoldTapBehavior,

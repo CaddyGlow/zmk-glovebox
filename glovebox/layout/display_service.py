@@ -3,20 +3,19 @@
 import logging
 
 from glovebox.core.errors import KeymapError
-from glovebox.generators.layout_generator import (
+from glovebox.layout.generator import (
     DtsiLayoutGenerator,
     LayoutConfig,
     LayoutMetadata,
     ViewMode,
 )
 from glovebox.layout.models import LayoutData
-from glovebox.services.base_service import BaseServiceImpl
 
 
 logger = logging.getLogger(__name__)
 
 
-class LayoutDisplayService(BaseServiceImpl):
+class LayoutDisplayService:
     """Service for generating keyboard layout displays.
 
     Responsible for formatting and displaying keyboard layouts in terminal
@@ -29,7 +28,8 @@ class LayoutDisplayService(BaseServiceImpl):
         Args:
             layout_generator: Optional layout generator dependency
         """
-        super().__init__(service_name="LayoutDisplayService", service_version="1.0.0")
+        self._service_name = "LayoutDisplayService"
+        self._service_version = "1.0.0"
         self._layout_generator = layout_generator or DtsiLayoutGenerator()
 
     def generate_display(
@@ -178,7 +178,7 @@ def create_layout_display_service() -> LayoutDisplayService:
     """
     logger.debug("Creating LayoutDisplayService")
 
-    from glovebox.generators.layout_generator import create_layout_generator
+    from glovebox.layout.generator import create_layout_generator
 
     layout_generator = create_layout_generator()
 
