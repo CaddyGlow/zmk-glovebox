@@ -37,6 +37,12 @@ class KeymapError(GloveboxError):
     pass
 
 
+class LayoutError(GloveboxError):
+    """Exception raised for errors in layout operations."""
+
+    pass
+
+
 class BuildError(GloveboxError):
     """Exception raised for errors in firmware building."""
 

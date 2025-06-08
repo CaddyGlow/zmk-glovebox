@@ -81,6 +81,16 @@ class KeymapResult(BaseResult):
     profile_name: str | None = None
     layer_count: int | None = None
 
+
+class LayoutResult(BaseResult):
+    """Result of layout operations."""
+
+    keymap_path: Path | None = None
+    conf_path: Path | None = None
+    json_path: Path | None = None
+    profile_name: str | None = None
+    layer_count: int | None = None
+
     @field_validator("keymap_path", "conf_path", "json_path")
     @classmethod
     def validate_paths(cls, v: Any) -> Path | None:
