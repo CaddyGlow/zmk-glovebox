@@ -7,7 +7,7 @@ import pytest
 
 from glovebox.adapters.usb_adapter import USBAdapterImpl, create_usb_adapter
 from glovebox.core.errors import FlashError, USBError
-from glovebox.flash.lsdev import BlockDevice
+from glovebox.firmware.flash.lsdev import BlockDevice
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
 
 

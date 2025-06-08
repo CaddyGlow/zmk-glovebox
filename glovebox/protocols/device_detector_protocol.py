@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 
 if TYPE_CHECKING:
-    from glovebox.flash.lsdev import BlockDevice
+    from glovebox.firmware.flash.lsdev import BlockDevice
 
 
 @runtime_checkable

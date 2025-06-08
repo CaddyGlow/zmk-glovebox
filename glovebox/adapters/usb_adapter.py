@@ -7,9 +7,12 @@ from pathlib import Path
 from typing import Any, Optional, cast
 
 from glovebox.core.errors import FlashError, USBError
-from glovebox.flash.detect import create_device_detector
-from glovebox.flash.flash_operations import FlashOperations, create_flash_operations
-from glovebox.flash.lsdev import BlockDevice, Lsdev
+from glovebox.firmware.flash.detect import create_device_detector
+from glovebox.firmware.flash.flash_operations import (
+    FlashOperations,
+    create_flash_operations,
+)
+from glovebox.firmware.flash.lsdev import BlockDevice, Lsdev
 from glovebox.protocols.device_detector_protocol import DeviceDetectorProtocol
 from glovebox.protocols.flash_os_protocol import FlashOSProtocol
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol

@@ -8,7 +8,7 @@ import typer
 
 from glovebox.cli import app
 from glovebox.cli.commands import register_all_commands
-from glovebox.flash.models import FlashResult
+from glovebox.firmware.flash.models import FlashResult
 
 
 # Register commands with the app before running tests
@@ -38,7 +38,7 @@ def test_firmware_list_devices_command(cli_runner):
         mock_create_service.return_value = mock_flash_service
 
         # Set up result with some devices
-        from glovebox.flash.models import FlashResult
+        from glovebox.firmware.flash.models import FlashResult
 
         result = FlashResult(success=True)
         result.device_details = [

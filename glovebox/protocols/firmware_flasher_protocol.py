@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 
 if TYPE_CHECKING:
-    from glovebox.flash.models import FlashResult
+    from glovebox.firmware.flash.models import FlashResult
 
 
 @runtime_checkable

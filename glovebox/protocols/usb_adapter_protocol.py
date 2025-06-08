@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from glovebox.flash.lsdev import BlockDevice
+from glovebox.firmware.flash.lsdev import BlockDevice
 
 
 @runtime_checkable

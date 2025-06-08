@@ -2,7 +2,7 @@
 
 from importlib.metadata import distribution
 
-from .flash.models import FlashResult
+from .firmware.flash.models import FlashResult
 from .models import BuildResult, KeymapResult
 
 

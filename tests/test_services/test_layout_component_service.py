@@ -160,7 +160,7 @@ class TestLayoutComponentService:
             output_dir / "device.dtsi", "// Custom device tree"
         )
         service._file_adapter.write_text.assert_any_call(
-            output_dir / "layout.dtsi", "// Custom behaviors"
+            output_dir / "keymap.dtsi", "// Custom behaviors"
         )
 
     def test_extract_metadata_config(self, service, sample_keymap_data, output_dir):
@@ -250,7 +250,7 @@ class TestLayoutComponentService:
 
             # Verify DTSI content from files
             service._file_adapter.is_file.assert_any_call(output_dir / "device.dtsi")
-            service._file_adapter.is_file.assert_any_call(output_dir / "layout.dtsi")
+            service._file_adapter.is_file.assert_any_call(output_dir / "keymap.dtsi")
 
     def test_combine_components_directory_not_found(self, service, sample_keymap_data):
         """Test error handling when layers directory is not found."""

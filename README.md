@@ -6,7 +6,7 @@ A comprehensive tool for ZMK keyboard firmware management, supporting multiple k
 
 - **Multi-Keyboard Support**: Extensible architecture supporting different keyboard types
 - **Keymap Building**: Convert JSON layouts to ZMK keymap and configuration files
-- **Firmware Building**: Multiple build chains (Docker-based ZMK, QMK, custom toolchains)
+- **Firmware Building**: Docker-based ZMK build chain with extensible architecture
 - **Device Flashing**: USB device detection and firmware flashing with retry logic
 - **Configuration Management**: Profile-based configuration system with inheritance
 - **Layout Visualization**: Display keyboard layouts in terminal
@@ -32,7 +32,6 @@ The `.keymap` files use ZMK's Device Tree Source Interface (DTSI) format to defi
 
 - **Glove80**: Full support with MoErgo Docker build chain
 - **Corne**: Standard ZMK build chain with split keyboard support
-- **Planck**: QMK build chain (planned)
 - **Extensible**: Architecture designed for easy addition of new keyboards
 
 ## Installation
@@ -75,13 +74,13 @@ pre-commit install
 
 ```bash
 # Build a keymap with a specific keyboard profile
-glovebox layout generate my_layout.json output/my_keymap --profile glove80/v25.05
+glovebox layout compile my_layout.json output/my_keymap --profile glove80/v25.05
 
 # Read from stdin
-cat my_layout.json | glovebox layout generate - output/my_keymap --profile glove80/v25.05
+cat my_layout.json | glovebox layout compile - output/my_keymap --profile glove80/v25.05
 
 # Force overwrite of existing files
-glovebox layout generate my_layout.json output/my_keymap --profile glove80/v25.05 --force
+glovebox layout compile my_layout.json output/my_keymap --profile glove80/v25.05 --force
 ```
 
 ### Build Firmware
@@ -93,7 +92,7 @@ glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
 # Build with custom output directory
 glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --output-dir build/glove80
 
-# Using keyboard and firmware separately (legacy approach)
+# Using keyboard and firmware separately
 glovebox firmware compile keymap.keymap config.conf --keyboard glove80 --firmware v25.05
 
 # Specify custom branch and repository (overrides profile settings)
@@ -106,7 +105,7 @@ glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --b
 # Flash firmware to detected devices with profile
 glovebox firmware flash glove80.uf2 --profile glove80/v25.05
 
-# Auto-detect keyboard from filename (legacy approach)
+# Auto-detect keyboard from filename
 glovebox firmware flash glove80.uf2
 
 # Flash with custom device query
@@ -222,17 +221,17 @@ glovebox layout generate my_layout.json output/
 
 ### Layout Commands
 
-#### `glovebox layout generate`
+#### `glovebox layout compile`
 
 Generate ZMK keymap and config files from a JSON keymap file.
 
 ```bash
-glovebox layout generate [OPTIONS] OUTPUT_FILE_PREFIX JSON_FILE
+glovebox layout compile [OPTIONS] JSON_FILE OUTPUT_FILE_PREFIX
 ```
 
 **Arguments:**
+- `JSON_FILE`: Path to keymap JSON file (use '-' for stdin)
 - `OUTPUT_FILE_PREFIX`: Output directory and base filename (e.g., 'config/my_glove80')
-- `JSON_FILE`: Path to keymap JSON file (use '-' or omit for stdin)
 
 **Options:**
 - `--profile, -p`: Profile to use (e.g., 'glove80/v25.05')
@@ -241,10 +240,10 @@ glovebox layout generate [OPTIONS] OUTPUT_FILE_PREFIX JSON_FILE
 **Examples:**
 ```bash
 # Using a specific profile (keyboard/firmware)
-glovebox layout generate output/glove80 layout.json --profile glove80/v25.05
+glovebox layout compile layout.json output/glove80 --profile glove80/v25.05
 
 # Reading from stdin
-cat layout.json | glovebox layout generate output/glove80 - --profile glove80/v25.05
+cat layout.json | glovebox layout compile - output/glove80 --profile glove80/v25.05
 ```
 
 #### `glovebox layout extract`
@@ -331,8 +330,8 @@ glovebox firmware compile [OPTIONS] KEYMAP_FILE KCONFIG_FILE
 **Options:**
 - `--profile, -p`: Profile to use (e.g., 'glove80/v25.05')
 - `--output-dir, -o`: Build output directory (default: build)
-- `--keyboard, -k`: Target keyboard (legacy, use --profile instead)
-- `--firmware, -f`: Firmware version (legacy, use --profile instead)
+- `--keyboard, -k`: Target keyboard (use --profile for combined config)
+- `--firmware, -f`: Firmware version (use --profile for combined config)
 - `--branch`: Git branch to use (overrides profile settings)
 - `--repo`: Git repository (overrides profile settings)
 - `--jobs, -j`: Number of parallel jobs
@@ -534,42 +533,42 @@ user_config.set("default_keyboard", "glove80")
 user_config.save()
 ```
 
-**Keymap Configuration**:
+**Layout Service Usage**:
 ```python
-from glovebox.services.keymap_service import create_keymap_service
+from glovebox.layout import create_layout_service
+from glovebox.layout.models import LayoutData
 from pathlib import Path
 
-# Create keymap service
-keymap_service = create_keymap_service()
+# Create layout service
+layout_service = create_layout_service()
 
-# Validate keymap
-keymap_valid = keymap_service.validate_file(profile, Path("my_keymap.json"))
+# Load and validate layout data
+with Path("my_layout.json").open() as f:
+    layout_data = LayoutData.model_validate_json(f.read())
 
-# Generate keymap
-result = keymap_service.generate_from_file(profile, Path("my_keymap.json"), "output/my_keymap")
+# Generate layout files
+result = layout_service.generate(profile, layout_data, "output/my_layout")
 
 # Access generated files
 print(f"Keymap file: {result.keymap_path}")
 print(f"Config file: {result.conf_path}")
 ```
 
-**Using the ConfigFileAdapter**:
+**Component Service Usage**:
 ```python
-from glovebox.adapters.config_file_adapter import create_keymap_config_adapter
-from glovebox.models.config import KeymapConfigData
+from glovebox.layout import create_layout_component_service
 from pathlib import Path
 
-# Create typed adapter
-config_adapter = create_keymap_config_adapter()
+# Create component service
+component_service = create_layout_component_service()
 
-# Load configuration with validation
-keymap_config = config_adapter.load_model(Path("my_keymap.json"), KeymapConfigData)
+# Extract layout into components
+result = component_service.extract_components(layout_data, Path("output/components"))
 
-# Save with validation
-config_adapter.save_model(Path("output.json"), keymap_config)
+# Merge components back into layout
+merged_layout = component_service.combine_components(metadata_layout, Path("output/components/layers"))
 ```
 
-For detailed information about the typed configuration system, see [Typed Configuration Guide](docs/typed_configuration.md).
 
 **Keyboard Configuration Example**:
 ```yaml
@@ -694,28 +693,41 @@ glovebox config show my_keyboard
 ```
 glovebox/
 ├── core/                    # Core utilities and errors
-├── models/                  # Pydantic data models
-├── services/                # Business logic services
+├── models/                  # Shared data models
+├── layout/                  # Layout domain (JSON→DTSI conversion, formatting, components)
+│   ├── models.py            # Layout-specific data models
+│   ├── service.py           # Main layout operations
+│   ├── component_service.py # Layer extraction/merging
+│   ├── display_service.py   # Layout visualization
+│   ├── generator.py         # DTSI generation and formatting
+│   ├── behavior_formatter.py # Behavior formatting
+│   └── utils.py             # Layout utility functions
+├── firmware/                # Firmware domain (build and flash operations)
+│   ├── build_service.py     # Firmware compilation using Docker
+│   └── flash/               # Flash subdomain (USB devices, firmware flashing)
+│       ├── models.py        # Flash-specific data models
+│       ├── service.py       # Main flash operations
+│       ├── os_adapters.py   # Platform-specific implementations
+│       ├── flash_operations.py # High-level flash operations
+│       └── usb_monitor.py   # Cross-platform USB monitoring
+├── services/                # Cross-domain services
+│   ├── base_service.py      # Service base patterns
+│   └── behavior_service.py  # Behavior registry
 ├── adapters/                # External system interfaces
-├── build/                   # Build system and chains
 ├── config/                  # Configuration and profiles
-├── formatters/              # Output formatting
-├── generators/              # Content generation
-├── flash/                   # USB device and OS-specific operations
-│   ├── os_adapters.py       # Platform-specific implementations
-│   ├── flash_operations.py  # High-level flash operations
-│   └── usb_monitor.py       # Cross-platform USB monitoring
 ├── protocols/               # Interface definitions
-│   └── flash_os_protocol.py # OS abstraction interface
-└── cli.py                   # Command-line interface
+└── cli/                     # Command-line interface
 ```
 
 ### Architecture Principles
 
-- **Service Layer**: Business logic with single responsibility
-- **Adapter Pattern**: External system interfaces (Docker, USB, File)
-- **Profile System**: Keyboard-specific configuration inheritance
-- **Build Chains**: Pluggable build system for different toolchains
+- **Domain-Driven Design**: Business logic organized by domains (layout, firmware)
+- **Service Layer**: Domain services with single responsibility
+- **Hierarchical Organization**: Firmware domain contains flash subdomain
+- **Adapter Pattern**: External system interfaces (Docker, USB, File, Template, Config)
+- **Profile System**: Type-safe profiles combining keyboard + firmware configs
+- **Factory Functions**: Consistent creation patterns for services and components
+- **Protocol-Based Interfaces**: Type-safe abstractions with runtime checking
 - **OS Abstraction**: Platform-specific operations isolated and testable
 
 ### Running Tests

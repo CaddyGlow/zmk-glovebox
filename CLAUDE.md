@@ -173,11 +173,14 @@ pytest tests/test_services/test_layout_service.py
 # Run a specific test function
 pytest tests/test_services/test_layout_service.py::test_function_name
 
+# Run layout domain tests
+pytest tests/test_layout/
+
 # Run CLI tests
 pytest tests/test_cli/test_command_execution.py
 ```
 
-Note: The CLI tests have been simplified to focus on basic functionality and command structure verification.
+Note: The CLI tests have been simplified to focus on basic functionality and command structure verification. Layout domain tests have been reorganized into `tests/test_layout/` following consistent `test_layout_*.py` naming patterns.
 
 ### Linting and Formatting
 
@@ -249,29 +252,32 @@ The codebase is organized into self-contained domains, each owning their models,
   - `LayoutService`: Main layout operations (generate, validate, compile)
   - `LayoutComponentService`: Layer extraction and merging operations
   - `LayoutDisplayService`: Layout visualization and terminal display
-  - `LayoutGenerator`: Layout formatting, view generation, and DTSI generation
-  - `BehaviorFormatter`: Formats bindings and behaviors for DTSI output
-  - `LayoutData`, `LayoutBinding`, `LayoutLayer`: Core layout models
-- **Factory Functions**: `create_layout_service()`, `create_layout_display_service()`, `create_layout_generator()`
+  - `ZmkFileContentGenerator`: ZMK file content generation
+  - `BehaviorFormatterImpl`: Formats bindings and behaviors for DTSI output
+  - `LayoutData`, `LayoutBinding`: Core layout models
+- **Factory Functions**: `create_layout_service()`, `create_layout_display_service()`, `create_layout_component_service()`
 
-#### Flash Domain (`glovebox/flash/`)
-- **Purpose**: Firmware flashing, USB device operations, cross-platform support
+#### Firmware Domain (`glovebox/firmware/`)
+- **Purpose**: Firmware building, flashing, and device operations
 - **Components**:
-  - `FlashService`: Main flash operations (flash devices, list devices)
-  - `DeviceDetector`: USB device detection and monitoring
-  - `FlashOperations`: Low-level mount/unmount operations  
-  - `FlashResult`: Flash operation results and device tracking
-  - `BlockDevice`: USB device models and metadata
-- **Factory Functions**: `create_flash_service()`, `create_device_detector()`
+  - `BuildService`: Firmware compilation using Docker
+  - **Flash Subdomain** (`glovebox/firmware/flash/`):
+    - `FlashService`: Main flash operations (flash devices, list devices)
+    - `DeviceDetector`: USB device detection and monitoring
+    - `FlashOperations`: Low-level mount/unmount operations  
+    - `FlashResult`: Flash operation results and device tracking
+    - `BlockDevice`: USB device models and metadata
+- **Factory Functions**: `create_build_service()`, `create_flash_service()`, `create_device_detector()`
 
 #### Core Services (`glovebox/services/`)
 - **Purpose**: Cross-domain services and base patterns
 - **Components**:
-  - `BuildService`: Firmware compilation using Docker
   - `BehaviorService`: Behavior registry and management
   - `BaseService`: Common service patterns and interfaces
 
-- **Adapter Pattern**: External system interfaces
+#### Adapters (`glovebox/adapters/`)
+- **Purpose**: External system interfaces following adapter pattern
+- **Components**:
   - `DockerAdapter`: Docker interaction for builds
   - `FileAdapter`: File system operations
   - `USBAdapter`: USB device detection and mounting
@@ -299,12 +305,15 @@ The codebase is organized into self-contained domains, each owning their models,
   - `build.py`: Build artifacts and output models
   - `options.py`: Service option models
 
-#### Generators (`glovebox/generators/`)
-- **Purpose**: Multi-domain code generation utilities
-- **Components**:
-  - `DTSIGenerator`: Cross-domain DTSI file generation from layouts, behaviors, and configs
-  
-**Note**: Layout-specific formatting and DTSI generation has been moved to the layout domain (`glovebox/layout/generator.py`). The generators package now focuses on cross-domain utilities that serve multiple domains.
+#### Layout Utilities (`glovebox/layout/utils.py`)
+- **Purpose**: Functional utilities for layout domain operations
+- **Key Functions**:
+  - `build_template_context()`: Build template context for DTSI generation
+  - `generate_kconfig_conf()`: Generate kconfig configuration content
+  - `generate_config_file()`: Configuration file generation
+  - `generate_keymap_file()`: Keymap file generation with DTSI support
+
+**Design**: Uses functional programming patterns for stateless operations, providing clean utility functions without unnecessary class abstractions.
 
 ### Domain Import Patterns
 
@@ -314,7 +323,7 @@ The codebase is organized into self-contained domains, each owning their models,
 ```python
 # Domain-specific models from their domains
 from glovebox.layout.models import LayoutData, LayoutBinding
-from glovebox.flash.models import FlashResult, BlockDevice
+from glovebox.firmware.flash.models import FlashResult, BlockDevice
 
 # Core models from models package
 from glovebox.models.config import KeyboardConfig, FirmwareConfig
@@ -322,11 +331,14 @@ from glovebox.models.results import BuildResult, LayoutResult
 from glovebox.models.behavior import SystemBehavior
 
 # Domain services from their domains
-from glovebox.layout import create_layout_service, create_layout_generator
-from glovebox.flash import create_flash_service
+from glovebox.layout import create_layout_service, create_layout_component_service
+from glovebox.firmware import create_build_service
+from glovebox.firmware.flash import create_flash_service
 
 # Layout domain utilities
-from glovebox.layout.generator import BehaviorFormatterImpl, DtsiLayoutGenerator
+from glovebox.layout.behavior_formatter import BehaviorFormatterImpl
+from glovebox.layout.generator import ZmkFileContentGenerator
+from glovebox.layout.utils import build_template_context, generate_kconfig_conf
 
 # Configuration from config package
 from glovebox.config import create_keyboard_profile, KeyboardProfile
@@ -335,11 +347,13 @@ from glovebox.config import create_keyboard_profile, KeyboardProfile
 #### Forbidden Patterns:
 ```python
 # ❌ NO backward compatibility imports
-from glovebox.models import FlashResult  # FlashResult is in flash domain
+from glovebox.models import FlashResult  # FlashResult is in firmware.flash domain
 from glovebox.models import LayoutData   # LayoutData is in layout domain
-from glovebox.config.models import KeyboardConfig  # File removed
-from glovebox.formatters import BehaviorFormatterImpl  # Moved to layout domain
-from glovebox.generators import DTSIGenerator  # Layout-specific parts moved to layout domain
+from glovebox.flash import create_flash_service  # Use firmware.flash
+from glovebox.services import create_build_service  # Use firmware
+from glovebox.formatters import BehaviorFormatterImpl  # Use layout.behavior_formatter
+from glovebox.generators import DTSIGenerator  # Use layout.utils functions
+from glovebox.builders import TemplateContextBuilder  # Use layout.utils functions
 ```
 
 ### Key Design Patterns
@@ -368,7 +382,7 @@ The KeyboardProfile pattern is a central concept in the architecture:
 2. **CLI Integration**:
    ```bash
    # Using profile parameter
-   glovebox keymap compile input.json output/ --profile glove80/v25.05
+   glovebox layout compile input.json output/ --profile glove80/v25.05
    ```
 
 3. **Service Usage**:
@@ -384,48 +398,36 @@ The KeyboardProfile pattern is a central concept in the architecture:
    profile.firmware_config.version
    ```
 
-#### ConfigFileAdapter Pattern
+#### Service Usage Patterns
 
-The ConfigFileAdapter pattern provides type-safe configuration file handling:
+Services follow consistent patterns for creation and usage:
 
-1. **Creation**:
+1. **Service Creation**:
    ```python
-   from glovebox.adapters.config_file_adapter import create_config_file_adapter, create_keymap_config_adapter
+   from glovebox.layout import create_layout_service
+   from glovebox.config import create_keyboard_profile
 
-   # For user configuration
-   user_config_adapter = create_config_file_adapter()
-
-   # For keymap configuration
-   keymap_config_adapter = create_keymap_config_adapter()
+   # Create profile and service
+   profile = create_keyboard_profile("glove80", "v25.05")
+   layout_service = create_layout_service()
    ```
 
-2. **Loading Models**:
+2. **Service Operations**:
    ```python
-   # Load and validate configuration
-   config_data = config_adapter.load_model(file_path, UserConfigData)
-
-   # Access typed properties
-   print(config_data.default_keyboard)
+   # Load and process layout data
+   layout_data = LayoutData.model_validate(json_data)
+   result = layout_service.generate(profile, layout_data, output_prefix)
    ```
 
-3. **Saving Models**:
+3. **Component Operations**:
    ```python
-   # Save with validation
-   config_adapter.save_model(file_path, config_data)
-   ```
-
-4. **Type Safety**:
-   ```python
-   # Generic type parameter ensures type safety
-   from typing import Generic, TypeVar
-   from pydantic import BaseModel
-
-   T = TypeVar("T", bound=BaseModel)
-
-   class ConfigFileAdapter(Generic[T]):
-       # Type-safe operations for specific model type
-       def load_model(self, file_path: Path, model_class: type[T]) -> T:
-           ...
+   from glovebox.layout import create_layout_component_service
+   
+   component_service = create_layout_component_service()
+   # Extract components
+   result = component_service.extract_components(layout_data, output_dir)
+   # Merge components
+   merged_layout = component_service.combine_components(metadata, layers_dir)
    ```
 
 ### CLI Structure
@@ -441,6 +443,8 @@ For example:
 - `glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05`
 - `glovebox firmware flash firmware.uf2 --profile glove80/v25.05`
 - `glovebox layout show my_layout.json --profile glove80/v25.05`
+- `glovebox layout extract my_layout.json output/components`
+- `glovebox layout merge input/components --output merged_layout.json`
 
 ### OS Abstraction Layer for Flash Operations
 

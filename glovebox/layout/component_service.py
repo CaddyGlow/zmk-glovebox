@@ -132,9 +132,9 @@ class LayoutComponentService(BaseServiceImpl):
             logger.info("Extracted custom_devicetree to %s", device_dtsi_path)
 
         if behaviors_dtsi:
-            layout_dtsi_path = output_dir / "layout.dtsi"
-            self._file_adapter.write_text(layout_dtsi_path, behaviors_dtsi)
-            logger.info("Extracted custom_defined_behaviors to %s", layout_dtsi_path)
+            keymap_dtsi_path = output_dir / "keymap.dtsi"
+            self._file_adapter.write_text(keymap_dtsi_path, behaviors_dtsi)
+            logger.info("Extracted custom_defined_behaviors to %s", keymap_dtsi_path)
 
     def _extract_metadata_config(self, layout: LayoutData, output_dir: Path) -> None:
         """Extract metadata configuration to metadata.json.
@@ -346,7 +346,7 @@ class LayoutComponentService(BaseServiceImpl):
             input_dir: Directory containing DTSI files
         """
         device_dtsi_path = input_dir / "device.dtsi"
-        layout_dtsi_path = input_dir / "layout.dtsi"
+        keymap_dtsi_path = input_dir / "keymap.dtsi"
 
         # Read device.dtsi if exists
         if self._file_adapter.is_file(device_dtsi_path):
@@ -357,12 +357,12 @@ class LayoutComponentService(BaseServiceImpl):
         else:
             combined_layout.custom_devicetree = ""
 
-        # Read layout.dtsi if exists
-        if self._file_adapter.is_file(layout_dtsi_path):
+        # Read keymap.dtsi if exists
+        if self._file_adapter.is_file(keymap_dtsi_path):
             combined_layout.custom_defined_behaviors = self._file_adapter.read_text(
-                layout_dtsi_path
+                keymap_dtsi_path
             )
-            logger.info("Restored custom_defined_behaviors from layout.dtsi.")
+            logger.info("Restored custom_defined_behaviors from keymap.dtsi.")
         else:
             combined_layout.custom_defined_behaviors = ""
 

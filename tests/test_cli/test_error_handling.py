@@ -9,7 +9,7 @@ import typer
 
 from glovebox.cli import app
 from glovebox.core.errors import BuildError, ConfigError, FlashError, LayoutError
-from glovebox.flash.models import FlashResult
+from glovebox.firmware.flash.models import FlashResult
 from glovebox.models.results import BuildResult, LayoutResult
 
 
@@ -44,7 +44,7 @@ def test_layout_error_handling(mock_create_service, cli_runner):
         assert "Layout error: Invalid layout structure" in result.output
 
 
-@patch("glovebox.services.build_service.create_build_service")
+@patch("glovebox.firmware.build_service.create_build_service")
 @pytest.mark.skip(reason="Test takes too long or runs real commands in background")
 def test_build_error_handling(mock_create_service, cli_runner, tmp_path):
     """Test BuildError handling in CLI."""
@@ -65,7 +65,7 @@ def test_build_error_handling(mock_create_service, cli_runner, tmp_path):
     assert "Build error: Docker container failed" in result.output
 
 
-@patch("glovebox.services.flash_service.create_flash_service")
+@patch("glovebox.firmware.flash.service.create_flash_service")
 @pytest.mark.skip(reason="Test takes too long or runs real commands in background")
 def test_flash_error_handling(mock_create_service, cli_runner, tmp_path):
     """Test FlashError handling in CLI."""

@@ -5,9 +5,9 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from glovebox.flash.lsdev import BlockDevice
-from glovebox.flash.models import FlashResult
-from glovebox.flash.service import FlashService, create_flash_service
+from glovebox.firmware.flash.lsdev import BlockDevice
+from glovebox.firmware.flash.models import FlashResult
+from glovebox.firmware.flash.service import FlashService, create_flash_service
 from glovebox.models.config import FlashConfig, KeyboardConfig
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol

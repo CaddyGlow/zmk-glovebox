@@ -10,7 +10,7 @@ import typer
 
 from glovebox.cli import app
 from glovebox.cli.commands import register_all_commands
-from glovebox.flash.models import FlashResult
+from glovebox.firmware.flash.models import FlashResult
 from glovebox.models.results import BuildResult, LayoutResult
 
 

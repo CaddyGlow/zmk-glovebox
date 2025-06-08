@@ -7,13 +7,13 @@ import pytest
 
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import BuildError
+from glovebox.firmware.build_service import BuildService, create_build_service
 from glovebox.models.build import FirmwareOutputFiles
 from glovebox.models.config import BuildConfig, KeyboardConfig
 from glovebox.models.options import BuildServiceCompileOpts
 from glovebox.models.results import BuildResult
 from glovebox.protocols.docker_adapter_protocol import DockerAdapterProtocol
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
-from glovebox.services.build_service import BuildService, create_build_service
 from glovebox.utils import stream_process
 
 
@@ -94,7 +94,7 @@ class TestBuildServiceWithKeyboardConfig:
 
         # Create patch for the load_keyboard_config function
         with patch(
-            "glovebox.services.build_service.load_keyboard_config"
+            "glovebox.firmware.build_service.load_keyboard_config"
         ) as mock_load_config:
             # Create a dictionary version of the mock for the test
             mock_config_dict = {
