@@ -4,7 +4,7 @@ import logging
 
 from glovebox.core.errors import KeymapError
 from glovebox.layout.generator import (
-    DtsiLayoutGenerator,
+    GridLayoutFormatter,
     LayoutConfig,
     LayoutMetadata,
     ViewMode,
@@ -22,7 +22,7 @@ class LayoutDisplayService:
     or other display formats.
     """
 
-    def __init__(self, layout_generator: DtsiLayoutGenerator | None = None):
+    def __init__(self, layout_generator: GridLayoutFormatter | None = None):
         """Initialize layout display service.
 
         Args:
@@ -30,7 +30,7 @@ class LayoutDisplayService:
         """
         self._service_name = "LayoutDisplayService"
         self._service_version = "1.0.0"
-        self._layout_generator = layout_generator or DtsiLayoutGenerator()
+        self._layout_generator = layout_generator or GridLayoutFormatter()
 
     def generate_display(
         self,

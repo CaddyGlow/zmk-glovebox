@@ -244,14 +244,15 @@ Glovebox is a comprehensive tool for ZMK keyboard firmware management with a cle
 The codebase is organized into self-contained domains, each owning their models, services, and business logic:
 
 #### Layout Domain (`glovebox/layout/`)
-- **Purpose**: Keyboard layout processing, JSON→DTSI conversion, component operations
+- **Purpose**: Keyboard layout processing, JSON→DTSI conversion, component operations, behavior formatting
 - **Components**:
   - `LayoutService`: Main layout operations (generate, validate, compile)
   - `LayoutComponentService`: Layer extraction and merging operations
   - `LayoutDisplayService`: Layout visualization and terminal display
-  - `LayoutGenerator`: Layout formatting and view generation
+  - `LayoutGenerator`: Layout formatting, view generation, and DTSI generation
+  - `BehaviorFormatter`: Formats bindings and behaviors for DTSI output
   - `LayoutData`, `LayoutBinding`, `LayoutLayer`: Core layout models
-- **Factory Functions**: `create_layout_service()`, `create_layout_display_service()`
+- **Factory Functions**: `create_layout_service()`, `create_layout_display_service()`, `create_layout_generator()`
 
 #### Flash Domain (`glovebox/flash/`)
 - **Purpose**: Firmware flashing, USB device operations, cross-platform support
@@ -302,6 +303,8 @@ The codebase is organized into self-contained domains, each owning their models,
 - **Purpose**: Multi-domain code generation utilities
 - **Components**:
   - `DTSIGenerator`: Cross-domain DTSI file generation from layouts, behaviors, and configs
+  
+**Note**: Layout-specific formatting and DTSI generation has been moved to the layout domain (`glovebox/layout/generator.py`). The generators package now focuses on cross-domain utilities that serve multiple domains.
 
 ### Domain Import Patterns
 
@@ -319,8 +322,11 @@ from glovebox.models.results import BuildResult, LayoutResult
 from glovebox.models.behavior import SystemBehavior
 
 # Domain services from their domains
-from glovebox.layout import create_layout_service
+from glovebox.layout import create_layout_service, create_layout_generator
 from glovebox.flash import create_flash_service
+
+# Layout domain utilities
+from glovebox.layout.generator import BehaviorFormatterImpl, DtsiLayoutGenerator
 
 # Configuration from config package
 from glovebox.config import create_keyboard_profile, KeyboardProfile
@@ -332,6 +338,8 @@ from glovebox.config import create_keyboard_profile, KeyboardProfile
 from glovebox.models import FlashResult  # FlashResult is in flash domain
 from glovebox.models import LayoutData   # LayoutData is in layout domain
 from glovebox.config.models import KeyboardConfig  # File removed
+from glovebox.formatters import BehaviorFormatterImpl  # Moved to layout domain
+from glovebox.generators import DTSIGenerator  # Layout-specific parts moved to layout domain
 ```
 
 ### Key Design Patterns

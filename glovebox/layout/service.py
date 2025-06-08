@@ -1,10 +1,8 @@
 """Layout service for all layout-related operations."""
 
-import json
 import logging
-from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, Optional, TypeVar, cast
+from typing import Any
 
 from glovebox.adapters.file_adapter import create_file_adapter
 from glovebox.adapters.template_adapter import create_template_adapter
@@ -20,56 +18,22 @@ from glovebox.layout.display_service import (
     LayoutDisplayService,
     create_layout_display_service,
 )
-from glovebox.layout.generator import DTSIGenerator
-from glovebox.layout.models import (
-    LayoutData,
+from glovebox.layout.models import LayoutData
+from glovebox.layout.utils import (
+    generate_config_file,
+    generate_keymap_file,
+    prepare_output_paths,
+    process_json_file,
 )
-from glovebox.models.build import OutputPaths
+from glovebox.layout.zmk_generator import ZmkFileContentGenerator
 from glovebox.models.results import LayoutResult
 from glovebox.protocols import FileAdapterProtocol, TemplateAdapterProtocol
-from glovebox.protocols.behavior_protocols import (
-    BehaviorRegistryProtocol,
-)
+from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
 from glovebox.services.base_service import BaseServiceImpl
 from glovebox.services.behavior_service import create_behavior_registry
 
 
-# TODO: Move this function to a more appropriate location in the future
-
-
 logger = logging.getLogger(__name__)
-T = TypeVar("T")
-
-
-def prepare_output_paths(output_file_prefix: str) -> OutputPaths:
-    """Prepare standardized output file paths.
-
-    Given an output file prefix (which can be a path and base name),
-    generates an OutputPaths object with standardized paths.
-
-    Args:
-        output_file_prefix: Base path and name for output files
-
-    Returns:
-        OutputPaths with standardized paths for keymap, conf, and json files
-
-    Examples:
-        >>> prepare_output_paths("/tmp/my_keymap")
-        OutputPaths(
-            keymap=PosixPath('/tmp/my_keymap.keymap'),
-            conf=PosixPath('/tmp/my_keymap.conf'),
-            json=PosixPath('/tmp/my_keymap.json')
-        )
-    """
-    output_prefix_path = Path(output_file_prefix).resolve()
-    output_dir = output_prefix_path.parent
-    base_name = output_prefix_path.name
-
-    return OutputPaths(
-        keymap=output_dir / f"{base_name}.keymap",
-        conf=output_dir / f"{base_name}.conf",
-        json=output_dir / f"{base_name}.json",
-    )
 
 
 class LayoutService(BaseServiceImpl):
@@ -85,7 +49,7 @@ class LayoutService(BaseServiceImpl):
         template_adapter: TemplateAdapterProtocol,
         behavior_registry: BehaviorRegistryProtocol,
         behavior_formatter: BehaviorFormatterImpl,
-        dtsi_generator: DTSIGenerator,
+        dtsi_generator: ZmkFileContentGenerator,
         component_service: LayoutComponentService,
         layout_service: LayoutDisplayService,
         context_builder: Any,
@@ -103,7 +67,7 @@ class LayoutService(BaseServiceImpl):
         self._layout_service = layout_service
         self._context_builder = context_builder
 
-    # File-based public methods - all use _process_json_file helper
+    # File-based public methods
 
     def generate_from_file(
         self,
@@ -113,11 +77,67 @@ class LayoutService(BaseServiceImpl):
         force: bool = False,
     ) -> LayoutResult:
         """Generate ZMK keymap files from a JSON file path."""
-        return self._process_json_file(
+        return process_json_file(
             json_file_path,
             "Keymap generation",
             lambda data: self.generate(profile, data, output_file_prefix, force),
-            profile,
+            self._file_adapter,
+        )
+
+    def extract_components_from_file(
+        self,
+        profile: KeyboardProfile,
+        json_file_path: Path,
+        output_dir: Path,
+        force: bool = False,
+    ) -> LayoutResult:
+        """Extract keymap components from a JSON file into separate files."""
+        return process_json_file(
+            json_file_path,
+            "Component extraction",
+            lambda data: self.extract_components(profile, data, output_dir, force),
+            self._file_adapter,
+        )
+
+    def generate_from_directory(
+        self,
+        profile: KeyboardProfile,
+        components_dir: Path,
+        output_file_prefix: str,
+        force: bool = False,
+    ) -> LayoutResult:
+        """Generate keymap components from a directory into a complete keymap."""
+        # Read metadata file to get base layout structure
+        metadata_file = components_dir / "metadata.json"
+        if not metadata_file.exists():
+            raise LayoutError(f"Metadata file not found: {metadata_file}")
+
+        metadata_data = self._file_adapter.read_json(metadata_file)
+        base_layout = LayoutData.model_validate(metadata_data)
+
+        # Combine components using the component service
+        layers_dir = components_dir / "layers"
+        combined_layout = self._component_service.combine_components(
+            base_layout, layers_dir
+        )
+
+        # Generate the combined keymap files using the normal generate process
+        return self.generate(profile, combined_layout, output_file_prefix, force)
+
+    def show_from_file(
+        self,
+        json_file_path: Path,
+        profile: KeyboardProfile,
+        layer_index: int | None = None,
+        key_width: int
+        | None = None,  # Accept but ignore this parameter for CLI compatibility
+    ) -> str:
+        """Display keymap layout from a JSON file."""
+        return process_json_file(
+            json_file_path,
+            "Layout display",
+            lambda data: self.show(data, profile, layer_index),
+            self._file_adapter,
         )
 
     def validate_file(
@@ -125,101 +145,15 @@ class LayoutService(BaseServiceImpl):
         profile: KeyboardProfile,
         json_file_path: Path,
     ) -> bool:
-        """Validate a keymap file including file existence and JSON parsing."""
-        return self._process_json_file(
+        """Validate a keymap JSON file."""
+        return process_json_file(
             json_file_path,
             "Keymap validation",
             lambda data: self.validate(profile, data),
-            profile,
+            self._file_adapter,
         )
 
-    def show_from_file(
-        self,
-        profile: KeyboardProfile | None,
-        json_file_path: Path,
-        key_width: int = 10,
-    ) -> str:
-        """Show the keyboard layout from a keymap file."""
-        return self._process_json_file(
-            json_file_path,
-            "Generating keyboard layout display",
-            lambda data: self.show(profile, data, key_width),
-            profile,
-        )
-
-    def extract_keymap_components_from_file(
-        self,
-        profile: KeyboardProfile,
-        keymap_file_path: Path,
-        output_dir: Path,
-        force: bool = False,
-    ) -> LayoutResult:
-        """Extract keymap components from a JSON file into separate files.
-
-        This extracts:
-        - Metadata to metadata.json
-        - Individual layers to layer/*.json files
-        - Custom DTSI content to device.dtsi and keymap.dtsi
-        """
-        return self._process_json_file(
-            keymap_file_path,
-            "Keymap component extraction",
-            lambda data: self.extract_keymap_components(profile, data, output_dir),
-            profile,
-        )
-
-    def merge_keymap_components_from_directory(
-        self,
-        profile: KeyboardProfile,
-        input_dir: Path,
-        output_file: Path,
-        force: bool = False,
-    ) -> LayoutResult:
-        """Merge keymap components from a directory structure into a single JSON file.
-
-        The directory must contain:
-        - metadata.json: Base keymap data
-        - layers/: Directory with individual layer files
-        """
-        logger.info(
-            "Combining keymap components from %s to %s...", input_dir, output_file
-        )
-
-        try:
-            # Check if the input directory exists
-            if not input_dir.exists():
-                raise LayoutError(f"Input directory not found: {input_dir}")
-
-            # Check for metadata.json
-            metadata_json_path = input_dir / "metadata.json"
-            if not metadata_json_path.exists():
-                raise LayoutError(f"Metadata JSON file not found: {metadata_json_path}")
-
-            # Load metadata data
-            metadata_json = self._load_json_file(metadata_json_path)
-            metadata_data = self._validate_keymap_data(metadata_json)
-
-            # Check for layers directory
-            layers_dir = input_dir / "layers"
-            if not layers_dir.exists():
-                raise LayoutError(f"Layers directory not found: {layers_dir}")
-
-            # Check if output file exists and force is not set
-            if output_file.exists() and not force:
-                raise LayoutError(
-                    f"Output file already exists: {output_file}. Use --force to overwrite."
-                )
-
-            # Merge components using the validated data
-            return self.merge_keymap_components(
-                profile, metadata_data, layers_dir, output_file
-            )
-
-        except Exception as e:
-            logger.error("Keymap component merging failed: %s", e)
-            raise LayoutError(f"Keymap component merging failed: {e}") from e
-
-    # Core implementation methods (used by file-based methods)
+    # Data-based public methods
 
     def generate(
         self,
@@ -228,165 +162,96 @@ class LayoutService(BaseServiceImpl):
         output_file_prefix: str,
         force: bool = False,
     ) -> LayoutResult:
-        """Generate ZMK keymap files from keymap data."""
-        profile_name = f"{profile.keyboard_name}/{profile.firmware_version}"
-        logger.info("Starting keymap generation using profile: %s", profile_name)
+        """Generate ZMK keymap and config files from keymap data."""
+        logger.info("Starting keymap generation for %s", profile.keyboard_name)
 
+        # Prepare output paths
+        output_paths = prepare_output_paths(output_file_prefix)
+
+        # Check if output files already exist (unless force=True)
+        if not force:
+            existing_files = [
+                path
+                for path in [output_paths.keymap, output_paths.conf]
+                if path.exists()
+            ]
+            if existing_files:
+                existing_names = [f.name for f in existing_files]
+                raise LayoutError(
+                    f"Output files already exist: {existing_names}. Use force=True to overwrite."
+                )
+
+        # Ensure output directory exists
+        self._file_adapter.mkdir(output_paths.keymap.parent)
+
+        # Initialize result
         result = LayoutResult(success=False)
-        result.profile_name = profile_name
 
         try:
-            result.layer_count = len(keymap_data.layers)
-
-            # Prepare output paths and create directory
-            output_paths = prepare_output_paths(output_file_prefix)
-
-            # Check if files exist and force is not set
-            if output_paths.keymap.exists() and not force:
-                raise LayoutError(
-                    f"Keymap file already exists: {output_paths.keymap}. Use --force to overwrite."
-                )
-            if output_paths.conf.exists() and not force:
-                raise LayoutError(
-                    f"Config file already exists: {output_paths.conf}. Use --force to overwrite."
-                )
-            if output_paths.json.exists() and not force:
-                raise LayoutError(
-                    f"JSON file already exists: {output_paths.json}. Use --force to overwrite."
-                )
-
-            # Create output directory
-            self._file_adapter.mkdir(output_paths.keymap.parent)
-
-            # Register system behaviors directly from profile
-            profile.register_behaviors(self._behavior_registry)
-
-            # Generate files
-            self._generate_config_file(
+            # Generate config file (.conf)
+            generate_config_file(
+                self._file_adapter,
+                self._dtsi_generator,
                 profile,
                 keymap_data,
                 output_paths.conf,
             )
+            result.conf_path = output_paths.conf
 
-            self._generate_keymap_file(keymap_data, profile, output_paths.keymap)
+            # Generate keymap file (.keymap)
+            generate_keymap_file(
+                self._file_adapter,
+                self._template_adapter,
+                self._context_builder,
+                keymap_data,
+                profile,
+                output_paths.keymap,
+            )
+            result.keymap_path = output_paths.keymap
 
-            # Save JSON file to output directory
+            # Save original JSON file for reference
             self._file_adapter.write_json(
                 output_paths.json, keymap_data.model_dump(mode="json", by_alias=True)
             )
-
-            # Set result paths
-            result.keymap_path = output_paths.keymap
-            result.conf_path = output_paths.conf
             result.json_path = output_paths.json
+
             result.success = True
-
-            result.add_message(f"Keymap generated successfully for {profile_name}")
-            logger.info(
-                "Keymap generation completed successfully for output '%s'",
-                output_file_prefix,
-            )
-
-            return result
+            logger.info("Keymap generation completed successfully")
 
         except Exception as e:
-            result.add_error(f"Keymap generation failed: {e}")
             logger.error("Keymap generation failed: %s", e)
+            result.errors.append(str(e))
             raise LayoutError(f"Keymap generation failed: {e}") from e
 
-    def extract_keymap_components(
+        return result
+
+    def extract_components(
         self,
         profile: KeyboardProfile,
         keymap_data: LayoutData,
         output_dir: Path,
+        force: bool = False,
     ) -> LayoutResult:
-        """Extract keymap components including layers, metadata, and DTSI content to separate files."""
-        logger.info(
-            "Extracting keymap components for %s to %s",
-            profile.keyboard_name,
-            output_dir,
-        )
-
-        try:
-            # Delegate to component service
-            return self._component_service.extract_components(keymap_data, output_dir)
-
-        except Exception as e:
-            logger.error("Keymap component extraction failed: %s", e)
-            raise LayoutError(f"Keymap component extraction failed: {e}") from e
-
-    def merge_keymap_components(
-        self,
-        profile: KeyboardProfile,
-        base_data: LayoutData,
-        layers_dir: Path,
-        output_file: Path,
-    ) -> LayoutResult:
-        """Merge keymap components into a single keymap JSON file.
-
-        Args:
-            profile: Keyboard profile containing configuration
-            base_data: Base keymap data with metadata
-            layers_dir: Directory containing individual layer files
-            output_file: Path to write the combined keymap
-        """
-        logger.info(
-            "Combining keymap components from %s for %s",
-            layers_dir,
-            profile.keyboard_name,
-        )
-
-        result = LayoutResult(success=False)
-
-        try:
-            # Create output directory if needed
-            self._file_adapter.mkdir(output_file.parent)
-
-            # Delegate to component service
-            combined_keymap = self._component_service.combine_components(
-                base_data, layers_dir
-            )
-
-            # Write the final combined keymap using model_dump to ensure proper serialization with aliases
-            self._file_adapter.write_json(
-                output_file, combined_keymap.model_dump(mode="json", by_alias=True)
-            )
-
-            result.success = True
-            result.json_path = output_file
-            result.layer_count = len(combined_keymap.layers)
-            result.add_message(
-                f"Successfully combined keymap and saved to {output_file}"
-            )
-            result.add_message(
-                f"Combined {result.layer_count} layers from {layers_dir}"
-            )
-
-            return result
-
-        except Exception as e:
-            result.add_error(f"Keymap component merging failed: {e}")
-            logger.error("Keymap component merging failed: %s", e)
-            raise LayoutError(f"Keymap component merging failed: {e}") from e
+        """Extract keymap components into separate files."""
+        # The component service method doesn't need profile and force parameters
+        return self._component_service.extract_components(keymap_data, output_dir)
 
     def show(
         self,
-        profile: KeyboardProfile | None,
         keymap_data: LayoutData,
-        key_width: int = 10,
+        profile: KeyboardProfile,
+        layer_index: int | None = None,
     ) -> str:
-        """Show the keyboard layout from keymap data."""
-        logger.info("Generating keyboard layout display")
+        """Display keymap layout as formatted text."""
+        logger.debug("Displaying keymap layout")
 
         try:
-            # Delegate to the layout display service
-            keyboard_name = profile.keyboard_name if profile else "unknown"
+            # Use the layout display service to generate the layout
             return self._layout_service.generate_display(
-                keymap_data, keyboard_name, key_width
+                keymap_data, profile.keyboard_name
             )
-
         except Exception as e:
-            logger.error("Error generating layout display: %s", e)
+            logger.error("Layout display failed: %s", e)
             raise LayoutError(f"Failed to generate layout display: {e}") from e
 
     def validate(
@@ -429,108 +294,6 @@ class LayoutService(BaseServiceImpl):
             logger.error("Keymap data validation failed: %s", e)
             raise LayoutError(f"Keymap validation failed: {e}") from e
 
-    # Private helper methods
-
-    def _process_json_file(
-        self,
-        file_path: Path,
-        operation_name: str,
-        process_func: Callable[[LayoutData], T],
-        profile: KeyboardProfile | None = None,
-    ) -> T:
-        """Process a JSON keymap file with standard error handling and validation."""
-        logger.info("%s from %s...", operation_name, file_path)
-
-        try:
-            # Check if the file exists
-            if not file_path.exists():
-                raise LayoutError(f"Input file not found: {file_path}")
-
-            # Load JSON data
-            json_data = self._load_json_file(file_path)
-
-            # Validate as LayoutData
-            keymap_data = self._validate_keymap_data(json_data)
-
-            # Process using the validated data
-            return process_func(keymap_data)
-
-        except Exception as e:
-            logger.error("%s failed: %s", operation_name, e)
-            raise LayoutError(f"{operation_name} failed: {e}") from e
-
-    def _load_json_file(self, file_path: Path) -> dict[str, Any]:
-        """Load and parse JSON from a file using the file adapter."""
-        try:
-            result = self._file_adapter.read_json(file_path)
-            if not isinstance(result, dict):
-                raise LayoutError(
-                    f"Expected JSON object in file {file_path}, got {type(result)}"
-                )
-            return result
-        except json.JSONDecodeError as e:
-            raise LayoutError(f"Invalid JSON in file {file_path}: {e}") from e
-        except Exception as e:
-            raise LayoutError(f"Error reading file {file_path}: {e}") from e
-
-    def _validate_keymap_data(self, json_data: dict[str, Any]) -> LayoutData:
-        """Validate JSON data as LayoutData."""
-        try:
-            return LayoutData.model_validate(json_data)
-        except Exception as e:
-            raise LayoutError(f"Invalid keymap data: {e}") from e
-
-    def _generate_config_file(
-        self,
-        profile: KeyboardProfile,
-        keymap_data: LayoutData,
-        output_path: Path,
-    ) -> dict[str, str]:
-        """Generate configuration file and return settings."""
-        logger.info("Generating Kconfig .conf file...")
-
-        # Use the DTSIGenerator to generate the config
-        conf_content, kconfig_settings = self._dtsi_generator.generate_kconfig_conf(
-            keymap_data, profile
-        )
-
-        # Write the config file
-        self._file_adapter.write_text(output_path, conf_content)
-        logger.info("Successfully generated config and saved to %s", output_path)
-        return kconfig_settings
-
-    def _generate_keymap_file(
-        self,
-        keymap_data: LayoutData,
-        profile: KeyboardProfile,
-        output_path: Path,
-    ) -> None:
-        """Generate keymap file."""
-        logger.info(
-            "Building .keymap file for %s/%s",
-            profile.keyboard_name,
-            profile.firmware_version,
-        )
-
-        # Build template context using the context builder
-        context = self._context_builder.build_context(keymap_data, profile)
-
-        # Get template content from keymap configuration
-        template_content = profile.keyboard_config.keymap.keymap_dtsi
-
-        # Render template
-        if template_content:
-            keymap_content = self._template_adapter.render_string(
-                template_content, context
-            )
-        else:
-            raise LayoutError(
-                "No keymap_dtsi template available in keyboard configuration"
-            )
-
-        self._file_adapter.write_text(output_path, keymap_content)
-        logger.info("Successfully built keymap and saved to %s", output_path)
-
 
 def create_layout_service(
     file_adapter: FileAdapterProtocol | None = None,
@@ -539,7 +302,7 @@ def create_layout_service(
     component_service: LayoutComponentService | None = None,
     layout_service: LayoutDisplayService | None = None,
     behavior_formatter: BehaviorFormatterImpl | None = None,
-    dtsi_generator: DTSIGenerator | None = None,
+    dtsi_generator: ZmkFileContentGenerator | None = None,
     context_builder: Any | None = None,
 ) -> LayoutService:
     """Create a LayoutService instance with optional dependency injection."""
@@ -549,13 +312,9 @@ def create_layout_service(
 
     # Create default dependencies if not provided
     if file_adapter is None:
-        from glovebox.adapters.file_adapter import create_file_adapter
-
         file_adapter = create_file_adapter()
 
     if template_adapter is None:
-        from glovebox.adapters.template_adapter import create_template_adapter
-
         template_adapter = create_template_adapter()
 
     if behavior_registry is None:
@@ -563,14 +322,10 @@ def create_layout_service(
         behavior_registry = temp_registry
 
     if behavior_formatter is None:
-        from glovebox.layout.behavior_formatter import BehaviorFormatterImpl
-
         behavior_formatter = BehaviorFormatterImpl(behavior_registry)
 
     if dtsi_generator is None:
-        from glovebox.layout.generator import DTSIGenerator
-
-        dtsi_generator = DTSIGenerator(behavior_formatter)
+        dtsi_generator = ZmkFileContentGenerator(behavior_formatter)
 
     if component_service is None:
         component_service = create_layout_component_service(file_adapter)
