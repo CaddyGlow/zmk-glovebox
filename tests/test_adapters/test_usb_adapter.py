@@ -113,8 +113,8 @@ class TestUSBAdapterImpl:
         firmware_path = Path("/test/firmware.uf2")
 
         with (
-            patch(
-                "glovebox.adapters.usb_adapter.mount_and_flash", return_value=True
+            patch.object(
+                adapter._flash_ops, "mount_and_flash", return_value=True
             ) as mock_flash,
             patch("pathlib.Path.exists", return_value=True),
         ):
@@ -147,8 +147,8 @@ class TestUSBAdapterImpl:
         firmware_path = Path("/test/firmware.uf2")
 
         with (
-            patch(
-                "glovebox.adapters.usb_adapter.mount_and_flash", return_value=True
+            patch.object(
+                adapter._flash_ops, "mount_and_flash", return_value=True
             ) as mock_flash,
             patch("pathlib.Path.exists", return_value=True),
         ):
@@ -166,8 +166,9 @@ class TestUSBAdapterImpl:
         firmware_path = Path("/test/firmware.uf2")
 
         with (
-            patch(
-                "glovebox.adapters.usb_adapter.mount_and_flash",
+            patch.object(
+                adapter._flash_ops,
+                "mount_and_flash",
                 side_effect=Exception("Flash failed"),
             ),
             patch("pathlib.Path.exists", return_value=True),

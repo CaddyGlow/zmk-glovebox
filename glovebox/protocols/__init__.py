@@ -7,6 +7,7 @@ static type checking and runtime isinstance() checks.
 """
 
 from .config_file_adapter_protocol import ConfigFileAdapterProtocol
+from .device_detector_protocol import DeviceDetectorProtocol
 from .docker_adapter_protocol import (
     DockerAdapterProtocol,
     DockerEnv,
@@ -14,6 +15,7 @@ from .docker_adapter_protocol import (
     DockerVolume,
 )
 from .file_adapter_protocol import FileAdapterProtocol
+from .firmware_flasher_protocol import FirmwareFlasherProtocol
 from .flash_os_protocol import FlashOSProtocol
 from .template_adapter_protocol import TemplateAdapterProtocol
 from .usb_adapter_protocol import USBAdapterProtocol
@@ -21,11 +23,13 @@ from .usb_adapter_protocol import USBAdapterProtocol
 
 __all__ = [
     "ConfigFileAdapterProtocol",
+    "DeviceDetectorProtocol",
     "DockerAdapterProtocol",
     "DockerEnv",
     "DockerResult",
     "DockerVolume",
     "FileAdapterProtocol",
+    "FirmwareFlasherProtocol",
     "FlashOSProtocol",
     "TemplateAdapterProtocol",
     "USBAdapterProtocol",

@@ -9,9 +9,10 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Any, TypeAlias
+from typing import Any, Optional
 
 from glovebox.core.errors import FlashError
+from glovebox.flash.detect import create_device_detector
 from glovebox.flash.flash_operations import create_flash_operations
 from glovebox.flash.lsdev import (
     BlockDevice,
@@ -20,6 +21,8 @@ from glovebox.flash.lsdev import (
     print_device_info,
 )
 from glovebox.models.results import FlashResult
+from glovebox.protocols.device_detector_protocol import DeviceDetectorProtocol
+from glovebox.protocols.firmware_flasher_protocol import FirmwareFlasherProtocol
 
 
 logger = logging.getLogger(__name__)
@@ -91,22 +94,27 @@ def mount_and_flash(
         raise
 
 
-class FirmwareFlasher:
-    """Class for flashing firmware to devices."""
+class FirmwareFlasherImpl:
+    """Implementation class for flashing firmware to devices."""
 
-    def __init__(self) -> None:
-        """Initialize the firmware flasher."""
-        self.lsdev = Lsdev()
+    def __init__(
+        self,
+        detector: Optional[DeviceDetectorProtocol] = None,
+        lsdev: Optional[Lsdev] = None,
+    ) -> None:
+        """
+        Initialize the firmware flasher.
+
+        Args:
+            detector: Optional DeviceDetectorProtocol for dependency injection
+            lsdev: Optional Lsdev instance for dependency injection
+        """
+        self.lsdev = lsdev or Lsdev()
         self._lock = threading.RLock()
         self._device_event = threading.Event()
         self._current_device: BlockDevice | None = None
         self._flashed_devices: set[str] = set()
-        self._detector: Any = None
-
-        # Import here to avoid circular imports
-        from .detect import DeviceDetector
-
-        self._detector = DeviceDetector()
+        self._detector = detector or create_device_detector()
 
     def _extract_device_id(self, device: BlockDevice) -> str:
         """Extract a unique device ID for tracking."""
@@ -174,9 +182,7 @@ class FirmwareFlasher:
 
         # Validate query early
         try:
-            from .detect import parse_query
-
-            parse_query(query)
+            self._detector.parse_query(query)
         except ValueError as e:
             raise ValueError(f"Invalid query string: {e}") from e
 
@@ -191,14 +197,15 @@ class FirmwareFlasher:
             self._device_event.clear()
             self._current_device = None
 
+        # Get reference to lsdev from detector for proper callbacks
+        detector_lsdev = getattr(self._detector, "lsdev", self.lsdev)
+
         # Register callback for device detection
-        if self._detector is not None:
-            self._detector.lsdev.register_callback(self._device_callback)
+        detector_lsdev.register_callback(self._device_callback)
 
         try:
             # Start monitoring for device events
-            if self._detector is not None:
-                self._detector.lsdev.start_monitoring()
+            detector_lsdev.start_monitoring()
 
             while result.devices_flashed + result.devices_failed < max_flashes:
                 current_attempt = result.devices_flashed + result.devices_failed + 1
@@ -218,17 +225,13 @@ class FirmwareFlasher:
                     print_device_info(current_block_devices)
 
                     # Check if any existing devices match the query
-                    if self._detector is not None:
-                        matching_devices = self._detector.list_matching_devices(query)
-                        for device in matching_devices:
-                            device_id = self._extract_device_id(device)
-                            if (
-                                not track_flashed
-                                or device_id not in self._flashed_devices
-                            ):
-                                self._current_device = device
-                                self._device_event.set()
-                                break
+                    matching_devices = self._detector.list_matching_devices(query)
+                    for device in matching_devices:
+                        device_id = self._extract_device_id(device)
+                        if not track_flashed or device_id not in self._flashed_devices:
+                            self._current_device = device
+                            self._device_event.set()
+                            break
 
                     # Wait for a matching device or timeout
                     if not self._device_event.wait(timeout):
@@ -337,9 +340,8 @@ class FirmwareFlasher:
 
         finally:
             # Clean up
-            if self._detector is not None:
-                self._detector.lsdev.unregister_callback(self._device_callback)
-                self._detector.lsdev.stop_monitoring()
+            detector_lsdev.unregister_callback(self._device_callback)
+            detector_lsdev.stop_monitoring()
 
         final_success = (result.devices_failed == 0) and (
             result.devices_flashed == max_flashes if not is_infinite else True
@@ -353,16 +355,29 @@ class FirmwareFlasher:
         return result
 
 
-# Create a singleton instance for global use (lazy initialization)
-_flasher: FirmwareFlasher | None = None
+def create_firmware_flasher(
+    detector: Optional[DeviceDetectorProtocol] = None, lsdev: Optional[Lsdev] = None
+) -> FirmwareFlasherProtocol:
+    """Factory function to create a FirmwareFlasher instance.
+
+    Args:
+        detector: Optional DeviceDetectorProtocol for dependency injection
+        lsdev: Optional Lsdev instance for dependency injection
+
+    Returns:
+        Configured FirmwareFlasherProtocol instance
+
+    Example:
+        >>> flasher = create_firmware_flasher()
+        >>> result = flasher.flash_firmware("firmware.uf2")
+        >>> print(f"Flashed {result.devices_flashed} devices")
+    """
+    logger.debug("Creating FirmwareFlasher")
+    return FirmwareFlasherImpl(detector=detector, lsdev=lsdev)
 
 
-def _get_flasher() -> FirmwareFlasher:
-    """Get or create the global flasher instance."""
-    global _flasher
-    if _flasher is None:
-        _flasher = FirmwareFlasher()
-    return _flasher
+# For backward compatibility, create a single instance
+_flasher: FirmwareFlasherProtocol = create_firmware_flasher()
 
 
 def flash_firmware(
@@ -377,7 +392,7 @@ def flash_firmware(
 
     This is a wrapper around the FirmwareFlasher method for backward compatibility.
     """
-    return _get_flasher().flash_firmware(
+    return _flasher.flash_firmware(
         firmware_file=firmware_file,
         query=query,
         timeout=timeout,

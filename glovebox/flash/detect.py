@@ -3,20 +3,26 @@
 import logging
 import re
 import threading
+from typing import Optional
 
 from glovebox.core.errors import FlashError
 from glovebox.flash.lsdev import BlockDevice, BlockDeviceError, Lsdev
+from glovebox.protocols.device_detector_protocol import DeviceDetectorProtocol
 
 
 logger = logging.getLogger(__name__)
 
 
-class DeviceDetector:
-    """Class for detecting devices based on query criteria."""
+class DeviceDetectorImpl:
+    """Implementation class for detecting devices based on query criteria."""
 
-    def __init__(self) -> None:
-        """Initialize the device detector."""
-        self.lsdev = Lsdev()
+    def __init__(self, lsdev: Optional[Lsdev] = None) -> None:
+        """Initialize the device detector.
+
+        Args:
+            lsdev: Optional Lsdev instance for dependency injection
+        """
+        self.lsdev = lsdev or Lsdev()
         self._lock = threading.RLock()
         self._detected_devices: list[BlockDevice] = []
         self._initial_devices: set[str] = set()
@@ -288,16 +294,26 @@ class DeviceDetector:
             raise FlashError(f"Unexpected error listing devices: {e}") from e
 
 
-# Create a singleton instance for global use (lazy initialization)
-_detector: DeviceDetector | None = None
+def create_device_detector(lsdev: Optional[Lsdev] = None) -> DeviceDetectorProtocol:
+    """Factory function to create a DeviceDetector instance.
+
+    Args:
+        lsdev: Optional Lsdev instance for dependency injection
+
+    Returns:
+        Configured DeviceDetectorProtocol instance
+
+    Example:
+        >>> detector = create_device_detector()
+        >>> devices = detector.list_matching_devices("vendor=Adafruit")
+        >>> print(f"Found {len(devices)} Adafruit devices")
+    """
+    logger.debug("Creating DeviceDetector")
+    return DeviceDetectorImpl(lsdev=lsdev)
 
 
-def _get_detector() -> DeviceDetector:
-    """Get or create the global detector instance."""
-    global _detector
-    if _detector is None:
-        _detector = DeviceDetector()
-    return _detector
+# For backward compatibility, create a single instance
+_detector: DeviceDetectorProtocol = create_device_detector()
 
 
 def parse_query(query_str: str) -> list[tuple[str, str, str]]:
@@ -306,7 +322,7 @@ def parse_query(query_str: str) -> list[tuple[str, str, str]]:
 
     This is a wrapper around the DeviceDetector method for backward compatibility.
     """
-    return _get_detector().parse_query(query_str)
+    return _detector.parse_query(query_str)
 
 
 def evaluate_condition(
@@ -317,7 +333,7 @@ def evaluate_condition(
 
     This is a wrapper around the DeviceDetector method for backward compatibility.
     """
-    return _get_detector().evaluate_condition(device, field, operator, value)
+    return _detector.evaluate_condition(device, field, operator, value)
 
 
 def detect_device(
@@ -330,7 +346,7 @@ def detect_device(
 
     This is a wrapper around the DeviceDetector method for backward compatibility.
     """
-    return _get_detector().detect_device(query_str, timeout, initial_devices)
+    return _detector.detect_device(query_str, timeout, initial_devices)
 
 
 def list_matching_devices(query_str: str) -> list[BlockDevice]:
@@ -339,4 +355,4 @@ def list_matching_devices(query_str: str) -> list[BlockDevice]:
 
     This is a wrapper around the DeviceDetector method for backward compatibility.
     """
-    return _get_detector().list_matching_devices(query_str)
+    return _detector.list_matching_devices(query_str)

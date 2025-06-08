@@ -7,9 +7,11 @@ from pathlib import Path
 from typing import Any, Optional
 
 from glovebox.core.errors import FlashError, USBError
-from glovebox.flash.detect import DeviceDetector
+from glovebox.flash.detect import create_device_detector
 from glovebox.flash.flash_operations import FlashOperations, create_flash_operations
 from glovebox.flash.lsdev import BlockDevice, Lsdev
+from glovebox.flash.usb import mount_and_flash
+from glovebox.protocols.device_detector_protocol import DeviceDetectorProtocol
 from glovebox.protocols.flash_os_protocol import FlashOSProtocol
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
 from glovebox.utils.error_utils import create_usb_error
@@ -21,19 +23,21 @@ logger = logging.getLogger(__name__)
 class USBAdapterImpl:
     """Implementation of USB adapter."""
 
-    def __init__(self, flash_operations: FlashOperations | None = None) -> None:
+    def __init__(
+        self,
+        flash_operations: FlashOperations | None = None,
+        detector: DeviceDetectorProtocol | None = None,
+    ) -> None:
         """Initialize the USB adapter."""
-        self._detector: DeviceDetector | None = None
+        self._detector = detector or create_device_detector()
         self._lsdev: Lsdev | None = None
         self._flash_ops = flash_operations or create_flash_operations()
         self._lock = threading.RLock()
         logger.debug("USBAdapter initialized")
 
     @property
-    def detector(self) -> DeviceDetector:
-        """Get or create the detector instance."""
-        if self._detector is None:
-            self._detector = DeviceDetector()
+    def detector(self) -> DeviceDetectorProtocol:
+        """Get the detector instance."""
         return self._detector
 
     @property
@@ -323,6 +327,7 @@ class USBAdapterImpl:
 def create_usb_adapter(
     flash_operations: FlashOperations | None = None,
     os_adapter: FlashOSProtocol | None = None,
+    detector: DeviceDetectorProtocol | None = None,
 ) -> USBAdapterProtocol:
     """
     Factory function to create a USBAdapter instance.
@@ -330,6 +335,7 @@ def create_usb_adapter(
     Args:
         flash_operations: Optional FlashOperations instance for dependency injection
         os_adapter: Optional OS adapter for flash operations (used if flash_operations is None)
+        detector: Optional DeviceDetectorProtocol for device detection operations
 
     Returns:
         Configured USBAdapter instance
@@ -344,5 +350,7 @@ def create_usb_adapter(
     if flash_operations is None and os_adapter is not None:
         flash_operations = create_flash_operations(os_adapter)
 
-    adapter: USBAdapterProtocol = USBAdapterImpl(flash_operations=flash_operations)
+    adapter: USBAdapterProtocol = USBAdapterImpl(
+        flash_operations=flash_operations, detector=detector
+    )
     return adapter
