@@ -10,16 +10,12 @@ from typing import TYPE_CHECKING, Any
 
 from glovebox.core.errors import ConfigError
 from glovebox.core.logging import get_logger
-from glovebox.layout.models import LayoutData
+from glovebox.layout.models import SystemBehavior
 from glovebox.models import (
     FirmwareConfig,
     KConfigOption,
     KeyboardConfig,
-    SystemBehavior,
 )
-
-# Use the protocol directly
-from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
 
 
 logger = get_logger(__name__)
@@ -103,106 +99,3 @@ class KeyboardProfile:
                 combined[key] = value
 
         return combined
-
-    # We are keeping this methods but commented out
-    # we should move it else where
-    # def _format_kconfig_value(self, value: Any, value_type: str) -> str:
-    #     """
-    #     Format a kconfig value based on its type.
-    #
-    #     Args:
-    #         value: The value to format
-    #         value_type: The type of the value (bool, int, string)
-    #
-    #     Returns:
-    #         Formatted string value for kconfig
-    #     """
-    #     if value_type == "bool":
-    #         # Handle boolean values
-    #         if isinstance(value, bool):
-    #             return "y" if value else "n"
-    #         if isinstance(value, str):
-    #             return "y" if value.lower() in ["true", "yes", "y", "1"] else "n"
-    #         return "y" if value else "n"
-    #     elif value_type == "int":
-    #         # Handle integer values
-    #         return str(int(value))
-    #     else:
-    #         # Default to string type
-    #         return str(value)
-
-    def extract_behavior_codes(self, keymap_data: LayoutData) -> list[str]:
-        """
-        Extract behavior codes used in a keymap.
-
-        Args:
-            keymap_data: LayoutData object with layers and behaviors
-
-        Returns:
-            List of behavior codes used in the keymap
-        """
-        behavior_codes = set()
-
-        # Get structured layers with properly converted KeymapBinding objects
-        structured_layers = keymap_data.get_structured_layers()
-
-        # Extract behavior codes from structured layers
-        for layer in structured_layers:
-            for binding in layer.bindings:
-                if binding and binding.value:
-                    # Extract base behavior code (e.g., "&kp" from "&kp SPACE")
-                    code = binding.value.split()[0]
-                    behavior_codes.add(code)
-
-        # Extract behavior codes from hold-taps
-        for ht in keymap_data.hold_taps:
-            if ht.tap_behavior:
-                code = ht.tap_behavior.split()[0]
-                behavior_codes.add(code)
-            if ht.hold_behavior:
-                code = ht.hold_behavior.split()[0]
-                behavior_codes.add(code)
-
-        # Extract behavior codes from combos
-        for combo in keymap_data.combos:
-            if combo.behavior:
-                code = combo.behavior.split()[0]
-                behavior_codes.add(code)
-
-        # Extract behavior codes from macros
-        for macro in keymap_data.macros:
-            if macro.bindings:
-                for binding in macro.bindings:
-                    code = binding.value.split()[0]
-                    behavior_codes.add(code)
-
-        return list(behavior_codes)
-
-    def register_behaviors(self, behavior_registry: BehaviorRegistryProtocol) -> None:
-        """
-        Register all behaviors from this profile with a behavior registry.
-
-        Args:
-            behavior_registry: The registry to register behaviors with
-        """
-        for behavior in self.system_behaviors:
-            behavior_registry.register_behavior(behavior)
-
-    def resolve_includes(self, behaviors_used: list[str]) -> list[str]:
-        """
-        Resolve all necessary includes based on behaviors used.
-
-        Args:
-            behaviors_used: List of behavior codes used in the keymap
-
-        Returns:
-            List of include statements needed for the behaviors
-        """
-        base_includes: set[str] = set(self.keyboard_config.keymap.includes)
-
-        # Add includes for each behavior
-        for behavior in self.system_behaviors:
-            if behavior.code in behaviors_used and behavior.includes:
-                base_includes.update(behavior.includes)
-
-        return sorted(base_includes)

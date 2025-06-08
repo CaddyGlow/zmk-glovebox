@@ -13,12 +13,6 @@ from typing import Any, TypeAlias
 
 from pydantic import BaseModel, Field, field_validator
 
-from .behavior import (
-    BehaviorCommand,
-    BehaviorParameter,
-    SystemBehavior,
-)
-
 
 # KConfig type definitions
 @dataclass
@@ -99,7 +93,7 @@ class KeymapSection:
 
     includes: list[str]
     formatting: FormattingConfig
-    system_behaviors: list[SystemBehavior]
+    system_behaviors: list[Any]
     kconfig_options: dict[str, KConfigOption]
     keymap_dtsi: str | None = None
     system_behaviors_dts: str | None = None
@@ -166,87 +160,10 @@ class KeyboardConfig:
 
         # Convert keymap section
         if isinstance(self.keymap, dict):
-            # Convert system behaviors
-            system_behaviors = []
-            for behavior_data in self.keymap.get("system_behaviors", []):
-                # Convert commands
-                commands = None
-                if "commands" in behavior_data:
-                    commands = []
-                    for cmd_data in behavior_data["commands"]:
-                        # Convert additional params
-                        additional_params = None
-                        if "additionalParams" in cmd_data:
-                            additional_params = []
-                            for param_data in cmd_data["additionalParams"]:
-                                additional_params.append(
-                                    BehaviorParameter(**param_data)
-                                )
+            # Use layout domain utility to convert keymap section
+            from glovebox.layout.utils import convert_keymap_section_from_dict
 
-                        commands.append(
-                            BehaviorCommand(
-                                code=cmd_data.get("code", ""),
-                                name=cmd_data.get("name"),
-                                description=cmd_data.get("description"),
-                                flatten=cmd_data.get("flatten", False),
-                                additional_params=additional_params,
-                            )
-                        )
-
-                # Convert params
-                params = []
-                for param_data in behavior_data.get("params", []):
-                    if isinstance(param_data, dict):
-                        params.append(BehaviorParameter(**param_data))
-                    else:
-                        params.append(param_data)
-
-                system_behaviors.append(
-                    SystemBehavior(
-                        code=behavior_data.get("code", ""),
-                        name=behavior_data.get("name", ""),
-                        description=behavior_data.get("description", ""),
-                        expected_params=behavior_data.get("expected_params", 0),
-                        origin=behavior_data.get("origin", ""),
-                        params=params,
-                        url=behavior_data.get("url"),
-                        is_macro_control_behavior=behavior_data.get(
-                            "isMacroControlBehavior", False
-                        ),
-                        includes=behavior_data.get("includes"),
-                        commands=commands,
-                    )
-                )
-
-            # Convert kconfig options
-            kconfig_options = {}
-            for option_name, option_data in self.keymap.get(
-                "kconfig_options", {}
-            ).items():
-                kconfig_options[option_name] = KConfigOption(**option_data)
-
-            # Convert formatting config
-            formatting_data = self.keymap.get("formatting", {})
-            if isinstance(formatting_data, dict):
-                formatting = FormattingConfig(
-                    default_key_width=formatting_data.get("default_key_width", 8),
-                    key_gap=formatting_data.get("key_gap", "  "),
-                    base_indent=formatting_data.get("base_indent", ""),
-                    rows=formatting_data.get("rows", []),
-                )
-            else:
-                formatting = FormattingConfig(default_key_width=8, key_gap="  ")
-
-            # Create keymap section
-            self.keymap = KeymapSection(
-                includes=self.keymap.get("includes", []),
-                formatting=formatting,
-                system_behaviors=system_behaviors,
-                kconfig_options=kconfig_options,
-                keymap_dtsi=self.keymap.get("keymap_dtsi"),
-                system_behaviors_dts=self.keymap.get("system_behaviors_dts"),
-                key_position_header=self.keymap.get("key_position_header"),
-            )
+            self.keymap = convert_keymap_section_from_dict(self.keymap)
 
 
 # User configuration model
@@ -295,67 +212,3 @@ class UserConfigData(BaseModel):
             expanded_paths.append(Path(expanded_path))
 
         return expanded_paths
-
-
-# Keymap configuration model for json files
-class KeymapConfigData(BaseModel):
-    """Keymap configuration data model.
-
-    This model provides a typed representation of keymap JSON files with validation.
-    It serves as the data model for the ConfigFileAdapter when handling keymap files.
-    """
-
-    # Essential metadata
-    keyboard: str
-    title: str
-
-    # Layers and bindings
-    layers: list[list[dict[str, Any]]]
-    layer_names: list[str] = Field(alias="layer_names")
-
-    # Optional behaviors
-    hold_taps: list[dict[str, Any]] = Field(default_factory=list, alias="holdTaps")
-    combos: list[dict[str, Any]] = Field(default_factory=list)
-    macros: list[dict[str, Any]] = Field(default_factory=list)
-    input_listeners: list[dict[str, Any]] = Field(
-        default_factory=list, alias="inputListeners"
-    )
-
-    # Configuration parameters
-    config_parameters: list[dict[str, Any]] = Field(
-        default_factory=list, alias="config_parameters"
-    )
-
-    # Custom code
-    custom_defined_behaviors: str = Field(default="", alias="custom_defined_behaviors")
-    custom_devicetree: str = Field(default="", alias="custom_devicetree")
-
-    # Optional metadata
-    firmware_api_version: str = Field(default="1", alias="firmware_api_version")
-    locale: str = Field(default="en-US")
-    uuid: str = Field(default="")
-    parent_uuid: str = Field(default="", alias="parent_uuid")
-    date: str = Field(default="")
-    creator: str = Field(default="")
-    notes: str = Field(default="")
-    tags: list[str] = Field(default_factory=list)
-
-    @field_validator("layers")
-    @classmethod
-    def validate_layers_structure(cls, v: list[Any]) -> list[Any]:
-        """Validate layers structure."""
-        if not v:
-            raise ValueError("Keymap must have at least one layer")
-        return v
-
-    @field_validator("layer_names")
-    @classmethod
-    def validate_layer_names(cls, v: list[str], info: Any) -> list[str]:
-        """Validate that layer names match the number of layers."""
-        data = info.data
-        if "layers" in data and len(v) != len(data["layers"]):
-            raise ValueError(
-                f"Number of layers ({len(data['layers'])}) must match "
-                f"number of layer names ({len(v)})"
-            )
-        return v

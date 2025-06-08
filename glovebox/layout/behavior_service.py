@@ -3,11 +3,11 @@
 import logging
 from typing import Any
 
-from ..models.behavior import (
+from ..protocols.behavior_protocols import BehaviorRegistryProtocol
+from .behavior_models import (
     RegistryBehavior,
     SystemBehavior,
 )
-from ..protocols.behavior_protocols import BehaviorRegistryProtocol
 
 
 logger = logging.getLogger(__name__)

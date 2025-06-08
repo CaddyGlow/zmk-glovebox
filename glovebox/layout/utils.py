@@ -21,14 +21,14 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-def prepare_output_paths(output_file_prefix: str) -> OutputPaths:
+def prepare_output_paths(output_file_prefix: str | Path) -> OutputPaths:
     """Prepare standardized output file paths.
 
     Given an output file prefix (which can be a path and base name),
     generates an OutputPaths object with standardized paths.
 
     Args:
-        output_file_prefix: Base path and name for output files
+        output_file_prefix: Base path and name for output files (str or Path)
 
     Returns:
         OutputPaths with standardized paths for keymap, conf, and json files
@@ -212,3 +212,101 @@ def generate_keymap_file(
 
     file_adapter.write_text(output_path, keymap_content)
     logger.info("Successfully built keymap and saved to %s", output_path)
+
+
+def convert_keymap_section_from_dict(keymap_dict: dict[str, Any]) -> Any:
+    """Convert keymap section dictionary to KeymapSection object.
+
+    This function handles the conversion of system behaviors and other keymap
+    components from dictionary format to proper dataclass instances.
+
+    Args:
+        keymap_dict: Dictionary containing keymap section data
+
+    Returns:
+        KeymapSection object with converted data
+    """
+    from glovebox.layout.models import (
+        BehaviorCommand,
+        BehaviorParameter,
+        SystemBehavior,
+    )
+    from glovebox.models.config import FormattingConfig, KConfigOption, KeymapSection
+
+    # Convert system behaviors
+    system_behaviors = []
+    for behavior_data in keymap_dict.get("system_behaviors", []):
+        # Convert commands
+        commands = None
+        if "commands" in behavior_data:
+            commands = []
+            for cmd_data in behavior_data["commands"]:
+                # Convert additional params
+                additional_params = None
+                if "additionalParams" in cmd_data:
+                    additional_params = []
+                    for param_data in cmd_data["additionalParams"]:
+                        additional_params.append(BehaviorParameter(**param_data))
+
+                commands.append(
+                    BehaviorCommand(
+                        code=cmd_data.get("code", ""),
+                        name=cmd_data.get("name"),
+                        description=cmd_data.get("description"),
+                        flatten=cmd_data.get("flatten", False),
+                        additional_params=additional_params,
+                    )
+                )
+
+        # Convert params
+        params = []
+        for param_data in behavior_data.get("params", []):
+            if isinstance(param_data, dict):
+                params.append(BehaviorParameter(**param_data))
+            else:
+                params.append(param_data)
+
+        system_behaviors.append(
+            SystemBehavior(
+                code=behavior_data.get("code", ""),
+                name=behavior_data.get("name", ""),
+                description=behavior_data.get("description", ""),
+                expected_params=behavior_data.get("expected_params", 0),
+                origin=behavior_data.get("origin", ""),
+                params=params,
+                url=behavior_data.get("url"),
+                is_macro_control_behavior=behavior_data.get(
+                    "isMacroControlBehavior", False
+                ),
+                includes=behavior_data.get("includes"),
+                commands=commands,
+            )
+        )
+
+    # Convert kconfig options
+    kconfig_options = {}
+    for option_name, option_data in keymap_dict.get("kconfig_options", {}).items():
+        kconfig_options[option_name] = KConfigOption(**option_data)
+
+    # Convert formatting config
+    formatting_data = keymap_dict.get("formatting", {})
+    if isinstance(formatting_data, dict):
+        formatting = FormattingConfig(
+            default_key_width=formatting_data.get("default_key_width", 8),
+            key_gap=formatting_data.get("key_gap", "  "),
+            base_indent=formatting_data.get("base_indent", ""),
+            rows=formatting_data.get("rows", []),
+        )
+    else:
+        formatting = FormattingConfig(default_key_width=8, key_gap="  ")
+
+    # Create and return keymap section
+    return KeymapSection(
+        includes=keymap_dict.get("includes", []),
+        formatting=formatting,
+        system_behaviors=system_behaviors,
+        kconfig_options=kconfig_options,
+        keymap_dtsi=keymap_dict.get("keymap_dtsi"),
+        system_behaviors_dts=keymap_dict.get("system_behaviors_dts"),
+        key_position_header=keymap_dict.get("key_position_header"),
+    )

@@ -14,8 +14,8 @@ from glovebox.layout.models import (
     InputListener,
     LayerBindings,
     MacroBehavior,
+    SystemBehavior,
 )
-from glovebox.models.behavior import SystemBehavior
 
 
 if TYPE_CHECKING:

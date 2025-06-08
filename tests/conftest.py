@@ -14,7 +14,7 @@ from typer.testing import CliRunner
 
 from glovebox.config.profile import KeyboardProfile
 from glovebox.flash.models import FlashResult
-from glovebox.models import SystemBehavior
+from glovebox.layout.models import SystemBehavior
 from glovebox.models.build import FirmwareOutputFiles
 from glovebox.models.config import (
     BuildConfig,

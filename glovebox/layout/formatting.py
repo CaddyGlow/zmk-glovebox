@@ -6,11 +6,11 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from glovebox.config.profile import KeyboardProfile
 from glovebox.layout.models import LayoutBinding
 
 
 if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
     from glovebox.layout.models import LayoutData
 
 
@@ -60,7 +60,7 @@ class GridLayoutFormatter:
         logger.debug("GridLayoutFormatter initialized")
 
     def generate_layer_layout(
-        self, bindings: list[str], profile: KeyboardProfile
+        self, bindings: list[str], profile: "KeyboardProfile"
     ) -> list[str]:
         """Generate formatted binding strings into a grid based on LayoutConfig.
 

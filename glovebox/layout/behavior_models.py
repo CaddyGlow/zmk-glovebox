@@ -9,7 +9,9 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, TypeAlias
 
-from glovebox.layout.models import ParamValue
+
+# ParamValue type alias - defined here to avoid circular import
+ParamValue: TypeAlias = str | int
 
 
 # Parameter type definitions

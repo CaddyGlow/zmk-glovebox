@@ -3,11 +3,12 @@
 import logging
 
 from glovebox.core.errors import KeymapError
-from glovebox.layout.generator import (
+from glovebox.layout.formatting import (
     GridLayoutFormatter,
     LayoutConfig,
     LayoutMetadata,
     ViewMode,
+    create_grid_layout_formatter,
 )
 from glovebox.layout.models import LayoutData
 
@@ -178,8 +179,5 @@ def create_layout_display_service() -> LayoutDisplayService:
     """
     logger.debug("Creating LayoutDisplayService")
 
-    from glovebox.layout.generator import create_layout_generator
-
-    layout_generator = create_layout_generator()
-
+    layout_generator = create_grid_layout_formatter()
     return LayoutDisplayService(layout_generator)

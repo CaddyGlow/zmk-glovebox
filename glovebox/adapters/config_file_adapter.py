@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from glovebox.core.errors import ConfigError
 from glovebox.core.logging import get_logger
-from glovebox.models.config import KeymapConfigData, UserConfigData
+from glovebox.models.config import UserConfigData
 from glovebox.protocols.config_file_adapter_protocol import ConfigFileAdapterProtocol
 
 
@@ -167,12 +167,3 @@ class ConfigFileAdapter(Generic[T]):
 def create_config_file_adapter() -> ConfigFileAdapterProtocol[UserConfigData]:
     """Create a ConfigFileAdapter instance for UserConfigData."""
     return ConfigFileAdapter[UserConfigData]()
-
-
-def create_keymap_config_adapter() -> ConfigFileAdapterProtocol[KeymapConfigData]:
-    """Create a ConfigFileAdapter instance for KeymapConfigData.
-
-    Returns:
-        Configured ConfigFileAdapter for handling keymap JSON files
-    """
-    return ConfigFileAdapter[KeymapConfigData]()

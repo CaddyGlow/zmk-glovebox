@@ -4,7 +4,11 @@ import logging
 import multiprocessing
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, Union
+
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
 
 from glovebox.adapters.docker_adapter import create_docker_adapter
 from glovebox.adapters.file_adapter import create_file_adapter
@@ -12,7 +16,6 @@ from glovebox.config.keyboard_config import (
     get_available_keyboards,
     load_keyboard_config,
 )
-from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import BuildError
 from glovebox.models.build import FirmwareOutputFiles
 from glovebox.models.options import BuildServiceCompileOpts
@@ -152,7 +155,7 @@ class BuildService(BaseServiceImpl):
         keymap_file_path: Path,
         kconfig_file_path: Path,
         output_dir: Path = Path("build"),
-        profile: KeyboardProfile | None = None,
+        profile: Union["KeyboardProfile", None] = None,
         branch: str = "main",
         repo: str = "moergo-sc/zmk",
         jobs: int | None = None,
@@ -167,7 +170,7 @@ class BuildService(BaseServiceImpl):
             keymap_file_path: Path to the keymap (.keymap) file
             kconfig_file_path: Path to the kconfig (.conf) file
             output_dir: Directory where build artifacts will be stored
-            profile: KeyboardProfile with configuration (preferred over keyboard name)
+            profile: "KeyboardProfile" with configuration (preferred over keyboard name)
             branch: Git branch to use for the ZMK firmware repository
             repo: Git repository to use for the ZMK firmware
             jobs: Number of parallel jobs for compilation (None uses CPU count)
@@ -222,7 +225,7 @@ class BuildService(BaseServiceImpl):
     def compile(
         self,
         opts: BuildServiceCompileOpts,
-        profile: KeyboardProfile | None = None,
+        profile: Union["KeyboardProfile", None] = None,
         skip_file_check: bool = False,
     ) -> BuildResult:
         """
@@ -230,7 +233,7 @@ class BuildService(BaseServiceImpl):
 
         Args:
             opts: BuildServiceCompileOpts Build configuration
-            profile: KeyboardProfile with configuration (preferred over keyboard name)
+            profile: "KeyboardProfile" with configuration (preferred over keyboard name)
             skip_file_check: Skip file existence checks (useful when already validated)
 
         Returns:
@@ -416,14 +419,14 @@ class BuildService(BaseServiceImpl):
     def get_build_environment(
         self,
         build_config: BuildServiceCompileOpts,
-        profile: KeyboardProfile | None = None,
+        profile: Union["KeyboardProfile", None] = None,
     ) -> dict[str, str]:
         """
         Get build environment for Docker container.
 
         Args:
             build_config: Build configuration
-            profile: KeyboardProfile with build options
+            profile: "KeyboardProfile" with build options
 
         Returns:
             Dictionary of environment variables for the build
@@ -456,7 +459,7 @@ class BuildService(BaseServiceImpl):
         }
 
     def _apply_profile_settings(
-        self, build_env: dict[str, str], profile: KeyboardProfile
+        self, build_env: dict[str, str], profile: "KeyboardProfile"
     ) -> None:
         """Apply settings from a keyboard profile to the build environment.
 
@@ -474,7 +477,7 @@ class BuildService(BaseServiceImpl):
         self._apply_keyboard_config_settings(build_env, profile)
 
     def _apply_firmware_config_settings(
-        self, build_env: dict[str, str], profile: KeyboardProfile
+        self, build_env: dict[str, str], profile: "KeyboardProfile"
     ) -> None:
         """Apply firmware-specific settings from a profile.
 
@@ -501,7 +504,7 @@ class BuildService(BaseServiceImpl):
             logger.debug("Using repo from firmware profile: %s", build_env["REPO"])
 
     def _apply_keyboard_config_settings(
-        self, build_env: dict[str, str], profile: KeyboardProfile
+        self, build_env: dict[str, str], profile: "KeyboardProfile"
     ) -> None:
         """Apply keyboard-specific settings from a profile.
 

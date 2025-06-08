@@ -4,9 +4,11 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, cast
 
-from glovebox.layout.models import LayoutBinding, LayoutParam, ParamValue
-from glovebox.models.behavior import (
+from glovebox.layout.models import (
     KeymapBehavior,
+    LayoutBinding,
+    LayoutParam,
+    ParamValue,
     RegistryBehavior,
     SystemBehaviorParam,
     SystemParamList,

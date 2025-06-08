@@ -2,14 +2,19 @@
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
 
 from glovebox.adapters.file_adapter import create_file_adapter
 from glovebox.adapters.template_adapter import create_template_adapter
 from glovebox.builders.template_context_builder import create_template_context_builder
-from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import LayoutError
+from glovebox.layout.behavior_analysis import register_layout_behaviors
 from glovebox.layout.behavior_formatter import BehaviorFormatterImpl
+from glovebox.layout.behavior_service import create_behavior_registry
 from glovebox.layout.component_service import (
     LayoutComponentService,
     create_layout_component_service,
@@ -30,7 +35,6 @@ from glovebox.models.results import LayoutResult
 from glovebox.protocols import FileAdapterProtocol, TemplateAdapterProtocol
 from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
 from glovebox.services.base_service import BaseServiceImpl
-from glovebox.services.behavior_service import create_behavior_registry
 
 
 logger = logging.getLogger(__name__)
@@ -71,9 +75,9 @@ class LayoutService(BaseServiceImpl):
 
     def generate_from_file(
         self,
-        profile: KeyboardProfile,
+        profile: "KeyboardProfile",
         json_file_path: Path,
-        output_file_prefix: str,
+        output_file_prefix: str | Path,
         force: bool = False,
     ) -> LayoutResult:
         """Generate ZMK keymap files from a JSON file path."""
@@ -86,7 +90,7 @@ class LayoutService(BaseServiceImpl):
 
     def extract_components_from_file(
         self,
-        profile: KeyboardProfile,
+        profile: "KeyboardProfile",
         json_file_path: Path,
         output_dir: Path,
         force: bool = False,
@@ -101,9 +105,9 @@ class LayoutService(BaseServiceImpl):
 
     def generate_from_directory(
         self,
-        profile: KeyboardProfile,
+        profile: "KeyboardProfile",
         components_dir: Path,
-        output_file_prefix: str,
+        output_file_prefix: str | Path,
         force: bool = False,
     ) -> LayoutResult:
         """Generate keymap components from a directory into a complete keymap."""
@@ -127,7 +131,7 @@ class LayoutService(BaseServiceImpl):
     def show_from_file(
         self,
         json_file_path: Path,
-        profile: KeyboardProfile,
+        profile: "KeyboardProfile",
         layer_index: int | None = None,
         key_width: int
         | None = None,  # Accept but ignore this parameter for CLI compatibility
@@ -142,7 +146,7 @@ class LayoutService(BaseServiceImpl):
 
     def validate_file(
         self,
-        profile: KeyboardProfile,
+        profile: "KeyboardProfile",
         json_file_path: Path,
     ) -> bool:
         """Validate a keymap JSON file."""
@@ -157,9 +161,9 @@ class LayoutService(BaseServiceImpl):
 
     def generate(
         self,
-        profile: KeyboardProfile,
+        profile: "KeyboardProfile",
         keymap_data: LayoutData,
-        output_file_prefix: str,
+        output_file_prefix: str | Path,
         force: bool = False,
     ) -> LayoutResult:
         """Generate ZMK keymap and config files from keymap data."""
@@ -188,6 +192,9 @@ class LayoutService(BaseServiceImpl):
         result = LayoutResult(success=False)
 
         try:
+            # Register behaviors needed for this layout
+            register_layout_behaviors(profile, keymap_data, self._behavior_registry)
+
             # Generate config file (.conf)
             generate_config_file(
                 self._file_adapter,
@@ -227,7 +234,7 @@ class LayoutService(BaseServiceImpl):
 
     def extract_components(
         self,
-        profile: KeyboardProfile,
+        profile: "KeyboardProfile",
         keymap_data: LayoutData,
         output_dir: Path,
         force: bool = False,
@@ -239,7 +246,7 @@ class LayoutService(BaseServiceImpl):
     def show(
         self,
         keymap_data: LayoutData,
-        profile: KeyboardProfile,
+        profile: "KeyboardProfile",
         layer_index: int | None = None,
     ) -> str:
         """Display keymap layout as formatted text."""
@@ -256,7 +263,7 @@ class LayoutService(BaseServiceImpl):
 
     def validate(
         self,
-        profile: KeyboardProfile,
+        profile: "KeyboardProfile",
         keymap_data: LayoutData,
     ) -> bool:
         """Validate keymap data structure and content."""

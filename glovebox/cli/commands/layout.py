@@ -16,7 +16,7 @@ from glovebox.cli.helpers import (
 
 # Import indirectly to avoid Typer type issues
 # from glovebox.config.profile import KeyboardProfile
-from glovebox.layout import create_layout_service
+from glovebox.layout.service import create_layout_service
 
 
 logger = logging.getLogger(__name__)
@@ -116,9 +116,9 @@ def extract(
     keymap_service = create_layout_service()
 
     try:
-        result = keymap_service.extract_keymap_components_from_file(
+        result = keymap_service.extract_components_from_file(
             profile=keyboard_profile,
-            keymap_file_path=keymap_file,
+            json_file_path=keymap_file,
             output_dir=output_dir,
             force=force,
         )
@@ -167,10 +167,10 @@ def merge(
     keymap_service = create_layout_service()
 
     try:
-        result = keymap_service.merge_keymap_components_from_directory(
+        result = keymap_service.generate_from_directory(
             profile=keyboard_profile,
-            input_dir=input_dir,
-            output_file=output,
+            components_dir=input_dir,
+            output_file_prefix=output,
             force=force,
         )
 
@@ -253,38 +253,28 @@ def show(
     ] = None,
 ) -> None:
     """Display keymap layout in terminal."""
-    # Create profile from profile option if provided
-    keyboard_profile = None
-    if profile:
-        from glovebox.cli.helpers.profile import create_profile_from_option
+    # Check if profile is provided
+    if profile is None:
+        print_error_message(
+            "Profile is required for layout display. Use --profile or -p option."
+        )
+        raise typer.Exit(1)
 
-        keyboard_profile = create_profile_from_option(profile)
+    # Create profile from profile option
+    from glovebox.cli.helpers.profile import create_profile_from_option
+
+    keyboard_profile = create_profile_from_option(profile)
 
     # Call the service
     keymap_service = create_layout_service()
     try:
-        # If profile is None, we'll try to call the service anyway but it will likely fail
-        # This ensures the test case works as expected
-        if keyboard_profile is None:
-            # We need to call the service for test mocking purposes
-            # This will fail when the service tries to use the profile
-            keymap_service.show_from_file(
-                profile=keyboard_profile,
-                json_file_path=json_file,
-                key_width=key_width,
-            )
-            # If we somehow get here, raise a clear error
-            # raise NotImplementedError(
-            #     "The layout display feature is not yet implemented. Coming in a future release."
-            # )
-        else:
-            result = keymap_service.show_from_file(
-                profile=keyboard_profile,
-                json_file_path=json_file,
-                key_width=key_width,
-            )
-            # The show method returns a string
-            typer.echo(result)
+        result = keymap_service.show_from_file(
+            json_file_path=json_file,
+            profile=keyboard_profile,
+            key_width=key_width,
+        )
+        # The show method returns a string
+        typer.echo(result)
     except NotImplementedError as e:
         print_error_message(str(e))
         raise typer.Exit(1) from e

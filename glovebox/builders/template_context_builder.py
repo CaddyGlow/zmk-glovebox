@@ -3,9 +3,11 @@
 import logging
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias
 
-from glovebox.config.profile import KeyboardProfile
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
 from glovebox.layout.models import (
     ComboBehavior,
     HoldTapBehavior,
@@ -32,7 +34,7 @@ class TemplateContextBuilder:
         self._dtsi_generator = dtsi_generator
 
     def build_context(
-        self, keymap_data: LayoutData, profile: KeyboardProfile
+        self, keymap_data: LayoutData, profile: "KeyboardProfile"
     ) -> TemplateContext:
         """Build template context with generated DTSI content.
 

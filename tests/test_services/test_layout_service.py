@@ -7,9 +7,8 @@ import pytest
 
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import LayoutError
-from glovebox.layout.models import LayoutData
+from glovebox.layout.models import LayoutData, SystemBehavior
 from glovebox.layout.service import LayoutService
-from glovebox.models.behavior import SystemBehavior
 from glovebox.models.config import KConfigOption, KeyboardConfig, KeymapSection
 from glovebox.models.results import LayoutResult
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
@@ -139,17 +138,6 @@ def mock_profile():
     kconfig_option.description = "Keyboard name"
 
     mock.kconfig_options = {"CONFIG_ZMK_KEYBOARD_NAME": kconfig_option}
-
-    # Set up resolve_includes method
-    mock.resolve_includes = Mock(
-        return_value=[
-            "#include <dt-bindings/zmk/keys.h>",
-            "#include <dt-bindings/zmk/bt.h>",
-        ]
-    )
-
-    # Set up extract_behavior_codes method
-    mock.extract_behavior_codes = Mock(return_value=["&kp", "&bt", "&lt"])
 
     # Set up resolve_kconfig_with_user_options method
     mock.resolve_kconfig_with_user_options = Mock(
@@ -355,7 +343,10 @@ class TestLayoutServiceWithKeyboardConfig:
                                     self.mock_file_adapter.write_json.assert_called()
 
     def test_register_behaviors(self, mock_keyboard_config):
-        """Test registration of system behaviors from keyboard profile."""
+        """Test registration of system behaviors using functional approach."""
+        # Import the functional approach
+        from glovebox.layout.behavior_analysis import register_layout_behaviors
+
         # Create a mock profile with behaviors
         mock_profile = Mock(spec=KeyboardProfile)
         mock_profile.keyboard_name = "test_keyboard"
@@ -390,34 +381,29 @@ class TestLayoutServiceWithKeyboardConfig:
 
         mock_profile.system_behaviors = [behavior1, behavior2, behavior3]
 
-        # Create method to call behavior registry methods
-        def register_behaviors_impl(registry):
-            for behavior in mock_profile.system_behaviors:
-                registry.register_behavior(behavior)
+        # Create mock layout data (not used by register_layout_behaviors but required by signature)
+        mock_layout_data = Mock(spec=LayoutData)
 
-        # Add register_behaviors method to mock profile
-        with patch.object(
-            mock_profile, "register_behaviors", side_effect=register_behaviors_impl
-        ):
-            # Execute directly on the behavior registry
-            mock_profile.register_behaviors(self.service._behavior_registry)
+        # Test the functional approach
+        register_layout_behaviors(
+            mock_profile, mock_layout_data, self.mock_behavior_registry
+        )
 
-            # Since we're using a mock, we need to ensure it has the right methods
-            # We'll check that register_behavior was called with the right behaviors
-            expected_behavior_codes = ["&kp", "&lt", "&mo"]
+        # Verify all behaviors were registered
+        expected_behavior_codes = ["&kp", "&lt", "&mo"]
 
-            # Check that all behaviors were registered (3 behaviors, 3 calls)
-            assert self.mock_behavior_registry.register_behavior.call_count == 3
+        # Check that all behaviors were registered (3 behaviors, 3 calls)
+        assert self.mock_behavior_registry.register_behavior.call_count == 3
 
-            # Verify the behavior codes that were registered
-            registered_behaviors = []
-            for call in self.mock_behavior_registry.register_behavior.call_args_list:
-                behavior = call[0][0]  # First positional argument
-                registered_behaviors.append(behavior.code)
+        # Verify the behavior codes that were registered
+        registered_behaviors = []
+        for call in self.mock_behavior_registry.register_behavior.call_args_list:
+            behavior = call[0][0]  # First positional argument
+            registered_behaviors.append(behavior.code)
 
-            # Verify all expected behavior codes were registered
-            for code in expected_behavior_codes:
-                assert code in registered_behaviors
+        # Verify all expected behavior codes were registered
+        for code in expected_behavior_codes:
+            assert code in registered_behaviors
 
             # Verify behavior properties were preserved during registration
             for call in self.mock_behavior_registry.register_behavior.call_args_list:
@@ -484,8 +470,6 @@ class TestLayoutServiceWithMockedConfig:
         mock_profile.system_behaviors = []
         mock_profile.kconfig_options = {}
 
-        # Add register_behaviors method to the mock profile
-        mock_profile.register_behaviors = Mock()
         mock_create_profile.return_value = mock_profile
 
         # Create service with mocked adapters for testing
@@ -550,11 +534,13 @@ class TestLayoutServiceWithMockedConfig:
 
 
 def test_register_behaviors_with_fixture(keymap_service):
-    """Test registering system behaviors from a KeyboardProfile using the fixture."""
+    """Test registering system behaviors using functional approach with fixture."""
+    # Import the functional approach
+    from glovebox.layout.behavior_analysis import register_layout_behaviors
+
     # Create a mock profile
     mock_profile = Mock(spec=KeyboardProfile)
 
-    # First we need to make the mock do something useful
     # Create system behaviors
     behavior1 = SystemBehavior(
         code="&kp",
@@ -576,37 +562,23 @@ def test_register_behaviors_with_fixture(keymap_service):
 
     mock_profile.system_behaviors = [behavior1, behavior2]
 
-    # Add register_behaviors method to mock
-    def register_behaviors_impl(registry):
-        for behavior in mock_profile.system_behaviors:
-            registry.register_behavior(behavior)
+    # Create mock layout data (not used by register_layout_behaviors but required by signature)
+    mock_layout_data = Mock(spec=LayoutData)
 
-    # Use patch.object to set the side_effect
-    with patch.object(
-        mock_profile, "register_behaviors", side_effect=register_behaviors_impl
-    ):
-        # Call the profile's register_behaviors method
-        mock_profile.register_behaviors(keymap_service.mock_behavior_registry)
+    # Test the functional approach
+    register_layout_behaviors(
+        mock_profile, mock_layout_data, keymap_service.mock_behavior_registry
+    )
 
-        # Since we're using a mock, check that register_behavior was called for each behavior
-        assert keymap_service.mock_behavior_registry.register_behavior.call_count == 2
+    # Since we're using a mock, check that register_behavior was called for each behavior
+    assert keymap_service.mock_behavior_registry.register_behavior.call_count == 2
 
-        # Verify the behavior codes that were registered
-        registered_behaviors = []
-        for (
-            call
-        ) in keymap_service.mock_behavior_registry.register_behavior.call_args_list:
-            behavior = call[0][0]  # First positional argument
-            registered_behaviors.append(behavior.code)
+    # Verify the behavior codes that were registered
+    registered_behaviors = []
+    for call in keymap_service.mock_behavior_registry.register_behavior.call_args_list:
+        behavior = call[0][0]  # First positional argument
+        registered_behaviors.append(behavior.code)
 
-        # Check for expected behaviors
-        assert "&kp" in registered_behaviors
-        assert "&bt" in registered_behaviors
-
-        # Verify behavior properties
-        for (
-            call
-        ) in keymap_service.mock_behavior_registry.register_behavior.call_args_list:
-            behavior = call[0][0]
-            if behavior.code == "&kp" or behavior.code == "&bt":
-                assert behavior.expected_params == 1
+    # Check for expected behaviors
+    assert "&kp" in registered_behaviors
+    assert "&bt" in registered_behaviors

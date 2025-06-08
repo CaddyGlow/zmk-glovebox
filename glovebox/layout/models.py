@@ -12,9 +12,21 @@ from pydantic import (
     model_validator,
 )
 
+# Import behavior models that are now part of the layout domain
+from glovebox.layout.behavior_models import (
+    BehaviorCommand,
+    BehaviorParameter,
+    KeymapBehavior,
+    ParameterType,
+    ParamValue,
+    RegistryBehavior,
+    SystemBehavior,
+    SystemBehaviorParam,
+    SystemParamList,
+)
+
 
 # Type aliases for common parameter types
-ParamValue: TypeAlias = str | int
 ConfigValue: TypeAlias = str | int | bool
 LayerIndex: TypeAlias = int
 #
@@ -316,3 +328,38 @@ class LayoutData(LayoutMetadata):
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary with proper field names."""
         return self.model_dump(by_alias=True, exclude_unset=True)
+
+
+# Re-export all models for external use
+__all__ = [
+    # Type aliases
+    "ConfigValue",
+    "LayerIndex",
+    "LayerBindings",
+    "BehaviorList",
+    "ConfigParamList",
+    # Layout models
+    "LayoutParam",
+    "LayoutBinding",
+    "LayoutLayer",
+    "LayoutData",
+    "LayoutMetadata",
+    # Behavior models
+    "HoldTapBehavior",
+    "ComboBehavior",
+    "MacroBehavior",
+    "InputProcessor",
+    "InputListenerNode",
+    "InputListener",
+    "ConfigParameter",
+    # Re-exported behavior models from behavior_models
+    "BehaviorCommand",
+    "BehaviorParameter",
+    "KeymapBehavior",
+    "ParameterType",
+    "ParamValue",
+    "RegistryBehavior",
+    "SystemBehavior",
+    "SystemBehaviorParam",
+    "SystemParamList",
+]

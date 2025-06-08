@@ -1,14 +1,5 @@
 """Models package for Glovebox core models."""
 
-from .behavior import (
-    BehaviorCommand,
-    BehaviorParameter,
-    KeymapBehavior,
-    ParameterType,
-    RegistryBehavior,
-    SystemBehavior,
-    SystemBehaviorParam,
-)
 from .config import (
     BuildConfig,
     BuildOptions,
@@ -29,14 +20,6 @@ __all__ = [
     "BuildResult",
     "KeymapResult",
     "LayoutResult",
-    # Behavior models
-    "BehaviorCommand",
-    "BehaviorParameter",
-    "KeymapBehavior",
-    "ParameterType",
-    "RegistryBehavior",
-    "SystemBehavior",
-    "SystemBehaviorParam",
     # Config models
     "BuildConfig",
     "BuildOptions",
