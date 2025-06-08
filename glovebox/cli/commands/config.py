@@ -436,37 +436,17 @@ def show_firmware(
     )
     if kconfig:
         print("\nKconfig Options:")
-        for key, config in kconfig.items():
-            if isinstance(config, dict):
-                # KConfigOption might be a dataclass or dict depending on context
-                if hasattr(config, "name"):
-                    name = config.name
-                    type_str = config.type
-                    default = config.default
-                    description = config.description
-                else:
-                    # Fallback for dict cases
-                    name = config.get("name", key) if isinstance(config, dict) else key
-                    type_str = (
-                        config.get("type", "N/A") if isinstance(config, dict) else "N/A"
-                    )
-                    default = (
-                        config.get("default", "N/A")
-                        if isinstance(config, dict)
-                        else "N/A"
-                    )
-                    description = (
-                        config.get("description", "")
-                        if isinstance(config, dict)
-                        else ""
-                    )
+        for _key, config in kconfig.items():
+            # config is always a KConfigOption instance
+            name = config.name
+            type_str = config.type
+            default = config.default
+            description = config.description
 
-                print(f"  • {name} ({type_str})")
-                print(f"    Default: {default}")
-                if description:
-                    print(f"    Description: {description}")
-            else:
-                print(f"  • {key}: {config}")
+            print(f"  • {name} ({type_str})")
+            print(f"    Default: {default}")
+            if description:
+                print(f"    Description: {description}")
 
 
 def register_commands(app: typer.Typer) -> None:

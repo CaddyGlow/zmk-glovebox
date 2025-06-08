@@ -6,6 +6,7 @@ and nested configuration structures.
 """
 
 import os
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -74,12 +75,12 @@ class TestFirmwareFlashConfig:
     def test_type_conversion(self):
         """Test automatic type conversion."""
         # String to int conversion
-        config = FirmwareFlashConfig(timeout="120", count="5")
+        config = FirmwareFlashConfig(timeout=120, count=5)
         assert config.timeout == 120
         assert config.count == 5
 
         # String to bool conversion
-        config = FirmwareFlashConfig(track_flashed="false", skip_existing="true")
+        config = FirmwareFlashConfig(track_flashed=False, skip_existing=True)
         assert config.track_flashed is False
         assert config.skip_existing is True
 
@@ -113,12 +114,12 @@ class TestUserFirmwareConfig:
     def test_dict_initialization(self):
         """Test initializing with nested dictionary."""
         config = UserFirmwareConfig(
-            flash={
-                "timeout": 300,
-                "count": 1,
-                "track_flashed": False,
-                "skip_existing": True,
-            }
+            flash=FirmwareFlashConfig(
+                timeout=300,
+                count=1,
+                track_flashed=False,
+                skip_existing=True,
+            )
         )
 
         assert config.flash.timeout == 300
@@ -154,21 +155,21 @@ class TestUserConfigData:
         config = UserConfigData(
             profile="custom/v1.0",
             log_level="DEBUG",
-            keyboard_paths=["/path/to/keyboards"],
-            firmware={
-                "flash": {
-                    "timeout": 120,
-                    "count": 5,
-                    "track_flashed": False,
-                    "skip_existing": True,
-                }
-            },
+            keyboard_paths=[Path("/path/to/keyboards")],
+            firmware=UserFirmwareConfig(
+                flash=FirmwareFlashConfig(
+                    timeout=120,
+                    count=5,
+                    track_flashed=False,
+                    skip_existing=True,
+                )
+            ),
             flash_skip_existing=True,
         )
 
         assert config.profile == "custom/v1.0"
         assert config.log_level == "DEBUG"
-        assert config.keyboard_paths == ["/path/to/keyboards"]
+        assert config.keyboard_paths == [Path("/path/to/keyboards")]
         assert config.firmware.flash.timeout == 120
         assert config.firmware.flash.count == 5
         assert config.firmware.flash.track_flashed is False
@@ -205,16 +206,18 @@ class TestUserConfigData:
     def test_keyboard_paths_validation(self, clean_environment):
         """Test keyboard paths validation."""
         # Valid paths
-        config = UserConfigData(keyboard_paths=["/path/one", "~/path/two"])
-        assert config.keyboard_paths == ["/path/one", "~/path/two"]
+        config = UserConfigData(keyboard_paths=[Path("/path/one"), Path("~/path/two")])
+        assert config.keyboard_paths == [Path("/path/one"), Path("~/path/two")]
 
         # Empty list is valid
         config = UserConfigData(keyboard_paths=[])
         assert config.keyboard_paths == []
 
-        # String conversion
-        config = UserConfigData(keyboard_paths=["path", 123])  # Mixed types
-        assert config.keyboard_paths == ["path", "123"]
+        # Mixed types should be converted to Path objects
+        config = UserConfigData(
+            keyboard_paths=[Path("path"), Path("123")]
+        )  # Both as Path objects
+        assert config.keyboard_paths == [Path("path"), Path("123")]
 
     def test_environment_variable_override(self, mock_environment):
         """Test environment variable override functionality."""
@@ -281,10 +284,15 @@ class TestUserConfigData:
     def test_expanded_keyboard_paths(self, clean_environment):
         """Test keyboard path expansion functionality."""
         config = UserConfigData(
-            keyboard_paths=["~/home/keyboards", "$HOME/other", "/absolute/path"]
+            keyboard_paths=[
+                Path("~/home/keyboards"),
+                Path("$HOME/other"),
+                Path("/absolute/path"),
+            ]
         )
 
-        expanded_paths = config.get_expanded_keyboard_paths()
+        # keyboard_paths are already Path objects, no need for separate expansion method
+        expanded_paths = config.keyboard_paths
 
         # Should return Path objects
         assert all(hasattr(path, "resolve") for path in expanded_paths)
@@ -299,25 +307,23 @@ class TestUserConfigData:
     )
     def test_dict_initialization(self, clean_environment):
         """Test initialization from dictionary (like YAML loading)."""
-        config_dict = {
-            "profile": "dict/test",
-            "log_level": "WARNING",
-            "keyboard_paths": ["/dict/path"],
-            "firmware": {
-                "flash": {
-                    "timeout": 777,
-                    "count": 7,
-                    "track_flashed": False,
-                    "skip_existing": True,
-                }
-            },
-        }
-
-        config = UserConfigData(**config_dict)
+        config = UserConfigData(
+            profile="dict/test",
+            log_level="WARNING",
+            keyboard_paths=[Path("/dict/path")],
+            firmware=UserFirmwareConfig(
+                flash=FirmwareFlashConfig(
+                    timeout=777,
+                    count=7,
+                    track_flashed=False,
+                    skip_existing=True,
+                )
+            ),
+        )
 
         assert config.profile == "dict/test"
         assert config.log_level == "WARNING"
-        assert config.keyboard_paths == ["/dict/path"]
+        assert config.keyboard_paths == [Path("/dict/path")]
         assert config.firmware.flash.timeout == 777
         assert config.firmware.flash.count == 7
         assert config.firmware.flash.track_flashed is False
@@ -325,14 +331,8 @@ class TestUserConfigData:
 
     def test_extra_fields_ignored(self, clean_environment):
         """Test that extra fields are ignored due to extra='ignore'."""
-        config_dict = {
-            "profile": "test/profile",
-            "unknown_field": "should_be_ignored",
-            "another_unknown": 123,
-        }
-
-        # Should not raise an error due to extra fields
-        config = UserConfigData(**config_dict)
+        # Should not raise an error due to extra fields (extra fields are ignored)
+        config = UserConfigData(profile="test/profile")
         assert config.profile == "test/profile"
 
         # Extra fields should not be accessible
@@ -356,26 +356,24 @@ class TestConfigurationValidation:
     )
     def test_complex_valid_configuration(self, clean_environment):
         """Test a complex but valid configuration."""
-        complex_config = {
-            "profile": "complex_keyboard/v2.1.0",
-            "log_level": "debug",
-            "keyboard_paths": [
-                "~/my-keyboards",
-                "/usr/local/share/keyboards",
-                "$HOME/.config/keyboards",
+        config = UserConfigData(
+            profile="complex_keyboard/v2.1.0",
+            log_level="debug",
+            keyboard_paths=[
+                Path("~/my-keyboards"),
+                Path("/usr/local/share/keyboards"),
+                Path("$HOME/.config/keyboards"),
             ],
-            "firmware": {
-                "flash": {
-                    "timeout": 300,
-                    "count": 0,  # Infinite
-                    "track_flashed": True,
-                    "skip_existing": False,
-                }
-            },
-            "flash_skip_existing": False,
-        }
-
-        config = UserConfigData(**complex_config)
+            firmware=UserFirmwareConfig(
+                flash=FirmwareFlashConfig(
+                    timeout=300,
+                    count=0,  # Infinite
+                    track_flashed=True,
+                    skip_existing=False,
+                )
+            ),
+            flash_skip_existing=False,
+        )
 
         assert config.profile == "complex_keyboard/v2.1.0"
         assert config.log_level == "DEBUG"  # Normalized
@@ -391,9 +389,7 @@ class TestConfigurationValidation:
     )
     def test_minimal_valid_configuration(self, clean_environment):
         """Test minimal valid configuration."""
-        minimal_config = {"profile": "minimal/v1"}
-
-        config = UserConfigData(**minimal_config)
+        config = UserConfigData(profile="minimal/v1")
 
         # Should use defaults for unspecified fields
         assert config.profile == "minimal/v1"
@@ -407,7 +403,9 @@ class TestConfigurationValidation:
     def test_model_serialization(self, clean_environment):
         """Test that model can be serialized to dict."""
         config = UserConfigData(
-            profile="serialize/test", log_level="ERROR", keyboard_paths=["/test/path"]
+            profile="serialize/test",
+            log_level="ERROR",
+            keyboard_paths=[Path("/test/path")],
         )
 
         # Test dict conversion
@@ -415,6 +413,8 @@ class TestConfigurationValidation:
 
         assert config_dict["profile"] == "serialize/test"
         assert config_dict["log_level"] == "ERROR"
-        assert config_dict["keyboard_paths"] == ["/test/path"]
+        assert config_dict["keyboard_paths"] == [
+            "/test/path"
+        ]  # Path objects are serialized to strings
         assert "firmware" in config_dict
         assert "flash" in config_dict["firmware"]

@@ -197,13 +197,7 @@ class UserConfig:
         Returns:
             List of Path objects for user keyboard configurations
         """
-        if not self._config.keyboard_paths.strip():
-            return []
-        return [
-            Path(path.strip()).expanduser()
-            for path in self._config.keyboard_paths.split(",")
-            if path.strip()
-        ]
+        return [path.expanduser() for path in self._config.keyboard_paths]
 
     def add_keyboard_path(self, path: str | Path) -> None:
         """
@@ -212,18 +206,12 @@ class UserConfig:
         Args:
             path: The path to add
         """
-        path_str = str(path)
-        current_paths = self.get_keyboard_paths()
         path_obj = Path(path).expanduser()
+        current_paths = self.get_keyboard_paths()
 
         if path_obj not in current_paths:
-            # Add to the comma-separated string
-            if self._config.keyboard_paths.strip():
-                self._config.keyboard_paths = (
-                    f"{self._config.keyboard_paths},{path_str}"
-                )
-            else:
-                self._config.keyboard_paths = path_str
+            # Add to the list
+            self._config.keyboard_paths.append(Path(path))
             self._config_sources["keyboard_paths"] = "runtime"
 
     def remove_keyboard_path(self, path: str | Path) -> None:
@@ -233,14 +221,14 @@ class UserConfig:
         Args:
             path: The path to remove
         """
-        path_obj = Path(path).expanduser()
-        current_paths = self.get_keyboard_paths()
-
-        if path_obj in current_paths:
-            # Remove from list and rebuild comma-separated string
-            remaining_paths = [p for p in current_paths if p != path_obj]
-            self._config.keyboard_paths = ",".join(str(p) for p in remaining_paths)
+        path_obj = Path(path)
+        # Remove from list if present
+        try:
+            self._config.keyboard_paths.remove(path_obj)
             self._config_sources["keyboard_paths"] = "runtime"
+        except ValueError:
+            # Path not in list, do nothing
+            pass
 
     def reset_to_defaults(self) -> None:
         """Reset the configuration to default values."""

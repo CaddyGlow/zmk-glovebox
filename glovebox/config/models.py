@@ -18,7 +18,23 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+
+def parse_keyboard_paths(value: Any) -> list[Path]:
+    """Parse keyboard_paths from various input formats."""
+    if isinstance(value, list):
+        # Already a list, convert items to Path objects
+        return [Path(item) if not isinstance(item, Path) else item for item in value]
+    elif isinstance(value, str):
+        # Comma-separated string from environment variable or file
+        if not value.strip():
+            return []
+        return [Path(path.strip()) for path in value.split(",") if path.strip()]
+    elif value is None:
+        return []
+    else:
+        raise ValueError(f"Invalid keyboard_paths format: {type(value)}")
 
 
 # KConfig type definitions
@@ -203,10 +219,22 @@ class UserConfigData(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        json_schema_extra={
+            "env_ignore_empty": True,
+        },
     )
 
-    # Paths for user-defined keyboards and layouts (comma-separated string)
-    keyboard_paths: str = Field(default="")
+    keyboard_paths: Annotated[list[Path], NoDecode] = []
+
+    # Paths for user-defined keyboards and layouts (stored as string, accessed as list[Path])
+    @field_validator("keyboard_paths", mode="before")
+    @classmethod
+    def decode_keyboard_paths(cls, v: Any) -> list[Path]:
+        if isinstance(v, str):
+            return [Path(path) for path in v.split(",") if path.strip()]
+        elif isinstance(v, list):
+            return [Path(path) for path in v if path.strip()]
+        return []
 
     # Default profile (keyboard/firmware combination)
     profile: str = Field(
@@ -251,17 +279,3 @@ class UserConfigData(BaseSettings):
         if upper_v not in valid_levels:
             raise ValueError(f"Log level must be one of {valid_levels}")
         return upper_v  # Always normalize to uppercase
-
-    @field_validator("keyboard_paths", mode="before")
-    @classmethod
-    def validate_keyboard_paths(cls, v: Any) -> str:
-        """Convert keyboard paths from various formats to comma-separated string."""
-        if isinstance(v, str):
-            return v
-        elif isinstance(v, list):
-            # Convert list to comma-separated string
-            return ",".join(str(path) for path in v)
-        elif v is None:
-            return ""
-        else:
-            raise ValueError("keyboard_paths must be a string or list")

@@ -120,13 +120,29 @@ def user_config_data_factory():
     """Factory function to create UserConfigData instances with custom values."""
 
     def _create_config(**kwargs) -> UserConfigData:
-        defaults = {
-            "profile": "glove80/v25.05",
-            "log_level": "INFO",
-            "keyboard_paths": [],
+        from pathlib import Path
+
+        # Handle special conversion for keyboard_paths
+        if "keyboard_paths" in kwargs and kwargs["keyboard_paths"]:
+            if isinstance(kwargs["keyboard_paths"], list) and kwargs["keyboard_paths"]:
+                if isinstance(kwargs["keyboard_paths"][0], str):
+                    kwargs["keyboard_paths"] = [
+                        Path(p) for p in kwargs["keyboard_paths"]
+                    ]
+
+        # Set defaults for missing fields
+        config_data = {
+            "profile": kwargs.get("profile", "glove80/v25.05"),
+            "log_level": kwargs.get("log_level", "INFO"),
+            "keyboard_paths": kwargs.get("keyboard_paths", []),
         }
-        defaults.update(kwargs)
-        return UserConfigData(**defaults)
+
+        # Add any other kwargs that aren't the main fields
+        for key, value in kwargs.items():
+            if key not in config_data:
+                config_data[key] = value
+
+        return UserConfigData(**config_data)
 
     return _create_config
 

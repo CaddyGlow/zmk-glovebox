@@ -105,9 +105,10 @@ class TestConfigurationPrecedenceChain:
                 config._config.profile == "file/override"
             )  # Not default 'glove80/v25.05'
             assert config._config.log_level == "ERROR"  # Not default 'INFO'
-            assert (
-                config._config.keyboard_paths == "/file/path1,/file/path2"
-            )  # Not default ""
+            assert config._config.keyboard_paths == [
+                Path("/file/path1"),
+                Path("/file/path2"),
+            ]  # Not default []
             assert config._config.firmware.flash.timeout == 500  # Not default 60
             assert config._config.firmware.flash.count == 1  # Not default 2
             assert (
@@ -137,7 +138,7 @@ class TestConfigurationPrecedenceChain:
         # Should use all default values
         assert config._config.profile == "glove80/v25.05"
         assert config._config.log_level == "INFO"
-        assert config._config.keyboard_paths == ""
+        assert config._config.keyboard_paths == []
         assert config._config.firmware.flash.timeout == 60
         assert config._config.firmware.flash.count == 2
         assert config._config.firmware.flash.track_flashed is True
@@ -189,7 +190,7 @@ class TestConfigurationPrecedenceChain:
             )
 
             # Defaults for settings not in file or environment
-            assert config._config.keyboard_paths == ""
+            assert config._config.keyboard_paths == []
             assert config._config.firmware.flash.track_flashed is True
             assert config.get_source("keyboard_paths") == "default"
             assert config.get_source("firmware.flash.track_flashed") == "default"
@@ -360,7 +361,9 @@ class TestComplexIntegrationScenarios:
             # User preferences override system defaults
             assert config._config.profile == "custom_board/experimental"
             assert config._config.log_level == "DEBUG"
-            assert config._config.keyboard_paths == "/home/user/keyboards,~/my-layouts"
+            # keyboard_paths should be converted from environment variable string
+            expected_paths = [Path("/home/user/keyboards"), Path("~/my-layouts")]
+            assert config._config.keyboard_paths == expected_paths
             assert config._config.firmware.flash.timeout == 120
 
             # System defaults for non-customized settings
