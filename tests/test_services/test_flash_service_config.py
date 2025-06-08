@@ -7,10 +7,10 @@ import pytest
 
 from glovebox.config.models import FlashConfig, KeyboardConfig
 from glovebox.flash.lsdev import BlockDevice
-from glovebox.models.results import FlashResult
+from glovebox.flash.models import FlashResult
+from glovebox.flash.service import FlashService, create_flash_service
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
-from glovebox.services.flash_service import FlashService, create_flash_service
 
 
 class TestFlashServiceWithProfile:

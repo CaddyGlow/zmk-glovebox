@@ -2,6 +2,14 @@
 
 # Layout models moved to glovebox.layout.models
 # Import them here for backward compatibility
+# Flash models moved to glovebox.flash.models
+# Import them here for backward compatibility
+from glovebox.flash.models import (
+    BlockDeviceDict,
+    BlockDevicePathMap,
+    BlockDeviceSymlinks,
+    FlashResult,
+)
 from glovebox.layout.models import (
     ComboBehavior,
     ConfigParameter,
@@ -42,12 +50,7 @@ from .config import (
     UserConfigData,
     VisualLayout,
 )
-from .flash import (
-    BlockDeviceDict,
-    BlockDevicePathMap,
-    BlockDeviceSymlinks,
-)
-from .results import BuildResult, FlashResult, KeymapResult, LayoutResult
+from .results import BuildResult, KeymapResult, LayoutResult
 
 
 __all__ = [

@@ -9,7 +9,8 @@ import typer
 
 from glovebox.cli import app
 from glovebox.core.errors import BuildError, ConfigError, FlashError, LayoutError
-from glovebox.models.results import BuildResult, FlashResult, LayoutResult
+from glovebox.flash.models import FlashResult
+from glovebox.models.results import BuildResult, LayoutResult
 
 
 @patch("glovebox.layout.create_layout_service")

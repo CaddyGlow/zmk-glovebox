@@ -20,7 +20,7 @@ from glovebox.flash.lsdev import (
     Lsdev,
     print_device_info,
 )
-from glovebox.models.results import FlashResult
+from glovebox.flash.models import FlashResult
 from glovebox.protocols.device_detector_protocol import DeviceDetectorProtocol
 from glovebox.protocols.firmware_flasher_protocol import FirmwareFlasherProtocol
 

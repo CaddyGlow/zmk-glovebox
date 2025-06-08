@@ -25,6 +25,7 @@ from glovebox.config.keyboard_config import (
 )
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import ConfigError
+from glovebox.flash.models import FlashResult
 from glovebox.models import (
     BuildConfig,
     BuildOptions,
@@ -36,7 +37,7 @@ from glovebox.models import (
     KeymapSection,
     SystemBehavior,
 )
-from glovebox.models.results import BuildResult, FlashResult, LayoutResult
+from glovebox.models.results import BuildResult, LayoutResult
 
 
 # ---- Test Data Fixtures ----

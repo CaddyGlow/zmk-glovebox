@@ -5,22 +5,20 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from glovebox.adapters.file_adapter import create_file_adapter
-from glovebox.adapters.usb_adapter import create_usb_adapter
 from glovebox.flash.lsdev import BlockDevice
-from glovebox.models.results import FlashResult
-from glovebox.protocols import FileAdapterProtocol, USBAdapterProtocol
-from glovebox.services.base_service import BaseServiceImpl
+from glovebox.flash.models import FlashResult
 
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
+    from glovebox.protocols import FileAdapterProtocol, USBAdapterProtocol
+    from glovebox.services.base_service import BaseServiceImpl
 
 
 logger = logging.getLogger(__name__)
 
 
-class FlashService(BaseServiceImpl):
+class FlashService:
     """Service for all firmware flashing operations.
 
     Responsible for USB device detection, firmware transfer to devices,
@@ -33,8 +31,8 @@ class FlashService(BaseServiceImpl):
 
     def __init__(
         self,
-        usb_adapter: USBAdapterProtocol,
-        file_adapter: FileAdapterProtocol,
+        usb_adapter: "USBAdapterProtocol",
+        file_adapter: "FileAdapterProtocol",
         loglevel: str = "INFO",
     ):
         """Initialize flash service with explicit dependencies.
@@ -44,7 +42,8 @@ class FlashService(BaseServiceImpl):
             file_adapter: File adapter for file operations
             loglevel: Log level for subprocess operations (used when executing docker)
         """
-        super().__init__(service_name="FlashService", service_version="1.0.0")
+        self._service_name = "FlashService"
+        self._service_version = "1.0.0"
         self.usb_adapter = usb_adapter
         self.file_adapter = file_adapter
         self.loglevel = loglevel
@@ -414,8 +413,8 @@ class FlashService(BaseServiceImpl):
 
 
 def create_flash_service(
-    usb_adapter: USBAdapterProtocol | None = None,
-    file_adapter: FileAdapterProtocol | None = None,
+    usb_adapter: "USBAdapterProtocol | None" = None,
+    file_adapter: "FileAdapterProtocol | None" = None,
     loglevel: str = "INFO",
 ) -> FlashService:
     """Create a FlashService instance with optional dependency injection.
@@ -434,8 +433,12 @@ def create_flash_service(
     """
     # Create default adapters if not provided
     if usb_adapter is None:
+        from glovebox.adapters.usb_adapter import create_usb_adapter
+
         usb_adapter = create_usb_adapter()
     if file_adapter is None:
+        from glovebox.adapters.file_adapter import create_file_adapter
+
         file_adapter = create_file_adapter()
 
     # Return service with explicit dependencies

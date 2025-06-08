@@ -17,9 +17,10 @@ from glovebox.config.models import (
     KeymapSection,
 )
 from glovebox.config.profile import KeyboardProfile
+from glovebox.flash.models import FlashResult
 from glovebox.models import SystemBehavior
 from glovebox.models.build import FirmwareOutputFiles
-from glovebox.models.results import BuildResult, FlashResult, LayoutResult
+from glovebox.models.results import BuildResult, LayoutResult
 
 
 def create_mock_build_result(
