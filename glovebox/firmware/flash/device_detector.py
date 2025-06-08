@@ -1,6 +1,7 @@
 """Device detection service implementation."""
 
 import logging
+import re
 import threading
 import time
 from collections.abc import Callable
@@ -195,14 +196,33 @@ class DeviceDetector(DeviceDetectorProtocol):
         if not hasattr(device, field):
             return False
 
-        device_value = str(getattr(device, field, ""))
+        device_attr = getattr(device, field, "")
+
+        # Handle boolean values with case-insensitive comparison
+        if isinstance(device_attr, bool):
+            device_value = str(device_attr)
+            if operator == "=":
+                return device_value.lower() == value.lower()
+            elif operator == "!=":
+                return device_value.lower() != value.lower()
+            elif operator == "~=":
+                return value.lower() in device_value.lower()
+        else:
+            device_value = str(device_attr)
 
         if operator == "=":
             return device_value == value
         elif operator == "!=":
             return device_value != value
         elif operator == "~=":
-            return value.lower() in device_value.lower()
+            # Support regex patterns for ~= operator
+            try:
+                # First try as regex pattern
+                pattern = re.compile(value, re.IGNORECASE)
+                return bool(pattern.search(device_value))
+            except re.error:
+                # Fallback to substring matching if not valid regex
+                return value.lower() in device_value.lower()
         else:
             return False
 
