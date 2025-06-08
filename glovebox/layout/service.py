@@ -11,10 +11,7 @@ from glovebox.adapters.template_adapter import create_template_adapter
 from glovebox.builders.template_context_builder import create_template_context_builder
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import LayoutError
-from glovebox.formatters.behavior_formatter import (
-    BehaviorFormatterImpl,
-)
-from glovebox.generators.dtsi_generator import DTSIGenerator
+from glovebox.layout.behavior_formatter import BehaviorFormatterImpl
 from glovebox.layout.component_service import (
     LayoutComponentService,
     create_layout_component_service,
@@ -23,6 +20,7 @@ from glovebox.layout.display_service import (
     LayoutDisplayService,
     create_layout_display_service,
 )
+from glovebox.layout.generator import DTSIGenerator
 from glovebox.layout.models import (
     LayoutData,
 )
@@ -565,9 +563,13 @@ def create_layout_service(
         behavior_registry = temp_registry
 
     if behavior_formatter is None:
+        from glovebox.layout.behavior_formatter import BehaviorFormatterImpl
+
         behavior_formatter = BehaviorFormatterImpl(behavior_registry)
 
     if dtsi_generator is None:
+        from glovebox.layout.generator import DTSIGenerator
+
         dtsi_generator = DTSIGenerator(behavior_formatter)
 
     if component_service is None:

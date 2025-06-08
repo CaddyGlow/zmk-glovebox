@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from glovebox.formatters.behavior_formatter import BehaviorFormatterImpl
+from glovebox.layout.behavior_formatter import BehaviorFormatterImpl
 from glovebox.layout.models import LayoutBinding, LayoutParam
 from glovebox.models.behavior import RegistryBehavior, SystemBehavior
 from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
