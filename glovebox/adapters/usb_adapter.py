@@ -7,12 +7,12 @@ from pathlib import Path
 from typing import Any, Optional, cast
 
 from glovebox.core.errors import FlashError, USBError
-from glovebox.firmware.flash.detect import create_device_detector
+from glovebox.firmware.flash.device_detector import create_device_detector
 from glovebox.firmware.flash.flash_operations import (
     FlashOperations,
     create_flash_operations,
 )
-from glovebox.firmware.flash.lsdev import BlockDevice, Lsdev
+from glovebox.firmware.flash.models import BlockDevice
 from glovebox.protocols.device_detector_protocol import DeviceDetectorProtocol
 from glovebox.protocols.flash_os_protocol import FlashOSProtocol
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
@@ -32,7 +32,6 @@ class USBAdapterImpl:
     ) -> None:
         """Initialize the USB adapter."""
         self._detector = detector or create_device_detector()
-        self._lsdev: Lsdev | None = None
         self._flash_ops = flash_operations or create_flash_operations()
         self._lock = threading.RLock()
         logger.debug("USBAdapter initialized")
@@ -41,13 +40,6 @@ class USBAdapterImpl:
     def detector(self) -> DeviceDetectorProtocol:
         """Get the detector instance."""
         return self._detector
-
-    @property
-    def lsdev(self) -> Lsdev:
-        """Get or create the lsdev instance."""
-        if self._lsdev is None:
-            self._lsdev = Lsdev()
-        return self._lsdev
 
     def detect_device(
         self,
@@ -74,11 +66,7 @@ class USBAdapterImpl:
         logger.info("Detecting device with query: %s", query)
 
         try:
-            # Cast the result to BlockDevice since we know the detector returns a valid BlockDevice
-            return cast(
-                BlockDevice,
-                self.detector.detect_device(query, timeout, initial_devices),
-            )
+            return self.detector.detect_device(query, timeout, initial_devices)
         except TimeoutError as e:
             error = create_usb_error(
                 query,
@@ -235,7 +223,7 @@ class USBAdapterImpl:
             if query:
                 return self.detector.list_matching_devices(query)
             else:
-                return self.lsdev.get_devices()
+                return self.detector.get_devices()
         except Exception as e:
             error = create_usb_error("all", "get_all_devices", e, {"query": query})
             logger.error("Failed to get block devices: %s", e)

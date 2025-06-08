@@ -7,8 +7,8 @@ This package contains all flash-related functionality including:
 - OS-specific flash adapters
 """
 
-from .detect import create_device_detector
-from .models import FlashResult
+from .device_detector import create_device_detector
+from .models import BlockDevice, FlashResult
 from .service import FlashService, create_flash_service
 from .usb import create_firmware_flasher
 
@@ -18,6 +18,7 @@ __all__ = [
     "FlashService",
     "create_flash_service",
     # Models and results
+    "BlockDevice",
     "FlashResult",
     # Low-level operations
     "create_device_detector",

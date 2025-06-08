@@ -1,15 +1,17 @@
 """Protocol definitions for behavior-related interfaces."""
 
-from typing import Any, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Optional, Protocol, runtime_checkable
 
-from glovebox.layout.behavior.models import RegistryBehavior
+
+if TYPE_CHECKING:
+    from glovebox.layout.behavior.models import RegistryBehavior
 
 
 @runtime_checkable
 class BehaviorRegistryProtocol(Protocol):
     """Protocol for behavior registry."""
 
-    def get_behavior_info(self, name: str) -> RegistryBehavior | None:
+    def get_behavior_info(self, name: str) -> Optional["RegistryBehavior"]:
         """Get information about a registered behavior."""
         ...
 

@@ -2,9 +2,11 @@
 
 from abc import abstractmethod
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from glovebox.firmware.flash.lsdev import BlockDevice
+
+if TYPE_CHECKING:
+    from glovebox.firmware.flash.models import BlockDevice
 
 
 @runtime_checkable
@@ -31,7 +33,7 @@ class FlashOSProtocol(Protocol):
         ...
 
     @abstractmethod
-    def mount_device(self, device: BlockDevice) -> list[str]:
+    def mount_device(self, device: "BlockDevice") -> list[str]:
         """Mount a block device and return mount points.
 
         Args:
@@ -46,7 +48,7 @@ class FlashOSProtocol(Protocol):
         ...
 
     @abstractmethod
-    def unmount_device(self, device: BlockDevice) -> bool:
+    def unmount_device(self, device: "BlockDevice") -> bool:
         """Unmount a block device.
 
         Args:

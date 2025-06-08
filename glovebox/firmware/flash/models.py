@@ -1,15 +1,26 @@
 """Models and type definitions for flash operations."""
 
+import contextlib
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
+if TYPE_CHECKING:
+    pass
+
+
 logger = logging.getLogger(__name__)
+
+
+class BlockDeviceError(Exception):
+    """Base exception for block device operations."""
+
+    pass
 
 
 # Type definitions for BlockDevice operations
@@ -224,3 +235,145 @@ class FlashResult(BaseResult):
             return False
 
         return True
+
+
+@dataclass
+class BlockDevice:
+    """Represents a block device with its properties.
+
+    This model represents USB block devices detected by the system,
+    including their metadata, mount points, and device characteristics.
+    """
+
+    name: str
+    device_node: str = ""  # Store the original device node for easier access
+    size: int = 0
+    type: str = "unknown"
+    removable: bool = False
+    model: str = ""
+    vendor: str = ""
+    serial: str = ""
+    uuid: str = ""
+    label: str = ""
+    partitions: list[str] = field(default_factory=list)
+    mountpoints: dict[str, str] = field(default_factory=dict)
+    symlinks: set[str] = field(default_factory=set)
+    raw: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def path(self) -> str:
+        """Return the device path."""
+        return self.device_node
+
+    @property
+    def description(self) -> str:
+        """Return a human-readable description of the device."""
+        if self.label:
+            return f"{self.label} ({self.name})"
+        elif self.vendor and self.model:
+            return f"{self.vendor} {self.model} ({self.name})"
+        elif self.vendor:
+            return f"{self.vendor} {self.name}"
+        elif self.model:
+            return f"{self.model} {self.name}"
+        else:
+            return self.name
+
+    @classmethod
+    def from_pyudev_device(cls, device: Any) -> "BlockDevice":
+        """Create a BlockDevice from a pyudev Device."""
+        name = device.sys_name
+        device_node = device.device_node
+
+        raw_dict = dict(device.properties.items())
+
+        # Extract size using device attributes
+        size = 0
+        if device.attributes.get("size"):
+            with contextlib.suppress(ValueError, TypeError):
+                size = int(device.attributes.get("size", 0)) * 512
+
+        # Get removable status from attributes
+        removable = False
+        if device.attributes.get("removable"):
+            with contextlib.suppress(ValueError, TypeError):
+                removable = bool(int(device.attributes.get("removable", 0)))
+
+        # Extract model and vendor from properties
+        model = device.properties.get("ID_MODEL", "")
+        vendor = device.properties.get("ID_VENDOR", "")
+
+        # Determine device type
+        device_type = "unknown"
+        if device.properties.get("ID_BUS") == "usb":
+            device_type = "usb"
+        elif name.startswith("sd"):
+            device_type = "disk"
+        elif name.startswith("nvme"):
+            device_type = "nvme"
+        else:
+            device_type = device.properties.get("DEVTYPE", "unknown")
+
+        # Collect symlinks
+        symlinks = set()
+        for link in device.device_links:
+            symlink = Path(link).name
+            symlinks.add(symlink)
+
+        # Get partitions
+        partitions = []
+        try:
+            for child in device.children:
+                if child.subsystem == "block" and child.device_node != device_node:
+                    partitions.append(child.sys_name)
+        except (AttributeError, KeyError):
+            pass  # Keep partitions as empty list
+
+        # Create the block device object
+        return cls(
+            name=name,
+            device_node=device_node,
+            size=size,
+            type=device_type,
+            removable=removable,
+            model=model,
+            vendor=vendor,
+            partitions=partitions,
+            symlinks=symlinks,
+            label=device.properties.get("ID_FS_LABEL", ""),
+            uuid=device.properties.get("ID_FS_UUID", ""),
+            serial=device.properties.get("ID_SERIAL_SHORT", ""),
+            raw=raw_dict,
+        )
+
+    @classmethod
+    def from_macos_disk_info(
+        cls,
+        disk_name: str,
+        disk_info: "DiskInfo",
+        usb_info: "USBDeviceInfo | None" = None,
+        mounted_volumes: set[str] | None = None,
+    ) -> "BlockDevice":
+        """Create a BlockDevice from macOS disk and USB info."""
+        if mounted_volumes is None:
+            mounted_volumes = set()
+
+        volume_name = disk_info.volume_name
+
+        return cls(
+            name=disk_name,
+            device_node=f"/dev/{disk_name}",
+            model=(
+                usb_info.name if usb_info and usb_info.name else disk_info.media_name
+            )
+            or "Unknown",
+            vendor=usb_info.vendor if usb_info and usb_info.vendor else "Unknown",
+            serial=usb_info.serial if usb_info else "",
+            size=disk_info.size,
+            removable=disk_info.removable,
+            type="usb" if usb_info else "disk",
+            partitions=disk_info.partitions,
+            mountpoints={volume_name: f"/Volumes/{volume_name}"}
+            if volume_name in mounted_volumes
+            else {},
+        )

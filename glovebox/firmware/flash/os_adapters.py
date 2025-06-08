@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from glovebox.protocols.flash_os_protocol import FlashOSProtocol
 
 from glovebox.core.errors import FlashError
-from glovebox.firmware.flash.lsdev import BlockDevice
+from glovebox.firmware.flash.models import BlockDevice
 
 
 logger = logging.getLogger(__name__)

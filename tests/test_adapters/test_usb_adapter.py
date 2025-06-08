@@ -7,7 +7,7 @@ import pytest
 
 from glovebox.adapters.usb_adapter import USBAdapterImpl, create_usb_adapter
 from glovebox.core.errors import FlashError, USBError
-from glovebox.firmware.flash.lsdev import BlockDevice
+from glovebox.firmware.flash.models import BlockDevice
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
 
 
@@ -19,7 +19,6 @@ class TestUSBAdapterImpl:
         adapter = USBAdapterImpl()
         assert adapter is not None
         assert hasattr(adapter, "detector")
-        assert hasattr(adapter, "lsdev")
 
     def test_detect_device_success(self):
         """Test successful device detection."""
@@ -186,7 +185,7 @@ class TestUSBAdapterImpl:
         mock_devices = [BlockDevice(name="sda"), BlockDevice(name="sdb")]
 
         with patch.object(
-            adapter.lsdev, "get_devices", return_value=mock_devices
+            adapter.detector, "get_devices", return_value=mock_devices
         ) as mock_get:
             result = adapter.get_all_devices()
 
@@ -199,7 +198,7 @@ class TestUSBAdapterImpl:
 
         with (
             patch.object(
-                adapter.lsdev,
+                adapter.detector,
                 "get_devices",
                 side_effect=Exception("Get devices failed"),
             ),

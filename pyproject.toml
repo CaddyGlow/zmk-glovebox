@@ -122,11 +122,6 @@ warn_unreachable = true
 
 # No error code exemptions
 
-[[tool.mypy.overrides]]
-module = "glovebox.flash.lsdev"
-disable_error_code = ["import-untyped"]
-disallow_any_unimported = false
-ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "rich"

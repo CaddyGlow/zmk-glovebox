@@ -5,8 +5,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from glovebox.firmware.flash.lsdev import BlockDevice
-from glovebox.firmware.flash.models import FlashResult
+from glovebox.firmware.flash.models import BlockDevice, FlashResult
 
 
 if TYPE_CHECKING:

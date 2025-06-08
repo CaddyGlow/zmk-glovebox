@@ -12,15 +12,9 @@ from pathlib import Path
 from typing import Any
 
 from glovebox.core.errors import FlashError
-from glovebox.firmware.flash.detect import create_device_detector
+from glovebox.firmware.flash.device_detector import create_device_detector
 from glovebox.firmware.flash.flash_operations import create_flash_operations
-from glovebox.firmware.flash.lsdev import (
-    BlockDevice,
-    BlockDeviceError,
-    Lsdev,
-    print_device_info,
-)
-from glovebox.firmware.flash.models import FlashResult
+from glovebox.firmware.flash.models import BlockDevice, BlockDeviceError, FlashResult
 from glovebox.protocols.device_detector_protocol import DeviceDetectorProtocol
 from glovebox.protocols.firmware_flasher_protocol import FirmwareFlasherProtocol
 
@@ -64,16 +58,13 @@ class FirmwareFlasherImpl:
     def __init__(
         self,
         detector: DeviceDetectorProtocol | None = None,
-        lsdev: Lsdev | None = None,
     ) -> None:
         """
         Initialize the firmware flasher.
 
         Args:
             detector: Optional DeviceDetectorProtocol for dependency injection
-            lsdev: Optional Lsdev instance for dependency injection
         """
-        self.lsdev = lsdev or Lsdev()
         self._lock = threading.RLock()
         self._device_event = threading.Event()
         self._current_device: BlockDevice | None = None
@@ -161,15 +152,12 @@ class FirmwareFlasherImpl:
             self._device_event.clear()
             self._current_device = None
 
-        # Get reference to lsdev from detector for proper callbacks
-        detector_lsdev = getattr(self._detector, "lsdev", self.lsdev)
-
         # Register callback for device detection
-        detector_lsdev.register_callback(self._device_callback)
+        self._detector.register_callback(self._device_callback)
 
         try:
             # Start monitoring for device events
-            detector_lsdev.start_monitoring()
+            self._detector.start_monitoring()
 
             while result.devices_flashed + result.devices_failed < max_flashes:
                 current_attempt = result.devices_flashed + result.devices_failed + 1
@@ -185,8 +173,8 @@ class FirmwareFlasherImpl:
 
                 try:
                     # Get current devices with their details
-                    current_block_devices = self.lsdev.get_devices()
-                    print_device_info(current_block_devices)
+                    current_block_devices = self._detector.get_devices()
+                    logger.debug("Found %d devices", len(current_block_devices))
 
                     # Check if any existing devices match the query
                     matching_devices = self._detector.list_matching_devices(query)
@@ -218,13 +206,15 @@ class FirmwareFlasherImpl:
 
                     # Get the detected device
                     with self._lock:
-                        device = self._current_device
+                        current_device = self._current_device
                         self._device_event.clear()
 
-                    if device is None:
+                    if current_device is None:
                         # This shouldn't happen if _device_event was set, but just in case
                         logger.warning("Device event triggered but no device found")
                         continue
+
+                    device = current_device
 
                     # Extract device ID for tracking
                     device_id = self._extract_device_id(device)
@@ -306,8 +296,8 @@ class FirmwareFlasherImpl:
 
         finally:
             # Clean up
-            detector_lsdev.unregister_callback(self._device_callback)
-            detector_lsdev.stop_monitoring()
+            self._detector.unregister_callback(self._device_callback)
+            self._detector.stop_monitoring()
 
         final_success = (result.devices_failed == 0) and (
             result.devices_flashed == max_flashes if not is_infinite else True
@@ -322,13 +312,12 @@ class FirmwareFlasherImpl:
 
 
 def create_firmware_flasher(
-    detector: DeviceDetectorProtocol | None = None, lsdev: Lsdev | None = None
+    detector: DeviceDetectorProtocol | None = None,
 ) -> FirmwareFlasherProtocol:
     """Factory function to create a FirmwareFlasher instance.
 
     Args:
         detector: Optional DeviceDetectorProtocol for dependency injection
-        lsdev: Optional Lsdev instance for dependency injection
 
     Returns:
         Configured FirmwareFlasherProtocol instance
@@ -339,4 +328,4 @@ def create_firmware_flasher(
         >>> print(f"Flashed {result.devices_flashed} devices")
     """
     logger.debug("Creating FirmwareFlasher")
-    return FirmwareFlasherImpl(detector=detector, lsdev=lsdev)
+    return FirmwareFlasherImpl(detector=detector)

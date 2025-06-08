@@ -3,13 +3,15 @@
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Protocol, TypeAlias, runtime_checkable
 
-from glovebox.layout.models import (
-    ComboBehavior,
-    HoldTapBehavior,
-    InputListener,
-    LayerBindings,
-    MacroBehavior,
-)
+
+if TYPE_CHECKING:
+    from glovebox.layout.models import (
+        ComboBehavior,
+        HoldTapBehavior,
+        InputListener,
+        LayerBindings,
+        MacroBehavior,
+    )
 
 
 # Type alias for kconfig settings
@@ -30,19 +32,19 @@ class DtsiGeneratorProtocol(Protocol):
         self,
         profile: "KeyboardProfile",
         layer_names: list[str],
-        layers_data: list[LayerBindings],
+        layers_data: list["LayerBindings"],
     ) -> str:
         """Generate keymap node DTSI content."""
         ...
 
     def generate_behaviors_dtsi(
-        self, profile: "KeyboardProfile", hold_taps_data: Sequence[HoldTapBehavior]
+        self, profile: "KeyboardProfile", hold_taps_data: Sequence["HoldTapBehavior"]
     ) -> str:
         """Generate behaviors DTSI content."""
         ...
 
     def generate_macros_dtsi(
-        self, profile: "KeyboardProfile", macros_data: Sequence[MacroBehavior]
+        self, profile: "KeyboardProfile", macros_data: Sequence["MacroBehavior"]
     ) -> str:
         """Generate macros DTSI content."""
         ...
@@ -50,14 +52,16 @@ class DtsiGeneratorProtocol(Protocol):
     def generate_combos_dtsi(
         self,
         profile: "KeyboardProfile",
-        combos_data: Sequence[ComboBehavior],
+        combos_data: Sequence["ComboBehavior"],
         layer_names: list[str],
     ) -> str:
         """Generate combos DTSI content."""
         ...
 
     def generate_input_listeners_node(
-        self, profile: "KeyboardProfile", input_listeners_data: Sequence[InputListener]
+        self,
+        profile: "KeyboardProfile",
+        input_listeners_data: Sequence["InputListener"],
     ) -> str:
         """Generate input listeners DTSI content."""
         ...

@@ -1,9 +1,11 @@
 """Protocol definition for USB device operations."""
 
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from glovebox.firmware.flash.lsdev import BlockDevice
+
+if TYPE_CHECKING:
+    from glovebox.firmware.flash.models import BlockDevice
 
 
 @runtime_checkable
@@ -14,8 +16,8 @@ class USBAdapterProtocol(Protocol):
         self,
         query: str,
         timeout: int = 60,
-        initial_devices: list[BlockDevice] | None = None,
-    ) -> BlockDevice:
+        initial_devices: list["BlockDevice"] | None = None,
+    ) -> "BlockDevice":
         """Detect a USB device matching the query.
 
         Args:
@@ -31,7 +33,7 @@ class USBAdapterProtocol(Protocol):
         """
         ...
 
-    def list_matching_devices(self, query: str) -> list[BlockDevice]:
+    def list_matching_devices(self, query: str) -> list["BlockDevice"]:
         """List all devices matching the query.
 
         Args:
@@ -47,7 +49,7 @@ class USBAdapterProtocol(Protocol):
 
     def flash_device(
         self,
-        device: BlockDevice,
+        device: "BlockDevice",
         firmware_file: str | Path,
         max_retries: int = 3,
         retry_delay: float = 2.0,
@@ -68,7 +70,7 @@ class USBAdapterProtocol(Protocol):
         """
         ...
 
-    def get_all_devices(self, query: str = "") -> list[BlockDevice]:
+    def get_all_devices(self, query: str = "") -> list["BlockDevice"]:
         """Get all available block devices, optionally filtered by query.
 
         Args:
@@ -82,7 +84,7 @@ class USBAdapterProtocol(Protocol):
         """
         ...
 
-    def mount(self, device: BlockDevice) -> list[str]:
+    def mount(self, device: "BlockDevice") -> list[str]:
         """Mount a block device and return the mount points.
 
         Args:
@@ -96,7 +98,7 @@ class USBAdapterProtocol(Protocol):
         """
         ...
 
-    def unmount(self, device: BlockDevice) -> bool:
+    def unmount(self, device: "BlockDevice") -> bool:
         """Unmount a block device.
 
         Args:

@@ -10,8 +10,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from glovebox.firmware.flash.lsdev import BlockDevice
 from glovebox.firmware.flash.models import (
+    BlockDevice,
     BlockDeviceDict,
     BlockDevicePathMap,
     DiskInfo,
@@ -457,7 +457,7 @@ class StubUSBDeviceMonitor(USBDeviceMonitorBase):
 def _create_mount_cache() -> MountCacheProtocol:
     """Create appropriate mount cache for the current platform."""
     if platform.system() == "Linux":
-        from glovebox.firmware.flash.lsdev import MountPointCache
+        from glovebox.firmware.flash.device_detector import MountPointCache
 
         return MountPointCache()
     else:
