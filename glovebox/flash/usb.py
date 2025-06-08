@@ -9,7 +9,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from glovebox.core.errors import FlashError
 from glovebox.flash.detect import create_device_detector
@@ -99,8 +99,8 @@ class FirmwareFlasherImpl:
 
     def __init__(
         self,
-        detector: Optional[DeviceDetectorProtocol] = None,
-        lsdev: Optional[Lsdev] = None,
+        detector: DeviceDetectorProtocol | None = None,
+        lsdev: Lsdev | None = None,
     ) -> None:
         """
         Initialize the firmware flasher.
@@ -356,7 +356,7 @@ class FirmwareFlasherImpl:
 
 
 def create_firmware_flasher(
-    detector: Optional[DeviceDetectorProtocol] = None, lsdev: Optional[Lsdev] = None
+    detector: DeviceDetectorProtocol | None = None, lsdev: Lsdev | None = None
 ) -> FirmwareFlasherProtocol:
     """Factory function to create a FirmwareFlasher instance.
 

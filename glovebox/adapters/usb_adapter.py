@@ -4,7 +4,7 @@ import logging
 import threading
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from glovebox.core.errors import FlashError, USBError
 from glovebox.flash.detect import create_device_detector
@@ -72,7 +72,8 @@ class USBAdapterImpl:
         logger.info("Detecting device with query: %s", query)
 
         try:
-            return self.detector.detect_device(query, timeout, initial_devices)
+            # Cast the result to BlockDevice since we know the detector returns a valid BlockDevice
+            return cast(BlockDevice, self.detector.detect_device(query, timeout, initial_devices))
         except TimeoutError as e:
             error = create_usb_error(
                 query,

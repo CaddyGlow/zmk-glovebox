@@ -21,6 +21,11 @@ from .config import (
     UserConfigData,
     VisualLayout,
 )
+from .flash import (
+    BlockDeviceDict,
+    BlockDevicePathMap,
+    BlockDeviceSymlinks,
+)
 from .keymap import (
     ComboBehavior,
     ConfigParameter,
@@ -71,4 +76,8 @@ __all__ = [
     "KeymapSection",
     "UserConfigData",
     "VisualLayout",
+    # Flash models
+    "BlockDeviceDict",
+    "BlockDevicePathMap",
+    "BlockDeviceSymlinks",
 ]

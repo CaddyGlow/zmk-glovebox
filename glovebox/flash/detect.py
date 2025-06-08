@@ -3,7 +3,6 @@
 import logging
 import re
 import threading
-from typing import Optional
 
 from glovebox.core.errors import FlashError
 from glovebox.flash.lsdev import BlockDevice, BlockDeviceError, Lsdev
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 class DeviceDetectorImpl:
     """Implementation class for detecting devices based on query criteria."""
 
-    def __init__(self, lsdev: Optional[Lsdev] = None) -> None:
+    def __init__(self, lsdev: Lsdev | None = None) -> None:
         """Initialize the device detector.
 
         Args:
@@ -294,7 +293,7 @@ class DeviceDetectorImpl:
             raise FlashError(f"Unexpected error listing devices: {e}") from e
 
 
-def create_device_detector(lsdev: Optional[Lsdev] = None) -> DeviceDetectorProtocol:
+def create_device_detector(lsdev: Lsdev | None = None) -> DeviceDetectorProtocol:
     """Factory function to create a DeviceDetector instance.
 
     Args:

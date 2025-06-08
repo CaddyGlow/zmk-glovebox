@@ -8,9 +8,10 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, TypeAlias, cast
 
 from glovebox.flash.lsdev import BlockDevice
+from glovebox.models.flash import BlockDeviceDict, BlockDevicePathMap, USBDeviceInfo, DiskInfo
 
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ class USBDeviceMonitorBase(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def is_usb_device(self, device_info: dict) -> bool:
+    def is_usb_device(self, device_info: Any) -> bool:
         """Check if a device is USB-connected storage."""
         pass
 
@@ -140,7 +141,7 @@ class LinuxUSBDeviceMonitor(USBDeviceMonitorBase):
         return False
 
     def _update_mountpoints(
-        self, device: BlockDevice, mount_points: dict[str, str]
+        self, device: BlockDevice, mount_points: BlockDevicePathMap
     ) -> None:
         """Update device mount points from the cache."""
         for part in device.partitions:
@@ -290,7 +291,7 @@ class MacOSUSBDeviceMonitor(USBDeviceMonitorBase):
             except Exception as e:
                 logger.error(f"Error scanning devices: {e}")
 
-    def _get_usb_device_info(self) -> list[dict]:
+    def _get_usb_device_info(self) -> list[USBDeviceInfo]:
         """Get USB device information from system_profiler."""
         try:
             import json
@@ -337,7 +338,7 @@ class MacOSUSBDeviceMonitor(USBDeviceMonitorBase):
             logger.error(f"Error getting USB device info: {e}")
             return []
 
-    def _get_disk_info(self) -> dict:
+    def _get_disk_info(self) -> dict[str, DiskInfo]:
         """Get disk information from diskutil."""
         try:
             import plistlib
@@ -398,7 +399,7 @@ class MacOSUSBDeviceMonitor(USBDeviceMonitorBase):
             logger.error(f"Error getting disk info: {e}")
             return {}
 
-    def is_usb_device(self, device_info: dict) -> bool:
+    def is_usb_device(self, device_info: BlockDeviceDict) -> bool:
         """Check if a device is USB-connected storage."""
         # On macOS, we'd need to check the device protocol
         # For now, assume removable devices are USB
@@ -441,7 +442,7 @@ class StubUSBDeviceMonitor(USBDeviceMonitorBase):
         """No-op scan for stub implementation."""
         logger.warning("Using stub USB device monitor - no devices will be detected")
 
-    def is_usb_device(self, device_info: dict) -> bool:
+    def is_usb_device(self, device_info: BlockDeviceDict) -> bool:
         """Always returns False for stub."""
         return False
 
@@ -459,7 +460,7 @@ else:
     class MountPointCache:
         """Stub MountPointCache for non-Linux platforms."""
 
-        def get_mountpoints(self) -> dict[str, str]:
+        def get_mountpoints(self) -> BlockDevicePathMap:
             return {}
 
 
