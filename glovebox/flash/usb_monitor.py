@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Optional, TypeAlias, cast
 
 from glovebox.flash.lsdev import BlockDevice
-from glovebox.models.flash import (
+from glovebox.flash.models import (
     BlockDeviceDict,
     BlockDevicePathMap,
     DiskInfo,
