@@ -171,7 +171,7 @@ def print_configuration_table(config_data: dict[str, Any]) -> None:
     table = TableStyles.create_config_table()
 
     for setting, value in config_data.items():
-        if isinstance(value, (list, dict)):
+        if isinstance(value, list | dict):
             value_str = str(value)
         else:
             value_str = str(value)

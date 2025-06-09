@@ -8,7 +8,6 @@ from typing import Any
 import typer
 from click.core import Context
 
-from glovebox.cli.helpers.profile import create_profile_from_option
 from glovebox.config.profile import KeyboardProfile
 
 
@@ -55,7 +54,6 @@ def with_profile(
             if profile_option is None:
                 # Set default profile if none provided
                 kwargs[profile_param_name] = default_profile
-                # ctx.obj.keyboard_profile = create_profile_from_option(profile_option)
 
             try:
                 # Create the profile object and add it to kwargs, and ctx.obj
@@ -67,9 +65,7 @@ def with_profile(
                 )
 
                 kwargs["keyboard_profile"] = profile_obj
-                ctx.obj.keyboard_profile = create_profile_from_context(
-                    ctx, kwargs[profile_param_name]
-                )
+                ctx.obj.keyboard_profile = profile_obj
 
                 # Call the original function with the profile object
                 return func(*args, **kwargs)
