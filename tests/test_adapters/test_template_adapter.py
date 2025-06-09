@@ -6,25 +6,25 @@ from unittest.mock import Mock, mock_open, patch
 import pytest
 
 from glovebox.adapters.template_adapter import (
-    JinjaTemplateAdapter,
+    TemplateAdapter,
     create_template_adapter,
 )
 from glovebox.core.errors import GloveboxError, TemplateError
 from glovebox.protocols.template_adapter_protocol import TemplateAdapterProtocol
 
 
-class TestJinjaTemplateAdapter:
-    """Test JinjaTemplateAdapter class."""
+class TestTemplateAdapter:
+    """Test TemplateAdapter class."""
 
     def test_template_adapter_initialization(self):
         """Test TemplateAdapter can be initialized."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
         assert adapter is not None
         assert hasattr(adapter, "env")
 
     def test_render_template_from_string_success(self):
         """Test successful template rendering from string."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
         template_content = "Hello, {{ name }}!"
         variables = {"name": "World"}
 
@@ -34,7 +34,7 @@ class TestJinjaTemplateAdapter:
 
     def test_render_template_from_string_no_variables(self):
         """Test template rendering from string without variables."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
         template_content = "Hello, World!"
 
         result = adapter.render_string(template_content, {})
@@ -43,7 +43,7 @@ class TestJinjaTemplateAdapter:
 
     def test_render_template_from_string_complex_template(self):
         """Test template rendering with complex Jinja2 features."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
         template_content = """
 {%- for item in items %}
 {{ loop.index }}. {{ item.name }}: {{ item.value }}
@@ -60,7 +60,7 @@ class TestJinjaTemplateAdapter:
 
     def test_render_template_from_string_undefined_variable(self):
         """Test template rendering handles undefined variables."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
         template_content = "Hello, {{ undefined_var }}!"
 
         with pytest.raises(
@@ -70,7 +70,7 @@ class TestJinjaTemplateAdapter:
 
     def test_render_template_from_string_syntax_error(self):
         """Test template rendering handles syntax errors."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
         template_content = "Hello, {{ name"  # Missing closing brace
 
         with pytest.raises(
@@ -80,7 +80,7 @@ class TestJinjaTemplateAdapter:
 
     def test_render_template_from_file_success(self):
         """Test successful template rendering from file."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
         template_path = Path("/test/template.j2")
         template_content = "Hello, {{ name }}!"
         variables = {"name": "World"}
@@ -92,7 +92,7 @@ class TestJinjaTemplateAdapter:
 
     def test_render_template_from_file_not_found(self):
         """Test template rendering raises error when file doesn't exist."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
         template_path = Path("/nonexistent/template.j2")
 
         with (
@@ -108,7 +108,7 @@ class TestJinjaTemplateAdapter:
 
     def test_render_template_from_file_permission_error(self):
         """Test template rendering handles permission errors."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
         template_path = Path("/restricted/template.j2")
 
         with (
@@ -124,7 +124,7 @@ class TestJinjaTemplateAdapter:
 
     def test_render_template_from_file_with_encoding(self):
         """Test template rendering from file with specific encoding."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
         template_path = Path("/test/template.j2")
         template_content = "Hello, {{ name }}!"
         variables = {"name": "World"}
@@ -141,7 +141,7 @@ class TestJinjaTemplateAdapter:
 
     def test_validate_template_syntax_valid(self):
         """Test template syntax validation for valid template."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
         template_content = (
             "Hello, {{ name }}! {% for item in items %}{{ item }}{% endfor %}"
         )
@@ -152,7 +152,7 @@ class TestJinjaTemplateAdapter:
 
     def test_validate_template_syntax_invalid(self):
         """Test template syntax validation for invalid template."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
         template_content = "Hello, {{ name"  # Missing closing brace
 
         result = adapter.validate_template_syntax(template_content)
@@ -161,7 +161,7 @@ class TestJinjaTemplateAdapter:
 
     def test_validate_template_syntax_complex_invalid(self):
         """Test template syntax validation for complex invalid template."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
         template_content = (
             "{% for item in items %}{{ item }}{% endblock %}"  # Wrong closing tag
         )
@@ -172,7 +172,7 @@ class TestJinjaTemplateAdapter:
 
     def test_get_template_variables_simple(self):
         """Test extraction of template variables from simple template."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
         template_content = "Hello, {{ name }}! Your age is {{ age }}."
 
         result = adapter.get_template_variables(template_content)
@@ -183,7 +183,7 @@ class TestJinjaTemplateAdapter:
 
     def test_get_template_variables_complex(self):
         """Test extraction of template variables from complex template."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
         template_content = """
 Hello, {{ user.name }}!
 {% for item in items %}
@@ -201,7 +201,7 @@ Total: {{ total }}
 
     def test_get_template_variables_no_variables(self):
         """Test extraction of template variables from template without variables."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
         template_content = "This is a static template with no variables."
 
         result = adapter.get_template_variables(template_content)
@@ -210,7 +210,7 @@ Total: {{ total }}
 
     def test_get_template_variables_syntax_error(self):
         """Test template variable extraction handles syntax errors."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
         template_content = "Hello, {{ name"  # Missing closing brace
 
         with pytest.raises(
@@ -221,7 +221,7 @@ Total: {{ total }}
 
     def test_custom_jinja_environment(self):
         """Test that custom Jinja2 environment settings work."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
 
         # Test that undefined variables raise errors (strict mode)
         template_content = "Hello, {{ undefined_var }}!"
@@ -231,7 +231,7 @@ Total: {{ total }}
 
     def test_template_with_filters(self):
         """Test template rendering with Jinja2 filters."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
         template_content = "Hello, {{ name|upper }}! Count: {{ items|length }}"
         variables = {"name": "world", "items": [1, 2, 3, 4, 5]}
 
@@ -241,7 +241,7 @@ Total: {{ total }}
 
     def test_template_with_conditionals(self):
         """Test template rendering with conditional logic."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
         template_content = """
 {%- if user.is_admin %}
 Admin: {{ user.name }}
@@ -267,7 +267,7 @@ class TestCreateTemplateAdapter:
     def test_create_template_adapter(self):
         """Test factory function creates TemplateAdapter instance."""
         adapter = create_template_adapter()
-        assert isinstance(adapter, JinjaTemplateAdapter)
+        assert isinstance(adapter, TemplateAdapter)
         assert isinstance(adapter, TemplateAdapterProtocol)
 
 
@@ -276,7 +276,7 @@ class TestTemplateAdapterIntegration:
 
     def test_render_real_template_file(self, tmp_path):
         """Test rendering a real template file."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
 
         # Create template file
         template_file = tmp_path / "test_template.j2"
@@ -312,7 +312,7 @@ features:
 
     def test_complex_template_with_inheritance(self, tmp_path):
         """Test complex template with Jinja2 inheritance features."""
-        adapter = JinjaTemplateAdapter()
+        adapter = TemplateAdapter()
 
         # Create base template
         base_template = tmp_path / "base.j2"
@@ -360,15 +360,15 @@ class TestTemplateAdapterProtocol:
     """Test TemplateAdapter protocol implementation."""
 
     def test_template_adapter_implements_protocol(self):
-        """Test that JinjaTemplateAdapter correctly implements TemplateAdapter protocol."""
-        adapter = JinjaTemplateAdapter()
+        """Test that TemplateAdapter correctly implements TemplateAdapter protocol."""
+        adapter = TemplateAdapter()
         assert isinstance(adapter, TemplateAdapterProtocol), (
-            "JinjaTemplateAdapter must implement TemplateAdapterProtocol"
+            "TemplateAdapter must implement TemplateAdapterProtocol"
         )
 
     def test_runtime_protocol_check(self):
-        """Test that JinjaTemplateAdapter passes runtime protocol check."""
-        adapter = JinjaTemplateAdapter()
+        """Test that TemplateAdapter passes runtime protocol check."""
+        adapter = TemplateAdapter()
         assert isinstance(adapter, TemplateAdapterProtocol), (
-            "JinjaTemplateAdapter should be instance of TemplateAdapterProtocol"
+            "TemplateAdapter should be instance of TemplateAdapterProtocol"
         )

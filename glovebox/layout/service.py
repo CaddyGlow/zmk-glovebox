@@ -34,13 +34,13 @@ from glovebox.layout.utils import (
 from glovebox.layout.zmk_generator import ZmkFileContentGenerator
 from glovebox.protocols import FileAdapterProtocol, TemplateAdapterProtocol
 from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
-from glovebox.services.base_service import BaseServiceImpl
+from glovebox.services.base_service import BaseService
 
 
 logger = logging.getLogger(__name__)
 
 
-class LayoutService(BaseServiceImpl):
+class LayoutService(BaseService):
     """Service for all layout operations including building, validation, and export.
 
     Responsible for processing keyboard layout files, generating ZMK configuration
@@ -86,18 +86,18 @@ class LayoutService(BaseServiceImpl):
             self._file_adapter,
         )
 
-    def extract_components_from_file(
+    def decompose_components_from_file(
         self,
         profile: "KeyboardProfile",
         json_file_path: Path,
         output_dir: Path,
         force: bool = False,
     ) -> LayoutResult:
-        """Extract keymap components from a JSON file into separate files."""
+        """Decompose keymap components from a JSON file into separate files."""
         return process_json_file(
             json_file_path,
-            "Component extraction",
-            lambda data: self.extract_components(profile, data, output_dir, force),
+            "Component decomposition",
+            lambda data: self.decompose_components(profile, data, output_dir, force),
             self._file_adapter,
         )
 
@@ -119,7 +119,7 @@ class LayoutService(BaseServiceImpl):
 
         # Combine components using the component service
         layers_dir = components_dir / "layers"
-        combined_layout = self._component_service.combine_components(
+        combined_layout = self._component_service.compose_components(
             base_layout, layers_dir
         )
 
@@ -142,7 +142,7 @@ class LayoutService(BaseServiceImpl):
             self._file_adapter,
         )
 
-    def validate_file(
+    def validate_from_file(
         self,
         profile: "KeyboardProfile",
         json_file_path: Path,
@@ -184,7 +184,7 @@ class LayoutService(BaseServiceImpl):
                 )
 
         # Ensure output directory exists
-        self._file_adapter.mkdir(output_paths.keymap.parent)
+        self._file_adapter.create_directory(output_paths.keymap.parent)
 
         # Initialize result
         result = LayoutResult(success=False)
@@ -229,16 +229,16 @@ class LayoutService(BaseServiceImpl):
 
         return result
 
-    def extract_components(
+    def decompose_components(
         self,
         profile: "KeyboardProfile",
         keymap_data: LayoutData,
         output_dir: Path,
         force: bool = False,
     ) -> LayoutResult:
-        """Extract keymap components into separate files."""
+        """Decompose keymap components into separate files."""
         # The component service method doesn't need profile and force parameters
-        return self._component_service.extract_components(keymap_data, output_dir)
+        return self._component_service.decompose_components(keymap_data, output_dir)
 
     def show(
         self,
@@ -251,9 +251,7 @@ class LayoutService(BaseServiceImpl):
 
         try:
             # Use the layout display service to generate the layout
-            return self._layout_service.generate_display(
-                keymap_data, profile.keyboard_name
-            )
+            return self._layout_service.show(keymap_data, profile.keyboard_name)
         except Exception as e:
             logger.error("Layout display failed: %s", e)
             raise LayoutError(f"Failed to generate layout display: {e}") from e

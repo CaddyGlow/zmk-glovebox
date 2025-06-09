@@ -12,7 +12,7 @@ from glovebox.firmware.flash.models import BlockDevice, FlashResult
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
     from glovebox.protocols import FileAdapterProtocol, USBAdapterProtocol
-    from glovebox.services.base_service import BaseServiceImpl
+    from glovebox.services.base_service import BaseService
 
 
 logger = logging.getLogger(__name__)
@@ -86,7 +86,7 @@ class FlashService:
         )
 
         # Validate firmware file existence
-        if not self.file_adapter.exists(firmware_file_path):
+        if not self.file_adapter.check_exists(firmware_file_path):
             result = FlashResult(success=False)
             result.add_error(f"Firmware file not found: {firmware_file_path}")
             return result
@@ -144,7 +144,7 @@ class FlashService:
             firmware_file = Path(firmware_file)
 
         # Validate firmware file if check not skipped
-        if not skip_file_check and not self.file_adapter.exists(firmware_file):
+        if not skip_file_check and not self.file_adapter.check_exists(firmware_file):
             result.success = False
             result.add_error(f"Firmware file not found: {firmware_file}")
             return result
@@ -377,7 +377,7 @@ class FlashService:
         try:
             # Mount the device
             # Note: In the future, we'll pass environment variables here
-            mount_point = self.usb_adapter.mount(device)
+            mount_point = self.usb_adapter.mount_device(device)
             if not mount_point or not mount_point[0]:
                 result.success = False
                 result.add_error(f"Failed to mount device: {device.path}")
@@ -395,7 +395,7 @@ class FlashService:
 
             # Unmount the device
             # Note: In the future, we'll pass environment variables here
-            self.usb_adapter.unmount(device)
+            self.usb_adapter.unmount_device(device)
 
             result.add_message(
                 f"Successfully flashed to {device.description or device.path}"

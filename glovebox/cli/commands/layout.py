@@ -89,7 +89,7 @@ def layout_generate(
 
 @layout_app.command()
 @handle_errors
-def extract(
+def decompose(
     keymap_file: Annotated[Path, typer.Argument(help="Path to keymap JSON file")],
     output_dir: Annotated[
         Path, typer.Argument(help="Directory to save extracted files")
@@ -106,7 +106,7 @@ def extract(
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
 ) -> None:
-    """Extract layers from a keymap file into individual layer files."""
+    """Decompose layers from a keymap file into individual layer files."""
     # Create profile from profile option
     from glovebox.cli.helpers.profile import create_profile_from_option
 
@@ -116,7 +116,7 @@ def extract(
     keymap_service = create_layout_service()
 
     try:
-        result = keymap_service.extract_components_from_file(
+        result = keymap_service.decompose_components_from_file(
             profile=keyboard_profile,
             json_file_path=keymap_file,
             output_dir=output_dir,
@@ -124,9 +124,9 @@ def extract(
         )
 
         if result.success:
-            print_success_message(f"Layout layers extracted to {output_dir}")
+            print_success_message(f"Layout layers decomposed to {output_dir}")
         else:
-            print_error_message("Layout component extraction failed")
+            print_error_message("Layout component decomposition failed")
             for error in result.errors:
                 print_list_item(error)
             raise typer.Exit(1)
@@ -137,7 +137,7 @@ def extract(
 
 @layout_app.command()
 @handle_errors
-def merge(
+def compose(
     input_dir: Annotated[
         Path,
         typer.Argument(help="Directory with metadata.json and layers/ subdirectory"),
@@ -157,7 +157,7 @@ def merge(
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
 ) -> None:
-    """Merge layer files into a single keymap file."""
+    """Compose layer files into a single keymap file."""
     # Create profile from profile option
     from glovebox.cli.helpers.profile import create_profile_from_option
 
@@ -175,14 +175,14 @@ def merge(
         )
 
         if result.success:
-            print_success_message(f"Layout merged and saved to {output}")
+            print_success_message(f"Layout composed and saved to {output}")
         else:
-            print_error_message("Layout merge failed")
+            print_error_message("Layout composition failed")
             for error in result.errors:
                 print_list_item(error)
             raise typer.Exit(1)
     except Exception as e:
-        print_error_message(f"Layout merge failed: {str(e)}")
+        print_error_message(f"Layout composition failed: {str(e)}")
         raise typer.Exit(1) from None
 
 
@@ -209,7 +209,7 @@ def validate(
     keymap_service = create_layout_service()
 
     try:
-        if keymap_service.validate_file(
+        if keymap_service.validate_from_file(
             profile=keyboard_profile, json_file_path=json_file
         ):
             print_success_message(f"Layout file {json_file} is valid")

@@ -8,7 +8,7 @@ from typing import Any, TypeAlias
 from glovebox.core.errors import LayoutError
 from glovebox.layout.models import LayoutData, LayoutMetadata, LayoutResult
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
-from glovebox.services.base_service import BaseServiceImpl
+from glovebox.services.base_service import BaseService
 
 
 logger = logging.getLogger(__name__)
@@ -18,11 +18,11 @@ logger = logging.getLogger(__name__)
 ResultDict: TypeAlias = dict[str, Any]
 
 
-class LayoutComponentService(BaseServiceImpl):
-    """Service for extracting and combining layout components.
+class LayoutComponentService(BaseService):
+    """Service for decomposing and composing layout components.
 
-    Responsible for splitting layouts into individual layers and files,
-    and recombining those files into complete layout data.
+    Responsible for decomposing layouts into individual layers and files,
+    and composing those files into complete layout data.
     """
 
     def __init__(self, file_adapter: FileAdapterProtocol):
@@ -30,8 +30,10 @@ class LayoutComponentService(BaseServiceImpl):
         super().__init__(service_name="LayoutComponentService", service_version="1.0.0")
         self._file_adapter = file_adapter
 
-    def extract_components(self, layout: LayoutData, output_dir: Path) -> LayoutResult:
-        """Extract layout into individual components and layers.
+    def decompose_components(
+        self, layout: LayoutData, output_dir: Path
+    ) -> LayoutResult:
+        """Decompose layout into individual components and layers.
 
         Args:
             layout: Layout data model
@@ -51,8 +53,8 @@ class LayoutComponentService(BaseServiceImpl):
             # Create output directories
             output_dir = output_dir.resolve()
             output_layer_dir = output_dir / "layers"
-            self._file_adapter.mkdir(output_dir)
-            self._file_adapter.mkdir(output_layer_dir)
+            self._file_adapter.create_directory(output_dir)
+            self._file_adapter.create_directory(output_layer_dir)
 
             # Extract components directly using the Pydantic model
             # Our helper methods already support handling LayoutData objects
@@ -74,10 +76,10 @@ class LayoutComponentService(BaseServiceImpl):
             logger.error("Layer extraction failed: %s", e)
             raise LayoutError(f"Layer extraction failed: {e}") from e
 
-    def combine_components(
+    def compose_components(
         self, metadata_layout: LayoutData, layers_dir: Path
     ) -> LayoutData:
-        """Combine extracted components into a complete layout.
+        """Compose extracted components into a complete layout.
 
         Args:
             base_layout: Base layout data model without layers

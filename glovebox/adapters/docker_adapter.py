@@ -19,7 +19,7 @@ from glovebox.utils.error_utils import create_docker_error
 logger = logging.getLogger(__name__)
 
 
-class DockerAdapterImpl:
+class DockerAdapter:
     """Implementation of Docker adapter."""
 
     def is_available(self) -> bool:
@@ -257,4 +257,4 @@ def create_docker_adapter() -> DockerAdapterProtocol:
         ...     adapter.run_container("ubuntu:latest", [], {})
     """
     logger.debug("Creating DockerAdapter")
-    return DockerAdapterImpl()
+    return DockerAdapter()

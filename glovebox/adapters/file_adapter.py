@@ -16,7 +16,7 @@ from glovebox.utils.error_utils import create_file_error
 logger = logging.getLogger(__name__)
 
 
-class FileSystemAdapter:
+class FileAdapter:
     """File system adapter implementation."""
 
     def read_text(self, path: Path, encoding: str = "utf-8") -> str:
@@ -48,7 +48,7 @@ class FileSystemAdapter:
         """Write text content to a file."""
         try:
             # Ensure parent directory exists
-            self.mkdir(path.parent)
+            self.create_directory(path.parent)
 
             logger.debug("Writing text file: %s", path)
             with path.open(mode="w", encoding=encoding) as f:
@@ -152,7 +152,7 @@ class FileSystemAdapter:
             logger.error("Error writing JSON file %s: %s", path, e)
             raise error from e
 
-    def exists(self, path: Path) -> bool:
+    def check_exists(self, path: Path) -> bool:
         """Check if a path exists."""
         return path.exists()
 
@@ -164,7 +164,9 @@ class FileSystemAdapter:
         """Check if a path is a directory."""
         return path.is_dir()
 
-    def mkdir(self, path: Path, parents: bool = True, exist_ok: bool = True) -> None:
+    def create_directory(
+        self, path: Path, parents: bool = True, exist_ok: bool = True
+    ) -> None:
         """Create a directory."""
         try:
             logger.debug("Creating directory: %s", path)
@@ -187,7 +189,7 @@ class FileSystemAdapter:
         """Copy a file from source to destination."""
         try:
             # Ensure destination directory exists
-            self.mkdir(dst.parent)
+            self.create_directory(dst.parent)
 
             logger.debug("Copying file: %s -> %s", src, dst)
             shutil.copy2(src, dst)
@@ -266,7 +268,7 @@ class FileSystemAdapter:
 
     def check_overwrite_permission(self, files: list[Path]) -> bool:
         """Check if user permits overwriting existing files."""
-        existing_files = [f for f in files if self.exists(f)]
+        existing_files = [f for f in files if self.check_exists(f)]
         if not existing_files:
             return True
 
@@ -403,4 +405,4 @@ class FileSystemAdapter:
 
 def create_file_adapter() -> FileAdapterProtocol:
     """Create a file adapter with default implementation."""
-    return FileSystemAdapter()
+    return FileAdapter()

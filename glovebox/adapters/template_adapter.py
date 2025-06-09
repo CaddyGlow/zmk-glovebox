@@ -12,7 +12,7 @@ from glovebox.utils.error_utils import create_template_error
 logger = logging.getLogger(__name__)
 
 
-class JinjaTemplateAdapter:
+class TemplateAdapter:
     """Jinja2 template adapter implementation."""
 
     def __init__(self, trim_blocks: bool = True, lstrip_blocks: bool = True):
@@ -395,4 +395,4 @@ class JinjaTemplateAdapter:
 
 def create_template_adapter() -> TemplateAdapterProtocol:
     """Create a template adapter with default implementation."""
-    return JinjaTemplateAdapter()
+    return TemplateAdapter()

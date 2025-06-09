@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
-class BaseService(Protocol):
+class BaseServiceProtocol(Protocol):
     """Protocol defining the base interface for all Glovebox services.
 
     All service classes should implement this protocol to ensure consistent
@@ -28,7 +28,7 @@ class BaseService(Protocol):
         ...
 
 
-class BaseServiceImpl:
+class BaseService:
     """Base implementation class for Glovebox services.
 
     Provides common functionality for all service implementations.

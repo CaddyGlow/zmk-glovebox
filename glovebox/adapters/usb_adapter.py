@@ -22,7 +22,7 @@ from glovebox.utils.error_utils import create_usb_error
 logger = logging.getLogger(__name__)
 
 
-class USBAdapterImpl:
+class USBAdapter:
     """Implementation of USB adapter."""
 
     def __init__(
@@ -229,7 +229,7 @@ class USBAdapterImpl:
             logger.error("Failed to get block devices: %s", e)
             raise error from e
 
-    def mount(self, device: BlockDevice) -> list[str]:
+    def mount_device(self, device: BlockDevice) -> list[str]:
         """
         Mount a block device and return the mount points.
 
@@ -258,7 +258,7 @@ class USBAdapterImpl:
             logger.error("Failed to mount device %s: %s", device.name, e)
             raise error from e
 
-    def unmount(self, device: BlockDevice) -> bool:
+    def unmount_device(self, device: BlockDevice) -> bool:
         """
         Unmount a block device.
 
@@ -344,7 +344,7 @@ def create_usb_adapter(
     if flash_operations is None and os_adapter is not None:
         flash_operations = create_flash_operations(os_adapter)
 
-    adapter: USBAdapterProtocol = USBAdapterImpl(
+    adapter: USBAdapterProtocol = USBAdapter(
         flash_operations=flash_operations, detector=detector
     )
     return adapter

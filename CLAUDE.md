@@ -68,6 +68,140 @@ The layout domain handles complex JSON→DTSI conversion with behaviors like mac
 
 **If you encounter ANY linting errors, you MUST fix them immediately before proceeding with other tasks.**
 
+## Naming Conventions
+
+**CRITICAL: These naming conventions are MANDATORY and must be followed consistently:**
+
+### **Class Naming Standards**
+
+1. **Adapter Classes**: Use `*Adapter` suffix (NO `Impl` suffix)
+   ```python
+   # ✅ CORRECT
+   class DockerAdapter:
+   class USBAdapter:
+   class FileAdapter:
+   class TemplateAdapter:
+   
+   # ❌ INCORRECT
+   class DockerAdapterImpl:
+   class JinjaTemplateAdapter:
+   class FileSystemAdapter:
+   ```
+
+2. **Service Classes**: Use `*Service` suffix (NO `Impl` suffix)
+   ```python
+   # ✅ CORRECT
+   class BuildService(BaseService):
+   class LayoutService(BaseService):
+   class FlashService:
+   
+   # ❌ INCORRECT
+   class BuildServiceImpl:
+   class BaseServiceImpl:
+   ```
+
+3. **Protocol Classes**: Use `*Protocol` suffix
+   ```python
+   # ✅ CORRECT
+   class FileAdapterProtocol(Protocol):
+   class BaseServiceProtocol(Protocol):
+   
+   # ❌ INCORRECT
+   class BaseService(Protocol):  # Name collision with implementation
+   ```
+
+### **Function Naming Standards**
+
+1. **Use Descriptive Verbs**: Function names must clearly indicate their purpose
+   ```python
+   # ✅ CORRECT - Descriptive function names
+   def check_exists(path: Path) -> bool:
+   def create_directory(path: Path) -> None:
+   def mount_device(device: BlockDevice) -> list[str]:
+   def unmount_device(device: BlockDevice) -> bool:
+   
+   # ❌ INCORRECT - Terse/unclear function names
+   def exists(path: Path) -> bool:
+   def mkdir(path: Path) -> None:
+   def mount(device: BlockDevice) -> list[str]:
+   def unmount(device: BlockDevice) -> bool:
+   ```
+
+2. **Consistent Verb Patterns**: Use standard verbs across the codebase
+   - `check_*` for validation/existence checks
+   - `create_*` for creation operations
+   - `get_*` for retrieval operations
+   - `*_device` suffix for device-specific operations
+
+3. **Layout Domain Specific Standards**:
+   ```python
+   # ✅ CORRECT - Component operations
+   def decompose_components()  # Split layout into files
+   def compose_components()    # Combine files into layout
+   
+   # ✅ CORRECT - Display operations  
+   def show()           # CLI display commands
+   def format_*()       # Text formatting operations
+   
+   # ✅ CORRECT - File method patterns
+   def generate_from_file()
+   def decompose_components_from_file()
+   def show_from_file()
+   def validate_from_file()
+   
+   # ❌ INCORRECT - Old naming
+   def extract_components()    # Use decompose_components
+   def combine_components()    # Use compose_components
+   def merge_components()      # Use compose_components
+   def generate_display()      # Use show() for CLI, format_*() for text
+   ```
+
+### **Import and Export Standards**
+
+1. **Factory Functions**: Always return protocol types
+   ```python
+   # ✅ CORRECT
+   def create_file_adapter() -> FileAdapterProtocol:
+       return FileAdapter()
+   
+   def create_build_service() -> BaseServiceProtocol:
+       return BuildService("build", "1.0.0")
+   ```
+
+2. **Module Exports**: Export both protocols and implementations
+   ```python
+   # glovebox/adapters/__init__.py
+   __all__ = [
+       # Protocols
+       "FileAdapterProtocol",
+       "DockerAdapterProtocol",
+       # Implementations
+       "FileAdapter",
+       "DockerAdapter",
+       # Factory functions
+       "create_file_adapter",
+       "create_docker_adapter",
+   ]
+   ```
+
+3. **Import Patterns**: Use consistent import structure
+   ```python
+   # ✅ CORRECT - Import from domain packages
+   from glovebox.adapters import FileAdapter, create_file_adapter
+   from glovebox.services import BaseServiceProtocol, BaseService
+   
+   # ❌ INCORRECT - No backward compatibility imports
+   from glovebox.adapters import FileSystemAdapter  # Old name
+   from glovebox.services import BaseServiceImpl     # Old name
+   ```
+
+### **Enforcement**
+
+- **All new code** must follow these naming conventions
+- **No exceptions** will be made for legacy compatibility
+- **Breaking changes** to improve naming consistency are encouraged
+- **Tests must be updated** when class/function names change
+
 ## Essential Commands
 
 ### Quick Commands
@@ -613,6 +747,7 @@ This project is maintained by a small team (2-3 developers), so:
 - Document intent, not implementation
 - Use pathlib for file operations
 - Use modern typing when available
+- **Follow naming conventions** (see Naming Conventions section above)
 - Always lint/format before committing
 
 ### Common Linting Issues to Avoid

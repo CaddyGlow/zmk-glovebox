@@ -9,24 +9,24 @@ from glovebox.protocols import (
 )
 
 # config_file_adapter is imported directly where needed to avoid circular imports
-from .docker_adapter import DockerAdapterImpl, create_docker_adapter
-from .file_adapter import FileSystemAdapter, create_file_adapter
-from .template_adapter import JinjaTemplateAdapter, create_template_adapter
-from .usb_adapter import USBAdapterImpl, create_usb_adapter
+from .docker_adapter import DockerAdapter, create_docker_adapter
+from .file_adapter import FileAdapter, create_file_adapter
+from .template_adapter import TemplateAdapter, create_template_adapter
+from .usb_adapter import USBAdapter, create_usb_adapter
 
 
 __all__ = [
     "ConfigFileAdapterProtocol",
     "DockerAdapterProtocol",
-    "DockerAdapterImpl",
+    "DockerAdapter",
     "create_docker_adapter",
     "FileAdapterProtocol",
-    "FileSystemAdapter",
+    "FileAdapter",
     "create_file_adapter",
     "TemplateAdapterProtocol",
-    "JinjaTemplateAdapter",
+    "TemplateAdapter",
     "create_template_adapter",
     "USBAdapterProtocol",
-    "USBAdapterImpl",
+    "USBAdapter",
     "create_usb_adapter",
 ]

@@ -21,14 +21,14 @@ from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.firmware.options import BuildServiceCompileOpts
 from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
 from glovebox.protocols.docker_adapter_protocol import DockerVolume
-from glovebox.services.base_service import BaseServiceImpl
+from glovebox.services.base_service import BaseService
 from glovebox.utils import stream_process
 
 
 logger = logging.getLogger(__name__)
 
 
-class BuildService(BaseServiceImpl):
+class BuildService(BaseService):
     """Service for firmware building operations.
 
     Responsible for building firmware using Docker containers, preparing
@@ -101,7 +101,7 @@ class BuildService(BaseServiceImpl):
             True if path exists and meets the check_type requirement, False otherwise
         """
         # First check if path exists at all
-        if not self.file_adapter.exists(path):
+        if not self.file_adapter.check_exists(path):
             result.success = False
             msg = error_message or f"Path not found: {path}"
             result.add_error(msg)
@@ -600,7 +600,7 @@ class BuildService(BaseServiceImpl):
 
         try:
             # Create build directory
-            self.file_adapter.mkdir(build_dir)
+            self.file_adapter.create_directory(build_dir)
 
             # Copy keymap file
             keymap_path = Path(config["keymap_path"])
@@ -639,7 +639,7 @@ class BuildService(BaseServiceImpl):
             build_dir: Directory to clean up
         """
         try:
-            if self.file_adapter.exists(build_dir):
+            if self.file_adapter.check_exists(build_dir):
                 logger.debug(f"Cleaning up build context directory: {build_dir}")
                 # TODO: Add recursive directory removal to FileAdapter
                 #
@@ -694,7 +694,7 @@ class BuildService(BaseServiceImpl):
 
         try:
             # First check the direct output directory
-            if not self.file_adapter.exists(output_dir):
+            if not self.file_adapter.check_exists(output_dir):
                 logger.warning(f"Output directory does not exist: {output_dir}")
                 return [], output_files
 
@@ -708,9 +708,9 @@ class BuildService(BaseServiceImpl):
 
             # Check artifacts directory
             artifacts_dir = output_dir / "artifacts"
-            if self.file_adapter.exists(artifacts_dir) and self.file_adapter.is_dir(
+            if self.file_adapter.check_exists(
                 artifacts_dir
-            ):
+            ) and self.file_adapter.is_dir(artifacts_dir):
                 output_files.artifacts_dir = artifacts_dir
 
                 # Get all subdirectories in artifacts
@@ -721,7 +721,7 @@ class BuildService(BaseServiceImpl):
 
                     # Look for glove80.uf2 in the build directory
                     glove_uf2 = build_dir / "glove80.uf2"
-                    if self.file_adapter.exists(glove_uf2):
+                    if self.file_adapter.check_exists(glove_uf2):
                         firmware_files.append(glove_uf2)
                         if not output_files.main_uf2:
                             output_files.main_uf2 = glove_uf2
@@ -731,20 +731,20 @@ class BuildService(BaseServiceImpl):
                     right_side_dir = build_dir / "rh"
 
                     # Check left hand
-                    if self.file_adapter.exists(
+                    if self.file_adapter.check_exists(
                         left_side_dir
                     ) and self.file_adapter.is_dir(left_side_dir):
                         left_uf2 = left_side_dir / "zmk.uf2"
-                        if self.file_adapter.exists(left_uf2):
+                        if self.file_adapter.check_exists(left_uf2):
                             firmware_files.append(left_uf2)
                             output_files.left_uf2 = left_uf2
 
                     # Check right hand
-                    if self.file_adapter.exists(
+                    if self.file_adapter.check_exists(
                         right_side_dir
                     ) and self.file_adapter.is_dir(right_side_dir):
                         right_uf2 = right_side_dir / "zmk.uf2"
-                        if self.file_adapter.exists(right_uf2):
+                        if self.file_adapter.check_exists(right_uf2):
                             firmware_files.append(right_uf2)
                             output_files.right_uf2 = right_uf2
 

@@ -7,24 +7,24 @@ from unittest.mock import Mock, call, patch
 import pytest
 
 from glovebox.adapters.docker_adapter import (
-    DockerAdapterImpl,
+    DockerAdapter,
     create_docker_adapter,
 )
 from glovebox.core.errors import DockerError
 from glovebox.protocols.docker_adapter_protocol import DockerAdapterProtocol
 
 
-class TestDockerAdapterImpl:
-    """Test DockerAdapterImpl class."""
+class TestDockerAdapter:
+    """Test DockerAdapter class."""
 
     def test_docker_adapter_initialization(self):
         """Test DockerAdapter can be initialized."""
-        adapter = DockerAdapterImpl()
+        adapter = DockerAdapter()
         assert adapter is not None
 
     def test_is_available_success(self):
         """Test is_available returns True when Docker is available."""
-        adapter = DockerAdapterImpl()
+        adapter = DockerAdapter()
 
         mock_result = Mock()
         mock_result.stdout = "Docker version 20.10.0, build 1234567"
@@ -39,7 +39,7 @@ class TestDockerAdapterImpl:
 
     def test_is_available_docker_not_found(self):
         """Test is_available returns False when Docker is not found."""
-        adapter = DockerAdapterImpl()
+        adapter = DockerAdapter()
 
         with patch("subprocess.run", side_effect=FileNotFoundError("docker not found")):
             result = adapter.is_available()
@@ -48,7 +48,7 @@ class TestDockerAdapterImpl:
 
     def test_is_available_docker_error(self):
         """Test is_available returns False when Docker command fails."""
-        adapter = DockerAdapterImpl()
+        adapter = DockerAdapter()
 
         with patch(
             "subprocess.run", side_effect=subprocess.CalledProcessError(1, "docker")
@@ -59,7 +59,7 @@ class TestDockerAdapterImpl:
 
     def test_run_container_success(self):
         """Test successful container execution."""
-        adapter = DockerAdapterImpl()
+        adapter = DockerAdapter()
 
         mock_run_command = Mock(
             return_value=(0, ["output line 1", "output line 2"], [])
@@ -93,7 +93,7 @@ class TestDockerAdapterImpl:
 
     def test_run_container_no_command(self):
         """Test container execution without explicit command."""
-        adapter = DockerAdapterImpl()
+        adapter = DockerAdapter()
 
         mock_run_command = Mock(return_value=(0, [], []))
 
@@ -105,7 +105,7 @@ class TestDockerAdapterImpl:
 
     def test_run_container_multiple_volumes_and_env(self):
         """Test container execution with multiple volumes and environment variables."""
-        adapter = DockerAdapterImpl()
+        adapter = DockerAdapter()
 
         mock_run_command = Mock(return_value=(0, [], []))
 
@@ -134,7 +134,7 @@ class TestDockerAdapterImpl:
 
     def test_run_container_with_middleware(self):
         """Test container execution with middleware."""
-        adapter = DockerAdapterImpl()
+        adapter = DockerAdapter()
 
         mock_middleware = Mock()
         mock_run_command = Mock(return_value=(0, ["output"], []))
@@ -152,7 +152,7 @@ class TestDockerAdapterImpl:
 
     def test_run_container_exception(self):
         """Test container execution handles exceptions."""
-        adapter = DockerAdapterImpl()
+        adapter = DockerAdapter()
 
         with (
             patch(
@@ -167,7 +167,7 @@ class TestDockerAdapterImpl:
 
     def test_build_image_success(self):
         """Test successful image building."""
-        adapter = DockerAdapterImpl()
+        adapter = DockerAdapter()
 
         dockerfile_dir = Path("/test/dockerfile")
         with (
@@ -198,7 +198,7 @@ class TestDockerAdapterImpl:
 
     def test_build_image_no_cache_false(self):
         """Test image building without no-cache flag."""
-        adapter = DockerAdapterImpl()
+        adapter = DockerAdapter()
 
         dockerfile_dir = Path("/test/dockerfile")
         with (
@@ -222,7 +222,7 @@ class TestDockerAdapterImpl:
 
     def test_build_image_docker_not_available(self):
         """Test build_image raises error when Docker is not available."""
-        adapter = DockerAdapterImpl()
+        adapter = DockerAdapter()
 
         with (
             patch.object(adapter, "is_available", return_value=False),
@@ -232,7 +232,7 @@ class TestDockerAdapterImpl:
 
     def test_build_image_directory_not_found(self):
         """Test build_image raises error when directory doesn't exist."""
-        adapter = DockerAdapterImpl()
+        adapter = DockerAdapter()
 
         with (
             patch.object(adapter, "is_available", return_value=True),
@@ -243,7 +243,7 @@ class TestDockerAdapterImpl:
 
     def test_build_image_not_directory(self):
         """Test build_image raises error when path is not a directory."""
-        adapter = DockerAdapterImpl()
+        adapter = DockerAdapter()
 
         with (
             patch.object(adapter, "is_available", return_value=True),
@@ -255,7 +255,7 @@ class TestDockerAdapterImpl:
 
     def test_build_image_dockerfile_not_found(self):
         """Test build_image raises error when Dockerfile doesn't exist."""
-        adapter = DockerAdapterImpl()
+        adapter = DockerAdapter()
 
         with patch.object(adapter, "is_available", return_value=True):
             dockerfile_dir = Path("/test/dockerfile")
@@ -276,7 +276,7 @@ class TestDockerAdapterImpl:
 
     def test_build_image_subprocess_error(self):
         """Test build_image handles subprocess errors."""
-        adapter = DockerAdapterImpl()
+        adapter = DockerAdapter()
 
         error = subprocess.CalledProcessError(1, "docker")
         error.stderr = "Build failed: syntax error"
@@ -301,7 +301,7 @@ class TestCreateDockerAdapter:
     def test_create_docker_adapter(self):
         """Test factory function creates DockerAdapter instance."""
         adapter = create_docker_adapter()
-        assert isinstance(adapter, DockerAdapterImpl)
+        assert isinstance(adapter, DockerAdapter)
         assert isinstance(adapter, DockerAdapterProtocol)
 
 
@@ -309,15 +309,15 @@ class TestDockerAdapterProtocol:
     """Test DockerAdapter protocol implementation."""
 
     def test_docker_adapter_implements_protocol(self):
-        """Test that DockerAdapterImpl correctly implements DockerAdapter protocol."""
-        adapter = DockerAdapterImpl()
+        """Test that DockerAdapter correctly implements DockerAdapter protocol."""
+        adapter = DockerAdapter()
         assert isinstance(adapter, DockerAdapterProtocol), (
-            "DockerAdapterImpl must implement DockerAdapterProtocol"
+            "DockerAdapter must implement DockerAdapterProtocol"
         )
 
     def test_runtime_protocol_check(self):
-        """Test that DockerAdapterImpl passes runtime protocol check."""
-        adapter = DockerAdapterImpl()
+        """Test that DockerAdapter passes runtime protocol check."""
+        adapter = DockerAdapter()
         assert isinstance(adapter, DockerAdapterProtocol), (
-            "DockerAdapterImpl should be instance of DockerAdapterProtocol"
+            "DockerAdapter should be instance of DockerAdapterProtocol"
         )

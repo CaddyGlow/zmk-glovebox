@@ -27,7 +27,7 @@ def keymap_service():
     template_adapter.render_string.return_value = "// Generated keymap content"
 
     # Set up the file adapter to handle file operations
-    file_adapter.mkdir.return_value = True
+    file_adapter.create_directory.return_value = True
     file_adapter.write_text.return_value = True
     file_adapter.write_json.return_value = True
 
@@ -248,10 +248,10 @@ class TestLayoutServiceWithKeyboardConfig:
 
     def test_show_error_handling(self, sample_keymap_json):
         """Test error handling in the show method."""
-        # Make the layout service's generate_display method raise an error
+        # Make the layout service's show method raise an error
         with patch.object(
             self.mock_layout_service,
-            "generate_display",
+            "show",
             side_effect=Exception("Layout generation failed"),
         ):
             # Convert to LayoutData
@@ -280,7 +280,9 @@ class TestLayoutServiceWithKeyboardConfig:
 
         # Setup file adapter mock
         # ruff: noqa: SIM117 - Nested with statements are more readable here
-        with patch.object(self.mock_file_adapter, "mkdir", return_value=True):
+        with patch.object(
+            self.mock_file_adapter, "create_directory", return_value=True
+        ):
             with patch.object(self.mock_file_adapter, "write_text", return_value=True):
                 with patch.object(
                     self.mock_file_adapter, "write_json", return_value=True
@@ -332,7 +334,7 @@ class TestLayoutServiceWithKeyboardConfig:
                                     assert result.conf_path == output_paths.conf
 
                                     # Verify file writes
-                                    self.mock_file_adapter.mkdir.assert_called()
+                                    self.mock_file_adapter.create_directory.assert_called()
                                     self.mock_file_adapter.write_text.assert_called()
                                     self.mock_file_adapter.write_json.assert_called()
 
@@ -472,7 +474,7 @@ class TestLayoutServiceWithMockedConfig:
 
         # Set up file adapter methods
         # ruff: noqa: SIM117 - Nested with statements are more readable here
-        with patch.object(file_adapter, "mkdir", return_value=None):
+        with patch.object(file_adapter, "create_directory", return_value=None):
             with patch.object(file_adapter, "write_text", return_value=None):
                 with patch.object(file_adapter, "write_json", return_value=None):
                     template_adapter = Mock(spec=TemplateAdapterProtocol)

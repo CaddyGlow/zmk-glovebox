@@ -8,24 +8,24 @@ import pytest
 from pydantic import BaseModel, Field
 
 from glovebox.adapters.file_adapter import (
-    FileSystemAdapter,
+    FileAdapter,
     create_file_adapter,
 )
 from glovebox.core.errors import FileSystemError, GloveboxError
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 
 
-class TestFileSystemAdapter:
-    """Test FileSystemAdapter class."""
+class TestFileAdapter:
+    """Test FileAdapter class."""
 
     def test_file_adapter_initialization(self):
         """Test FileAdapter can be initialized."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
         assert adapter is not None
 
     def test_read_json_with_aliases(self):
         """Test read_json preserves original field names for aliased Pydantic models."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
         mock_json_content = (
             '{"camelCase": "test", "withNumber1": 42, "normal_field": "value"}'
         )
@@ -41,7 +41,7 @@ class TestFileSystemAdapter:
 
     def test_read_text_success(self):
         """Test successful text file reading."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
         test_content = "Hello, world!"
 
         with patch("pathlib.Path.open", mock_open(read_data=test_content)):
@@ -51,7 +51,7 @@ class TestFileSystemAdapter:
 
     def test_read_text_with_encoding(self):
         """Test text file reading with specific encoding."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
         test_content = "Hello, world!"
 
         with patch(
@@ -65,7 +65,7 @@ class TestFileSystemAdapter:
 
     def test_read_text_file_not_found(self):
         """Test read_text raises GloveboxError when file doesn't exist."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
 
         with (
             patch("pathlib.Path.open", side_effect=FileNotFoundError("File not found")),
@@ -78,7 +78,7 @@ class TestFileSystemAdapter:
 
     def test_read_text_permission_error(self):
         """Test read_text raises GloveboxError when access denied."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
 
         with (
             patch(
@@ -93,7 +93,7 @@ class TestFileSystemAdapter:
 
     def test_write_text_success(self):
         """Test successful text file writing."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
         test_content = "Hello, world!"
         test_path = Path("/test/file.txt")
 
@@ -109,7 +109,7 @@ class TestFileSystemAdapter:
 
     def test_write_text_with_encoding(self):
         """Test text file writing with specific encoding."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
         test_content = "Hello, world!"
         test_path = Path("/test/file.txt")
 
@@ -123,7 +123,7 @@ class TestFileSystemAdapter:
 
     def test_write_text_creates_directory(self):
         """Test write_text creates parent directories."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
         test_path = Path("/new/directory/file.txt")
 
         with (
@@ -137,7 +137,7 @@ class TestFileSystemAdapter:
 
     def test_write_text_permission_error(self):
         """Test write_text raises PermissionError when access denied."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
 
         with (
             patch(
@@ -153,25 +153,25 @@ class TestFileSystemAdapter:
 
     def test_exists_file_exists(self):
         """Test exists returns True when file exists."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
 
         with patch("pathlib.Path.exists", return_value=True):
-            result = adapter.exists(Path("/test/file.txt"))
+            result = adapter.check_exists(Path("/test/file.txt"))
 
         assert result is True
 
     def test_exists_file_not_exists(self):
         """Test exists returns False when file doesn't exist."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
 
         with patch("pathlib.Path.exists", return_value=False):
-            result = adapter.exists(Path("/nonexistent/file.txt"))
+            result = adapter.check_exists(Path("/nonexistent/file.txt"))
 
         assert result is False
 
     def test_is_file_true(self):
         """Test is_file returns True for files."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
 
         with patch("pathlib.Path.is_file", return_value=True):
             result = adapter.is_file(Path("/test/file.txt"))
@@ -180,7 +180,7 @@ class TestFileSystemAdapter:
 
     def test_is_file_false(self):
         """Test is_file returns False for directories."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
 
         with patch("pathlib.Path.is_file", return_value=False):
             result = adapter.is_file(Path("/test/directory"))
@@ -189,27 +189,27 @@ class TestFileSystemAdapter:
 
     def test_mkdir_success(self):
         """Test successful directory creation."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
         test_path = Path("/test/new_directory")
 
         with patch("pathlib.Path.mkdir") as mock_mkdir:
-            adapter.mkdir(test_path)
+            adapter.create_directory(test_path)
 
         mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
 
     def test_mkdir_with_options(self):
         """Test directory creation with custom options."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
         test_path = Path("/test/new_directory")
 
         with patch("pathlib.Path.mkdir") as mock_mkdir:
-            adapter.mkdir(test_path, parents=False, exist_ok=False)
+            adapter.create_directory(test_path, parents=False, exist_ok=False)
 
         mock_mkdir.assert_called_once_with(parents=False, exist_ok=False)
 
     def test_mkdir_permission_error(self):
         """Test mkdir raises PermissionError when access denied."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
 
         with (
             patch(
@@ -220,11 +220,11 @@ class TestFileSystemAdapter:
                 match="File operation 'mkdir' failed on '/restricted/directory': Permission denied",
             ),
         ):
-            adapter.mkdir(Path("/restricted/directory"))
+            adapter.create_directory(Path("/restricted/directory"))
 
     def test_copy_file_success(self):
         """Test successful file copying."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
         src_path = Path("/test/source.txt")
         dst_path = Path("/test/destination.txt")
 
@@ -235,7 +235,7 @@ class TestFileSystemAdapter:
 
     def test_copy_file_creates_directory(self):
         """Test copy_file creates destination directory."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
         src_path = Path("/test/source.txt")
         dst_path = Path("/new/directory/destination.txt")
 
@@ -246,7 +246,7 @@ class TestFileSystemAdapter:
 
     def test_copy_file_source_not_found(self):
         """Test copy_file raises FileNotFoundError when source doesn't exist."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
 
         with (
             patch("shutil.copy2", side_effect=FileNotFoundError("Source not found")),
@@ -260,7 +260,7 @@ class TestFileSystemAdapter:
 
     def test_remove_file_success(self):
         """Test successful file removal."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
         test_path = Path("/test/file.txt")
 
         with patch("pathlib.Path.unlink") as mock_unlink:
@@ -270,7 +270,7 @@ class TestFileSystemAdapter:
 
     def test_remove_file_not_found(self):
         """Test remove_file handles FileNotFoundError gracefully by not raising an error."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
         test_path = Path("/nonexistent/file.txt")
 
         # Patch unlink to simulate it being called (though it won't find the file)
@@ -282,7 +282,7 @@ class TestFileSystemAdapter:
 
     def test_list_directory_success(self):
         """Test successful directory listing."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
         test_path = Path("/test/directory")
         mock_files = [
             Path("/test/directory/file1.txt"),
@@ -299,7 +299,7 @@ class TestFileSystemAdapter:
 
     def test_list_directory_not_found(self):
         """Test list_directory raises GloveboxError when directory doesn't exist."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
 
         with (
             patch("pathlib.Path.is_dir", return_value=True),
@@ -313,7 +313,7 @@ class TestFileSystemAdapter:
 
     def test_list_directory_not_directory(self):
         """Test list_directory raises GloveboxError when path is not a directory."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
 
         with (
             patch("pathlib.Path.is_dir", return_value=False),
@@ -328,7 +328,7 @@ class TestCreateFileAdapter:
     def test_create_file_adapter(self):
         """Test factory function creates FileAdapter instance."""
         adapter = create_file_adapter()
-        assert isinstance(adapter, FileSystemAdapter)
+        assert isinstance(adapter, FileAdapter)
         assert isinstance(adapter, FileAdapterProtocol)
 
 
@@ -337,7 +337,7 @@ class TestFileAdapterIntegration:
 
     def test_read_write_roundtrip(self, tmp_path):
         """Test reading and writing files with real file system."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
         test_file = tmp_path / "test.txt"
         test_content = "Hello, world!\nThis is a test file."
 
@@ -345,7 +345,7 @@ class TestFileAdapterIntegration:
         adapter.write_text(test_file, test_content)
 
         # Verify file exists
-        assert adapter.exists(test_file)
+        assert adapter.check_exists(test_file)
         assert adapter.is_file(test_file)
 
         # Read content back
@@ -354,7 +354,7 @@ class TestFileAdapterIntegration:
 
     def test_read_write_json_roundtrip(self, tmp_path):
         """Test reading and writing JSON files with real file system."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
         test_file = tmp_path / "test.json"
         test_data = {
             "name": "Test Name",
@@ -366,7 +366,7 @@ class TestFileAdapterIntegration:
         adapter.write_json(test_file, test_data)
 
         # Verify file exists
-        assert adapter.exists(test_file)
+        assert adapter.check_exists(test_file)
         assert adapter.is_file(test_file)
 
         # Read JSON back
@@ -382,7 +382,7 @@ class TestFileAdapterIntegration:
             with_number_1: int = Field(alias="withNumber1")
             normal_field: str
 
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
         test_file = tmp_path / "test_aliased.json"
 
         # Create JSON with camelCase fields (as would be found in external JSON)
@@ -415,11 +415,11 @@ class TestFileAdapterIntegration:
 
     def test_directory_operations(self, tmp_path):
         """Test directory operations with real file system."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
         test_dir = tmp_path / "new_directory"
 
         # Create directory
-        adapter.mkdir(test_dir)
+        adapter.create_directory(test_dir)
         assert test_dir.exists()
         assert test_dir.is_dir()
 
@@ -441,7 +441,7 @@ class TestFileAdapterIntegration:
 
     def test_copy_and_remove_operations(self, tmp_path):
         """Test file copy and remove operations with real file system."""
-        adapter = FileSystemAdapter()
+        adapter = FileAdapter()
 
         # Create source file
         source = tmp_path / "source.txt"
@@ -453,30 +453,30 @@ class TestFileAdapterIntegration:
         adapter.copy_file(source, destination)
 
         # Verify copy
-        assert adapter.exists(destination)
+        assert adapter.check_exists(destination)
         assert adapter.read_text(destination) == content
 
         # Remove original
         adapter.remove_file(source)
-        assert not adapter.exists(source)
+        assert not adapter.check_exists(source)
 
         # Destination should still exist
-        assert adapter.exists(destination)
+        assert adapter.check_exists(destination)
 
 
 class TestFileAdapterProtocol:
     """Test FileAdapter protocol implementation."""
 
     def test_file_adapter_implements_protocol(self):
-        """Test that FileSystemAdapter correctly implements FileAdapter protocol."""
-        adapter = FileSystemAdapter()
+        """Test that FileAdapter correctly implements FileAdapter protocol."""
+        adapter = FileAdapter()
         assert isinstance(adapter, FileAdapterProtocol), (
-            "FileSystemAdapter must implement FileAdapterProtocol"
+            "FileAdapter must implement FileAdapterProtocol"
         )
 
     def test_runtime_protocol_check(self):
-        """Test that FileSystemAdapter passes runtime protocol check."""
-        adapter = FileSystemAdapter()
+        """Test that FileAdapter passes runtime protocol check."""
+        adapter = FileAdapter()
         assert isinstance(adapter, FileAdapterProtocol), (
-            "FileSystemAdapter should be instance of FileAdapterProtocol"
+            "FileAdapter should be instance of FileAdapterProtocol"
         )

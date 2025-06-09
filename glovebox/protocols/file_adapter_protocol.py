@@ -67,7 +67,7 @@ class FileAdapterProtocol(Protocol):
         """
         ...
 
-    def exists(self, path: Path) -> bool:
+    def check_exists(self, path: Path) -> bool:
         """Check if a path exists.
 
         Args:
@@ -100,7 +100,9 @@ class FileAdapterProtocol(Protocol):
         """
         ...
 
-    def mkdir(self, path: Path, parents: bool = True, exist_ok: bool = True) -> None:
+    def create_directory(
+        self, path: Path, parents: bool = True, exist_ok: bool = True
+    ) -> None:
         """Create a directory.
 
         Args:

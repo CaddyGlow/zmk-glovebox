@@ -33,7 +33,7 @@ class LayoutDisplayService:
         self._service_version = "1.0.0"
         self._layout_generator = layout_generator or GridLayoutFormatter()
 
-    def generate_display(
+    def show(
         self,
         keymap_data: LayoutData,
         keyboard: str,
@@ -138,7 +138,7 @@ class LayoutDisplayService:
             )
 
             # Generate the layout display
-            return self._layout_generator.generate_keymap_display(
+            return self._layout_generator.format_keymap_display(
                 display_data, layout_config, view_mode
             )
 

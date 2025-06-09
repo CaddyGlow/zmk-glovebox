@@ -72,7 +72,7 @@ class GridLayoutFormatter:
             List of formatted layout lines for DTSI
         """
         output_lines = []
-        EMPTY_SLOT_MARKER = None
+        empty_slot_marker = None
 
         config = profile.keyboard_config
         fmt = profile.keyboard_config.keymap.formatting
@@ -110,7 +110,7 @@ class GridLayoutFormatter:
         num_rows = len(fmt.rows)
         num_cols = max(len(r) for r in fmt.rows) if fmt.rows else 0
         grid_matrix: list[list[str | None]] = [
-            [EMPTY_SLOT_MARKER] * num_cols for _ in range(num_rows)
+            [empty_slot_marker] * num_cols for _ in range(num_rows)
         ]
 
         # Populate the matrix
@@ -123,14 +123,14 @@ class GridLayoutFormatter:
                     )
                     continue
                 if key_index == -1:
-                    grid_matrix[r][c] = EMPTY_SLOT_MARKER
+                    grid_matrix[r][c] = empty_slot_marker
                 elif key_index in bindings_map:
                     grid_matrix[r][c] = bindings_map[key_index]
                 else:
                     logger.warning(
                         f"Key index {key_index} (row {r}, col {c}) not found in bindings map. Using empty slot."
                     )
-                    grid_matrix[r][c] = EMPTY_SLOT_MARKER
+                    grid_matrix[r][c] = empty_slot_marker
 
         # Calculate max width for each column
         max_col_widths = [0] * num_cols
@@ -138,7 +138,7 @@ class GridLayoutFormatter:
             col_binding_lengths = []
             for r in range(num_rows):
                 cell_content = grid_matrix[r][c]
-                if cell_content is not EMPTY_SLOT_MARKER:
+                if cell_content is not empty_slot_marker:
                     col_binding_lengths.append(len(cell_content))
 
             if col_binding_lengths:
@@ -151,7 +151,7 @@ class GridLayoutFormatter:
                 cell_content = grid_matrix[r][c]
                 current_col_width = max_col_widths[c]
 
-                if cell_content is EMPTY_SLOT_MARKER:
+                if cell_content is empty_slot_marker:
                     current_row_parts.append(" ".rjust(current_col_width))
                 else:
                     current_row_parts.append(cell_content.rjust(current_col_width))
@@ -162,7 +162,7 @@ class GridLayoutFormatter:
 
         return output_lines
 
-    def generate_keymap_display(
+    def format_keymap_display(
         self,
         keymap_data: dict[str, Any],
         layout_config: LayoutConfig,

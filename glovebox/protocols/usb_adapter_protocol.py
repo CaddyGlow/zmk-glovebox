@@ -90,7 +90,7 @@ class USBAdapterProtocol(Protocol):
         """
         ...
 
-    def mount(self, device: "BlockDevice") -> list[str]:
+    def mount_device(self, device: "BlockDevice") -> list[str]:
         """Mount a block device and return the mount points.
 
         Args:
@@ -104,7 +104,7 @@ class USBAdapterProtocol(Protocol):
         """
         ...
 
-    def unmount(self, device: "BlockDevice") -> bool:
+    def unmount_device(self, device: "BlockDevice") -> bool:
         """Unmount a block device.
 
         Args:
