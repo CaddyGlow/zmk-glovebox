@@ -52,8 +52,8 @@ def test_layout_help(cli_runner):
     result = cli_runner.invoke(app, ["layout", "--help"])
     assert result.exit_code == 0
     assert "generate" in result.output
-    assert "extract" in result.output
-    assert "merge" in result.output
+    assert "decompose" in result.output
+    assert "compose" in result.output
     assert "show" in result.output
     assert "validate" in result.output
 
@@ -81,8 +81,8 @@ def test_missing_required_args(cli_runner):
     assert result.exit_code != 0
     assert "Missing argument" in result.output
 
-    # Test layout extract missing args
-    result = cli_runner.invoke(app, ["layout", "extract"])
+    # Test layout decompose missing args
+    result = cli_runner.invoke(app, ["layout", "decompose"])
     assert result.exit_code != 0
     assert "Missing argument" in result.output
 

@@ -152,7 +152,7 @@ class TestBuildServiceWithKeyboardConfig:
         # Setup other mocks using patch.object
         with (
             patch.object(self.mock_docker_adapter, "is_available", return_value=True),
-            patch.object(self.mock_file_adapter, "exists", return_value=True),
+            patch.object(self.mock_file_adapter, "check_exists", return_value=True),
             patch.object(
                 self.mock_docker_adapter,
                 "run_container",

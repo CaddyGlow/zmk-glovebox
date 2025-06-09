@@ -8,7 +8,6 @@ import typer
 
 from glovebox.cli.decorators import handle_errors, with_profile
 from glovebox.cli.helpers import (
-    create_profile_from_option,
     print_error_message,
     print_list_item,
     print_success_message,
@@ -32,6 +31,7 @@ firmware_app = typer.Typer(
 @firmware_app.command(name="compile")
 @handle_errors
 def firmware_compile(
+    ctx: typer.Context,
     keymap_file: Annotated[Path, typer.Argument(help="Path to keymap (.keymap) file")],
     kconfig_file: Annotated[Path, typer.Argument(help="Path to kconfig (.conf) file")],
     output_dir: Annotated[
@@ -42,7 +42,7 @@ def firmware_compile(
         typer.Option(
             "--profile",
             "-p",
-            help="Profile to use (e.g., 'glove80/v25.05')",
+            help="Profile to use (e.g., 'glove80/v25.05'). Uses user config default if not specified.",
         ),
     ] = None,
     keyboard: Annotated[
@@ -69,10 +69,13 @@ def firmware_compile(
     ] = False,
 ) -> None:
     """Compile firmware from keymap and config files."""
-    # Create KeyboardProfile if profile is specified
+    # Create KeyboardProfile using centralized profile management
     keyboard_profile = None
-    if profile:
-        keyboard_profile = create_profile_from_option(profile)
+    if profile or (keyboard is None and firmware is None):
+        # Use profile-based approach (with user config integration)
+        from glovebox.cli.helpers.profile import create_profile_from_context
+
+        keyboard_profile = create_profile_from_context(ctx, profile)
     elif keyboard and firmware:
         # If no profile but keyboard and firmware are provided, create profile from them
         from glovebox.config.keyboard_profile import create_keyboard_profile
@@ -115,13 +118,14 @@ def firmware_compile(
 @firmware_app.command()
 @handle_errors
 def flash(
+    ctx: typer.Context,
     firmware_file: Annotated[Path, typer.Argument(help="Path to firmware (.uf2) file")],
     profile: Annotated[
         str | None,
         typer.Option(
             "--profile",
             "-p",
-            help="Profile to use (e.g., 'glove80/v25.05')",
+            help="Profile to use (e.g., 'glove80/v25.05'). Uses user config default if not specified.",
         ),
     ] = None,
     query: Annotated[
@@ -146,28 +150,40 @@ def flash(
     ] = False,
 ) -> None:
     """Flash firmware to keyboard(s)."""
-    # Create KeyboardProfile if profile is specified
-    keyboard_profile = None
-    if profile:
-        keyboard_profile = create_profile_from_option(profile)
+    # Create KeyboardProfile using centralized profile management with user config integration
+    from glovebox.cli.helpers.profile import (
+        create_profile_from_context,
+        get_user_config_from_context,
+    )
 
-    # Get user config to check default firmware flash behavior
-    from glovebox.config.user_config import create_user_config
+    keyboard_profile = create_profile_from_context(ctx, profile)
 
-    user_config = create_user_config()
+    # Get user config from context (already loaded)
+    user_config = get_user_config_from_context(ctx)
 
     # Apply user config defaults for flash parameters
     # CLI values override config values when explicitly provided
-    effective_timeout = (
-        timeout if timeout != 60 else user_config._config.firmware.flash.timeout
-    )
-    effective_count = count if count != 2 else user_config._config.firmware.flash.count
-    effective_track_flashed = (
-        not no_track if no_track else user_config._config.firmware.flash.track_flashed
-    )
-    effective_skip_existing = (
-        skip_existing or user_config._config.firmware.flash.skip_existing
-    )
+    if user_config:
+        effective_timeout = (
+            timeout if timeout != 60 else user_config._config.firmware.flash.timeout
+        )
+        effective_count = (
+            count if count != 2 else user_config._config.firmware.flash.count
+        )
+        effective_track_flashed = (
+            not no_track
+            if no_track
+            else user_config._config.firmware.flash.track_flashed
+        )
+        effective_skip_existing = (
+            skip_existing or user_config._config.firmware.flash.skip_existing
+        )
+    else:
+        # Fallback to CLI values if user config not available
+        effective_timeout = timeout
+        effective_count = count
+        effective_track_flashed = not no_track
+        effective_skip_existing = skip_existing
 
     # Use the new file-based method which handles file existence checks
     flash_service = create_flash_service()
@@ -208,12 +224,13 @@ def flash(
 @firmware_app.command()
 @handle_errors
 def list_devices(
+    ctx: typer.Context,
     profile: Annotated[
         str | None,
         typer.Option(
             "--profile",
             "-p",
-            help="Profile to use (e.g., 'glove80/v25.05')",
+            help="Profile to use (e.g., 'glove80/v25.05'). Uses user config default if not specified.",
         ),
     ] = None,
     query: Annotated[
@@ -224,16 +241,19 @@ def list_devices(
     flash_service = create_flash_service()
 
     try:
-        # Use profile-based method if profile is provided
-        if profile:
-            result = flash_service.list_devices_with_profile(
-                profile_name=profile, query=query
-            )
-        else:
-            # Use direct list_devices method if no profile
-            result = flash_service.list_devices(
-                profile=None, query=query or "removable=true"
-            )
+        # Create profile using user config integration
+        from glovebox.cli.helpers.profile import (
+            get_effective_profile,
+            get_user_config_from_context,
+        )
+
+        user_config = get_user_config_from_context(ctx)
+        effective_profile = get_effective_profile(profile, user_config)
+
+        # Use profile-based method with effective profile
+        result = flash_service.list_devices_with_profile(
+            profile_name=effective_profile, query=query
+        )
 
         if result.success and result.device_details:
             print_success_message(f"Found {len(result.device_details)} device(s)")

@@ -72,7 +72,7 @@ def setup_firmware_command_test(mock_build_service, mock_keyboard_profile):
         ) as mock_create_service,
         patch("glovebox.cli.commands.firmware.Path") as mock_path_cls,
         patch(
-            "glovebox.cli.commands.firmware.create_profile_from_option"
+            "glovebox.cli.helpers.profile.create_profile_from_context"
         ) as mock_create_profile,
     ):
         # Set up path mock
@@ -111,10 +111,10 @@ def setup_firmware_command_test(mock_build_service, mock_keyboard_profile):
             "valid",
         ),
         (
-            "layout extract",
-            ["input.json", "extract_output"],
+            "layout decompose",
+            ["input.json", "decompose_output"],
             True,
-            "Layout layers extracted to",
+            "Layout layers decomposed to",
         ),
     ],
 )
@@ -142,10 +142,10 @@ def test_layout_commands(
             output_dir = tmp_path / "output"
             output_dir.mkdir(exist_ok=True)
             real_args.append(str(output_dir / arg.split("/")[1]))
-        elif arg == "split_output":
-            split_dir = tmp_path / "split_output"
-            split_dir.mkdir(exist_ok=True)
-            real_args.append(str(split_dir))
+        elif arg == "decompose_output":
+            decompose_dir = tmp_path / "decompose_output"
+            decompose_dir.mkdir(exist_ok=True)
+            real_args.append(str(decompose_dir))
         else:
             real_args.append(arg)
 
@@ -159,15 +159,15 @@ def test_layout_commands(
         setup_layout_command_test[
             "mock_layout_service"
         ].generate_from_file.return_value = layout_result
-    elif "extract" in command:
+    elif "decompose" in command:
         layout_result = LayoutResult(success=success)
         setup_layout_command_test[
             "mock_layout_service"
-        ].extract_components_from_file.return_value = layout_result
+        ].decompose_components_from_file.return_value = layout_result
     elif "validate" in command:
         setup_layout_command_test[
             "mock_layout_service"
-        ].validate_file.return_value = success
+        ].validate_from_file.return_value = success
 
     # Run the command
     result = cli_runner.invoke(

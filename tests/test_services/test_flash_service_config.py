@@ -66,7 +66,7 @@ class TestFlashServiceWithProfile:
         self.mock_usb_adapter.mount.return_value = ["/mnt/sda"]
         self.mock_usb_adapter.copy_file.return_value = True
         self.mock_usb_adapter.unmount.return_value = True
-        self.mock_file_adapter.exists.return_value = True
+        self.mock_file_adapter.check_exists.return_value = True
 
         # Test flashing with profile query
         result = self.service.flash(
@@ -110,7 +110,7 @@ class TestFlashServiceWithProfile:
         self.mock_usb_adapter.mount.return_value = ["/mnt/sda"]
         self.mock_usb_adapter.copy_file.return_value = True
         self.mock_usb_adapter.unmount.return_value = True
-        self.mock_file_adapter.exists.return_value = True
+        self.mock_file_adapter.check_exists.return_value = True
 
         # Define explicit query
         explicit_query = "vendor=ExplicitTest and removable=true"
@@ -137,7 +137,7 @@ class TestFlashServiceWithProfile:
         """Test flashing when no profile is provided."""
         # No profile provided
         self.mock_usb_adapter.get_all_devices.return_value = []
-        self.mock_file_adapter.exists.return_value = True
+        self.mock_file_adapter.check_exists.return_value = True
         # Make sure mount method is defined even if not used
         self.mock_usb_adapter.mount.return_value = []
 
@@ -220,7 +220,7 @@ def test_query_resolution_parameterized(profile, query, expected_query_source):
     service = FlashService(
         usb_adapter=mock_usb_adapter, file_adapter=mock_file_adapter, loglevel="INFO"
     )
-    mock_file_adapter.exists.return_value = True
+    mock_file_adapter.check_exists.return_value = True
 
     # Setup profile if needed
     mock_profile = None
