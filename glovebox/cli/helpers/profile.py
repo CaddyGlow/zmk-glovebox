@@ -4,6 +4,9 @@ import logging
 from typing import TYPE_CHECKING
 
 import typer
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
 from glovebox.config.keyboard_profile import (
     create_keyboard_profile,
@@ -154,36 +157,75 @@ def create_profile_from_option(
         return keyboard_profile
     except Exception as e:
         # Handle profile creation errors with helpful feedback
-        if "not found for keyboard" in str(e) and firmware_name:
+        console = Console()
+
+        if (
+            "not found for keyboard" in str(e) or "not found in keyboard" in str(e)
+        ) and firmware_name:
             # Show available firmwares if the firmware wasn't found
-            print(
-                f"Error: Firmware '{firmware_name}' not found for keyboard: {keyboard_name}"
+            console.print(
+                f"[red]❌ Error: Firmware '{firmware_name}' not found for keyboard: {keyboard_name}[/red]"
             )
             try:
-                firmwares = get_available_firmwares(keyboard_name)
+                from glovebox.config.keyboard_profile import load_keyboard_config
+
+                config = load_keyboard_config(keyboard_name)
+                firmwares = config.firmwares
                 if firmwares:
-                    print("Available firmwares:")
-                    for fw_name in firmwares:
-                        print(f"  • {fw_name}")
+                    table = Table(
+                        title=f"📦 Available Firmwares for {keyboard_name}",
+                        show_header=True,
+                        header_style="bold green",
+                    )
+                    table.add_column("Firmware", style="cyan", no_wrap=True)
+                    table.add_column("Description", style="white")
+
+                    for fw_name, fw_config in firmwares.items():
+                        table.add_row(fw_name, fw_config.description)
+
+                    console.print(table)
                 else:
-                    print("No firmwares available for this keyboard")
+                    console.print(
+                        "[yellow]No firmwares available for this keyboard[/yellow]"
+                    )
             except Exception:
                 pass
         elif "Keyboard configuration not found" in str(e):
             # Keyboard not found error
-            print(f"Error: Keyboard configuration not found: {keyboard_name}")
+            console.print(
+                f"[red]❌ Error: Keyboard configuration not found: {keyboard_name}[/red]"
+            )
             keyboards = get_available_keyboards()
             if keyboards:
-                print("Available keyboards:")
+                table = Table(
+                    title="⌨️ Available Keyboards",
+                    show_header=True,
+                    header_style="bold green",
+                )
+                table.add_column("Keyboard", style="cyan")
+
                 for kb in keyboards:
-                    print(f"  • {kb}")
+                    table.add_row(kb)
+
+                console.print(table)
         else:
             # General configuration error
-            print(f"Error: Failed to load keyboard configuration: {e}")
+            console.print(
+                f"[red]❌ Error: Failed to load keyboard configuration: {e}[/red]"
+            )
             keyboards = get_available_keyboards()
-            print("Available keyboards:")
-            for kb in keyboards:
-                print(f"  • {kb}")
+            if keyboards:
+                table = Table(
+                    title="⌨️ Available Keyboards",
+                    show_header=True,
+                    header_style="bold green",
+                )
+                table.add_column("Keyboard", style="cyan")
+
+                for kb in keyboards:
+                    table.add_row(kb)
+
+                console.print(table)
         raise typer.Exit(1) from e
 
 

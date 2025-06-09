@@ -341,7 +341,12 @@ def list_firmwares(
         for firmware_name, firmware_config in firmwares.items():
             if verbose:
                 output["firmwares"].append(
-                    {"name": firmware_name, "config": firmware_config}
+                    {
+                        "name": firmware_name,
+                        "config": firmware_config.model_dump(
+                            mode="json", by_alias=True
+                        ),
+                    }
                 )
             else:
                 output["firmwares"].append({"name": firmware_name})
@@ -405,7 +410,7 @@ def show_firmware(
         output = {
             "keyboard": keyboard_name,
             "firmware": firmware_name,
-            "config": firmware_config,
+            "config": firmware_config.model_dump(mode="json", by_alias=True),
         }
         print(json.dumps(output, indent=2))
         return
