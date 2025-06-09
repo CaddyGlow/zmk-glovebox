@@ -137,10 +137,10 @@ glovebox config show
 glovebox config show --sources
 
 # Set a configuration value
-glovebox config set default_keyboard glove80
+glovebox config set profile glove80/v25.05
 
 # Set a boolean configuration value
-glovebox config set debug true
+glovebox config set firmware.flash.skip_existing true
 
 # Set a list configuration value
 glovebox config set keyboard_paths /path/to/keyboards,/another/path
@@ -158,20 +158,26 @@ Glovebox allows users to customize their experience through a configuration syst
 
 #### Configuration Locations
 
-Configuration is loaded from multiple sources with the following precedence:
-1. Environment variables (`GLOVEBOX_LOG_LEVEL`, `GLOVEBOX_DEFAULT_KEYBOARD`, etc.)
-2. User configuration file (`~/.config/glovebox/config.yaml`)
-3. Local project configuration file (`./.glovebox.yaml`)
-4. Default values
+Configuration is loaded from multiple sources with the following precedence (highest to lowest):
+1. **Environment variables** (highest precedence) - `GLOVEBOX_PROFILE`, `GLOVEBOX_LOG_LEVEL`, etc.
+2. **CLI-provided config file** - Specified via command line parameter  
+3. **Current directory config files** - `glovebox.yaml` or `glovebox.yml`
+4. **User XDG config directory** - `~/.config/glovebox/config.yaml` or `config.yml`
+5. **Default values** (lowest precedence)
+
+**Note**: Only the first valid configuration file found is used (no merging). Environment variables override any file-based settings.
 
 #### Available Settings
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `default_keyboard` | string | `"glove80"` | Default keyboard to use when not specified |
-| `default_firmware` | string | `"v25.05"` | Default firmware to use when not specified |
+| `profile` | string | `"glove80/v25.05"` | Default keyboard/firmware profile (format: keyboard/firmware) |
 | `log_level` | string | `"INFO"` | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
 | `keyboard_paths` | list | `[]` | Additional paths to search for keyboard configurations |
+| `firmware.flash.timeout` | int | `60` | Firmware flash timeout in seconds |
+| `firmware.flash.count` | int | `2` | Number of devices to flash (0 for unlimited) |
+| `firmware.flash.track_flashed` | bool | `true` | Enable device tracking during flash |
+| `firmware.flash.skip_existing` | bool | `false` | Skip devices already present at startup |
 
 #### Viewing Configuration
 
@@ -190,17 +196,18 @@ glovebox config show --sources
 Set configuration values that persist between runs:
 
 ```bash
-# Set default keyboard
-glovebox config set default_keyboard glove80
-
-# Set default firmware version
-glovebox config set default_firmware v25.05
+# Set default profile (keyboard/firmware combination)
+glovebox config set profile glove80/v25.05
 
 # Set logging level
 glovebox config set log_level DEBUG
 
 # Set custom keyboard paths (comma-separated)
 glovebox config set keyboard_paths ~/custom-keyboards,~/projects/keyboards
+
+# Set firmware flash settings
+glovebox config set firmware.flash.timeout 120
+glovebox config set firmware.flash.count 1
 ```
 
 #### Using Environment Variables
@@ -209,12 +216,13 @@ For temporary settings or CI/CD environments, use environment variables:
 
 ```bash
 # Set temporary configuration
-export GLOVEBOX_DEFAULT_KEYBOARD=glove80
-export GLOVEBOX_DEFAULT_FIRMWARE=v25.05
+export GLOVEBOX_PROFILE=glove80/v25.05
 export GLOVEBOX_LOG_LEVEL=DEBUG
+export GLOVEBOX_KEYBOARD_PATHS=/custom/keyboards,~/my-layouts
+export GLOVEBOX_FIRMWARE__FLASH__TIMEOUT=120
 
 # Run command with environment configuration
-glovebox layout generate my_layout.json output/
+glovebox layout compile my_layout.json output/my_layout --profile glove80/v25.05
 ```
 
 ## CLI Reference
@@ -526,11 +534,11 @@ from glovebox.models.config import UserConfigData
 user_config = create_user_config()
 
 # Direct property access with type safety
-log_level = user_config.log_level
-default_keyboard = user_config.default_keyboard
+log_level = user_config._config.log_level
+profile = user_config._config.profile
 
 # Set and save configuration
-user_config.set("default_keyboard", "glove80")
+user_config.set("profile", "glove80/v25.05")
 user_config.save()
 ```
 

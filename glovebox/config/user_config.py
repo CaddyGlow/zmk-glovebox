@@ -129,9 +129,8 @@ class UserConfig:
             # Create UserConfigData with file data and automatic env var handling
             self._config = UserConfigData(**config_data)
 
-            # Track sources for file-based values
-            for key in config_data:
-                self._config_sources[key] = f"file:{found_path.name}"
+            # Track sources for file-based values (including nested keys)
+            self._track_file_sources(config_data, found_path.name)
         else:
             logger.info(
                 "No user configuration files found. Using defaults with environment variables."
@@ -144,6 +143,27 @@ class UserConfig:
 
         # Track environment variable sources
         self._track_env_var_sources()
+
+    def _track_file_sources(
+        self, data: dict[str, Any], filename: str, prefix: str = ""
+    ) -> None:
+        """
+        Recursively track sources for file-based configuration values.
+
+        Args:
+            data: Configuration data dictionary
+            filename: Name of the config file
+            prefix: Current key prefix for nested tracking
+        """
+        for key, value in data.items():
+            current_key = f"{prefix}.{key}" if prefix else key
+
+            if isinstance(value, dict):
+                # Recursively track nested dictionaries
+                self._track_file_sources(value, filename, current_key)
+            else:
+                # Track this key as coming from file
+                self._config_sources[current_key] = f"file:{filename}"
 
     def _track_env_var_sources(self) -> None:
         """Track which configuration values came from environment variables."""

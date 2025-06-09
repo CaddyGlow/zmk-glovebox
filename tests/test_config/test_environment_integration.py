@@ -305,9 +305,6 @@ class TestEnvironmentSourceTracking:
             elif "XDG_CONFIG_HOME" in os.environ:
                 del os.environ["XDG_CONFIG_HOME"]
 
-    @pytest.mark.skip(
-        reason="Environment variable precedence not working - investigate Pydantic Settings env vs file priority"
-    )
     def test_mixed_source_tracking_with_environment(
         self, clean_environment, sample_config_dict: dict[str, Any], config_file
     ):
@@ -431,9 +428,6 @@ class TestEnvironmentVariablePrecedence:
         assert config.profile == "env/override"  # Not default "glove80/v25.05"
         assert config.log_level == "CRITICAL"  # Not default "INFO"
 
-    @pytest.mark.skip(
-        reason="Environment variables not overriding file config - investigate Pydantic Settings precedence"
-    )
     def test_environment_overrides_file_config(
         self, clean_environment, config_file, sample_config_dict: dict[str, Any]
     ):
@@ -454,9 +448,6 @@ class TestEnvironmentVariablePrecedence:
             == sample_config_dict["firmware"]["flash"]["timeout"]
         )
 
-    @pytest.mark.skip(
-        reason="Environment variables not overriding file config - investigate Pydantic Settings precedence"
-    )
     def test_complete_precedence_chain(
         self, clean_environment, config_file, sample_config_dict: dict[str, Any]
     ):

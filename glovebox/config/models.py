@@ -210,6 +210,12 @@ class UserConfigData(BaseSettings):
 
     This model represents user-specific configuration settings with validation
     and automatic environment variable parsing.
+
+    Precedence order (highest to lowest):
+    1. Environment variables (highest)
+    2. Constructor arguments (file data)
+    3. .env file
+    4. Default values (lowest)
     """
 
     model_config = SettingsConfigDict(
@@ -223,6 +229,28 @@ class UserConfigData(BaseSettings):
             "env_ignore_empty": True,
         },
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: Any,
+        env_settings: Any,
+        dotenv_settings: Any,
+        file_secret_settings: Any,
+    ) -> tuple[Any, ...]:
+        """
+        Customize the sources and their precedence order.
+
+        Returns sources in priority order: env > init > dotenv > file_secret
+        This ensures environment variables override file configuration.
+        """
+        return (
+            env_settings,  # Highest precedence: environment variables
+            init_settings,  # Second: constructor arguments (file data)
+            dotenv_settings,  # Third: .env file
+            file_secret_settings,  # Lowest: file secrets
+        )
 
     keyboard_paths: Annotated[list[Path], NoDecode] = []
 

@@ -26,9 +26,6 @@ from glovebox.config.user_config import UserConfig, create_user_config
 class TestConfigurationPrecedenceChain:
     """Tests for the complete configuration precedence chain."""
 
-    @pytest.mark.skip(
-        reason="Environment variables not overriding file config - investigate Pydantic Settings precedence"
-    )
     def test_environment_beats_all(self, clean_environment):
         """Test that environment variables have highest precedence."""
         # Create a config file with different values
@@ -151,9 +148,6 @@ class TestConfigurationPrecedenceChain:
         assert config.get_source("log_level") == "default"
         assert config.get_source("keyboard_paths") == "default"
 
-    @pytest.mark.skip(
-        reason="Environment variables not overriding file config - investigate Pydantic Settings precedence"
-    )
     def test_partial_precedence_mixing(self, clean_environment):
         """Test mixing of different precedence levels for different settings."""
         # Create config file with some settings
@@ -287,9 +281,6 @@ class TestConfigFileSearchPrecedence:
 class TestComplexIntegrationScenarios:
     """Tests for complex real-world integration scenarios."""
 
-    @pytest.mark.skip(
-        reason="Environment variables not overriding file config - investigate Pydantic Settings precedence"
-    )
     def test_development_vs_production_configs(self, clean_environment):
         """Test scenario with development and production config patterns."""
         # Create a production config file
@@ -332,9 +323,6 @@ class TestComplexIntegrationScenarios:
         finally:
             prod_config_path.unlink(missing_ok=True)
 
-    @pytest.mark.skip(
-        reason="Environment variables not overriding file config - investigate Pydantic Settings precedence"
-    )
     def test_user_customization_scenario(self, clean_environment):
         """Test scenario where user customizes personal settings."""
         # Base system config (simulated via file)
@@ -373,9 +361,6 @@ class TestComplexIntegrationScenarios:
         finally:
             system_config_path.unlink(missing_ok=True)
 
-    @pytest.mark.skip(
-        reason="Environment variables not overriding file config - investigate Pydantic Settings precedence"
-    )
     def test_ci_cd_environment_scenario(self, clean_environment):
         """Test scenario for CI/CD environments with specific requirements."""
         # CI/CD specific environment variables
@@ -484,9 +469,6 @@ class TestErrorHandlingInPrecedence:
         with pytest.raises(ValidationError):  # ValidationError from Pydantic
             create_user_config()
 
-    @pytest.mark.skip(
-        reason="Environment variables not overriding file config - investigate Pydantic Settings precedence"
-    )
     def test_malformed_config_file_with_environment_fallback(self, clean_environment):
         """Test that environment variables can't save malformed config files."""
         # This test would require mocking the file adapter to simulate file errors
@@ -507,9 +489,6 @@ class TestErrorHandlingInPrecedence:
 class TestSourceTrackingInComplexScenarios:
     """Tests for source tracking in complex configuration scenarios."""
 
-    @pytest.mark.skip(
-        reason="Environment variables not overriding file config - investigate Pydantic Settings precedence"
-    )
     def test_comprehensive_source_tracking(
         self, clean_environment, temp_config_dir: Path
     ):
