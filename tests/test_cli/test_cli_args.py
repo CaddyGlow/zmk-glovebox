@@ -36,6 +36,47 @@ def test_verbose_flag(cli_runner):
         assert kwargs["level"] == 10  # DEBUG level
 
 
+def test_debug_flag(cli_runner):
+    """Test --debug flag sets log level correctly."""
+    with (
+        patch("glovebox.cli.app.setup_logging") as mock_setup_logging,
+        patch("subprocess.run"),  # Mock subprocess to avoid running actual commands
+        patch("glovebox.config.keyboard_profile.KeyboardConfig"),  # Mock config
+    ):
+        result = cli_runner.invoke(app, ["--debug", "status"], catch_exceptions=False)
+        mock_setup_logging.assert_called_once()
+        args, kwargs = mock_setup_logging.call_args
+        assert kwargs["level"] == 10  # DEBUG level
+
+
+def test_single_verbose_flag(cli_runner):
+    """Test -v flag sets INFO log level."""
+    with (
+        patch("glovebox.cli.app.setup_logging") as mock_setup_logging,
+        patch("subprocess.run"),  # Mock subprocess to avoid running actual commands
+        patch("glovebox.config.keyboard_profile.KeyboardConfig"),  # Mock config
+    ):
+        result = cli_runner.invoke(app, ["-v", "status"], catch_exceptions=False)
+        mock_setup_logging.assert_called_once()
+        args, kwargs = mock_setup_logging.call_args
+        assert kwargs["level"] == 20  # INFO level
+
+
+def test_debug_flag_precedence_over_verbose(cli_runner):
+    """Test --debug flag takes precedence over -v flags."""
+    with (
+        patch("glovebox.cli.app.setup_logging") as mock_setup_logging,
+        patch("subprocess.run"),  # Mock subprocess to avoid running actual commands
+        patch("glovebox.config.keyboard_profile.KeyboardConfig"),  # Mock config
+    ):
+        result = cli_runner.invoke(
+            app, ["--debug", "-v", "status"], catch_exceptions=False
+        )
+        mock_setup_logging.assert_called_once()
+        args, kwargs = mock_setup_logging.call_args
+        assert kwargs["level"] == 10  # DEBUG level (--debug wins)
+
+
 def test_help_command(cli_runner):
     """Test help command shows available commands."""
     result = cli_runner.invoke(app, ["--help"])

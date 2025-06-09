@@ -151,8 +151,15 @@ class KeyboardConfig(BaseModel):
     key_count: int = Field(gt=0, description="Number of keys must be positive")
     flash: FlashConfig
     build: BuildConfig
-    firmwares: dict[str, FirmwareConfig]
-    keymap: KeymapSection
+    firmwares: dict[str, FirmwareConfig] = Field(default_factory=dict)
+    keymap: KeymapSection = Field(
+        default_factory=lambda: KeymapSection(
+            includes=[],
+            formatting=FormattingConfig(default_key_width=4, key_gap=" "),
+            system_behaviors=[],
+            kconfig_options={},
+        )
+    )
 
     @field_validator("keyboard", "description", "vendor")
     @classmethod
@@ -171,9 +178,13 @@ class KeyboardConfig(BaseModel):
 
         # Convert keymap section using layout domain utility (if present)
         if data.get("keymap") and isinstance(data["keymap"], dict):
-            from glovebox.layout.utils import convert_keymap_section_from_dict
+            try:
+                from glovebox.layout.utils import convert_keymap_section_from_dict
 
-            data["keymap"] = convert_keymap_section_from_dict(data["keymap"])
+                data["keymap"] = convert_keymap_section_from_dict(data["keymap"])
+            except ImportError:
+                # Layout utils not available, keep as-is
+                pass
 
         return data
 
@@ -288,16 +299,23 @@ class UserConfigData(BaseSettings):
     @field_validator("profile")
     @classmethod
     def validate_profile(cls, v: str) -> str:
-        """Validate profile follows keyboard/firmware format."""
-        if not v or "/" not in v:
+        """Validate profile follows keyboard/firmware or keyboard-only format."""
+        if not v or not v.strip():
             raise ValueError(
-                "Profile must be in format 'keyboard/firmware' (e.g., 'glove80/v25.05')"
+                "Profile must be in format 'keyboard/firmware' (e.g., 'glove80/v25.05') or 'keyboard' (e.g., 'glove80')"
             )
 
+        # Handle keyboard-only format (no slash)
+        if "/" not in v:
+            if not v.strip():
+                raise ValueError("Keyboard name cannot be empty")
+            return v.strip()
+
+        # Handle keyboard/firmware format
         parts = v.split("/")
         if len(parts) != 2 or not all(part.strip() for part in parts):
             raise ValueError(
-                "Profile must be in format 'keyboard/firmware' (e.g., 'glove80/v25.05')"
+                "Profile must be in format 'keyboard/firmware' (e.g., 'glove80/v25.05') or 'keyboard' (e.g., 'glove80')"
             )
 
         return v
@@ -307,7 +325,8 @@ class UserConfigData(BaseSettings):
     def validate_log_level(cls, v: str) -> str:
         """Validate log level is a recognized value."""
         valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-        upper_v = v.upper()
+        # Strip whitespace and convert to uppercase
+        upper_v = v.strip().upper()
         if upper_v not in valid_levels:
             raise ValueError(f"Log level must be one of {valid_levels}")
         return upper_v  # Always normalize to uppercase

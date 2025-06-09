@@ -485,7 +485,8 @@ class BuildService(BaseService):
             profile: Keyboard profile with firmware configuration
         """
         if (
-            not hasattr(profile.firmware_config, "build_options")
+            profile.firmware_config is None
+            or not hasattr(profile.firmware_config, "build_options")
             or not profile.firmware_config.build_options
         ):
             return
