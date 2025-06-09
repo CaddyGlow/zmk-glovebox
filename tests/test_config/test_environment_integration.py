@@ -218,13 +218,16 @@ class TestEnvironmentVariableValidation:
 
     def test_invalid_profile_environment_variable(self, clean_environment):
         """Test validation error for invalid profile format in environment."""
-        os.environ["GLOVEBOX_PROFILE"] = "invalid_format"  # Missing slash
+        os.environ["GLOVEBOX_PROFILE"] = ""  # Empty profile
 
         with pytest.raises(ValidationError) as exc_info:
             UserConfigData()
 
         error_msg = str(exc_info.value)
-        assert "Profile must be in format 'keyboard/firmware'" in error_msg
+        assert (
+            "Profile must be in format 'keyboard/firmware'" in error_msg
+            or "cannot be empty" in error_msg
+        )
 
     def test_invalid_log_level_environment_variable(self, clean_environment):
         """Test validation error for invalid log level in environment."""
@@ -342,9 +345,6 @@ class TestEnvironmentVariableEdgeCases:
         with pytest.raises(ValidationError):
             UserConfigData()
 
-    @pytest.mark.skip(
-        reason="Log level validator rejects whitespace - need to add trimming to validator"
-    )
     def test_whitespace_environment_variables(self, clean_environment):
         """Test handling of whitespace in environment variables."""
         # Set environment variables with whitespace
@@ -370,9 +370,16 @@ class TestEnvironmentVariableEdgeCases:
         expected_paths = [Path("/path/with/émojis"), Path("~/ユニコード/パス")]
         assert config.keyboard_paths == expected_paths
 
-    @pytest.mark.skip(
-        reason="Test expects list length but keyboard_paths is now string - update test for string field"
-    )
+    def test_keyboard_only_profile_environment_variables(self, clean_environment):
+        """Test keyboard-only profile format in environment variables."""
+        # Set keyboard-only profile
+        os.environ["GLOVEBOX_PROFILE"] = "keyboard_only_env"
+
+        config = UserConfigData()
+
+        # Should accept keyboard-only format
+        assert config.profile == "keyboard_only_env"
+
     def test_very_long_environment_variables(self, clean_environment):
         """Test handling of very long environment variable values."""
         # Create very long values

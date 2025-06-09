@@ -236,9 +236,12 @@ def profile_test_cases() -> list[tuple[str, bool, str]]:
         ("custom_keyboard/v1.0", True, ""),
         ("test-board/dev-build", True, ""),
         ("long_keyboard_name/very.long.firmware.version", True, ""),
+        # Valid keyboard-only profiles (new format)
+        ("glove80", True, ""),
+        ("custom_keyboard", True, ""),
+        ("test-board", True, ""),
         # Invalid profiles
         ("", False, "empty profile"),
-        ("no_slash", False, "missing slash"),
         ("trailing/slash/", False, "trailing slash"),
         ("/leading/slash", False, "leading slash"),
         ("double//slash", False, "double slash"),

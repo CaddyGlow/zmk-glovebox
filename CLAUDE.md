@@ -341,11 +341,16 @@ pre-commit run --all-files
 ### Debug Logging
 
 ```bash
-# Enable debug output
-glovebox --debug [command]
+# Enable debug output (multiple options available)
+glovebox --debug [command]     # Debug logging
+glovebox -vv [command]         # Also debug logging  
+glovebox -v [command]          # Info logging
 
 # Log to file
 glovebox --log-file debug.log [command]
+
+# Combine options
+glovebox --debug --log-file debug.log [command]
 ```
 
 ### LSP Tools

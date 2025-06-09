@@ -10,6 +10,7 @@ from typing import Annotated, Optional
 import typer
 from typer.main import get_command_from_info
 
+from glovebox.cli.decorators.error_handling import print_stack_trace_if_verbose
 from glovebox.core.logging import setup_logging
 
 
@@ -51,12 +52,8 @@ class AppContext:
 
 # Create a custom exception handler that will print stack traces
 def exception_callback(e: Exception) -> None:
-    import traceback
-
     # Check if we should print full stack trace (based on verbosity)
-    if "--verbose" in sys.argv or "-v" in sys.argv:
-        print("\nStack trace:", file=sys.stderr)
-        traceback.print_exc()
+    print_stack_trace_if_verbose()
     # Note: We don't need to log here as that's done by Typer or in our other handlers
 
 
@@ -76,9 +73,16 @@ def main_callback(
     verbose: Annotated[
         int,
         typer.Option(
-            "-v", "--verbose", count=True, help="Increase verbosity (use -v, -vv)"
+            "-v",
+            "--verbose",
+            count=True,
+            help="Increase verbosity (-v=INFO, -vv=DEBUG)",
         ),
     ] = 0,
+    debug: Annotated[
+        bool,
+        typer.Option("--debug", help="Enable debug logging (equivalent to -vv)"),
+    ] = False,
     log_file: Annotated[
         str | None, typer.Option("--log-file", help="Log to file")
     ] = None,
@@ -106,9 +110,11 @@ def main_callback(
     )
     ctx.obj = app_context
 
-    # Set log level based on verbosity or config
+    # Set log level based on verbosity, debug flag, or config
     log_level = logging.WARNING
-    if verbose == 1:
+    if debug:
+        log_level = logging.DEBUG
+    elif verbose == 1:
         log_level = logging.INFO
     elif verbose >= 2:
         log_level = logging.DEBUG
@@ -129,14 +135,10 @@ def main() -> int:
         app()
         return 0
     except Exception as e:
-        import traceback
-
         logger.exception(f"Unexpected error: {e}")
 
         # Check if we should print stack trace (verbosity level)
-        if "--verbose" in sys.argv or "-v" in sys.argv:
-            print("\nStack trace:", file=sys.stderr)
-            traceback.print_exc()
+        print_stack_trace_if_verbose()
 
         return 1
 

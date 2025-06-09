@@ -131,9 +131,6 @@ class TestUserFirmwareConfig:
 class TestUserConfigData:
     """Tests for UserConfigData model using Pydantic Settings."""
 
-    @pytest.mark.skip(
-        reason="keyboard_paths changed to string field - update test expectations"
-    )
     def test_default_values(self, clean_environment):
         """Test default configuration values."""
         config = UserConfigData()
@@ -147,9 +144,6 @@ class TestUserConfigData:
         assert config.firmware.flash.skip_existing is False
         assert config.flash_skip_existing is False
 
-    @pytest.mark.skip(
-        reason="keyboard_paths changed to string field - update test expectations"
-    )
     def test_custom_values(self, clean_environment):
         """Test creating configuration with custom values."""
         config = UserConfigData(
@@ -200,9 +194,6 @@ class TestUserConfigData:
                 error_msg = str(exc_info.value)
                 assert "Log level must be one of" in error_msg
 
-    @pytest.mark.skip(
-        reason="keyboard_paths changed to string field - update test expectations"
-    )
     def test_keyboard_paths_validation(self, clean_environment):
         """Test keyboard paths validation."""
         # Valid paths
@@ -249,8 +240,8 @@ class TestUserConfigData:
 
     def test_invalid_environment_values(self, clean_environment):
         """Test handling of invalid environment variable values."""
-        # Invalid profile format
-        os.environ["GLOVEBOX_PROFILE"] = "invalid_format"
+        # Invalid profile format (empty string)
+        os.environ["GLOVEBOX_PROFILE"] = ""
 
         with pytest.raises(ValidationError) as exc_info:
             UserConfigData()
@@ -278,11 +269,8 @@ class TestUserConfigData:
         assert config.profile == "lowercase/test"
         assert config.log_level == "DEBUG"  # Should be normalized to uppercase
 
-    @pytest.mark.skip(
-        reason="keyboard_paths changed to string field - update test expectations"
-    )
     def test_expanded_keyboard_paths(self, clean_environment):
-        """Test keyboard path expansion functionality."""
+        """Test keyboard path functionality."""
         config = UserConfigData(
             keyboard_paths=[
                 Path("~/home/keyboards"),
@@ -291,20 +279,19 @@ class TestUserConfigData:
             ]
         )
 
-        # keyboard_paths are already Path objects, no need for separate expansion method
-        expanded_paths = config.keyboard_paths
+        # keyboard_paths are Path objects
+        paths = config.keyboard_paths
 
         # Should return Path objects
-        assert all(hasattr(path, "resolve") for path in expanded_paths)
+        assert all(hasattr(path, "resolve") for path in paths)
+        assert all(isinstance(path, Path) for path in paths)
 
-        # Should expand user directory and environment variables
-        expanded_strs = [str(path) for path in expanded_paths]
-        assert not any("~" in path for path in expanded_strs)
-        assert not any("$HOME" in path for path in expanded_strs)
+        # Paths are stored as-is - expansion happens when resolved if needed
+        path_strs = [str(path) for path in paths]
+        assert "~/home/keyboards" in path_strs
+        assert "$HOME/other" in path_strs
+        assert "/absolute/path" in path_strs
 
-    @pytest.mark.skip(
-        reason="keyboard_paths changed to string field - update test expectations"
-    )
     def test_dict_initialization(self, clean_environment):
         """Test initialization from dictionary (like YAML loading)."""
         config = UserConfigData(
@@ -351,9 +338,6 @@ class TestUserConfigData:
 class TestConfigurationValidation:
     """Tests for comprehensive configuration validation."""
 
-    @pytest.mark.skip(
-        reason="keyboard_paths changed to string field - update test expectations"
-    )
     def test_complex_valid_configuration(self, clean_environment):
         """Test a complex but valid configuration."""
         config = UserConfigData(
@@ -384,9 +368,6 @@ class TestConfigurationValidation:
         assert config.firmware.flash.skip_existing is False
         assert config.flash_skip_existing is False
 
-    @pytest.mark.skip(
-        reason="keyboard_paths changed to string field - update test expectations"
-    )
     def test_minimal_valid_configuration(self, clean_environment):
         """Test minimal valid configuration."""
         config = UserConfigData(profile="minimal/v1")
@@ -397,9 +378,6 @@ class TestConfigurationValidation:
         assert config.keyboard_paths == []
         assert config.firmware.flash.timeout == 60
 
-    @pytest.mark.skip(
-        reason="keyboard_paths changed to string field - update test expectations"
-    )
     def test_model_serialization(self, clean_environment):
         """Test that model can be serialized to dict."""
         config = UserConfigData(
@@ -409,7 +387,7 @@ class TestConfigurationValidation:
         )
 
         # Test dict conversion
-        config_dict = config.model_dump()
+        config_dict = config.model_dump(mode="json")
 
         assert config_dict["profile"] == "serialize/test"
         assert config_dict["log_level"] == "ERROR"

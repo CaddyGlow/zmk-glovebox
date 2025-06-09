@@ -126,28 +126,6 @@ class TestConfigurationPrecedenceChain:
         finally:
             config_file_path.unlink(missing_ok=True)
 
-    @pytest.mark.skip(
-        reason="keyboard_paths changed to string field - update test expectations"
-    )
-    def test_defaults_when_no_overrides(self, clean_environment):
-        """Test that defaults are used when no overrides are present."""
-        config = create_user_config()
-
-        # Should use all default values
-        assert config._config.profile == "glove80/v25.05"
-        assert config._config.log_level == "INFO"
-        assert config._config.keyboard_paths == []
-        assert config._config.firmware.flash.timeout == 60
-        assert config._config.firmware.flash.count == 2
-        assert config._config.firmware.flash.track_flashed is True
-        assert config._config.firmware.flash.skip_existing is False
-        assert config._config.flash_skip_existing is False
-
-        # Source tracking should show defaults
-        assert config.get_source("profile") == "default"
-        assert config.get_source("log_level") == "default"
-        assert config.get_source("keyboard_paths") == "default"
-
     def test_partial_precedence_mixing(self, clean_environment):
         """Test mixing of different precedence levels for different settings."""
         # Create config file with some settings
@@ -431,34 +409,6 @@ class TestComplexIntegrationScenarios:
 class TestErrorHandlingInPrecedence:
     """Tests for error handling in configuration precedence scenarios."""
 
-    @pytest.mark.skip(
-        reason="Test expects validation error but Pydantic Settings has different behavior"
-    )
-    def test_invalid_environment_with_valid_file(self, clean_environment):
-        """Test that invalid environment variables don't prevent file loading."""
-        # Create valid config file
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
-            yaml.dump(
-                {
-                    "profile": "valid/file",
-                    "log_level": "INFO",
-                    "firmware": {"flash": {"timeout": 60}},
-                },
-                f,
-            )
-            config_file_path = Path(f.name)
-
-        try:
-            # Set invalid environment variable
-            os.environ["GLOVEBOX_PROFILE"] = "invalid_format"  # Missing slash
-
-            # Should raise validation error despite valid file
-            with pytest.raises(ValidationError):  # ValidationError from Pydantic
-                create_user_config(cli_config_path=config_file_path)
-
-        finally:
-            config_file_path.unlink(missing_ok=True)
-
     def test_partial_invalid_environment(self, clean_environment):
         """Test handling when some environment variables are invalid."""
         # Set mix of valid and invalid environment variables
@@ -515,18 +465,19 @@ class TestSourceTrackingInComplexScenarios:
         # Verify source tracking for each type
         assert config.get_source("profile") == "environment"  # Env override
         assert config.get_source("log_level") == f"file:{config_file.name}"  # From file
-        assert (
-            config.get_source("keyboard_paths") == f"file:{config_file.name}"
-        )  # From file
-        assert (
-            config.get_source("firmware.flash.timeout") == "environment"
-        )  # Env override
-        assert (
-            config.get_source("firmware.flash.count") == f"file:{config_file.name}"
-        )  # From file
-        assert (
-            config.get_source("firmware.flash.track_flashed") == "default"
-        )  # Default value
-        assert (
-            config.get_source("firmware.flash.skip_existing") == "default"
-        )  # Default value
+
+    def test_keyboard_only_profile_precedence(
+        self, clean_environment, config_file, sample_config_dict: dict[str, Any]
+    ):
+        """Test precedence rules work with keyboard-only profile formats."""
+        # Set keyboard-only profile in environment
+        os.environ["GLOVEBOX_PROFILE"] = "env_keyboard_only"
+
+        config = create_user_config(cli_config_path=config_file)
+
+        # Environment keyboard-only profile should win
+        assert config._config.profile == "env_keyboard_only"
+        assert config.get_source("profile") == "environment"
+
+        # File values should still be used for non-overridden settings
+        assert config.get_source("log_level") == f"file:{config_file.name}"

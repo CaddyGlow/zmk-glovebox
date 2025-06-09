@@ -58,18 +58,37 @@ def get_effective_profile(
     Returns:
         Profile string to use
     """
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug("Determining effective profile...")
+        logger.debug("  CLI profile option: %s", profile_option)
+        logger.debug("  User config available: %s", user_config is not None)
+        if user_config:
+            try:
+                logger.debug("  User config profile: %s", user_config._config.profile)
+            except AttributeError:
+                logger.debug("  User config profile: <not accessible>")
+        logger.debug("  Default fallback: %s", DEFAULT_PROFILE)
+
     # 1. CLI explicit profile has highest precedence
     if profile_option is not None:
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("  ✓ Using CLI profile option: %s", profile_option)
         return profile_option
 
     # 2. User config profile has middle precedence
     if user_config is not None:
         try:
-            return user_config._config.profile
+            profile = user_config._config.profile
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("  ✓ Using user config profile: %s", profile)
+            return profile
         except AttributeError:
-            logger.debug("User config profile not available, using fallback")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("  ⚠ User config profile not available, using fallback")
 
     # 3. Hardcoded fallback has lowest precedence
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug("  ✓ Using default fallback profile: %s", DEFAULT_PROFILE)
     return DEFAULT_PROFILE
 
 
@@ -89,26 +108,53 @@ def create_profile_from_option(
     Raises:
         typer.Exit: If profile creation fails
     """
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug("Creating profile from option: %s", profile_option)
+
     # Get effective profile using centralized precedence logic
     effective_profile = get_effective_profile(profile_option, user_config)
+
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug("Effective profile: %s", effective_profile)
+        logger.debug("Parsing profile format...")
 
     # Parse profile to get keyboard name and firmware version
     if "/" in effective_profile:
         keyboard_name, firmware_name = effective_profile.split("/", 1)
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "  ✓ Keyboard/firmware format: keyboard='%s', firmware='%s'",
+                keyboard_name,
+                firmware_name,
+            )
     else:
         keyboard_name = effective_profile
-        firmware_name = "default"
-
-    logger.debug(f"Using keyboard: {keyboard_name}, firmware: {firmware_name}")
+        firmware_name = None  # Keyboard-only profile
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("  ✓ Keyboard-only format: keyboard='%s'", keyboard_name)
 
     # Create KeyboardProfile
     try:
-        keyboard_profile = create_keyboard_profile(keyboard_name, firmware_name)
-        logger.debug(f"Created keyboard profile for {keyboard_name}/{firmware_name}")
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("Creating KeyboardProfile...")
+
+        keyboard_profile = create_keyboard_profile(
+            keyboard_name, firmware_name, user_config
+        )
+
+        if logger.isEnabledFor(logging.DEBUG):
+            if firmware_name:
+                logger.debug(
+                    "  ✓ Created keyboard profile for %s/%s",
+                    keyboard_name,
+                    firmware_name,
+                )
+            else:
+                logger.debug("  ✓ Created keyboard-only profile for %s", keyboard_name)
         return keyboard_profile
     except Exception as e:
         # Handle profile creation errors with helpful feedback
-        if "not found for keyboard" in str(e):
+        if "not found for keyboard" in str(e) and firmware_name:
             # Show available firmwares if the firmware wasn't found
             print(
                 f"Error: Firmware '{firmware_name}' not found for keyboard: {keyboard_name}"
@@ -119,8 +165,18 @@ def create_profile_from_option(
                     print("Available firmwares:")
                     for fw_name in firmwares:
                         print(f"  • {fw_name}")
+                else:
+                    print("No firmwares available for this keyboard")
             except Exception:
                 pass
+        elif "Keyboard configuration not found" in str(e):
+            # Keyboard not found error
+            print(f"Error: Keyboard configuration not found: {keyboard_name}")
+            keyboards = get_available_keyboards()
+            if keyboards:
+                print("Available keyboards:")
+                for kb in keyboards:
+                    print(f"  • {kb}")
         else:
             # General configuration error
             print(f"Error: Failed to load keyboard configuration: {e}")

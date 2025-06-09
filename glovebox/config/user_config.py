@@ -119,11 +119,30 @@ class UserConfig:
         """
         Load configuration from config files and environment variables using Pydantic Settings.
         """
+        # Debug tracing for configuration loading process
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("Starting configuration loading process")
+            logger.debug(
+                "Config search paths: %s", [str(p) for p in self._config_paths]
+            )
+
+            # Log environment variables that will affect configuration
+            env_vars = {k: v for k, v in os.environ.items() if k.startswith(ENV_PREFIX)}
+            if env_vars:
+                logger.debug("Found %d Glovebox environment variables", len(env_vars))
+                for k, v in env_vars.items():
+                    logger.debug("  %s=%s", k, v)
+            else:
+                logger.debug("No Glovebox environment variables found")
+
         # Load configuration from YAML files and merge with environment variables
         config_data, found_path = self._adapter.search_config_files(self._config_paths)
 
         if found_path:
             logger.debug("Loaded user configuration from %s", found_path)
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("Config file contents: %s", config_data)
+
             self._main_config_path = found_path
 
             # Create UserConfigData with file data and automatic env var handling
@@ -131,10 +150,18 @@ class UserConfig:
 
             # Track sources for file-based values (including nested keys)
             self._track_file_sources(config_data, found_path.name)
+
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("Configuration successfully loaded and validated")
         else:
             logger.info(
                 "No user configuration files found. Using defaults with environment variables."
             )
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(
+                    "Creating UserConfigData with defaults and environment variables only"
+                )
+
             # Create UserConfigData with just environment variables
             self._config = UserConfigData()
             # Set main config path to the default XDG location
@@ -143,6 +170,46 @@ class UserConfig:
 
         # Track environment variable sources
         self._track_env_var_sources()
+
+        # Final debug output showing the resolved configuration
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("Final configuration values:")
+            logger.debug(
+                "  profile: %s (source: %s)",
+                self._config.profile,
+                self.get_source("profile"),
+            )
+            logger.debug(
+                "  log_level: %s (source: %s)",
+                self._config.log_level,
+                self.get_source("log_level"),
+            )
+            logger.debug(
+                "  keyboard_paths: %s (source: %s)",
+                self._config.keyboard_paths,
+                self.get_source("keyboard_paths"),
+            )
+            logger.debug(
+                "  firmware.flash.timeout: %s (source: %s)",
+                self._config.firmware.flash.timeout,
+                self.get_source("firmware.flash.timeout"),
+            )
+            logger.debug(
+                "  firmware.flash.count: %s (source: %s)",
+                self._config.firmware.flash.count,
+                self.get_source("firmware.flash.count"),
+            )
+            logger.debug(
+                "  firmware.flash.track_flashed: %s (source: %s)",
+                self._config.firmware.flash.track_flashed,
+                self.get_source("firmware.flash.track_flashed"),
+            )
+            logger.debug(
+                "  firmware.flash.skip_existing: %s (source: %s)",
+                self._config.firmware.flash.skip_existing,
+                self.get_source("firmware.flash.skip_existing"),
+            )
+            logger.debug("Configuration loading completed successfully")
 
     def _track_file_sources(
         self, data: dict[str, Any], filename: str, prefix: str = ""
