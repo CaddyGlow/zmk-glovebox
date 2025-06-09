@@ -10,9 +10,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from glovebox.cli.decorators import handle_errors, with_profile
-from glovebox.cli.helpers.parameters import ProfileOption
-from glovebox.config.profile import KeyboardProfile
+from glovebox.cli.decorators import handle_errors
 from glovebox.utils.diagnostics import collect_all_diagnostics
 
 
@@ -536,7 +534,6 @@ def _print_layout_diagnostics_table(
 
 
 @handle_errors
-@with_profile(default_profile="glove80/v25.05")
 def status_command(
     format: str = typer.Option(
         "table",
@@ -544,8 +541,6 @@ def status_command(
         "-f",
         help="Output format (table, json, markdown, diagnostics, diag-json)",
     ),
-    profile: ProfileOption = None,
-    keyboard_profile=None,  # Injected by @with_profile decorator
 ) -> None:
     """Show system status and diagnostics.
 

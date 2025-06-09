@@ -142,7 +142,6 @@ class TestUserConfigData:
         assert config.firmware.flash.count == 2
         assert config.firmware.flash.track_flashed is True
         assert config.firmware.flash.skip_existing is False
-        assert config.flash_skip_existing is False
 
     def test_custom_values(self, clean_environment):
         """Test creating configuration with custom values."""
@@ -158,7 +157,6 @@ class TestUserConfigData:
                     skip_existing=True,
                 )
             ),
-            flash_skip_existing=True,
         )
 
         assert config.profile == "custom/v1.0"
@@ -168,7 +166,6 @@ class TestUserConfigData:
         assert config.firmware.flash.count == 5
         assert config.firmware.flash.track_flashed is False
         assert config.firmware.flash.skip_existing is True
-        assert config.flash_skip_existing is True
 
     def test_profile_validation(self, clean_environment, profile_test_cases):
         """Test profile validation with various inputs."""
@@ -326,14 +323,6 @@ class TestUserConfigData:
         assert not hasattr(config, "unknown_field")
         assert not hasattr(config, "another_unknown")
 
-    def test_backward_compatibility_field(self, clean_environment):
-        """Test deprecated flash_skip_existing field still works."""
-        config = UserConfigData(flash_skip_existing=True)
-
-        assert config.flash_skip_existing is True
-        # Should not affect new nested field
-        assert config.firmware.flash.skip_existing is False
-
 
 class TestConfigurationValidation:
     """Tests for comprehensive configuration validation."""
@@ -356,7 +345,6 @@ class TestConfigurationValidation:
                     skip_existing=False,
                 )
             ),
-            flash_skip_existing=False,
         )
 
         assert config.profile == "complex_keyboard/v2.1.0"
@@ -366,7 +354,6 @@ class TestConfigurationValidation:
         assert config.firmware.flash.count == 0
         assert config.firmware.flash.track_flashed is True
         assert config.firmware.flash.skip_existing is False
-        assert config.flash_skip_existing is False
 
     def test_minimal_valid_configuration(self, clean_environment):
         """Test minimal valid configuration."""

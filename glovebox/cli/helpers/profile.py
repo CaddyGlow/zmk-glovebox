@@ -1,7 +1,7 @@
 """Helper functions for working with keyboard profiles in CLI commands."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import typer
 from rich.console import Console
@@ -45,22 +45,50 @@ def get_user_config_from_context(ctx: typer.Context) -> "UserConfig | None":
 
 
 def get_keyboard_profile_from_context(ctx: typer.Context) -> "KeyboardProfile":
-    """Get KeyboardProfile from Typer context."
+    """Get KeyboardProfile from Typer context.
 
     Args:
         ctx: Typer context
 
-    Raises:
-
     Returns:
        KeyboardProfile instance
+
+    Raises:
+        RuntimeError: If keyboard_profile is not available in context
     """
     from glovebox.cli.app import AppContext
 
     app_ctx: AppContext = ctx.obj
     keyboard_profile = app_ctx.keyboard_profile
-    assert keyboard_profile is not None
+    if keyboard_profile is None:
+        raise RuntimeError(
+            "KeyboardProfile not available in context. Ensure @with_profile decorator is used."
+        )
     return keyboard_profile
+
+
+def get_keyboard_profile_from_kwargs(**kwargs: Any) -> "KeyboardProfile":
+    """Get KeyboardProfile from function kwargs.
+
+    This helper function extracts the keyboard_profile that was injected
+    by the @with_profile decorator, eliminating the need for manual imports
+    and assertions in command functions.
+
+    Args:
+        **kwargs: Function keyword arguments containing 'keyboard_profile'
+
+    Returns:
+        KeyboardProfile instance
+
+    Raises:
+        RuntimeError: If keyboard_profile is not available in kwargs
+    """
+    keyboard_profile = kwargs.get("keyboard_profile")
+    if keyboard_profile is None:
+        raise RuntimeError(
+            "KeyboardProfile not available in kwargs. Ensure @with_profile decorator is used."
+        )
+    return cast("KeyboardProfile", keyboard_profile)
 
 
 def get_effective_profile(

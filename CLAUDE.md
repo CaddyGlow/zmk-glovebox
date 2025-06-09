@@ -524,17 +524,6 @@ from glovebox.layout.utils import build_template_context, generate_kconfig_conf
 from glovebox.config import create_keyboard_profile, KeyboardProfile
 ```
 
-#### Forbidden Patterns:
-```python
-# ❌ NO backward compatibility imports
-from glovebox.models import FlashResult  # FlashResult is in firmware.flash domain
-from glovebox.models import LayoutData   # LayoutData is in layout domain
-from glovebox.flash import create_flash_service  # Use firmware.flash
-from glovebox.services import create_build_service  # Use firmware
-from glovebox.formatters import BehaviorFormatterImpl  # Use layout.behavior_formatter
-from glovebox.generators import DTSIGenerator  # Use layout.utils functions
-from glovebox.builders import TemplateContextBuilder  # Use layout.utils functions
-```
 
 ### Key Design Patterns
 
@@ -723,17 +712,18 @@ def my_command(
 2. **Profile Decorator** (`glovebox/cli/decorators/profile.py`):
    ```python
    @with_profile(default_profile="glove80/v25.05")
-   def command_function(profile: ProfileOption = None, **kwargs):
+   def command_function(profile: ProfileOption = None):
        # Decorator automatically:
        # 1. Sets default profile if none provided
        # 2. Creates KeyboardProfile object
-       # 3. Adds it to kwargs as "keyboard_profile"
+       # 3. Stores it in the Typer context
        # 4. Handles profile creation errors
    ```
 
-3. **Usage in Commands**:
+3. **Usage in Commands** (Context Pattern - RECOMMENDED):
    ```python
    from glovebox.cli.helpers.parameters import ProfileOption
+   from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
    from glovebox.cli.decorators import with_profile
    
    @command_app.command()
@@ -741,12 +731,29 @@ def my_command(
    @with_profile(default_profile="glove80/v25.05")
    def my_command(
        ctx: typer.Context,
-       profile: ProfileOption = None,  # Just one line!
-       **kwargs
+       profile: ProfileOption = None,
    ) -> None:
-       # Access the created profile object
-       keyboard_profile = kwargs.get('keyboard_profile')
+       # Access the created profile object from context
+       keyboard_profile = get_keyboard_profile_from_context(ctx)
+       # Also provides access to user_config via get_user_config_from_context(ctx)
    ```
+
+4. **Profile Helper Functions** (`glovebox/cli/helpers/profile.py`):
+   ```python
+   # Recommended: Get keyboard profile from context (provides access to user_config too)
+   def get_keyboard_profile_from_context(ctx: typer.Context) -> KeyboardProfile:
+       """Get KeyboardProfile from Typer context."""
+   
+   # Alternative: Get keyboard profile from kwargs (if using **kwargs pattern)
+   def get_keyboard_profile_from_kwargs(**kwargs: Any) -> KeyboardProfile:
+       """Get KeyboardProfile from function kwargs."""
+   ```
+
+**Why Context Pattern is Recommended:**
+- **Access to User Config**: Context provides both `keyboard_profile` and `user_config`
+- **Cleaner Function Signatures**: No need for `**kwargs` in function parameters
+- **Consistent Pattern**: All commands use the same simple one-liner
+- **Better Error Handling**: Clear error messages when decorator is missing
 
 **Benefits:**
 - **DRY Principle**: Single definition instead of 9 lines per command
@@ -754,6 +761,7 @@ def my_command(
 - **Maintainability**: Change profile parameter behavior in one place
 - **Type Safety**: Full IDE support and type checking
 - **Error Handling**: Centralized profile creation error handling
+- **User Config Access**: Easy access to user configuration alongside profile
 
 **Commands Updated:**
 - ✅ All `glovebox firmware` commands (compile, flash, list-devices)

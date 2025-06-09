@@ -28,7 +28,7 @@ def collect_system_diagnostics() -> dict[str, Any]:
         Dictionary containing system diagnostics including platform info,
         file system access, disk space, and directory permissions.
     """
-    diagnostics = {
+    diagnostics: dict[str, Any] = {
         "environment": {
             "platform": f"{platform.system()} {platform.release()}",
             "python_version": platform.python_version(),
@@ -42,11 +42,11 @@ def collect_system_diagnostics() -> dict[str, Any]:
 
     # XDG directories
     try:
-        diagnostics["environment"]["xdg_config_home"] = str(
-            Path.home() / ".config"
-            if not os.getenv("XDG_CONFIG_HOME")
-            else Path(os.getenv("XDG_CONFIG_HOME"))
-        )
+        xdg_env = os.getenv("XDG_CONFIG_HOME")
+        if xdg_env:
+            diagnostics["environment"]["xdg_config_home"] = str(Path(xdg_env))
+        else:
+            diagnostics["environment"]["xdg_config_home"] = str(Path.home() / ".config")
     except Exception as e:
         logger.debug("Error getting XDG config home: %s", e)
         diagnostics["environment"]["xdg_config_home"] = "error"
@@ -94,7 +94,7 @@ def collect_docker_diagnostics() -> dict[str, Any]:
         Dictionary containing Docker availability, daemon status, version info,
         required images, and capabilities.
     """
-    diagnostics = {
+    diagnostics: dict[str, Any] = {
         "availability": "unknown",
         "daemon_status": "unknown",
         "version_info": {},
@@ -188,7 +188,7 @@ def collect_usb_flash_diagnostics() -> dict[str, Any]:
         Dictionary containing USB detection capabilities, available devices,
         OS-specific tools, and flash permissions.
     """
-    diagnostics = {
+    diagnostics: dict[str, Any] = {
         "usb_detection": {"status": "unknown"},
         "os_capabilities": {},
         "detected_devices": [],
@@ -215,7 +215,7 @@ def collect_usb_flash_diagnostics() -> dict[str, Any]:
         from glovebox.adapters.usb_adapter import create_usb_adapter
 
         usb_adapter = create_usb_adapter()
-        devices = usb_adapter.list_devices()
+        devices = usb_adapter.get_all_devices()
 
         diagnostics["usb_detection"]["status"] = "available"
         diagnostics["detected_devices"] = [
@@ -245,7 +245,7 @@ def collect_config_diagnostics() -> dict[str, Any]:
         Dictionary containing user config status, environment variables,
         keyboard discovery, and profile capabilities.
     """
-    diagnostics = {
+    diagnostics: dict[str, Any] = {
         "user_config": {
             "search_paths": [],
             "found_config": None,
@@ -326,7 +326,7 @@ def collect_layout_diagnostics() -> dict[str, Any]:
         Dictionary containing layout processing capabilities, template engine
         status, behavior registry, and ZMK generation capabilities.
     """
-    diagnostics = {
+    diagnostics: dict[str, Any] = {
         "processing": {
             "json_parser": "available",
             "template_engine": "unknown",
@@ -391,7 +391,7 @@ def collect_all_diagnostics() -> dict[str, Any]:
     """
     from importlib.metadata import distribution
 
-    diagnostics = {
+    diagnostics: dict[str, Any] = {
         "version": distribution("glovebox").version,
         "timestamp": None,  # Could add timestamp if needed
         "system": {},
@@ -495,15 +495,10 @@ def _check_linux_flash_capabilities() -> dict[str, Any]:
 
     # Check udisksctl
     try:
-        result = subprocess.run(
-            ["udisksctl", "--version"],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
+        if not shutil.which("udisksctl"):
+            raise OSError("`udisksctl` command not found. Please install udisks2.")
         capabilities["mount_tool"] = "udisksctl"
-        capabilities["mount_tool_version"] = result.stdout.strip()
+        capabilities["mount_tool_version"] = ""
     except Exception:
         capabilities["mount_tool"] = "unavailable"
 
@@ -564,7 +559,8 @@ def _check_mount_permissions() -> dict[str, str]:
                 g.gr_name for g in grp.getgrall() if os.getlogin() in g.gr_mem
             ]
             if any(
-                group in user_groups for group in ["disk", "storage", "wheel", "sudo"]
+                group in user_groups
+                for group in ["disk", "storage", "wheel", "sudo", "plugdev"]
             ):
                 permissions["device_access"] = "elevated"
             else:

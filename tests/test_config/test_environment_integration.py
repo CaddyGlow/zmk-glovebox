@@ -49,7 +49,6 @@ class TestEnvironmentVariableOverrides:
         assert config.firmware.flash.count == 42
         assert config.firmware.flash.track_flashed is False
         assert config.firmware.flash.skip_existing is True
-        assert config.flash_skip_existing is True
 
     def test_partial_environment_overrides(self, clean_environment):
         """Test partial environment variable overrides leave defaults intact."""
@@ -475,5 +474,4 @@ class TestEnvironmentVariablePrecedence:
         # Defaults used when neither environment nor file provide value
         # (This depends on what's in sample_config_dict vs defaults)
         if "flash_skip_existing" not in sample_config_dict:
-            assert config._config.flash_skip_existing is False  # Default value
             assert config.get_source("flash_skip_existing") == "default"

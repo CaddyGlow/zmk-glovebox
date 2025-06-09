@@ -49,7 +49,6 @@ def layout_compile(
         typer.Argument(help="Path to keymap JSON file"),
     ],
     profile: ProfileOption = None,
-    # keyboard_profile=None,
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
@@ -72,13 +71,7 @@ def layout_compile(
     keymap_service = create_layout_service()
 
     # The @with_profile decorator injects keyboard_profile parameter
-    from glovebox.cli.app import AppContext
-
-    app_ctx: AppContext = ctx.obj
     keyboard_profile = get_keyboard_profile_from_context(ctx)
-
-    # keyboard_profile = kwargs["keyboard_profile"]
-    # assert KeyboardProfile is not None
 
     try:
         result = keymap_service.generate_from_file(
@@ -113,7 +106,7 @@ def decompose(
     output_dir: Annotated[
         Path, typer.Argument(help="Directory to save extracted files")
     ],
-    profile: Annotated[str, typer.Option()],
+    profile: ProfileOption = None,
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
@@ -123,8 +116,8 @@ def decompose(
     # Use the file-based service method
     keymap_service = create_layout_service()
 
-    # The @with_profile decorator injects keyboard_profile via kwargs
-    keyboard_profile = kwargs["keyboard_profile"]
+    # The @with_profile decorator injects keyboard_profile via context
+    keyboard_profile = get_keyboard_profile_from_context(ctx)
 
     try:
         result = keymap_service.decompose_components_from_file(
@@ -162,15 +155,14 @@ def compose(
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
-    keyboard_profile=None,
 ) -> None:
     """Compose layer files into a single keymap file."""
 
     # Use the file-based service method
     keymap_service = create_layout_service()
 
-    # The @with_profile decorator injects keyboard_profile via kwargs
-    keyboard_profile = kwargs["keyboard_profile"]
+    # The @with_profile decorator injects keyboard_profile via context
+    keyboard_profile = get_keyboard_profile_from_context(ctx)
 
     try:
         result = keymap_service.generate_from_directory(
@@ -199,15 +191,14 @@ def validate(
     ctx: typer.Context,
     json_file: Annotated[Path, typer.Argument(help="Path to keymap JSON file")],
     profile: ProfileOption = None,
-    keyboard_profile=None,
 ) -> None:
     """Validate keymap syntax and structure."""
 
     # Validate using the file-based service method
     keymap_service = create_layout_service()
 
-    # The @with_profile decorator injects keyboard_profile via kwargs
-    keyboard_profile = kwargs["keyboard_profile"]
+    # The @with_profile decorator injects keyboard_profile via context
+    keyboard_profile = get_keyboard_profile_from_context(ctx)
 
     try:
         if keymap_service.validate_from_file(
@@ -247,15 +238,14 @@ def show(
         int | None, typer.Option("--layer", help="Show only specific layer index")
     ] = None,
     profile: ProfileOption = None,
-    keyboard_profile=None,
 ) -> None:
     """Display keymap layout in terminal."""
 
     # Call the service
     keymap_service = create_layout_service()
 
-    # The @with_profile decorator injects keyboard_profile via kwargs
-    keyboard_profile = kwargs["keyboard_profile"]
+    # The @with_profile decorator injects keyboard_profile via context
+    keyboard_profile = get_keyboard_profile_from_context(ctx)
 
     try:
         result = keymap_service.show_from_file(

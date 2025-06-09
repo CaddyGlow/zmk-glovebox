@@ -14,7 +14,7 @@ from glovebox.cli.helpers import (
 )
 from glovebox.cli.helpers.parameters import ProfileOption
 from glovebox.cli.helpers.profile import (
-    create_profile_from_context,
+    get_keyboard_profile_from_context,
     get_user_config_from_context,
 )
 from glovebox.config.profile import KeyboardProfile
@@ -38,6 +38,7 @@ and manage firmware-related operations.""",
 
 @firmware_app.command(name="compile")
 @handle_errors
+@with_profile()
 def firmware_compile(
     ctx: typer.Context,
     keymap_file: Annotated[Path, typer.Argument(help="Path to keymap (.keymap) file")],
@@ -71,7 +72,7 @@ def firmware_compile(
         glovebox firmware compile keymap.keymap config.conf --keyboard glove80 --firmware v25.05
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --verbose
     """
-    keyboard_profile = create_profile_from_context(ctx, profile)
+    keyboard_profile = get_keyboard_profile_from_context(ctx)
     _ = get_user_config_from_context(ctx)
 
     # Use the branch and repo parameters if provided, otherwise use defaults
@@ -109,6 +110,7 @@ def firmware_compile(
 
 @firmware_app.command()
 @handle_errors
+@with_profile()
 def flash(
     ctx: typer.Context,
     firmware_file: Annotated[Path, typer.Argument(help="Path to firmware (.uf2) file")],
@@ -145,7 +147,7 @@ def flash(
         glovebox firmware flash firmware.uf2 --query "vendor=Adafruit and serial~=GLV80-.*"
     """
 
-    keyboard_profile = create_profile_from_context(ctx, profile)
+    keyboard_profile = get_keyboard_profile_from_context(ctx)
 
     # Get user config from context (already loaded)
     user_config = get_user_config_from_context(ctx)
@@ -212,6 +214,7 @@ def flash(
 
 @firmware_app.command()
 @handle_errors
+@with_profile()
 def list_devices(
     ctx: typer.Context,
     profile: ProfileOption = None,
@@ -223,18 +226,15 @@ def list_devices(
     flash_service = create_flash_service()
 
     try:
-        # Create profile using user config integration
-        from glovebox.cli.helpers.profile import (
-            get_effective_profile,
-            get_user_config_from_context,
-        )
+        # Get the keyboard profile from context
+        keyboard_profile = get_keyboard_profile_from_context(ctx)
 
-        user_config = get_user_config_from_context(ctx)
-        effective_profile = get_effective_profile(profile, user_config)
-
-        # Use profile-based method with effective profile
+        # Use profile-based method with keyboard profile
         result = flash_service.list_devices_with_profile(
-            profile_name=effective_profile, query=query
+            profile_name=f"{keyboard_profile.keyboard_name}/{keyboard_profile.firmware_version}"
+            if keyboard_profile.firmware_version
+            else keyboard_profile.keyboard_name,
+            query=query,
         )
 
         if result.success and result.device_details:

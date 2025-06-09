@@ -395,9 +395,6 @@ class TestComplexIntegrationScenarios:
                 config._config.firmware.flash.skip_existing is False
             )  # Default, not affected by deprecated field
 
-            # Deprecated field should still be accessible
-            assert config._config.flash_skip_existing is True
-
             # Other settings should work normally
             assert config._config.profile == "legacy/board"
             assert config._config.firmware.flash.timeout == 90
