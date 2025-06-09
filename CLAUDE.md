@@ -338,20 +338,52 @@ mypy glovebox/
 pre-commit run --all-files
 ```
 
-### Debug Logging
+### Debug Logging and Verbose Output
+
+Glovebox provides comprehensive debug tracing capabilities with multiple verbosity levels and automatic stack trace support:
 
 ```bash
-# Enable debug output (multiple options available)
-glovebox --debug [command]     # Debug logging
-glovebox -vv [command]         # Also debug logging  
-glovebox -v [command]          # Info logging
+# Verbose Flag Hierarchy (with precedence)
+glovebox --debug [command]     # DEBUG level logging + stack traces (highest priority)
+glovebox -vv [command]         # DEBUG level logging + stack traces  
+glovebox -v [command]          # INFO level logging + stack traces
+glovebox [command]             # User config level or WARNING (default)
 
 # Log to file
 glovebox --log-file debug.log [command]
 
-# Combine options
+# Combine debug and file logging
 glovebox --debug --log-file debug.log [command]
+
+# Examples with common commands
+glovebox --debug status                                    # Debug keyboard detection
+glovebox -vv layout compile input.json output/            # Debug layout generation
+glovebox -v firmware compile keymap.keymap config.conf    # Info level firmware build
 ```
+
+#### **Flag Precedence Rules**
+The debug system follows strict precedence rules:
+```
+--debug > -vv > -v > user_config.log_level > WARNING (default)
+```
+
+#### **Stack Trace Behavior**
+- **All verbose flags** (`-v`, `-vv`, `--verbose`, `--debug`) automatically show stack traces on errors
+- **No verbose flags** = Clean error messages only (no stack traces)
+- **Centralized implementation** via `print_stack_trace_if_verbose()` function
+
+#### **Logging Levels and Output**
+- **DEBUG (10)**: Full debug information, configuration loading details, internal operations
+- **INFO (20)**: Important events, user-facing operations, progress updates  
+- **WARNING (30)**: Recoverable issues, missing optional features
+- **ERROR (40)**: Operation failures, validation errors
+- **CRITICAL (50)**: System failures requiring immediate attention
+
+#### **Use Cases**
+- **Development**: Use `--debug` for comprehensive troubleshooting
+- **User Support**: Use `-v` for informative output with stack traces
+- **Production**: Use default level for clean, user-friendly messages
+- **CI/CD**: Use `--log-file` for persistent debugging information
 
 ### LSP Tools
 
@@ -434,10 +466,15 @@ The codebase is organized into self-contained domains, each owning their models,
   - Multi-source configuration (environment variables, global config, local config)
   - Clear precedence rules and validation
   - Profile-based keyboard + firmware combinations
-  - **Optional sections**: `keymap` and `firmwares` sections are now optional in keyboard configurations
+  - **Keyboard-Only Profile Support**: Full support for minimal keyboard configurations
+    - `keymap` and `firmwares` sections are optional in keyboard configurations
     - Enables minimal keyboard configs with only core fields (keyboard, description, vendor, key_count, flash, build)
-    - Supports partial configs (firmware-only, keymap-only, or neither)
-    - Functions gracefully handle missing sections with appropriate defaults (empty lists/dicts)
+    - Keyboard-only profiles return empty behaviors and kconfig options for safe operation
+    - Use case: Basic keyboard configurations for flashing operations without keymap generation
+  - **Flexible Profile Creation**:
+    - `create_keyboard_profile("keyboard_name")` - Creates keyboard-only profile
+    - `create_keyboard_profile("keyboard_name", "firmware_version")` - Creates full profile
+    - Automatic fallback to keyboard-only when firmware not found
 
 #### Core Models (`glovebox/models/`)
 - **Purpose**: Core data models shared across domains
@@ -519,13 +556,22 @@ The KeyboardProfile pattern is a central concept in the architecture:
    ```python
    from glovebox.config.keyboard_profile import create_keyboard_profile
 
+   # Full profile with firmware
    profile = create_keyboard_profile("glove80", "v25.05")
+   
+   # Keyboard-only profile (NEW: firmware_version=None)
+   keyboard_profile = create_keyboard_profile("glove80")
+   keyboard_profile = create_keyboard_profile("glove80", firmware_version=None)
    ```
 
 2. **CLI Integration**:
    ```bash
-   # Using profile parameter
+   # Using profile parameter with firmware
    glovebox layout compile input.json output/ --profile glove80/v25.05
+   
+   # Using keyboard-only profile (NEW: no firmware part)
+   glovebox status --profile glove80
+   glovebox firmware flash firmware.uf2 --profile glove80
    ```
 
 3. **Service Usage**:
@@ -536,13 +582,23 @@ The KeyboardProfile pattern is a central concept in the architecture:
 
 4. **Configuration Access**:
    ```python
-   # Access nested configuration
+   # Access keyboard configuration (always available)
    profile.keyboard_config.description
-   profile.firmware_config.version
+   profile.keyboard_config.vendor
+   profile.keyboard_name
    
-   # Handle optional sections gracefully
-   system_behaviors = profile.system_behaviors  # Returns [] if no keymap
-   kconfig_options = profile.kconfig_options   # Returns {} if no keymap
+   # Access firmware configuration (may be None for keyboard-only profiles)
+   if profile.firmware_config:
+       firmware_version = profile.firmware_config.version
+       build_options = profile.firmware_config.build_options
+   
+   # Safe access to optional components
+   system_behaviors = profile.system_behaviors    # Returns [] for keyboard-only profiles
+   kconfig_options = profile.kconfig_options      # Returns {} for keyboard-only profiles
+   
+   # Check profile type
+   is_keyboard_only = profile.firmware_version is None
+   has_firmware = profile.firmware_config is not None
    ```
 
 5. **Optional Sections Support**:

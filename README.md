@@ -9,8 +9,10 @@ A comprehensive tool for ZMK keyboard firmware management, supporting multiple k
 - **Firmware Building**: Docker-based ZMK build chain with extensible architecture
 - **Device Flashing**: USB device detection and firmware flashing with retry logic
 - **Configuration Management**: Profile-based configuration system with inheritance
+- **Keyboard-Only Profiles**: Minimal configurations for flashing operations without keymap generation
 - **Layout Visualization**: Display keyboard layouts in terminal
 - **Behavior Management**: Keyboard-specific behavior registration and validation
+- **Debug Tracing**: Comprehensive debug logging with stack traces and multiple verbosity levels
 
 ## How It Works
 
@@ -82,6 +84,29 @@ cat my_layout.json | glovebox layout compile - output/my_keymap --profile glove8
 # Force overwrite of existing files
 glovebox layout compile my_layout.json output/my_keymap --profile glove80/v25.05 --force
 ```
+
+### Keyboard-Only Profiles (NEW)
+
+Use minimal keyboard configurations for operations that don't require keymap generation:
+
+```bash
+# Check keyboard status using keyboard-only profile  
+glovebox status --profile glove80
+
+# Flash pre-built firmware using keyboard-only profile
+glovebox firmware flash firmware.uf2 --profile glove80
+
+# List available configurations
+glovebox config list --profile glove80
+
+# View keyboard-specific information
+glovebox config show --profile glove80
+```
+
+**Use Cases:**
+- **Flashing Operations**: Flash firmware without needing full keymap configuration
+- **Status Checks**: Query keyboard information and USB device detection
+- **Minimal Setups**: Simple configurations with only essential keyboard details (no firmware-specific behaviors)
 
 ### Build Firmware
 
@@ -881,20 +906,34 @@ glovebox config list --verbose
 glovebox keyboards info glove80
 ```
 
-### Debug Logging
+### Debug Logging and Troubleshooting
 
-Enable debug logging for troubleshooting:
+Glovebox provides comprehensive debug tracing with automatic stack traces and multiple verbosity levels:
 
 ```bash
-# Enable verbose output (info level)
-glovebox -v keymap compile layout.json output
+# Verbose flag hierarchy (with precedence: --debug > -vv > -v > config > default)
+glovebox --debug [command]     # DEBUG level + stack traces (highest priority)
+glovebox -vv [command]         # DEBUG level + stack traces  
+glovebox -v [command]          # INFO level + stack traces
+glovebox [command]             # User config or WARNING level (clean output)
 
-# Enable debug output (very verbose)
-glovebox -vv keymap compile layout.json output
+# Examples with common commands
+glovebox --debug status                                    # Debug keyboard detection
+glovebox -vv layout compile layout.json output/           # Debug layout generation
+glovebox -v firmware compile keymap.keymap config.conf    # Info level firmware build
 
-# Log to file
-glovebox --log-file debug.log keymap compile layout.json output
+# Log to file for persistent debugging
+glovebox --debug --log-file debug.log firmware compile keymap.keymap config.conf
+
+# Combine with profile for full context
+glovebox --debug layout compile layout.json output/ --profile glove80/v25.05
 ```
+
+**Key Features:**
+- **Automatic Stack Traces**: All verbose flags (`-v`, `-vv`, `--debug`) show stack traces on errors
+- **Clean Error Messages**: No verbose flags = user-friendly error messages only
+- **Flag Precedence**: `--debug` > `-vv` > `-v` > user config > WARNING (default)
+- **File Logging**: Persist debug information with `--log-file`
 
 ## License
 
