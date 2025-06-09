@@ -26,6 +26,10 @@ Layout Editor → JSON File → ZMK Files → Firmware → Flash
 
 The layout domain handles complex JSON→DTSI conversion with behaviors like macros, hold-taps, combos, and component extraction/merging.
 
+## Active Development Plans
+
+**CLI Output Format Enhancement** - See `docs/cli_output_format_implementation_plan.md` for detailed implementation plan and progress tracking of unified output format system with Rich syntax support.
+
 ## CRITICAL: Code Convention Enforcement
 
 **MANDATORY REQUIREMENTS - MUST BE FOLLOWED WITHOUT EXCEPTION:**

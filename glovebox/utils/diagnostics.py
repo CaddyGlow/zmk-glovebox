@@ -8,7 +8,10 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from glovebox.config.user_config import UserConfig
 
 from glovebox.config.keyboard_profile import (
     get_available_keyboards,
@@ -51,29 +54,39 @@ def collect_system_diagnostics() -> dict[str, Any]:
         logger.debug("Error getting XDG config home: %s", e)
         diagnostics["environment"]["xdg_config_home"] = "error"
 
-    # File system access checks
-    temp_dir = (
-        Path("/tmp")
-        if platform.system() != "Windows"
-        else Path(os.getenv("TEMP", "C:\\temp"))
-    )
+    # File system access checks using FileAdapter
+    try:
+        from glovebox.adapters.file_adapter import create_file_adapter
 
-    directories_to_check = {
-        "temp_directory": temp_dir,
-        "config_directory": Path.home() / ".config" / "glovebox",
-        "working_directory": Path.cwd(),
-    }
+        file_adapter = create_file_adapter()
 
-    for dir_name, dir_path in directories_to_check.items():
-        try:
-            diagnostics["file_system"][f"{dir_name}_path"] = str(dir_path)
-            diagnostics["file_system"][f"{dir_name}_exists"] = dir_path.exists()
-            diagnostics["file_system"][f"{dir_name}_writable"] = (
-                _check_directory_writable(dir_path)
-            )
-        except Exception as e:
-            logger.debug("Error checking directory %s: %s", dir_path, e)
-            diagnostics["file_system"][f"{dir_name}_error"] = str(e)
+        temp_dir = (
+            Path("/tmp")
+            if platform.system() != "Windows"
+            else Path(os.getenv("TEMP", "C:\\temp"))
+        )
+
+        directories_to_check = {
+            "temp_directory": temp_dir,
+            "config_directory": Path.home() / ".config" / "glovebox",
+            "working_directory": Path.cwd(),
+        }
+
+        for dir_name, dir_path in directories_to_check.items():
+            try:
+                diagnostics["file_system"][f"{dir_name}_path"] = str(dir_path)
+                diagnostics["file_system"][f"{dir_name}_exists"] = (
+                    file_adapter.check_exists(dir_path)
+                )
+                diagnostics["file_system"][f"{dir_name}_writable"] = (
+                    _check_directory_writable(file_adapter, dir_path)
+                )
+            except Exception as e:
+                logger.debug("Error checking directory %s: %s", dir_path, e)
+                diagnostics["file_system"][f"{dir_name}_error"] = str(e)
+    except Exception as e:
+        logger.debug("Error creating file adapter: %s", e)
+        diagnostics["file_system"]["adapter_error"] = str(e)
 
     # Disk space information
     try:
@@ -102,25 +115,34 @@ def collect_docker_diagnostics() -> dict[str, Any]:
         "capabilities": {},
     }
 
-    # Basic Docker availability
+    # Basic Docker availability using DockerAdapter
     try:
-        result = subprocess.run(
-            ["docker", "--version"],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        diagnostics["availability"] = "available"
-        diagnostics["version_info"]["client"] = result.stdout.strip()
-    except (
-        subprocess.SubprocessError,
-        FileNotFoundError,
-        subprocess.TimeoutExpired,
-    ) as e:
-        logger.debug("Docker not available: %s", e)
+        from glovebox.adapters.docker_adapter import create_docker_adapter
+
+        docker_adapter = create_docker_adapter()
+        if docker_adapter.is_available():
+            diagnostics["availability"] = "available"
+            # Get version info with subprocess (DockerAdapter doesn't expose version directly)
+            try:
+                result = subprocess.run(
+                    ["docker", "--version"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                diagnostics["version_info"]["client"] = result.stdout.strip()
+            except Exception:
+                diagnostics["version_info"]["client"] = "Available (version unknown)"
+        else:
+            diagnostics["availability"] = "unavailable"
+            diagnostics["version_info"]["client"] = "Not found"
+            return diagnostics
+    except Exception as e:
+        logger.debug("Error creating Docker adapter: %s", e)
         diagnostics["availability"] = "unavailable"
-        diagnostics["version_info"]["client"] = "Not found"
+        diagnostics["version_info"]["client"] = "Adapter error"
+        diagnostics["adapter_error"] = str(e)
         return diagnostics
 
     # Docker daemon status
@@ -174,9 +196,18 @@ def collect_docker_diagnostics() -> dict[str, Any]:
             logger.debug("Error checking image %s: %s", image, e)
             diagnostics["images"][image] = "error"
 
-    # Test Docker capabilities
+    # Test Docker capabilities using DockerAdapter
     if diagnostics["daemon_status"] == "running":
-        diagnostics["capabilities"] = _test_docker_capabilities()
+        try:
+            from glovebox.adapters.docker_adapter import create_docker_adapter
+
+            docker_adapter = create_docker_adapter()
+            diagnostics["capabilities"] = _test_docker_capabilities_with_adapter(
+                docker_adapter
+            )
+        except Exception as e:
+            logger.debug("Error testing Docker capabilities: %s", e)
+            diagnostics["capabilities"] = {"error": str(e)}
 
     return diagnostics
 
@@ -210,7 +241,7 @@ def collect_usb_flash_diagnostics() -> dict[str, Any]:
         diagnostics["usb_detection"]["status"] = "unsupported_platform"
         return diagnostics
 
-    # Test USB device detection
+    # Test USB device detection using USBAdapter
     try:
         from glovebox.adapters.usb_adapter import create_usb_adapter
 
@@ -224,6 +255,12 @@ def collect_usb_flash_diagnostics() -> dict[str, Any]:
                 "path": device.path,
                 "vendor": getattr(device, "vendor", "unknown"),
                 "model": getattr(device, "model", "unknown"),
+                "serial": getattr(device, "serial", "unknown"),
+                "vendor_id": getattr(device, "vendor_id", "unknown"),
+                "product_id": getattr(device, "product_id", "unknown"),
+                "size": getattr(device, "size", 0),
+                "removable": getattr(device, "removable", False),
+                "type": getattr(device, "type", "unknown"),
             }
             for device in devices
         ]
@@ -238,8 +275,13 @@ def collect_usb_flash_diagnostics() -> dict[str, Any]:
     return diagnostics
 
 
-def collect_config_diagnostics() -> dict[str, Any]:
+def collect_config_diagnostics(
+    user_config: "UserConfig | None" = None,
+) -> dict[str, Any]:
     """Collect configuration loading and validation diagnostics.
+
+    Args:
+        user_config: Optional user configuration instance to use for keyboard discovery
 
     Returns:
         Dictionary containing user config status, environment variables,
@@ -265,7 +307,8 @@ def collect_config_diagnostics() -> dict[str, Any]:
 
     # User config loading
     try:
-        user_config = create_user_config()
+        if user_config is None:
+            user_config = create_user_config()
         diagnostics["user_config"]["validation_status"] = "valid"
         diagnostics["user_config"]["found_config"] = (
             str(user_config._main_config_path)
@@ -286,14 +329,14 @@ def collect_config_diagnostics() -> dict[str, Any]:
 
     # Keyboard discovery paths
     try:
-        keyboards = get_available_keyboards()
+        keyboards = get_available_keyboards(user_config)
         diagnostics["keyboard_discovery"]["found_keyboards"] = len(keyboards)
 
         # Test loading each keyboard
         keyboard_status = []
         for keyboard in keyboards:
             try:
-                config = load_keyboard_config(keyboard)
+                config = load_keyboard_config(keyboard, user_config)
                 keyboard_status.append(
                     {
                         "name": keyboard,
@@ -347,7 +390,7 @@ def collect_layout_diagnostics() -> dict[str, Any]:
     except Exception:
         diagnostics["processing"]["json_parser"] = "error"
 
-    # Test template engine
+    # Test template engine using TemplateAdapter
     try:
         from glovebox.adapters.template_adapter import create_template_adapter
 
@@ -383,8 +426,11 @@ def collect_layout_diagnostics() -> dict[str, Any]:
     return diagnostics
 
 
-def collect_all_diagnostics() -> dict[str, Any]:
+def collect_all_diagnostics(user_config: "UserConfig | None" = None) -> dict[str, Any]:
     """Collect all diagnostic data in a structured format.
+
+    Args:
+        user_config: Optional user configuration instance
 
     Returns:
         Complete diagnostic data dictionary with all subsystems.
@@ -406,7 +452,7 @@ def collect_all_diagnostics() -> dict[str, Any]:
         ("system", collect_system_diagnostics),
         ("docker", collect_docker_diagnostics),
         ("usb_flash", collect_usb_flash_diagnostics),
-        ("configuration", collect_config_diagnostics),
+        ("configuration", lambda: collect_config_diagnostics(user_config)),
         ("layout", collect_layout_diagnostics),
     ]
 
@@ -426,22 +472,24 @@ def collect_all_diagnostics() -> dict[str, Any]:
 # Helper functions
 
 
-def _check_directory_writable(directory: Path) -> bool:
-    """Check if a directory is writable by attempting to create a test file."""
+def _check_directory_writable(file_adapter: Any, directory: Path) -> bool:
+    """Check if a directory is writable using file adapter."""
     try:
-        if not directory.exists():
+        if not file_adapter.check_exists(directory) or not file_adapter.is_dir(
+            directory
+        ):
             return False
 
         test_file = directory / ".glovebox_write_test"
-        test_file.touch()
-        test_file.unlink()
+        file_adapter.write_text(test_file, "test")
+        file_adapter.remove_file(test_file)
         return True
     except Exception:
         return False
 
 
 def _test_docker_capabilities() -> dict[str, str]:
-    """Test Docker capabilities like volume mounts and network access."""
+    """Test Docker capabilities like volume mounts and network access (legacy function)."""
     capabilities = {
         "volume_mounts": "unknown",
         "network_access": "unknown",
@@ -480,6 +528,71 @@ def _test_docker_capabilities() -> dict[str, str]:
         )
         capabilities["network_access"] = "available"
     except Exception:
+        capabilities["network_access"] = "limited"
+
+    return capabilities
+
+
+def _test_docker_capabilities_with_adapter(docker_adapter: Any) -> dict[str, str]:
+    """Test Docker capabilities using DockerAdapter."""
+    capabilities = {
+        "volume_mounts": "unknown",
+        "network_access": "unknown",
+        "basic_container_run": "unknown",
+    }
+
+    # Variables for Docker operations
+    volumes: list[tuple[str, str]]
+    environment: dict[str, str]
+    command: list[str]
+
+    # Test basic container run capability
+    try:
+        volumes = []
+        environment = {}
+        command = ["echo", "test"]
+        result = docker_adapter.run_container(
+            "alpine:latest", volumes, environment, command
+        )
+        if result[0] == 0:  # Exit code 0 means success
+            capabilities["basic_container_run"] = "available"
+        else:
+            capabilities["basic_container_run"] = "limited"
+    except Exception as e:
+        logger.debug("Docker basic container test failed: %s", e)
+        capabilities["basic_container_run"] = "limited"
+
+    # Test volume mount capability
+    try:
+        temp_dir = Path("/tmp") if platform.system() != "Windows" else Path("C:\\temp")
+        volumes = [(str(temp_dir), "/test")]
+        environment = {}
+        command = ["ls", "/test"]
+        result = docker_adapter.run_container(
+            "alpine:latest", volumes, environment, command
+        )
+        if result[0] == 0:
+            capabilities["volume_mounts"] = "available"
+        else:
+            capabilities["volume_mounts"] = "limited"
+    except Exception as e:
+        logger.debug("Docker volume mount test failed: %s", e)
+        capabilities["volume_mounts"] = "limited"
+
+    # Test network access (simplified)
+    try:
+        volumes = []
+        environment = {}
+        command = ["ping", "-c", "1", "8.8.8.8"]
+        result = docker_adapter.run_container(
+            "alpine:latest", volumes, environment, command
+        )
+        if result[0] == 0:
+            capabilities["network_access"] = "available"
+        else:
+            capabilities["network_access"] = "limited"
+    except Exception as e:
+        logger.debug("Docker network test failed: %s", e)
         capabilities["network_access"] = "limited"
 
     return capabilities

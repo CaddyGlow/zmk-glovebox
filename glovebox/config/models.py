@@ -150,7 +150,14 @@ class KeyboardConfig(BaseModel):
     vendor: str
     key_count: int = Field(gt=0, description="Number of keys must be positive")
     flash: FlashConfig
-    build: BuildConfig
+    build: BuildConfig = Field(
+        default_factory=lambda: BuildConfig(
+            method="",
+            branch="",
+            docker_image="",
+            repository="",
+        )
+    )
     firmwares: dict[str, FirmwareConfig] = Field(default_factory=dict)
     keymap: KeymapSection = Field(
         default_factory=lambda: KeymapSection(

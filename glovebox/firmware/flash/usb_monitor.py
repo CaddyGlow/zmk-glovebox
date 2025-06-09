@@ -433,6 +433,8 @@ class MacOSUSBDeviceMonitor(USBDeviceMonitorBase):
                         model="",
                         vendor="",
                         serial="",
+                        vendor_id="",
+                        product_id="",
                     ),
                 )
 

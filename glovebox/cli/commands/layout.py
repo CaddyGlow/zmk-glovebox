@@ -13,7 +13,7 @@ from glovebox.cli.helpers import (
     print_list_item,
     print_success_message,
 )
-from glovebox.cli.helpers.parameters import ProfileOption
+from glovebox.cli.helpers.parameters import OutputFormatOption, ProfileOption
 from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
 from glovebox.config.profile import KeyboardProfile
 from glovebox.layout.service import create_layout_service
@@ -52,6 +52,7 @@ def layout_compile(
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
+    output_format: OutputFormatOption = "text",
 ) -> None:
     """Compile ZMK keymap and config files from a JSON keymap file.
 
@@ -82,10 +83,38 @@ def layout_compile(
         )
 
         if result.success:
-            print_success_message("Layout generated successfully")
-            output_files = result.get_output_files()
-            for file_type, file_path in output_files.items():
-                print_list_item(f"{file_type}: {file_path}")
+            if output_format.lower() == "json":
+                # JSON output for automation
+                output_files = result.get_output_files()
+                result_data = {
+                    "success": True,
+                    "message": "Layout generated successfully",
+                    "output_files": output_files,
+                    "messages": result.messages if hasattr(result, "messages") else [],
+                }
+                from glovebox.cli.helpers.output_formatter import OutputFormatter
+
+                formatter = OutputFormatter()
+                print(formatter.format(result_data, "json"))
+            else:
+                # Rich text output (default)
+                print_success_message("Layout generated successfully")
+                output_files = result.get_output_files()
+
+                if output_format.lower() == "table":
+                    # Table format for file listing
+                    file_data = [
+                        {"Type": file_type, "Path": str(file_path)}
+                        for file_type, file_path in output_files.items()
+                    ]
+                    from glovebox.cli.helpers.output_formatter import OutputFormatter
+
+                    formatter = OutputFormatter()
+                    formatter.print_formatted(file_data, "table")
+                else:
+                    # Text format (default)
+                    for file_type, file_path in output_files.items():
+                        print_list_item(f"{file_type}: {file_path}")
         else:
             print_error_message("Layout generation failed")
             for error in result.errors:
@@ -110,6 +139,7 @@ def decompose(
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
+    output_format: OutputFormatOption = "text",
 ) -> None:
     """Decompose layers from a keymap file into individual layer files."""
 
@@ -155,6 +185,7 @@ def compose(
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
+    output_format: OutputFormatOption = "text",
 ) -> None:
     """Compose layer files into a single keymap file."""
 
@@ -191,6 +222,7 @@ def validate(
     ctx: typer.Context,
     json_file: Annotated[Path, typer.Argument(help="Path to keymap JSON file")],
     profile: ProfileOption = None,
+    output_format: OutputFormatOption = "text",
 ) -> None:
     """Validate keymap syntax and structure."""
 
@@ -238,6 +270,7 @@ def show(
         int | None, typer.Option("--layer", help="Show only specific layer index")
     ] = None,
     profile: ProfileOption = None,
+    output_format: OutputFormatOption = "text",
 ) -> None:
     """Display keymap layout in terminal."""
 
@@ -248,13 +281,24 @@ def show(
     keyboard_profile = get_keyboard_profile_from_context(ctx)
 
     try:
-        result = keymap_service.show_from_file(
-            json_file_path=json_file,
-            profile=keyboard_profile,
-            key_width=key_width,
-        )
-        # The show method returns a string
-        typer.echo(result)
+        # Get layout data first for formatting
+        if output_format.lower() != "text":
+            # For non-text formats, load and format the JSON data
+            layout_data = json.loads(json_file.read_text())
+
+            from glovebox.cli.helpers.output_formatter import LayoutDisplayFormatter
+
+            formatter = LayoutDisplayFormatter()
+            formatter.print_formatted(layout_data, output_format)
+        else:
+            # For text format, use the existing show method
+            result = keymap_service.show_from_file(
+                json_file_path=json_file,
+                profile=keyboard_profile,
+                key_width=key_width,
+            )
+            # The show method returns a string
+            typer.echo(result)
     except NotImplementedError as e:
         print_error_message(str(e))
         raise typer.Exit(1) from e

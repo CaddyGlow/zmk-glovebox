@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING, Any, cast
 
 import typer
+from click.core import Context as ClickContext
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -25,7 +26,9 @@ logger = logging.getLogger(__name__)
 DEFAULT_PROFILE = "glove80/v25.05"
 
 
-def get_user_config_from_context(ctx: typer.Context) -> "UserConfig | None":
+def get_user_config_from_context(
+    ctx: typer.Context | ClickContext,
+) -> "UserConfig | None":
     """Get UserConfig from Typer context.
 
     Args:
@@ -44,7 +47,9 @@ def get_user_config_from_context(ctx: typer.Context) -> "UserConfig | None":
         return None
 
 
-def get_keyboard_profile_from_context(ctx: typer.Context) -> "KeyboardProfile":
+def get_keyboard_profile_from_context(
+    ctx: typer.Context | ClickContext,
+) -> "KeyboardProfile":
     """Get KeyboardProfile from Typer context.
 
     Args:
@@ -216,7 +221,7 @@ def create_profile_from_option(
             try:
                 from glovebox.config.keyboard_profile import load_keyboard_config
 
-                config = load_keyboard_config(keyboard_name)
+                config = load_keyboard_config(keyboard_name, user_config)
                 firmwares = config.firmwares
                 if firmwares:
                     table = Table(
@@ -242,7 +247,7 @@ def create_profile_from_option(
             console.print(
                 f"[red]❌ Error: Keyboard configuration not found: {keyboard_name}[/red]"
             )
-            keyboards = get_available_keyboards()
+            keyboards = get_available_keyboards(user_config)
             if keyboards:
                 table = Table(
                     title="⌨️ Available Keyboards",
@@ -260,7 +265,7 @@ def create_profile_from_option(
             console.print(
                 f"[red]❌ Error: Failed to load keyboard configuration: {e}[/red]"
             )
-            keyboards = get_available_keyboards()
+            keyboards = get_available_keyboards(user_config)
             if keyboards:
                 table = Table(
                     title="⌨️ Available Keyboards",
@@ -277,7 +282,7 @@ def create_profile_from_option(
 
 
 def create_profile_from_context(
-    ctx: typer.Context, profile_option: str | None
+    ctx: typer.Context | ClickContext, profile_option: str | None
 ) -> "KeyboardProfile":
     """Create a KeyboardProfile from context and profile option.
 

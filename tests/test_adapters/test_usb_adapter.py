@@ -7,7 +7,7 @@ import pytest
 
 from glovebox.adapters.usb_adapter import USBAdapter, create_usb_adapter
 from glovebox.core.errors import FlashError, USBError
-from glovebox.firmware.flash.models import BlockDevice
+from glovebox.firmware.flash.models import BlockDevice, DiskInfo, USBDeviceInfo
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
 
 
@@ -236,3 +236,158 @@ class TestUSBAdapterProtocol:
         assert isinstance(adapter, USBAdapterProtocol), (
             "USBAdapter should be instance of USBAdapterProtocol"
         )
+
+
+class TestBlockDeviceUSBPIDs:
+    """Test BlockDevice USB PID fields."""
+
+    def test_block_device_default_pids(self):
+        """Test BlockDevice initializes with empty USB PIDs by default."""
+        device = BlockDevice(name="sda")
+        assert device.vendor_id == ""
+        assert device.product_id == ""
+
+    def test_block_device_with_pids(self):
+        """Test BlockDevice can be created with USB PIDs."""
+        device = BlockDevice(
+            name="sda",
+            vendor_id="1234",
+            product_id="5678",
+            vendor="Test Vendor",
+            model="Test Device",
+        )
+        assert device.vendor_id == "1234"
+        assert device.product_id == "5678"
+        assert device.vendor == "Test Vendor"
+        assert device.model == "Test Device"
+
+    def test_from_pyudev_device_with_pids(self):
+        """Test BlockDevice.from_pyudev_device extracts USB PIDs."""
+        # Mock pyudev device
+        mock_device = Mock()
+        mock_device.sys_name = "sda"
+        mock_device.device_node = "/dev/sda"
+        mock_device.properties = {
+            "ID_VENDOR": "Test Vendor",
+            "ID_MODEL": "Test Device",
+            "ID_VENDOR_ID": "1234",
+            "ID_MODEL_ID": "5678",
+            "ID_SERIAL_SHORT": "ABC123",
+            "ID_FS_LABEL": "TESTDRIVE",
+            "ID_FS_UUID": "1234-5678",
+            "ID_BUS": "usb",
+        }
+        mock_device.attributes = {"size": "1024", "removable": "1"}
+        mock_device.children = []
+        mock_device.device_links = []
+
+        device = BlockDevice.from_pyudev_device(mock_device)
+
+        assert device.vendor_id == "1234"
+        assert device.product_id == "5678"
+        assert device.vendor == "Test Vendor"
+        assert device.model == "Test Device"
+        assert device.type == "usb"
+
+    def test_from_pyudev_device_without_pids(self):
+        """Test BlockDevice.from_pyudev_device handles missing USB PIDs."""
+        # Mock pyudev device without USB IDs
+        mock_device = Mock()
+        mock_device.sys_name = "sda"
+        mock_device.device_node = "/dev/sda"
+        mock_device.properties = {
+            "ID_VENDOR": "Test Vendor",
+            "ID_MODEL": "Test Device",
+        }
+        mock_device.attributes = {"size": "1024", "removable": "0"}
+        mock_device.children = []
+        mock_device.device_links = []
+
+        device = BlockDevice.from_pyudev_device(mock_device)
+
+        assert device.vendor_id == ""
+        assert device.product_id == ""
+        assert device.vendor == "Test Vendor"
+        assert device.model == "Test Device"
+
+    def test_from_macos_disk_info_with_usb_pids(self):
+        """Test BlockDevice.from_macos_disk_info extracts USB PIDs."""
+        disk_info = DiskInfo(
+            size=1024 * 1024 * 1024,
+            media_name="Test Media",
+            volume_name="TESTDRIVE",
+            removable=True,
+            protocol="USB",
+            partitions=["disk1s1"],
+        )
+
+        usb_info = USBDeviceInfo(
+            name="Test USB Device",
+            vendor="Test Vendor",
+            vendor_id="1234",
+            product_id="5678",
+            serial="ABC123",
+        )
+
+        mounted_volumes = {"TESTDRIVE"}
+
+        device = BlockDevice.from_macos_disk_info(
+            disk_name="disk1",
+            disk_info=disk_info,
+            usb_info=usb_info,
+            mounted_volumes=mounted_volumes,
+        )
+
+        assert device.vendor_id == "1234"
+        assert device.product_id == "5678"
+        assert device.vendor == "Test Vendor"
+        assert device.model == "Test USB Device"
+        assert device.type == "usb"
+
+    def test_from_macos_disk_info_without_usb_info(self):
+        """Test BlockDevice.from_macos_disk_info handles missing USB info."""
+        disk_info = DiskInfo(
+            size=1024 * 1024 * 1024,
+            media_name="Test Media",
+            volume_name="TESTDRIVE",
+            removable=False,
+            protocol="SATA",
+            partitions=["disk1s1"],
+        )
+
+        device = BlockDevice.from_macos_disk_info(
+            disk_name="disk1", disk_info=disk_info, usb_info=None, mounted_volumes=set()
+        )
+
+        assert device.vendor_id == ""
+        assert device.product_id == ""
+        assert device.vendor == "Unknown"
+        assert device.model == "Test Media"
+        assert device.type == "disk"
+
+    def test_from_macos_disk_info_with_empty_usb_pids(self):
+        """Test BlockDevice.from_macos_disk_info handles empty USB PIDs."""
+        disk_info = DiskInfo(
+            size=1024 * 1024 * 1024,
+            media_name="Test Media",
+            volume_name="TESTDRIVE",
+            removable=True,
+            protocol="USB",
+        )
+
+        usb_info = USBDeviceInfo(
+            name="Test USB Device",
+            vendor="Test Vendor",
+            vendor_id="",  # Empty vendor_id
+            product_id="",  # Empty product_id
+            serial="ABC123",
+        )
+
+        device = BlockDevice.from_macos_disk_info(
+            disk_name="disk1", disk_info=disk_info, usb_info=usb_info
+        )
+
+        assert device.vendor_id == ""
+        assert device.product_id == ""
+        assert device.vendor == "Test Vendor"
+        assert device.model == "Test USB Device"

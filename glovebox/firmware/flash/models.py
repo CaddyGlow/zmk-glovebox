@@ -255,6 +255,8 @@ class BlockDevice:
     serial: str = ""
     uuid: str = ""
     label: str = ""
+    vendor_id: str = ""  # USB vendor ID (PID)
+    product_id: str = ""  # USB product ID (PID)
     partitions: list[str] = field(default_factory=list)
     mountpoints: dict[str, str] = field(default_factory=dict)
     symlinks: set[str] = field(default_factory=set)
@@ -343,6 +345,8 @@ class BlockDevice:
             label=device.properties.get("ID_FS_LABEL", ""),
             uuid=device.properties.get("ID_FS_UUID", ""),
             serial=device.properties.get("ID_SERIAL_SHORT", ""),
+            vendor_id=device.properties.get("ID_VENDOR_ID", ""),
+            product_id=device.properties.get("ID_MODEL_ID", ""),
             raw=raw_dict,
         )
 
@@ -373,6 +377,8 @@ class BlockDevice:
             removable=disk_info.removable,
             type="usb" if usb_info else "disk",
             partitions=disk_info.partitions,
+            vendor_id=usb_info.vendor_id if usb_info else "",
+            product_id=usb_info.product_id if usb_info else "",
             mountpoints={volume_name: f"/Volumes/{volume_name}"}
             if volume_name in mounted_volumes
             else {},

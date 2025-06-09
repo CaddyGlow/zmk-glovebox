@@ -16,5 +16,16 @@ ProfileOption = Annotated[
 ]
 
 
+# Standard output format parameter for unified output formatting
+OutputFormatOption = Annotated[
+    str,
+    typer.Option(
+        "--output-format",
+        "-o",
+        help="Output format: text|json|markdown|table (default: text)",
+    ),
+]
+
+
 # Note: For more complex parameter variations, create new Annotated types
 # following the same pattern as ProfileOption above.

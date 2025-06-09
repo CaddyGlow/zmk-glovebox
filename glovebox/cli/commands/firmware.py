@@ -12,7 +12,7 @@ from glovebox.cli.helpers import (
     print_list_item,
     print_success_message,
 )
-from glovebox.cli.helpers.parameters import ProfileOption
+from glovebox.cli.helpers.parameters import OutputFormatOption, ProfileOption
 from glovebox.cli.helpers.profile import (
     get_keyboard_profile_from_context,
     get_user_config_from_context,
@@ -61,6 +61,7 @@ def firmware_compile(
     verbose: Annotated[
         bool, typer.Option("--verbose", "-v", help="Enable verbose build output")
     ] = False,
+    output_format: OutputFormatOption = "text",
 ) -> None:
     """Build ZMK firmware from keymap and config files.
 
@@ -95,9 +96,23 @@ def firmware_compile(
         )
 
         if result.success:
-            print_success_message("Firmware compiled successfully")
-            for message in result.messages:
-                print_list_item(message)
+            if output_format.lower() == "json":
+                # JSON output for automation
+                result_data = {
+                    "success": True,
+                    "message": "Firmware compiled successfully",
+                    "messages": result.messages,
+                    "output_dir": str(output_dir),
+                }
+                from glovebox.cli.helpers.output_formatter import OutputFormatter
+
+                formatter = OutputFormatter()
+                print(formatter.format(result_data, "json"))
+            else:
+                # Rich text output (default)
+                print_success_message("Firmware compiled successfully")
+                for message in result.messages:
+                    print_list_item(message)
         else:
             print_error_message("Firmware compilation failed")
             for error in result.errors:
@@ -135,6 +150,7 @@ def flash(
         bool,
         typer.Option("--skip-existing", help="Skip devices already present at startup"),
     ] = False,
+    output_format: OutputFormatOption = "text",
 ) -> None:
     """Flash firmware file to connected keyboard devices.
 
@@ -190,13 +206,26 @@ def flash(
         )
 
         if result.success:
-            print_success_message(
-                f"Successfully flashed {result.devices_flashed} device(s)"
-            )
-            if result.device_details:
-                for device in result.device_details:
-                    if device["status"] == "success":
-                        print_list_item(f"{device['name']}: SUCCESS")
+            if output_format.lower() == "json":
+                # JSON output for automation
+                result_data = {
+                    "success": True,
+                    "devices_flashed": result.devices_flashed,
+                    "device_details": result.device_details,
+                }
+                from glovebox.cli.helpers.output_formatter import OutputFormatter
+
+                formatter = OutputFormatter()
+                print(formatter.format(result_data, "json"))
+            else:
+                # Rich text output (default)
+                print_success_message(
+                    f"Successfully flashed {result.devices_flashed} device(s)"
+                )
+                if result.device_details:
+                    for device in result.device_details:
+                        if device["status"] == "success":
+                            print_list_item(f"{device['name']}: SUCCESS")
         else:
             print_error_message(
                 f"Flash completed with {result.devices_failed} failure(s)"
@@ -221,6 +250,7 @@ def list_devices(
     query: Annotated[
         str, typer.Option("--query", "-q", help="Device query string")
     ] = "",
+    output_format: OutputFormatOption = "text",
 ) -> None:
     """List available devices for flashing."""
     flash_service = create_flash_service()
@@ -238,11 +268,30 @@ def list_devices(
         )
 
         if result.success and result.device_details:
-            print_success_message(f"Found {len(result.device_details)} device(s)")
-            for device in result.device_details:
-                print_list_item(
-                    f"{device['name']} - Serial: {device['serial']} - Path: {device['path']}"
-                )
+            if output_format.lower() == "json":
+                # JSON output for automation
+                result_data = {
+                    "success": True,
+                    "device_count": len(result.device_details),
+                    "devices": result.device_details,
+                }
+                from glovebox.cli.helpers.output_formatter import OutputFormatter
+
+                formatter = OutputFormatter()
+                print(formatter.format(result_data, "json"))
+            elif output_format.lower() == "table":
+                # Enhanced table output using DeviceListFormatter
+                from glovebox.cli.helpers.output_formatter import DeviceListFormatter
+
+                formatter = DeviceListFormatter()
+                formatter.format_device_list(result.device_details, "table")
+            else:
+                # Text output (default)
+                print_success_message(f"Found {len(result.device_details)} device(s)")
+                for device in result.device_details:
+                    print_list_item(
+                        f"{device['name']} - Serial: {device['serial']} - Path: {device['path']}"
+                    )
         else:
             print_error_message("No devices found matching criteria")
             for message in result.messages:

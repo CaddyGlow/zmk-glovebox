@@ -152,6 +152,7 @@ def show_config(
 @config_app.command(name="list")
 @handle_errors
 def list_keyboards(
+    ctx: typer.Context,
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show detailed information"
     ),
@@ -160,7 +161,9 @@ def list_keyboards(
     ),
 ) -> None:
     """List available keyboard configurations."""
-    keyboards = get_available_keyboards()
+    # Get app context with user config
+    app_ctx: AppContext = ctx.obj
+    keyboards = get_available_keyboards(app_ctx.user_config)
 
     if not keyboards:
         print("No keyboards found")
@@ -173,7 +176,9 @@ def list_keyboards(
             # Get detailed information if verbose
             if verbose:
                 try:
-                    typed_config = load_keyboard_config(keyboard_name)
+                    typed_config = load_keyboard_config(
+                        keyboard_name, app_ctx.user_config
+                    )
                     # Convert to dict for JSON serialization
                     keyboard_dict = {
                         "name": typed_config.keyboard,
@@ -198,7 +203,9 @@ def list_keyboards(
         # Get and display detailed information for each keyboard
         for keyboard_name in keyboards:
             try:
-                keyboard_config = load_keyboard_config(keyboard_name)
+                keyboard_config = load_keyboard_config(
+                    keyboard_name, app_ctx.user_config
+                )
                 description = (
                     keyboard_config.description
                     if hasattr(keyboard_config, "description")
@@ -231,14 +238,17 @@ def list_keyboards(
 @config_app.command(name="show-keyboard")
 @handle_errors
 def show_keyboard(
+    ctx: typer.Context,
     keyboard_name: str = typer.Argument(..., help="Keyboard name to show"),
     format: str = typer.Option(
         "text", "--format", "-f", help="Output format (text, json)"
     ),
 ) -> None:
     """Show details of a specific keyboard configuration."""
+    # Get app context with user config
+    app_ctx: AppContext = ctx.obj
     # Get the keyboard configuration
-    keyboard_config = load_keyboard_config(keyboard_name)
+    keyboard_config = load_keyboard_config(keyboard_name, app_ctx.user_config)
 
     if format.lower() == "json":
         # Convert the typed object to a dictionary for JSON serialization
@@ -315,6 +325,7 @@ def show_keyboard(
 @config_app.command(name="firmwares")
 @handle_errors
 def list_firmwares(
+    ctx: typer.Context,
     keyboard_name: str = typer.Argument(..., help="Keyboard name"),
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show detailed information"
@@ -324,8 +335,10 @@ def list_firmwares(
     ),
 ) -> None:
     """List available firmware configurations for a keyboard."""
+    # Get app context with user config
+    app_ctx: AppContext = ctx.obj
     # Get keyboard configuration
-    keyboard_config = load_keyboard_config(keyboard_name)
+    keyboard_config = load_keyboard_config(keyboard_name, app_ctx.user_config)
 
     # Get firmwares from keyboard config
     firmwares = keyboard_config.firmwares
@@ -384,6 +397,7 @@ def list_firmwares(
 @config_app.command(name="firmware")
 @handle_errors
 def show_firmware(
+    ctx: typer.Context,
     keyboard_name: str = typer.Argument(..., help="Keyboard name"),
     firmware_name: str = typer.Argument(..., help="Firmware name to show"),
     format: str = typer.Option(
@@ -391,8 +405,10 @@ def show_firmware(
     ),
 ) -> None:
     """Show details of a specific firmware configuration."""
+    # Get app context with user config
+    app_ctx: AppContext = ctx.obj
     # Get keyboard configuration
-    keyboard_config = load_keyboard_config(keyboard_name)
+    keyboard_config = load_keyboard_config(keyboard_name, app_ctx.user_config)
 
     # Get firmware configuration
     firmwares = keyboard_config.firmwares

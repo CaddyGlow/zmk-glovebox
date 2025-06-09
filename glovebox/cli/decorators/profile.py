@@ -39,7 +39,7 @@ def with_profile(
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            # Find the typer.Context object from the arguments
+            # Find the Context object from the arguments
             ctx = next((arg for arg in args if isinstance(arg, Context)), None)
             if ctx is None:
                 ctx = kwargs.get("ctx")
@@ -59,10 +59,17 @@ def with_profile(
 
             try:
                 # Create the profile object and add it to kwargs, and ctx.obj
-                profile_obj = create_profile_from_option(kwargs[profile_param_name])
+                # Use create_profile_from_context which handles user_config automatically
+                from glovebox.cli.helpers.profile import create_profile_from_context
+
+                profile_obj = create_profile_from_context(
+                    ctx, kwargs[profile_param_name]
+                )
 
                 kwargs["keyboard_profile"] = profile_obj
-                ctx.obj.keyboard_profile = create_profile_from_option(profile_option)
+                ctx.obj.keyboard_profile = create_profile_from_context(
+                    ctx, kwargs[profile_param_name]
+                )
 
                 # Call the original function with the profile object
                 return func(*args, **kwargs)

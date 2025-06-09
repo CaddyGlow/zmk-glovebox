@@ -2,7 +2,10 @@
 
 import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from glovebox.config.user_config import UserConfig
 
 import typer
 from rich.console import Console
@@ -10,6 +13,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from glovebox.cli.app import AppContext
 from glovebox.cli.decorators import handle_errors
 from glovebox.utils.diagnostics import collect_all_diagnostics
 
@@ -17,10 +21,10 @@ from glovebox.utils.diagnostics import collect_all_diagnostics
 logger = logging.getLogger(__name__)
 
 
-def _collect_status_data() -> dict[str, Any]:
+def _collect_status_data(user_config: "UserConfig | None" = None) -> dict[str, Any]:
     """Collect all status data into a structured format using comprehensive diagnostics."""
     # Use the new comprehensive diagnostics collection
-    full_diagnostics = collect_all_diagnostics()
+    full_diagnostics = collect_all_diagnostics(user_config)
 
     # Transform the comprehensive diagnostics into the legacy format for compatibility
     # with existing formatting functions
@@ -428,6 +432,57 @@ def _print_usb_diagnostics_table(console: Console, usb_data: dict[str, Any]) -> 
     console.print(usb_table)
     console.print()
 
+    # Detailed USB devices table if devices are found
+    if detected_devices:
+        devices_table = Table(
+            title=f"🔌 Detected USB Devices ({len(detected_devices)})",
+            show_header=True,
+            header_style="bold yellow",
+        )
+        devices_table.add_column("Device", style="cyan", no_wrap=True)
+        devices_table.add_column("Vendor", style="green")
+        devices_table.add_column("Model", style="blue")
+        devices_table.add_column("PIDs", style="magenta")
+        devices_table.add_column("Size", style="dim")
+        devices_table.add_column("Type", style="yellow")
+
+        for device in detected_devices:
+            # Format size nicely
+            size = device.get("size", 0)
+            if size > 0:
+                if size >= 1024**3:  # GB
+                    size_str = f"{size / (1024**3):.1f} GB"
+                elif size >= 1024**2:  # MB
+                    size_str = f"{size / (1024**2):.1f} MB"
+                else:
+                    size_str = f"{size} bytes"
+            else:
+                size_str = "Unknown"
+
+            # Format PIDs
+            vendor_id = device.get("vendor_id", "")
+            product_id = device.get("product_id", "")
+            if vendor_id and product_id:
+                pids_str = f"{vendor_id}:{product_id}"
+            elif vendor_id:
+                pids_str = f"{vendor_id}:----"
+            elif product_id:
+                pids_str = f"----:{product_id}"
+            else:
+                pids_str = "Unknown"
+
+            devices_table.add_row(
+                device.get("name", "Unknown"),
+                device.get("vendor", "Unknown"),
+                device.get("model", "Unknown"),
+                pids_str,
+                size_str,
+                device.get("type", "Unknown"),
+            )
+
+        console.print(devices_table)
+        console.print()
+
 
 def _print_config_diagnostics_table(
     console: Console, config_data: dict[str, Any]
@@ -535,6 +590,7 @@ def _print_layout_diagnostics_table(
 
 @handle_errors
 def status_command(
+    ctx: typer.Context,
     format: str = typer.Option(
         "table",
         "--format",
@@ -551,8 +607,11 @@ def status_command(
     - diagnostics: Comprehensive diagnostics table
     - diag-json: Full diagnostics as JSON
     """
+    # Get app context with user config
+    app_ctx: AppContext = ctx.obj
+
     # Collect all status data
-    data = _collect_status_data()
+    data = _collect_status_data(app_ctx.user_config)
 
     # Format and display based on format option
     if format.lower() == "json":
