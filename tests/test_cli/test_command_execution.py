@@ -99,7 +99,7 @@ def setup_firmware_command_test(mock_build_service, mock_keyboard_profile):
     "command,args,success,output_contains",
     [
         (
-            "layout generate",
+            "layout compile",
             ["output/test", "--profile", "glove80/v25.05", "input.json"],
             True,
             "Layout generated successfully",
@@ -150,7 +150,7 @@ def test_layout_commands(
             real_args.append(arg)
 
     # Configure service mocks based on command
-    if "generate" in command:
+    if "compile" in command:
         layout_result = LayoutResult(success=success)
         layout_result.keymap_path = Path(tmp_path / "output/keymap.keymap")
         layout_result.conf_path = Path(tmp_path / "output/keymap.conf")
@@ -262,7 +262,7 @@ def test_firmware_compile_commands(
     "command,args",
     [
         (
-            "layout generate",
+            "layout compile",
             ["output/test", "--profile", "glove80/v25.05", "nonexistent.json"],
         ),
         (

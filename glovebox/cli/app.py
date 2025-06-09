@@ -60,7 +60,19 @@ def exception_callback(e: Exception) -> None:
 # Main app
 app = typer.Typer(
     name="glovebox",
-    help=f"Glovebox ZMK Keyboard Management Tool v{__version__}",
+    help=f"""Glovebox ZMK Keyboard Management Tool v{__version__}
+
+A comprehensive tool for ZMK keyboard firmware management that transforms
+keyboard layouts through a multi-stage pipeline:
+
+Layout Editor → JSON File → ZMK Files → Firmware → Flash
+  (Design)    →  (.json)  → (.keymap + .conf) → (.uf2) → (Keyboard)
+
+Common workflows:
+  • Compile layouts:  glovebox layout compile layout.json output/ --profile glove80/v25.05
+  • Build firmware:   glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
+  • Flash devices:    glovebox firmware flash firmware.uf2 --profile glove80/v25.05
+  • Show status:      glovebox status""",
     no_args_is_help=True,
     context_settings={"help_option_names": ["-h", "--help"]},
 )

@@ -30,46 +30,6 @@ Layout Editor → JSON File → ZMK Files → Firmware → Flash
 
 The `.keymap` files use ZMK's Device Tree Source Interface (DTSI) format to define keyboard behavior at the firmware level.
 
-## Supported Keyboards
-
-- **Glove80**: Full support with MoErgo Docker build chain
-- **Corne**: Standard ZMK build chain with split keyboard support
-- **Extensible**: Architecture designed for easy addition of new keyboards
-
-## Installation
-
-### Requirements
-
-- Python 3.11 or higher
-- Docker (required for firmware building)
-- **Cross-Platform Device Flashing**:
-  - **Linux**: udisksctl (part of udisks2 package)
-  - **macOS**: diskutil (built-in)
-  - **Windows**: Not yet supported
-
-### Install from PyPI
-
-```bash
-pip install glovebox
-```
-
-### Install from Source
-
-```bash
-git clone https://github.com/your-org/glovebox.git
-cd glovebox
-pip install -e .
-```
-
-### Development Installation
-
-```bash
-git clone https://github.com/your-org/glovebox.git
-cd glovebox
-pip install -e ".[dev]"
-pre-commit install
-```
-
 ## Quick Start
 
 ### Build a Keymap
@@ -177,77 +137,44 @@ glovebox status
 glovebox --install-completion
 ```
 
-### User Configuration
+## Supported Keyboards
 
-Glovebox allows users to customize their experience through a configuration system:
+- **Glove80**: Full support with MoErgo Docker build chain
+- **Corne**: Standard ZMK build chain with split keyboard support
+- **Extensible**: Architecture designed for easy addition of new keyboards
 
-#### Configuration Locations
+## Installation
 
-Configuration is loaded from multiple sources with the following precedence (highest to lowest):
-1. **Environment variables** (highest precedence) - `GLOVEBOX_PROFILE`, `GLOVEBOX_LOG_LEVEL`, etc.
-2. **CLI-provided config file** - Specified via command line parameter  
-3. **Current directory config files** - `glovebox.yaml` or `glovebox.yml`
-4. **User XDG config directory** - `~/.config/glovebox/config.yaml` or `config.yml`
-5. **Default values** (lowest precedence)
+### Requirements
 
-**Note**: Only the first valid configuration file found is used (no merging). Environment variables override any file-based settings.
+- Python 3.11 or higher
+- Docker (required for firmware building)
+- **Cross-Platform Device Flashing**:
+  - **Linux**: udisksctl (part of udisks2 package)
+  - **macOS**: diskutil (built-in)
+  - **Windows**: Not yet supported
 
-#### Available Settings
-
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `profile` | string | `"glove80/v25.05"` | Default keyboard/firmware profile (format: keyboard/firmware) |
-| `log_level` | string | `"INFO"` | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
-| `keyboard_paths` | list | `[]` | Additional paths to search for keyboard configurations |
-| `firmware.flash.timeout` | int | `60` | Firmware flash timeout in seconds |
-| `firmware.flash.count` | int | `2` | Number of devices to flash (0 for unlimited) |
-| `firmware.flash.track_flashed` | bool | `true` | Enable device tracking during flash |
-| `firmware.flash.skip_existing` | bool | `false` | Skip devices already present at startup |
-
-#### Viewing Configuration
-
-View the current configuration settings:
+### Install from PyPI
 
 ```bash
-# Show all configuration settings
-glovebox config show
-
-# Show configuration with their sources
-glovebox config show --sources
+pip install glovebox
 ```
 
-#### Setting Configuration
-
-Set configuration values that persist between runs:
+### Install from Source
 
 ```bash
-# Set default profile (keyboard/firmware combination)
-glovebox config set profile glove80/v25.05
-
-# Set logging level
-glovebox config set log_level DEBUG
-
-# Set custom keyboard paths (comma-separated)
-glovebox config set keyboard_paths ~/custom-keyboards,~/projects/keyboards
-
-# Set firmware flash settings
-glovebox config set firmware.flash.timeout 120
-glovebox config set firmware.flash.count 1
+git clone https://github.com/your-org/glovebox.git
+cd glovebox
+pip install -e .
 ```
 
-#### Using Environment Variables
-
-For temporary settings or CI/CD environments, use environment variables:
+### Development Installation
 
 ```bash
-# Set temporary configuration
-export GLOVEBOX_PROFILE=glove80/v25.05
-export GLOVEBOX_LOG_LEVEL=DEBUG
-export GLOVEBOX_KEYBOARD_PATHS=/custom/keyboards,~/my-layouts
-export GLOVEBOX_FIRMWARE__FLASH__TIMEOUT=120
-
-# Run command with environment configuration
-glovebox layout compile my_layout.json output/my_layout --profile glove80/v25.05
+git clone https://github.com/your-org/glovebox.git
+cd glovebox
+pip install -e ".[dev]"
+pre-commit install
 ```
 
 ## CLI Reference
@@ -279,12 +206,12 @@ glovebox layout compile layout.json output/glove80 --profile glove80/v25.05
 cat layout.json | glovebox layout compile - output/glove80 --profile glove80/v25.05
 ```
 
-#### `glovebox layout extract`
+#### `glovebox layout decompose`
 
 Extract layers from a keymap file into individual layer files.
 
 ```bash
-glovebox layout extract [OPTIONS] KEYMAP_FILE OUTPUT_DIR
+glovebox layout decompose [OPTIONS] KEYMAP_FILE OUTPUT_DIR
 ```
 
 **Arguments:**
@@ -292,6 +219,7 @@ glovebox layout extract [OPTIONS] KEYMAP_FILE OUTPUT_DIR
 - `OUTPUT_DIR`: Directory to save extracted files
 
 **Options:**
+- `--profile, -p`: Profile to use (e.g., 'glove80/v25.05')
 - `--force`: Overwrite existing files
 
 Creates structure:
@@ -306,9 +234,21 @@ output_dir/
     └── ...
 ```
 
-#### `glovebox layout merge`
+#### `glovebox layout compose`
 
 Merge layer files into a single keymap file.
+
+```bash
+glovebox layout compose [OPTIONS] INPUT_DIR
+```
+
+**Arguments:**
+- `INPUT_DIR`: Directory with metadata.json and layers/ subdirectory
+
+**Options:**
+- `--output, -o`: Output keymap JSON file path
+- `--profile, -p`: Profile to use (e.g., 'glove80/v25.05')
+- `--force`: Overwrite existing files
 
 ```bash
 glovebox layout merge [OPTIONS] INPUT_DIR

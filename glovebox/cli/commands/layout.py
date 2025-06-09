@@ -24,12 +24,15 @@ logger = logging.getLogger(__name__)
 # Create a typer app for layout commands
 layout_app = typer.Typer(
     name="layout",
-    help="Layout management commands",
+    help="""Layout management commands.
+
+Convert JSON layouts to ZMK files, extract/merge layers, validate layouts,
+and display visual representations of keyboard layouts.""",
     no_args_is_help=True,
 )
 
 
-@layout_app.command(name="generate")
+@layout_app.command(name="compile")
 @handle_errors
 def layout_generate(
     ctx: typer.Context,
@@ -55,7 +58,15 @@ def layout_generate(
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
 ) -> None:
-    """Generate ZMK keymap and config files from a JSON keymap file."""
+    """Compile ZMK keymap and config files from a JSON keymap file.
+
+    Takes a JSON layout file (exported from Layout Editor) and generates
+    ZMK .keymap and .conf files ready for firmware compilation.
+
+    Examples:
+        glovebox layout compile layout.json output/glove80 --profile glove80/v25.05
+        cat layout.json | glovebox layout compile - output/glove80 --profile glove80/v25.05
+    """
     # Create profile using user config integration
     from glovebox.cli.helpers.profile import create_profile_from_context
 

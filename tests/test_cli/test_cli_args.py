@@ -92,7 +92,7 @@ def test_layout_help(cli_runner):
     """Test layout help shows subcommands."""
     result = cli_runner.invoke(app, ["layout", "--help"])
     assert result.exit_code == 0
-    assert "generate" in result.output
+    assert "compile" in result.output
     assert "decompose" in result.output
     assert "compose" in result.output
     assert "show" in result.output
@@ -117,8 +117,8 @@ def test_config_help(cli_runner):
 
 def test_missing_required_args(cli_runner):
     """Test missing required arguments return error."""
-    # Test layout generate missing args
-    result = cli_runner.invoke(app, ["layout", "generate"])
+    # Test layout compile missing args
+    result = cli_runner.invoke(app, ["layout", "compile"])
     assert result.exit_code != 0
     assert "Missing argument" in result.output
 

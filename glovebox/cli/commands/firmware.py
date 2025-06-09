@@ -23,7 +23,10 @@ logger = logging.getLogger(__name__)
 # Create a typer app for firmware commands
 firmware_app = typer.Typer(
     name="firmware",
-    help="Firmware management commands",
+    help="""Firmware management commands.
+
+Build ZMK firmware from keymap files using Docker, flash firmware to USB devices,
+and manage firmware-related operations.""",
     no_args_is_help=True,
 )
 
@@ -68,7 +71,16 @@ def firmware_compile(
         bool, typer.Option("--verbose", "-v", help="Enable verbose build output")
     ] = False,
 ) -> None:
-    """Compile firmware from keymap and config files."""
+    """Build ZMK firmware from keymap and config files.
+
+    Compiles .keymap and .conf files into a flashable .uf2 firmware file
+    using Docker and the ZMK build system. Requires Docker to be running.
+
+    Examples:
+        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
+        glovebox firmware compile keymap.keymap config.conf --keyboard glove80 --firmware v25.05
+        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --verbose
+    """
     # Create KeyboardProfile using centralized profile management
     keyboard_profile = None
     if profile or (keyboard is None and firmware is None):
@@ -149,7 +161,16 @@ def flash(
         typer.Option("--skip-existing", help="Skip devices already present at startup"),
     ] = False,
 ) -> None:
-    """Flash firmware to keyboard(s)."""
+    """Flash firmware file to connected keyboard devices.
+
+    Automatically detects USB keyboards in bootloader mode and flashes
+    the firmware file. Supports flashing multiple devices simultaneously.
+
+    Examples:
+        glovebox firmware flash firmware.uf2 --profile glove80/v25.05
+        glovebox firmware flash firmware.uf2 --count 2 --timeout 120
+        glovebox firmware flash firmware.uf2 --query "vendor=Adafruit and serial~=GLV80-.*"
+    """
     # Create KeyboardProfile using centralized profile management with user config integration
     from glovebox.cli.helpers.profile import (
         create_profile_from_context,
