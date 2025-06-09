@@ -7,15 +7,15 @@ from typing import Annotated, Any, Optional
 
 import typer
 
-from glovebox.cli.decorators import handle_errors
+from glovebox.cli.decorators import handle_errors, with_profile
 from glovebox.cli.helpers import (
     print_error_message,
     print_list_item,
     print_success_message,
 )
-
-# Import indirectly to avoid Typer type issues
-# from glovebox.config.profile import KeyboardProfile
+from glovebox.cli.helpers.parameters import ProfileOption
+from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
+from glovebox.config.profile import KeyboardProfile
 from glovebox.layout.service import create_layout_service
 
 
@@ -29,12 +29,14 @@ layout_app = typer.Typer(
 Convert JSON layouts to ZMK files, extract/merge layers, validate layouts,
 and display visual representations of keyboard layouts.""",
     no_args_is_help=True,
+    rich_markup_mode="rich",
 )
 
 
 @layout_app.command(name="compile")
 @handle_errors
-def layout_generate(
+@with_profile()
+def layout_compile(
     ctx: typer.Context,
     output_file_prefix: Annotated[
         str,
@@ -46,14 +48,8 @@ def layout_generate(
         str,
         typer.Argument(help="Path to keymap JSON file"),
     ],
-    profile: Annotated[
-        str | None,
-        typer.Option(
-            "--profile",
-            "-p",
-            help="Profile to use (e.g., 'glove80/v25.05'). Uses user config default if not specified.",
-        ),
-    ] = None,
+    profile: ProfileOption = None,
+    # keyboard_profile=None,
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
@@ -63,17 +59,26 @@ def layout_generate(
     Takes a JSON layout file (exported from Layout Editor) and generates
     ZMK .keymap and .conf files ready for firmware compilation.
 
-    Examples:
-        glovebox layout compile layout.json output/glove80 --profile glove80/v25.05
-        cat layout.json | glovebox layout compile - output/glove80 --profile glove80/v25.05
-    """
-    # Create profile using user config integration
-    from glovebox.cli.helpers.profile import create_profile_from_context
+    ---
 
-    keyboard_profile = create_profile_from_context(ctx, profile)
+    Examples:
+
+    * glovebox layout compile layout.json output/glove80 --profile glove80/v25.05
+
+    * cat layout.json | glovebox layout compile - output/glove80 --profile glove80/v25.05
+    """
 
     # Generate keymap using the file-based service method
     keymap_service = create_layout_service()
+
+    # The @with_profile decorator injects keyboard_profile parameter
+    from glovebox.cli.app import AppContext
+
+    app_ctx: AppContext = ctx.obj
+    keyboard_profile = get_keyboard_profile_from_context(ctx)
+
+    # keyboard_profile = kwargs["keyboard_profile"]
+    # assert KeyboardProfile is not None
 
     try:
         result = keymap_service.generate_from_file(
@@ -101,32 +106,25 @@ def layout_generate(
 
 @layout_app.command()
 @handle_errors
+@with_profile()
 def decompose(
     ctx: typer.Context,
     keymap_file: Annotated[Path, typer.Argument(help="Path to keymap JSON file")],
     output_dir: Annotated[
         Path, typer.Argument(help="Directory to save extracted files")
     ],
-    profile: Annotated[
-        str | None,
-        typer.Option(
-            "--profile",
-            "-p",
-            help="Profile to use (e.g., 'glove80/v25.05'). Uses user config default if not specified.",
-        ),
-    ] = None,
+    profile: Annotated[str, typer.Option()],
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
 ) -> None:
     """Decompose layers from a keymap file into individual layer files."""
-    # Create profile using user config integration
-    from glovebox.cli.helpers.profile import create_profile_from_context
-
-    keyboard_profile = create_profile_from_context(ctx, profile)
 
     # Use the file-based service method
     keymap_service = create_layout_service()
+
+    # The @with_profile decorator injects keyboard_profile via kwargs
+    keyboard_profile = kwargs["keyboard_profile"]
 
     try:
         result = keymap_service.decompose_components_from_file(
@@ -150,6 +148,7 @@ def decompose(
 
 @layout_app.command()
 @handle_errors
+@with_profile(default_profile="glove80/v25.05")
 def compose(
     ctx: typer.Context,
     input_dir: Annotated[
@@ -159,26 +158,19 @@ def compose(
     output: Annotated[
         Path, typer.Option("--output", "-o", help="Output keymap JSON file path")
     ],
-    profile: Annotated[
-        str | None,
-        typer.Option(
-            "--profile",
-            "-p",
-            help="Profile to use (e.g., 'glove80/v25.05'). Uses user config default if not specified.",
-        ),
-    ] = None,
+    profile: ProfileOption = None,
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
+    keyboard_profile=None,
 ) -> None:
     """Compose layer files into a single keymap file."""
-    # Create profile using user config integration
-    from glovebox.cli.helpers.profile import create_profile_from_context
-
-    keyboard_profile = create_profile_from_context(ctx, profile)
 
     # Use the file-based service method
     keymap_service = create_layout_service()
+
+    # The @with_profile decorator injects keyboard_profile via kwargs
+    keyboard_profile = kwargs["keyboard_profile"]
 
     try:
         result = keymap_service.generate_from_directory(
@@ -202,26 +194,20 @@ def compose(
 
 @layout_app.command()
 @handle_errors
+@with_profile(default_profile="glove80/v25.05")
 def validate(
     ctx: typer.Context,
     json_file: Annotated[Path, typer.Argument(help="Path to keymap JSON file")],
-    profile: Annotated[
-        str | None,
-        typer.Option(
-            "--profile",
-            "-p",
-            help="Profile to use (e.g., 'glove80/v25.05'). Uses user config default if not specified.",
-        ),
-    ] = None,
+    profile: ProfileOption = None,
+    keyboard_profile=None,
 ) -> None:
     """Validate keymap syntax and structure."""
-    # Create profile using user config integration
-    from glovebox.cli.helpers.profile import create_profile_from_context
-
-    keyboard_profile = create_profile_from_context(ctx, profile)
 
     # Validate using the file-based service method
     keymap_service = create_layout_service()
+
+    # The @with_profile decorator injects keyboard_profile via kwargs
+    keyboard_profile = kwargs["keyboard_profile"]
 
     try:
         if keymap_service.validate_from_file(
@@ -238,6 +224,7 @@ def validate(
 
 @layout_app.command()
 @handle_errors
+@with_profile(default_profile="glove80/v25.05")
 def show(
     ctx: typer.Context,
     json_file: Annotated[
@@ -259,23 +246,17 @@ def show(
     layer: Annotated[
         int | None, typer.Option("--layer", help="Show only specific layer index")
     ] = None,
-    profile: Annotated[
-        str | None,
-        typer.Option(
-            "--profile",
-            "-p",
-            help="Profile to use (e.g., 'glove80/v25.05'). Uses user config default if not specified.",
-        ),
-    ] = None,
+    profile: ProfileOption = None,
+    keyboard_profile=None,
 ) -> None:
     """Display keymap layout in terminal."""
-    # Create profile using user config integration
-    from glovebox.cli.helpers.profile import create_profile_from_context
-
-    keyboard_profile = create_profile_from_context(ctx, profile)
 
     # Call the service
     keymap_service = create_layout_service()
+
+    # The @with_profile decorator injects keyboard_profile via kwargs
+    keyboard_profile = kwargs["keyboard_profile"]
+
     try:
         result = keymap_service.show_from_file(
             json_file_path=json_file,

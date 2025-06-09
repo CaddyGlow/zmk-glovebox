@@ -12,6 +12,11 @@ from glovebox.cli.helpers import (
     print_list_item,
     print_success_message,
 )
+from glovebox.cli.helpers.parameters import ProfileOption
+from glovebox.cli.helpers.profile import (
+    create_profile_from_context,
+    get_user_config_from_context,
+)
 from glovebox.config.profile import KeyboardProfile
 from glovebox.firmware import create_build_service
 from glovebox.firmware.flash import create_flash_service
@@ -40,22 +45,7 @@ def firmware_compile(
     output_dir: Annotated[
         Path, typer.Option("--output-dir", "-o", help="Build output directory")
     ] = Path("build"),
-    profile: Annotated[
-        str | None,
-        typer.Option(
-            "--profile",
-            "-p",
-            help="Profile to use (e.g., 'glove80/v25.05'). Uses user config default if not specified.",
-        ),
-    ] = None,
-    keyboard: Annotated[
-        str | None,
-        typer.Option("--keyboard", "-k", help="Keyboard name (e.g., 'glove80')"),
-    ] = None,
-    firmware: Annotated[
-        str | None,
-        typer.Option("--firmware", "-f", help="Firmware version (e.g., 'v25.05')"),
-    ] = None,
+    profile: ProfileOption = None,
     branch: Annotated[
         str | None,
         typer.Option("--branch", help="Git branch to use (overrides profile branch)"),
@@ -81,18 +71,8 @@ def firmware_compile(
         glovebox firmware compile keymap.keymap config.conf --keyboard glove80 --firmware v25.05
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --verbose
     """
-    # Create KeyboardProfile using centralized profile management
-    keyboard_profile = None
-    if profile or (keyboard is None and firmware is None):
-        # Use profile-based approach (with user config integration)
-        from glovebox.cli.helpers.profile import create_profile_from_context
-
-        keyboard_profile = create_profile_from_context(ctx, profile)
-    elif keyboard and firmware:
-        # If no profile but keyboard and firmware are provided, create profile from them
-        from glovebox.config.keyboard_profile import create_keyboard_profile
-
-        keyboard_profile = create_keyboard_profile(keyboard, firmware)
+    keyboard_profile = create_profile_from_context(ctx, profile)
+    _ = get_user_config_from_context(ctx)
 
     # Use the branch and repo parameters if provided, otherwise use defaults
     branch_value = branch if branch is not None else "main"
@@ -132,14 +112,7 @@ def firmware_compile(
 def flash(
     ctx: typer.Context,
     firmware_file: Annotated[Path, typer.Argument(help="Path to firmware (.uf2) file")],
-    profile: Annotated[
-        str | None,
-        typer.Option(
-            "--profile",
-            "-p",
-            help="Profile to use (e.g., 'glove80/v25.05'). Uses user config default if not specified.",
-        ),
-    ] = None,
+    profile: ProfileOption = None,
     query: Annotated[
         str,
         typer.Option(
@@ -171,11 +144,6 @@ def flash(
         glovebox firmware flash firmware.uf2 --count 2 --timeout 120
         glovebox firmware flash firmware.uf2 --query "vendor=Adafruit and serial~=GLV80-.*"
     """
-    # Create KeyboardProfile using centralized profile management with user config integration
-    from glovebox.cli.helpers.profile import (
-        create_profile_from_context,
-        get_user_config_from_context,
-    )
 
     keyboard_profile = create_profile_from_context(ctx, profile)
 
@@ -246,14 +214,7 @@ def flash(
 @handle_errors
 def list_devices(
     ctx: typer.Context,
-    profile: Annotated[
-        str | None,
-        typer.Option(
-            "--profile",
-            "-p",
-            help="Profile to use (e.g., 'glove80/v25.05'). Uses user config default if not specified.",
-        ),
-    ] = None,
+    profile: ProfileOption = None,
     query: Annotated[
         str, typer.Option("--query", "-q", help="Device query string")
     ] = "",

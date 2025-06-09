@@ -13,10 +13,10 @@ from glovebox.config.keyboard_profile import (
     get_available_firmwares,
     get_available_keyboards,
 )
-from glovebox.config.profile import KeyboardProfile
 
 
 if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
     from glovebox.config.user_config import UserConfig
 
 logger = logging.getLogger(__name__)
@@ -42,6 +42,25 @@ def get_user_config_from_context(ctx: typer.Context) -> "UserConfig | None":
     except (AttributeError, ImportError):
         logger.debug("Could not get user config from context")
         return None
+
+
+def get_keyboard_profile_from_context(ctx: typer.Context) -> "KeyboardProfile":
+    """Get KeyboardProfile from Typer context."
+
+    Args:
+        ctx: Typer context
+
+    Raises:
+
+    Returns:
+       KeyboardProfile instance
+    """
+    from glovebox.cli.app import AppContext
+
+    app_ctx: AppContext = ctx.obj
+    keyboard_profile = app_ctx.keyboard_profile
+    assert keyboard_profile is not None
+    return keyboard_profile
 
 
 def get_effective_profile(
@@ -97,7 +116,7 @@ def get_effective_profile(
 
 def create_profile_from_option(
     profile_option: str | None, user_config: "UserConfig | None" = None
-) -> KeyboardProfile:
+) -> "KeyboardProfile":
     """Create a KeyboardProfile from a profile option string.
 
     Args:
@@ -231,7 +250,7 @@ def create_profile_from_option(
 
 def create_profile_from_context(
     ctx: typer.Context, profile_option: str | None
-) -> KeyboardProfile:
+) -> "KeyboardProfile":
     """Create a KeyboardProfile from context and profile option.
 
     Convenience function that automatically gets user config from context.

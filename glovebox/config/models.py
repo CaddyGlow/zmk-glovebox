@@ -291,11 +291,6 @@ class UserConfigData(BaseSettings):
     # Firmware settings
     firmware: UserFirmwareConfig = Field(default_factory=UserFirmwareConfig)
 
-    # Backward compatibility - deprecated, use firmware.flash.skip_existing instead
-    flash_skip_existing: bool = Field(
-        default=False, description="Deprecated: use firmware.flash.skip_existing"
-    )
-
     @field_validator("profile")
     @classmethod
     def validate_profile(cls, v: str) -> str:

@@ -663,6 +663,103 @@ For example:
 - `glovebox layout extract my_layout.json output/components`
 - `glovebox layout merge input/components --output merged_layout.json`
 
+#### Profile Parameter Implementation
+
+**IMPORTANT: Use Consistent Profile Parameters Across All Commands**
+
+All CLI commands that require keyboard profiles **MUST** use the standardized `ProfileOption` to eliminate code duplication and ensure consistency:
+
+```python
+# ✅ CORRECT - Use standardized ProfileOption
+from glovebox.cli.helpers.parameters import ProfileOption
+
+@my_app.command()
+@with_profile(default_profile="glove80/v25.05")
+def my_command(
+    ctx: typer.Context,
+    some_arg: str,
+    profile: ProfileOption = None,  # Clean, reusable parameter
+    other_option: bool = False,
+) -> None:
+    """My command with profile support."""
+    # Profile is automatically processed by @with_profile decorator
+    pass
+```
+
+```python
+# ❌ INCORRECT - Don't repeat verbose profile definitions
+@my_app.command()
+def my_command(
+    ctx: typer.Context,
+    some_arg: str,
+    profile: Annotated[  # 9 lines of repetitive code!
+        str | None,
+        typer.Option(
+            "--profile",
+            "-p",
+            help="Profile to use (e.g., 'glove80/v25.05'). Uses user config default if not specified.",
+        ),
+    ] = None,
+    other_option: bool = False,
+) -> None:
+    pass
+```
+
+**Key Components:**
+
+1. **Reusable Parameter Definition** (`glovebox/cli/helpers/parameters.py`):
+   ```python
+   # Single source of truth for profile parameter
+   ProfileOption = Annotated[
+       str | None,
+       typer.Option(
+           "--profile",
+           "-p", 
+           help="Profile to use (e.g., 'glove80/v25.05'). Uses user config default if not specified.",
+       ),
+   ]
+   ```
+
+2. **Profile Decorator** (`glovebox/cli/decorators/profile.py`):
+   ```python
+   @with_profile(default_profile="glove80/v25.05")
+   def command_function(profile: ProfileOption = None, **kwargs):
+       # Decorator automatically:
+       # 1. Sets default profile if none provided
+       # 2. Creates KeyboardProfile object
+       # 3. Adds it to kwargs as "keyboard_profile"
+       # 4. Handles profile creation errors
+   ```
+
+3. **Usage in Commands**:
+   ```python
+   from glovebox.cli.helpers.parameters import ProfileOption
+   from glovebox.cli.decorators import with_profile
+   
+   @command_app.command()
+   @handle_errors
+   @with_profile(default_profile="glove80/v25.05")
+   def my_command(
+       ctx: typer.Context,
+       profile: ProfileOption = None,  # Just one line!
+       **kwargs
+   ) -> None:
+       # Access the created profile object
+       keyboard_profile = kwargs.get('keyboard_profile')
+   ```
+
+**Benefits:**
+- **DRY Principle**: Single definition instead of 9 lines per command
+- **Consistency**: Same help text and behavior across all commands
+- **Maintainability**: Change profile parameter behavior in one place
+- **Type Safety**: Full IDE support and type checking
+- **Error Handling**: Centralized profile creation error handling
+
+**Commands Updated:**
+- ✅ All `glovebox firmware` commands (compile, flash, list-devices)
+- ✅ All `glovebox layout` commands (compile, decompose, compose, validate, show)  
+- ✅ `glovebox status` command for keyboard-specific diagnostics
+
 ### OS Abstraction Layer for Flash Operations
 
 Glovebox implements a clean OS abstraction layer for firmware flashing operations to support multiple platforms:

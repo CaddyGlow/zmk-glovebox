@@ -11,6 +11,7 @@ import typer
 from typer.main import get_command_from_info
 
 from glovebox.cli.decorators.error_handling import print_stack_trace_if_verbose
+from glovebox.config.profile import KeyboardProfile
 from glovebox.core.logging import setup_logging
 
 
@@ -26,6 +27,8 @@ logger = logging.getLogger(__name__)
 # Context object for sharing state
 class AppContext:
     """Application context for storing shared state."""
+
+    keyboard_profile: KeyboardProfile | None = None
 
     def __init__(
         self,
@@ -48,6 +51,7 @@ class AppContext:
         from glovebox.config.user_config import create_user_config
 
         self.user_config = create_user_config(cli_config_path=config_file)
+        self.keyboard_profile = None
 
 
 # Create a custom exception handler that will print stack traces
