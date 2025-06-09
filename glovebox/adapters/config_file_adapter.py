@@ -154,8 +154,8 @@ class ConfigFileAdapter(Generic[T]):
             ConfigError: If file cannot be written
         """
         try:
-            # Convert model to dict and save
-            config_data = model.model_dump()
+            # Convert model to dict with Path objects serialized as strings
+            config_data = model.model_dump(mode="json")
             self.save_config(file_path, config_data)
 
         except Exception as e:

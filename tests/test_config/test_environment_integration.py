@@ -433,13 +433,13 @@ class TestEnvironmentVariablePrecedence:
     ):
         """Test that environment variables override file configuration."""
         # Set environment variables that conflict with file
-        os.environ["GLOVEBOX_PROFILE"] = "env/beats/file"
+        os.environ["GLOVEBOX_PROFILE"] = "env_keyboard/file_firmware"
         os.environ["GLOVEBOX_LOG_LEVEL"] = "CRITICAL"
 
         config = create_user_config(cli_config_path=config_file)
 
         # Environment should override file
-        assert config._config.profile == "env/beats/file"  # Not from file
+        assert config._config.profile == "env_keyboard/file_firmware"  # Not from file
         assert config._config.log_level == "CRITICAL"  # Not from file
 
         # File values should still be used for non-overridden settings
@@ -453,12 +453,12 @@ class TestEnvironmentVariablePrecedence:
     ):
         """Test complete precedence: environment > file > defaults."""
         # Environment variable overrides everything
-        os.environ["GLOVEBOX_PROFILE"] = "env/highest/precedence"
+        os.environ["GLOVEBOX_PROFILE"] = "env_kb/highest_precedence"
 
         config = create_user_config(cli_config_path=config_file)
 
         # Environment wins
-        assert config._config.profile == "env/highest/precedence"
+        assert config._config.profile == "env_kb/highest_precedence"
         assert config.get_source("profile") == "environment"
 
         # File overrides defaults (where no environment var is set)

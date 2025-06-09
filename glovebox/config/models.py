@@ -259,9 +259,13 @@ class UserConfigData(BaseSettings):
     @classmethod
     def decode_keyboard_paths(cls, v: Any) -> list[Path]:
         if isinstance(v, str):
-            return [Path(path) for path in v.split(",") if path.strip()]
+            return [Path(path.strip()) for path in v.split(",") if path.strip()]
         elif isinstance(v, list):
-            return [Path(path) for path in v if path.strip()]
+            return [
+                Path(path.strip() if isinstance(path, str) else path)
+                for path in v
+                if str(path).strip()
+            ]
         return []
 
     # Default profile (keyboard/firmware combination)

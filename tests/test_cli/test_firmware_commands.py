@@ -28,12 +28,17 @@ def test_firmware_flash_command(cli_runner, create_keyboard_profile_fixture, tmp
 
 def test_firmware_list_devices_command(cli_runner):
     """Test firmware list-devices command which is easier to mock."""
+    # Register commands
+    from glovebox.cli.commands import register_all_commands
+
+    register_all_commands(app)
+
     with (
         patch(
             "glovebox.cli.commands.firmware.create_flash_service"
         ) as mock_create_service,
     ):
-        # Create a simple mock flash service with list_devices
+        # Create a simple mock flash service with list_devices_with_profile
         mock_flash_service = Mock()
         mock_create_service.return_value = mock_flash_service
 
@@ -45,7 +50,8 @@ def test_firmware_list_devices_command(cli_runner):
             {"name": "Device 1", "serial": "GLV80-1234", "path": "/dev/sdX"},
             {"name": "Device 2", "serial": "GLV80-5678", "path": "/dev/sdY"},
         ]
-        mock_flash_service.list_devices.return_value = result
+        # Updated to use the new method name
+        mock_flash_service.list_devices_with_profile.return_value = result
 
         # Run the command
         cmd_result = cli_runner.invoke(
