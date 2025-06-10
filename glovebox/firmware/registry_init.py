@@ -3,8 +3,12 @@
 import logging
 from typing import cast
 
-from glovebox.config.compile_methods import DockerCompileConfig
+from glovebox.config.compile_methods import (
+    DockerCompileConfig,
+    GenericDockerCompileConfig,
+)
 from glovebox.config.flash_methods import DFUFlashConfig, USBFlashConfig
+from glovebox.firmware.compile.generic_docker_compiler import GenericDockerCompiler
 from glovebox.firmware.compile.methods import DockerCompiler
 from glovebox.firmware.flash.flasher_methods import DFUFlasher, USBFlasher
 from glovebox.firmware.method_registry import compiler_registry, flasher_registry
@@ -24,6 +28,14 @@ def register_compile_methods() -> None:
         config_type=DockerCompileConfig,
     )
     logger.debug("Registered docker compiler")
+
+    # Register Generic Docker compiler - cast helps type checker understand GenericDockerCompiler implements CompilerProtocol
+    compiler_registry.register_method(
+        method_name="generic_docker",
+        implementation=cast(type[CompilerProtocol], GenericDockerCompiler),
+        config_type=GenericDockerCompileConfig,
+    )
+    logger.debug("Registered generic docker compiler")
 
 
 def register_flash_methods() -> None:

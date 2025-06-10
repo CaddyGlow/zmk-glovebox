@@ -8,7 +8,11 @@ from typing import TYPE_CHECKING, Union
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
 
-from glovebox.config.compile_methods import CompileMethodConfig, DockerCompileConfig
+from glovebox.config.compile_methods import (
+    CompileMethodConfig,
+    DockerCompileConfig,
+    GenericDockerCompileConfig,
+)
 from glovebox.core.errors import BuildError
 from glovebox.firmware.method_selector import select_compiler_with_fallback
 from glovebox.firmware.models import BuildResult

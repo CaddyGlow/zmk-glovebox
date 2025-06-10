@@ -7,6 +7,7 @@ from glovebox.config.compile_methods import (
     CompileMethodConfig,
     CrossCompileConfig,
     DockerCompileConfig,
+    GenericDockerCompileConfig,
     LocalCompileConfig,
     QemuCompileConfig,
 )
@@ -272,6 +273,8 @@ def _create_compiler_config_for_method(method_name: str) -> CompileMethodConfig 
     # Create configs with sensible defaults for fallback scenarios
     if method_name == "docker":
         return DockerCompileConfig()
+    elif method_name == "generic_docker":
+        return GenericDockerCompileConfig()
     elif method_name == "local":
         # Local compiler requires zmk_path, use common locations as fallbacks
         from pathlib import Path

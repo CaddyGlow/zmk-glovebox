@@ -5,7 +5,12 @@ from glovebox.firmware import registry_init  # noqa: F401
 from glovebox.firmware.build_service import create_build_service
 
 # Import compile methods
-from glovebox.firmware.compile import DockerCompiler, create_docker_compiler
+from glovebox.firmware.compile import (
+    DockerCompiler,
+    GenericDockerCompiler,
+    create_docker_compiler,
+    create_generic_docker_compiler,
+)
 
 # Import method registry
 from glovebox.firmware.method_registry import compiler_registry, flasher_registry
@@ -44,4 +49,6 @@ __all__ = [
     # Compile methods
     "DockerCompiler",
     "create_docker_compiler",
+    "GenericDockerCompiler",
+    "create_generic_docker_compiler",
 ]
