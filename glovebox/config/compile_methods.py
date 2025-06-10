@@ -1,9 +1,17 @@
 """Method-specific configuration models for compilation methods."""
 
+import os
 from abc import ABC
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+def expand_path_variables(path_str: str) -> str:
+    """Expand environment variables and user home in path string."""
+    # First expand environment variables, then user home
+    expanded = os.path.expandvars(path_str)
+    return str(Path(expanded).expanduser())
 
 
 class CompileMethodConfig(BaseModel, ABC):
@@ -24,6 +32,12 @@ class WestWorkspaceConfig(BaseModel):
     )
     workspace_path: str = "/zmk-workspace"
     config_path: str = "config"
+
+    @field_validator("workspace_path")
+    @classmethod
+    def expand_workspace_path(cls, v: str) -> str:
+        """Expand environment variables and user home in workspace path."""
+        return expand_path_variables(v)
 
 
 class DockerCompileConfig(CompileMethodConfig):
@@ -75,6 +89,18 @@ class GenericDockerCompileConfig(DockerCompileConfig):
     volume_templates: list[str] = Field(default_factory=list)
     board_targets: list[str] = Field(default_factory=list)
     cache_workspace: bool = True
+
+    @field_validator("volume_templates")
+    @classmethod
+    def expand_volume_templates(cls, v: list[str]) -> list[str]:
+        """Expand environment variables and user home in volume templates."""
+        return [expand_path_variables(template) for template in v]
+
+    @field_validator("environment_template")
+    @classmethod
+    def expand_environment_template(cls, v: dict[str, str]) -> dict[str, str]:
+        """Expand environment variables and user home in environment template values."""
+        return {key: expand_path_variables(value) for key, value in v.items()}
 
 
 __all__ = [

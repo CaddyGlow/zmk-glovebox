@@ -50,7 +50,7 @@ compile_methods:
     west_workspace:
       manifest_url: https://github.com/zmkfirmware/zmk.git
       manifest_revision: main
-      workspace_path: /zmk-workspace
+      workspace_path: ~/.zmk-workspace
       config_path: config
       west_commands:
         - "west init -l config"
@@ -336,3 +336,4 @@ keymap:
     #define RH0 39  // right thumb cluster
     #define RH1 40
     #define RH2 41
+
