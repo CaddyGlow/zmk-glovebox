@@ -40,9 +40,13 @@ def test_firmware_list_devices_command(cli_runner):
         patch(
             "glovebox.cli.helpers.profile.get_keyboard_profile_from_context"
         ) as mock_get_profile,
+        patch(
+            "glovebox.cli.helpers.profile.create_profile_from_context"
+        ) as mock_create_profile_context,
     ):
-        # Mock the keyboard profile
+        # Mock the keyboard profile creation and context access
         mock_profile = Mock()
+        mock_create_profile_context.return_value = mock_profile
         mock_get_profile.return_value = mock_profile
 
         # Create a simple mock flash service
