@@ -1,7 +1,7 @@
 """Workspace management protocols."""
 
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from glovebox.config.compile_methods import (
     GenericDockerCompileConfig,
@@ -14,14 +14,25 @@ from glovebox.config.compile_methods import (
 class WorkspaceManagerProtocol(Protocol):
     """Protocol for workspace management."""
 
-    def initialize_workspace(self, config: GenericDockerCompileConfig) -> bool:
+    def initialize_workspace(self, **context: Any) -> bool:
         """Initialize workspace for compilation.
 
         Args:
-            config: Compilation configuration
+            **context: Context for workspace initialization
 
         Returns:
             bool: True if workspace initialization succeeded
+        """
+        ...
+
+    def validate_workspace(self, workspace_path: Path) -> bool:
+        """Validate workspace is ready for compilation.
+
+        Args:
+            workspace_path: Path to workspace directory
+
+        Returns:
+            bool: True if workspace is valid
         """
         ...
 
