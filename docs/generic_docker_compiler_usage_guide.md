@@ -2,12 +2,27 @@
 
 ## Overview
 
-The Generic Docker Compiler provides flexible, multi-strategy firmware compilation for ZMK keyboards with modern west workspace support, intelligent caching, and extensible build systems.
+The Generic Docker Compiler provides flexible, multi-strategy firmware compilation with modern west workspace support, intelligent caching, and extensible build systems.
+
+**Important**: This compiler is designed for projects with proper west manifest repositories. For ZMK keyboard firmware builds, use the traditional Docker compiler instead, as ZMK repositories don't contain west.yml manifest files.
+
+## When to Use
+
+### Use Generic Docker Compiler for:
+- Projects with west manifest files (west.yml)
+- Custom Zephyr-based firmware projects
+- Multi-repository projects managed by west
+- Projects requiring custom build strategies (cmake, make, ninja)
+
+### Use Traditional Docker Compiler for:
+- ZMK keyboard firmware builds
+- Single-repository projects without west manifests
+- Projects using established Docker build patterns
 
 ## Key Features
 
 ### Build Strategies
-- **west**: ZMK west workspace builds (recommended for ZMK keyboards)
+- **west**: West workspace builds for projects with west manifests
 - **cmake**: Direct CMake builds for custom projects
 - **make**: Traditional make builds
 - **ninja**: Ninja build system for fast compilation

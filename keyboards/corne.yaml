@@ -41,7 +41,7 @@ display:
         - [36, 37, 38]
         - [39, 40, 41]
 
-# Compile method configurations
+# Compile method configurations  
 compile_methods:
   - method_type: docker
     image: zmkfirmware/zmk-build-arm:stable
