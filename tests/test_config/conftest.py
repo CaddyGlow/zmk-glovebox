@@ -41,7 +41,6 @@ def sample_config_dict() -> dict[str, Any]:
                 "skip_existing": True,
             }
         },
-        "flash_skip_existing": True,  # Deprecated field
     }
 
 

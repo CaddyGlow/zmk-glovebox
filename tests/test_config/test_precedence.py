@@ -380,7 +380,6 @@ class TestComplexIntegrationScenarios:
             yaml.dump(
                 {
                     "profile": "legacy/board",
-                    "flash_skip_existing": True,  # Deprecated field
                     "firmware": {"flash": {"timeout": 90}},
                 },
                 f,

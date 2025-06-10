@@ -471,7 +471,6 @@ class TestEnvironmentVariablePrecedence:
         assert config._config.log_level == sample_config_dict["log_level"]
         assert config.get_source("log_level") == f"file:{config_file.name}"
 
-        # Defaults used when neither environment nor file provide value
-        # (This depends on what's in sample_config_dict vs defaults)
-        if "flash_skip_existing" not in sample_config_dict:
-            assert config.get_source("flash_skip_existing") == "default"
+        # Test shows that file values override defaults (precedence working correctly)
+        # The sample config explicitly sets firmware.flash.skip_existing = True
+        assert config._config.firmware.flash.skip_existing is True

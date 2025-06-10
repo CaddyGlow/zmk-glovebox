@@ -36,8 +36,6 @@ DEFAULT_CONFIG = {
     "profile": "glove80/v25.05",
     # Logging
     "log_level": "INFO",
-    # Flash behavior (deprecated - use firmware.flash.skip_existing)
-    "flash_skip_existing": False,
     # Firmware configuration
     "firmware": {
         "flash": {

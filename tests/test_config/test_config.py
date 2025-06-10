@@ -576,8 +576,8 @@ def test_mock_keyboard_config(mock_keyboard_config):
     """Test that the mock_keyboard_config fixture is properly structured."""
     assert mock_keyboard_config.keyboard == "test_keyboard"
     assert mock_keyboard_config.description is not None
-    assert mock_keyboard_config.flash is not None
-    assert mock_keyboard_config.build is not None
+    assert len(mock_keyboard_config.flash_methods) > 0
+    assert len(mock_keyboard_config.compile_methods) > 0
     assert "default" in mock_keyboard_config.firmwares
     assert "bluetooth" in mock_keyboard_config.firmwares
 
