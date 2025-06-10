@@ -117,15 +117,20 @@ def test_subdomain_factory_functions():
         assert callable(func)
 
     # Test implemented factory functions return actual objects
-    assert create_build_matrix_resolver() is not None
+    implemented_functions = [
+        create_build_matrix_resolver,
+        create_volume_manager,
+        create_environment_manager,
+    ]
+    
+    for func in implemented_functions:
+        assert func() is not None
 
     # Test stub factory functions return None
     stub_functions = [
         create_artifact_collector,
         create_firmware_scanner,
         create_artifact_validator,
-        create_volume_manager,
-        create_environment_manager,
         create_workspace_manager,
         create_west_workspace_manager,
         create_zmk_config_workspace_manager,
