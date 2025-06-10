@@ -1,10 +1,14 @@
 """Compilation service protocols."""
 
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from glovebox.config.compile_methods import GenericDockerCompileConfig
 from glovebox.firmware.models import BuildResult
+
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
 
 
 @runtime_checkable
@@ -17,6 +21,7 @@ class CompilationServiceProtocol(Protocol):
         config_file: Path,
         output_dir: Path,
         config: GenericDockerCompileConfig,
+        keyboard_profile: "KeyboardProfile | None" = None,
     ) -> BuildResult:
         """Execute compilation using this strategy.
 
@@ -25,6 +30,7 @@ class CompilationServiceProtocol(Protocol):
             config_file: Path to config file
             output_dir: Output directory for build artifacts
             config: Compilation configuration
+            keyboard_profile: Keyboard profile for dynamic generation
 
         Returns:
             BuildResult: Results of compilation
@@ -61,6 +67,7 @@ class CompilationCoordinatorProtocol(Protocol):
         config_file: Path,
         output_dir: Path,
         config: GenericDockerCompileConfig,
+        keyboard_profile: "KeyboardProfile | None" = None,
     ) -> BuildResult:
         """Coordinate compilation using appropriate strategy.
 
@@ -69,6 +76,7 @@ class CompilationCoordinatorProtocol(Protocol):
             config_file: Path to config file
             output_dir: Output directory for build artifacts
             config: Compilation configuration
+            keyboard_profile: Keyboard profile for dynamic generation
 
         Returns:
             BuildResult: Results of compilation

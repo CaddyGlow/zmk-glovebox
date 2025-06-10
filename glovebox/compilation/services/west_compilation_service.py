@@ -2,7 +2,11 @@
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
 
 from glovebox.compilation.configuration.build_matrix_resolver import (
     BuildMatrixResolver,
@@ -85,6 +89,7 @@ class WestCompilationService(BaseCompilationService):
         config_file: Path,
         output_dir: Path,
         config: GenericDockerCompileConfig,
+        keyboard_profile: "KeyboardProfile | None" = None,
     ) -> BuildResult:
         """Execute west compilation strategy.
 
@@ -93,6 +98,7 @@ class WestCompilationService(BaseCompilationService):
             config_file: Path to config file
             output_dir: Output directory for firmware files
             config: Compilation configuration
+            keyboard_profile: Keyboard profile (unused for west strategy)
 
         Returns:
             BuildResult: Compilation results with firmware files

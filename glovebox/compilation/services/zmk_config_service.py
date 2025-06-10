@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from glovebox.compilation.configuration.build_matrix_resolver import (
     BuildMatrixResolver,
@@ -15,6 +15,10 @@ from glovebox.compilation.configuration.environment_manager import (
 from glovebox.compilation.configuration.volume_manager import (
     VolumeManager,
     create_volume_manager,
+)
+from glovebox.compilation.generation.zmk_config_generator import (
+    ZmkConfigContentGenerator,
+    create_zmk_config_content_generator,
 )
 from glovebox.compilation.models.build_matrix import BuildMatrix, BuildTarget
 from glovebox.compilation.protocols.artifact_protocols import (
@@ -34,6 +38,10 @@ from glovebox.compilation.workspace.zmk_config_workspace_manager import (
 )
 from glovebox.config.compile_methods import GenericDockerCompileConfig
 from glovebox.core.errors import BuildError
+
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
 from glovebox.firmware.models import BuildResult
 from glovebox.protocols import DockerAdapterProtocol
 from glovebox.protocols.docker_adapter_protocol import DockerVolume
@@ -58,6 +66,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         environment_manager: EnvironmentManager | None = None,
         volume_manager: VolumeManager | None = None,
         docker_adapter: DockerAdapterProtocol | None = None,
+        content_generator: ZmkConfigContentGenerator | None = None,
     ) -> None:
         """Initialize ZMK config compilation service.
 
@@ -68,6 +77,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
             environment_manager: Environment variable manager
             volume_manager: Docker volume manager
             docker_adapter: Docker adapter for container operations
+            content_generator: ZMK config content generator for dynamic workspaces
         """
         super().__init__("zmk_config_compilation", "1.0.0")
         self.workspace_manager = (
@@ -79,6 +89,9 @@ class ZmkConfigCompilationService(BaseCompilationService):
         self.artifact_collector = artifact_collector  # Will be None until Phase 5
         self.environment_manager = environment_manager or create_environment_manager()
         self.volume_manager = volume_manager or create_volume_manager()
+        self.content_generator = (
+            content_generator or create_zmk_config_content_generator()
+        )
 
         # Docker adapter will be injected from parent coordinator
         self._docker_adapter: DockerAdapterProtocol | None = docker_adapter
@@ -89,6 +102,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         config_file: Path,
         output_dir: Path,
         config: GenericDockerCompileConfig,
+        keyboard_profile: "KeyboardProfile | None" = None,
     ) -> BuildResult:
         """Execute ZMK config compilation using GitHub Actions pattern.
 
@@ -97,6 +111,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
             config_file: Path to config file
             output_dir: Output directory for firmware files
             config: Compilation configuration
+            keyboard_profile: Keyboard profile for dynamic generation
 
         Returns:
             BuildResult: Compilation results with firmware files
@@ -108,24 +123,41 @@ class ZmkConfigCompilationService(BaseCompilationService):
         result = BuildResult(success=True)
 
         try:
-            # Validate ZMK config repository configuration
-            if not self._validate_zmk_config(config, result):
-                return result
+            # Handle dynamic generation or repository-based configuration
+            if self._should_use_dynamic_generation(config, keyboard_profile):
+                # Use dynamic generation mode
+                workspace_path = self._get_dynamic_workspace_path(
+                    config, keyboard_profile
+                )
 
-            config_repo_config = config.zmk_config_repo
-            if not config_repo_config:
-                result.success = False
-                result.add_error("ZMK config repository configuration is missing")
-                return result
-            workspace_path = Path(config_repo_config.workspace_path)
+                if not self._initialize_dynamic_workspace(
+                    workspace_path, keymap_file, config_file, keyboard_profile, config
+                ):
+                    result.success = False
+                    result.add_error("Failed to generate dynamic ZMK config workspace")
+                    return result
 
-            # Initialize ZMK config workspace
-            if not self._initialize_workspace(
-                config_repo_config, keymap_file, config_file
-            ):
-                result.success = False
-                result.add_error("Failed to initialize ZMK config workspace")
-                return result
+                # Create minimal config for dynamic mode
+                config_repo_config = self._create_dynamic_config(workspace_path)
+            else:
+                # Use repository-based configuration
+                if not self._validate_zmk_config(config, result):
+                    return result
+
+                config_repo_config = config.zmk_config_repo
+                if not config_repo_config:
+                    result.success = False
+                    result.add_error("ZMK config repository configuration is missing")
+                    return result
+                workspace_path = Path(config_repo_config.workspace_path)
+
+                # Initialize repository workspace
+                if not self._initialize_workspace(
+                    config_repo_config, keymap_file, config_file
+                ):
+                    result.success = False
+                    result.add_error("Failed to initialize ZMK config workspace")
+                    return result
 
             # Resolve build matrix from build.yaml
             build_matrix = self._resolve_build_matrix(
@@ -477,6 +509,171 @@ class ZmkConfigCompilationService(BaseCompilationService):
         """
         self._docker_adapter = docker_adapter
 
+    def _should_use_dynamic_generation(
+        self,
+        config: GenericDockerCompileConfig,
+        keyboard_profile: "KeyboardProfile | None",
+    ) -> bool:
+        """Determine if should use dynamic generation instead of repository.
+
+        Args:
+            config: Compilation configuration
+            keyboard_profile: Keyboard profile (required for dynamic generation)
+
+        Returns:
+            bool: True if should use dynamic generation
+        """
+        # Use dynamic generation if:
+        # 1. No zmk_config_repo configured, OR
+        # 2. zmk_config_repo.config_repo_url is not set/empty, AND
+        # 3. keyboard_profile is available for dynamic generation
+
+        if not keyboard_profile:
+            return False
+
+        if not config.zmk_config_repo:
+            return True
+
+        repo_url = config.zmk_config_repo.config_repo_url
+        return not repo_url or repo_url.strip() == ""
+
+    def _get_dynamic_workspace_path(
+        self,
+        config: GenericDockerCompileConfig,
+        keyboard_profile: "KeyboardProfile | None",
+    ) -> Path:
+        """Get workspace path for dynamic generation.
+
+        Args:
+            config: Compilation configuration
+            keyboard_profile: Keyboard profile
+
+        Returns:
+            Path: Dynamic workspace path
+        """
+        if config.zmk_config_repo and config.zmk_config_repo.workspace_path:
+            return Path(config.zmk_config_repo.workspace_path)
+
+        # Default dynamic workspace path
+        keyboard_name = (
+            keyboard_profile.keyboard_name if keyboard_profile else "keyboard"
+        )
+        return Path.home() / f".glovebox/dynamic-zmk-config/{keyboard_name}"
+
+    def _initialize_dynamic_workspace(
+        self,
+        workspace_path: Path,
+        keymap_file: Path,
+        config_file: Path,
+        keyboard_profile: "KeyboardProfile | None",
+        config: GenericDockerCompileConfig,
+    ) -> bool:
+        """Initialize dynamic ZMK config workspace.
+
+        Args:
+            workspace_path: Path to workspace directory
+            keymap_file: Source keymap file
+            config_file: Source config file
+            keyboard_profile: Keyboard profile for configuration
+            config: Compilation configuration
+
+        Returns:
+            bool: True if workspace initialized successfully
+        """
+        if not keyboard_profile:
+            logger.error("Keyboard profile required for dynamic workspace generation")
+            return False
+
+        try:
+            # Extract shield name from config or keyboard profile
+            shield_name = self._extract_shield_name(config, keyboard_profile)
+
+            # Generate workspace content using content generator
+            return self.content_generator.generate_config_workspace(
+                workspace_path=workspace_path,
+                keymap_file=keymap_file,
+                config_file=config_file,
+                keyboard_profile=keyboard_profile,
+                shield_name=shield_name,
+                board_name=self._extract_board_name(config),
+            )
+
+        except Exception as e:
+            logger.error("Failed to initialize dynamic workspace: %s", e)
+            return False
+
+    def _extract_shield_name(
+        self, config: GenericDockerCompileConfig, keyboard_profile: "KeyboardProfile"
+    ) -> str:
+        """Extract shield name from configuration or profile.
+
+        Args:
+            config: Compilation configuration
+            keyboard_profile: Keyboard profile
+
+        Returns:
+            str: Shield name for builds
+        """
+        # Try to extract from build commands first
+        if config.build_commands:
+            for command in config.build_commands:
+                if "-DSHIELD=" in command:
+                    # Extract shield name from command like: -DSHIELD=corne_left
+                    shield_part = command.split("-DSHIELD=")[1].split()[0]
+                    # Remove _left/_right suffix to get base shield name
+                    base_shield = shield_part.replace("_left", "").replace("_right", "")
+                    return base_shield
+
+        # Fallback to keyboard name from profile
+        return keyboard_profile.keyboard_name
+
+    def _extract_board_name(self, config: GenericDockerCompileConfig) -> str:
+        """Extract board name from configuration.
+
+        Args:
+            config: Compilation configuration
+
+        Returns:
+            str: Board name for builds
+        """
+        # Try board_targets first
+        if config.board_targets:
+            return config.board_targets[0]
+
+        # Try to extract from build commands
+        if config.build_commands:
+            for command in config.build_commands:
+                if "-b " in command:
+                    # Extract board from command like: west build -b nice_nano_v2
+                    parts = command.split("-b ")
+                    if len(parts) > 1:
+                        board = parts[1].split()[0]
+                        return board
+
+        # Default to nice_nano_v2
+        return "nice_nano_v2"
+
+    def _create_dynamic_config(self, workspace_path: Path) -> Any:
+        """Create minimal config object for dynamic mode.
+
+        Args:
+            workspace_path: Path to dynamic workspace
+
+        Returns:
+            Dynamic config object with required attributes
+        """
+
+        # Create a simple object with required attributes for the rest of the compilation
+        class DynamicConfig:
+            def __init__(self, workspace_path: Path):
+                self.workspace_path = str(workspace_path)
+                self.config_path = "config"
+                self.build_yaml_path = "build.yaml"
+                self.config_repo_url = f"dynamic://{workspace_path}"
+                self.config_repo_revision = "dynamic"
+
+        return DynamicConfig(workspace_path)
+
 
 def create_zmk_config_service(
     workspace_manager: ZmkConfigWorkspaceManagerProtocol | None = None,
@@ -485,6 +682,7 @@ def create_zmk_config_service(
     environment_manager: EnvironmentManager | None = None,
     volume_manager: VolumeManager | None = None,
     docker_adapter: DockerAdapterProtocol | None = None,
+    content_generator: ZmkConfigContentGenerator | None = None,
 ) -> ZmkConfigCompilationService:
     """Create ZMK config compilation service instance.
 
@@ -495,6 +693,7 @@ def create_zmk_config_service(
         environment_manager: Environment manager
         volume_manager: Volume manager
         docker_adapter: Docker adapter
+        content_generator: ZMK config content generator
 
     Returns:
         ZmkConfigCompilationService: New service instance
@@ -506,4 +705,5 @@ def create_zmk_config_service(
         environment_manager=environment_manager,
         volume_manager=volume_manager,
         docker_adapter=docker_adapter,
+        content_generator=content_generator,
     )

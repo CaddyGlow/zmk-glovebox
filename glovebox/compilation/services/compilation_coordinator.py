@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from glovebox.adapters import create_docker_adapter
 from glovebox.compilation.protocols.compilation_protocols import (
@@ -16,6 +16,10 @@ from glovebox.config.compile_methods import GenericDockerCompileConfig
 from glovebox.core.errors import BuildError
 from glovebox.firmware.models import BuildResult
 from glovebox.protocols import DockerAdapterProtocol
+
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
 
 
 logger = logging.getLogger(__name__)
@@ -49,6 +53,7 @@ class CompilationCoordinator(BaseCompilationService):
         config_file: Path,
         output_dir: Path,
         config: GenericDockerCompileConfig,
+        keyboard_profile: "KeyboardProfile | None" = None,
     ) -> BuildResult:
         """Coordinate compilation using appropriate strategy.
 
@@ -57,6 +62,7 @@ class CompilationCoordinator(BaseCompilationService):
             config_file: Path to config file
             output_dir: Output directory for build artifacts
             config: Compilation configuration
+            keyboard_profile: Keyboard profile for dynamic generation
 
         Returns:
             BuildResult: Results of compilation
@@ -83,7 +89,7 @@ class CompilationCoordinator(BaseCompilationService):
 
             # Execute compilation using selected strategy
             result = compilation_service.compile(
-                keymap_file, config_file, output_dir, config
+                keymap_file, config_file, output_dir, config, keyboard_profile
             )
 
             if result.success:
@@ -209,7 +215,9 @@ class CompilationCoordinator(BaseCompilationService):
         Returns:
             bool: True if ZMK config strategy should be used
         """
-        return bool(config.zmk_config_repo)
+        # ZMK config strategy if zmk_config_repo is configured
+        # OR if build_strategy explicitly requests "zmk_config"
+        return bool(config.zmk_config_repo) or config.build_strategy == "zmk_config"
 
     def _is_west_strategy(self, config: GenericDockerCompileConfig) -> bool:
         """Check if configuration indicates west strategy.

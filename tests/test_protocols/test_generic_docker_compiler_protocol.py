@@ -26,7 +26,9 @@ class TestGenericDockerCompilerProtocol:
         mock_compiler.check_available = Mock(return_value=True)
         mock_compiler.validate_config = Mock(return_value=True)
         mock_compiler.build_image = Mock(return_value=BuildResult(success=True))
-        mock_compiler.get_available_strategies = Mock(return_value=["west", "zmk_config"])
+        mock_compiler.get_available_strategies = Mock(
+            return_value=["west", "zmk_config"]
+        )
 
         # Runtime check should work
         assert isinstance(mock_compiler, GenericDockerCompilerProtocol)

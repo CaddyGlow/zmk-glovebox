@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from glovebox.adapters import create_docker_adapter, create_file_adapter
 from glovebox.compilation import create_compilation_coordinator
@@ -13,6 +14,10 @@ from glovebox.firmware.models import BuildResult
 from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
 from glovebox.protocols.compile_protocols import GenericDockerCompilerProtocol
 from glovebox.utils import stream_process
+
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
 
 
 logger = logging.getLogger(__name__)
@@ -55,6 +60,7 @@ class GenericDockerCompiler:
         config_file: Path,
         output_dir: Path,
         config: GenericDockerCompileConfig,
+        keyboard_profile: "KeyboardProfile | None" = None,
     ) -> BuildResult:
         """Compile firmware using specified build strategy.
 
@@ -66,6 +72,7 @@ class GenericDockerCompiler:
             config_file: Path to config file
             output_dir: Output directory for build artifacts
             config: Compilation configuration
+            keyboard_profile: Keyboard profile for dynamic generation
 
         Returns:
             BuildResult: Results of compilation
@@ -89,7 +96,7 @@ class GenericDockerCompiler:
 
             # Delegate to compilation coordinator
             return self.compilation_coordinator.compile(
-                keymap_file, config_file, output_dir, config
+                keymap_file, config_file, output_dir, config, keyboard_profile
             )
 
         except Exception as e:
