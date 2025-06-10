@@ -242,7 +242,7 @@ class TestConfigShowKeyboard:
     """Test config show-keyboard command."""
 
     def test_show_keyboard_text_format(self, cli_runner, mock_keyboard_config):
-        """Test show-keyboard with text format."""
+        """Test show-keyboard with text format (new unified output format)."""
         with patch(
             "glovebox.cli.commands.config.load_keyboard_config"
         ) as mock_load_config:
@@ -253,19 +253,20 @@ class TestConfigShowKeyboard:
             )
 
             assert result.exit_code == 0
-            assert "Keyboard: test_keyboard" in result.output
-            assert "Description: Test keyboard description" in result.output
-            assert "Vendor: Test Vendor" in result.output
-            assert "Flash Configuration:" in result.output
-            assert "method: usb_mount" in result.output
-            assert "Build Configuration:" in result.output
-            assert "method: docker" in result.output
-            assert "Available Firmware Versions (2):" in result.output
-            assert "v1.0: v1.0 - Test firmware v1.0" in result.output
-            assert "v2.0: v2.0 - Test firmware v2.0" in result.output
+            # Check new unified output format structure
+            assert "keyboard: test_keyboard" in result.output
+            assert "description: Test keyboard description" in result.output
+            assert "vendor: Test Vendor" in result.output
+            assert "key_count: 84" in result.output
+            assert "flash_methods:" in result.output
+            assert "'method_type': 'usb'" in result.output
+            assert "compile_methods:" in result.output
+            assert "'method_type': 'docker'" in result.output
+            assert "firmwares:" in result.output
+            assert "firmware_count: 2" in result.output
 
     def test_show_keyboard_json_format(self, cli_runner, mock_keyboard_config):
-        """Test show-keyboard with JSON format."""
+        """Test show-keyboard with JSON format (new unified output format)."""
         with patch(
             "glovebox.cli.commands.config.load_keyboard_config"
         ) as mock_load_config:
@@ -281,13 +282,29 @@ class TestConfigShowKeyboard:
             assert output_data["description"] == "Test keyboard description"
             assert output_data["vendor"] == "Test Vendor"
             assert output_data["key_count"] == 84
+
+            # Check new structure with multiple methods support
+            assert "flash_methods" in output_data
+            assert len(output_data["flash_methods"]) == 2
+            assert output_data["flash_methods"][0]["method_type"] == "usb"
+            assert output_data["flash_methods"][1]["method_type"] == "dfu"
+
             assert "flash" in output_data
-            assert output_data["flash"]["method"] == "usb_mount"
+            assert output_data["flash"]["primary_method"] == "usb"
+            assert output_data["flash"]["total_methods"] == 2
+
+            assert "compile_methods" in output_data
+            assert len(output_data["compile_methods"]) == 1
+            assert output_data["compile_methods"][0]["method_type"] == "docker"
+
             assert "build" in output_data
-            assert output_data["build"]["method"] == "docker"
+            assert output_data["build"]["primary_method"] == "docker"
+            assert output_data["build"]["total_methods"] == 1
+
             assert "firmwares" in output_data
             assert "v1.0" in output_data["firmwares"]
             assert "v2.0" in output_data["firmwares"]
+            assert output_data["firmware_count"] == 2
 
     def test_show_keyboard_not_found(self, cli_runner):
         """Test show-keyboard when keyboard is not found."""
@@ -599,7 +616,7 @@ class TestConfigInvalidFormat:
         assert result.exit_code == 0
 
     def test_show_keyboard_invalid_format(self, cli_runner, mock_keyboard_config):
-        """Test show-keyboard with invalid format."""
+        """Test show-keyboard with invalid format (fallback to text format)."""
         with patch(
             "glovebox.cli.commands.config.load_keyboard_config"
         ) as mock_load_config:
@@ -611,7 +628,7 @@ class TestConfigInvalidFormat:
 
             # Current implementation doesn't validate format - outputs text format
             assert result.exit_code == 0
-            assert "Keyboard: test_keyboard" in result.output
+            assert "keyboard: test_keyboard" in result.output
 
 
 class TestConfigUserIntegration:

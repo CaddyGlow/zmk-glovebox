@@ -26,6 +26,165 @@ from glovebox.config.user_config import DEFAULT_CONFIG
 
 logger = logging.getLogger(__name__)
 
+
+def _build_keyboard_config_data(
+    keyboard_config: Any, verbose: bool = False
+) -> dict[str, Any]:
+    """Build comprehensive keyboard configuration data for output formatting.
+
+    Args:
+        keyboard_config: The keyboard configuration object
+        verbose: Include detailed configuration information
+
+    Returns:
+        Dictionary containing formatted configuration data
+    """
+    # Basic keyboard information
+    config_data = {
+        "keyboard": keyboard_config.keyboard,
+        "description": keyboard_config.description,
+        "vendor": keyboard_config.vendor,
+        "key_count": keyboard_config.key_count,
+    }
+
+    # Flash methods (multiple methods support)
+    if keyboard_config.flash_methods:
+        flash_methods = []
+        for i, method in enumerate(keyboard_config.flash_methods):
+            method_data = {
+                "priority": i + 1,
+                "method_type": method.method_type,
+            }
+
+            # Add method-specific fields
+            if hasattr(method, "device_query") and method.device_query:
+                method_data["device_query"] = method.device_query
+            if hasattr(method, "vid") and method.vid:
+                method_data["vid"] = method.vid
+            if hasattr(method, "pid") and method.pid:
+                method_data["pid"] = method.pid
+            if hasattr(method, "mount_timeout") and method.mount_timeout:
+                method_data["mount_timeout"] = method.mount_timeout
+            if hasattr(method, "copy_timeout") and method.copy_timeout:
+                method_data["copy_timeout"] = method.copy_timeout
+            if hasattr(method, "fallback_methods") and method.fallback_methods:
+                method_data["fallback_methods"] = method.fallback_methods
+
+            flash_methods.append(method_data)
+
+        config_data["flash_methods"] = flash_methods
+
+        # Keep primary flash for backward compatibility
+        primary_flash = keyboard_config.flash_methods[0]
+        config_data["flash"] = {
+            "primary_method": primary_flash.method_type,
+            "total_methods": len(keyboard_config.flash_methods),
+        }
+
+    # Compile methods (multiple methods support)
+    if keyboard_config.compile_methods:
+        compile_methods = []
+        for i, method in enumerate(keyboard_config.compile_methods):
+            method_data = {
+                "priority": i + 1,
+                "method_type": method.method_type,
+            }
+
+            # Add method-specific fields
+            if hasattr(method, "image") and method.image:
+                method_data["image"] = method.image
+            if hasattr(method, "repository") and method.repository:
+                method_data["repository"] = method.repository
+            if hasattr(method, "branch") and method.branch:
+                method_data["branch"] = method.branch
+            if hasattr(method, "jobs") and method.jobs:
+                method_data["jobs"] = method.jobs
+            if hasattr(method, "fallback_methods") and method.fallback_methods:
+                method_data["fallback_methods"] = method.fallback_methods
+
+            compile_methods.append(method_data)
+
+        config_data["compile_methods"] = compile_methods
+
+        # Keep primary build for backward compatibility
+        primary_compile = keyboard_config.compile_methods[0]
+        config_data["build"] = {
+            "primary_method": primary_compile.method_type,
+            "total_methods": len(keyboard_config.compile_methods),
+        }
+
+    # Firmware configurations
+    if keyboard_config.firmwares:
+        firmwares = {}
+        for name, fw in keyboard_config.firmwares.items():
+            fw_data = {
+                "version": fw.version,
+                "description": fw.description,
+            }
+
+            # Include build options if verbose
+            if verbose and hasattr(fw, "build_options") and fw.build_options:
+                fw_data["build_options"] = {
+                    "repository": fw.build_options.repository,
+                    "branch": fw.build_options.branch,
+                }
+
+            # Include kconfig if verbose and present
+            if verbose and hasattr(fw, "kconfig") and fw.kconfig:
+                kconfig_data = {}
+                for key, config in fw.kconfig.items():
+                    kconfig_data[key] = {
+                        "name": config.name,
+                        "type": config.type,
+                        "default": config.default,
+                        "description": config.description,
+                    }
+                fw_data["kconfig"] = kconfig_data
+
+            firmwares[name] = fw_data
+
+        config_data["firmwares"] = firmwares
+        config_data["firmware_count"] = len(firmwares)
+
+    # Include configuration sections if verbose
+    if verbose:
+        # Behavior configuration
+        if hasattr(keyboard_config, "behaviors") and keyboard_config.behaviors:
+            behaviors_data = {}
+            if hasattr(keyboard_config.behaviors, "system_behaviors"):
+                behaviors_data["system_behaviors_count"] = len(
+                    keyboard_config.behaviors.system_behaviors
+                )
+            config_data["behaviors"] = behaviors_data
+
+        # Display configuration
+        if hasattr(keyboard_config, "display") and keyboard_config.display:
+            display_data = {}
+            if hasattr(keyboard_config.display, "layout_structure"):
+                display_data["has_layout_structure"] = True
+            if hasattr(keyboard_config.display, "formatting"):
+                display_data["has_formatting_config"] = True
+            config_data["display"] = display_data
+
+        # ZMK configuration
+        if hasattr(keyboard_config, "zmk") and keyboard_config.zmk:
+            zmk_data = {}
+            if hasattr(keyboard_config.zmk, "validation_limits"):
+                zmk_data["has_validation_limits"] = True
+            if hasattr(keyboard_config.zmk, "patterns"):
+                zmk_data["has_patterns"] = True
+            if hasattr(keyboard_config.zmk, "compatible_strings"):
+                zmk_data["has_compatible_strings"] = True
+            config_data["zmk"] = zmk_data
+
+        # Include configuration
+        if hasattr(keyboard_config, "includes") and keyboard_config.includes:
+            config_data["includes"] = keyboard_config.includes
+            config_data["include_count"] = len(keyboard_config.includes)
+
+    return config_data
+
+
 # Create a typer app for configuration commands
 config_app = typer.Typer(
     name="config",
@@ -241,115 +400,28 @@ def show_keyboard(
     ctx: typer.Context,
     keyboard_name: str = typer.Argument(..., help="Keyboard name to show"),
     format: str = typer.Option(
-        "text", "--format", "-f", help="Output format (text, json)"
+        "text", "--format", "-f", help="Output format (text, json, markdown, table)"
+    ),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Show detailed configuration information"
     ),
 ) -> None:
     """Show details of a specific keyboard configuration."""
+    from glovebox.cli.helpers.output_formatter import create_output_formatter
+
     # Get app context with user config
     app_ctx: AppContext = ctx.obj
     # Get the keyboard configuration
     keyboard_config = load_keyboard_config(keyboard_name, app_ctx.user_config)
 
-    if format.lower() == "json":
-        # Convert the typed object to a dictionary for JSON serialization
-        flash_info = {}
-        if keyboard_config.flash_methods:
-            primary_flash = keyboard_config.flash_methods[0]
-            # Map method_type to expected format
-            method_name = (
-                "usb_mount"
-                if primary_flash.method_type == "usb"
-                else primary_flash.method_type
-            )
-            flash_info["method"] = method_name
-            if hasattr(primary_flash, "device_query"):
-                flash_info["query"] = primary_flash.device_query
-            if hasattr(primary_flash, "vid"):
-                flash_info["vid"] = primary_flash.vid
-            if hasattr(primary_flash, "pid"):
-                flash_info["pid"] = primary_flash.pid
+    # Create output formatter
+    formatter = create_output_formatter()
 
-        build_info = {}
-        if keyboard_config.compile_methods:
-            primary_compile = keyboard_config.compile_methods[0]
-            build_info["method"] = primary_compile.method_type
-            if hasattr(primary_compile, "image"):
-                build_info["docker_image"] = primary_compile.image
-            if hasattr(primary_compile, "repository"):
-                build_info["repository"] = primary_compile.repository
-            if hasattr(primary_compile, "branch"):
-                build_info["branch"] = primary_compile.branch
+    # Build comprehensive configuration data
+    config_data = _build_keyboard_config_data(keyboard_config, verbose)
 
-        config_dict = {
-            "keyboard": keyboard_config.keyboard,
-            "description": keyboard_config.description,
-            "vendor": keyboard_config.vendor,
-            "key_count": keyboard_config.key_count,
-            "flash": flash_info,
-            "build": build_info,
-            "firmwares": {
-                name: {
-                    "version": fw.version,
-                    "description": fw.description,
-                }
-                for name, fw in keyboard_config.firmwares.items()
-            },
-        }
-        # JSON output
-        print(json.dumps(config_dict, indent=2))
-        return
-
-    # Text output
-    print(f"Keyboard: {keyboard_name}")
-    print("-" * 60)
-
-    # Display basic information
-    description = keyboard_config.description
-    vendor = keyboard_config.vendor
-    version = "N/A"  # Version is not a top-level attribute in KeyboardConfig
-
-    print(f"Description: {description}")
-    print(f"Vendor: {vendor}")
-    print(f"Version: {version}")
-
-    # Display flash configuration from methods
-    if keyboard_config.flash_methods:
-        print("\nFlash Configuration:")
-        primary_flash = keyboard_config.flash_methods[0]
-        # Map method_type to expected format
-        method_name = (
-            "usb_mount"
-            if primary_flash.method_type == "usb"
-            else primary_flash.method_type
-        )
-        print(f"  method: {method_name}")
-        if hasattr(primary_flash, "device_query"):
-            print(f"  query: {primary_flash.device_query}")
-        if hasattr(primary_flash, "vid"):
-            print(f"  vid: {primary_flash.vid}")
-        if hasattr(primary_flash, "pid"):
-            print(f"  pid: {primary_flash.pid}")
-
-    # Display build configuration from methods
-    if keyboard_config.compile_methods:
-        print("\nBuild Configuration:")
-        primary_compile = keyboard_config.compile_methods[0]
-        print(f"  method: {primary_compile.method_type}")
-        if hasattr(primary_compile, "image"):
-            print(f"  docker_image: {primary_compile.image}")
-        if hasattr(primary_compile, "repository"):
-            print(f"  repository: {primary_compile.repository}")
-        if hasattr(primary_compile, "branch"):
-            print(f"  branch: {primary_compile.branch}")
-
-    # Display available firmware versions
-    firmwares = keyboard_config.firmwares
-    if firmwares:
-        print(f"\nAvailable Firmware Versions ({len(firmwares)}):")
-        for name, firmware in firmwares.items():
-            version = firmware.version
-            description = firmware.description
-            print_list_item(f"{name}: {version} - {description}")
+    # Use the unified output formatter
+    formatter.print_formatted(config_data, format)
 
 
 @config_app.command(name="firmwares")

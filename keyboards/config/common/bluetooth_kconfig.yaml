@@ -1,0 +1,68 @@
+# Common Bluetooth KConfig Options - Standard Bluetooth configuration for ZMK keyboards
+keymap:
+  kconfig_options:
+    BLE_LL_SW_LLCP:
+      name: "CONFIG_BT_LL_SW_LLCP"
+      type: "bool"
+      default: false
+      description: "Maps to KConfig variable CONFIG_BT_LL_SW_LLCP. Make sure you set BLE_LL_SW_LLCP_LEGACY to opposite value. Do not override this unless instructed by manufacturer."
+
+    BLE_LL_SW_LLCP_LEGACY:
+      name: "CONFIG_BT_LL_SW_LLCP_LEGACY"
+      type: "bool"
+      default: false
+      description: "Maps to KConfig variable CONFIG_BT_LL_SW_LLCP_LEGACY. Make sure you set BLE_LL_SW_LLCP to opposite value. Do not override this unless instructed by manufacturer."
+
+    BLE_GATT_AUTO_SEC_REQ:
+      name: "CONFIG_BT_GATT_AUTO_SEC_REQ"
+      type: "bool"
+      default: false
+      description: "Maps to KConfig variable CONFIG_BT_GATT_AUTO_SEC_REQ. Do not override unless instructed by manufacturer. Default is 'y' only for split peripheral side."
+
+    BLE_AUTO_PHY_UPDATE:
+      name: "CONFIG_BT_AUTO_PHY_UPDATE"
+      type: "bool"
+      default: true
+      description: "Maps to KConfig variable CONFIG_BT_AUTO_PHY_UPDATE. Do not override unless instructed by manufacturer."
+
+    BLE_CTLR_PHY_2M:
+      name: "CONFIG_BT_CTLR_PHY_2M"
+      type: "bool"
+      default: true
+      description: "Maps to CONFIG_BT_CTLR_PHY_2M. Do not override this unless instructed by manufacturer."
+
+    BLE_PASSKEY_ENTRY:
+      name: "CONFIG_ZMK_BLE_PASSKEY_ENTRY"
+      type: "bool"
+      default: false
+      description: "Require typing passkey from host to pair BLE connection."
+
+    BLE_DEVICE_NAME_APPEND_SN:
+      name: "CONFIG_BT_DEVICE_NAME_APPEND_SN"
+      type: "bool"
+      default: false
+      description: "When enabled, the advertised BLE device name is appended by the first 6 hexadecimal digits of the serial number."
+
+    SPLIT_BLE_PREF_LATENCY:
+      name: "CONFIG_ZMK_SPLIT_BLE_PREF_LATENCY"
+      type: "int"
+      default: 30
+      description: "Latency to use for split central/peripheral connection."
+
+    BLE_SMP_ALLOW_UNAUTH_OVERWRITE:
+      name: "CONFIG_BT_SMP_ALLOW_UNAUTH_OVERWRITE"
+      type: "bool"
+      default: false
+      description: "Allows overwrite of keys from previously paired hosts. This is useful for connecting with dual-boot hosts."
+
+    BLE_SMP_MIN_ENC_KEY_SIZE:
+      name: "CONFIG_BT_SMP_MIN_ENC_KEY_SIZE"
+      type: "int"
+      default: 7
+      description: "Minimum encryption key size accepted in octets. Must be between 7 and 16."
+
+    BLE_BAS:
+      name: "CONFIG_BT_BAS"
+      type: "bool"
+      default: true
+      description: "Enable the Bluetooth BAS (battery reporting service)."

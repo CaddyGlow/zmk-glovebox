@@ -1,0 +1,5 @@
+# Default Includes - Common includes for ZMK keymaps
+keymap:
+  includes:
+    - "#include <behaviors.dtsi>"
+    - "#include <dt-bindings/zmk/keys.h>"

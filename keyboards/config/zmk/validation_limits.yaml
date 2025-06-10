@@ -1,0 +1,8 @@
+# ZMK Validation Limits - Common validation thresholds for ZMK layouts
+zmk:
+  validation_limits:
+    warn_many_layers_threshold: 10
+    max_hold_tap_bindings: 50
+    max_macro_params: 2
+    max_combo_keys: 8
+    max_layer_count: 32

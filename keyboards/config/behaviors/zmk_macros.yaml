@@ -1,0 +1,98 @@
+# ZMK Macro Control Behaviors - Behaviors for controlling macro execution
+behaviors:
+  system_behaviors:
+    - code: "&macro_tap"
+      name: "Macro Tap"
+      description: "Set Macro To Tap Mode"
+      url: "https://zmk.dev/docs/behaviors/macros"
+      isMacroControlBehavior: true
+      expected_params: 0
+      origin: "zmk"
+      params: []
+
+    - code: "&macro_press"
+      name: "Macro Press"
+      description: "Set Macro To Press Mode"
+      url: "https://zmk.dev/docs/behaviors/macros"
+      isMacroControlBehavior: true
+      expected_params: 0
+      origin: "zmk"
+      params: []
+
+    - code: "&macro_release"
+      name: "Macro Release"
+      description: "Set Macro To Release Mode"
+      url: "https://zmk.dev/docs/behaviors/macros"
+      isMacroControlBehavior: true
+      expected_params: 0
+      origin: "zmk"
+      params: []
+
+    - code: "&macro_tap_time"
+      name: "Macro Tap Time"
+      description: "Set Macro Tap Duration"
+      url: "https://zmk.dev/docs/behaviors/macros"
+      isMacroControlBehavior: true
+      expected_params: 1
+      origin: "zmk"
+      params:
+        - name: "Duration in milliseconds"
+          type: "integer"
+          min: 0
+
+    - code: "&macro_wait_time"
+      name: "Macro Wait Time"
+      description: "Set Macro Wait Duration"
+      url: "https://zmk.dev/docs/behaviors/macros"
+      isMacroControlBehavior: true
+      expected_params: 1
+      origin: "zmk"
+      params:
+        - name: "Duration in milliseconds"
+          type: "integer"
+          min: 0
+
+    - code: "&macro_pause_for_release"
+      name: "Macro Pause For Release"
+      description: "Macro Pause Until Release Marker"
+      url: "https://zmk.dev/docs/behaviors/macros"
+      isMacroControlBehavior: true
+      expected_params: 0
+      origin: "zmk"
+      params: []
+
+    - code: "&macro_param_1to1"
+      name: "Macro Parameter 1 to 1"
+      description: "Macro Parameter One Substituted into Next Binding's First Parameter"
+      url: "https://zmk.dev/docs/behaviors/macros"
+      isMacroControlBehavior: true
+      expected_params: 0
+      origin: "zmk"
+      params: []
+
+    - code: "&macro_param_1to2"
+      name: "Macro Parameter 1 to 2"
+      description: "Macro Parameter One Substituted into Next Binding's Second Parameter"
+      url: "https://zmk.dev/docs/behaviors/macros"
+      isMacroControlBehavior: true
+      expected_params: 0
+      origin: "zmk"
+      params: []
+
+    - code: "&macro_param_2to1"
+      name: "Macro Parameter 2 to 1"
+      description: "Macro Parameter Two Substituted into Next Binding's First Parameter"
+      url: "https://zmk.dev/docs/behaviors/macros"
+      isMacroControlBehavior: true
+      expected_params: 0
+      origin: "zmk"
+      params: []
+
+    - code: "&macro_param_2to2"
+      name: "Macro Parameter 2 to 2"
+      description: "Macro Parameter Two Substituted into Next Binding's Second Parameter"
+      url: "https://zmk.dev/docs/behaviors/macros"
+      isMacroControlBehavior: true
+      expected_params: 0
+      origin: "zmk"
+      params: []

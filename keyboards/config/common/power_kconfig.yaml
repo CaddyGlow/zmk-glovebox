@@ -1,0 +1,26 @@
+# Common Power Management KConfig Options - Standard power settings for ZMK keyboards
+keymap:
+  kconfig_options:
+    DEEP_SLEEP:
+      name: "CONFIG_ZMK_SLEEP"
+      type: "bool"
+      default: false
+      description: "Enable deep sleep, but may affect BLE reconnection. For detail ZMK documentation see CONFIG_ZMK_SLEEP."
+
+    DEEP_SLEEP_TIMEOUT_MS:
+      name: "CONFIG_ZMK_IDLE_SLEEP_TIMEOUT"
+      type: "int"
+      default: 900000
+      description: "Milliseconds of inactivity before entering deep sleep."
+
+    BATTERY_REPORT_INTERVAL_SEC:
+      name: "CONFIG_ZMK_BATTERY_REPORT_INTERVAL"
+      type: "int"
+      default: 600
+      description: "Battery level report interval in seconds. For detail ZMK documentation see CONFIG_ZMK_BATTERY_REPORT_INTERVAL."
+
+    SETTINGS_SAVE_DEBOUNCE_MS:
+      name: "CONFIG_ZMK_SETTINGS_SAVE_DEBOUNCE"
+      type: "int"
+      default: 60000
+      description: "Milliseconds to wait after a setting change before writing it to flash memory. For detail ZMK documentation see CONFIG_ZMK_SETTINGS_SAVE_DEBOUNCE."

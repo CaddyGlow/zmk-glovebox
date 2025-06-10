@@ -1,0 +1,149 @@
+# ZMK Core Behaviors - Common behaviors available across all ZMK keyboards
+behaviors:
+  system_behaviors:
+    - code: "&trans"
+      name: "Transparent"
+      description: "The Transparent behavior simply ignores key position presses/releases, so they will be passed down to the next active layer in the stack."
+      url: "https://zmk.dev/docs/behaviors/misc"
+      isMacroControlBehavior: false
+      expected_params: 0
+      origin: "zmk"
+      params: []
+
+    - code: "&none"
+      name: "None"
+      description: "The None behavior simply swallows and stops key position presses/releases, so they will not be passed down to the next active layer in the stack."
+      url: "https://zmk.dev/docs/behaviors/misc"
+      isMacroControlBehavior: false
+      expected_params: 0
+      origin: "zmk"
+      params: []
+
+    - code: "&kp"
+      name: "Key Press"
+      description: "The Key Press behavior sends standard keycodes on press/release. If you want to output modifier+keycode combinations, you can use modifier functions such as LG (for left GUI), LA (for left alt), LS (for left shift), LC (for left control), and the right equivalents."
+      url: "https://zmk.dev/docs/behaviors/key-press"
+      isMacroControlBehavior: false
+      expected_params: 1
+      origin: "zmk"
+      params:
+        - "code"
+      includes:
+        - "#include <dt-bindings/zmk/keys.h>"
+
+    - code: "&caps_word"
+      name: "Caps Word"
+      description: "The Caps Word behavior behaves similar to a caps lock, but will automatically deactivate when any key not in a continue list is pressed, or if the caps word key is pressed again."
+      url: "https://zmk.dev/docs/behaviors/caps-word"
+      isMacroControlBehavior: false
+      expected_params: 0
+      origin: "zmk"
+      params: []
+
+    - code: "&key_repeat"
+      name: "Key Repeat"
+      description: "The Key Repeat behavior when triggered will send whatever keycode was last sent/triggered."
+      url: "https://zmk.dev/docs/behaviors/key-repeat"
+      expected_params: 0
+      origin: "zmk"
+      params: []
+
+    - code: "&kt"
+      name: "Key Toggle"
+      description: "The Key Toggle behavior toggles the press of a key. If the key is not currently pressed, key toggle will press it, holding it until the key toggle is pressed again or the key is released in some other way. If the key is currently pressed, key toggle will release it."
+      url: "https://zmk.dev/docs/behaviors/key-toggle"
+      isMacroControlBehavior: false
+      expected_params: 1
+      origin: "zmk"
+      params:
+        - "code"
+
+    - code: "&lt"
+      name: "Layer Tap"
+      description: "The Layer-Tap behavior enables a layer when a key is held, and outputs a keypress when the key is only tapped for a short time."
+      url: "https://zmk.dev/docs/behaviors/layers"
+      isMacroControlBehavior: false
+      expected_params: 2
+      origin: "zmk"
+      params:
+        - "layer"
+        - "code"
+
+    - code: "&mo"
+      name: "Momentary Layer"
+      description: "The Momentary Layer behavior enables a layer while a certain key is pressed. Immediately upon activation of the key, the layer is enabled, and immediately upon release of the key, the layer is disabled again."
+      url: "https://zmk.dev/docs/behaviors/layers"
+      isMacroControlBehavior: false
+      expected_params: 1
+      origin: "zmk"
+      params:
+        - "layer"
+
+    - code: "&mt"
+      name: "Mod Tap"
+      description: "The Mod-Tap behavior sends a different keypress, depending on whether it's held or tapped. If you hold the key for longer than 200ms, the first keycode is sent. If you tap the key (release before 200ms), the second keycode is sent. If you press another key within the 200ms, the 'mod' behavior is also activated."
+      url: "https://zmk.dev/docs/behaviors/mod-tap"
+      isMacroControlBehavior: false
+      expected_params: 2
+      origin: "zmk"
+      params:
+        - "code"
+        - "code"
+
+    - code: "&sk"
+      name: "Sticky Key"
+      description: "A Sticky Key stays pressed until another key is pressed. It is often used for 'sticky shift'. By using a sticky shift, you don't have to hold the shift key to write a capital."
+      url: "https://zmk.dev/docs/behaviors/sticky-key"
+      isMacroControlBehavior: false
+      expected_params: 1
+      origin: "zmk"
+      params:
+        - "code"
+
+    - code: "&sl"
+      name: "Sticky Layer"
+      description: "A Sticky Layer stays pressed until another key is pressed. By using a sticky layer, you don't have to hold the layer key to access a layer. Instead, tap the sticky layer key to activate the layer until the next keypress."
+      url: "https://zmk.dev/docs/behaviors/sticky-layer"
+      isMacroControlBehavior: false
+      expected_params: 1
+      origin: "zmk"
+      params:
+        - "layer"
+
+    - code: "&to"
+      name: "To Layer"
+      description: "The To Layer behavior enables a layer and disables all other layers except the default layer."
+      url: "https://zmk.dev/docs/behaviors/layers"
+      isMacroControlBehavior: false
+      expected_params: 1
+      origin: "zmk"
+      params:
+        - "layer"
+
+    - code: "&tog"
+      name: "Toggle Layer"
+      description: "The Toggle Layer behavior enables a layer until the layer is manually disabled."
+      url: "https://zmk.dev/docs/behaviors/layers"
+      isMacroControlBehavior: false
+      expected_params: 1
+      origin: "zmk"
+      params:
+        - "layer"
+
+    - code: "&reset"
+      name: "Reset Half"
+      description: "Reset this half of the keyboard."
+      url: "https://zmk.dev/docs/behaviors/reset"
+      isMacroControlBehavior: false
+      expected_params: 0
+      origin: "zmk"
+      params: []
+
+    - code: "&bootloader"
+      name: "Half Bootloader"
+      description: "Activate bootloader on this half of the keyboard, allowing you to flash a new firmware."
+      url: "https://zmk.dev/docs/behaviors/reset"
+      isMacroControlBehavior: false
+      expected_params: 0
+      origin: "zmk"
+      params: []

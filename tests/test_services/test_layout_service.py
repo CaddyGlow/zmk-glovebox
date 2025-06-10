@@ -5,7 +5,13 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from glovebox.config.models import KConfigOption, KeyboardConfig, KeymapSection
+from glovebox.config.models import (
+    KConfigOption,
+    KeyboardConfig,
+    KeymapSection,
+    ValidationLimits,
+    ZmkConfig,
+)
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import LayoutError
 from glovebox.layout.models import LayoutData, LayoutResult, SystemBehavior
@@ -108,7 +114,7 @@ def mock_profile():
 
     mock.system_behaviors = [behavior1, behavior2]
 
-    # Set up the keyboard_config mock with keymap
+    # Set up the keyboard_config mock with keymap and zmk sections
     mock.keyboard_config = Mock(spec=KeyboardConfig)
     mock.keyboard_config.keymap = Mock(spec=KeymapSection)
     mock.keyboard_config.keymap.keymap_dtsi = (
@@ -116,6 +122,13 @@ def mock_profile():
     )
     mock.keyboard_config.keymap.key_position_header = "// Key positions"
     mock.keyboard_config.keymap.system_behaviors_dts = "// System behaviors"
+
+    # Add ZMK configuration section
+    mock.keyboard_config.zmk = Mock(spec=ZmkConfig)
+    mock.keyboard_config.zmk.validation_limits = Mock(spec=ValidationLimits)
+    mock.keyboard_config.zmk.validation_limits.warn_many_layers_threshold = 10
+    mock.keyboard_config.zmk.patterns = Mock()
+    mock.keyboard_config.zmk.patterns.kconfig_prefix = "CONFIG_"
 
     # Set up the get_template method
     mock.get_template = Mock(
@@ -441,8 +454,8 @@ class TestLayoutServiceWithMockedConfig:
 
         # Create a detailed mock profile
         mock_profile = Mock(spec=KeyboardProfile)
-        mock_profile.keyboard_name = "test_keyboard"
-        mock_profile.firmware_version = "default"
+        mock_profile.keyboard_name = "test_keyboard"  # String, not Mock
+        mock_profile.firmware_version = "default"  # String, not Mock
 
         # Create mock keyboard config
         mock_profile.keyboard_config = Mock()
@@ -464,6 +477,13 @@ class TestLayoutServiceWithMockedConfig:
         mock_profile.keyboard_config.keymap.formatting.rows = [[0, 1, 2, 3, 4]]
 
         mock_profile.keyboard_config.keymap.kconfig_options = {}
+
+        # Add ZMK configuration section
+        mock_profile.keyboard_config.zmk = Mock(spec=ZmkConfig)
+        mock_profile.keyboard_config.zmk.validation_limits = Mock(spec=ValidationLimits)
+        mock_profile.keyboard_config.zmk.validation_limits.warn_many_layers_threshold = 10
+        mock_profile.keyboard_config.zmk.patterns = Mock()
+        mock_profile.keyboard_config.zmk.patterns.kconfig_prefix = "CONFIG_"
         mock_profile.system_behaviors = []
         mock_profile.kconfig_options = {}
 

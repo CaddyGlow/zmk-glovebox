@@ -1,0 +1,21 @@
+# ZMK Patterns - Common string patterns and constants used in ZMK generation
+zmk:
+  patterns:
+    layer_define: "#define LAYER_{layer_name} {layer_index}"
+    kconfig_prefix: "CONFIG_"
+    behavior_node_prefix: "behavior_"
+    combo_node_prefix: "combo_"
+    macro_node_prefix: "macro_"
+  
+  compatible_strings:
+    hold_tap: "zmk,behavior-hold-tap"
+    combo: "zmk,combos"
+    macro: "zmk,behavior-macro"
+    keymap: "zmk,keymap"
+    tap_dance: "zmk,behavior-tap-dance"
+  
+  hold_tap_flavors:
+    - "tap-preferred"
+    - "hold-preferred"
+    - "balanced"
+    - "tap-unless-interrupted"

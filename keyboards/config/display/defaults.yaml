@@ -1,0 +1,9 @@
+# Display Defaults - Common display configuration for keyboard layouts
+display:
+  formatting:
+    header_width: 80
+    none_display: "&none"
+    trans_display: "▽"
+    key_width: 8
+    center_small_rows: true
+    horizontal_spacer: " | "
