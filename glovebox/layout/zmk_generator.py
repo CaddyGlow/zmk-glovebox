@@ -478,20 +478,10 @@ class ZmkFileContentGenerator:
                 formatted_binding = self._behavior_formatter.format_binding(binding)
                 formatted_bindings.append(formatted_binding)
 
-            # Use the provided profile directly
-            # Just use a different indentation setting for grid formatting
-            # Store original base_indent
-            original_base_indent = profile.keyboard_config.keymap.formatting.base_indent
-            # Set specific indentation for DTSI output
-            profile.keyboard_config.keymap.formatting.base_indent = "            "
-
-            # Format the bindings using the layout formatter
+            # Format the bindings using the layout formatter with custom indent for DTSI
             formatted_grid = self._layout_formatter.generate_layer_layout(
-                formatted_bindings, profile
+                formatted_bindings, profile, base_indent="            "
             )
-
-            # Restore original base_indent
-            profile.keyboard_config.keymap.formatting.base_indent = original_base_indent
 
             # Add the formatted grid
             dtsi_parts.extend(formatted_grid)

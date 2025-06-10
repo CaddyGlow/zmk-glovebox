@@ -60,13 +60,17 @@ class GridLayoutFormatter:
         logger.debug("GridLayoutFormatter initialized")
 
     def generate_layer_layout(
-        self, bindings: list[str], profile: "KeyboardProfile"
+        self,
+        bindings: list[str],
+        profile: "KeyboardProfile",
+        base_indent: str | None = None,
     ) -> list[str]:
         """Generate formatted binding strings into a grid based on LayoutConfig.
 
         Args:
             bindings: List of binding strings to format
             profile: Keyboard profile containing formatting information
+            base_indent: Optional override for base indentation
 
         Returns:
             List of formatted layout lines for DTSI
@@ -76,7 +80,7 @@ class GridLayoutFormatter:
 
         config = profile.keyboard_config
         fmt = profile.keyboard_config.keymap.formatting
-        base_indent = fmt.base_indent
+        actual_base_indent = base_indent if base_indent is not None else fmt.base_indent
         key_gap = fmt.key_gap
 
         bindings_map: dict[int, str] = {}
@@ -105,7 +109,9 @@ class GridLayoutFormatter:
             logger.error(
                 "Invalid 'rows' structure in LayoutConfig. Expected list of lists."
             )
-            return [base_indent + "  // Error: Invalid 'rows' structure in config"]
+            return [
+                actual_base_indent + "  // Error: Invalid 'rows' structure in config"
+            ]
 
         num_rows = len(fmt.rows)
         num_cols = max(len(r) for r in fmt.rows) if fmt.rows else 0
@@ -157,7 +163,7 @@ class GridLayoutFormatter:
                     current_row_parts.append(cell_content.rjust(current_col_width))
 
             row_string = key_gap.join(current_row_parts)
-            line = f"{base_indent}{row_string}"
+            line = f"{actual_base_indent}{row_string}"
             output_lines.append(line)
 
         return output_lines

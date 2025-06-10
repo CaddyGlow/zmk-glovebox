@@ -1,6 +1,11 @@
 """Service for displaying keyboard layouts in various formats."""
 
 import logging
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
 
 from glovebox.core.errors import KeymapError
 from glovebox.layout.formatting import (
@@ -36,16 +41,14 @@ class LayoutDisplayService:
     def show(
         self,
         keymap_data: LayoutData,
-        keyboard: str,
-        key_width: int = 10,
+        profile: "KeyboardProfile",
         view_mode: ViewMode = ViewMode.NORMAL,
     ) -> str:
         """Generate formatted layout display text.
 
         Args:
             keymap_data: Keymap data model
-            keyboard: Keyboard name for layout configuration
-            key_width: Width of keys in the display
+            profile: Keyboard profile containing layout configuration
             view_mode: Display mode (normal, compact, split)
 
         Returns:
@@ -86,54 +89,75 @@ class LayoutDisplayService:
                 else:
                     layer_names = layer_names[: len(layers)]
 
+            # Extract configuration from profile
+            keyboard_config = profile.keyboard_config
+            keyboard_name = keyboard_config.keyboard
+            display_config = keyboard_config.display
+
             # Prepare keymap data for the generator
             display_data = {
                 "title": title,
                 "creator": creator,
                 "locale": locale,
                 "notes": notes,
-                "keyboard": keyboard,
+                "keyboard": keyboard_name,
                 "layer_names": layer_names,
                 "layers": layers,
             }
 
-            # Get layout structure for the keyboard
-            layout_structure = self._get_keyboard_layout_structure(keyboard)
+            # Get layout structure from configuration
+            layout_structure = display_config.layout_structure
 
             # Flatten the structure to get all row indices
-            all_rows = []
-            for indices_pair in layout_structure.values():
-                row = []
-                row.extend(indices_pair[0])  # Left side
-                row.extend(indices_pair[1])  # Right side
-                all_rows.append(row)
+            if layout_structure is None:
+                logger.info("No layout structure configured, using default")
+                all_rows = self._get_default_layout_rows()
+            else:
+                # Handle LayoutStructure: dict[str, list[list[int]]]
+                all_rows = []
+                for row_segments in layout_structure.rows.values():
+                    # Each row_segments is a list[list[int]] representing segments in the row
+                    if len(row_segments) == 2:
+                        # Split layout (left and right segments)
+                        row = []
+                        row.extend(row_segments[0])  # Left side
+                        row.extend(row_segments[1])  # Right side
+                        all_rows.append(row)
+                    else:
+                        # Concatenate all segments in the row
+                        row = []
+                        for segment in row_segments:
+                            row.extend(segment)
+                        all_rows.append(row)
 
             # Create a layout config
             layout_metadata = LayoutMetadata(
-                keyboard_type=keyboard,
-                description=f"{keyboard} layout",
-                keyboard=keyboard,
+                keyboard_type=keyboard_name,
+                description=f"{keyboard_name} layout",
+                keyboard=keyboard_name,
             )
 
             # Create a key position map
             key_position_map = {}
-            for i in range(80):  # Default key count
+            for i in range(keyboard_config.key_count):
                 key_position_map[f"KEY_{i}"] = i
 
-            # Create the layout config
+            # Create the layout config using display and keymap formatting options
+            display_formatting = display_config.formatting
+            keymap_formatting = keyboard_config.keymap.formatting
             layout_config = LayoutConfig(
-                keyboard_name=keyboard,
-                key_width=key_width,
-                key_gap=" ",
+                keyboard_name=keyboard_name,
+                key_width=display_formatting.key_width,
+                key_gap=keymap_formatting.key_gap,
                 key_position_map=key_position_map,
-                total_keys=80,
-                key_count=80,
+                total_keys=keyboard_config.key_count,
+                key_count=keyboard_config.key_count,
                 rows=all_rows,
                 metadata=layout_metadata,
                 formatting={
-                    "default_key_width": key_width,
-                    "key_gap": " ",
-                    "base_indent": "",
+                    "default_key_width": display_formatting.key_width,
+                    "key_gap": keymap_formatting.key_gap,
+                    "base_indent": keymap_formatting.base_indent,
                 },
             )
 
@@ -146,29 +170,24 @@ class LayoutDisplayService:
             logger.error("Error generating layout display: %s", e)
             raise KeymapError(f"Failed to generate layout display: {e}") from e
 
-    def _get_keyboard_layout_structure(
-        self, keyboard: str
-    ) -> dict[str, list[list[int]]]:
-        """Get the keyboard layout structure.
-
-        Args:
-            keyboard: Keyboard name
+    def _get_default_layout_rows(self) -> list[list[int]]:
+        """Get default layout structure as flattened rows.
 
         Returns:
-            Dictionary mapping row names to key indices
+            List of lists containing key indices for each row
         """
-        # Default to Glove80 layout structure
-        return {
-            "row0": [[0, 1, 2, 3, 4], [5, 6, 7, 8, 9]],
-            "row1": [[10, 11, 12, 13, 14, 15], [16, 17, 18, 19, 20, 21]],
-            "row2": [[22, 23, 24, 25, 26, 27], [28, 29, 30, 31, 32, 33]],
-            "row3": [[34, 35, 36, 37, 38, 39], [40, 41, 42, 43, 44, 45]],
-            "row4": [[46, 47, 48, 49, 50, 51], [58, 59, 60, 61, 62, 63]],
-            "row5": [[64, 65, 66, 67, 68], [75, 76, 77, 78, 79]],
-            "thumb1": [[69, 52], [57, 74]],
-            "thumb2": [[70, 53], [56, 73]],
-            "thumb3": [[71, 54], [55, 72]],
-        }
+        # Default Glove80 layout structure flattened
+        return [
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],  # Row 0
+            [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21],  # Row 1
+            [22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33],  # Row 2
+            [34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45],  # Row 3
+            [46, 47, 48, 49, 50, 51, 58, 59, 60, 61, 62, 63],  # Row 4
+            [64, 65, 66, 67, 68, 75, 76, 77, 78, 79],  # Row 5
+            [69, 52, 57, 74],  # Thumb row 1
+            [70, 53, 56, 73],  # Thumb row 2
+            [71, 54, 55, 72],  # Thumb row 3
+        ]
 
 
 def create_layout_display_service() -> LayoutDisplayService:

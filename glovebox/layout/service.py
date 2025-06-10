@@ -251,7 +251,7 @@ class LayoutService(BaseService):
 
         try:
             # Use the layout display service to generate the layout
-            return self._layout_service.show(keymap_data, profile.keyboard_name)
+            return self._layout_service.show(keymap_data, profile)
         except Exception as e:
             logger.error("Layout display failed: %s", e)
             raise LayoutError(f"Failed to generate layout display: {e}") from e
