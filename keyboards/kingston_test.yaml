@@ -14,7 +14,7 @@ compile_methods:
 # Flash method configurations  
 flash_methods:
   - method_type: usb
-    device_query: "vendor~=Kingston and serial~=E0D55EA.* and removable=true"
+    device_query: "vendor~=Kingston and serial~=E0D55E.* and removable=true"
     mount_timeout: 30
     copy_timeout: 60
     sync_after_copy: true
@@ -23,6 +23,6 @@ flash_methods:
 # Legacy flash section (for backward compatibility)
 flash:
   method: "mass_storage"
-  query: "vendor~=Kingston and serial~=E0D55EA.* and removable=true"
+  query: "vendor~=Kingston and serial~=E0D55E.* and removable=true"
   usb_vid: "0x0951"
   usb_pid: "0x1666"
