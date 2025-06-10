@@ -43,6 +43,10 @@ DEFAULT_CONFIG = {
             "count": 2,
             "track_flashed": True,
             "skip_existing": False,
+            # NEW wait settings
+            "wait": False,
+            "poll_interval": 0.5,
+            "show_progress": True,
         }
     },
 }
@@ -206,6 +210,21 @@ class UserConfig:
                 "  firmware.flash.skip_existing: %s (source: %s)",
                 self._config.firmware.flash.skip_existing,
                 self.get_source("firmware.flash.skip_existing"),
+            )
+            logger.debug(
+                "  firmware.flash.wait: %s (source: %s)",
+                self._config.firmware.flash.wait,
+                self.get_source("firmware.flash.wait"),
+            )
+            logger.debug(
+                "  firmware.flash.poll_interval: %s (source: %s)",
+                self._config.firmware.flash.poll_interval,
+                self.get_source("firmware.flash.poll_interval"),
+            )
+            logger.debug(
+                "  firmware.flash.show_progress: %s (source: %s)",
+                self._config.firmware.flash.show_progress,
+                self.get_source("firmware.flash.show_progress"),
             )
             logger.debug("Configuration loading completed successfully")
 

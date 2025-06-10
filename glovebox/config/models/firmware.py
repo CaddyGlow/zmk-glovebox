@@ -47,6 +47,20 @@ class FirmwareFlashConfig(BaseModel):
         default=False, description="Skip devices already present at startup"
     )
 
+    # Device waiting behavior
+    wait: bool = Field(
+        default=False, description="Wait for devices to connect before flashing"
+    )
+    poll_interval: float = Field(
+        default=0.5,
+        ge=0.1,
+        le=5.0,
+        description="Polling interval in seconds when waiting",
+    )
+    show_progress: bool = Field(
+        default=True, description="Show real-time device detection progress"
+    )
+
 
 class UserFirmwareConfig(BaseModel):
     """Firmware-related configuration settings."""
