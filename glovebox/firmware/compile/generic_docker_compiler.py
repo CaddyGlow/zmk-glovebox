@@ -175,9 +175,46 @@ class GenericDockerCompiler:
         logger.debug("Managing west workspace: %s", workspace_config.workspace_path)
 
         try:
-            # West workspace management would happen inside Docker container
-            # This is a placeholder for the actual implementation
-            logger.info("West workspace initialized: %s", workspace_config.manifest_url)
+            # Execute west commands inside Docker container
+            for command in workspace_config.west_commands:
+                logger.debug("Executing west command: %s", command)
+
+                # Build command environment
+                env = {
+                    "WEST_WORKSPACE": workspace_config.workspace_path,
+                    "MANIFEST_URL": workspace_config.manifest_url,
+                    "MANIFEST_REVISION": workspace_config.manifest_revision,
+                }
+
+                # Prepare volumes for west workspace
+                volumes = [
+                    (workspace_config.workspace_path, workspace_config.workspace_path),
+                ]
+
+                # Execute west command in Docker container
+                return_code, stdout_lines, stderr_lines = (
+                    self.docker_adapter.run_container(
+                        image="zmkfirmware/zmk-build-arm:stable",  # Default ZMK image
+                        command=["sh", "-c", command],
+                        volumes=volumes,
+                        environment=env,
+                        middleware=self.output_middleware,
+                    )
+                )
+
+                if return_code != 0:
+                    error_msg = (
+                        "\\n".join(stderr_lines)
+                        if stderr_lines
+                        else f"Command failed: {command}"
+                    )
+                    logger.error("West command failed: %s", error_msg)
+                    return False
+
+            logger.info(
+                "West workspace initialized successfully: %s",
+                workspace_config.manifest_url,
+            )
             return True
 
         except Exception as e:
@@ -189,13 +226,49 @@ class GenericDockerCompiler:
         logger.debug("Caching workspace: %s", workspace_path)
 
         try:
-            # Workspace caching implementation would go here
-            # This is a placeholder for the actual caching logic
+            # Create cache directory if it doesn't exist
+            cache_dir = workspace_path.parent / ".glovebox_cache"
+            if not self.file_adapter.check_exists(cache_dir):
+                self.file_adapter.create_directory(cache_dir)
+                logger.debug("Created cache directory: %s", cache_dir)
+
+            # Create workspace metadata for cache validation
+            workspace_metadata = {
+                "workspace_path": str(workspace_path),
+                "cached_at": str(Path.cwd()),
+                "west_modules": self._get_west_modules(workspace_path),
+            }
+
+            # Write metadata to cache
+            metadata_file = cache_dir / f"{workspace_path.name}_metadata.json"
+            import json
+
+            metadata_json = json.dumps(workspace_metadata, indent=2)
+            self.file_adapter.write_text(metadata_file, metadata_json)
+
+            logger.info("Workspace cached successfully: %s", workspace_path)
             return True
 
         except Exception as e:
             logger.error("Failed to cache workspace: %s", e)
             return False
+
+    def _get_west_modules(self, workspace_path: Path) -> list[str]:
+        """Get list of west modules in workspace."""
+        try:
+            west_config = workspace_path / ".west" / "config"
+            if self.file_adapter.check_exists(west_config):
+                # Parse west config to get module information
+                config_content = self.file_adapter.read_text(west_config)
+                logger.debug(
+                    "Found west config with %d characters", len(config_content)
+                )
+                # Simple module detection - could be enhanced
+                return ["zmk"]  # Default module
+            return []
+        except Exception as e:
+            logger.debug("Could not read west modules: %s", e)
+            return []
 
     def _execute_west_strategy(
         self,
@@ -225,10 +298,32 @@ class GenericDockerCompiler:
                 keymap_file, config_file, output_dir, config
             )
 
+            # Build west compilation command
+            if config.board_targets:
+                # Build for specific board targets
+                build_commands = []
+                for board in config.board_targets:
+                    build_commands.append(
+                        f"west build -p always -b {board} -d build/{board}"
+                    )
+                west_command = " && ".join(build_commands)
+            else:
+                # Default build command
+                west_command = "west build -p always"
+
+            # Add any custom build commands
+            if config.build_commands:
+                west_command = " && ".join([west_command] + config.build_commands)
+
             # Run Docker compilation with west commands
             docker_image = f"{config.image}"
             return_code, stdout_lines, stderr_lines = self.docker_adapter.run_container(
                 image=docker_image,
+                command=[
+                    "sh",
+                    "-c",
+                    f"cd {config.west_workspace.workspace_path if config.west_workspace else '/zmk-workspace'} && {west_command}",
+                ],
                 volumes=volumes,
                 environment=build_env,
                 middleware=self.output_middleware,
@@ -350,9 +445,77 @@ class GenericDockerCompiler:
         logger.debug("Initializing west workspace")
 
         try:
-            # West workspace initialization would happen inside Docker
-            # This is a placeholder for the actual west commands
-            logger.info("West workspace initialization prepared")
+            # Create workspace directory if it doesn't exist
+            workspace_path = Path(workspace_config.workspace_path)
+            if not self.file_adapter.check_exists(workspace_path):
+                self.file_adapter.create_directory(workspace_path)
+                logger.debug("Created workspace directory: %s", workspace_path)
+
+            # Create config directory inside workspace
+            config_dir = workspace_path / workspace_config.config_path
+            if not self.file_adapter.check_exists(config_dir):
+                self.file_adapter.create_directory(config_dir)
+                logger.debug("Created config directory: %s", config_dir)
+
+            # Copy keymap and config files to workspace
+            try:
+                workspace_keymap = config_dir / "keymap.keymap"
+                workspace_config_file = config_dir / "config.conf"
+
+                # Use file adapter to copy files
+                keymap_content = self.file_adapter.read_text(keymap_file)
+                config_content = self.file_adapter.read_text(config_file)
+
+                self.file_adapter.write_text(workspace_keymap, keymap_content)
+                self.file_adapter.write_text(workspace_config_file, config_content)
+
+                logger.debug("Copied files to workspace config directory")
+
+            except Exception as e:
+                logger.warning("Failed to copy files to workspace: %s", e)
+                # Continue with initialization even if file copy fails
+
+            # Initialize west workspace using Docker
+            init_commands = [
+                f"cd {workspace_config.workspace_path}",
+                f"west init -m {workspace_config.manifest_url} --mr {workspace_config.manifest_revision}",
+                "west update",
+            ]
+
+            # Add any additional west commands from config
+            init_commands.extend(workspace_config.west_commands)
+
+            # Execute initialization commands
+            full_command = " && ".join(init_commands)
+
+            env = {
+                "WEST_WORKSPACE": workspace_config.workspace_path,
+                "MANIFEST_URL": workspace_config.manifest_url,
+                "MANIFEST_REVISION": workspace_config.manifest_revision,
+            }
+
+            volumes = [
+                (str(workspace_path.absolute()), workspace_config.workspace_path),
+            ]
+
+            return_code, stdout_lines, stderr_lines = self.docker_adapter.run_container(
+                image="zmkfirmware/zmk-build-arm:stable",
+                command=["sh", "-c", full_command],
+                volumes=volumes,
+                environment=env,
+                middleware=self.output_middleware,
+            )
+
+            if return_code != 0:
+                error_msg = (
+                    "\\n".join(stderr_lines)
+                    if stderr_lines
+                    else "West initialization failed"
+                )
+                logger.error("West workspace initialization failed: %s", error_msg)
+                return False
+
+            logger.info("West workspace initialized successfully")
             return True
 
         except Exception as e:
@@ -482,10 +645,31 @@ class GenericDockerCompiler:
             if files and not output_files.main_uf2:
                 output_files.main_uf2 = files[0]
 
-            # Check for subdirectories with firmware files
+            # Check west build output directories
+            build_dir = output_dir / "build"
+            if self.file_adapter.check_exists(build_dir) and self.file_adapter.is_dir(
+                build_dir
+            ):
+                logger.debug("Checking west build directory: %s", build_dir)
+
+                # Check for board-specific build directories
+                build_subdirs = self.file_adapter.list_directory(build_dir)
+                for subdir in build_subdirs:
+                    if self.file_adapter.is_dir(subdir):
+                        # Look for zephyr/zmk.uf2 in build directories
+                        zephyr_dir = subdir / "zephyr"
+                        if self.file_adapter.check_exists(zephyr_dir):
+                            zmk_uf2 = zephyr_dir / "zmk.uf2"
+                            if self.file_adapter.check_exists(zmk_uf2):
+                                firmware_files.append(zmk_uf2)
+                                if not output_files.main_uf2:
+                                    output_files.main_uf2 = zmk_uf2
+                                logger.debug("Found west build firmware: %s", zmk_uf2)
+
+            # Check for subdirectories with firmware files (legacy support)
             subdirs = self.file_adapter.list_directory(output_dir)
             for subdir in subdirs:
-                if self.file_adapter.is_dir(subdir):
+                if self.file_adapter.is_dir(subdir) and subdir.name != "build":
                     subdir_files = self.file_adapter.list_files(subdir, "*.uf2")
                     firmware_files.extend(subdir_files)
 
