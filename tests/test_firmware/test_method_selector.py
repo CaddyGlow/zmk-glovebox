@@ -7,18 +7,26 @@ import pytest
 
 from glovebox.config.compile_methods import (
     CompileMethodConfig,
+    CrossCompileConfig,
     DockerCompileConfig,
     LocalCompileConfig,
+    QemuCompileConfig,
 )
 from glovebox.config.flash_methods import (
+    BootloaderFlashConfig,
     DFUFlashConfig,
     FlashMethodConfig,
     USBFlashConfig,
+    WiFiFlashConfig,
 )
 from glovebox.firmware.flash.models import BlockDevice, FlashResult
 from glovebox.firmware.method_selector import (
     CompilerNotAvailableError,
     FlasherNotAvailableError,
+    _create_compiler_config_for_method,
+    _create_compiler_fallback_configs,
+    _create_flasher_config_for_method,
+    _create_flasher_fallback_configs,
     get_compiler_with_fallback_chain,
     get_flasher_with_fallback_chain,
     select_compiler_with_fallback,
@@ -460,3 +468,143 @@ class TestIntegrationScenarios:
 
             assert selected_compiler == cross_compiler
             assert mock_registry.create_method.call_count == 3
+
+
+class TestFallbackConfigCreation:
+    """Tests for enhanced fallback configuration creation."""
+
+    def test_create_docker_config(self):
+        """Test creating Docker compiler configuration."""
+        config = _create_compiler_config_for_method("docker")
+
+        assert isinstance(config, DockerCompileConfig)
+        assert config.method_type == "docker"
+        assert config.image == "moergo-zmk-build:latest"
+        assert config.repository == "moergo-sc/zmk"
+        assert config.branch == "main"
+
+    def test_create_local_config(self):
+        """Test creating local compiler configuration."""
+        config = _create_compiler_config_for_method("local")
+
+        assert isinstance(config, LocalCompileConfig)
+        assert config.method_type == "local"
+        assert isinstance(config.zmk_path, Path)
+        # Should use either existing path or default to /opt/zmk
+
+    def test_create_cross_config(self):
+        """Test creating cross-compilation configuration."""
+        config = _create_compiler_config_for_method("cross")
+
+        assert isinstance(config, CrossCompileConfig)
+        assert config.method_type == "cross"
+        assert config.target_arch == "arm"
+        assert config.sysroot == Path("/usr/arm-linux-gnueabihf")
+        assert config.toolchain_prefix == "arm-linux-gnueabihf-"
+
+    def test_create_qemu_config(self):
+        """Test creating QEMU compiler configuration."""
+        config = _create_compiler_config_for_method("qemu")
+
+        assert isinstance(config, QemuCompileConfig)
+        assert config.method_type == "qemu"
+        assert config.qemu_target == "native_posix"
+
+    def test_create_unknown_compiler_config(self):
+        """Test creating configuration for unknown compiler method."""
+        config = _create_compiler_config_for_method("unknown_method")
+
+        assert config is None
+
+    def test_create_usb_flash_config(self):
+        """Test creating USB flasher configuration."""
+        config = _create_flasher_config_for_method("usb")
+
+        assert isinstance(config, USBFlashConfig)
+        assert config.method_type == "usb"
+        assert config.device_query == "removable=true"
+        assert config.mount_timeout == 30
+        assert config.copy_timeout == 60
+
+    def test_create_dfu_flash_config(self):
+        """Test creating DFU flasher configuration."""
+        config = _create_flasher_config_for_method("dfu")
+
+        assert isinstance(config, DFUFlashConfig)
+        assert config.method_type == "dfu"
+        assert config.vid == "0x239A"
+        assert config.pid == "0x000C"
+        assert config.interface == 0
+        assert config.timeout == 30
+
+    def test_create_bootloader_flash_config(self):
+        """Test creating bootloader flasher configuration."""
+        config = _create_flasher_config_for_method("bootloader")
+
+        assert isinstance(config, BootloaderFlashConfig)
+        assert config.method_type == "bootloader"
+        assert config.protocol == "uart"
+        assert config.baud_rate == 115200
+
+    def test_create_wifi_flash_config(self):
+        """Test creating WiFi flasher configuration."""
+        config = _create_flasher_config_for_method("wifi")
+
+        assert isinstance(config, WiFiFlashConfig)
+        assert config.method_type == "wifi"
+        assert config.host == "keyboard.local"
+        assert config.port == 8080
+        assert config.protocol == "http"
+
+    def test_create_unknown_flasher_config(self):
+        """Test creating configuration for unknown flasher method."""
+        config = _create_flasher_config_for_method("unknown_method")
+
+        assert config is None
+
+    def test_create_compiler_fallback_configs(self):
+        """Test creating multiple compiler fallback configurations."""
+        fallback_methods = ["docker", "local", "cross", "unknown"]
+        configs = _create_compiler_fallback_configs(fallback_methods)
+
+        # Should create configs for known methods, skip unknown
+        assert len(configs) == 3
+
+        config_types = [type(config) for config in configs]
+        assert DockerCompileConfig in config_types
+        assert LocalCompileConfig in config_types
+        assert CrossCompileConfig in config_types
+
+    def test_create_flasher_fallback_configs(self):
+        """Test creating multiple flasher fallback configurations."""
+        fallback_methods = ["usb", "dfu", "bootloader", "unknown"]
+        configs = _create_flasher_fallback_configs(fallback_methods)
+
+        # Should create configs for known methods, skip unknown
+        assert len(configs) == 3
+
+        config_types = [type(config) for config in configs]
+        assert USBFlashConfig in config_types
+        assert DFUFlashConfig in config_types
+        assert BootloaderFlashConfig in config_types
+
+    def test_enhanced_fallback_chain_integration(self):
+        """Test integration of enhanced fallback config creation."""
+        # Primary config with multiple fallbacks including unknown method
+        primary_config = DockerCompileConfig(
+            fallback_methods=["local", "unknown_method", "cross", "qemu"]
+        )
+
+        compiler = Mock(spec=CompilerProtocol)
+        compiler.check_available.return_value = True
+
+        with patch(
+            "glovebox.firmware.method_selector.compiler_registry"
+        ) as mock_registry:
+            mock_registry.create_method.return_value = compiler
+
+            result = get_compiler_with_fallback_chain(primary_config)
+
+            assert result == compiler
+            # Should try primary + valid fallbacks (unknown method skipped)
+            assert mock_registry.create_method.call_count >= 1

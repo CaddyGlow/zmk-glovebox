@@ -3,8 +3,20 @@
 import logging
 from typing import Any
 
-from glovebox.config.compile_methods import CompileMethodConfig
-from glovebox.config.flash_methods import FlashMethodConfig
+from glovebox.config.compile_methods import (
+    CompileMethodConfig,
+    CrossCompileConfig,
+    DockerCompileConfig,
+    LocalCompileConfig,
+    QemuCompileConfig,
+)
+from glovebox.config.flash_methods import (
+    BootloaderFlashConfig,
+    DFUFlashConfig,
+    FlashMethodConfig,
+    USBFlashConfig,
+    WiFiFlashConfig,
+)
 from glovebox.core.errors import BuildError, FlashError
 from glovebox.firmware.method_registry import compiler_registry, flasher_registry
 from glovebox.protocols.compile_protocols import CompilerProtocol
@@ -139,23 +151,11 @@ def get_compiler_with_fallback_chain(
     # Build full config list: primary + fallbacks
     configs = [primary_config]
 
-    # Add fallback configs (need to create them from method names)
-    for fallback_method in primary_config.fallback_methods:
-        try:
-            # Create a basic config for the fallback method
-            # This is a simplified approach - in practice, you might want
-            # to have a proper config resolution system
-            if fallback_method == "docker":
-                from glovebox.config.compile_methods import DockerCompileConfig
-
-                fallback_config = DockerCompileConfig()
-                configs.append(fallback_config)
-            # Add other method types as they're implemented
-        except Exception as e:
-            logger.debug(
-                "Failed to create fallback config for %s: %s", fallback_method, e
-            )
-            continue
+    # Add fallback configs using the enhanced config resolution
+    fallback_configs = _create_compiler_fallback_configs(
+        primary_config.fallback_methods
+    )
+    configs.extend(fallback_configs)
 
     return select_compiler_with_fallback(configs, **dependencies)
 
@@ -179,20 +179,156 @@ def get_flasher_with_fallback_chain(
     # Build full config list: primary + fallbacks
     configs = [primary_config]
 
-    # Add fallback configs (need to create them from method names)
-    for fallback_method in primary_config.fallback_methods:
-        try:
-            # Create a basic config for the fallback method
-            if fallback_method == "usb":
-                from glovebox.config.flash_methods import USBFlashConfig
+    # Add fallback configs using the enhanced config resolution
+    fallback_configs = _create_flasher_fallback_configs(primary_config.fallback_methods)
+    configs.extend(fallback_configs)
 
-                fallback_config = USBFlashConfig(device_query="")
-                configs.append(fallback_config)
-            # Add other method types as they're implemented
+    return select_flasher_with_fallback(configs, **dependencies)
+
+
+def _create_compiler_fallback_configs(
+    fallback_methods: list[str],
+) -> list[CompileMethodConfig]:
+    """Create compiler configurations for fallback methods.
+
+    Args:
+        fallback_methods: List of method names to create configs for
+
+    Returns:
+        List of compiler configurations with sensible defaults
+    """
+    configs = []
+
+    for method_name in fallback_methods:
+        try:
+            config = _create_compiler_config_for_method(method_name)
+            if config:
+                configs.append(config)
+                logger.debug("Created fallback config for compiler: %s", method_name)
         except Exception as e:
             logger.debug(
-                "Failed to create fallback config for %s: %s", fallback_method, e
+                "Failed to create fallback config for compiler %s: %s",
+                method_name,
+                e,
             )
             continue
 
-    return select_flasher_with_fallback(configs, **dependencies)
+    return configs
+
+
+def _create_flasher_fallback_configs(
+    fallback_methods: list[str],
+) -> list[FlashMethodConfig]:
+    """Create flasher configurations for fallback methods.
+
+    Args:
+        fallback_methods: List of method names to create configs for
+
+    Returns:
+        List of flasher configurations with sensible defaults
+    """
+    configs = []
+
+    for method_name in fallback_methods:
+        try:
+            config = _create_flasher_config_for_method(method_name)
+            if config:
+                configs.append(config)
+                logger.debug("Created fallback config for flasher: %s", method_name)
+        except Exception as e:
+            logger.debug(
+                "Failed to create fallback config for flasher %s: %s",
+                method_name,
+                e,
+            )
+            continue
+
+    return configs
+
+
+def _create_compiler_config_for_method(method_name: str) -> CompileMethodConfig | None:
+    """Create a compiler configuration for the given method name.
+
+    Args:
+        method_name: Name of the compilation method
+
+    Returns:
+        Configuration instance with sensible defaults, or None if unknown method
+    """
+    # Create configs with sensible defaults for fallback scenarios
+    if method_name == "docker":
+        return DockerCompileConfig()
+    elif method_name == "local":
+        # Local compiler requires zmk_path, use common locations as fallbacks
+        from pathlib import Path
+
+        common_zmk_paths = [
+            Path("/opt/zmk"),
+            Path("~/zmk").expanduser(),
+            Path("./zmk"),
+        ]
+
+        # Try to find an existing ZMK installation
+        for zmk_path in common_zmk_paths:
+            if zmk_path.exists():
+                return LocalCompileConfig(zmk_path=zmk_path)
+
+        # If no ZMK found, use default path (may fail availability check)
+        return LocalCompileConfig(zmk_path=Path("/opt/zmk"))
+    elif method_name == "cross":
+        # Cross compiler requires several fields, use sensible ARM defaults
+        from pathlib import Path
+
+        return CrossCompileConfig(
+            target_arch="arm",
+            sysroot=Path("/usr/arm-linux-gnueabihf"),
+            toolchain_prefix="arm-linux-gnueabihf-",
+        )
+    elif method_name == "qemu":
+        return QemuCompileConfig()
+    else:
+        logger.warning("Unknown compiler method for fallback: %s", method_name)
+        return None
+
+
+def _create_flasher_config_for_method(method_name: str) -> FlashMethodConfig | None:
+    """Create a flasher configuration for the given method name.
+
+    Args:
+        method_name: Name of the flash method
+
+    Returns:
+        Configuration instance with sensible defaults, or None if unknown method
+    """
+    # Create configs with sensible defaults for fallback scenarios
+    if method_name == "usb":
+        # Use broad device query that matches most removable devices
+        return USBFlashConfig(
+            device_query="removable=true",
+            mount_timeout=30,
+            copy_timeout=60,
+        )
+    elif method_name == "dfu":
+        # DFU requires VID/PID, use common ZMK bootloader values
+        return DFUFlashConfig(
+            vid="0x239A",  # Adafruit VID commonly used for keyboards
+            pid="0x000C",  # Generic bootloader PID
+            interface=0,
+            timeout=30,
+        )
+    elif method_name == "bootloader":
+        # Bootloader defaults to UART protocol
+        return BootloaderFlashConfig(
+            protocol="uart",
+            baud_rate=115200,
+        )
+    elif method_name == "wifi":
+        # WiFi requires host, use common mDNS name
+        return WiFiFlashConfig(
+            host="keyboard.local",
+            port=8080,
+            protocol="http",
+        )
+    else:
+        logger.warning("Unknown flasher method for fallback: %s", method_name)
+        return None
