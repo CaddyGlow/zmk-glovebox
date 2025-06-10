@@ -182,12 +182,17 @@ class FlashService:
             result.devices_failed = devices_failed
 
             # Overall success depends on whether we flashed any devices and if any failed
-            if devices_flashed == 0:
+            if devices_flashed == 0 and devices_failed == 0:
                 result.success = False
                 result.add_error("No devices were flashed")
             elif devices_failed > 0:
                 result.success = False
-                result.add_error(f"{devices_failed} device(s) failed to flash")
+                if devices_flashed > 0:
+                    result.add_error(
+                        f"{devices_failed} device(s) failed to flash, {devices_flashed} succeeded"
+                    )
+                else:
+                    result.add_error(f"{devices_failed} device(s) failed to flash")
             else:
                 result.add_message(f"Successfully flashed {devices_flashed} device(s)")
 
@@ -266,7 +271,11 @@ class FlashService:
         Returns:
             List of flash method configurations to try
         """
-        if profile and hasattr(profile.keyboard_config, "flash_methods"):
+        if (
+            profile
+            and hasattr(profile.keyboard_config, "flash_methods")
+            and profile.keyboard_config.flash_methods
+        ):
             # Use profile's flash method configurations
             return list(profile.keyboard_config.flash_methods)
 

@@ -379,8 +379,8 @@ class TestUserConfigFactory:
         config = create_user_config()
 
         assert isinstance(config, UserConfig)
-        assert config._config.profile == "glove80/v25.05"
-        assert config._config.log_level == "INFO"
+        assert config._config.profile == "glove80/v26.0"
+        assert config._config.log_level == "WARNING"
 
     def test_factory_with_cli_path(self, clean_environment, temp_config_dir: Path):
         """Test factory function with CLI config path."""

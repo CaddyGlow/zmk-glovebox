@@ -42,7 +42,7 @@ class TestFlashService:
         mock_flasher.list_devices.return_value = [
             BlockDevice(
                 name="test_device",
-                path="/dev/test",
+                device_node="/dev/test",
                 serial="TEST123",
                 vendor="Test",
                 model="TestDevice",
@@ -98,7 +98,7 @@ class TestFlashService:
         mock_flasher.list_devices.return_value = [
             BlockDevice(
                 name="failing_device",
-                path="/dev/fail",
+                device_node="/dev/fail",
                 serial="FAIL123",
                 vendor="Fail",
                 model="FailDevice",
@@ -129,7 +129,7 @@ class TestFlashService:
         mock_flasher.list_devices.return_value = [
             BlockDevice(
                 name="profile_device",
-                path="/dev/profile",
+                device_node="/dev/profile",
                 serial="PROF123",
                 vendor="Profile",
                 model="ProfileDevice",
@@ -141,9 +141,11 @@ class TestFlashService:
 
         # Mock profile with flash methods
         mock_profile = Mock(spec=KeyboardProfile)
-        mock_profile.keyboard_config.flash_methods = [
+        mock_keyboard_config = Mock()
+        mock_keyboard_config.flash_methods = [
             USBFlashConfig(device_query="vendor=Profile")
         ]
+        mock_profile.keyboard_config = mock_keyboard_config
 
         mock_file_adapter = Mock(spec=FileAdapterProtocol)
         mock_file_adapter.check_exists.return_value = True
@@ -207,7 +209,7 @@ class TestFlashService:
         mock_flasher.list_devices.return_value = [
             BlockDevice(
                 name="device1",
-                path="/dev/device1",
+                device_node="/dev/device1",
                 serial="DEV001",
                 vendor="Vendor1",
                 model="Model1",
@@ -215,7 +217,7 @@ class TestFlashService:
             ),
             BlockDevice(
                 name="device2",
-                path="/dev/device2",
+                device_node="/dev/device2",
                 serial="DEV002",
                 vendor="Vendor2",
                 model="Model2",
@@ -234,7 +236,7 @@ class TestFlashService:
 
         # Check device details
         device_info = result.device_details[0]
-        assert device_info["name"] == "device1"
+        assert device_info["name"] == "Vendor1 Model1 (device1)"
         assert device_info["serial"] == "DEV001"
         assert device_info["vendor"] == "Vendor1"
         assert device_info["removable"] is True
@@ -260,10 +262,12 @@ class TestFlashService:
 
         # Mock profile with flash methods
         mock_profile = Mock(spec=KeyboardProfile)
-        mock_profile.keyboard_config.flash_methods = [
+        mock_keyboard_config = Mock()
+        mock_keyboard_config.flash_methods = [
             USBFlashConfig(device_query="profile query"),
             DFUFlashConfig(vid="1234", pid="5678"),
         ]
+        mock_profile.keyboard_config = mock_keyboard_config
 
         configs = service._get_flash_method_configs(mock_profile, "")
 
@@ -305,7 +309,9 @@ class TestFlashService:
         mock_flash_config.usb_pid = "5678"
 
         mock_profile = Mock(spec=KeyboardProfile)
-        mock_profile.keyboard_config.flash = mock_flash_config
+        mock_keyboard_config = Mock()
+        mock_keyboard_config.flash = mock_flash_config
+        mock_profile.keyboard_config = mock_keyboard_config
 
         # Test with query
         query = service._get_device_query_from_profile(mock_profile)
@@ -335,7 +341,7 @@ class TestFlashServiceIntegration:
         # Create realistic flasher mock
         test_device = BlockDevice(
             name="Glove80 Left",
-            path="/dev/disk2",
+            device_node="/dev/disk2",
             serial="GLV80-L-123456",
             vendor="Adafruit",
             model="Glove80",
@@ -362,7 +368,8 @@ class TestFlashServiceIntegration:
 
         # Mock realistic profile
         mock_profile = Mock(spec=KeyboardProfile)
-        mock_profile.keyboard_config.flash_methods = [
+        mock_keyboard_config = Mock()
+        mock_keyboard_config.flash_methods = [
             USBFlashConfig(
                 device_query="vendor=Adafruit and serial~=GLV80-.* and removable=true",
                 mount_timeout=30,
@@ -370,6 +377,7 @@ class TestFlashServiceIntegration:
                 sync_after_copy=True,
             )
         ]
+        mock_profile.keyboard_config = mock_keyboard_config
 
         result = service.flash_from_file(
             firmware_file_path=Path("glove80.uf2"), profile=mock_profile, count=1
@@ -382,7 +390,7 @@ class TestFlashServiceIntegration:
         # Verify device details are captured
         assert len(result.device_details) == 1
         device_detail = result.device_details[0]
-        assert device_detail["name"] == "Glove80 Left"
+        assert device_detail["name"] == "Adafruit Glove80 (Glove80 Left)"
         assert device_detail["serial"] == "GLV80-L-123456"
         assert device_detail["status"] == "success"
 
@@ -397,7 +405,7 @@ class TestFlashServiceIntegration:
         dfu_flasher.list_devices.return_value = [
             BlockDevice(
                 name="DFU Device",
-                path="/dev/dfu",
+                device_node="/dev/dfu",
                 serial="DFU123",
                 vendor="DFU",
                 model="DFUDevice",
@@ -418,10 +426,12 @@ class TestFlashServiceIntegration:
 
         # Profile with fallback methods
         mock_profile = Mock(spec=KeyboardProfile)
-        mock_profile.keyboard_config.flash_methods = [
+        mock_keyboard_config = Mock()
+        mock_keyboard_config.flash_methods = [
             USBFlashConfig(device_query="removable=true"),  # Primary (no devices)
             DFUFlashConfig(vid="1234", pid="5678"),  # Fallback (has devices)
         ]
+        mock_profile.keyboard_config = mock_keyboard_config
 
         result = service.flash(firmware_file=Path("firmware.uf2"), profile=mock_profile)
 
@@ -437,7 +447,7 @@ class TestFlashServiceIntegration:
         devices = [
             BlockDevice(
                 name="Device 1",
-                path="/dev/device1",
+                device_node="/dev/device1",
                 serial="DEV001",
                 vendor="Test",
                 model="Test1",
@@ -445,7 +455,7 @@ class TestFlashServiceIntegration:
             ),
             BlockDevice(
                 name="Device 2",
-                path="/dev/device2",
+                device_node="/dev/device2",
                 serial="DEV002",
                 vendor="Test",
                 model="Test2",
@@ -474,7 +484,7 @@ class TestFlashServiceIntegration:
         assert result.success is False  # Overall failure due to one failed device
         assert result.devices_flashed == 1
         assert result.devices_failed == 1
-        assert "1 device(s) failed to flash" in result.errors
+        assert "1 device(s) failed to flash, 1 succeeded" in result.errors
 
         # Check device details
         assert len(result.device_details) == 2

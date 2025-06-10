@@ -133,45 +133,56 @@ def select_flasher_with_fallback(
 
 
 def get_compiler_with_fallback_chain(
-    primary_config: CompileMethodConfig,
+    primary_configs: list[CompileMethodConfig] | CompileMethodConfig,
     **dependencies: Any,
-) -> CompilerProtocol:
-    """Get compiler with automatic fallback chain from config.
+) -> list[CompileMethodConfig]:
+    """Build compiler fallback chain from config(s).
 
     Args:
-        primary_config: Primary compiler configuration with fallback_methods
+        primary_configs: Primary compiler configuration(s) with fallback_methods
         **dependencies: Additional dependencies to pass to compiler creation
 
     Returns:
-        First available compiler instance from the fallback chain
+        List of compiler configurations including fallbacks
 
     Raises:
         CompilerNotAvailableError: If no compiler in chain is available
     """
-    # Build full config list: primary + fallbacks
-    configs = [primary_config]
+    # Normalize input to list
+    if not isinstance(primary_configs, list):
+        primary_configs = [primary_configs]
 
-    # Add fallback configs using the enhanced config resolution
-    fallback_configs = _create_compiler_fallback_configs(
-        primary_config.fallback_methods
-    )
-    configs.extend(fallback_configs)
+    # Build full config list: primaries + their fallbacks
+    configs = []
 
-    return select_compiler_with_fallback(configs, **dependencies)
+    for primary_config in primary_configs:
+        configs.append(primary_config)
+
+        # Add fallback configs using the enhanced config resolution
+        if (
+            hasattr(primary_config, "fallback_methods")
+            and primary_config.fallback_methods
+        ):
+            fallback_configs = _create_compiler_fallback_configs(
+                primary_config.fallback_methods
+            )
+            configs.extend(fallback_configs)
+
+    return configs
 
 
 def get_flasher_with_fallback_chain(
     primary_config: FlashMethodConfig,
     **dependencies: Any,
-) -> FlasherProtocol:
-    """Get flasher with automatic fallback chain from config.
+) -> list[FlashMethodConfig]:
+    """Build flasher fallback chain from config.
 
     Args:
         primary_config: Primary flasher configuration with fallback_methods
         **dependencies: Additional dependencies to pass to flasher creation
 
     Returns:
-        First available flasher instance from the fallback chain
+        List of flasher configurations including fallbacks
 
     Raises:
         FlasherNotAvailableError: If no flasher in chain is available
@@ -180,10 +191,13 @@ def get_flasher_with_fallback_chain(
     configs = [primary_config]
 
     # Add fallback configs using the enhanced config resolution
-    fallback_configs = _create_flasher_fallback_configs(primary_config.fallback_methods)
-    configs.extend(fallback_configs)
+    if hasattr(primary_config, "fallback_methods") and primary_config.fallback_methods:
+        fallback_configs = _create_flasher_fallback_configs(
+            primary_config.fallback_methods
+        )
+        configs.extend(fallback_configs)
 
-    return select_flasher_with_fallback(configs, **dependencies)
+    return configs
 
 
 def _create_compiler_fallback_configs(

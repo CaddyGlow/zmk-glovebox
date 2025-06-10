@@ -188,18 +188,25 @@ class TestKeyboardOnlyProfileCreation:
                 "description": "Test keyboard",
                 "vendor": "Test Vendor",
                 "key_count": 10,
-                "flash": {
-                    "method": "usb_mount",
-                    "query": "test_query",
-                    "usb_vid": "1234",
-                    "usb_pid": "5678",
-                },
-                "build": {
-                    "method": "docker",
-                    "docker_image": "test_image",
-                    "repository": "test/repo",
-                    "branch": "main",
-                },
+                "compile_methods": [
+                    {
+                        "method_type": "docker",
+                        "image": "test_image",
+                        "repository": "test/repo",
+                        "branch": "main",
+                        "fallback_methods": [],
+                    }
+                ],
+                "flash_methods": [
+                    {
+                        "method_type": "usb",
+                        "device_query": "test_query",
+                        "mount_timeout": 30,
+                        "copy_timeout": 60,
+                        "sync_after_copy": True,
+                        "fallback_methods": [],
+                    }
+                ],
             }
 
             config_file = keyboards_dir / "test_keyboard.yaml"

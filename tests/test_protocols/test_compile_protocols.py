@@ -134,7 +134,7 @@ class TestProtocolImplementation:
         """Test compiler implementation with various failure states."""
 
         class FailingCompiler:
-            def __init__(self, available=True, valid_config=True):
+            def __init__(self, available: bool = True, valid_config: bool = True):
                 self.available = available
                 self.valid_config = valid_config
 

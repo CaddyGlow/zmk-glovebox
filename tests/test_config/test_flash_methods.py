@@ -20,7 +20,7 @@ class TestUSBFlashConfig:
     def test_required_fields(self):
         """Test that required fields are enforced."""
         with pytest.raises(ValidationError) as exc_info:
-            USBFlashConfig()
+            USBFlashConfig()  # type: ignore[call-arg]
         assert "device_query" in str(exc_info.value)
 
     def test_default_values(self):
@@ -73,7 +73,7 @@ class TestDFUFlashConfig:
     def test_required_fields(self):
         """Test that required fields are enforced."""
         with pytest.raises(ValidationError) as exc_info:
-            DFUFlashConfig()
+            DFUFlashConfig()  # type: ignore[call-arg]
         error_str = str(exc_info.value)
         assert "vid" in error_str
         assert "pid" in error_str
@@ -128,7 +128,7 @@ class TestBootloaderFlashConfig:
     def test_required_fields(self):
         """Test that required fields are enforced."""
         with pytest.raises(ValidationError) as exc_info:
-            BootloaderFlashConfig()
+            BootloaderFlashConfig()  # type: ignore[call-arg]
         assert "protocol" in str(exc_info.value)
 
     def test_default_values(self):
@@ -185,7 +185,7 @@ class TestWiFiFlashConfig:
     def test_required_fields(self):
         """Test that required fields are enforced."""
         with pytest.raises(ValidationError) as exc_info:
-            WiFiFlashConfig()
+            WiFiFlashConfig()  # type: ignore[call-arg]
         assert "host" in str(exc_info.value)
 
     def test_default_values(self):

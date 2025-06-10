@@ -1,7 +1,7 @@
 """Tests for method registry system."""
 
 from pathlib import Path
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 from unittest.mock import Mock
 
 import pytest
@@ -24,7 +24,7 @@ class TestMethodRegistry:
 
     def test_registry_initialization(self):
         """Test that MethodRegistry initializes correctly."""
-        registry = MethodRegistry()
+        registry: MethodRegistry[Any, Any] = MethodRegistry()
 
         assert hasattr(registry, "_methods")
         assert hasattr(registry, "_config_types")
@@ -33,7 +33,7 @@ class TestMethodRegistry:
 
     def test_method_registration(self):
         """Test method registration functionality."""
-        registry = MethodRegistry()
+        registry: MethodRegistry[Any, Any] = MethodRegistry()
 
         # Create a test implementation
         class TestImplementation:
@@ -60,7 +60,7 @@ class TestMethodRegistry:
 
     def test_method_creation(self):
         """Test method creation from registry."""
-        registry = MethodRegistry()
+        registry: MethodRegistry[Any, Any] = MethodRegistry()
 
         class TestImplementation:
             def __init__(self, **kwargs):
@@ -83,7 +83,7 @@ class TestMethodRegistry:
 
     def test_unknown_method_error(self):
         """Test error handling for unknown methods."""
-        registry = MethodRegistry()
+        registry: MethodRegistry[Any, Any] = MethodRegistry()
 
         class TestConfig:
             pass
@@ -95,7 +95,7 @@ class TestMethodRegistry:
 
     def test_config_type_validation(self):
         """Test configuration type validation."""
-        registry = MethodRegistry()
+        registry: MethodRegistry[Any, Any] = MethodRegistry()
 
         class TestImplementation:
             def __init__(self, config=None, **kwargs):
@@ -124,7 +124,7 @@ class TestMethodRegistry:
 
     def test_get_available_methods(self):
         """Test getting list of available methods."""
-        registry = MethodRegistry()
+        registry: MethodRegistry[Any, Any] = MethodRegistry()
 
         class AvailableImplementation:
             def __init__(self, config=None, **kwargs):
@@ -155,7 +155,7 @@ class TestMethodRegistry:
 
     def test_get_available_methods_error_handling(self):
         """Test that get_available_methods handles errors gracefully."""
-        registry = MethodRegistry()
+        registry: MethodRegistry[Any, Any] = MethodRegistry()
 
         class ErrorImplementation:
             def __init__(self, config=None, **kwargs):
@@ -368,7 +368,7 @@ class TestRegistryIntegration:
 
     def test_multiple_method_types(self):
         """Test registering multiple method types in same registry."""
-        registry = MethodRegistry()
+        registry: MethodRegistry[Any, Any] = MethodRegistry()
 
         class Method1:
             def __init__(self, config=None, **kwargs):
@@ -397,7 +397,7 @@ class TestRegistryIntegration:
 
     def test_dependency_injection(self):
         """Test dependency injection through registry."""
-        registry = MethodRegistry()
+        registry: MethodRegistry[Any, Any] = MethodRegistry()
 
         class DependentImplementation:
             def __init__(self, config=None, adapter=None, service=None, **kwargs):
@@ -429,8 +429,8 @@ class TestRegistryIntegration:
 
     def test_registry_isolation(self):
         """Test that different registry instances are isolated."""
-        registry1 = MethodRegistry()
-        registry2 = MethodRegistry()
+        registry1: MethodRegistry[Any, Any] = MethodRegistry()
+        registry2: MethodRegistry[Any, Any] = MethodRegistry()
 
         class Implementation1:
             def __init__(self, config=None, **kwargs):
@@ -454,7 +454,7 @@ class TestRegistryIntegration:
 
     def test_registry_method_override(self):
         """Test that registering same method name overrides previous registration."""
-        registry = MethodRegistry()
+        registry: MethodRegistry[Any, Any] = MethodRegistry()
 
         class OriginalImplementation:
             def __init__(self, config=None, **kwargs):

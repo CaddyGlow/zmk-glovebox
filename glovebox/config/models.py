@@ -175,9 +175,9 @@ class KeyboardConfig(BaseModel):
     vendor: str
     key_count: int = Field(gt=0, description="Number of keys must be positive")
 
-    # Method-specific configurations
-    compile_methods: list[CompileMethodConfigUnion] = Field(min_length=1)
-    flash_methods: list[FlashMethodConfigUnion] = Field(min_length=1)
+    # Method-specific configurations (default to empty lists for backward compatibility)
+    compile_methods: list[CompileMethodConfigUnion] = Field(default_factory=list)
+    flash_methods: list[FlashMethodConfigUnion] = Field(default_factory=list)
 
     # Legacy configurations for backward compatibility (deprecated)
     flash: FlashConfig | None = None

@@ -8,7 +8,7 @@ import pytest
 from glovebox.config.compile_methods import DockerCompileConfig, LocalCompileConfig
 from glovebox.config.profile import KeyboardProfile
 from glovebox.firmware.build_service import BuildService, create_build_service
-from glovebox.firmware.models import BuildResult
+from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.firmware.options import BuildServiceCompileOpts
 from glovebox.protocols.compile_protocols import CompilerProtocol
 
@@ -88,9 +88,11 @@ class TestBuildService:
 
         # Mock profile with compile methods
         mock_profile = Mock(spec=KeyboardProfile)
-        mock_profile.keyboard_config.compile_methods = [
+        mock_keyboard_config = Mock()
+        mock_keyboard_config.compile_methods = [
             DockerCompileConfig(image="custom:latest")
         ]
+        mock_profile.keyboard_config = mock_keyboard_config
 
         service = BuildService()
         opts = BuildServiceCompileOpts(
@@ -189,10 +191,12 @@ class TestBuildService:
 
         # Mock profile with compile methods
         mock_profile = Mock(spec=KeyboardProfile)
-        mock_profile.keyboard_config.compile_methods = [
+        mock_keyboard_config = Mock()
+        mock_keyboard_config.compile_methods = [
             DockerCompileConfig(image="profile:latest"),
             LocalCompileConfig(zmk_path=Path("/profile/zmk")),
         ]
+        mock_profile.keyboard_config = mock_keyboard_config
 
         opts = BuildServiceCompileOpts(
             keymap_path=Path("test.keymap"),
@@ -240,9 +244,11 @@ class TestBuildService:
         mock_build_config.branch = "legacy-branch"
 
         mock_profile = Mock(spec=KeyboardProfile)
-        mock_profile.keyboard_config.build = mock_build_config
+        mock_keyboard_config = Mock()
+        mock_keyboard_config.build = mock_build_config
         # No compile_methods attribute (legacy profile)
-        del mock_profile.keyboard_config.compile_methods
+        mock_keyboard_config.compile_methods = []
+        mock_profile.keyboard_config = mock_keyboard_config
 
         opts = BuildServiceCompileOpts(
             keymap_path=Path("test.keymap"),
@@ -271,7 +277,9 @@ class TestBuildServiceIntegration:
         mock_compiler.compile.return_value = BuildResult(
             success=True,
             messages=["Docker build started", "Build completed successfully"],
-            output_files=Mock(main_uf2=Path("output/firmware.uf2")),
+            output_files=FirmwareOutputFiles(
+                output_dir=Path("output"), main_uf2=Path("output/firmware.uf2")
+            ),
         )
         mock_select_compiler.return_value = mock_compiler
 
@@ -279,7 +287,8 @@ class TestBuildServiceIntegration:
 
         # Mock realistic profile
         mock_profile = Mock(spec=KeyboardProfile)
-        mock_profile.keyboard_config.compile_methods = [
+        mock_keyboard_config = Mock()
+        mock_keyboard_config.compile_methods = [
             DockerCompileConfig(
                 image="moergo-zmk-build:latest",
                 repository="moergo-sc/zmk",
@@ -287,6 +296,7 @@ class TestBuildServiceIntegration:
                 jobs=8,
             )
         ]
+        mock_profile.keyboard_config = mock_keyboard_config
 
         result = service.compile_from_files(
             keymap_file_path=Path("glove80.keymap"),
@@ -327,10 +337,12 @@ class TestBuildServiceIntegration:
 
         # Profile with fallback methods
         mock_profile = Mock(spec=KeyboardProfile)
-        mock_profile.keyboard_config.compile_methods = [
+        mock_keyboard_config = Mock()
+        mock_keyboard_config.compile_methods = [
             DockerCompileConfig(),  # Primary (would fail)
             LocalCompileConfig(zmk_path=Path("/opt/zmk")),  # Fallback (succeeds)
         ]
+        mock_profile.keyboard_config = mock_keyboard_config
 
         opts = BuildServiceCompileOpts(
             keymap_path=Path("test.keymap"),

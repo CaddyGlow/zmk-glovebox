@@ -56,7 +56,7 @@ def with_profile(
                 kwargs[profile_param_name] = default_profile
 
             try:
-                # Create the profile object and add it to kwargs, and ctx.obj
+                # Create the profile object and store it in context
                 # Use create_profile_from_context which handles user_config automatically
                 from glovebox.cli.helpers.profile import create_profile_from_context
 
@@ -64,10 +64,10 @@ def with_profile(
                     ctx, kwargs[profile_param_name]
                 )
 
-                kwargs["keyboard_profile"] = profile_obj
+                # Store profile in context for functions to retrieve via get_keyboard_profile_from_context
                 ctx.obj.keyboard_profile = profile_obj
 
-                # Call the original function with the profile object
+                # Call the original function without injecting keyboard_profile parameter
                 return func(*args, **kwargs)
             except typer.Exit:
                 # Profile creation already handled the error, just re-raise

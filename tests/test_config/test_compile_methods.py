@@ -74,7 +74,7 @@ class TestLocalCompileConfig:
         """Test that required fields are enforced."""
         # Missing zmk_path should raise ValidationError
         with pytest.raises(ValidationError) as exc_info:
-            LocalCompileConfig()
+            LocalCompileConfig()  # type: ignore[call-arg]
         assert "zmk_path" in str(exc_info.value)
 
     def test_valid_configuration(self):
@@ -108,7 +108,8 @@ class TestLocalCompileConfig:
     def test_path_conversion(self):
         """Test automatic string to Path conversion."""
         config = LocalCompileConfig(
-            zmk_path="/opt/zmk", toolchain_path="/opt/toolchain"
+            zmk_path=Path("/opt/zmk"),
+            toolchain_path="/opt/toolchain",  # type: ignore[arg-type]
         )
 
         assert isinstance(config.zmk_path, Path)
@@ -123,7 +124,7 @@ class TestCrossCompileConfig:
     def test_required_fields(self):
         """Test that required fields are enforced."""
         with pytest.raises(ValidationError) as exc_info:
-            CrossCompileConfig()
+            CrossCompileConfig()  # type: ignore[call-arg]
         error_str = str(exc_info.value)
         assert "target_arch" in error_str
         assert "sysroot" in error_str

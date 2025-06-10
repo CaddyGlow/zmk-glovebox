@@ -3,17 +3,30 @@ description: "MoErgo Glove80 split ergonomic keyboard"
 vendor: "MoErgo"
 key_count: 80
 
-flash:
-  method: "mass_storage"
-  query: "vendor=Adafruit and serial~=GLV80-.* and removable=true"
-  usb_vid: "0x1209"
-  usb_pid: "0x0080"
+# Compile method configurations
+compile_methods:
+  - method_type: docker
+    image: moergo-zmk-build
+    repository: moergo-sc/zmk
+    branch: v25.05
+    jobs: 8
+    fallback_methods: ["local"]
 
-build:
-  method: "docker"
-  docker_image: "moergo-zmk-build"
-  repository: "moergo-sc/zmk"
-  branch: "v25.05"
+# Flash method configurations
+flash_methods:
+  - method_type: usb
+    device_query: "vendor=Adafruit and serial~=GLV80-.* and removable=true"
+    mount_timeout: 30
+    copy_timeout: 60
+    sync_after_copy: true
+    fallback_methods: ["dfu"]
+  - method_type: dfu
+    vid: "0x1209"
+    pid: "0x0080"
+    interface: 0
+    alt_setting: 0
+    timeout: 30
+    fallback_methods: []
 
 firmwares:
   v25.05:
@@ -49,39 +62,6 @@ firmwares:
         type: "bool"
         default: false
         description: "Enables per-layer RGB settings"
-
-  pr38:
-    firmware_version: "pr38.per-key-rgb"
-    build_options:
-      repository: "moergo-sc/zmk"
-      branch: "pull/36/head"
-
-  example-exp:
-    firmware_version: "exp.v01.01"
-    description: "Example with custom firmware with addiitonal behaviors and kconfig flag"
-    build_options:
-      repository: "me/zmk"
-      branch: "feature/glow"
-    additional_kconfig:
-      EXPERIMENTAL_GLOW:
-        kconfig_name: "CONFIG_EXPERIMENTAL_GLOW"
-        type: "bool"
-        default: false
-        description: "Glow like"
-
-    # Additional behaviors specific to this firmware
-    additional_behaviors:
-      - code: "&super_tap"
-        name: "Experimental super tap"
-        description: ""
-        url: ""
-        isMacroControlBehavior: true
-        expected_params: 1
-        origin: "firmware"
-        params:
-          - name: "Duration in milliseconds"
-            type: "integer"
-            min: 0
 
 keymap:
   includes:

@@ -141,7 +141,11 @@ class BuildService(BaseService):
         Returns:
             List of compilation method configurations to try
         """
-        if profile and hasattr(profile.keyboard_config, "compile_methods"):
+        if (
+            profile
+            and hasattr(profile.keyboard_config, "compile_methods")
+            and profile.keyboard_config.compile_methods
+        ):
             # Use profile's compile method configurations
             return list(profile.keyboard_config.compile_methods)
 

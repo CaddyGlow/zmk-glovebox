@@ -50,6 +50,16 @@ class BaseService:
         self._service_version = service_version
         logger.debug(f"Initializing {service_name} service (v{service_version})")
 
+    @property
+    def service_name(self) -> str:
+        """Get the service name."""
+        return self._service_name
+
+    @property
+    def service_version(self) -> str:
+        """Get the service version."""
+        return self._service_version
+
     def get_service_info(self) -> dict[str, str]:
         """Get basic information about this service.
 

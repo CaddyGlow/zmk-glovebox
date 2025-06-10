@@ -362,23 +362,50 @@ def test_config_commands(command, args, output_contains, cli_runner):
 # Test status command
 def test_status_command(cli_runner):
     """Test status command."""
-    with (
-        patch("glovebox.cli.commands.status.subprocess.run") as mock_run,
-        patch("glovebox.cli.commands.status.load_keyboard_config") as mock_load_config,
-        patch(
-            "glovebox.cli.commands.status.get_available_keyboards"
-        ) as mock_get_available,
-    ):
-        # Mock subprocess for docker version check
-        mock_process = Mock()
-        mock_process.stdout = "Docker version 24.0.5"
-        mock_run.return_value = mock_process
-
-        # Mock config data
-        mock_load_config.return_value = {"firmwares": {"v25.05": {}}}
-
-        # Mock available keyboards
-        mock_get_available.return_value = ["glove80"]
+    with patch("glovebox.cli.commands.status.collect_all_diagnostics") as mock_collect:
+        # Mock comprehensive diagnostics data
+        mock_diagnostics = {
+            "version": "1.0.0",
+            "system": {
+                "environment": {
+                    "platform": "Linux 6.12.28",
+                    "python_version": "3.12.7",
+                    "working_directory": "/test",
+                },
+                "file_system": {},
+                "disk_space": {"available_gb": 10.0},
+            },
+            "docker": {
+                "availability": "available",
+                "version_info": {"client": "24.0.5", "server": "24.0.5"},
+                "daemon_status": "running",
+                "images": {},
+                "capabilities": {},
+            },
+            "usb_flash": {
+                "usb_detection": {"status": "available", "platform_adapter": "linux"},
+                "detected_devices": [],
+                "os_capabilities": {"mount_tool": "udisksctl"},
+            },
+            "configuration": {
+                "user_config": {
+                    "validation_status": "valid",
+                    "found_config": "config.yml",
+                    "environment_vars": {},
+                },
+                "keyboard_discovery": {
+                    "found_keyboards": 1,
+                    "keyboard_status": [
+                        {"name": "glove80", "status": "valid", "has_firmwares": False}
+                    ],
+                },
+            },
+            "layout": {
+                "processing": {"json_parsing": "available"},
+                "zmk_generation": {"keymap_generation": "available"},
+            },
+        }
+        mock_collect.return_value = mock_diagnostics
 
         # Run the command
         result = cli_runner.invoke(app, ["status"])

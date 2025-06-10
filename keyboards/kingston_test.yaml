@@ -3,6 +3,24 @@ description: "Test config for Kingston DataTraveler 3.0"
 vendor: "Kingston"
 key_count: 80
 
+# Compile method configurations
+compile_methods:
+  - method_type: docker
+    image: moergo-zmk-build:latest
+    repository: moergo-sc/zmk
+    branch: main
+    fallback_methods: ["local"]
+
+# Flash method configurations  
+flash_methods:
+  - method_type: usb
+    device_query: "vendor~=Kingston and serial~=E0D55EA.* and removable=true"
+    mount_timeout: 30
+    copy_timeout: 60
+    sync_after_copy: true
+    fallback_methods: []
+
+# Legacy flash section (for backward compatibility)
 flash:
   method: "mass_storage"
   query: "vendor~=Kingston and serial~=E0D55EA.* and removable=true"
