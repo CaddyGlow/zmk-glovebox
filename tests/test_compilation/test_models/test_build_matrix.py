@@ -56,13 +56,14 @@ def test_build_yaml_config_validation():
         board=["nice_nano_v2"],
         shield=["corne_left", "corne_right"],
         include=[
-            BuildTarget(board="nice_nano_v2", shield="corne_left"),
-            BuildTarget(board="nice_nano_v2", shield="corne_right"),
+            {"board": "nice_nano_v2", "shield": "corne_left"},
+            {"board": "nice_nano_v2", "shield": "corne_right"},
         ],
     )
 
     assert config.board == ["nice_nano_v2"]
     assert config.shield == ["corne_left", "corne_right"]
+    assert config.include is not None
     assert len(config.include) == 2
 
 

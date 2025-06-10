@@ -73,6 +73,17 @@ class USBDeviceMonitorBase(abc.ABC):
             self._monitor_thread = None
         logger.info("Stopped USB device monitoring")
 
+    def _format_device_debug(self, device: BlockDevice) -> str:
+        """Format device information for debug logging in vid:pid:serial:dev format."""
+        vid = device.vendor_id or "unknown"
+        pid = device.product_id or "unknown"
+        serial = device.serial or "unknown"
+        dev = device.path or "unknown"
+        vendor = device.vendor or "unknown"
+        model = device.model or "unknown"
+
+        return f"{vid}:{pid}:{serial}:{dev} ({vendor} {model})"
+
     @abc.abstractmethod
     def _monitor_loop(self) -> None:
         """Main monitoring loop (platform-specific)."""
@@ -143,7 +154,9 @@ class LinuxUSBDeviceMonitor(USBDeviceMonitorBase):
                     block_device = BlockDevice.from_pyudev_device(device)
                     self._update_mountpoints(block_device, mount_points)
                     self.devices.append(block_device)
-                    logger.debug(f"Found existing device: {device.device_node}")
+                    logger.debug(
+                        f"Found existing device: {self._format_device_debug(block_device)}"
+                    )
 
     def is_usb_device(self, device: Any) -> bool:
         """Check if a device is USB-connected storage."""
@@ -178,12 +191,25 @@ class LinuxUSBDeviceMonitor(USBDeviceMonitorBase):
                     block_device = BlockDevice.from_pyudev_device(device)
                     with self._lock:
                         self.devices.append(block_device)
+                    logger.debug(
+                        f"USB device added: {self._format_device_debug(block_device)}"
+                    )
                     self._notify_callbacks("add", block_device)
                 elif action == "remove":
+                    # Find the device being removed for logging
+                    removed_device = None
                     with self._lock:
+                        for d in self.devices:
+                            if d.path == device.device_node:
+                                removed_device = d
+                                break
                         self.devices = [
                             d for d in self.devices if d.path != device.device_node
                         ]
+                    if removed_device:
+                        logger.debug(
+                            f"USB device removed: {self._format_device_debug(removed_device)}"
+                        )
 
         self._observer = self.pyudev.MonitorObserver(monitor, callback=device_event)
         self._observer.start()
@@ -287,7 +313,7 @@ class MacOSUSBDeviceMonitor(USBDeviceMonitorBase):
                     if disk_data.removable or usb_data:
                         self.devices.append(device)
                         logger.debug(
-                            f"Found device: {disk_name} - {device.model} (Vendor: {device.vendor}, Serial: {device.serial})"
+                            f"Found device: {self._format_device_debug(device)}"
                         )
 
             except Exception as e:
@@ -421,22 +447,26 @@ class MacOSUSBDeviceMonitor(USBDeviceMonitorBase):
             for path in new_devices - old_devices:
                 device = next((d for d in self.devices if d.path == path), None)
                 if device:
+                    logger.debug(
+                        f"USB device added: {self._format_device_debug(device)}"
+                    )
                     self._notify_callbacks("add", device)
 
             # Check for removed devices
             for path in old_devices - new_devices:
-                self._notify_callbacks(
-                    "remove",
-                    BlockDevice(
-                        name=Path(path).name,
-                        device_node=path,
-                        model="",
-                        vendor="",
-                        serial="",
-                        vendor_id="",
-                        product_id="",
-                    ),
+                removed_device = BlockDevice(
+                    name=Path(path).name,
+                    device_node=path,
+                    model="",
+                    vendor="",
+                    serial="",
+                    vendor_id="",
+                    product_id="",
                 )
+                logger.debug(
+                    f"USB device removed: {self._format_device_debug(removed_device)}"
+                )
+                self._notify_callbacks("remove", removed_device)
 
             time.sleep(1.0)  # Poll every second
 

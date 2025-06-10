@@ -44,7 +44,11 @@ class DeviceWaitState:
 
     def add_device(self, device: BlockDevice) -> None:
         """Add a device to the found devices list."""
-        if device not in self.found_devices:
+        # Check if device already exists by serial number (or device_node as fallback)
+        device_id = device.serial or device.device_node
+        existing_device_ids = {d.serial or d.device_node for d in self.found_devices}
+
+        if device_id not in existing_device_ids:
             self.found_devices.append(device)
 
     def remove_device(self, device: BlockDevice) -> None:

@@ -1,6 +1,7 @@
 """Build matrix models for ZMK compilation."""
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -39,9 +40,9 @@ class BuildYamlConfig(BaseModel):
     Compatible with GitHub Actions workflow build matrix format.
     """
 
-    board: list[str] = Field(default_factory=list)
-    shield: list[str] = Field(default_factory=list)
-    include: list[BuildTarget] = Field(default_factory=list)
+    board: list[str] | None = Field(default_factory=list)
+    shield: list[str] | None = Field(default_factory=list)
+    include: list[dict[str, Any]] | None = Field(default_factory=list)
 
 
 class BuildTargetConfig(BaseModel):
