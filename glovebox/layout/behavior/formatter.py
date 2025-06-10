@@ -2,7 +2,11 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+
+if TYPE_CHECKING:
+    from glovebox.config.models import BehaviorConfig
 
 from glovebox.layout.models import (
     LayoutBinding,
@@ -28,18 +32,23 @@ class BehaviorFormatterImpl:
     def __init__(
         self,
         registry: BehaviorRegistryProtocol,
+        behavior_config: "BehaviorConfig | None" = None,
         keycode_map: dict[str, str] | None = None,
     ) -> None:
         """Initialize with behavior registry dependency.
 
         Args:
             registry: Behavior registry for looking up behavior information
+            behavior_config: Behavior configuration from keyboard profile
             keycode_map: Optional mapping of key names to ZMK keycodes
         """
         self._registry = registry
+        self._behavior_config = behavior_config
         self._keycode_map = keycode_map or {}
         self._behavior_classes: dict[str, type[Behavior]] = {}
+        self._modifier_map: dict[str, str] = {}
         self._init_behavior_class_map()
+        self._init_modifier_map()
 
     def format_binding(self, binding_data: LayoutBinding) -> str:
         """Format a binding dictionary to DTSI string.
@@ -115,30 +124,12 @@ class BehaviorFormatterImpl:
             inner_formatted = self.format_param_recursive(inner_params_data[0])
             return f"{mod_name}({inner_formatted})"
 
-        # Modifier aliases
-        elif mod_name in [
-            "LALT",
-            "LCTL",
-            "LSHFT",
-            "LGUI",
-            "RALT",
-            "RCTL",
-            "RSHFT",
-            "RGUI",
-        ]:
+        # Check if this is a configured modifier mapping
+        elif str(mod_name) in self._modifier_map:
             if not inner_params_data:
                 return self.format_param(mod_name)
             else:
-                zmk_mod_func = {
-                    "LALT": "LA",
-                    "LCTL": "LC",
-                    "LSHFT": "LS",
-                    "LGUI": "LG",
-                    "RALT": "RA",
-                    "RCTL": "RC",
-                    "RSHFT": "RS",
-                    "RGUI": "RG",
-                }.get(str(mod_name))
+                zmk_mod_func = self._modifier_map.get(str(mod_name))
                 if not zmk_mod_func:
                     logger.error(
                         f"Could not map modifier alias '{mod_name}' to function."
@@ -156,8 +147,9 @@ class BehaviorFormatterImpl:
         return {}
 
     def _init_behavior_class_map(self) -> None:
-        """Initialize the behavior class map with all known behavior classes."""
-        self._behavior_classes = {
+        """Initialize the behavior class map from configuration."""
+        # Default behavior mappings for backward compatibility
+        default_mappings = {
             "&none": SimpleBehavior,
             "&trans": SimpleBehavior,
             "&bootloader": SimpleBehavior,
@@ -181,6 +173,64 @@ class BehaviorFormatterImpl:
             "&magic": MagicBehavior,
             "Custom": RawBehavior,
         }
+
+        # Use configuration if available, otherwise fall back to defaults
+        if self._behavior_config and self._behavior_config.behavior_mappings:
+            # Build mapping from configuration
+            class_mapping = {
+                "SimpleBehavior": SimpleBehavior,
+                "KPBehavior": KPBehavior,
+                "LayerTapBehavior": LayerTapBehavior,
+                "ModTapBehavior": ModTapBehavior,
+                "LayerToggleBehavior": LayerToggleBehavior,
+                "OneParamBehavior": OneParamBehavior,
+                "BluetoothBehavior": BluetoothBehavior,
+                "LowerBehavior": LowerBehavior,
+                "MagicBehavior": MagicBehavior,
+                "RawBehavior": RawBehavior,
+            }
+
+            configured_mappings = {}
+            for mapping in self._behavior_config.behavior_mappings:
+                behavior_class = class_mapping.get(mapping.behavior_class)
+                if behavior_class:
+                    configured_mappings[mapping.behavior_name] = behavior_class
+                else:
+                    logger.warning(
+                        f"Unknown behavior class '{mapping.behavior_class}' for behavior '{mapping.behavior_name}', using default"
+                    )
+
+            # Merge configured mappings with defaults (configured takes precedence)
+            self._behavior_classes = {**default_mappings, **configured_mappings}
+        else:
+            # Use defaults if no configuration is available
+            self._behavior_classes = default_mappings
+
+    def _init_modifier_map(self) -> None:
+        """Initialize modifier mappings from configuration."""
+        # Default modifier mappings for backward compatibility
+        default_modifier_map = {
+            "LALT": "LA",
+            "LCTL": "LC",
+            "LSHFT": "LS",
+            "LGUI": "LG",
+            "RALT": "RA",
+            "RCTL": "RC",
+            "RSHFT": "RS",
+            "RGUI": "RG",
+        }
+
+        # Use configuration if available, otherwise fall back to defaults
+        if self._behavior_config and self._behavior_config.modifier_mappings:
+            configured_mappings = {}
+            for mapping in self._behavior_config.modifier_mappings:
+                configured_mappings[mapping.long_form] = mapping.short_form
+
+            # Merge configured mappings with defaults (configured takes precedence)
+            self._modifier_map = {**default_modifier_map, **configured_mappings}
+        else:
+            # Use defaults if no configuration is available
+            self._modifier_map = default_modifier_map
 
 
 # Behavior classes
@@ -220,7 +270,11 @@ class SimpleBehavior(Behavior):
 
     def format_dtsi(self) -> str:
         if self.behavior_name == "&reset":
-            return "&sys_reset"
+            # Use configured reset behavior alias or default
+            if self.formatter._behavior_config:
+                return self.formatter._behavior_config.reset_behavior_alias
+            else:
+                return "&sys_reset"
         return self.behavior_name
 
 
@@ -360,7 +414,11 @@ class MagicBehavior(Behavior):
             )
 
     def format_dtsi(self) -> str:
-        return "&magic LAYER_Magic 0"
+        # Use configured magic layer command or default
+        if self.formatter._behavior_config:
+            return self.formatter._behavior_config.magic_layer_command
+        else:
+            return "&magic LAYER_Magic 0"
 
 
 class CustomBehaviorRef(Behavior):

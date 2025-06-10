@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from glovebox.config.models import BehaviorConfig, BehaviorMapping, ModifierMapping
 from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
 from glovebox.layout.models import (
     LayoutBinding,
@@ -109,7 +110,7 @@ def behavior_formatter(behavior_registry):
         "SPACE": "SPACE",
         "ENTER": "ENTER",
     }
-    return BehaviorFormatterImpl(behavior_registry, keycode_map)
+    return BehaviorFormatterImpl(behavior_registry, keycode_map=keycode_map)
 
 
 def test_formatter_instantiation(behavior_registry):
@@ -200,3 +201,149 @@ def test_format_invalid_behavior(behavior_formatter):
     result = behavior_formatter.format_binding(binding)
     # Should return an error binding or similar
     assert "&error" in result or "invalid" in result.lower()
+
+
+class TestBehaviorConfigurationSupport:
+    """Tests for behavior configuration support."""
+
+    def test_formatter_with_behavior_config(self, behavior_registry):
+        """Test formatter with custom behavior configuration."""
+        # Create custom behavior configuration
+        behavior_config = BehaviorConfig(
+            behavior_mappings=[
+                BehaviorMapping(behavior_name="&kp", behavior_class="KPBehavior"),
+                BehaviorMapping(
+                    behavior_name="&custom", behavior_class="SimpleBehavior"
+                ),
+            ],
+            modifier_mappings=[
+                ModifierMapping(long_form="LALT", short_form="LA"),
+                ModifierMapping(long_form="CUSTOM_MOD", short_form="CM"),
+            ],
+            magic_layer_command="&magic LAYER_Custom 1",
+            reset_behavior_alias="&custom_reset",
+        )
+
+        # Create formatter with configuration
+        formatter = BehaviorFormatterImpl(behavior_registry, behavior_config)
+
+        # Test that behavior mappings are applied
+        assert "&custom" in formatter._behavior_classes
+        assert formatter._behavior_classes["&custom"].__name__ == "SimpleBehavior"
+
+        # Test that modifier mappings are applied
+        assert formatter._modifier_map["CUSTOM_MOD"] == "CM"
+        assert formatter._modifier_map["LALT"] == "LA"  # Should still have defaults
+
+    def test_configured_modifier_mapping(self, behavior_registry):
+        """Test that configured modifier mappings are used."""
+        behavior_config = BehaviorConfig(
+            modifier_mappings=[
+                ModifierMapping(long_form="CUSTOM_ALT", short_form="CA"),
+            ]
+        )
+
+        formatter = BehaviorFormatterImpl(behavior_registry, behavior_config)
+
+        # Create a binding with the custom modifier
+        binding = LayoutBinding(
+            value="&kp",
+            params=[LayoutParam(value="CUSTOM_ALT", params=[LayoutParam(value="A")])],
+        )
+
+        result = formatter.format_binding(binding)
+        assert result == "&kp CA(A)"
+
+    def test_configured_reset_behavior_alias(self, behavior_registry):
+        """Test that configured reset behavior alias is used."""
+        behavior_config = BehaviorConfig(reset_behavior_alias="&custom_reset")
+
+        formatter = BehaviorFormatterImpl(behavior_registry, behavior_config)
+
+        # Test reset behavior uses custom alias
+        binding = LayoutBinding(value="&reset", params=[])
+        result = formatter.format_binding(binding)
+        assert result == "&custom_reset"
+
+    def test_configured_magic_layer_command(self, behavior_registry):
+        """Test that configured magic layer command is used."""
+        behavior_config = BehaviorConfig(magic_layer_command="&magic LAYER_Custom 1")
+
+        formatter = BehaviorFormatterImpl(behavior_registry, behavior_config)
+
+        # Test magic behavior uses custom command
+        binding = LayoutBinding(value="&magic", params=[])
+        result = formatter.format_binding(binding)
+        assert result == "&magic LAYER_Custom 1"
+
+    def test_backward_compatibility_without_config(self, behavior_registry):
+        """Test that formatter works without configuration (backward compatibility)."""
+        # Create formatter without behavior config (old way)
+        formatter = BehaviorFormatterImpl(behavior_registry)
+
+        # Should still work with default mappings
+        binding = LayoutBinding(value="&kp", params=[LayoutParam(value="A")])
+        result = formatter.format_binding(binding)
+        assert result == "&kp A"
+
+        # Should use default modifier mappings
+        binding = LayoutBinding(
+            value="&kp",
+            params=[LayoutParam(value="LALT", params=[LayoutParam(value="A")])],
+        )
+        result = formatter.format_binding(binding)
+        assert result == "&kp LA(A)"
+
+        # Should use default reset alias
+        binding = LayoutBinding(value="&reset", params=[])
+        result = formatter.format_binding(binding)
+        assert result == "&sys_reset"
+
+        # Should use default magic command
+        binding = LayoutBinding(value="&magic", params=[])
+        result = formatter.format_binding(binding)
+        assert result == "&magic LAYER_Magic 0"
+
+    def test_configuration_override_defaults(self, behavior_registry):
+        """Test that configuration properly overrides defaults."""
+        behavior_config = BehaviorConfig(
+            modifier_mappings=[
+                ModifierMapping(
+                    long_form="LALT", short_form="CUSTOM_ALT"
+                ),  # Override default
+            ]
+        )
+
+        formatter = BehaviorFormatterImpl(behavior_registry, behavior_config)
+
+        # Should use overridden mapping
+        binding = LayoutBinding(
+            value="&kp",
+            params=[LayoutParam(value="LALT", params=[LayoutParam(value="A")])],
+        )
+        result = formatter.format_binding(binding)
+        assert result == "&kp CUSTOM_ALT(A)"
+
+        # Should still have other defaults
+        binding = LayoutBinding(
+            value="&kp",
+            params=[LayoutParam(value="LCTL", params=[LayoutParam(value="A")])],
+        )
+        result = formatter.format_binding(binding)
+        assert result == "&kp LC(A)"
+
+    def test_unknown_behavior_class_warning(self, behavior_registry):
+        """Test that unknown behavior classes generate warnings."""
+        behavior_config = BehaviorConfig(
+            behavior_mappings=[
+                BehaviorMapping(
+                    behavior_name="&unknown", behavior_class="UnknownBehavior"
+                ),
+            ]
+        )
+
+        # Should log warning for unknown behavior class but still work
+        formatter = BehaviorFormatterImpl(behavior_registry, behavior_config)
+
+        # Unknown behavior should not be in the mapping
+        assert "&unknown" not in formatter._behavior_classes
