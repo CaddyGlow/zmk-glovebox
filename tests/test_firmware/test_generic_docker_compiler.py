@@ -8,8 +8,11 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from glovebox.config.compile_methods import (
+    BuildTargetConfig,
+    BuildYamlConfig,
     GenericDockerCompileConfig,
     WestWorkspaceConfig,
+    ZmkConfigRepoConfig,
 )
 from glovebox.firmware.compile.generic_docker_compiler import (
     GenericDockerCompiler,
@@ -72,6 +75,17 @@ class TestGenericDockerCompiler:
         )
 
     @pytest.fixture
+    def zmk_config_repo_config(self):
+        """Create ZMK config repository configuration."""
+        return ZmkConfigRepoConfig(
+            config_repo_url="https://github.com/example/zmk-config.git",
+            config_repo_revision="main",
+            workspace_path="/zmk-config-workspace",
+            config_path="config",
+            build_yaml_path="build.yaml",
+        )
+
+    @pytest.fixture
     def complete_config(self, west_config):
         """Create complete GenericDockerCompileConfig with west workspace."""
         return GenericDockerCompileConfig(
@@ -83,6 +97,20 @@ class TestGenericDockerCompiler:
             build_commands=["west build -d build/left -b glove80_lh"],
             environment_template={"ZEPHYR_TOOLCHAIN_VARIANT": "zephyr"},
             volume_templates=["/workspace:/src:rw"],
+        )
+
+    @pytest.fixture
+    def zmk_config_complete_config(self, zmk_config_repo_config):
+        """Create complete GenericDockerCompileConfig with ZMK config repository."""
+        return GenericDockerCompileConfig(
+            image="zmkfirmware/zmk-build-arm:stable",
+            build_strategy="zmk_config",
+            zmk_config_repo=zmk_config_repo_config,
+            board_targets=["nice_nano_v2"],
+            cache_workspace=True,
+            build_commands=[],
+            environment_template={"ZEPHYR_TOOLCHAIN_VARIANT": "zephyr"},
+            volume_templates=[],
         )
 
     def test_initialization(self, mock_docker_adapter, mock_file_adapter):
@@ -666,6 +694,200 @@ class TestGenericDockerCompiler:
         # Test that it can process lines
         processed = middleware.process("test line", "stdout")
         assert processed == "test line"
+
+    def test_validate_config_zmk_config_strategy(self, compiler):
+        """Test config validation with zmk_config strategy."""
+        config = GenericDockerCompileConfig(
+            image="zmkfirmware/zmk-build-arm:stable", build_strategy="zmk_config"
+        )
+        assert compiler.validate_config(config) is True
+
+    def test_initialize_workspace_zmk_config(self, compiler, zmk_config_repo_config):
+        """Test initialize_workspace with zmk_config configuration."""
+        config = GenericDockerCompileConfig(
+            build_strategy="zmk_config",
+            zmk_config_repo=zmk_config_repo_config,
+        )
+
+        with patch.object(
+            compiler, "manage_zmk_config_repo", return_value=True
+        ) as mock_manage:
+            result = compiler.initialize_workspace(config)
+
+            assert result is True
+            mock_manage.assert_called_once_with(zmk_config_repo_config)
+
+    def test_manage_zmk_config_repo(
+        self, compiler, mock_docker_adapter, zmk_config_repo_config
+    ):
+        """Test manage_zmk_config_repo method."""
+        mock_docker_adapter.run_container.return_value = (
+            0,
+            ["Config repo init successful"],
+            [],
+        )
+
+        result = compiler.manage_zmk_config_repo(zmk_config_repo_config)
+
+        assert result is True
+        mock_docker_adapter.run_container.assert_called()
+
+    def test_manage_zmk_config_repo_failure(
+        self, compiler, mock_docker_adapter, zmk_config_repo_config
+    ):
+        """Test manage_zmk_config_repo with command failure."""
+        mock_docker_adapter.run_container.return_value = (
+            1,
+            [],
+            ["Config repo init failed"],
+        )
+
+        result = compiler.manage_zmk_config_repo(zmk_config_repo_config)
+
+        assert result is False
+
+    def test_parse_build_yaml_success(self, compiler, mock_file_adapter):
+        """Test parse_build_yaml with valid YAML."""
+        mock_file_adapter.check_exists.return_value = True
+        mock_file_adapter.read_text.return_value = """
+board: ["nice_nano_v2"]
+shield: ["corne_left", "corne_right"]
+include:
+  - board: nice_nano_v2
+    shield: corne_left
+    cmake-args: ["-DEXTRA_CONFIG=left"]
+    artifact-name: corne_left
+  - board: nice_nano_v2
+    shield: corne_right
+    cmake-args: ["-DEXTRA_CONFIG=right"]
+    artifact-name: corne_right
+"""
+
+        result = compiler.parse_build_yaml(Path("/build.yaml"))
+
+        assert isinstance(result, BuildYamlConfig)
+        assert result.board == ["nice_nano_v2"]
+        assert result.shield == ["corne_left", "corne_right"]
+        assert len(result.include) == 2
+        assert result.include[0].board == "nice_nano_v2"
+        assert result.include[0].shield == "corne_left"
+        assert result.include[0].cmake_args == ["-DEXTRA_CONFIG=left"]
+        assert result.include[0].artifact_name == "corne_left"
+
+    def test_parse_build_yaml_missing_file(self, compiler, mock_file_adapter):
+        """Test parse_build_yaml with missing file."""
+        mock_file_adapter.check_exists.return_value = False
+
+        result = compiler.parse_build_yaml(Path("/missing.yaml"))
+
+        assert isinstance(result, BuildYamlConfig)
+        assert result.board == []
+        assert result.shield == []
+        assert result.include == []
+
+    def test_parse_build_yaml_invalid_format(self, compiler, mock_file_adapter):
+        """Test parse_build_yaml with invalid YAML format."""
+        mock_file_adapter.check_exists.return_value = True
+        mock_file_adapter.read_text.return_value = "invalid yaml: [unclosed"
+
+        result = compiler.parse_build_yaml(Path("/invalid.yaml"))
+
+        assert isinstance(result, BuildYamlConfig)
+        assert result.board == []
+        assert result.shield == []
+        assert result.include == []
+
+    def test_compile_zmk_config_strategy_success(
+        self,
+        compiler,
+        mock_docker_adapter,
+        mock_file_adapter,
+        zmk_config_complete_config,
+    ):
+        """Test successful zmk_config strategy compilation."""
+        # Mock successful Docker run
+        mock_docker_adapter.run_container.return_value = (0, ["Build completed"], [])
+
+        # Mock finding firmware files
+        mock_file_adapter.list_files.return_value = [Path("/output/firmware.uf2")]
+        mock_file_adapter.list_directory.return_value = []
+
+        # Mock build.yaml parsing
+        with patch.object(compiler, "parse_build_yaml") as mock_parse:
+            mock_parse.return_value = BuildYamlConfig(
+                include=[
+                    BuildTargetConfig(
+                        board="nice_nano_v2",
+                        shield="corne_left",
+                        artifact_name="corne_left",
+                    )
+                ]
+            )
+
+            # Mock workspace initialization
+            with patch.object(
+                compiler, "_initialize_zmk_config_workspace", return_value=True
+            ):
+                result = compiler.compile(
+                    Path("/keymap.keymap"),
+                    Path("/config.conf"),
+                    Path("/output"),
+                    zmk_config_complete_config,
+                )
+
+        assert result.success is True
+        assert len(result.messages) > 0
+        assert any("compilation completed" in msg.lower() for msg in result.messages)
+
+    def test_compile_zmk_config_strategy_missing_config(self, compiler):
+        """Test zmk_config strategy compilation with missing config repository."""
+        config = GenericDockerCompileConfig(
+            image="zmkfirmware/zmk-build-arm:stable",
+            build_strategy="zmk_config",
+            zmk_config_repo=None,  # Missing config repo
+        )
+
+        result = compiler.compile(
+            Path("/keymap.keymap"),
+            Path("/config.conf"),
+            Path("/output"),
+            config,
+        )
+
+        assert result.success is False
+        assert "ZMK config repository configuration is required" in result.errors[0]
+
+    def test_prepare_zmk_config_environment(self, compiler, zmk_config_complete_config):
+        """Test _prepare_zmk_config_environment method."""
+        env = compiler._prepare_zmk_config_environment(
+            zmk_config_complete_config, zmk_config_complete_config.zmk_config_repo
+        )
+
+        assert "ZEPHYR_TOOLCHAIN_VARIANT" in env
+        assert env["ZEPHYR_TOOLCHAIN_VARIANT"] == "zephyr"
+        assert "WEST_WORKSPACE" in env
+        assert env["WEST_WORKSPACE"] == "/zmk-config-workspace"
+        assert "ZMK_CONFIG" in env
+        assert env["ZMK_CONFIG"] == "/zmk-config-workspace/config"
+        assert "CONFIG_REPO_URL" in env
+        assert "JOBS" in env
+
+    def test_prepare_zmk_config_volumes(self, compiler, zmk_config_complete_config):
+        """Test _prepare_zmk_config_volumes method."""
+        volumes = compiler._prepare_zmk_config_volumes(
+            Path("/keymap.keymap"),
+            Path("/config.conf"),
+            Path("/output"),
+            zmk_config_complete_config,
+            zmk_config_complete_config.zmk_config_repo,
+        )
+
+        assert len(volumes) > 0
+        # Should have output directory mapping
+        assert any("/build" in str(vol[1]) for vol in volumes)
+        # Should have keymap and config file mappings
+        assert any("keymap.keymap" in str(vol[1]) for vol in volumes)
+        assert any("config.conf" in str(vol[1]) for vol in volumes)
 
 
 class TestGenericDockerCompilerFactory:

@@ -21,8 +21,45 @@ class CompileMethodConfig(BaseModel, ABC):
     fallback_methods: list[str] = Field(default_factory=list)
 
 
+class BuildTargetConfig(BaseModel):
+    """Individual build target configuration from build.yaml."""
+
+    board: str
+    shield: str | None = None
+    cmake_args: list[str] = Field(default_factory=list)
+    snippet: str | None = None
+    artifact_name: str | None = None
+
+
+class BuildYamlConfig(BaseModel):
+    """Configuration parsed from ZMK config repository build.yaml."""
+
+    board: list[str] = Field(default_factory=list)
+    shield: list[str] = Field(default_factory=list)
+    include: list[BuildTargetConfig] = Field(default_factory=list)
+
+
+class ZmkConfigRepoConfig(BaseModel):
+    """ZMK config repository configuration for config-based manifests."""
+
+    config_repo_url: str
+    config_repo_revision: str = "main"
+    config_path: str = "config"
+    build_yaml_path: str = "build.yaml"
+    workspace_path: str = "/zmk-config-workspace"
+    west_commands: list[str] = Field(
+        default_factory=lambda: ["west init -l config", "west update"]
+    )
+
+    @field_validator("workspace_path")
+    @classmethod
+    def expand_workspace_path(cls, v: str) -> str:
+        """Expand environment variables and user home in workspace path."""
+        return expand_path_variables(v)
+
+
 class WestWorkspaceConfig(BaseModel):
-    """ZMK West workspace configuration."""
+    """ZMK West workspace configuration for traditional manifests."""
 
     manifest_url: str = "https://github.com/zmkfirmware/zmk.git"
     manifest_revision: str = "main"
@@ -80,8 +117,11 @@ class GenericDockerCompileConfig(DockerCompileConfig):
     """Generic Docker compiler with pluggable build strategies."""
 
     method_type: str = "generic_docker"
-    build_strategy: str = "west"  # "west", "cmake", "make", "ninja", "custom"
+    build_strategy: str = (
+        "west"  # "west", "zmk_config", "cmake", "make", "ninja", "custom"
+    )
     west_workspace: WestWorkspaceConfig | None = None
+    zmk_config_repo: ZmkConfigRepoConfig | None = None
     build_commands: list[str] = Field(default_factory=list)
     environment_template: dict[str, str] = Field(default_factory=dict)
     volume_templates: list[str] = Field(default_factory=list)
@@ -103,6 +143,9 @@ class GenericDockerCompileConfig(DockerCompileConfig):
 
 __all__ = [
     "CompileMethodConfig",
+    "BuildTargetConfig",
+    "BuildYamlConfig",
+    "ZmkConfigRepoConfig",
     "WestWorkspaceConfig",
     "DockerCompileConfig",
     "GenericDockerCompileConfig",

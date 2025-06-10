@@ -4,10 +4,12 @@ from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from glovebox.config.compile_methods import (
+    BuildYamlConfig,
     CompileMethodConfig,
     DockerCompileConfig,
     GenericDockerCompileConfig,
     WestWorkspaceConfig,
+    ZmkConfigRepoConfig,
 )
 from glovebox.firmware.models import BuildResult
 
@@ -96,6 +98,14 @@ class GenericDockerCompilerProtocol(Protocol):
 
     def manage_west_workspace(self, workspace_config: WestWorkspaceConfig) -> bool:
         """Manage ZMK west workspace lifecycle."""
+        ...
+
+    def manage_zmk_config_repo(self, config_repo_config: ZmkConfigRepoConfig) -> bool:
+        """Manage ZMK config repository workspace lifecycle."""
+        ...
+
+    def parse_build_yaml(self, build_yaml_path: Path) -> BuildYamlConfig:
+        """Parse build.yaml configuration file."""
         ...
 
     def cache_workspace(self, workspace_path: Path) -> bool:

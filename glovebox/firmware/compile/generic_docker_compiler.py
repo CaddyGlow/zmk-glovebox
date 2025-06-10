@@ -12,8 +12,11 @@ if TYPE_CHECKING:
 from glovebox.adapters.docker_adapter import create_docker_adapter
 from glovebox.adapters.file_adapter import create_file_adapter
 from glovebox.config.compile_methods import (
+    BuildTargetConfig,
+    BuildYamlConfig,
     GenericDockerCompileConfig,
     WestWorkspaceConfig,
+    ZmkConfigRepoConfig,
 )
 from glovebox.core.errors import BuildError
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
@@ -79,6 +82,10 @@ class GenericDockerCompiler:
                 return self._execute_west_strategy(
                     keymap_file, config_file, output_dir, config
                 )
+            elif config.build_strategy == "zmk_config":
+                return self._execute_zmk_config_strategy(
+                    keymap_file, config_file, output_dir, config
+                )
             elif config.build_strategy == "cmake":
                 return self._execute_cmake_strategy(
                     keymap_file, config_file, output_dir, config
@@ -111,7 +118,14 @@ class GenericDockerCompiler:
         if not config.build_strategy:
             logger.error("Build strategy not specified")
             return False
-        if config.build_strategy not in ["west", "cmake", "make", "ninja", "custom"]:
+        if config.build_strategy not in [
+            "west",
+            "zmk_config",
+            "cmake",
+            "make",
+            "ninja",
+            "custom",
+        ]:
             logger.error("Invalid build strategy: %s", config.build_strategy)
             return False
         return True
@@ -147,6 +161,8 @@ class GenericDockerCompiler:
 
         if config.build_strategy == "west" and config.west_workspace:
             return self.manage_west_workspace(config.west_workspace)
+        elif config.build_strategy == "zmk_config" and config.zmk_config_repo:
+            return self.manage_zmk_config_repo(config.zmk_config_repo)
 
         # For other strategies, initialization is handled in strategy execution
         return True
@@ -220,6 +236,112 @@ class GenericDockerCompiler:
         except Exception as e:
             logger.error("Failed to manage west workspace: %s", e)
             return False
+
+    def manage_zmk_config_repo(self, config_repo_config: ZmkConfigRepoConfig) -> bool:
+        """Manage ZMK config repository workspace lifecycle."""
+        logger.debug(
+            "Managing ZMK config repository: %s", config_repo_config.config_repo_url
+        )
+
+        try:
+            # Execute config repo initialization commands inside Docker container
+            for command in config_repo_config.west_commands:
+                logger.debug("Executing config repo command: %s", command)
+
+                # Build command environment
+                env = {
+                    "WEST_WORKSPACE": config_repo_config.workspace_path,
+                    "CONFIG_REPO_URL": config_repo_config.config_repo_url,
+                    "CONFIG_REPO_REVISION": config_repo_config.config_repo_revision,
+                }
+
+                # Prepare volumes for config repository workspace
+                volumes = [
+                    (
+                        config_repo_config.workspace_path,
+                        config_repo_config.workspace_path,
+                    ),
+                ]
+
+                # Execute config repo command in Docker container
+                return_code, stdout_lines, stderr_lines = (
+                    self.docker_adapter.run_container(
+                        image="zmkfirmware/zmk-build-arm:stable",  # Default ZMK image
+                        command=["sh", "-c", command],
+                        volumes=volumes,
+                        environment=env,
+                        middleware=self.output_middleware,
+                    )
+                )
+
+                if return_code != 0:
+                    error_msg = (
+                        "\\n".join(stderr_lines)
+                        if stderr_lines
+                        else f"Command failed: {command}"
+                    )
+                    logger.error("Config repo command failed: %s", error_msg)
+                    return False
+
+            logger.info(
+                "ZMK config repository initialized successfully: %s",
+                config_repo_config.config_repo_url,
+            )
+            return True
+
+        except Exception as e:
+            logger.error("Failed to manage ZMK config repository: %s", e)
+            return False
+
+    def parse_build_yaml(self, build_yaml_path: Path) -> BuildYamlConfig:
+        """Parse build.yaml configuration file."""
+        logger.debug("Parsing build.yaml: %s", build_yaml_path)
+
+        try:
+            import yaml
+
+            if not self.file_adapter.check_exists(build_yaml_path):
+                logger.warning(
+                    "build.yaml not found, returning empty config: %s", build_yaml_path
+                )
+                return BuildYamlConfig()
+
+            build_yaml_content = self.file_adapter.read_text(build_yaml_path)
+            build_data = yaml.safe_load(build_yaml_content)
+
+            if not isinstance(build_data, dict):
+                logger.warning("Invalid build.yaml format, returning empty config")
+                return BuildYamlConfig()
+
+            # Parse board and shield lists
+            board_list = build_data.get("board", [])
+            shield_list = build_data.get("shield", [])
+
+            # Parse include list with BuildTargetConfig objects
+            include_list = []
+            for include_item in build_data.get("include", []):
+                if isinstance(include_item, dict):
+                    target_config = BuildTargetConfig(
+                        board=include_item.get("board", ""),
+                        shield=include_item.get("shield"),
+                        cmake_args=include_item.get("cmake-args", []),
+                        snippet=include_item.get("snippet"),
+                        artifact_name=include_item.get("artifact-name"),
+                    )
+                    include_list.append(target_config)
+
+            build_config = BuildYamlConfig(
+                board=board_list if isinstance(board_list, list) else [],
+                shield=shield_list if isinstance(shield_list, list) else [],
+                include=include_list,
+            )
+
+            logger.info("Parsed build.yaml with %d targets", len(include_list))
+            return build_config
+
+        except Exception as e:
+            logger.error("Failed to parse build.yaml: %s", e)
+            return BuildYamlConfig()
 
     def cache_workspace(self, workspace_path: Path) -> bool:
         """Cache workspace for reuse with intelligent caching strategies."""
@@ -662,6 +784,170 @@ class GenericDockerCompiler:
 
         return result
 
+    def _execute_zmk_config_strategy(
+        self,
+        keymap_file: Path,
+        config_file: Path,
+        output_dir: Path,
+        config: GenericDockerCompileConfig,
+    ) -> BuildResult:
+        """Execute ZMK config repository build strategy."""
+        logger.info("Executing ZMK config repository build strategy")
+        result = BuildResult(success=True)
+
+        try:
+            if not config.zmk_config_repo:
+                result.success = False
+                result.add_error(
+                    "ZMK config repository configuration is required for zmk_config strategy"
+                )
+                return result
+
+            config_repo_config = config.zmk_config_repo
+            workspace_path = Path(config_repo_config.workspace_path)
+
+            # Check if caching is enabled and workspace cache is valid
+            if config.cache_workspace:
+                # Clean up old caches first
+                self.cleanup_old_caches(max_age_days=7)
+
+                # Check if we can use cached workspace
+                if self.is_cache_valid(workspace_path, config):
+                    logger.info("Using cached ZMK config workspace: %s", workspace_path)
+                    result.add_message("Using cached workspace for faster build")
+                else:
+                    logger.info(
+                        "Cache invalid or missing, initializing fresh ZMK config workspace"
+                    )
+
+                    # Initialize config repository workspace
+                    if not self._initialize_zmk_config_workspace(
+                        config_repo_config, keymap_file, config_file
+                    ):
+                        result.success = False
+                        result.add_error(
+                            "Failed to initialize ZMK config repository workspace"
+                        )
+                        return result
+
+                    # Cache the newly initialized workspace
+                    if self.cache_workspace(workspace_path):
+                        logger.info("ZMK config workspace cached for future builds")
+                        result.add_message("Workspace cached for future builds")
+            else:
+                # Initialize workspace without caching
+                if not self._initialize_zmk_config_workspace(
+                    config_repo_config, keymap_file, config_file
+                ):
+                    result.success = False
+                    result.add_error(
+                        "Failed to initialize ZMK config repository workspace"
+                    )
+                    return result
+
+            # Parse build.yaml to get build targets
+            build_yaml_path = workspace_path / config_repo_config.build_yaml_path
+            build_config = self.parse_build_yaml(build_yaml_path)
+
+            # Prepare build environment for ZMK config
+            build_env = self._prepare_zmk_config_environment(config, config_repo_config)
+
+            # Prepare volumes for ZMK config workspace
+            volumes = self._prepare_zmk_config_volumes(
+                keymap_file, config_file, output_dir, config, config_repo_config
+            )
+
+            # Build commands based on build.yaml targets or fallback to config settings
+            build_commands = []
+            if build_config.include:
+                # Use targets from build.yaml
+                for target in build_config.include:
+                    board_arg = target.board
+                    if target.shield:
+                        shield_arg = f" -- -DSHIELD={target.shield}"
+                    else:
+                        shield_arg = ""
+
+                    artifact_name = (
+                        target.artifact_name or f"{target.board}_{target.shield}"
+                        if target.shield
+                        else target.board
+                    )
+                    build_commands.append(
+                        f"west build -p always -b {board_arg} -d build/{artifact_name}{shield_arg}"
+                    )
+            elif config.board_targets:
+                # Use board targets from config
+                for board in config.board_targets:
+                    build_commands.append(
+                        f"west build -p always -b {board} -d build/{board}"
+                    )
+            else:
+                # Default build command
+                build_commands.append("west build -p always")
+
+            # Add any custom build commands
+            if config.build_commands:
+                build_commands.extend(config.build_commands)
+
+            # Execute all build commands
+            west_command = " && ".join(build_commands)
+
+            # Run Docker compilation with ZMK config commands
+            docker_image = f"{config.image}"
+            return_code, stdout_lines, stderr_lines = self.docker_adapter.run_container(
+                image=docker_image,
+                command=[
+                    "sh",
+                    "-c",
+                    f"cd {config_repo_config.workspace_path} && {west_command}",
+                ],
+                volumes=volumes,
+                environment=build_env,
+                middleware=self.output_middleware,
+            )
+
+            if return_code != 0:
+                error_msg = (
+                    "\\n".join(stderr_lines)
+                    if stderr_lines
+                    else "ZMK config compilation failed"
+                )
+                result.success = False
+                result.add_error(
+                    f"ZMK config compilation failed with exit code {return_code}: {error_msg}"
+                )
+                return result
+
+            # Find and collect firmware files
+            firmware_files, output_files = self._find_firmware_files(output_dir)
+
+            if not firmware_files:
+                result.success = False
+                result.add_error("No firmware files generated")
+                return result
+
+            # Store results
+            result.output_files = output_files
+            result.add_message(
+                f"ZMK config compilation completed. Generated {len(firmware_files)} firmware files."
+            )
+
+            for firmware_file in firmware_files:
+                result.add_message(f"Firmware file: {firmware_file}")
+
+            logger.info(
+                "ZMK config compilation completed successfully with %d files",
+                len(firmware_files),
+            )
+
+        except Exception as e:
+            logger.error("ZMK config strategy execution failed: %s", e)
+            result.success = False
+            result.add_error(f"ZMK config strategy execution failed: {str(e)}")
+
+        return result
+
     def _execute_cmake_strategy(
         self,
         keymap_file: Path,
@@ -814,6 +1100,101 @@ class GenericDockerCompiler:
             logger.error("Failed to initialize west workspace: %s", e)
             return False
 
+    def _initialize_zmk_config_workspace(
+        self,
+        config_repo_config: ZmkConfigRepoConfig,
+        keymap_file: Path,
+        config_file: Path,
+    ) -> bool:
+        """Initialize ZMK config repository workspace in Docker container."""
+        logger.debug("Initializing ZMK config repository workspace")
+
+        try:
+            # Create workspace directory if it doesn't exist
+            workspace_path = Path(config_repo_config.workspace_path)
+            if not self.file_adapter.check_exists(workspace_path):
+                self.file_adapter.create_directory(workspace_path)
+                logger.debug(
+                    "Created ZMK config workspace directory: %s", workspace_path
+                )
+
+            # Clone the config repository first
+            clone_command = f"git clone {config_repo_config.config_repo_url} {config_repo_config.workspace_path}"
+            if config_repo_config.config_repo_revision != "main":
+                clone_command += f" --branch {config_repo_config.config_repo_revision}"
+
+            # Create config directory inside workspace (if it doesn't exist from clone)
+            config_dir = workspace_path / config_repo_config.config_path
+            if not self.file_adapter.check_exists(config_dir):
+                self.file_adapter.create_directory(config_dir)
+                logger.debug("Created config directory: %s", config_dir)
+
+            # Copy keymap and config files to workspace
+            try:
+                workspace_keymap = config_dir / "keymap.keymap"
+                workspace_config_file = config_dir / "config.conf"
+
+                # Use file adapter to copy files
+                keymap_content = self.file_adapter.read_text(keymap_file)
+                config_content = self.file_adapter.read_text(config_file)
+
+                self.file_adapter.write_text(workspace_keymap, keymap_content)
+                self.file_adapter.write_text(workspace_config_file, config_content)
+
+                logger.debug("Copied files to ZMK config workspace config directory")
+
+            except Exception as e:
+                logger.warning("Failed to copy files to ZMK config workspace: %s", e)
+                # Continue with initialization even if file copy fails
+
+            # Initialize ZMK config repository workspace using Docker
+            init_commands = [
+                clone_command,
+                f"cd {config_repo_config.workspace_path}",
+            ]
+
+            # Add west commands from config (e.g., "west init -l config", "west update")
+            init_commands.extend(config_repo_config.west_commands)
+
+            # Execute initialization commands
+            full_command = " && ".join(init_commands)
+
+            env = {
+                "WEST_WORKSPACE": config_repo_config.workspace_path,
+                "CONFIG_REPO_URL": config_repo_config.config_repo_url,
+                "CONFIG_REPO_REVISION": config_repo_config.config_repo_revision,
+            }
+
+            volumes = [
+                (str(workspace_path.absolute()), config_repo_config.workspace_path),
+            ]
+
+            return_code, stdout_lines, stderr_lines = self.docker_adapter.run_container(
+                image="zmkfirmware/zmk-build-arm:stable",
+                command=["sh", "-c", full_command],
+                volumes=volumes,
+                environment=env,
+                middleware=self.output_middleware,
+            )
+
+            if return_code != 0:
+                error_msg = (
+                    "\\n".join(stderr_lines)
+                    if stderr_lines
+                    else "ZMK config workspace initialization failed"
+                )
+                logger.error(
+                    "ZMK config workspace initialization failed: %s", error_msg
+                )
+                return False
+
+            logger.info("ZMK config repository workspace initialized successfully")
+            return True
+
+        except Exception as e:
+            logger.error("Failed to initialize ZMK config repository workspace: %s", e)
+            return False
+
     def _prepare_west_environment(
         self, config: GenericDockerCompileConfig
     ) -> dict[str, str]:
@@ -856,6 +1237,35 @@ class GenericDockerCompiler:
         )
 
         logger.debug("CMake build environment: %s", build_env)
+        return build_env
+
+    def _prepare_zmk_config_environment(
+        self,
+        config: GenericDockerCompileConfig,
+        config_repo_config: ZmkConfigRepoConfig,
+    ) -> dict[str, str]:
+        """Prepare build environment variables for ZMK config strategy."""
+        build_env = {}
+
+        # Start with any custom environment template
+        build_env.update(config.environment_template)
+
+        # Add ZMK config-specific environment
+        build_env.update(
+            {
+                "WEST_WORKSPACE": config_repo_config.workspace_path,
+                "ZMK_CONFIG": f"{config_repo_config.workspace_path}/{config_repo_config.config_path}",
+                "CONFIG_REPO_URL": config_repo_config.config_repo_url,
+                "CONFIG_REPO_REVISION": config_repo_config.config_repo_revision,
+            }
+        )
+
+        # Add any additional environment variables
+        import multiprocessing
+
+        build_env.setdefault("JOBS", str(multiprocessing.cpu_count()))
+
+        logger.debug("ZMK config build environment: %s", build_env)
         return build_env
 
     def _prepare_west_volumes(
@@ -964,6 +1374,71 @@ class GenericDockerCompiler:
         config_abs = config_file.absolute()
         volumes.append((str(keymap_abs), "/build/keymap.keymap:ro"))
         volumes.append((str(config_abs), "/build/config.conf:ro"))
+
+        return volumes
+
+    def _prepare_zmk_config_volumes(
+        self,
+        keymap_file: Path,
+        config_file: Path,
+        output_dir: Path,
+        config: GenericDockerCompileConfig,
+        config_repo_config: ZmkConfigRepoConfig,
+    ) -> list[tuple[str, str]]:
+        """Prepare Docker volume mappings for ZMK config strategy."""
+        volumes = []
+
+        # Map output directory
+        output_dir_abs = output_dir.absolute()
+        volumes.append((str(output_dir_abs), "/build"))
+
+        # Use volume templates if provided, otherwise use optimized defaults
+        if config.volume_templates:
+            # Apply volume templates (this would be expanded based on templates)
+            for template in config.volume_templates:
+                logger.debug("Applying volume template: %s", template)
+                # Parse template and add to volumes
+                self._parse_volume_template(template, volumes)
+        else:
+            # Optimized ZMK config workspace volume mapping
+            workspace_path = config_repo_config.workspace_path
+            config_path = config_repo_config.config_path
+
+            # Check if we can use cached workspace volumes
+            if config.cache_workspace:
+                workspace_abs_path = Path(workspace_path)
+                if self.is_cache_valid(workspace_abs_path, config):
+                    # Use cached workspace with optimized volume mounting
+                    cache_dir = self._get_cache_directory(workspace_abs_path)
+                    volumes.append((str(cache_dir), f"{workspace_path}/.cache:rw"))
+                    logger.debug(
+                        "Using cached ZMK config workspace volumes for faster mounting"
+                    )
+
+            # Map files to ZMK config workspace config directory
+            keymap_abs = keymap_file.absolute()
+            config_abs = config_file.absolute()
+
+            volumes.append(
+                (
+                    str(keymap_abs),
+                    f"{workspace_path}/{config_path}/keymap.keymap:ro",
+                )
+            )
+            volumes.append(
+                (str(config_abs), f"{workspace_path}/{config_path}/config.conf:ro")
+            )
+
+            # Add workspace directory for persistent builds
+            if config.cache_workspace:
+                # Mount workspace directory for caching
+                workspace_host_path = Path(workspace_path).absolute()
+                if self.file_adapter.check_exists(workspace_host_path):
+                    volumes.append((str(workspace_host_path), f"{workspace_path}:rw"))
+                    logger.debug(
+                        "Mounted ZMK config workspace directory for caching: %s",
+                        workspace_path,
+                    )
 
         return volumes
 

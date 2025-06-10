@@ -38,6 +38,28 @@ compile_methods:
       - "/zmk-workspace/.west:/workspace/.west:rw"
     fallback_methods: ["docker", "local"]
 
+  # Generic Docker compiler with ZMK Config Repository support
+  - method_type: generic_docker
+    image: zmkfirmware/zmk-build-arm:stable
+    build_strategy: zmk_config
+    cache_workspace: true
+    zmk_config_repo:
+      config_repo_url: "https://github.com/moergo-sc/glove80-zmk-config.git"
+      config_repo_revision: "main"
+      workspace_path: "/zmk-config-workspace"
+      config_path: "config"
+      build_yaml_path: "build.yaml"
+      west_commands:
+        - "west init -l config"
+        - "west update"
+    build_commands: []  # Commands will be auto-generated from build.yaml
+    environment_template:
+      ZEPHYR_TOOLCHAIN_VARIANT: "zephyr"
+      ZEPHYR_SDK_INSTALL_DIR: "/opt/zephyr-sdk"
+      ZMK_EXTRA_MODULES: "glove80"
+    volume_templates: []  # Volume mappings will be auto-generated
+    fallback_methods: ["docker", "local"]
+
 # Flash method configurations  
 flash_methods:
   - method_type: usb

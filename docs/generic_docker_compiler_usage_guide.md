@@ -4,25 +4,26 @@
 
 The Generic Docker Compiler provides flexible, multi-strategy firmware compilation with modern west workspace support, intelligent caching, and extensible build systems.
 
-**Important**: This compiler is designed for projects with proper west manifest repositories. For ZMK keyboard firmware builds, use the traditional Docker compiler instead, as ZMK repositories don't contain west.yml manifest files.
+**Important**: This compiler supports both ZMK config template repositories (recommended) and traditional west manifest projects. Use this compiler for modern ZMK builds with `config/west.yml` and `build.yaml` files.
 
 ## When to Use
 
 ### Use Generic Docker Compiler for:
-- Projects with west manifest files (west.yml)
-- Custom Zephyr-based firmware projects
-- Multi-repository projects managed by west
-- Projects requiring custom build strategies (cmake, make, ninja)
+- **ZMK Config Repositories** - Projects using the ZMK config template pattern with `config/west.yml` and `build.yaml`
+- **Traditional West Workspaces** - Projects with west manifest files (west.yml)
+- **Custom Zephyr-based firmware projects** - Multi-repository projects managed by west
+- **Alternative Build Systems** - Projects requiring custom build strategies (cmake, make, ninja)
 
 ### Use Traditional Docker Compiler for:
-- ZMK keyboard firmware builds
-- Single-repository projects without west manifests
-- Projects using established Docker build patterns
+- **Legacy ZMK builds** - Direct ZMK repository builds without config repositories
+- **Simple single-repository projects** - Projects without west manifests
+- **Established Docker workflows** - Projects using established Docker build patterns
 
 ## Key Features
 
 ### Build Strategies
-- **west**: West workspace builds for projects with west manifests
+- **zmk_config**: ZMK config repository builds with `config/west.yml` and `build.yaml` (recommended for ZMK)
+- **west**: Traditional west workspace builds for projects with west manifests
 - **cmake**: Direct CMake builds for custom projects
 - **make**: Traditional make builds
 - **ninja**: Ninja build system for fast compilation
@@ -42,7 +43,20 @@ The Generic Docker Compiler provides flexible, multi-strategy firmware compilati
 
 ## Basic Usage
 
-### ZMK West Workspace Build (Recommended)
+### ZMK Config Repository Build (Recommended for ZMK)
+
+```bash
+# Using ZMK config repository pattern
+glovebox firmware compile keymap.keymap config.conf --profile corne/main
+
+# With workspace caching for faster subsequent builds
+glovebox firmware compile keymap.keymap config.conf --profile corne/main --cache-workspace
+
+# Force specific build strategy
+glovebox firmware compile keymap.keymap config.conf --profile corne/main --build-strategy zmk_config
+```
+
+### ZMK West Workspace Build (Traditional)
 
 ```bash
 # Basic ZMK build
@@ -78,6 +92,99 @@ glovebox firmware compile keymap.keymap config.conf --profile custom/board --bui
 | `--board-targets` | Split keyboard targets | `--board-targets glove80_lh,glove80_rh` |
 | `--verbose` | Verbose build output | `--verbose` |
 | `--jobs` | Parallel job count | `--jobs 4` |
+
+## ZMK Config Repository Configuration
+
+The Generic Docker Compiler now supports the modern ZMK config repository pattern, which is the recommended approach for ZMK keyboard builds.
+
+### What is a ZMK Config Repository?
+
+A ZMK config repository is a standalone repository that:
+- Contains a `config/west.yml` manifest file that references the main ZMK firmware
+- Includes a `build.yaml` file that defines which boards and shields to build
+- Uses `west init -l config` to initialize from the local manifest
+- Automatically generates build commands based on `build.yaml` targets
+
+### ZMK Config Repository Structure
+
+```
+my-zmk-config/
+├── config/
+│   ├── west.yml          # West manifest pointing to ZMK firmware
+│   ├── keymap.keymap     # Your custom keymap
+│   └── config.conf       # ZMK configuration options
+├── build.yaml            # Build targets configuration
+└── README.md
+```
+
+### Example ZMK Config Repository Configuration
+
+```yaml
+# keyboards/corne.yaml
+compile_methods:
+  - method_type: generic_docker
+    image: zmkfirmware/zmk-build-arm:stable
+    build_strategy: zmk_config
+    cache_workspace: true
+    zmk_config_repo:
+      config_repo_url: "https://github.com/example/corne-zmk-config.git"
+      config_repo_revision: "main"
+      workspace_path: "/zmk-config-workspace"
+      config_path: "config"
+      build_yaml_path: "build.yaml"
+      west_commands:
+        - "west init -l config"
+        - "west update"
+    environment_template:
+      ZEPHYR_TOOLCHAIN_VARIANT: "zephyr"
+    # Build commands auto-generated from build.yaml
+    build_commands: []
+    # Volume mappings auto-generated
+    volume_templates: []
+```
+
+### Example build.yaml File
+
+```yaml
+# build.yaml in your ZMK config repository
+board: ["nice_nano_v2"]
+shield: ["corne_left", "corne_right"]
+include:
+  - board: nice_nano_v2
+    shield: corne_left
+    cmake-args: ["-DEXTRA_CONFIG=left"]
+    artifact-name: corne_left
+  - board: nice_nano_v2  
+    shield: corne_right
+    cmake-args: ["-DEXTRA_CONFIG=right"]
+    artifact-name: corne_right
+```
+
+### Example config/west.yml File
+
+```yaml
+# config/west.yml in your ZMK config repository
+manifest:
+  remotes:
+    - name: zmkfirmware
+      url-base: https://github.com/zmkfirmware
+  projects:
+    - name: zmk
+      remote: zmkfirmware
+      revision: main
+      import: app/west.yml
+  self:
+    path: config
+```
+
+### Benefits of ZMK Config Repository Pattern
+
+1. **Automatic Build Generation**: Build commands are automatically generated from `build.yaml`
+2. **Modern ZMK Support**: Uses the latest ZMK config repository pattern
+3. **Simplified Configuration**: Less manual configuration required
+4. **Board Target Management**: Automatic handling of multiple board/shield combinations
+5. **Workspace Caching**: Full support for intelligent workspace caching
+6. **GitHub Actions Integration**: Compatible with ZMK's unified config template
 
 ## Configuration
 
@@ -276,12 +383,13 @@ glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --c
 
 ## Best Practices
 
-1. **Use West Strategy**: Recommended for all ZMK keyboards
-2. **Enable Caching**: Always use `--cache-workspace` for development
-3. **Profile Configuration**: Define build strategy in keyboard profiles
-4. **Board Targets**: Specify explicit board targets for split keyboards
-5. **Verbose Output**: Use `--verbose` for debugging build issues
-6. **Resource Management**: Use `--jobs` to control CPU usage
+1. **Use ZMK Config Strategy**: Recommended for all modern ZMK keyboards using config repositories
+2. **Enable Caching**: Always use `--cache-workspace` for development builds
+3. **Profile Configuration**: Define build strategy in keyboard profiles for consistency
+4. **Build.yaml Targets**: Use `build.yaml` to define board/shield combinations automatically
+5. **Environment Variables**: Use path expansion (`$HOME`, `~`) in workspace paths
+6. **Verbose Output**: Use `--verbose` for debugging build issues
+7. **Resource Management**: Use `--jobs` to control CPU usage during compilation
 
 ## Support
 
