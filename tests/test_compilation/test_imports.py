@@ -67,8 +67,9 @@ def test_factory_functions_exist():
     with pytest.raises(NotImplementedError):
         create_compilation_coordinator()
 
-    with pytest.raises(NotImplementedError):
-        create_zmk_config_service()
+    # ZMK config service is now implemented (Phase 4, Step 4.1)
+    zmk_service = create_zmk_config_service()
+    assert zmk_service is not None
 
     with pytest.raises(NotImplementedError):
         create_west_service()
@@ -133,7 +134,8 @@ def test_subdomain_factory_functions():
     ]
 
     for func in implemented_workspace_functions:
-        assert func() is not None
+        result = func()
+        assert result is not None
 
     # Test stub factory functions return None
     stub_functions = [

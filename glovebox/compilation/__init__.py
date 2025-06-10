@@ -29,12 +29,11 @@ def create_zmk_config_service() -> CompilationServiceProtocol:
     Returns:
         CompilationServiceProtocol: ZMK config compilation service
     """
-    # Implementation will be added in Phase 4
-    # from glovebox.compilation.services.zmk_config_service import ZmkConfigCompilationService
-    # return ZmkConfigCompilationService()
-    raise NotImplementedError(
-        "ZmkConfigCompilationService will be implemented in Phase 4"
+    from glovebox.compilation.services.zmk_config_service import (
+        create_zmk_config_service as _create_service,
     )
+
+    return _create_service()
 
 
 def create_west_service() -> CompilationServiceProtocol:
