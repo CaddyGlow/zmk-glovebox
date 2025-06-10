@@ -10,7 +10,33 @@ compile_methods:
     repository: moergo-sc/zmk
     branch: v25.05
     jobs: 8
-    fallback_methods: ["local"]
+    fallback_methods: ["generic_docker", "local"]
+  
+  # Generic Docker compiler with ZMK West workspace support
+  - method_type: generic_docker
+    image: zmkfirmware/zmk-build-arm:stable
+    build_strategy: west
+    board_targets: ["glove80_lh", "glove80_rh"]
+    cache_workspace: true
+    west_workspace:
+      manifest_url: "https://github.com/zmkfirmware/zmk.git"
+      manifest_revision: "main"
+      modules: []
+      west_commands: 
+        - "west init -l config"
+        - "west update"
+      workspace_path: "/zmk-workspace"
+      config_path: "config"
+    build_commands:
+      - "west build -d build/left -s app -b glove80_lh -- -DZMK_CONFIG=/zmk-workspace/config"
+      - "west build -d build/right -s app -b glove80_rh -- -DZMK_CONFIG=/zmk-workspace/config"
+    environment_template:
+      ZEPHYR_TOOLCHAIN_VARIANT: "zephyr"
+      ZEPHYR_SDK_INSTALL_DIR: "/opt/zephyr-sdk"
+    volume_templates:
+      - "/zmk-workspace/config:/workspace/config:rw"
+      - "/zmk-workspace/.west:/workspace/.west:rw"
+    fallback_methods: ["docker", "local"]
 
 # Flash method configurations  
 flash_methods:

@@ -36,6 +36,28 @@ firmware:
     # When false, flash existing matching devices immediately
     # When true, only wait for newly plugged devices
     skip_existing: false
+  
+  # Compile behavior settings
+  compile:
+    # Default docker image for generic docker compiler (if not specified in keyboard config)
+    default_image: "zmkfirmware/zmk-build-arm:stable"
+    
+    # Default build strategy: "west", "cmake", "make", "ninja", "custom"
+    default_build_strategy: "west"
+    
+    # Enable workspace caching to speed up builds (default: true)
+    cache_workspace: true
+    
+    # Default west workspace configuration for ZMK builds
+    west_workspace:
+      manifest_url: "https://github.com/zmkfirmware/zmk.git"
+      manifest_revision: "main"
+      modules: []
+      west_commands: 
+        - "west init -l config"
+        - "west update"
+      workspace_path: "/zmk-workspace"
+      config_path: "config"
 
 # Backward compatibility: Deprecated flash setting (use firmware.flash.skip_existing instead)
 flash_skip_existing: false
@@ -47,6 +69,9 @@ flash_skip_existing: false
 #    - GLOVEBOX_FIRMWARE__FLASH__COUNT=5
 #    - GLOVEBOX_FIRMWARE__FLASH__TRACK_FLASHED=false
 #    - GLOVEBOX_FIRMWARE__FLASH__SKIP_EXISTING=true
+#    - GLOVEBOX_FIRMWARE__COMPILE__DEFAULT_IMAGE="zmkfirmware/zmk-build-arm:stable"
+#    - GLOVEBOX_FIRMWARE__COMPILE__DEFAULT_BUILD_STRATEGY="west"
+#    - GLOVEBOX_FIRMWARE__COMPILE__CACHE_WORKSPACE=true
 #    - GLOVEBOX_FLASH_SKIP_EXISTING=true (deprecated)
 # 2. Command-line flags (--profile, --timeout, --count, --no-track, --skip-existing)
 # 3. This configuration file

@@ -1,0 +1,134 @@
+# Example Generic ZMK Keyboard Configuration
+# This demonstrates how to configure a generic ZMK keyboard using the Generic Docker Compiler
+
+keyboard: "generic_zmk_board"
+description: "Generic ZMK keyboard with custom board definition"
+vendor: "Custom"
+key_count: 36
+
+# Compile method configurations using Generic Docker Compiler
+compile_methods:
+  # Primary method: Generic Docker with west workspace
+  - method_type: generic_docker
+    image: zmkfirmware/zmk-build-arm:stable
+    build_strategy: west
+    board_targets: ["nice_nano_v2"]  # Replace with your actual board
+    cache_workspace: true
+    west_workspace:
+      manifest_url: "https://github.com/zmkfirmware/zmk.git"
+      manifest_revision: "main"
+      modules: []
+      west_commands: 
+        - "west init -l config"
+        - "west update"
+      workspace_path: "/zmk-workspace"
+      config_path: "config"
+    build_commands:
+      - "west build -d build -s app -b nice_nano_v2 -- -DZMK_CONFIG=/zmk-workspace/config"
+    environment_template:
+      ZEPHYR_TOOLCHAIN_VARIANT: "zephyr"
+      ZEPHYR_SDK_INSTALL_DIR: "/opt/zephyr-sdk"
+    volume_templates:
+      - "/zmk-workspace/config:/workspace/config:rw"
+      - "/zmk-workspace/.west:/workspace/.west:rw"
+    fallback_methods: ["docker"]
+
+  # Alternative method: CMake-based build for custom toolchains
+  - method_type: generic_docker
+    image: custom/zmk-build:latest
+    build_strategy: cmake
+    board_targets: ["custom_board"]
+    cache_workspace: false
+    build_commands:
+      - "cmake -B build -S app -DBOARD=custom_board -DZMK_CONFIG=/workspace/config"
+      - "cmake --build build"
+    environment_template:
+      CMAKE_BUILD_TYPE: "Release"
+      BOARD: "custom_board"
+    volume_templates:
+      - "/workspace/config:/zmk-config:rw"
+    fallback_methods: []
+
+# Flash method configurations  
+flash_methods:
+  - method_type: usb
+    device_query: "vendor=Adafruit and serial~=CIRCUITPY and removable=true"
+    mount_timeout: 30
+    copy_timeout: 60
+    sync_after_copy: true
+    fallback_methods: []
+
+# Firmware configurations
+firmwares:
+  main:
+    version: "main"
+    description: "Latest ZMK main branch"
+    build_options:
+      repository: "zmkfirmware/zmk"
+      branch: "main"
+
+  stable:
+    version: "stable"
+    description: "ZMK stable release"
+    build_options:
+      repository: "zmkfirmware/zmk"
+      branch: "v3.2.0"
+
+# Basic keymap configuration
+keymap:
+  includes:
+    - "#include <behaviors.dtsi>"
+    - "#include <dt-bindings/zmk/keys.h>"
+    - "#include <dt-bindings/zmk/bt.h>"
+
+  kconfig_options:
+    DEEP_SLEEP:
+      name: "CONFIG_ZMK_SLEEP"
+      type: "bool"
+      default: false
+      description: "Enable deep sleep"
+    
+    COMBO_MAX_PRESSED_COMBOS:
+      name: "CONFIG_ZMK_COMBO_MAX_PRESSED_COMBOS"
+      type: "int"
+      default: 4
+      description: "Maximum number of currently pressed combos"
+
+  system_behaviors:
+    - code: "&kp"
+      name: "Key Press"
+      description: "Standard key press behavior"
+      url: "https://zmk.dev/docs/behaviors/key-press"
+      expected_params: 1
+      origin: "zmk"
+      params: ["code"]
+
+    - code: "&lt"
+      name: "Layer Tap"
+      description: "Layer when held, key when tapped"
+      url: "https://zmk.dev/docs/behaviors/layers"
+      expected_params: 2
+      origin: "zmk"
+      params: ["layer", "code"]
+
+    - code: "&mt"
+      name: "Mod Tap"
+      description: "Modifier when held, key when tapped"
+      url: "https://zmk.dev/docs/behaviors/mod-tap"
+      expected_params: 2
+      origin: "zmk"
+      params: ["modifier", "code"]
+
+  keymap_dtsi: |
+    /*
+    * Generic ZMK Keyboard Layout
+    */
+    {{ resolved_includes }}
+    {{ layer_defines }}
+    
+    / {
+        keymap {
+            compatible = "zmk,keymap";
+            {{ keymap_node }}
+        };
+    };
