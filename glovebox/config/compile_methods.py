@@ -13,6 +13,19 @@ class CompileMethodConfig(BaseModel, ABC):
     fallback_methods: list[str] = Field(default_factory=list)
 
 
+class WestWorkspaceConfig(BaseModel):
+    """ZMK West workspace configuration."""
+
+    manifest_url: str = "https://github.com/zmkfirmware/zmk.git"
+    manifest_revision: str = "main"
+    modules: list[str] = Field(default_factory=list)
+    west_commands: list[str] = Field(
+        default_factory=lambda: ["west init -l config", "west update"]
+    )
+    workspace_path: str = "/zmk-workspace"
+    config_path: str = "config"
+
+
 class DockerCompileConfig(CompileMethodConfig):
     """Docker-based compilation configuration."""
 
@@ -49,3 +62,27 @@ class QemuCompileConfig(CompileMethodConfig):
     method_type: str = "qemu"
     qemu_target: str = "native_posix"
     test_runners: list[str] = Field(default_factory=list)
+
+
+class GenericDockerCompileConfig(DockerCompileConfig):
+    """Generic Docker compiler with pluggable build strategies."""
+
+    method_type: str = "generic_docker"
+    build_strategy: str = "west"  # "west", "cmake", "make", "ninja", "custom"
+    west_workspace: WestWorkspaceConfig | None = None
+    build_commands: list[str] = Field(default_factory=list)
+    environment_template: dict[str, str] = Field(default_factory=dict)
+    volume_templates: list[str] = Field(default_factory=list)
+    board_targets: list[str] = Field(default_factory=list)
+    cache_workspace: bool = True
+
+
+__all__ = [
+    "CompileMethodConfig",
+    "WestWorkspaceConfig",
+    "DockerCompileConfig",
+    "GenericDockerCompileConfig",
+    "LocalCompileConfig",
+    "CrossCompileConfig",
+    "QemuCompileConfig",
+]

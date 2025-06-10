@@ -8,6 +8,7 @@ from ..compile_methods import (
     CompileMethodConfig,
     CrossCompileConfig,
     DockerCompileConfig,
+    GenericDockerCompileConfig,
     LocalCompileConfig,
     QemuCompileConfig,
 )
@@ -66,7 +67,11 @@ class KeymapSection(BaseModel):
 
 # Union types for method configurations
 CompileMethodConfigUnion = (
-    DockerCompileConfig | LocalCompileConfig | CrossCompileConfig | QemuCompileConfig
+    DockerCompileConfig
+    | GenericDockerCompileConfig
+    | LocalCompileConfig
+    | CrossCompileConfig
+    | QemuCompileConfig
 )
 
 FlashMethodConfigUnion = (
