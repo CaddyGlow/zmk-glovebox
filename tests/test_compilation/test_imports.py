@@ -122,8 +122,17 @@ def test_subdomain_factory_functions():
         create_volume_manager,
         create_environment_manager,
     ]
-    
+
     for func in implemented_functions:
+        assert func() is not None
+
+    # Test implemented workspace factory functions return actual objects
+    implemented_workspace_functions = [
+        create_zmk_config_workspace_manager,
+        create_cache_manager,
+    ]
+
+    for func in implemented_workspace_functions:
         assert func() is not None
 
     # Test stub factory functions return None
@@ -131,11 +140,12 @@ def test_subdomain_factory_functions():
         create_artifact_collector,
         create_firmware_scanner,
         create_artifact_validator,
-        create_workspace_manager,
         create_west_workspace_manager,
-        create_zmk_config_workspace_manager,
-        create_cache_manager,
     ]
 
     for func in stub_functions:
         assert func() is None
+
+    # Test abstract workspace manager raises NotImplementedError
+    with pytest.raises(NotImplementedError):
+        create_workspace_manager()

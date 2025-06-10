@@ -138,7 +138,7 @@ class TestVolumeManager:
     def test_expand_volume_template_invalid_format(self):
         """Test error handling for invalid volume format."""
         template = "/invalid/format"  # Missing colon
-        context = {}
+        context: dict[str, str] = {}
 
         with pytest.raises(VolumeManagerError, match="Invalid volume format"):
             self.manager._expand_volume_template(template, context)
@@ -346,9 +346,12 @@ class TestVolumeManagerIntegration:
             ]
 
             result = self.manager.prepare_volumes(
-                config, keymap_file, config_file, output_dir,
+                config,
+                keymap_file,
+                config_file,
+                output_dir,
                 cache_dir=str(cache_dir),
-                zmk_dir=str(zmk_dir)
+                zmk_dir=str(zmk_dir),
             )
 
             assert len(result) == 2
