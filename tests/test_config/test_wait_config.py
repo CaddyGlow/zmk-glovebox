@@ -66,19 +66,29 @@ firmware:
 
     def test_poll_interval_validation(self):
         """Test poll_interval field validation."""
-        # Valid values
-        config = UserConfigData(firmware={"flash": {"poll_interval": 0.5}})
+        from pydantic import ValidationError
+
+        # Valid values should work
+        config = UserConfigData.model_validate(
+            {"firmware": {"flash": {"poll_interval": 0.5}}}
+        )
         assert config.firmware.flash.poll_interval == 0.5
 
-        config = UserConfigData(firmware={"flash": {"poll_interval": 5.0}})
+        config = UserConfigData.model_validate(
+            {"firmware": {"flash": {"poll_interval": 5.0}}}
+        )
         assert config.firmware.flash.poll_interval == 5.0
 
         # Invalid values should raise validation error
-        with pytest.raises(ValueError):
-            UserConfigData(firmware={"flash": {"poll_interval": 0.05}})  # Too small
+        with pytest.raises(ValidationError):
+            UserConfigData.model_validate(
+                {"firmware": {"flash": {"poll_interval": 0.05}}}
+            )  # Too small
 
-        with pytest.raises(ValueError):
-            UserConfigData(firmware={"flash": {"poll_interval": 10.0}})  # Too large
+        with pytest.raises(ValidationError):
+            UserConfigData.model_validate(
+                {"firmware": {"flash": {"poll_interval": 10.0}}}
+            )  # Too large
 
     def test_wait_config_precedence(self, tmp_path):
         """Test configuration precedence: env vars > config file."""
@@ -109,7 +119,7 @@ firmware:
     def test_partial_wait_config(self):
         """Test partial wait configuration with defaults."""
         # Only specify some wait settings
-        config = UserConfigData(firmware={"flash": {"wait": True}})
+        config = UserConfigData.model_validate({"firmware": {"flash": {"wait": True}}})
 
         # Should use default for unspecified values
         assert config.firmware.flash.wait is True
@@ -118,16 +128,18 @@ firmware:
 
     def test_wait_config_with_other_flash_settings(self):
         """Test wait config combined with other flash settings."""
-        config = UserConfigData(
-            firmware={
-                "flash": {
-                    "wait": True,
-                    "poll_interval": 1.5,
-                    "show_progress": False,
-                    "timeout": 90,
-                    "count": 3,
-                    "track_flashed": False,
-                    "skip_existing": True,
+        config = UserConfigData.model_validate(
+            {
+                "firmware": {
+                    "flash": {
+                        "wait": True,
+                        "poll_interval": 1.5,
+                        "show_progress": False,
+                        "timeout": 90,
+                        "count": 3,
+                        "track_flashed": False,
+                        "skip_existing": True,
+                    }
                 }
             }
         )
@@ -145,37 +157,49 @@ firmware:
 
     def test_invalid_wait_config_types(self):
         """Test invalid wait configuration types."""
+        from pydantic import ValidationError
+
         # Invalid wait type
-        with pytest.raises(ValueError):
-            UserConfigData(firmware={"flash": {"wait": "maybe"}})
+        with pytest.raises(ValidationError):
+            UserConfigData.model_validate({"firmware": {"flash": {"wait": "maybe"}}})
 
         # Invalid poll_interval type
-        with pytest.raises(ValueError):
-            UserConfigData(firmware={"flash": {"poll_interval": "fast"}})
+        with pytest.raises(ValidationError):
+            UserConfigData.model_validate(
+                {"firmware": {"flash": {"poll_interval": "fast"}}}
+            )
 
-        # Invalid show_progress type
-        with pytest.raises(ValueError):
-            UserConfigData(firmware={"flash": {"show_progress": "yes"}})
+        # Invalid show_progress type (use a value that won't convert to bool)
+        with pytest.raises(ValidationError):
+            UserConfigData.model_validate(
+                {"firmware": {"flash": {"show_progress": "invalid"}}}
+            )
 
     def test_wait_config_edge_values(self):
         """Test wait configuration edge values."""
         # Minimum valid poll_interval
-        config = UserConfigData(firmware={"flash": {"poll_interval": 0.1}})
+        config = UserConfigData.model_validate(
+            {"firmware": {"flash": {"poll_interval": 0.1}}}
+        )
         assert config.firmware.flash.poll_interval == 0.1
 
         # Maximum valid poll_interval
-        config = UserConfigData(firmware={"flash": {"poll_interval": 5.0}})
+        config = UserConfigData.model_validate(
+            {"firmware": {"flash": {"poll_interval": 5.0}}}
+        )
         assert config.firmware.flash.poll_interval == 5.0
 
     def test_wait_config_serialization(self, tmp_path):
         """Test wait config can be serialized and deserialized."""
         # Create config with wait settings
-        original_config = UserConfigData(
-            firmware={
-                "flash": {
-                    "wait": True,
-                    "poll_interval": 2.0,
-                    "show_progress": False,
+        original_config = UserConfigData.model_validate(
+            {
+                "firmware": {
+                    "flash": {
+                        "wait": True,
+                        "poll_interval": 2.0,
+                        "show_progress": False,
+                    }
                 }
             }
         )
