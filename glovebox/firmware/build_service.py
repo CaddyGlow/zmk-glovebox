@@ -45,7 +45,7 @@ class BuildService(BaseService):
         keymap_file_path: Path,
         kconfig_file_path: Path,
         output_dir: Path,
-        profile: Union["KeyboardProfile", None] = None,
+        keyboard_profile: Union["KeyboardProfile", None] = None,
         branch: str = "main",
         repo: str = "moergo-sc/zmk",
         jobs: int | None = None,
@@ -82,7 +82,7 @@ class BuildService(BaseService):
             )
 
             # Use the main compile method
-            return self.compile(build_opts, profile)
+            return self.compile(build_opts, keyboard_profile)
 
         except Exception as e:
             logger.error("Failed to prepare build: %s", e)
@@ -93,13 +93,13 @@ class BuildService(BaseService):
     def compile(
         self,
         opts: BuildServiceCompileOpts,
-        profile: Union["KeyboardProfile", None] = None,
+        keyboard_profile: Union["KeyboardProfile", None] = None,
     ) -> BuildResult:
         """Compile firmware using method selection with fallbacks.
 
         Args:
             opts: Build configuration options
-            profile: KeyboardProfile with method configurations
+            keyboard_profile: KeyboardProfile with method configurations
 
         Returns:
             BuildResult with success status and firmware file paths
@@ -109,7 +109,7 @@ class BuildService(BaseService):
 
         try:
             # Get compilation method configs from profile or use defaults
-            compile_configs = self._get_compile_method_configs(profile, opts)
+            compile_configs = self._get_compile_method_configs(keyboard_profile, opts)
 
             # Select the best available compiler with fallbacks
             compiler = select_compiler_with_fallback(
@@ -125,6 +125,7 @@ class BuildService(BaseService):
                 config_file=opts.kconfig_path,
                 output_dir=opts.output_dir,
                 config=compile_configs[0],  # Use the primary config
+                # keyboard_profile=keyboard_profile,
             )
 
         except Exception as e:
@@ -134,24 +135,26 @@ class BuildService(BaseService):
             return result
 
     def _get_compile_method_configs(
-        self, profile: Union["KeyboardProfile", None], opts: BuildServiceCompileOpts
+        self,
+        keyboard_profile: Union["KeyboardProfile", None],
+        opts: BuildServiceCompileOpts,
     ) -> list[CompileMethodConfig]:
         """Get compilation method configurations from profile or defaults.
 
         Args:
-            profile: KeyboardProfile with method configurations (optional)
+            keyboard_profile: KeyboardProfile with method configurations (optional)
             opts: Build options for fallback values
 
         Returns:
             List of compilation method configurations to try
         """
         if (
-            profile
-            and hasattr(profile.keyboard_config, "compile_methods")
-            and profile.keyboard_config.compile_methods
+            keyboard_profile
+            and hasattr(keyboard_profile.keyboard_config, "compile_methods")
+            and keyboard_profile.keyboard_config.compile_methods
         ):
             # Use profile's compile method configurations
-            return list(profile.keyboard_config.compile_methods)
+            return list(keyboard_profile.keyboard_config.compile_methods)
 
         # Fallback: Create default Docker configuration
         logger.debug("No profile compile methods, using default Docker configuration")

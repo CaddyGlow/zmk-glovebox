@@ -137,7 +137,7 @@ def firmware_compile(
             keymap_file_path=keymap_file,
             kconfig_file_path=kconfig_file,
             output_dir=output_dir,
-            profile=keyboard_profile,
+            keyboard_profile=keyboard_profile,
             branch=branch_value,
             repo=repo_value,
             jobs=jobs,

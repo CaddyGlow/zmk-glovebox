@@ -429,16 +429,19 @@ class WestCompilationService(BaseCompilationService):
         """
         build_commands = []
 
+        # Add west zephyr-export command (required after west workspace initialization)
+        build_commands.append("west zephyr-export")
+
         # Build west compilation command
         if config.board_targets:
             # Build for specific board targets
             for board in config.board_targets:
                 build_commands.append(
-                    f"west build -p always -b {board} -d build/{board}"
+                    f"west build -s zmk/app -p always -b {board} -d build/{board}"
                 )
         else:
             # Default build command
-            build_commands.append("west build -p always")
+            build_commands.append("west build -s zmk/app -p always")
 
         # Add any custom build commands
         if config.build_commands:

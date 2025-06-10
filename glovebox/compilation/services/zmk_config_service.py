@@ -223,14 +223,19 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
         config_repo = config.zmk_config_repo
 
-        if not config_repo.config_repo_url:
-            logger.error("ZMK config repository URL is required")
+        # For dynamic generation, config_repo_url can be empty
+        repo_url = config_repo.config_repo_url
+        is_dynamic_mode = not repo_url or repo_url.strip() == ""
+
+        if not is_dynamic_mode and not config_repo.config_repo_url:
+            logger.error("ZMK config repository URL is required for repository mode")
             return False
 
         if not config_repo.workspace_path:
             logger.error("ZMK config workspace path is required")
             return False
 
+        logger.debug("ZMK config validation passed (dynamic mode: %s)", is_dynamic_mode)
         return True
 
     def _validate_zmk_config(
@@ -379,17 +384,30 @@ class ZmkConfigCompilationService(BaseCompilationService):
     def _generate_build_commands(
         self, build_matrix: BuildMatrix, config: GenericDockerCompileConfig
     ) -> list[str]:
-        """Generate west build commands from build matrix.
+        """Generate complete west command sequence including initialization.
 
         Args:
             build_matrix: Build matrix with targets
             config: Compilation configuration
 
         Returns:
-            list[str]: List of west build commands
+            list[str]: List of west commands including initialization and build
         """
         build_commands = []
 
+        # Add west initialization commands first
+        if config.zmk_config_repo and config.zmk_config_repo.west_commands:
+            build_commands.extend(config.zmk_config_repo.west_commands)
+            logger.debug(
+                "Added west initialization commands: %s",
+                config.zmk_config_repo.west_commands,
+            )
+
+        # Add west zephyr-export command (required after west update)
+        build_commands.append("west zephyr-export")
+        logger.debug("Added west zephyr-export command")
+
+        # Add build commands
         if build_matrix.targets:
             # Use targets from build.yaml
             for target in build_matrix.targets:
@@ -399,11 +417,11 @@ class ZmkConfigCompilationService(BaseCompilationService):
             # Use board targets from config
             for board in config.board_targets:
                 build_commands.append(
-                    f"west build -p always -b {board} -d build/{board}"
+                    f"west build -s zmk/app -p always -b {board} -d build/{board}"
                 )
         else:
             # Default build command
-            build_commands.append("west build -p always")
+            build_commands.append("west build -s zmk/app -p always")
 
         # Add any custom build commands
         if config.build_commands:
@@ -429,9 +447,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
             else target.board
         )
 
-        return (
-            f"west build -p always -b {board_arg} -d build/{artifact_name}{shield_arg}"
-        )
+        return f"west build -s zmk/app -p always -b {board_arg} -d build/{artifact_name}{shield_arg}"
 
     def _prepare_build_environment(
         self, config: GenericDockerCompileConfig, config_repo_config: Any
@@ -473,11 +489,16 @@ class ZmkConfigCompilationService(BaseCompilationService):
         Returns:
             list[DockerVolume]: Docker volume mount tuples
         """
-        # For now, create basic volume mapping manually
-        # This will use the VolumeManager properly in integration
+        # Ensure absolute paths for Docker volume mounting
+        workspace_abs = workspace_path.resolve()
+        output_abs = output_dir.resolve()
+
+        logger.debug("Mounting workspace: %s -> %s", workspace_abs, workspace_abs)
+        logger.debug("Mounting output: %s -> %s", output_abs, output_abs)
+
         return [
-            (str(workspace_path), str(workspace_path)),
-            (str(output_dir), str(output_dir)),
+            (str(workspace_abs), str(workspace_abs)),
+            (str(output_abs), str(output_abs)),
         ]
 
     def _collect_firmware_artifacts(self, output_dir: Path) -> Any:

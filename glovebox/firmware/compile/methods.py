@@ -55,6 +55,7 @@ class DockerCompiler:
         config_file: Path,
         output_dir: Path,
         config: DockerCompileConfig,
+        keyboard_profile: "KeyboardProfile | None" = None,
     ) -> BuildResult:
         """Compile firmware using Docker method."""
         logger.info("Starting Docker compilation")

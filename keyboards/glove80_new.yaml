@@ -28,14 +28,28 @@ zmk:
 
 # Compile method configurations
 compile_methods:
+  # Modern Generic Docker compiler (primary)
+  - method_type: generic_docker
+    image: moergo-zmk-build
+    build_strategy: west # or cmake
+    repository: moergo-sc/zmk
+    branch: v25.05
+    jobs: 8
+    # Configure for Glove80's specific build process
+    west_workspace:
+      manifest_url: "https://github.com/moergo-sc/zmk.git"
+      manifest_revision: "v25.05"
+      workspace_path: "/zmk-workspace"
+      config_path: "config"
+
+  # Legacy fallback (keep for backward compatibility)
   - method_type: docker
     image: moergo-zmk-build
     repository: moergo-sc/zmk
     branch: v25.05
-    jobs: 8
     fallback_methods: ["local"]
 
-# Flash method configurations  
+# Flash method configurations
 flash_methods:
   - method_type: usb
     device_query: "vendor=Adafruit and serial~=GLV80-.* and removable=true"
@@ -480,3 +494,4 @@ keymap:
     #define POS_RH_C6R4 45
     #define POS_RH_C6R5 63
     #define POS_RH_C6R6 79
+

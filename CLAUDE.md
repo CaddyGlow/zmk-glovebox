@@ -32,6 +32,8 @@ The layout domain handles complex JSON→DTSI conversion with behaviors like mac
 
 **Generic Docker Compiler with ZMK West Workspace Support** - See `docs/generic_docker_compiler_zmk_west_workspace_implementation.md` for comprehensive implementation plan providing modern ZMK west workspace builds, multi-strategy compilation (west, cmake, make, ninja), intelligent workspace caching, and enhanced configuration flexibility while maintaining full backward compatibility.
 
+**Dynamic ZMK Config Generation** - ✅ **COMPLETED** - Comprehensive on-the-fly ZMK config workspace generation system that eliminates the need for external repositories. Features automatic split keyboard detection, shield naming conventions, build.yaml generation, and full ZMK west workspace compatibility. Located in `glovebox/compilation/generation/` with complete test coverage.
+
 ## CRITICAL: Code Convention Enforcement
 
 **MANDATORY REQUIREMENTS - MUST BE FOLLOWED WITHOUT EXCEPTION:**
@@ -298,6 +300,30 @@ glovebox firmware flash firmware.uf2 --wait --profile glove80/v25.05
 glovebox firmware flash firmware.uf2 --wait --timeout 120 --poll-interval 1.0 --count 3
 ```
 
+### Dynamic ZMK Config Generation
+
+```bash
+# Enable dynamic generation in keyboard configuration by setting config_repo_url: ""
+# This automatically creates complete ZMK workspaces from glovebox layout files
+
+# Build firmware using dynamic generation (Corne example)
+glovebox firmware compile my_layout.keymap my_config.conf --profile corne/main
+
+# The system automatically:
+# - Detects split keyboards and creates left/right build targets
+# - Generates build.yaml with appropriate targets
+# - Creates west.yml for ZMK dependency management
+# - Copies and renames files to match shield conventions (corne.keymap, corne.conf)
+# - Creates complete workspace at ~/.glovebox/dynamic-zmk-config/corne/
+
+# Workspace can be used with standard ZMK commands:
+cd ~/.glovebox/dynamic-zmk-config/corne/
+west init -l config
+west update  
+west build -b nice_nano_v2 -d build/left -- -DSHIELD=corne_left
+west build -b nice_nano_v2 -d build/right -- -DSHIELD=corne_right
+```
+
 ### Firmware Flash with Wait Mode
 
 ```bash
@@ -470,6 +496,32 @@ The codebase is organized into self-contained domains, each owning their models,
     - `FlashResult`: Flash operation results and device tracking
     - `BlockDevice`: USB device models and metadata
 - **Factory Functions**: `create_build_service()`, `create_flash_service()`, `create_device_detector()`
+
+#### Compilation Domain (`glovebox/compilation/`)
+- **Purpose**: Advanced firmware compilation strategies, workspace management, and dynamic content generation
+- **Components**:
+  - **Services** (`glovebox/compilation/services/`):
+    - `CompilationCoordinator`: Strategy orchestration and coordination
+    - `ZmkConfigCompilationService`: ZMK config repository builds with GitHub Actions pattern
+    - `WestCompilationService`: Traditional ZMK west workspace builds
+  - **Generation** (`glovebox/compilation/generation/`):
+    - `ZmkConfigContentGenerator`: Dynamic ZMK config workspace generation on-the-fly
+    - Automatic split keyboard detection and build.yaml generation
+    - Shield naming conventions and file management
+  - **Configuration** (`glovebox/compilation/configuration/`):
+    - `BuildMatrixResolver`: GitHub Actions build matrix resolution
+    - `EnvironmentManager`: Environment variable template expansion
+    - `VolumeManager`: Docker volume mapping management
+  - **Workspace** (`glovebox/compilation/workspace/`):
+    - `ZmkConfigWorkspaceManager`: ZMK config repository workspace management
+    - `WestWorkspaceManager`: Traditional west workspace initialization
+    - `CacheManager`: Intelligent workspace caching and cleanup
+- **Key Features**:
+  - **Dynamic ZMK Config Generation**: Creates complete ZMK workspaces without external repositories
+  - **Multi-Strategy Compilation**: Supports zmk_config, west, cmake build strategies
+  - **Intelligent Caching**: Workspace-aware caching with invalidation and cleanup
+  - **Protocol-Based Architecture**: Type-safe interfaces with runtime checking
+- **Factory Functions**: `create_compilation_coordinator()`, `create_zmk_config_service()`, `create_zmk_config_content_generator()`
 
 #### Core Services (`glovebox/services/`)
 - **Purpose**: Cross-domain services and base patterns

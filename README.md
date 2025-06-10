@@ -7,6 +7,7 @@ A comprehensive tool for ZMK keyboard firmware management, supporting multiple k
 - **Multi-Keyboard Support**: Extensible architecture supporting different keyboard types
 - **Keymap Building**: Convert JSON layouts to ZMK keymap and configuration files
 - **Firmware Building**: Docker-based ZMK build chain with extensible architecture
+- **Dynamic ZMK Config Generation**: Create complete ZMK config workspaces on-the-fly without external repositories
 - **Device Flashing**: USB device detection and firmware flashing with retry logic
 - **Configuration Management**: Profile-based configuration system with inheritance
 - **Keyboard-Only Profiles**: Minimal configurations for flashing operations without keymap generation
@@ -102,6 +103,42 @@ glovebox firmware flash firmware.uf2 --profile glove80/v25.05 --count 2
 # Flash with longer timeout
 glovebox firmware flash firmware.uf2 --profile glove80/v25.05 --timeout 120
 ```
+
+### Dynamic ZMK Config Generation (NEW)
+
+Glovebox can automatically generate complete ZMK config workspaces on-the-fly, eliminating the need for separate ZMK config repositories:
+
+```bash
+# Enable dynamic generation by leaving config_repo_url empty in keyboard configuration
+# This automatically creates a complete ZMK workspace from your glovebox layout files
+
+# The system automatically:
+# - Creates build.yaml with appropriate targets (split keyboard detection)
+# - Generates west.yml for ZMK dependency management  
+# - Copies and renames keymap/config files to match shield conventions
+# - Creates README.md and .gitignore for workspace documentation
+
+# Build firmware using dynamic generation
+glovebox firmware compile my_layout.keymap my_config.conf --profile corne/main
+
+# The workspace is created at ~/.glovebox/dynamic-zmk-config/corne/ by default
+# All standard ZMK west commands work in the generated workspace:
+# cd ~/.glovebox/dynamic-zmk-config/corne/
+# west init -l config
+# west update
+# west build -b nice_nano_v2 -d build/left -- -DSHIELD=corne_left
+```
+
+**Benefits:**
+- **No external repositories required**: Everything generated from glovebox layout files
+- **Automatic split keyboard detection**: Generates left/right targets for Corne, Lily58, Sofle, Kyria
+- **Shield naming conventions**: Automatically renames files to match ZMK expectations
+- **Full ZMK compatibility**: Generated workspaces work with all standard ZMK workflows
+
+**Supported in keyboard configurations:**
+- Set `config_repo_url: ""` to enable dynamic generation
+- Configure `workspace_path` for custom workspace location
+- All compilation strategies (`zmk_config`, `west`, `cmake`) supported
 
 ### System Commands
 

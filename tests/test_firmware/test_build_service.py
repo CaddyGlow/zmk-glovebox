@@ -101,7 +101,7 @@ class TestBuildService:
             output_dir=Path("output"),
         )
 
-        result = service.compile(opts, profile=mock_profile)
+        result = service.compile(opts, keyboard_profile=mock_profile)
 
         assert result.success is True
         mock_select_compiler.assert_called_once()
@@ -128,7 +128,7 @@ class TestBuildService:
             branch="feature",
         )
 
-        result = service.compile(opts, profile=None)
+        result = service.compile(opts, keyboard_profile=None)
 
         assert result.success is True
 
@@ -270,7 +270,7 @@ class TestBuildServiceIntegration:
             keymap_file_path=Path("glove80.keymap"),
             kconfig_file_path=Path("glove80.conf"),
             output_dir=Path("build/glove80"),
-            profile=mock_profile,
+            keyboard_profile=mock_profile,
             verbose=True,
         )
 
@@ -318,7 +318,7 @@ class TestBuildServiceIntegration:
             output_dir=Path("output"),
         )
 
-        result = service.compile(opts, profile=mock_profile)
+        result = service.compile(opts, keyboard_profile=mock_profile)
 
         assert result.success is True
         assert "Local compilation successful" in result.messages

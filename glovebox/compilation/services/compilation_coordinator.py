@@ -189,6 +189,12 @@ class CompilationCoordinator(BaseCompilationService):
         Returns:
             str | None: Selected strategy name or None if none suitable
         """
+        logger.debug(
+            "Selecting compilation strategy for config with build_strategy: %s",
+            config.build_strategy,
+        )
+        logger.debug("Available services: %s", list(self.compilation_services.keys()))
+
         # Strategy selection priority order
         strategy_priorities = [
             ("zmk_config", self._is_zmk_config_strategy),
@@ -197,11 +203,33 @@ class CompilationCoordinator(BaseCompilationService):
         ]
 
         for strategy_name, strategy_check in strategy_priorities:
-            if strategy_check(config) and strategy_name in self.compilation_services:
+            logger.debug("Checking strategy: %s", strategy_name)
+
+            strategy_matches = strategy_check(config)
+            logger.debug(
+                "  Strategy %s matches config: %s", strategy_name, strategy_matches
+            )
+
+            if strategy_matches and strategy_name in self.compilation_services:
                 service = self.compilation_services[strategy_name]
-                if service.check_available() and service.validate_config(config):
-                    logger.debug("Selected compilation strategy: %s", strategy_name)
-                    return strategy_name
+
+                # Inject Docker adapter before checking availability
+                self._inject_docker_adapter(service)
+
+                service_available = service.check_available()
+                logger.debug(
+                    "  Service %s available: %s", strategy_name, service_available
+                )
+
+                if service_available:
+                    config_valid = service.validate_config(config)
+                    logger.debug(
+                        "  Config valid for %s: %s", strategy_name, config_valid
+                    )
+
+                    if config_valid:
+                        logger.debug("Selected compilation strategy: %s", strategy_name)
+                        return strategy_name
 
         logger.warning("No suitable compilation strategy found for configuration")
         return None
