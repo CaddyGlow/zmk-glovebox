@@ -125,7 +125,7 @@ class BuildService(BaseService):
                 config_file=opts.kconfig_path,
                 output_dir=opts.output_dir,
                 config=compile_configs[0],  # Use the primary config
-                # keyboard_profile=keyboard_profile,
+                keyboard_profile=keyboard_profile,
             )
 
         except Exception as e:

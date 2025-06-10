@@ -1,7 +1,7 @@
 """Protocol definitions for compilation methods."""
 
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, Union, runtime_checkable
 
 from glovebox.config.compile_methods import (
     BuildYamlConfig,
@@ -14,6 +14,10 @@ from glovebox.config.compile_methods import (
 from glovebox.firmware.models import BuildResult
 
 
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
+
+
 @runtime_checkable
 class CompilerProtocol(Protocol):
     """Generic compiler interface."""
@@ -24,6 +28,7 @@ class CompilerProtocol(Protocol):
         config_file: Path,
         output_dir: Path,
         config: CompileMethodConfig,
+        keyboard_profile: Union["KeyboardProfile", None] = None,
     ) -> BuildResult:
         """Compile firmware using this method."""
         ...
