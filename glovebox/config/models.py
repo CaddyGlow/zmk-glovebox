@@ -62,42 +62,6 @@ class KConfigOption(BaseModel):
     description: str
 
 
-# Flash configuration
-class FlashConfig(BaseModel):
-    """Flash configuration for a keyboard."""
-
-    method: str
-    query: str
-    usb_vid: str
-    usb_pid: str
-
-    @field_validator("method", "query", "usb_vid", "usb_pid")
-    @classmethod
-    def validate_non_empty_strings(cls, v: str) -> str:
-        """Validate that string fields are not empty."""
-        if not v or not v.strip():
-            raise ValueError("Field cannot be empty")
-        return v.strip()
-
-
-# Build configuration
-class BuildConfig(BaseModel):
-    """Build configuration for a keyboard."""
-
-    method: str
-    docker_image: str
-    repository: str
-    branch: str
-
-    @field_validator("method", "docker_image", "repository", "branch")
-    @classmethod
-    def validate_non_empty_strings(cls, v: str) -> str:
-        """Validate that string fields are not empty."""
-        if not v or not v.strip():
-            raise ValueError("Field cannot be empty")
-        return v.strip()
-
-
 # Visual layout configuration
 class VisualLayout(BaseModel):
     """Visual layout for a keyboard."""
@@ -175,13 +139,9 @@ class KeyboardConfig(BaseModel):
     vendor: str
     key_count: int = Field(gt=0, description="Number of keys must be positive")
 
-    # Method-specific configurations (default to empty lists for backward compatibility)
+    # Method-specific configurations (required for all keyboards)
     compile_methods: list[CompileMethodConfigUnion] = Field(default_factory=list)
     flash_methods: list[FlashMethodConfigUnion] = Field(default_factory=list)
-
-    # Legacy configurations for backward compatibility (deprecated)
-    flash: FlashConfig | None = None
-    build: BuildConfig | None = None
 
     # Optional sections
     firmwares: dict[str, FirmwareConfig] = Field(default_factory=dict)

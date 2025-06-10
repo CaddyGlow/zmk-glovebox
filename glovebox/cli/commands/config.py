@@ -252,37 +252,41 @@ def show_keyboard(
 
     if format.lower() == "json":
         # Convert the typed object to a dictionary for JSON serialization
+        flash_info = {}
+        if keyboard_config.flash_methods:
+            primary_flash = keyboard_config.flash_methods[0]
+            # Map method_type to expected format
+            method_name = (
+                "usb_mount"
+                if primary_flash.method_type == "usb"
+                else primary_flash.method_type
+            )
+            flash_info["method"] = method_name
+            if hasattr(primary_flash, "device_query"):
+                flash_info["query"] = primary_flash.device_query
+            if hasattr(primary_flash, "vid"):
+                flash_info["vid"] = primary_flash.vid
+            if hasattr(primary_flash, "pid"):
+                flash_info["pid"] = primary_flash.pid
+
+        build_info = {}
+        if keyboard_config.compile_methods:
+            primary_compile = keyboard_config.compile_methods[0]
+            build_info["method"] = primary_compile.method_type
+            if hasattr(primary_compile, "image"):
+                build_info["docker_image"] = primary_compile.image
+            if hasattr(primary_compile, "repository"):
+                build_info["repository"] = primary_compile.repository
+            if hasattr(primary_compile, "branch"):
+                build_info["branch"] = primary_compile.branch
+
         config_dict = {
             "keyboard": keyboard_config.keyboard,
             "description": keyboard_config.description,
             "vendor": keyboard_config.vendor,
             "key_count": keyboard_config.key_count,
-            "flash": {
-                "method": keyboard_config.flash.method
-                if keyboard_config.flash
-                else None,
-                "query": keyboard_config.flash.query if keyboard_config.flash else None,
-                "usb_vid": keyboard_config.flash.usb_vid
-                if keyboard_config.flash
-                else None,
-                "usb_pid": keyboard_config.flash.usb_pid
-                if keyboard_config.flash
-                else None,
-            },
-            "build": {
-                "method": keyboard_config.build.method
-                if keyboard_config.build
-                else None,
-                "docker_image": keyboard_config.build.docker_image
-                if keyboard_config.build
-                else None,
-                "repository": keyboard_config.build.repository
-                if keyboard_config.build
-                else None,
-                "branch": keyboard_config.build.branch
-                if keyboard_config.build
-                else None,
-            },
+            "flash": flash_info,
+            "build": build_info,
             "firmwares": {
                 name: {
                     "version": fw.version,
@@ -308,23 +312,35 @@ def show_keyboard(
     print(f"Vendor: {vendor}")
     print(f"Version: {version}")
 
-    # Display flash configuration
-    flash_config = keyboard_config.flash
-    if flash_config:
+    # Display flash configuration from methods
+    if keyboard_config.flash_methods:
         print("\nFlash Configuration:")
-        print(f"  method: {flash_config.method}")
-        print(f"  query: {flash_config.query}")
-        print(f"  usb_vid: {flash_config.usb_vid}")
-        print(f"  usb_pid: {flash_config.usb_pid}")
+        primary_flash = keyboard_config.flash_methods[0]
+        # Map method_type to expected format
+        method_name = (
+            "usb_mount"
+            if primary_flash.method_type == "usb"
+            else primary_flash.method_type
+        )
+        print(f"  method: {method_name}")
+        if hasattr(primary_flash, "device_query"):
+            print(f"  query: {primary_flash.device_query}")
+        if hasattr(primary_flash, "vid"):
+            print(f"  vid: {primary_flash.vid}")
+        if hasattr(primary_flash, "pid"):
+            print(f"  pid: {primary_flash.pid}")
 
-    # Display build configuration
-    build_config = keyboard_config.build
-    if build_config:
+    # Display build configuration from methods
+    if keyboard_config.compile_methods:
         print("\nBuild Configuration:")
-        print(f"  method: {build_config.method}")
-        print(f"  docker_image: {build_config.docker_image}")
-        print(f"  repository: {build_config.repository}")
-        print(f"  branch: {build_config.branch}")
+        primary_compile = keyboard_config.compile_methods[0]
+        print(f"  method: {primary_compile.method_type}")
+        if hasattr(primary_compile, "image"):
+            print(f"  docker_image: {primary_compile.image}")
+        if hasattr(primary_compile, "repository"):
+            print(f"  repository: {primary_compile.repository}")
+        if hasattr(primary_compile, "branch"):
+            print(f"  branch: {primary_compile.branch}")
 
     # Display available firmware versions
     firmwares = keyboard_config.firmwares

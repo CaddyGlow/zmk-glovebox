@@ -13,10 +13,8 @@ import yaml
 from typer.testing import CliRunner
 
 from glovebox.config.models import (
-    BuildConfig,
     BuildOptions,
     FirmwareConfig,
-    FlashConfig,
     FormattingConfig,
     KConfigOption,
     KeyboardConfig,
@@ -384,19 +382,21 @@ def mock_keyboard_config() -> Mock:
     mock_config.vendor = "Test Vendor"
     mock_config.key_count = 80
 
-    # Create mock flash config
-    mock_config.flash = Mock(spec=FlashConfig)
-    mock_config.flash.method = "mass_storage"
-    mock_config.flash.query = "vendor=Test and removable=true"
-    mock_config.flash.usb_vid = "0x1234"
-    mock_config.flash.usb_pid = "0x5678"
+    # Create mock flash methods
+    mock_flash_method = Mock()
+    mock_flash_method.method_type = "usb"
+    mock_flash_method.device_query = "vendor=Test and removable=true"
+    mock_flash_method.vid = "0x1234"
+    mock_flash_method.pid = "0x5678"
+    mock_config.flash_methods = [mock_flash_method]
 
-    # Create mock build config
-    mock_config.build = Mock(spec=BuildConfig)
-    mock_config.build.method = "docker"
-    mock_config.build.docker_image = "test-zmk-build"
-    mock_config.build.repository = "test/zmk"
-    mock_config.build.branch = "main"
+    # Create mock compile methods
+    mock_compile_method = Mock()
+    mock_compile_method.method_type = "docker"
+    mock_compile_method.image = "test-zmk-build"
+    mock_compile_method.repository = "test/zmk"
+    mock_compile_method.branch = "main"
+    mock_config.compile_methods = [mock_compile_method]
 
     # Create mock firmwares
     mock_config.firmwares = {

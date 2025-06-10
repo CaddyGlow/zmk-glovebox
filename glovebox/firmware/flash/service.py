@@ -302,7 +302,7 @@ class FlashService:
     def _get_device_query_from_profile(
         self, profile: Optional["KeyboardProfile"]
     ) -> str:
-        """Get the device query from the keyboard profile.
+        """Get the device query from the keyboard profile flash methods.
 
         Args:
             profile: KeyboardProfile with flash configuration
@@ -313,18 +313,12 @@ class FlashService:
         if not profile:
             return "removable=true"
 
-        # Get flash configuration from profile
-        flash_config = profile.keyboard_config.flash
-        if flash_config and flash_config.query:
-            return flash_config.query
+        # Try to get device query from first USB flash method
+        for method in profile.keyboard_config.flash_methods:
+            if hasattr(method, "device_query") and method.device_query:
+                return method.device_query
 
-        # Try to build a query from USB VID/PID if available
-        if flash_config and flash_config.usb_vid and flash_config.usb_pid:
-            query = f"vid={flash_config.usb_vid} and pid={flash_config.usb_pid} and removable=true"
-            logger.info("Using VID/PID query: %s", query)
-            return query
-
-        # Last resort: default query
+        # Default fallback
         return "removable=true"
 
 

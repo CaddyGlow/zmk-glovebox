@@ -16,10 +16,8 @@ from .keyboard_profile import (
     load_keyboard_config,
 )
 from .models import (
-    BuildConfig,
     BuildOptions,
     FirmwareConfig,
-    FlashConfig,
     FormattingConfig,
     KConfigOption,
     KeyboardConfig,
@@ -44,10 +42,8 @@ __all__ = [
     "UserConfig",
     "create_user_config",
     # Config models
-    "BuildConfig",
     "BuildOptions",
     "FirmwareConfig",
-    "FlashConfig",
     "FormattingConfig",
     "KConfigOption",
     "KeyboardConfig",

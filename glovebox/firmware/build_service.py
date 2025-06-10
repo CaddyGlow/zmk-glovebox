@@ -152,29 +152,11 @@ class BuildService(BaseService):
         # Fallback: Create default Docker configuration
         logger.debug("No profile compile methods, using default Docker configuration")
 
-        # Extract settings from profile if available
+        # Create default Docker compile config from build options
         docker_image = "moergo-zmk-build:latest"
         repository = opts.repo
         branch = opts.branch
         jobs = opts.jobs
-
-        if profile:
-            # Try to get settings from profile build config
-            build_config = profile.keyboard_config.build
-            if (
-                build_config
-                and hasattr(build_config, "docker_image")
-                and build_config.docker_image
-            ):
-                docker_image = build_config.docker_image
-            if (
-                build_config
-                and hasattr(build_config, "repository")
-                and build_config.repository
-            ):
-                repository = build_config.repository
-            if build_config and hasattr(build_config, "branch") and build_config.branch:
-                branch = build_config.branch
 
         # Create default Docker compile config
         default_config = DockerCompileConfig(

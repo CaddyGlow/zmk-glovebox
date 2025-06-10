@@ -90,13 +90,13 @@ class TestStackTraceOutput:
     ):
         """Test that --debug flag shows stack traces when errors occur."""
         # Mock sys.argv to include debug flag for the stack trace function
-        monkeypatch.setattr("sys.argv", ["glovebox", "--debug", "layout", "generate"])
+        monkeypatch.setattr("sys.argv", ["glovebox", "--debug", "layout", "compile"])
 
         with (
             patch(
                 "glovebox.layout.service.create_layout_service"
             ) as mock_create_service,
-            patch("glovebox.cli.helpers.profile.create_profile_from_context"),
+            patch("glovebox.cli.helpers.profile.get_keyboard_profile_from_context"),
         ):
             # Make the layout service raise an error to test stack trace
             mock_service = Mock()
@@ -107,7 +107,7 @@ class TestStackTraceOutput:
 
             result = cli_runner.invoke(
                 app,
-                ["--debug", "layout", "generate", "output", "input.json"],
+                ["--debug", "layout", "compile", "output", "input.json"],
                 catch_exceptions=False,
             )
 
@@ -117,13 +117,13 @@ class TestStackTraceOutput:
     def test_vv_flag_shows_stack_trace_on_error(self, cli_runner, monkeypatch):
         """Test that -vv flag shows stack traces when errors occur."""
         # Mock sys.argv to include -vv flag for the stack trace function
-        monkeypatch.setattr("sys.argv", ["glovebox", "-vv", "layout", "generate"])
+        monkeypatch.setattr("sys.argv", ["glovebox", "-vv", "layout", "compile"])
 
         with (
             patch(
                 "glovebox.layout.service.create_layout_service"
             ) as mock_create_service,
-            patch("glovebox.cli.helpers.profile.create_profile_from_context"),
+            patch("glovebox.cli.helpers.profile.get_keyboard_profile_from_context"),
         ):
             # Make the layout service raise an error to test stack trace
             mock_service = Mock()
@@ -134,7 +134,7 @@ class TestStackTraceOutput:
 
             result = cli_runner.invoke(
                 app,
-                ["-vv", "layout", "generate", "output", "input.json"],
+                ["-vv", "layout", "compile", "output", "input.json"],
                 catch_exceptions=False,
             )
 
@@ -144,13 +144,13 @@ class TestStackTraceOutput:
     def test_no_debug_flag_no_stack_trace_on_error(self, cli_runner, monkeypatch):
         """Test that no debug flag means no stack traces on errors."""
         # Mock sys.argv without debug flags
-        monkeypatch.setattr("sys.argv", ["glovebox", "layout", "generate"])
+        monkeypatch.setattr("sys.argv", ["glovebox", "layout", "compile"])
 
         with (
             patch(
                 "glovebox.layout.service.create_layout_service"
             ) as mock_create_service,
-            patch("glovebox.cli.helpers.profile.create_profile_from_context"),
+            patch("glovebox.cli.helpers.profile.get_keyboard_profile_from_context"),
         ):
             # Make the layout service raise an error
             mock_service = Mock()
@@ -161,7 +161,7 @@ class TestStackTraceOutput:
 
             result = cli_runner.invoke(
                 app,
-                ["layout", "generate", "output", "input.json"],
+                ["layout", "compile", "output", "input.json"],
                 catch_exceptions=False,
             )
 

@@ -11,9 +11,7 @@ from typer.testing import CliRunner
 from glovebox.cli.app import app
 from glovebox.cli.commands import register_all_commands
 from glovebox.config.models import (
-    BuildConfig,
     FirmwareConfig,
-    FlashConfig,
     KeyboardConfig,
 )
 from glovebox.config.user_config import UserConfig
