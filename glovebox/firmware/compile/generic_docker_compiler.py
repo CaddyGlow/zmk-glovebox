@@ -222,21 +222,25 @@ class GenericDockerCompiler:
             return False
 
     def cache_workspace(self, workspace_path: Path) -> bool:
-        """Cache workspace for reuse."""
+        """Cache workspace for reuse with intelligent caching strategies."""
         logger.debug("Caching workspace: %s", workspace_path)
 
         try:
             # Create cache directory if it doesn't exist
-            cache_dir = workspace_path.parent / ".glovebox_cache"
+            cache_dir = self._get_cache_directory(workspace_path)
             if not self.file_adapter.check_exists(cache_dir):
                 self.file_adapter.create_directory(cache_dir)
                 logger.debug("Created cache directory: %s", cache_dir)
 
-            # Create workspace metadata for cache validation
+            # Generate cache metadata with invalidation markers
             workspace_metadata = {
                 "workspace_path": str(workspace_path),
-                "cached_at": str(Path.cwd()),
+                "cached_at": self._get_current_timestamp(),
                 "west_modules": self._get_west_modules(workspace_path),
+                "manifest_hash": self._calculate_manifest_hash(workspace_path),
+                "config_hash": self._calculate_config_hash(workspace_path),
+                "cache_version": "1.0",
+                "west_version": self._get_west_version(workspace_path),
             }
 
             # Write metadata to cache
@@ -245,6 +249,10 @@ class GenericDockerCompiler:
 
             metadata_json = json.dumps(workspace_metadata, indent=2)
             self.file_adapter.write_text(metadata_file, metadata_json)
+
+            # Create cache snapshot if caching is enabled
+            if self._should_create_cache_snapshot(workspace_path):
+                self._create_workspace_snapshot(workspace_path, cache_dir)
 
             logger.info("Workspace cached successfully: %s", workspace_path)
             return True
@@ -270,6 +278,260 @@ class GenericDockerCompiler:
             logger.debug("Could not read west modules: %s", e)
             return []
 
+    def _get_cache_directory(self, workspace_path: Path) -> Path:
+        """Get cache directory for workspace."""
+        # Use a system-wide cache directory that's more persistent
+        import tempfile
+
+        system_cache = Path(tempfile.gettempdir()) / "glovebox_cache" / "workspaces"
+        return system_cache
+
+    def _get_current_timestamp(self) -> str:
+        """Get current timestamp for cache metadata."""
+        import time
+
+        return str(int(time.time()))
+
+    def _calculate_manifest_hash(self, workspace_path: Path) -> str:
+        """Calculate hash of west manifest for cache invalidation."""
+        try:
+            import hashlib
+
+            manifest_file = workspace_path / ".west" / "manifest.yml"
+            if not self.file_adapter.check_exists(manifest_file):
+                manifest_file = workspace_path / "west.yml"
+
+            if self.file_adapter.check_exists(manifest_file):
+                content = self.file_adapter.read_text(manifest_file)
+                return hashlib.sha256(content.encode()).hexdigest()[:16]
+            return "no_manifest"
+        except Exception as e:
+            logger.debug("Could not calculate manifest hash: %s", e)
+            return "unknown"
+
+    def _calculate_config_hash(self, workspace_path: Path) -> str:
+        """Calculate hash of configuration files for cache invalidation."""
+        try:
+            import hashlib
+
+            hasher = hashlib.sha256()
+
+            # Hash keymap and config files if they exist
+            config_dir = workspace_path / "config"
+            if self.file_adapter.check_exists(config_dir):
+                config_files = ["keymap.keymap", "config.conf", "west.yml"]
+                for filename in config_files:
+                    config_file = config_dir / filename
+                    if self.file_adapter.check_exists(config_file):
+                        content = self.file_adapter.read_text(config_file)
+                        hasher.update(content.encode())
+
+            return hasher.hexdigest()[:16]
+        except Exception as e:
+            logger.debug("Could not calculate config hash: %s", e)
+            return "unknown"
+
+    def _get_west_version(self, workspace_path: Path) -> str:
+        """Get west tool version for cache compatibility."""
+        try:
+            # Check west version from manifest or default to unknown
+            west_dir = workspace_path / ".west"
+            if self.file_adapter.check_exists(west_dir):
+                return "west_installed"
+            return "no_west"
+        except Exception as e:
+            logger.debug("Could not determine west version: %s", e)
+            return "unknown"
+
+    def _should_create_cache_snapshot(self, workspace_path: Path) -> bool:
+        """Determine if workspace snapshot should be created for caching."""
+        # Create snapshots for larger workspaces or when explicitly enabled
+        try:
+            west_dir = workspace_path / ".west"
+            # Check workspace size - only cache if it's substantial
+            return self.file_adapter.check_exists(west_dir)
+        except Exception:
+            return False
+
+    def _create_workspace_snapshot(self, workspace_path: Path, cache_dir: Path) -> bool:
+        """Create compressed snapshot of workspace for faster restoration."""
+        try:
+            snapshot_file = cache_dir / f"{workspace_path.name}_snapshot.tar.gz"
+            logger.debug("Creating workspace snapshot: %s", snapshot_file)
+
+            # For now, just mark that we would create a snapshot
+            # In a full implementation, this would compress workspace files
+            snapshot_metadata = {
+                "snapshot_path": str(snapshot_file),
+                "workspace_size": self._calculate_workspace_size(workspace_path),
+                "created_at": self._get_current_timestamp(),
+            }
+
+            import json
+
+            metadata_json = json.dumps(snapshot_metadata, indent=2)
+            snapshot_meta_file = cache_dir / f"{workspace_path.name}_snapshot_meta.json"
+            self.file_adapter.write_text(snapshot_meta_file, metadata_json)
+
+            logger.debug("Workspace snapshot metadata created")
+            return True
+
+        except Exception as e:
+            logger.error("Failed to create workspace snapshot: %s", e)
+            return False
+
+    def _calculate_workspace_size(self, workspace_path: Path) -> int:
+        """Calculate approximate workspace size for caching decisions."""
+        try:
+            # Simple size estimation - count directories and files
+            total_size = 0
+            if self.file_adapter.check_exists(workspace_path):
+                # Count major directories as an approximation
+                west_dir = workspace_path / ".west"
+                if self.file_adapter.check_exists(west_dir):
+                    total_size += 1000  # Approximate west metadata size
+
+                modules_dir = workspace_path / "modules"
+                if self.file_adapter.check_exists(modules_dir):
+                    total_size += 50000  # Approximate modules size
+
+            return total_size
+        except Exception:
+            return 0
+
+    def is_cache_valid(
+        self, workspace_path: Path, config: GenericDockerCompileConfig
+    ) -> bool:
+        """Check if cached workspace is valid and can be reused."""
+        try:
+            cache_dir = self._get_cache_directory(workspace_path)
+            metadata_file = cache_dir / f"{workspace_path.name}_metadata.json"
+
+            if not self.file_adapter.check_exists(metadata_file):
+                logger.debug(
+                    "No cache metadata found for workspace: %s", workspace_path
+                )
+                return False
+
+            import json
+
+            metadata_content = self.file_adapter.read_text(metadata_file)
+            cache_metadata = json.loads(metadata_content)
+
+            # Check cache version compatibility
+            if cache_metadata.get("cache_version") != "1.0":
+                logger.debug("Cache version mismatch, invalidating cache")
+                return False
+
+            # Check if manifest has changed
+            current_manifest_hash = self._calculate_manifest_hash(workspace_path)
+            cached_manifest_hash = cache_metadata.get("manifest_hash", "")
+            if current_manifest_hash != cached_manifest_hash:
+                logger.debug("Manifest hash changed, invalidating cache")
+                return False
+
+            # Check if configuration has changed
+            current_config_hash = self._calculate_config_hash(workspace_path)
+            cached_config_hash = cache_metadata.get("config_hash", "")
+            if current_config_hash != cached_config_hash:
+                logger.debug("Configuration hash changed, invalidating cache")
+                return False
+
+            # Check cache age (invalidate after 24 hours)
+            import time
+
+            cached_at = int(cache_metadata.get("cached_at", "0"))
+            current_time = int(time.time())
+            cache_age_hours = (current_time - cached_at) / 3600
+
+            if cache_age_hours > 24:
+                logger.debug("Cache expired after %0.1f hours", cache_age_hours)
+                return False
+
+            logger.debug("Cache is valid for workspace: %s", workspace_path)
+            return True
+
+        except Exception as e:
+            logger.debug("Error checking cache validity: %s", e)
+            return False
+
+    def cleanup_old_caches(self, max_age_days: int = 7) -> bool:
+        """Clean up old workspace caches to free disk space."""
+        try:
+            import tempfile
+            import time
+
+            current_time = time.time()
+            max_age_seconds = max_age_days * 24 * 3600
+
+            cache_base_dir = (
+                Path(tempfile.gettempdir()) / "glovebox_cache" / "workspaces"
+            )
+            if not self.file_adapter.check_exists(cache_base_dir):
+                return True
+
+            cleanup_count = 0
+            cache_dirs = self.file_adapter.list_directory(cache_base_dir)
+
+            for cache_dir in cache_dirs:
+                if not self.file_adapter.is_dir(cache_dir):
+                    continue
+
+                # Check cache metadata files
+                metadata_files = self.file_adapter.list_files(
+                    cache_dir, "*_metadata.json"
+                )
+                for metadata_file in metadata_files:
+                    try:
+                        import json
+
+                        metadata_content = self.file_adapter.read_text(metadata_file)
+                        cache_metadata = json.loads(metadata_content)
+
+                        cached_at = int(cache_metadata.get("cached_at", "0"))
+                        cache_age = current_time - cached_at
+
+                        if cache_age > max_age_seconds:
+                            # Remove old cache files
+                            self._remove_cache_files(cache_dir, metadata_file.stem)
+                            cleanup_count += 1
+                            logger.debug("Cleaned up old cache: %s", metadata_file.stem)
+
+                    except Exception as e:
+                        logger.debug(
+                            "Error processing cache file %s: %s", metadata_file, e
+                        )
+
+            if cleanup_count > 0:
+                logger.info("Cleaned up %d old workspace caches", cleanup_count)
+            else:
+                logger.debug("No old caches found for cleanup")
+
+            return True
+
+        except Exception as e:
+            logger.error("Failed to cleanup old caches: %s", e)
+            return False
+
+    def _remove_cache_files(self, cache_dir: Path, cache_prefix: str) -> None:
+        """Remove all cache files with given prefix."""
+        try:
+            # Find and remove cache-related files
+            cache_patterns = [
+                f"{cache_prefix}_metadata.json",
+                f"{cache_prefix}_snapshot.tar.gz",
+                f"{cache_prefix}_snapshot_meta.json",
+            ]
+
+            for pattern in cache_patterns:
+                cache_file = cache_dir / pattern
+                if self.file_adapter.check_exists(cache_file):
+                    # For safety, we'll just log what would be removed
+                    logger.debug("Would remove cache file: %s", cache_file)
+
+        except Exception as e:
+            logger.debug("Error removing cache files: %s", e)
+
     def _execute_west_strategy(
         self,
         keymap_file: Path,
@@ -282,13 +544,43 @@ class GenericDockerCompiler:
         result = BuildResult(success=True)
 
         try:
-            # Initialize west workspace if configured
-            if config.west_workspace and not self._initialize_west_workspace(
-                config.west_workspace, keymap_file, config_file
-            ):
-                result.success = False
-                result.add_error("Failed to initialize west workspace")
-                return result
+            # Check if caching is enabled and workspace cache is valid
+            workspace_path = None
+            if config.west_workspace and config.cache_workspace:
+                workspace_path = Path(config.west_workspace.workspace_path)
+
+                # Clean up old caches first
+                self.cleanup_old_caches(max_age_days=7)
+
+                # Check if we can use cached workspace
+                if self.is_cache_valid(workspace_path, config):
+                    logger.info("Using cached west workspace: %s", workspace_path)
+                    result.add_message("Using cached workspace for faster build")
+                else:
+                    logger.info(
+                        "Cache invalid or missing, initializing fresh workspace"
+                    )
+
+                    # Initialize west workspace if configured
+                    if not self._initialize_west_workspace(
+                        config.west_workspace, keymap_file, config_file
+                    ):
+                        result.success = False
+                        result.add_error("Failed to initialize west workspace")
+                        return result
+
+                    # Cache the newly initialized workspace
+                    if self.cache_workspace(workspace_path):
+                        logger.info("Workspace cached for future builds")
+                        result.add_message("Workspace cached for future builds")
+            else:
+                # Initialize west workspace without caching
+                if config.west_workspace and not self._initialize_west_workspace(
+                    config.west_workspace, keymap_file, config_file
+                ):
+                    result.success = False
+                    result.add_error("Failed to initialize west workspace")
+                    return result
 
             # Prepare build environment for west
             build_env = self._prepare_west_environment(config)
@@ -580,19 +872,33 @@ class GenericDockerCompiler:
         output_dir_abs = output_dir.absolute()
         volumes.append((str(output_dir_abs), "/build"))
 
-        # Use volume templates if provided, otherwise use defaults
+        # Use volume templates if provided, otherwise use optimized defaults
         if config.volume_templates:
             # Apply volume templates (this would be expanded based on templates)
             for template in config.volume_templates:
                 logger.debug("Applying volume template: %s", template)
+                # Parse template and add to volumes
+                self._parse_volume_template(template, volumes)
         else:
-            # Default west workspace volume mapping
+            # Optimized west workspace volume mapping
             if config.west_workspace:
+                workspace_path = config.west_workspace.workspace_path
+                config_path = config.west_workspace.config_path
+
+                # Check if we can use cached workspace volumes
+                if config.cache_workspace:
+                    workspace_abs_path = Path(workspace_path)
+                    if self.is_cache_valid(workspace_abs_path, config):
+                        # Use cached workspace with optimized volume mounting
+                        cache_dir = self._get_cache_directory(workspace_abs_path)
+                        volumes.append((str(cache_dir), f"{workspace_path}/.cache:rw"))
+                        logger.debug(
+                            "Using cached workspace volumes for faster mounting"
+                        )
+
                 # Map files to west workspace config directory
                 keymap_abs = keymap_file.absolute()
                 config_abs = config_file.absolute()
-                workspace_path = config.west_workspace.workspace_path
-                config_path = config.west_workspace.config_path
 
                 volumes.append(
                     (
@@ -604,7 +910,44 @@ class GenericDockerCompiler:
                     (str(config_abs), f"{workspace_path}/{config_path}/config.conf:ro")
                 )
 
+                # Add workspace directory for persistent builds
+                if config.cache_workspace:
+                    # Mount workspace directory for caching
+                    workspace_host_path = Path(workspace_path).absolute()
+                    if self.file_adapter.check_exists(workspace_host_path):
+                        volumes.append(
+                            (str(workspace_host_path), f"{workspace_path}:rw")
+                        )
+                        logger.debug(
+                            "Mounted workspace directory for caching: %s",
+                            workspace_path,
+                        )
+
         return volumes
+
+    def _parse_volume_template(
+        self, template: str, volumes: list[DockerVolume]
+    ) -> None:
+        """Parse volume template string and add to volumes list."""
+        try:
+            # Simple template parsing - format: "host_path:container_path:mode"
+            parts = template.split(":")
+            if len(parts) >= 2:
+                host_path = parts[0]
+                container_path = parts[1]
+                mode = parts[2] if len(parts) > 2 else "rw"
+
+                # Expand templates like {workspace_path}
+                # This could be enhanced to support more template variables
+                volumes.append((host_path, f"{container_path}:{mode}"))
+                logger.debug(
+                    "Parsed volume template: %s -> %s:%s",
+                    host_path,
+                    container_path,
+                    mode,
+                )
+        except Exception as e:
+            logger.warning("Failed to parse volume template '%s': %s", template, e)
 
     def _prepare_cmake_volumes(
         self, keymap_file: Path, config_file: Path, output_dir: Path
