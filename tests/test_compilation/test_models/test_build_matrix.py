@@ -1,0 +1,92 @@
+"""Test build matrix models."""
+
+import pytest
+
+from glovebox.compilation.models.build_matrix import (
+    BuildMatrix,
+    BuildTarget,
+    BuildTargetConfig,
+    BuildYamlConfig,
+)
+
+
+def test_build_target_creation():
+    """Test BuildTarget dataclass creation."""
+    target = BuildTarget(board="nice_nano_v2")
+    assert target.board == "nice_nano_v2"
+    assert target.shield is None
+    assert target.cmake_args == []
+    assert target.snippet is None
+    assert target.artifact_name is None
+
+
+def test_build_target_with_shield():
+    """Test BuildTarget with shield configuration."""
+    target = BuildTarget(
+        board="nice_nano_v2",
+        shield="corne_left",
+        cmake_args=["-DCONFIG_ZMK_SLEEP=y"],
+        artifact_name="corne_left",
+    )
+    assert target.board == "nice_nano_v2"
+    assert target.shield == "corne_left"
+    assert target.cmake_args == ["-DCONFIG_ZMK_SLEEP=y"]
+    assert target.artifact_name == "corne_left"
+
+
+def test_build_matrix_creation():
+    """Test BuildMatrix creation with targets."""
+    target1 = BuildTarget(board="nice_nano_v2", shield="corne_left")
+    target2 = BuildTarget(board="nice_nano_v2", shield="corne_right")
+
+    matrix = BuildMatrix(
+        targets=[target1, target2],
+        board_defaults=["nice_nano_v2"],
+        shield_defaults=["corne_left", "corne_right"],
+    )
+
+    assert len(matrix.targets) == 2
+    assert matrix.board_defaults == ["nice_nano_v2"]
+    assert matrix.shield_defaults == ["corne_left", "corne_right"]
+
+
+def test_build_yaml_config_validation():
+    """Test BuildYamlConfig Pydantic model validation."""
+    config = BuildYamlConfig(
+        board=["nice_nano_v2"],
+        shield=["corne_left", "corne_right"],
+        include=[
+            BuildTarget(board="nice_nano_v2", shield="corne_left"),
+            BuildTarget(board="nice_nano_v2", shield="corne_right"),
+        ],
+    )
+
+    assert config.board == ["nice_nano_v2"]
+    assert config.shield == ["corne_left", "corne_right"]
+    assert len(config.include) == 2
+
+
+def test_build_target_config_validation():
+    """Test BuildTargetConfig Pydantic model validation."""
+    config = BuildTargetConfig.model_validate(
+        {
+            "board": "nice_nano_v2",
+            "shield": "corne_left",
+            "cmake_args": ["-DCONFIG_ZMK_SLEEP=y"],
+            "artifact_name": "corne_left",
+        }
+    )
+
+    assert config.board == "nice_nano_v2"
+    assert config.shield == "corne_left"
+    assert config.cmake_args == ["-DCONFIG_ZMK_SLEEP=y"]
+    assert config.artifact_name == "corne_left"
+
+
+def test_build_yaml_config_empty():
+    """Test BuildYamlConfig with empty defaults."""
+    config = BuildYamlConfig()
+
+    assert config.board == []
+    assert config.shield == []
+    assert config.include == []
