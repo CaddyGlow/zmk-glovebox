@@ -21,6 +21,7 @@ from .models import (
     BuildOptions,
     DisplayConfig,
     DisplayFormatting,
+    FileExtensions,
     FirmwareConfig,
     FormattingConfig,
     KConfigOption,
@@ -29,7 +30,11 @@ from .models import (
     LayoutStructure,
     ModifierMapping,
     UserConfigData,
+    ValidationLimits,
     VisualLayout,
+    ZmkCompatibleStrings,
+    ZmkConfig,
+    ZmkPatterns,
 )
 from .profile import KeyboardProfile
 from .user_config import UserConfig, create_user_config
@@ -53,6 +58,7 @@ __all__ = [
     "BuildOptions",
     "DisplayConfig",
     "DisplayFormatting",
+    "FileExtensions",
     "FirmwareConfig",
     "FormattingConfig",
     "KConfigOption",
@@ -61,5 +67,9 @@ __all__ = [
     "LayoutStructure",
     "ModifierMapping",
     "UserConfigData",
+    "ValidationLimits",
     "VisualLayout",
+    "ZmkCompatibleStrings",
+    "ZmkConfig",
+    "ZmkPatterns",
 ]
