@@ -363,10 +363,10 @@ class TestCLIIntegrationErrorHandling:
             mock_create_service.return_value = mock_service
 
             with patch(
-                "glovebox.cli.helpers.profile.create_profile_from_context"
-            ) as mock_create_profile:
+                "glovebox.cli.helpers.profile.get_keyboard_profile_from_context"
+            ) as mock_get_profile:
                 mock_profile = Mock()
-                mock_create_profile.return_value = mock_profile
+                mock_get_profile.return_value = mock_profile
 
                 # Register commands
                 from glovebox.cli.app import app
@@ -378,7 +378,7 @@ class TestCLIIntegrationErrorHandling:
                     app,
                     [
                         "layout",
-                        "generate",
+                        "compile",
                         "output_prefix",
                         str(json_file),
                         "--profile",
@@ -403,7 +403,7 @@ class TestCLIIntegrationErrorHandling:
             app,
             [
                 "layout",
-                "generate",
+                "compile",
                 "output_prefix",
                 nonexistent_file,
                 "--profile",

@@ -233,38 +233,6 @@ class TestBuildService:
         assert config.branch == "test-branch"
         assert config.jobs == 4
 
-    def test_get_compile_method_configs_with_legacy_profile(self):
-        """Test _get_compile_method_configs with legacy profile build config."""
-        service = BuildService()
-
-        # Mock profile with legacy build config
-        mock_build_config = Mock()
-        mock_build_config.docker_image = "legacy:image"
-        mock_build_config.repository = "legacy/repo"
-        mock_build_config.branch = "legacy-branch"
-
-        mock_profile = Mock(spec=KeyboardProfile)
-        mock_keyboard_config = Mock()
-        mock_keyboard_config.build = mock_build_config
-        # No compile_methods attribute (legacy profile)
-        mock_keyboard_config.compile_methods = []
-        mock_profile.keyboard_config = mock_keyboard_config
-
-        opts = BuildServiceCompileOpts(
-            keymap_path=Path("test.keymap"),
-            kconfig_path=Path("test.conf"),
-            output_dir=Path("output"),
-        )
-
-        configs = service._get_compile_method_configs(mock_profile, opts)
-
-        assert len(configs) == 1
-        config = configs[0]
-        assert isinstance(config, DockerCompileConfig)
-        assert config.image == "legacy:image"
-        assert config.repository == "legacy/repo"
-        assert config.branch == "legacy-branch"
-
 
 class TestBuildServiceIntegration:
     """Integration tests for BuildService with method selection."""

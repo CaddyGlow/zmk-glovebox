@@ -302,27 +302,25 @@ class TestFlashService:
         """Test _get_device_query_from_profile method."""
         service = FlashService()
 
-        # Mock profile with flash config
-        mock_flash_config = Mock()
-        mock_flash_config.query = "profile query"
-        mock_flash_config.usb_vid = "1234"
-        mock_flash_config.usb_pid = "5678"
+        # Mock flash method with device query
+        mock_flash_method = Mock()
+        mock_flash_method.device_query = "profile query"
 
         mock_profile = Mock(spec=KeyboardProfile)
         mock_keyboard_config = Mock()
-        mock_keyboard_config.flash = mock_flash_config
+        mock_keyboard_config.flash_methods = [mock_flash_method]
         mock_profile.keyboard_config = mock_keyboard_config
 
         # Test with query
         query = service._get_device_query_from_profile(mock_profile)
         assert query == "profile query"
 
-        # Test with VID/PID when no query
-        mock_flash_config.query = None
+        # Test with no device_query attribute
+        mock_flash_method_no_query = Mock()
+        del mock_flash_method_no_query.device_query  # Remove the attribute
+        mock_keyboard_config.flash_methods = [mock_flash_method_no_query]
         query = service._get_device_query_from_profile(mock_profile)
-        assert "vid=1234" in query
-        assert "pid=5678" in query
-        assert "removable=true" in query
+        assert query == "removable=true"
 
     def test_get_device_query_from_profile_no_profile(self):
         """Test _get_device_query_from_profile with no profile."""

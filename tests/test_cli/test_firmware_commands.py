@@ -37,8 +37,15 @@ def test_firmware_list_devices_command(cli_runner):
         patch(
             "glovebox.cli.commands.firmware.create_flash_service"
         ) as mock_create_service,
+        patch(
+            "glovebox.cli.helpers.profile.get_keyboard_profile_from_context"
+        ) as mock_get_profile,
     ):
-        # Create a simple mock flash service with list_devices_with_profile
+        # Mock the keyboard profile
+        mock_profile = Mock()
+        mock_get_profile.return_value = mock_profile
+
+        # Create a simple mock flash service
         mock_flash_service = Mock()
         mock_create_service.return_value = mock_flash_service
 
@@ -50,13 +57,13 @@ def test_firmware_list_devices_command(cli_runner):
             {"name": "Device 1", "serial": "GLV80-1234", "path": "/dev/sdX"},
             {"name": "Device 2", "serial": "GLV80-5678", "path": "/dev/sdY"},
         ]
-        # Updated to use the new method name
-        mock_flash_service.list_devices_with_profile.return_value = result
+        # Updated to use the correct method name
+        mock_flash_service.list_devices.return_value = result
 
-        # Run the command
+        # Run the command with profile
         cmd_result = cli_runner.invoke(
             app,
-            ["firmware", "list-devices"],
+            ["firmware", "list-devices", "--profile", "glove80/v25.05"],
             catch_exceptions=False,
         )
 

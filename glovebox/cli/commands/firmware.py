@@ -44,7 +44,7 @@ def firmware_compile(
     keymap_file: Annotated[Path, typer.Argument(help="Path to keymap (.keymap) file")],
     kconfig_file: Annotated[Path, typer.Argument(help="Path to kconfig (.conf) file")],
     output_dir: Annotated[
-        Path, typer.Option("--output-dir", "-o", help="Build output directory")
+        Path, typer.Option("--output-dir", "-d", help="Build output directory")
     ] = Path("build"),
     profile: ProfileOption = None,
     branch: Annotated[
