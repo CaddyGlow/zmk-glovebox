@@ -13,6 +13,7 @@ from glovebox.config.compile_methods import (
     LocalCompileConfig,
     QemuCompileConfig,
     WestWorkspaceConfig,
+    expand_path_variables,
 )
 
 
@@ -343,6 +344,60 @@ class TestWestWorkspaceConfig:
         assert config.modules == []
         assert config.west_commands == []
 
+    def test_workspace_path_expansion(self):
+        """Test that workspace_path expands environment variables and user home."""
+        import os
+        from pathlib import Path
+
+        # Test ~ expansion
+        config = WestWorkspaceConfig(workspace_path="~/.zmk-workspace")
+        expected_path = str(Path("~/.zmk-workspace").expanduser())
+        assert config.workspace_path == expected_path
+
+        # Test $HOME expansion
+        config = WestWorkspaceConfig(workspace_path="$HOME/.zmk-workspace")
+        expected_path = os.path.expandvars("$HOME/.zmk-workspace")
+        assert config.workspace_path == expected_path
+
+        # Test combination of environment variable and path
+        config = WestWorkspaceConfig(workspace_path="$HOME/projects/zmk")
+        expected_path = os.path.expandvars("$HOME/projects/zmk")
+        assert config.workspace_path == expected_path
+
+
+class TestPathExpansion:
+    """Tests for path expansion helper functions."""
+
+    def test_expand_path_variables_function(self):
+        """Test the expand_path_variables helper function."""
+        import os
+        from pathlib import Path
+
+        # Test ~ expansion
+        result = expand_path_variables("~/.zmk-workspace")
+        expected = str(Path("~/.zmk-workspace").expanduser())
+        assert result == expected
+
+        # Test $HOME expansion
+        result = expand_path_variables("$HOME/.zmk-workspace")
+        expected = os.path.expandvars("$HOME/.zmk-workspace")
+        assert result == expected
+
+        # Test absolute path (no expansion needed)
+        result = expand_path_variables("/absolute/path")
+        assert result == "/absolute/path"
+
+        # Test relative path (no expansion needed)
+        result = expand_path_variables("relative/path")
+        assert result == "relative/path"
+
+        # Test combined expansion
+        result = expand_path_variables("$HOME/~/nested")
+        # This should expand $HOME first, then handle ~ (though this is unusual)
+        expected_home = os.path.expandvars("$HOME")
+        expected = f"{expected_home}/~/nested"
+        assert result == expected
+
 
 class TestGenericDockerCompileConfig:
     """Tests for GenericDockerCompileConfig model."""
@@ -586,3 +641,67 @@ class TestGenericDockerCompileConfig:
         assert len(config.board_targets) == 2
         assert config.cache_workspace is True
         assert config.fallback_methods == ["docker", "local"]
+
+    def test_volume_template_expansion(self):
+        """Test that volume_templates expand environment variables."""
+        import os
+        from pathlib import Path
+
+        config = GenericDockerCompileConfig(
+            volume_templates=[
+                "~/.cache:/workspace/.cache:rw",
+                "$HOME/builds:/builds:ro",
+                "/absolute/path:/container/path:rw",
+            ]
+        )
+
+        # Check that paths are expanded
+        expected_cache = str(Path("~/.cache").expanduser())
+        expected_home = os.path.expandvars("$HOME")
+
+        assert config.volume_templates[0] == f"{expected_cache}:/workspace/.cache:rw"
+        assert config.volume_templates[1] == f"{expected_home}/builds:/builds:ro"
+        assert (
+            config.volume_templates[2] == "/absolute/path:/container/path:rw"
+        )  # No expansion needed
+
+    def test_environment_template_expansion(self):
+        """Test that environment_template values expand environment variables."""
+        import os
+        from pathlib import Path
+
+        config = GenericDockerCompileConfig(
+            environment_template={
+                "HOME_DIR": "$HOME",
+                "CACHE_DIR": "~/.cache",
+                "ABSOLUTE_PATH": "/usr/bin",
+                "COMBINED": "$HOME/projects/zmk",
+            }
+        )
+
+        # Check that values are expanded
+        expected_home = os.path.expandvars("$HOME")
+        expected_cache = str(Path("~/.cache").expanduser())
+
+        assert config.environment_template["HOME_DIR"] == expected_home
+        assert config.environment_template["CACHE_DIR"] == expected_cache
+        assert (
+            config.environment_template["ABSOLUTE_PATH"] == "/usr/bin"
+        )  # No expansion needed
+        assert (
+            config.environment_template["COMBINED"] == f"{expected_home}/projects/zmk"
+        )
+
+    def test_west_workspace_path_expansion_in_generic_config(self):
+        """Test workspace path expansion when used within GenericDockerCompileConfig."""
+        import os
+        from pathlib import Path
+
+        config = GenericDockerCompileConfig(
+            build_strategy="west",
+            west_workspace=WestWorkspaceConfig(workspace_path="~/.zmk-workspace"),
+        )
+
+        expected_path = str(Path("~/.zmk-workspace").expanduser())
+        assert config.west_workspace is not None
+        assert config.west_workspace.workspace_path == expected_path
