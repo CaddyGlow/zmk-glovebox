@@ -3,19 +3,30 @@ description: Test keyboard for unit tests
 vendor: Test Vendor
 key_count: 80
 
-# Flash configuration
-flash:
-  method: mass_storage
-  query: vendor=Test and removable=true
-  usb_vid: "0x1234"
-  usb_pid: "0x5678"
+# Compile method configurations
+compile_methods:
+  - method_type: docker
+    image: test-zmk-build
+    repository: test/zmk
+    branch: main
+    jobs: 4
+    fallback_methods: ["local"]
 
-# Build configuration
-build:
-  method: docker
-  docker_image: test-zmk-build
-  repository: test/zmk
-  branch: main
+# Flash method configurations  
+flash_methods:
+  - method_type: usb
+    device_query: vendor=Test and removable=true
+    mount_timeout: 30
+    copy_timeout: 60
+    sync_after_copy: true
+    fallback_methods: ["dfu"]
+  - method_type: dfu
+    vid: "0x1234"
+    pid: "0x5678"
+    interface: 0
+    alt_setting: 0
+    timeout: 30
+    fallback_methods: []
 
 
 # Available firmware variants

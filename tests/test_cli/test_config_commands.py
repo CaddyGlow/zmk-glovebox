@@ -32,18 +32,34 @@ def mock_keyboard_config():
             "description": "Test keyboard description",
             "vendor": "Test Vendor",
             "key_count": 84,
-            "flash": {
-                "method": "usb_mount",
-                "query": "BOOTLOADER",
-                "usb_vid": "0x16C0",
-                "usb_pid": "0x27DB",
-            },
-            "build": {
-                "method": "docker",
-                "docker_image": "zmkfirmware/zmk-build-arm:stable",
-                "repository": "https://github.com/moergo-sc/zmk",
-                "branch": "glove80",
-            },
+            "compile_methods": [
+                {
+                    "method_type": "docker",
+                    "image": "zmkfirmware/zmk-build-arm:stable",
+                    "repository": "https://github.com/moergo-sc/zmk",
+                    "branch": "glove80",
+                    "fallback_methods": ["local"],
+                }
+            ],
+            "flash_methods": [
+                {
+                    "method_type": "usb",
+                    "device_query": "BOOTLOADER",
+                    "mount_timeout": 30,
+                    "copy_timeout": 60,
+                    "sync_after_copy": True,
+                    "fallback_methods": ["dfu"],
+                },
+                {
+                    "method_type": "dfu",
+                    "vid": "0x16C0",
+                    "pid": "0x27DB",
+                    "interface": 0,
+                    "alt_setting": 0,
+                    "timeout": 30,
+                    "fallback_methods": [],
+                },
+            ],
             "firmwares": {
                 "v1.0": {
                     "version": "v1.0",

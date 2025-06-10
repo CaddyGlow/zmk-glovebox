@@ -77,18 +77,34 @@ class TestKeyboardConfigDefaults:
             "description": "Test minimal keyboard",
             "vendor": "Test Vendor",
             "key_count": 10,
-            "flash": {
-                "method": "usb_mount",
-                "query": "test_query",
-                "usb_vid": "1234",
-                "usb_pid": "5678",
-            },
-            "build": {
-                "method": "docker",
-                "docker_image": "test_image",
-                "repository": "test/repo",
-                "branch": "main",
-            },
+            "compile_methods": [
+                {
+                    "method_type": "docker",
+                    "image": "test_image",
+                    "repository": "test/repo",
+                    "branch": "main",
+                    "fallback_methods": ["local"],
+                }
+            ],
+            "flash_methods": [
+                {
+                    "method_type": "usb",
+                    "device_query": "test_query",
+                    "mount_timeout": 30,
+                    "copy_timeout": 60,
+                    "sync_after_copy": True,
+                    "fallback_methods": ["dfu"],
+                },
+                {
+                    "method_type": "dfu",
+                    "vid": "1234",
+                    "pid": "5678",
+                    "interface": 0,
+                    "alt_setting": 0,
+                    "timeout": 30,
+                    "fallback_methods": [],
+                },
+            ],
             # Note: No firmwares or keymap sections
         }
 
@@ -110,18 +126,34 @@ class TestKeyboardConfigDefaults:
             "description": "Test partial keyboard",
             "vendor": "Test Vendor",
             "key_count": 10,
-            "flash": {
-                "method": "usb_mount",
-                "query": "test_query",
-                "usb_vid": "1234",
-                "usb_pid": "5678",
-            },
-            "build": {
-                "method": "docker",
-                "docker_image": "test_image",
-                "repository": "test/repo",
-                "branch": "main",
-            },
+            "compile_methods": [
+                {
+                    "method_type": "docker",
+                    "image": "test_image",
+                    "repository": "test/repo",
+                    "branch": "main",
+                    "fallback_methods": ["local"],
+                }
+            ],
+            "flash_methods": [
+                {
+                    "method_type": "usb",
+                    "device_query": "test_query",
+                    "mount_timeout": 30,
+                    "copy_timeout": 60,
+                    "sync_after_copy": True,
+                    "fallback_methods": ["dfu"],
+                },
+                {
+                    "method_type": "dfu",
+                    "vid": "1234",
+                    "pid": "5678",
+                    "interface": 0,
+                    "alt_setting": 0,
+                    "timeout": 30,
+                    "fallback_methods": [],
+                },
+            ],
             "firmwares": {
                 "v1.0": {
                     "version": "v1.0",
@@ -424,18 +456,34 @@ class TestKeyboardOnlyProfileIntegration:
                 "description": "Integration test keyboard",
                 "vendor": "Test Vendor",
                 "key_count": 80,
-                "flash": {
-                    "method": "mass_storage",
-                    "query": "vendor=Test and removable=true",
-                    "usb_vid": "0x1234",
-                    "usb_pid": "0x5678",
-                },
-                "build": {
-                    "method": "docker",
-                    "docker_image": "zmkfirmware/zmk-build-arm:stable",
-                    "repository": "zmkfirmware/zmk",
-                    "branch": "main",
-                },
+                "compile_methods": [
+                    {
+                        "method_type": "docker",
+                        "image": "zmkfirmware/zmk-build-arm:stable",
+                        "repository": "zmkfirmware/zmk",
+                        "branch": "main",
+                        "fallback_methods": ["local"],
+                    }
+                ],
+                "flash_methods": [
+                    {
+                        "method_type": "usb",
+                        "device_query": "vendor=Test and removable=true",
+                        "mount_timeout": 30,
+                        "copy_timeout": 60,
+                        "sync_after_copy": True,
+                        "fallback_methods": ["dfu"],
+                    },
+                    {
+                        "method_type": "dfu",
+                        "vid": "0x1234",
+                        "pid": "0x5678",
+                        "interface": 0,
+                        "alt_setting": 0,
+                        "timeout": 30,
+                        "fallback_methods": [],
+                    },
+                ],
             }
 
             config_file = keyboards_dir / "integration_test.yaml"

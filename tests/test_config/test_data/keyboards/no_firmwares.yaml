@@ -1,19 +1,19 @@
 keyboard: no_firmwares
 description: Test keyboard with no firmware configurations
 vendor: Test Vendor
-version: v1.0.0
+key_count: 60
 
-# Flash configuration
-flash:
-  method: mass_storage
-  query: vendor=Test and removable=true
+# Compile method configurations
+compile_methods:
+  - method_type: docker
+    image: test-zmk-build
+    repository: test/zmk
+    branch: main
 
-# Build configuration
-build:
-  method: docker
-  docker_image: test-zmk-build
-  repository: test/zmk
-  branch: main
+# Flash method configurations  
+flash_methods:
+  - method_type: usb
+    device_query: vendor=Test and removable=true
 
 # No firmwares section
 

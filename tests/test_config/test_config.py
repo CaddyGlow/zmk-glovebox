@@ -63,18 +63,35 @@ def mock_keyboard_config_dict():
         "description": "Mock keyboard for testing",
         "vendor": "Test Vendor",
         "key_count": 80,
-        "flash": {
-            "method": "mass_storage",
-            "query": "vendor=Test and removable=true",
-            "usb_vid": "0x1234",
-            "usb_pid": "0x5678",
-        },
-        "build": {
-            "method": "docker",
-            "docker_image": "test-zmk-build",
-            "repository": "test/zmk",
-            "branch": "main",
-        },
+        "compile_methods": [
+            {
+                "method_type": "docker",
+                "image": "test-zmk-build",
+                "repository": "test/zmk",
+                "branch": "main",
+                "jobs": 4,
+                "fallback_methods": ["local"],
+            }
+        ],
+        "flash_methods": [
+            {
+                "method_type": "usb",
+                "device_query": "vendor=Test and removable=true",
+                "mount_timeout": 30,
+                "copy_timeout": 60,
+                "sync_after_copy": True,
+                "fallback_methods": ["dfu"],
+            },
+            {
+                "method_type": "dfu",
+                "vid": "0x1234",
+                "pid": "0x5678",
+                "interface": 0,
+                "alt_setting": 0,
+                "timeout": 30,
+                "fallback_methods": [],
+            },
+        ],
         "firmwares": {
             "default": {
                 "version": "v1.0.0",
@@ -186,18 +203,35 @@ def keyboard_config_dir(tmp_path):
         "description": "Test keyboard for integration testing",
         "vendor": "Test Vendor",
         "key_count": 80,
-        "flash": {
-            "method": "mass_storage",
-            "query": "vendor=Test and removable=true",
-            "usb_vid": "0x1234",
-            "usb_pid": "0x5678",
-        },
-        "build": {
-            "method": "docker",
-            "docker_image": "test-zmk-build",
-            "repository": "test/zmk",
-            "branch": "main",
-        },
+        "compile_methods": [
+            {
+                "method_type": "docker",
+                "image": "test-zmk-build",
+                "repository": "test/zmk",
+                "branch": "main",
+                "jobs": 4,
+                "fallback_methods": ["local"],
+            }
+        ],
+        "flash_methods": [
+            {
+                "method_type": "usb",
+                "device_query": "vendor=Test and removable=true",
+                "mount_timeout": 30,
+                "copy_timeout": 60,
+                "sync_after_copy": True,
+                "fallback_methods": ["dfu"],
+            },
+            {
+                "method_type": "dfu",
+                "vid": "0x1234",
+                "pid": "0x5678",
+                "interface": 0,
+                "alt_setting": 0,
+                "timeout": 30,
+                "fallback_methods": [],
+            },
+        ],
         "firmwares": {
             "default": {
                 "version": "v1.0.0",
@@ -278,18 +312,35 @@ def keyboard_config_dir(tmp_path):
         "description": "MoErgo Glove80 split ergonomic keyboard",
         "vendor": "MoErgo",
         "key_count": 80,
-        "flash": {
-            "method": "mass_storage",
-            "query": "vendor=Adafruit and serial~=GLV80-.* and removable=true",
-            "usb_vid": "0x1209",
-            "usb_pid": "0x0080",
-        },
-        "build": {
-            "method": "docker",
-            "docker_image": "moergo-zmk-build",
-            "repository": "moergo-sc/zmk",
-            "branch": "v25.05",
-        },
+        "compile_methods": [
+            {
+                "method_type": "docker",
+                "image": "moergo-zmk-build",
+                "repository": "moergo-sc/zmk",
+                "branch": "v25.05",
+                "jobs": 8,
+                "fallback_methods": ["local"],
+            }
+        ],
+        "flash_methods": [
+            {
+                "method_type": "usb",
+                "device_query": "vendor=Adafruit and serial~=GLV80-.* and removable=true",
+                "mount_timeout": 30,
+                "copy_timeout": 60,
+                "sync_after_copy": True,
+                "fallback_methods": ["dfu"],
+            },
+            {
+                "method_type": "dfu",
+                "vid": "0x1209",
+                "pid": "0x0080",
+                "interface": 0,
+                "alt_setting": 0,
+                "timeout": 30,
+                "fallback_methods": [],
+            },
+        ],
         "firmwares": {
             "v25.05": {
                 "version": "v25.05",

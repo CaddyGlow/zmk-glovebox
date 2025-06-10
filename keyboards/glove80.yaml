@@ -3,17 +3,30 @@ description: "MoErgo Glove80 split ergonomic keyboard"
 vendor: "MoErgo"
 key_count: 80
 
-flash:
-  method: "mass_storage"
-  query: "vendor=Adafruit and serial~=GLV80-.* and removable=true"
-  usb_vid: "0x1209"
-  usb_pid: "0x0080"
+# Compile method configurations
+compile_methods:
+  - method_type: docker
+    image: moergo-zmk-build
+    repository: moergo-sc/zmk
+    branch: v25.05
+    jobs: 8
+    fallback_methods: ["local"]
 
-build:
-  method: "docker"
-  docker_image: "moergo-zmk-build"
-  repository: "moergo-sc/zmk"
-  branch: "v25.05"
+# Flash method configurations  
+flash_methods:
+  - method_type: usb
+    device_query: "vendor=Adafruit and serial~=GLV80-.* and removable=true"
+    mount_timeout: 30
+    copy_timeout: 60
+    sync_after_copy: true
+    fallback_methods: ["dfu"]
+  - method_type: dfu
+    vid: "0x1209"
+    pid: "0x0080"
+    interface: 0
+    alt_setting: 0
+    timeout: 30
+    fallback_methods: []
 
 firmwares:
   v25.05:
