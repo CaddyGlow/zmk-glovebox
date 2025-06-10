@@ -180,14 +180,30 @@ def flash(
     Automatically detects USB keyboards in bootloader mode and flashes
     the firmware file. Supports flashing multiple devices simultaneously.
 
-    When --wait is enabled, the command will monitor for device connections
-    in real-time and show progress updates.
+    Wait mode uses real-time USB device monitoring for immediate detection
+    when devices are connected. Configure defaults in user config file.
 
     Examples:
+        # Basic flash (uses config defaults)
         glovebox firmware flash firmware.uf2 --profile glove80/v25.05
+
+        # Enable wait mode with CLI flags
         glovebox firmware flash firmware.uf2 --wait --timeout 120
+
+        # Configure multiple devices with custom polling
         glovebox firmware flash firmware.uf2 --wait --count 2 --poll-interval 1.0
+
+        # Use specific device query
         glovebox firmware flash firmware.uf2 --query "vendor=Adafruit and serial~=GLV80-.*"
+
+    Configuration:
+        Set defaults in ~/.config/glovebox/config.yaml:
+            firmware:
+              flash:
+                wait: true
+                timeout: 120
+                poll_interval: 0.5
+                show_progress: true
     """
 
     keyboard_profile = get_keyboard_profile_from_context(ctx)
@@ -248,6 +264,10 @@ def flash(
             count=effective_count,
             track_flashed=effective_track_flashed,
             skip_existing=effective_skip_existing,
+            # NEW: Add wait parameters
+            wait=effective_wait,
+            poll_interval=effective_poll_interval,
+            show_progress=effective_show_progress,
         )
 
         if result.success:
