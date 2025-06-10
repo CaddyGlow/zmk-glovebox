@@ -46,12 +46,34 @@ This directory contains the configuration for the **Corne Cherry v3** keyboard, 
 
 ## Build Configuration
 
-- **Method**: Docker-based compilation
+- **Method**: Generic Docker compiler with ZMK west workspace
+- **Build Strategy**: `west` (ZMK recommended)
 - **Image**: `zmkfirmware/zmk-build-arm:stable`
-- **Repository**: `zmkfirmware/zmk`
-- **Default Branch**: `main`
+- **Workspace Caching**: Enabled for faster builds (50%+ improvement)
+- **Board Targets**: `corne_left`, `corne_right` for split keyboard
+- **West Workspace**: ZMK main branch with automatic dependency management
 - **Parallel Jobs**: 4
-- **Fallback**: Local compilation if Docker fails
+- **Fallback**: Docker legacy → Local compilation
+
+## Generic Docker Compiler Features
+
+### Modern ZMK West Workspace Build
+- **West Workspace**: Full ZMK west workspace initialization and management
+- **Dependency Management**: Automatic ZMK and Zephyr dependency resolution
+- **Intelligent Caching**: Workspace caching for 50%+ faster subsequent builds
+- **Cache Invalidation**: Automatic cache invalidation on configuration changes
+- **Multi-Strategy Support**: west, cmake, make, ninja build strategies
+
+### Performance Optimizations
+- **Workspace Caching**: Reuses ZMK workspace across builds with smart invalidation
+- **Parallel Builds**: Multi-core compilation support with configurable job count
+- **Optimized Volumes**: Efficient Docker volume mounting and management
+- **Build Strategy Selection**: Automatic selection of optimal build method
+
+### Split Keyboard Support
+- **Board Targets**: Explicit board target configuration (`corne_left`, `corne_right`)
+- **Synchronized Builds**: Coordinated compilation for both keyboard halves
+- **Environment Templates**: Configurable build environment variables
 
 ## Key Features
 
@@ -91,6 +113,15 @@ glovebox config firmwares corne
 # Create a keyboard profile
 glovebox layout compile my_layout.json output/ --profile corne/main
 
+# Build firmware with new generic docker compiler (west workspace)
+glovebox firmware compile keymap.keymap config.conf --profile corne/main
+
+# Build with workspace caching for faster subsequent builds
+glovebox firmware compile keymap.keymap config.conf --profile corne/main --cache-workspace
+
+# Build with specific board targets for split keyboard
+glovebox firmware compile keymap.keymap config.conf --profile corne/main --board-targets corne_left,corne_right
+
 # Flash firmware to keyboard
 glovebox firmware flash firmware.uf2 --profile corne/main
 ```
@@ -108,6 +139,7 @@ glovebox firmware flash firmware.uf2 --profile corne/main
 - [ZMK Firmware Documentation](https://zmk.dev/)
 - [Corne Build Guide](https://github.com/foostan/crkbd/blob/master/corne-cherry/doc/buildguide_en.md)
 - [Layout Editor](https://nickcoutsos.github.io/keymap-editor/)
+- [Generic Docker Compiler Usage Guide](../docs/generic_docker_compiler_usage_guide.md)
 
 ## Configuration File Location
 

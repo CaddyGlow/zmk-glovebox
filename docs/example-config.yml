@@ -36,6 +36,16 @@ firmware:
     # When false, flash existing matching devices immediately
     # When true, only wait for newly plugged devices
     skip_existing: false
+    
+    # Wait mode settings (NEW)
+    # Enable real-time device waiting with USB monitoring
+    wait: false
+    
+    # Polling interval in seconds when waiting for devices (0.1-5.0, default: 0.5)
+    poll_interval: 0.5
+    
+    # Show real-time device detection progress updates (default: true)
+    show_progress: true
   
   # Compile behavior settings
   compile:
@@ -69,10 +79,13 @@ flash_skip_existing: false
 #    - GLOVEBOX_FIRMWARE__FLASH__COUNT=5
 #    - GLOVEBOX_FIRMWARE__FLASH__TRACK_FLASHED=false
 #    - GLOVEBOX_FIRMWARE__FLASH__SKIP_EXISTING=true
+#    - GLOVEBOX_FIRMWARE__FLASH__WAIT=true (NEW)
+#    - GLOVEBOX_FIRMWARE__FLASH__POLL_INTERVAL=1.0 (NEW)
+#    - GLOVEBOX_FIRMWARE__FLASH__SHOW_PROGRESS=false (NEW)
 #    - GLOVEBOX_FIRMWARE__COMPILE__DEFAULT_IMAGE="zmkfirmware/zmk-build-arm:stable"
 #    - GLOVEBOX_FIRMWARE__COMPILE__DEFAULT_BUILD_STRATEGY="west"
 #    - GLOVEBOX_FIRMWARE__COMPILE__CACHE_WORKSPACE=true
 #    - GLOVEBOX_FLASH_SKIP_EXISTING=true (deprecated)
-# 2. Command-line flags (--profile, --timeout, --count, --no-track, --skip-existing)
+# 2. Command-line flags (--profile, --timeout, --count, --no-track, --skip-existing, --wait, --poll-interval, --show-progress)
 # 3. This configuration file
 # 4. Built-in defaults

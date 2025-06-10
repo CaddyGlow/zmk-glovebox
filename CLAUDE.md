@@ -290,6 +290,31 @@ glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
 
 # Flash firmware
 glovebox firmware flash firmware.uf2 --profile glove80/v25.05
+
+# Flash firmware with wait mode (event-driven device detection)
+glovebox firmware flash firmware.uf2 --wait --profile glove80/v25.05
+
+# Custom wait configuration
+glovebox firmware flash firmware.uf2 --wait --timeout 120 --poll-interval 1.0 --count 3
+```
+
+### Firmware Flash with Wait Mode
+
+```bash
+# Enable wait mode with default settings
+glovebox firmware flash firmware.uf2 --wait --profile glove80/v25.05
+
+# Custom wait configuration
+glovebox firmware flash firmware.uf2 --wait --timeout 120 --poll-interval 1.0 --count 3
+
+# Configure via user config for persistent settings
+# ~/.config/glovebox/config.yaml:
+firmware:
+  flash:
+    wait: true
+    timeout: 120
+    poll_interval: 0.5
+    show_progress: true
 ```
 
 ### Testing

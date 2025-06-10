@@ -41,14 +41,28 @@ display:
         - [36, 37, 38]
         - [39, 40, 41]
 
-# Compile method configurations
+# Compile method configurations with new generic docker compiler
 compile_methods:
-  - method_type: docker
+  - method_type: generic_docker
     image: zmkfirmware/zmk-build-arm:stable
-    repository: zmkfirmware/zmk
-    branch: main
+    build_strategy: west
+    cache_workspace: true
+    west_workspace:
+      manifest_url: https://github.com/zmkfirmware/zmk.git
+      manifest_revision: main
+      workspace_path: /zmk-workspace
+      config_path: config
+      west_commands:
+        - "west init -l config"
+        - "west update"
+    board_targets:
+      - corne_left
+      - corne_right
+    environment_template:
+      ZEPHYR_TOOLCHAIN_VARIANT: zephyr
+      CMAKE_BUILD_TYPE: Release
     jobs: 4
-    fallback_methods: ["local"]
+    fallback_methods: ["docker", "local"]
 
 # Flash method configurations
 flash_methods:
