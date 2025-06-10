@@ -311,7 +311,7 @@ class TestWestWorkspaceConfig:
         assert config.manifest_url == "https://github.com/zmkfirmware/zmk.git"
         assert config.manifest_revision == "main"
         assert config.modules == []
-        assert config.west_commands == ["west init -l config", "west update"]
+        assert config.west_commands == []
         assert config.workspace_path == "/zmk-workspace"
         assert config.config_path == "config"
 
@@ -538,7 +538,7 @@ class TestGenericDockerCompileConfig:
                 "manifest_url": "https://github.com/zmkfirmware/zmk.git",
                 "manifest_revision": "main",
                 "modules": [],
-                "west_commands": ["west init -l config", "west update"],
+                "west_commands": [],
                 "workspace_path": "/zmk-workspace",
                 "config_path": "config",
             },

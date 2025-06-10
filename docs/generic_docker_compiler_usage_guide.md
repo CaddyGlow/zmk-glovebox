@@ -113,8 +113,8 @@ west_workspace:
     - zephyr
     - zmk
   west_commands:
-    - "west init -l config"
-    - "west update"
+    # Additional commands after workspace initialization (optional)
+    # Note: "west init" and "west update" are handled automatically
     - "west config build.board-dir /zmk-workspace/boards"
   workspace_path: /zmk-workspace
   config_path: config

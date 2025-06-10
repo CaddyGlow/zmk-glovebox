@@ -52,9 +52,7 @@ compile_methods:
       manifest_revision: main
       workspace_path: ~/.zmk-workspace
       config_path: config
-      west_commands:
-        - "west init -l config"
-        - "west update"
+      west_commands: []
     board_targets:
       - corne_left
       - corne_right

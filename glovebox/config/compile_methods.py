@@ -27,9 +27,7 @@ class WestWorkspaceConfig(BaseModel):
     manifest_url: str = "https://github.com/zmkfirmware/zmk.git"
     manifest_revision: str = "main"
     modules: list[str] = Field(default_factory=list)
-    west_commands: list[str] = Field(
-        default_factory=lambda: ["west init -l config", "west update"]
-    )
+    west_commands: list[str] = Field(default_factory=list)
     workspace_path: str = "/zmk-workspace"
     config_path: str = "config"
 
