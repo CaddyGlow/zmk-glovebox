@@ -128,13 +128,13 @@ class EnvironmentManager:
         Raises:
             EnvironmentManagerError: If template expansion fails
         """
+        import re
+
         if not isinstance(value, str):
             return str(value)
 
         try:
             # First expand environment variables (${VAR} format)
-            import re
-
             env_pattern = r"\$\{([^}]+)\}"
 
             def expand_env_var(match: Any) -> str:
@@ -199,6 +199,8 @@ class EnvironmentManager:
         Raises:
             EnvironmentManagerError: If any template is invalid
         """
+        import re
+
         for key, value in environment_template.items():
             if not isinstance(key, str) or not key.strip():
                 raise EnvironmentManagerError(
@@ -210,15 +212,11 @@ class EnvironmentManager:
 
             # Check for template variable syntax
             if "{" in value and "}" in value:
-                import re
-
                 variables = re.findall(r"\{([^}]+)\}", value)
                 self.logger.debug("Environment %s uses variables: %s", key, variables)
 
             # Check for environment variable expansion syntax
             if "${" in value and "}" in value:
-                import re
-
                 env_vars = re.findall(r"\$\{([^}]+)\}", value)
                 self.logger.debug("Environment %s expands variables: %s", key, env_vars)
 
