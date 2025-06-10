@@ -150,6 +150,29 @@ def flash(
         bool,
         typer.Option("--skip-existing", help="Skip devices already present at startup"),
     ] = False,
+    wait: Annotated[
+        bool | None,
+        typer.Option(
+            "--wait/--no-wait",
+            help="Wait for devices to connect before flashing (uses config default if not specified)",
+        ),
+    ] = None,
+    poll_interval: Annotated[
+        float | None,
+        typer.Option(
+            "--poll-interval",
+            help="Polling interval in seconds when waiting for devices (uses config default if not specified)",
+            min=0.1,
+            max=5.0,
+        ),
+    ] = None,
+    show_progress: Annotated[
+        bool | None,
+        typer.Option(
+            "--show-progress/--no-show-progress",
+            help="Show real-time device detection progress (uses config default if not specified)",
+        ),
+    ] = None,
     output_format: OutputFormatOption = "text",
 ) -> None:
     """Flash firmware file to connected keyboard devices.
@@ -157,9 +180,13 @@ def flash(
     Automatically detects USB keyboards in bootloader mode and flashes
     the firmware file. Supports flashing multiple devices simultaneously.
 
+    When --wait is enabled, the command will monitor for device connections
+    in real-time and show progress updates.
+
     Examples:
         glovebox firmware flash firmware.uf2 --profile glove80/v25.05
-        glovebox firmware flash firmware.uf2 --count 2 --timeout 120
+        glovebox firmware flash firmware.uf2 --wait --timeout 120
+        glovebox firmware flash firmware.uf2 --wait --count 2 --poll-interval 1.0
         glovebox firmware flash firmware.uf2 --query "vendor=Adafruit and serial~=GLV80-.*"
     """
 
@@ -185,12 +212,30 @@ def flash(
         effective_skip_existing = (
             skip_existing or user_config._config.firmware.flash.skip_existing
         )
+
+        # NEW: Wait-related settings with precedence
+        effective_wait = (
+            wait if wait is not None else user_config._config.firmware.flash.wait
+        )
+        effective_poll_interval = (
+            poll_interval
+            if poll_interval is not None
+            else user_config._config.firmware.flash.poll_interval
+        )
+        effective_show_progress = (
+            show_progress
+            if show_progress is not None
+            else user_config._config.firmware.flash.show_progress
+        )
     else:
         # Fallback to CLI values if user config not available
         effective_timeout = timeout
         effective_count = count
         effective_track_flashed = not no_track
         effective_skip_existing = skip_existing
+        effective_wait = wait if wait is not None else False
+        effective_poll_interval = poll_interval if poll_interval is not None else 0.5
+        effective_show_progress = show_progress if show_progress is not None else True
 
     # Use the new file-based method which handles file existence checks
     flash_service = create_flash_service()
