@@ -127,7 +127,14 @@ class GenericDockerCompiler:
             return False
 
         # Backward compatibility: accept basic strategy names
-        if config.build_strategy in ["west", "zmk_config", "cmake", "make", "ninja", "custom"]:
+        if config.build_strategy in [
+            "west",
+            "zmk_config",
+            "cmake",
+            "make",
+            "ninja",
+            "custom",
+        ]:
             # For facade backward compatibility, accept basic configurations
             # The coordinator will handle more complex validation during compilation
             return True

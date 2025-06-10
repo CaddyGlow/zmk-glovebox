@@ -39,7 +39,7 @@ class TestWestWorkspaceManager:
             workspace_path = Path(temp_dir) / "workspace"
             keymap_file = Path(temp_dir) / "keymap.keymap"
             config_file = Path(temp_dir) / "config.conf"
-            
+
             # Create test files
             keymap_file.write_text("/* test keymap */")
             config_file.write_text("CONFIG_TEST=y")
@@ -54,9 +54,13 @@ class TestWestWorkspaceManager:
 
             # Mock file adapter operations
             self.file_adapter.check_exists.side_effect = lambda path: path.exists()
-            self.file_adapter.create_directory.side_effect = lambda path: path.mkdir(parents=True, exist_ok=True)
+            self.file_adapter.create_directory.side_effect = lambda path: path.mkdir(
+                parents=True, exist_ok=True
+            )
             self.file_adapter.read_text.side_effect = lambda path: path.read_text()
-            self.file_adapter.write_text.side_effect = lambda path, content: path.write_text(content)
+            self.file_adapter.write_text.side_effect = (
+                lambda path, content: path.write_text(content)
+            )
 
             # Mock Docker container execution success
             self.docker_adapter.run_container.return_value = (0, [], [])
@@ -74,7 +78,7 @@ class TestWestWorkspaceManager:
             workspace_path = Path(temp_dir) / "workspace"
             keymap_file = Path(temp_dir) / "keymap.keymap"
             config_file = Path(temp_dir) / "config.conf"
-            
+
             # Create test files
             keymap_file.write_text("/* test keymap */")
             config_file.write_text("CONFIG_TEST=y")
@@ -89,9 +93,13 @@ class TestWestWorkspaceManager:
 
             # Mock file adapter operations
             self.file_adapter.check_exists.side_effect = lambda path: path.exists()
-            self.file_adapter.create_directory.side_effect = lambda path: path.mkdir(parents=True, exist_ok=True)
+            self.file_adapter.create_directory.side_effect = lambda path: path.mkdir(
+                parents=True, exist_ok=True
+            )
             self.file_adapter.read_text.side_effect = lambda path: path.read_text()
-            self.file_adapter.write_text.side_effect = lambda path, content: path.write_text(content)
+            self.file_adapter.write_text.side_effect = (
+                lambda path, content: path.write_text(content)
+            )
 
             # Mock Docker container execution success
             self.docker_adapter.run_container.return_value = (0, [], [])
@@ -116,7 +124,7 @@ class TestWestWorkspaceManager:
     def test_initialize_workspace_no_docker_adapter(self):
         """Test workspace initialization without Docker adapter."""
         self.manager.docker_adapter = None
-        
+
         workspace_config = Mock(spec=WestWorkspaceConfig)
         keymap_file = Path("/tmp/keymap.keymap")
         config_file = Path("/tmp/config.conf")
@@ -217,7 +225,7 @@ class TestWestWorkspaceManager:
             )
 
             assert result is True
-            
+
             # Verify Docker was called with west commands
             call_args = self.docker_adapter.run_container.call_args
             assert "west zephyr-export" in call_args[1]["command"][2]
@@ -259,7 +267,7 @@ class TestWestWorkspaceManagerIntegration:
             workspace_path = Path(temp_dir) / "lifecycle_workspace"
             keymap_file = Path(temp_dir) / "test.keymap"
             config_file = Path(temp_dir) / "test.conf"
-            
+
             # Create test files
             keymap_file.write_text("/* test keymap */")
             config_file.write_text("CONFIG_TEST=y")
@@ -277,10 +285,18 @@ class TestWestWorkspaceManagerIntegration:
             self.manager.docker_adapter = Mock()
 
             # Mock file operations
-            self.manager.file_adapter.check_exists.side_effect = lambda path: path.exists()
-            self.manager.file_adapter.create_directory.side_effect = lambda path: path.mkdir(parents=True, exist_ok=True)
-            self.manager.file_adapter.read_text.side_effect = lambda path: path.read_text()
-            self.manager.file_adapter.write_text.side_effect = lambda path, content: path.write_text(content)
+            self.manager.file_adapter.check_exists.side_effect = (
+                lambda path: path.exists()
+            )
+            self.manager.file_adapter.create_directory.side_effect = (
+                lambda path: path.mkdir(parents=True, exist_ok=True)
+            )
+            self.manager.file_adapter.read_text.side_effect = (
+                lambda path: path.read_text()
+            )
+            self.manager.file_adapter.write_text.side_effect = (
+                lambda path, content: path.write_text(content)
+            )
 
             # Mock Docker operations
             self.manager.docker_adapter.run_container.return_value = (0, [], [])

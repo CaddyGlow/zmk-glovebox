@@ -69,7 +69,9 @@ class WestCompilationService(BaseCompilationService):
         """
         super().__init__("west_compilation", "1.0.0")
         self.workspace_manager = workspace_manager or create_west_workspace_manager()
-        self.build_matrix_resolver = build_matrix_resolver or create_build_matrix_resolver()
+        self.build_matrix_resolver = (
+            build_matrix_resolver or create_build_matrix_resolver()
+        )
         self.artifact_collector = artifact_collector  # Will be None until Phase 5
         self.environment_manager = environment_manager or create_environment_manager()
         self.volume_manager = volume_manager or create_volume_manager()
@@ -142,15 +144,17 @@ class WestCompilationService(BaseCompilationService):
                 else "/zmk-workspace"
             )
 
-            return_code, stdout_lines, stderr_lines = self._docker_adapter.run_container(
-                image=docker_image,
-                command=[
-                    "sh",
-                    "-c",
-                    f"cd {work_dir} && {west_command}",
-                ],
-                volumes=volumes,
-                environment=build_env,
+            return_code, stdout_lines, stderr_lines = (
+                self._docker_adapter.run_container(
+                    image=docker_image,
+                    command=[
+                        "sh",
+                        "-c",
+                        f"cd {work_dir} && {west_command}",
+                    ],
+                    volumes=volumes,
+                    environment=build_env,
+                )
             )
 
             if return_code != 0:
@@ -165,7 +169,9 @@ class WestCompilationService(BaseCompilationService):
                     error_msg,
                 )
                 result.success = False
-                result.add_error(f"West compilation failed with exit code {return_code}: {error_msg}")
+                result.add_error(
+                    f"West compilation failed with exit code {return_code}: {error_msg}"
+                )
                 return result
 
             # Collect and validate artifacts
@@ -217,11 +223,15 @@ class WestCompilationService(BaseCompilationService):
         # but can optionally use west_workspace configuration
         if config.west_workspace:
             if not config.west_workspace.workspace_path:
-                logger.error("West workspace path is required when workspace is configured")
+                logger.error(
+                    "West workspace path is required when workspace is configured"
+                )
                 return False
 
             if not config.west_workspace.manifest_url:
-                logger.error("West manifest URL is required when workspace is configured")
+                logger.error(
+                    "West manifest URL is required when workspace is configured"
+                )
                 return False
 
         return True
@@ -344,7 +354,10 @@ class WestCompilationService(BaseCompilationService):
                     )
                 )
                 volumes.append(
-                    (str(config_abs), f"{workspace_path_str}/{config_path}/config.conf:ro")
+                    (
+                        str(config_abs),
+                        f"{workspace_path_str}/{config_path}/config.conf:ro",
+                    )
                 )
 
                 # Add workspace directory for persistent builds
@@ -361,8 +374,12 @@ class WestCompilationService(BaseCompilationService):
                 # Default volume mappings without workspace
                 keymap_abs = keymap_file.absolute()
                 config_abs = config_file.absolute()
-                volumes.append((str(keymap_abs), "/zmk-workspace/config/keymap.keymap:ro"))
-                volumes.append((str(config_abs), "/zmk-workspace/config/config.conf:ro"))
+                volumes.append(
+                    (str(keymap_abs), "/zmk-workspace/config/keymap.keymap:ro")
+                )
+                volumes.append(
+                    (str(config_abs), "/zmk-workspace/config/config.conf:ro")
+                )
 
         return volumes
 

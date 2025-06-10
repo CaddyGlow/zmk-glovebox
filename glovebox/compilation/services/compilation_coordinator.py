@@ -1,0 +1,261 @@
+"""Compilation coordinator service for orchestrating build strategies."""
+
+import logging
+from pathlib import Path
+from typing import Any
+
+from glovebox.adapters import create_docker_adapter
+from glovebox.compilation.protocols.compilation_protocols import (
+    CompilationCoordinatorProtocol,
+    CompilationServiceProtocol,
+)
+from glovebox.compilation.services.base_compilation_service import (
+    BaseCompilationService,
+)
+from glovebox.config.compile_methods import GenericDockerCompileConfig
+from glovebox.core.errors import BuildError
+from glovebox.firmware.models import BuildResult
+from glovebox.protocols import DockerAdapterProtocol
+
+
+logger = logging.getLogger(__name__)
+
+
+class CompilationCoordinator(BaseCompilationService):
+    """Compilation coordinator for orchestrating different build strategies.
+
+    Manages multiple compilation services and selects the appropriate strategy
+    based on the compilation configuration.
+    """
+
+    def __init__(
+        self,
+        compilation_services: dict[str, CompilationServiceProtocol] | None = None,
+        docker_adapter: DockerAdapterProtocol | None = None,
+    ) -> None:
+        """Initialize compilation coordinator.
+
+        Args:
+            compilation_services: Dictionary of strategy name to service
+            docker_adapter: Docker adapter for container operations
+        """
+        super().__init__("compilation_coordinator", "1.0.0")
+        self.compilation_services = compilation_services or {}
+        self.docker_adapter = docker_adapter or create_docker_adapter()
+
+    def compile(
+        self,
+        keymap_file: Path,
+        config_file: Path,
+        output_dir: Path,
+        config: GenericDockerCompileConfig,
+    ) -> BuildResult:
+        """Coordinate compilation using appropriate strategy.
+
+        Args:
+            keymap_file: Path to keymap file
+            config_file: Path to config file
+            output_dir: Output directory for build artifacts
+            config: Compilation configuration
+
+        Returns:
+            BuildResult: Results of compilation
+
+        Raises:
+            BuildError: If compilation fails or no suitable strategy found
+        """
+        logger.info("Starting compilation coordination")
+
+        try:
+            # Select compilation strategy based on configuration
+            strategy_name = self._select_compilation_strategy(config)
+            if not strategy_name:
+                raise BuildError("No suitable compilation strategy found")
+
+            compilation_service = self.compilation_services.get(strategy_name)
+            if not compilation_service:
+                raise BuildError(f"Compilation service '{strategy_name}' not available")
+
+            logger.info("Using compilation strategy: %s", strategy_name)
+
+            # Inject Docker adapter into service if it supports it
+            self._inject_docker_adapter(compilation_service)
+
+            # Execute compilation using selected strategy
+            result = compilation_service.compile(
+                keymap_file, config_file, output_dir, config
+            )
+
+            if result.success:
+                logger.info(
+                    "Compilation completed successfully using %s", strategy_name
+                )
+            else:
+                logger.error("Compilation failed using %s", strategy_name)
+
+            return result
+
+        except Exception as e:
+            msg = f"Compilation coordination failed: {e}"
+            logger.error(msg)
+            result = BuildResult(success=False)
+            result.add_error(msg)
+            return result
+
+    def validate_config(self, config: GenericDockerCompileConfig) -> bool:
+        """Validate configuration across all strategies.
+
+        Args:
+            config: Compilation configuration to validate
+
+        Returns:
+            bool: True if configuration is valid for at least one strategy
+        """
+        # Check if any strategy can handle this configuration
+        strategy_name = self._select_compilation_strategy(config)
+        if not strategy_name:
+            logger.error(
+                "No compilation strategy can handle the provided configuration"
+            )
+            return False
+
+        compilation_service = self.compilation_services.get(strategy_name)
+        if not compilation_service:
+            logger.error(
+                "Selected compilation service '%s' is not available", strategy_name
+            )
+            return False
+
+        return compilation_service.validate_config(config)
+
+    def check_available(self) -> bool:
+        """Check if compilation coordinator is available.
+
+        Returns:
+            bool: True if at least one compilation strategy is available
+        """
+        if not self.docker_adapter.is_available():
+            logger.debug("Docker adapter not available")
+            return False
+
+        # Check if any compilation service is available
+        for service in self.compilation_services.values():
+            if service.check_available():
+                return True
+
+        logger.debug("No compilation services are available")
+        return False
+
+    def get_available_strategies(self) -> list[str]:
+        """Get list of available compilation strategies.
+
+        Returns:
+            list[str]: List of available strategy names
+        """
+        available_strategies = []
+        for strategy_name, service in self.compilation_services.items():
+            if service.check_available():
+                available_strategies.append(strategy_name)
+
+        logger.debug("Available compilation strategies: %s", available_strategies)
+        return available_strategies
+
+    def add_compilation_service(
+        self, strategy_name: str, service: CompilationServiceProtocol
+    ) -> None:
+        """Add a compilation service for a specific strategy.
+
+        Args:
+            strategy_name: Name of the compilation strategy
+            service: Compilation service instance
+        """
+        self.compilation_services[strategy_name] = service
+        logger.debug("Added compilation service: %s", strategy_name)
+
+    def _select_compilation_strategy(
+        self, config: GenericDockerCompileConfig
+    ) -> str | None:
+        """Select appropriate compilation strategy based on configuration.
+
+        Args:
+            config: Compilation configuration
+
+        Returns:
+            str | None: Selected strategy name or None if none suitable
+        """
+        # Strategy selection priority order
+        strategy_priorities = [
+            ("zmk_config", self._is_zmk_config_strategy),
+            ("west", self._is_west_strategy),
+            ("cmake", self._is_cmake_strategy),
+        ]
+
+        for strategy_name, strategy_check in strategy_priorities:
+            if strategy_check(config) and strategy_name in self.compilation_services:
+                service = self.compilation_services[strategy_name]
+                if service.check_available() and service.validate_config(config):
+                    logger.debug("Selected compilation strategy: %s", strategy_name)
+                    return strategy_name
+
+        logger.warning("No suitable compilation strategy found for configuration")
+        return None
+
+    def _is_zmk_config_strategy(self, config: GenericDockerCompileConfig) -> bool:
+        """Check if configuration indicates ZMK config strategy.
+
+        Args:
+            config: Compilation configuration
+
+        Returns:
+            bool: True if ZMK config strategy should be used
+        """
+        return bool(config.zmk_config_repo)
+
+    def _is_west_strategy(self, config: GenericDockerCompileConfig) -> bool:
+        """Check if configuration indicates west strategy.
+
+        Args:
+            config: Compilation configuration
+
+        Returns:
+            bool: True if west strategy should be used
+        """
+        return bool(config.west_workspace)
+
+    def _is_cmake_strategy(self, config: GenericDockerCompileConfig) -> bool:
+        """Check if configuration indicates cmake strategy.
+
+        Args:
+            config: Compilation configuration
+
+        Returns:
+            bool: True if cmake strategy should be used
+        """
+        # Default fallback strategy
+        return True
+
+    def _inject_docker_adapter(self, service: CompilationServiceProtocol) -> None:
+        """Inject Docker adapter into compilation service if supported.
+
+        Args:
+            service: Compilation service to inject adapter into
+        """
+        if hasattr(service, "set_docker_adapter"):
+            service.set_docker_adapter(self.docker_adapter)
+            logger.debug("Injected Docker adapter into compilation service")
+
+
+def create_compilation_coordinator(
+    compilation_services: dict[str, CompilationServiceProtocol] | None = None,
+    docker_adapter: DockerAdapterProtocol | None = None,
+) -> CompilationCoordinator:
+    """Create compilation coordinator instance.
+
+    Args:
+        compilation_services: Dictionary of strategy name to service
+        docker_adapter: Docker adapter for container operations
+
+    Returns:
+        CompilationCoordinator: New compilation coordinator instance
+    """
+    return CompilationCoordinator(compilation_services, docker_adapter)

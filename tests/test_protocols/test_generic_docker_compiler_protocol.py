@@ -26,12 +26,7 @@ class TestGenericDockerCompilerProtocol:
         mock_compiler.check_available = Mock(return_value=True)
         mock_compiler.validate_config = Mock(return_value=True)
         mock_compiler.build_image = Mock(return_value=BuildResult(success=True))
-        mock_compiler.initialize_workspace = Mock(return_value=True)
-        mock_compiler.execute_build_strategy = Mock(
-            return_value=BuildResult(success=True)
-        )
-        mock_compiler.manage_west_workspace = Mock(return_value=True)
-        mock_compiler.cache_workspace = Mock(return_value=True)
+        mock_compiler.get_available_strategies = Mock(return_value=["west", "zmk_config"])
 
         # Runtime check should work
         assert isinstance(mock_compiler, GenericDockerCompilerProtocol)
@@ -43,10 +38,7 @@ class TestGenericDockerCompilerProtocol:
         assert hasattr(GenericDockerCompilerProtocol, "check_available")
         assert hasattr(GenericDockerCompilerProtocol, "validate_config")
         assert hasattr(GenericDockerCompilerProtocol, "build_image")
-        assert hasattr(GenericDockerCompilerProtocol, "initialize_workspace")
-        assert hasattr(GenericDockerCompilerProtocol, "execute_build_strategy")
-        assert hasattr(GenericDockerCompilerProtocol, "manage_west_workspace")
-        assert hasattr(GenericDockerCompilerProtocol, "cache_workspace")
+        assert hasattr(GenericDockerCompilerProtocol, "get_available_strategies")
 
     def test_incomplete_implementation_fails_check(self):
         """Test that incomplete implementations fail runtime check."""
@@ -81,21 +73,8 @@ class TestGenericDockerCompilerProtocol:
             def build_image(self, config: GenericDockerCompileConfig) -> BuildResult:
                 return BuildResult(success=True)
 
-            def initialize_workspace(self, config: GenericDockerCompileConfig) -> bool:
-                return True
-
-            def execute_build_strategy(
-                self, strategy: str, commands: list[str]
-            ) -> BuildResult:
-                return BuildResult(success=True)
-
-            def manage_west_workspace(
-                self, workspace_config: WestWorkspaceConfig
-            ) -> bool:
-                return True
-
-            def cache_workspace(self, workspace_path: Path) -> bool:
-                return True
+            def get_available_strategies(self) -> list[str]:
+                return ["west", "zmk_config"]
 
         compiler = CompleteGenericCompiler()
         assert isinstance(compiler, GenericDockerCompilerProtocol)
@@ -122,23 +101,8 @@ class TestGenericDockerCompilerProtocol:
             def build_image(self, config: GenericDockerCompileConfig) -> BuildResult:
                 return BuildResult(success=True, messages=["Image built"])
 
-            def initialize_workspace(self, config: GenericDockerCompileConfig) -> bool:
-                return True
-
-            def execute_build_strategy(
-                self, strategy: str, commands: list[str]
-            ) -> BuildResult:
-                return BuildResult(
-                    success=True, messages=[f"Executed {strategy} strategy"]
-                )
-
-            def manage_west_workspace(
-                self, workspace_config: WestWorkspaceConfig
-            ) -> bool:
-                return True
-
-            def cache_workspace(self, workspace_path: Path) -> bool:
-                return True
+            def get_available_strategies(self) -> list[str]:
+                return ["west", "zmk_config"]
 
         compiler = TestGenericCompiler()
         assert isinstance(compiler, GenericDockerCompilerProtocol)
@@ -165,16 +129,10 @@ class TestGenericDockerCompilerProtocol:
         assert isinstance(build_result, BuildResult)
         assert "Image built" in build_result.messages
 
-        assert compiler.initialize_workspace(config) is True
-
-        strategy_result = compiler.execute_build_strategy("west", ["west build"])
-        assert isinstance(strategy_result, BuildResult)
-        assert "Executed west strategy" in strategy_result.messages
-
-        workspace_config = WestWorkspaceConfig()
-        assert compiler.manage_west_workspace(workspace_config) is True
-
-        assert compiler.cache_workspace(Path("/workspace")) is True
+        strategies = compiler.get_available_strategies()
+        assert isinstance(strategies, list)
+        assert "west" in strategies
+        assert "zmk_config" in strategies
 
     def test_generic_compiler_with_west_workspace(self):
         """Test generic compiler implementation with west workspace features."""

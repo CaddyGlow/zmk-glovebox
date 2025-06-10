@@ -62,9 +62,12 @@ class DockerCompilerProtocol(Protocol):
 
 @runtime_checkable
 class GenericDockerCompilerProtocol(Protocol):
-    """Protocol for generic Docker compiler with build strategies."""
+    """Protocol for generic Docker compiler facade.
 
-    # Include all methods from DockerCompilerProtocol
+    This protocol defines the public interface for the generic Docker compiler
+    facade that delegates to the compilation domain.
+    """
+
     def compile(
         self,
         keymap_file: Path,
@@ -87,29 +90,8 @@ class GenericDockerCompilerProtocol(Protocol):
         """Validate generic Docker configuration."""
         ...
 
-    # New methods specific to generic Docker compiler
-    def initialize_workspace(self, config: GenericDockerCompileConfig) -> bool:
-        """Initialize build workspace (west, cmake, etc.)."""
-        ...
-
-    def execute_build_strategy(self, strategy: str, commands: list[str]) -> BuildResult:
-        """Execute build using specified strategy."""
-        ...
-
-    def manage_west_workspace(self, workspace_config: WestWorkspaceConfig) -> bool:
-        """Manage ZMK west workspace lifecycle."""
-        ...
-
-    def manage_zmk_config_repo(self, config_repo_config: ZmkConfigRepoConfig) -> bool:
-        """Manage ZMK config repository workspace lifecycle."""
-        ...
-
-    def parse_build_yaml(self, build_yaml_path: Path) -> BuildYamlConfig:
-        """Parse build.yaml configuration file."""
-        ...
-
-    def cache_workspace(self, workspace_path: Path) -> bool:
-        """Cache workspace for reuse."""
+    def get_available_strategies(self) -> list[str]:
+        """Get list of available compilation strategies."""
         ...
 
 

@@ -53,7 +53,9 @@ class WestWorkspaceManager(WorkspaceManager):
         config_file = context.get("config_file")
 
         if not all([workspace_config, keymap_file, config_file]):
-            logger.error("Missing required parameters for west workspace initialization")
+            logger.error(
+                "Missing required parameters for west workspace initialization"
+            )
             return False
 
         # Cast the workspace_config to the correct type
@@ -84,7 +86,9 @@ class WestWorkspaceManager(WorkspaceManager):
         logger.debug("Initializing west workspace")
 
         if not self.docker_adapter:
-            logger.error("Docker adapter not available for west workspace initialization")
+            logger.error(
+                "Docker adapter not available for west workspace initialization"
+            )
             return False
 
         try:
@@ -187,7 +191,9 @@ class WestWorkspaceManager(WorkspaceManager):
             # Check for west workspace indicators
             west_config = workspace_path / ".west" / "config"
             if not west_config.exists():
-                logger.debug("No west configuration found, workspace may not be initialized")
+                logger.debug(
+                    "No west configuration found, workspace may not be initialized"
+                )
                 # This is not necessarily an error for west workspaces
 
             return True

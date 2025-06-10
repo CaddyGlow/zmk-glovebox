@@ -63,9 +63,9 @@ def test_factory_functions_exist():
         create_zmk_config_service,
     )
 
-    # These should raise NotImplementedError for now
-    with pytest.raises(NotImplementedError):
-        create_compilation_coordinator()
+    # Compilation coordinator is now implemented (Phase 4, Step 4.3)
+    coordinator = create_compilation_coordinator()
+    assert coordinator is not None
 
     # ZMK config service is now implemented (Phase 4, Step 4.1)
     zmk_service = create_zmk_config_service()
@@ -139,15 +139,16 @@ def test_subdomain_factory_functions():
         result = func()
         assert result is not None
 
-    # Test stub factory functions return None
-    stub_functions = [
+    # Test artifact factory functions return actual objects (Phase 5 completed)
+    artifact_functions = [
         create_artifact_collector,
         create_firmware_scanner,
         create_artifact_validator,
     ]
 
-    for func in stub_functions:
-        assert func() is None
+    for func in artifact_functions:
+        result = func()
+        assert result is not None
 
     # Test abstract workspace manager raises NotImplementedError
     with pytest.raises(NotImplementedError):

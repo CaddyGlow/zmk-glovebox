@@ -113,7 +113,7 @@ class EnvironmentManager:
         return template_context
 
     def _expand_environment_variable(
-        self, key: str, value: str, context: dict[str, str]
+        self, key: str, value: str | Any, context: dict[str, str]
     ) -> str:
         """Expand environment variable template with context.
 
@@ -128,10 +128,10 @@ class EnvironmentManager:
         Raises:
             EnvironmentManagerError: If template expansion fails
         """
-        import re
-
         if not isinstance(value, str):
             return str(value)
+
+        import re
 
         try:
             # First expand environment variables (${VAR} format)
@@ -186,7 +186,7 @@ class EnvironmentManager:
         return system_env
 
     def validate_environment_templates(
-        self, environment_template: dict[str, str]
+        self, environment_template: dict[str, Any]
     ) -> bool:
         """Validate environment variable templates.
 

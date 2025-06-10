@@ -197,8 +197,7 @@ class TestWestCompilationService:
 
             assert result.success is False
             assert any(
-                "Docker adapter not available" in error
-                for error in result.errors
+                "Docker adapter not available" in error for error in result.errors
             )
 
     def test_compile_workspace_initialization_failure(self):
@@ -270,7 +269,10 @@ class TestWestCompilationService:
 
         assert len(commands) == 2
         assert "west build -p always -b nice_nano_v2 -d build/nice_nano_v2" in commands
-        assert "west build -p always -b bluemicro840_v1 -d build/bluemicro840_v1" in commands
+        assert (
+            "west build -p always -b bluemicro840_v1 -d build/bluemicro840_v1"
+            in commands
+        )
 
     def test_generate_build_commands_default(self):
         """Test default build command generation."""
@@ -353,7 +355,7 @@ class TestWestCompilationService:
             config_file = Path(temp_dir) / "config.conf"
             output_dir = Path(temp_dir) / "output"
             workspace_path = Path(temp_dir) / "workspace"
-            
+
             # Create workspace directory
             workspace_path.mkdir()
 
@@ -398,9 +400,9 @@ class TestWestCompilationService:
         """Test volume template parsing."""
         volumes = []
         template = "/host/path:/container/path:ro"
-        
+
         self.service._parse_volume_template(template, volumes)
-        
+
         assert len(volumes) == 1
         assert volumes[0] == ("/host/path", "/container/path:ro")
 
@@ -408,11 +410,11 @@ class TestWestCompilationService:
         """Test volume template parsing with invalid template."""
         volumes = []
         template = "invalid_template"
-        
+
         # Should not raise exception but log warning
         self.service._parse_volume_template(template, volumes)
-        
-        # Should not add invalid template 
+
+        # Should not add invalid template
         assert len(volumes) == 0
 
 

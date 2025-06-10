@@ -104,9 +104,11 @@ class TestCacheManager:
     def test_cache_workspace_error_handling(self):
         """Test cache workspace error handling."""
         # Test with permission denied scenario
-        with patch("pathlib.Path.mkdir", side_effect=PermissionError("Access denied")):
-            with pytest.raises(CacheManagerError):
-                self.manager.cache_workspace(Path("/tmp/test_workspace"))
+        with (
+            patch("pathlib.Path.mkdir", side_effect=PermissionError("Access denied")),
+            pytest.raises(CacheManagerError),
+        ):
+            self.manager.cache_workspace(Path("/tmp/test_workspace"))
 
     def test_is_cache_valid_no_cache(self):
         """Test cache validation with no existing cache."""
@@ -251,11 +253,11 @@ class TestCacheManager:
 
             # Cache a workspace to create statistics
             (workspace_path / "west.yml").write_text("manifest: {}")
-            
+
             # Mock the cache base directory to point to our temp directory
             cache_base = Path(temp_dir) / "cache_base"
             cache_base.mkdir()
-            
+
             with patch.object(
                 self.manager, "_get_cache_base_directory", return_value=cache_base
             ):

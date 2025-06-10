@@ -17,10 +17,22 @@ def create_compilation_coordinator() -> CompilationCoordinatorProtocol:
     Returns:
         CompilationCoordinatorProtocol: Configured compilation coordinator
     """
-    # Implementation will be added in Phase 4
-    # from glovebox.compilation.services.compilation_coordinator import CompilationCoordinator
-    # return CompilationCoordinator()
-    raise NotImplementedError("CompilationCoordinator will be implemented in Phase 4")
+    from glovebox.compilation.services.compilation_coordinator import (
+        create_compilation_coordinator as _create_coordinator,
+    )
+
+    # Create compilation services
+    zmk_config_service = create_zmk_config_service()
+    west_service = create_west_service()
+    # cmake_service = create_cmake_service()  # Will be added later
+
+    compilation_services = {
+        "zmk_config": zmk_config_service,
+        "west": west_service,
+        # "cmake": cmake_service,  # Will be added later
+    }
+
+    return _create_coordinator(compilation_services=compilation_services)
 
 
 def create_zmk_config_service() -> CompilationServiceProtocol:
