@@ -49,7 +49,9 @@ class DeviceWaitState:
 
     def remove_device(self, device: BlockDevice) -> None:
         """Remove a device from the found devices list."""
-        self.found_devices = [d for d in self.found_devices if d.path != device.path]
+        self.found_devices = [
+            d for d in self.found_devices if d.device_node != device.device_node
+        ]
 
     def stop_waiting(self) -> None:
         """Stop the waiting process."""

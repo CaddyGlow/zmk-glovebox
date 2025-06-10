@@ -9,8 +9,10 @@ from glovebox.config.compile_methods import (
     CompileMethodConfig,
     CrossCompileConfig,
     DockerCompileConfig,
+    GenericDockerCompileConfig,
     LocalCompileConfig,
     QemuCompileConfig,
+    WestWorkspaceConfig,
 )
 
 
@@ -210,6 +212,7 @@ class TestCompileMethodConfigInheritance:
         """Test that configs can be treated polymorphically."""
         configs = [
             DockerCompileConfig(),
+            GenericDockerCompileConfig(),
             LocalCompileConfig(zmk_path=Path("/opt/zmk")),
             CrossCompileConfig(
                 target_arch="arm", sysroot=Path("/usr/arm"), toolchain_prefix="arm-"
@@ -249,7 +252,13 @@ class TestConfigurationValidation:
         for config in valid_configs:
             # Should not raise any validation errors
             assert config is not None
-            assert config.method_type in ["docker", "local", "cross", "qemu"]
+            assert config.method_type in [
+                "docker",
+                "generic_docker",
+                "local",
+                "cross",
+                "qemu",
+            ]
 
     def test_model_serialization(self):
         """Test that models can be serialized to dict."""
@@ -289,3 +298,291 @@ class TestConfigurationValidation:
         assert config.branch == "feature"
         assert config.jobs == 2
         assert config.fallback_methods == ["cross"]
+
+
+class TestWestWorkspaceConfig:
+    """Tests for WestWorkspaceConfig model."""
+
+    def test_default_values(self):
+        """Test default values for West workspace configuration."""
+        config = WestWorkspaceConfig()
+
+        assert config.manifest_url == "https://github.com/zmkfirmware/zmk.git"
+        assert config.manifest_revision == "main"
+        assert config.modules == []
+        assert config.west_commands == ["west init -l config", "west update"]
+        assert config.workspace_path == "/zmk-workspace"
+        assert config.config_path == "config"
+
+    def test_custom_values(self):
+        """Test creation with custom values."""
+        config = WestWorkspaceConfig(
+            manifest_url="https://github.com/custom/zmk.git",
+            manifest_revision="develop",
+            modules=["module1", "module2"],
+            west_commands=["west init", "west update", "west build"],
+            workspace_path="/custom-workspace",
+            config_path="custom-config",
+        )
+
+        assert config.manifest_url == "https://github.com/custom/zmk.git"
+        assert config.manifest_revision == "develop"
+        assert config.modules == ["module1", "module2"]
+        assert config.west_commands == ["west init", "west update", "west build"]
+        assert config.workspace_path == "/custom-workspace"
+        assert config.config_path == "custom-config"
+
+    def test_validation(self):
+        """Test field validation."""
+        # Valid URL
+        config = WestWorkspaceConfig(manifest_url="https://example.com/repo.git")
+        assert config.manifest_url == "https://example.com/repo.git"
+
+        # Empty lists should work
+        config = WestWorkspaceConfig(modules=[], west_commands=[])
+        assert config.modules == []
+        assert config.west_commands == []
+
+
+class TestGenericDockerCompileConfig:
+    """Tests for GenericDockerCompileConfig model."""
+
+    def test_default_values(self):
+        """Test default values for Generic Docker compilation configuration."""
+        config = GenericDockerCompileConfig()
+
+        assert config.method_type == "generic_docker"
+        assert config.build_strategy == "west"
+        assert config.west_workspace is None
+        assert config.build_commands == []
+        assert config.environment_template == {}
+        assert config.volume_templates == []
+        assert config.board_targets == []
+        assert config.cache_workspace is True
+        assert config.fallback_methods == []
+
+    def test_custom_values(self):
+        """Test creation with custom values."""
+        west_config = WestWorkspaceConfig(
+            manifest_url="https://github.com/custom/zmk.git",
+            workspace_path="/custom-workspace",
+        )
+
+        config = GenericDockerCompileConfig(
+            image="custom-zmk:latest",
+            build_strategy="cmake",
+            west_workspace=west_config,
+            build_commands=["cmake -B build", "cmake --build build"],
+            environment_template={"CC": "gcc", "CXX": "g++"},
+            volume_templates=["/workspace:/src:rw"],
+            board_targets=["nice_nano_v2", "pro_micro"],
+            cache_workspace=False,
+            fallback_methods=["docker", "local"],
+        )
+
+        assert config.method_type == "generic_docker"
+        assert config.image == "custom-zmk:latest"
+        assert config.build_strategy == "cmake"
+        assert config.west_workspace == west_config
+        assert config.build_commands == ["cmake -B build", "cmake --build build"]
+        assert config.environment_template == {"CC": "gcc", "CXX": "g++"}
+        assert config.volume_templates == ["/workspace:/src:rw"]
+        assert config.board_targets == ["nice_nano_v2", "pro_micro"]
+        assert config.cache_workspace is False
+        assert config.fallback_methods == ["docker", "local"]
+
+    def test_west_workspace_nesting(self):
+        """Test nested west workspace configuration."""
+        config = GenericDockerCompileConfig(
+            build_strategy="west",
+            west_workspace=WestWorkspaceConfig(
+                manifest_url="https://github.com/zmkfirmware/zmk.git",
+                manifest_revision="v3.5.0",
+                modules=["hal_nordic"],
+                workspace_path="/zmk-build",
+            ),
+        )
+
+        assert config.build_strategy == "west"
+        assert config.west_workspace is not None
+        assert (
+            config.west_workspace.manifest_url
+            == "https://github.com/zmkfirmware/zmk.git"
+        )
+        assert config.west_workspace.manifest_revision == "v3.5.0"
+        assert config.west_workspace.modules == ["hal_nordic"]
+        assert config.west_workspace.workspace_path == "/zmk-build"
+
+    def test_build_strategy_validation(self):
+        """Test build strategy field validation."""
+        # Valid strategies
+        valid_strategies = ["west", "cmake", "make", "ninja", "custom"]
+        for strategy in valid_strategies:
+            config = GenericDockerCompileConfig(build_strategy=strategy)
+            assert config.build_strategy == strategy
+
+    def test_inheritance_from_docker_config(self):
+        """Test that GenericDockerCompileConfig inherits from DockerCompileConfig."""
+        config = GenericDockerCompileConfig(
+            image="zmk:test",
+            repository="test/zmk",
+            branch="test-branch",
+            jobs=8,
+        )
+
+        # Should have inherited fields from DockerCompileConfig
+        assert config.image == "zmk:test"
+        assert config.repository == "test/zmk"
+        assert config.branch == "test-branch"
+        assert config.jobs == 8
+
+        # Should have new generic docker fields
+        assert config.method_type == "generic_docker"
+        assert config.build_strategy == "west"
+        assert config.cache_workspace is True
+
+    def test_model_serialization(self):
+        """Test that generic docker config can be serialized."""
+        west_config = WestWorkspaceConfig(
+            manifest_url="https://github.com/zmk/zmk.git",
+            workspace_path="/test-workspace",
+        )
+
+        config = GenericDockerCompileConfig(
+            image="test:v1",
+            build_strategy="west",
+            west_workspace=west_config,
+            build_commands=["west build"],
+            environment_template={"BOARD": "nice_nano_v2"},
+            board_targets=["nice_nano_v2"],
+            cache_workspace=True,
+        )
+
+        config_dict = config.model_dump()
+
+        assert config_dict["method_type"] == "generic_docker"
+        assert config_dict["image"] == "test:v1"
+        assert config_dict["build_strategy"] == "west"
+        assert (
+            config_dict["west_workspace"]["manifest_url"]
+            == "https://github.com/zmk/zmk.git"
+        )
+        assert config_dict["west_workspace"]["workspace_path"] == "/test-workspace"
+        assert config_dict["build_commands"] == ["west build"]
+        assert config_dict["environment_template"]["BOARD"] == "nice_nano_v2"
+        assert config_dict["board_targets"] == ["nice_nano_v2"]
+        assert config_dict["cache_workspace"] is True
+
+    def test_model_deserialization(self):
+        """Test that generic docker config can be created from dict."""
+        config_dict = {
+            "method_type": "generic_docker",
+            "image": "zmkfirmware/zmk-build-arm:stable",
+            "build_strategy": "west",
+            "west_workspace": {
+                "manifest_url": "https://github.com/zmkfirmware/zmk.git",
+                "manifest_revision": "main",
+                "modules": [],
+                "west_commands": ["west init -l config", "west update"],
+                "workspace_path": "/zmk-workspace",
+                "config_path": "config",
+            },
+            "build_commands": ["west build -d build -s app"],
+            "environment_template": {"ZEPHYR_TOOLCHAIN_VARIANT": "zephyr"},
+            "volume_templates": ["/workspace:/src:rw"],
+            "board_targets": ["glove80_lh", "glove80_rh"],
+            "cache_workspace": True,
+            "fallback_methods": ["docker"],
+        }
+
+        config = GenericDockerCompileConfig.model_validate(config_dict)
+
+        assert config.method_type == "generic_docker"
+        assert config.image == "zmkfirmware/zmk-build-arm:stable"
+        assert config.build_strategy == "west"
+        assert config.west_workspace is not None
+        assert (
+            config.west_workspace.manifest_url
+            == "https://github.com/zmkfirmware/zmk.git"
+        )
+        assert config.west_workspace.manifest_revision == "main"
+        assert config.build_commands == ["west build -d build -s app"]
+        assert config.environment_template["ZEPHYR_TOOLCHAIN_VARIANT"] == "zephyr"
+        assert config.volume_templates == ["/workspace:/src:rw"]
+        assert config.board_targets == ["glove80_lh", "glove80_rh"]
+        assert config.cache_workspace is True
+        assert config.fallback_methods == ["docker"]
+
+    def test_without_west_workspace(self):
+        """Test generic docker config without west workspace."""
+        config = GenericDockerCompileConfig(
+            build_strategy="cmake",
+            build_commands=["cmake -B build", "make -C build"],
+            west_workspace=None,
+        )
+
+        assert config.build_strategy == "cmake"
+        assert config.west_workspace is None
+        assert config.build_commands == ["cmake -B build", "make -C build"]
+
+    def test_complex_configuration(self):
+        """Test complex configuration with all features."""
+        config = GenericDockerCompileConfig(
+            # Inherited Docker fields
+            image="zmkfirmware/zmk-build-arm:stable",
+            repository="zmkfirmware/zmk",
+            branch="main",
+            jobs=8,
+            # Generic Docker specific fields
+            build_strategy="west",
+            west_workspace=WestWorkspaceConfig(
+                manifest_url="https://github.com/zmkfirmware/zmk.git",
+                manifest_revision="main",
+                modules=["hal_nordic", "segger"],
+                west_commands=[
+                    "west init -l config",
+                    "west update",
+                    "west config build.board-warn false",
+                ],
+                workspace_path="/zmk-workspace",
+                config_path="config",
+            ),
+            build_commands=[
+                "west build -d build/left -s app -b glove80_lh",
+                "west build -d build/right -s app -b glove80_rh",
+            ],
+            environment_template={
+                "ZEPHYR_TOOLCHAIN_VARIANT": "zephyr",
+                "ZEPHYR_SDK_INSTALL_DIR": "/opt/zephyr-sdk",
+                "BOARD": "glove80_lh",
+            },
+            volume_templates=[
+                "/zmk-workspace/config:/workspace/config:rw",
+                "/zmk-workspace/.west:/workspace/.west:rw",
+                "/build:/workspace/build:rw",
+            ],
+            board_targets=["glove80_lh", "glove80_rh"],
+            cache_workspace=True,
+            fallback_methods=["docker", "local"],
+        )
+
+        # Verify all fields are set correctly
+        assert config.method_type == "generic_docker"
+        assert config.image == "zmkfirmware/zmk-build-arm:stable"
+        assert config.repository == "zmkfirmware/zmk"
+        assert config.branch == "main"
+        assert config.jobs == 8
+        assert config.build_strategy == "west"
+        assert config.west_workspace is not None
+        assert len(config.west_workspace.modules) == 2
+        assert "hal_nordic" in config.west_workspace.modules
+        assert "segger" in config.west_workspace.modules
+        assert len(config.build_commands) == 2
+        assert "glove80_lh" in config.build_commands[0]
+        assert "glove80_rh" in config.build_commands[1]
+        assert len(config.environment_template) == 3
+        assert config.environment_template["ZEPHYR_TOOLCHAIN_VARIANT"] == "zephyr"
+        assert len(config.volume_templates) == 3
+        assert len(config.board_targets) == 2
+        assert config.cache_workspace is True
+        assert config.fallback_methods == ["docker", "local"]

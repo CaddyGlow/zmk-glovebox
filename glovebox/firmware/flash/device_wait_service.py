@@ -135,7 +135,7 @@ class DeviceWaitService:
         """Check if device matches the query string."""
         # Use USB adapter's existing query matching logic
         matching_devices = self.usb_adapter.list_matching_devices(query)
-        return any(d.path == device.path for d in matching_devices)
+        return any(d.device_node == device.device_node for d in matching_devices)
 
 
 def create_device_wait_service() -> DeviceWaitService:

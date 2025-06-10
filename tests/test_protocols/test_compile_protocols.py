@@ -6,9 +6,17 @@ from unittest.mock import Mock
 
 import pytest
 
-from glovebox.config.compile_methods import CompileMethodConfig, DockerCompileConfig
+from glovebox.config.compile_methods import (
+    CompileMethodConfig,
+    DockerCompileConfig,
+    GenericDockerCompileConfig,
+    WestWorkspaceConfig,
+)
 from glovebox.firmware.models import BuildResult
-from glovebox.protocols.compile_protocols import CompilerProtocol
+from glovebox.protocols.compile_protocols import (
+    CompilerProtocol,
+    GenericDockerCompilerProtocol,
+)
 
 
 class TestCompilerProtocol:

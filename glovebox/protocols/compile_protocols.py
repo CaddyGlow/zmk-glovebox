@@ -77,6 +77,10 @@ class GenericDockerCompilerProtocol(Protocol):
         """Build Docker image for compilation."""
         ...
 
+    def check_available(self) -> bool:
+        """Check if generic Docker compiler is available."""
+        ...
+
     def validate_config(self, config: GenericDockerCompileConfig) -> bool:
         """Validate generic Docker configuration."""
         ...

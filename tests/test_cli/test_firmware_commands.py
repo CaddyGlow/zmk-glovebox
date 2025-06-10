@@ -76,3 +76,104 @@ def test_firmware_list_devices_command(cli_runner):
         assert "Device 1" in cmd_result.output
         assert "Device 2" in cmd_result.output
         assert "GLV80-1234" in cmd_result.output
+
+
+def test_flash_command_wait_parameters(cli_runner):
+    """Test flash command with wait parameters."""
+    # Register commands
+    from glovebox.cli.commands import register_all_commands
+
+    register_all_commands(app)
+
+    # Test that wait parameters can be parsed without errors
+    cmd_result = cli_runner.invoke(
+        app,
+        [
+            "firmware",
+            "flash",
+            "test.uf2",
+            "--wait",
+            "--poll-interval",
+            "1.0",
+            "--show-progress",
+            "--profile",
+            "glove80/v25.05",
+            "--help",  # Use help to avoid actual execution
+        ],
+        catch_exceptions=False,
+    )
+
+    # Should show help text without parameter parsing errors
+    assert cmd_result.exit_code == 0
+
+
+def test_flash_command_help_includes_wait_options(cli_runner):
+    """Test that help includes wait-related options."""
+    # Register commands
+    from glovebox.cli.commands import register_all_commands
+
+    register_all_commands(app)
+
+    cmd_result = cli_runner.invoke(app, ["firmware", "flash", "--help"])
+
+    assert "--wait" in cmd_result.output
+    assert "--poll-interval" in cmd_result.output
+    assert "--show-progress" in cmd_result.output
+    assert "config" in cmd_result.output.lower()  # Mentions configuration
+
+
+def test_flash_command_wait_parameter_validation(cli_runner):
+    """Test wait parameter validation."""
+    # Register commands
+    from glovebox.cli.commands import register_all_commands
+
+    register_all_commands(app)
+
+    # Test invalid poll-interval (too small)
+    cmd_result = cli_runner.invoke(
+        app,
+        [
+            "firmware",
+            "flash",
+            "test.uf2",
+            "--poll-interval",
+            "0.05",  # Below minimum of 0.1
+            "--profile",
+            "glove80/v25.05",
+        ],
+    )
+
+    # Should fail with validation error
+    assert cmd_result.exit_code != 0
+
+
+def test_flash_command_wait_boolean_flags(cli_runner):
+    """Test wait boolean flag variations."""
+    # Register commands
+    from glovebox.cli.commands import register_all_commands
+
+    register_all_commands(app)
+
+    # Test --wait flag
+    cmd_result = cli_runner.invoke(
+        app, ["firmware", "flash", "test.uf2", "--wait", "--help"]
+    )
+    assert cmd_result.exit_code == 0
+
+    # Test --no-wait flag
+    cmd_result = cli_runner.invoke(
+        app, ["firmware", "flash", "test.uf2", "--no-wait", "--help"]
+    )
+    assert cmd_result.exit_code == 0
+
+    # Test --show-progress flag
+    cmd_result = cli_runner.invoke(
+        app, ["firmware", "flash", "test.uf2", "--show-progress", "--help"]
+    )
+    assert cmd_result.exit_code == 0
+
+    # Test --no-show-progress flag
+    cmd_result = cli_runner.invoke(
+        app, ["firmware", "flash", "test.uf2", "--no-show-progress", "--help"]
+    )
+    assert cmd_result.exit_code == 0
