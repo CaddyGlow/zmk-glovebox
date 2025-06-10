@@ -30,6 +30,8 @@ The layout domain handles complex JSON→DTSI conversion with behaviors like mac
 
 **CLI Output Format Enhancement** - See `docs/cli_output_format_implementation_plan.md` for detailed implementation plan and progress tracking of unified output format system with Rich syntax support.
 
+**Generic Docker Compiler with ZMK West Workspace Support** - See `docs/generic_docker_compiler_zmk_west_workspace_implementation.md` for comprehensive implementation plan providing modern ZMK west workspace builds, multi-strategy compilation (west, cmake, make, ninja), intelligent workspace caching, and enhanced configuration flexibility while maintaining full backward compatibility.
+
 ## CRITICAL: Code Convention Enforcement
 
 **MANDATORY REQUIREMENTS - MUST BE FOLLOWED WITHOUT EXCEPTION:**

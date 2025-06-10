@@ -31,3 +31,13 @@ class BuildServiceCompileOpts:
 
     verbose: bool = False
     """Enable verbose build output for debugging"""
+
+    # Future enhancement fields for generic docker compiler support
+    build_strategy: str | None = None
+    """Build strategy: west, cmake, make, ninja, custom (overrides profile strategy)"""
+
+    cache_workspace: bool | None = None
+    """Enable/disable workspace caching for faster builds (overrides profile setting)"""
+
+    board_targets: list[str] | None = None
+    """Board targets for split keyboards (e.g., ['glove80_lh', 'glove80_rh'])"""

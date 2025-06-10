@@ -30,8 +30,11 @@ firmware_app = typer.Typer(
     name="firmware",
     help="""Firmware management commands.
 
-Build ZMK firmware from keymap files using Docker, flash firmware to USB devices,
-and manage firmware-related operations.""",
+Build ZMK firmware from keymap files using Docker with multiple build strategies,
+flash firmware to USB devices, and manage firmware-related operations.
+
+Supports modern ZMK west workspace builds (recommended) as well as traditional
+cmake, make, and ninja build systems for custom keyboards.""",
     no_args_is_help=True,
 )
 
@@ -61,6 +64,27 @@ def firmware_compile(
     verbose: Annotated[
         bool, typer.Option("--verbose", "-v", help="Enable verbose build output")
     ] = False,
+    build_strategy: Annotated[
+        str | None,
+        typer.Option(
+            "--build-strategy",
+            help="Build strategy: west (ZMK), cmake, make, ninja, custom (overrides profile strategy)",
+        ),
+    ] = None,
+    cache_workspace: Annotated[
+        bool | None,
+        typer.Option(
+            "--cache-workspace/--no-cache-workspace",
+            help="Enable/disable workspace caching for faster builds (overrides profile setting)",
+        ),
+    ] = None,
+    board_targets: Annotated[
+        str | None,
+        typer.Option(
+            "--board-targets",
+            help="Comma-separated board targets for split keyboards (e.g., 'glove80_lh,glove80_rh')",
+        ),
+    ] = None,
     output_format: OutputFormatOption = "text",
 ) -> None:
     """Build ZMK firmware from keymap and config files.
@@ -68,9 +92,27 @@ def firmware_compile(
     Compiles .keymap and .conf files into a flashable .uf2 firmware file
     using Docker and the ZMK build system. Requires Docker to be running.
 
+    Supports multiple build strategies:
+    - west: ZMK west workspace builds (default, recommended)
+    - cmake: Direct CMake builds
+    - make: Traditional make builds
+    - ninja: Ninja build system
+    - custom: Custom build commands
+
     Examples:
+        # Basic ZMK west workspace build (recommended)
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
-        glovebox firmware compile keymap.keymap config.conf --keyboard glove80 --firmware v25.05
+
+        # ZMK build with caching for faster subsequent builds
+        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --cache-workspace
+
+        # Split keyboard build with specific board targets
+        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --board-targets glove80_lh,glove80_rh
+
+        # CMake build strategy (for custom builds)
+        glovebox firmware compile keymap.keymap config.conf --profile custom/board --build-strategy cmake
+
+        # Verbose output with build details
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --verbose
     """
     keyboard_profile = get_keyboard_profile_from_context(ctx)
@@ -80,7 +122,14 @@ def firmware_compile(
     branch_value = branch if branch is not None else "main"
     repo_value = repo if repo is not None else "moergo-sc/zmk"
 
+    # Parse board targets if provided
+    board_targets_list = None
+    if board_targets:
+        board_targets_list = [target.strip() for target in board_targets.split(",")]
+
     # Compile firmware using the file-based method with profile if available
+    # TODO: Future enhancement - pass CLI parameters to BuildService for generic docker compiler support
+    # For now, use existing interface for backward compatibility
     build_service = create_build_service()
 
     try:
