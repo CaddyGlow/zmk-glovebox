@@ -71,8 +71,9 @@ def test_factory_functions_exist():
     zmk_service = create_zmk_config_service()
     assert zmk_service is not None
 
-    with pytest.raises(NotImplementedError):
-        create_west_service()
+    # West service is now implemented (Phase 4, Step 4.2)
+    west_service = create_west_service()
+    assert west_service is not None
 
     with pytest.raises(NotImplementedError):
         create_cmake_service()
@@ -131,6 +132,7 @@ def test_subdomain_factory_functions():
     implemented_workspace_functions = [
         create_zmk_config_workspace_manager,
         create_cache_manager,
+        create_west_workspace_manager,
     ]
 
     for func in implemented_workspace_functions:
@@ -142,7 +144,6 @@ def test_subdomain_factory_functions():
         create_artifact_collector,
         create_firmware_scanner,
         create_artifact_validator,
-        create_west_workspace_manager,
     ]
 
     for func in stub_functions:

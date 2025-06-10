@@ -5,6 +5,12 @@ from glovebox.compilation.services.base_compilation_service import (
     BaseCompilationService,
 )
 
+# Phase 4, Step 4.2: West Compilation Service
+from glovebox.compilation.services.west_compilation_service import (
+    WestCompilationService,
+    create_west_compilation_service,
+)
+
 # Phase 4, Step 4.1: ZMK Config Compilation Service
 from glovebox.compilation.services.zmk_config_service import (
     ZmkConfigCompilationService,
@@ -14,7 +20,6 @@ from glovebox.compilation.services.zmk_config_service import (
 
 # Services to be added in Phase 4
 # from glovebox.compilation.services.compilation_coordinator import CompilationCoordinator
-# from glovebox.compilation.services.west_compilation_service import WestCompilationService
 # from glovebox.compilation.services.cmake_compilation_service import CMakeCompilationService
 
 __all__: list[str] = [
@@ -23,9 +28,11 @@ __all__: list[str] = [
     # Phase 4, Step 4.1: ZMK Config Service
     "ZmkConfigCompilationService",
     "create_zmk_config_service",
+    # Phase 4, Step 4.2: West Compilation Service
+    "WestCompilationService",
+    "create_west_compilation_service",
     # Coordinator service (to be added)
     # "CompilationCoordinator",
     # Strategy services (to be added)
-    # "WestCompilationService",
     # "CMakeCompilationService",
 ]

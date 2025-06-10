@@ -42,10 +42,11 @@ def create_west_service() -> CompilationServiceProtocol:
     Returns:
         CompilationServiceProtocol: West compilation service
     """
-    # Implementation will be added in Phase 4
-    # from glovebox.compilation.services.west_compilation_service import WestCompilationService
-    # return WestCompilationService()
-    raise NotImplementedError("WestCompilationService will be implemented in Phase 4")
+    from glovebox.compilation.services.west_compilation_service import (
+        create_west_compilation_service as _create_service,
+    )
+
+    return _create_service()
 
 
 def create_cmake_service() -> CompilationServiceProtocol:
