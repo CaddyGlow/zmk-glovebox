@@ -84,6 +84,14 @@ class IncludeConfigLoader:
     def _find_config_file(self, keyboard_name: str) -> Path | None:
         """Find a configuration file by name.
 
+        Supports both single-file configurations and directory-based configurations:
+        1. {keyboard_name}.yaml
+        2. {keyboard_name}.yml
+        3. {keyboard_name}/keyboard.yaml
+        4. {keyboard_name}/keyboard.yml
+        5. {keyboard_name}/{keyboard_name}.yaml
+        6. {keyboard_name}/{keyboard_name}.yml
+
         Args:
             keyboard_name: Name of the keyboard configuration
 
@@ -91,7 +99,8 @@ class IncludeConfigLoader:
             Path to the configuration file, or None if not found
         """
         for search_path in self.search_paths:
-            # Try .yaml extension first
+            # Try single-file configurations first
+            # Try .yaml extension
             yaml_file = search_path / f"{keyboard_name}.yaml"
             if yaml_file.exists():
                 return yaml_file
@@ -100,6 +109,29 @@ class IncludeConfigLoader:
             yml_file = search_path / f"{keyboard_name}.yml"
             if yml_file.exists():
                 return yml_file
+
+            # Try directory-based configurations
+            config_dir = search_path / keyboard_name
+            if config_dir.exists() and config_dir.is_dir():
+                # Try keyboard.yaml in directory
+                dir_yaml = config_dir / "keyboard.yaml"
+                if dir_yaml.exists():
+                    return dir_yaml
+
+                # Try keyboard.yml in directory
+                dir_yml = config_dir / "keyboard.yml"
+                if dir_yml.exists():
+                    return dir_yml
+
+                # Try {keyboard_name}.yaml in directory
+                named_yaml = config_dir / f"{keyboard_name}.yaml"
+                if named_yaml.exists():
+                    return named_yaml
+
+                # Try {keyboard_name}.yml in directory
+                named_yml = config_dir / f"{keyboard_name}.yml"
+                if named_yml.exists():
+                    return named_yml
 
         return None
 
