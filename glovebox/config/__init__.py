@@ -10,10 +10,12 @@ using YAML files for keyboard configurations and user preferences.
 from .keyboard_profile import (
     clear_cache,
     create_keyboard_profile,
+    create_keyboard_profile_with_includes,
     get_available_firmwares,
     get_available_keyboards,
     get_firmware_config,
     load_keyboard_config,
+    load_keyboard_config_with_includes,
 )
 from .models import (
     BehaviorConfig,
@@ -44,10 +46,12 @@ __all__ = [
     # Keyboard config functions
     "clear_cache",
     "create_keyboard_profile",
+    "create_keyboard_profile_with_includes",
     "get_available_firmwares",
     "get_available_keyboards",
     "get_firmware_config",
     "load_keyboard_config",
+    "load_keyboard_config_with_includes",
     # Config module classes
     "KeyboardProfile",
     "UserConfig",

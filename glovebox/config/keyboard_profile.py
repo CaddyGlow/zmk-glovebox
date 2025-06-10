@@ -407,3 +407,82 @@ def clear_cache() -> None:
     """Clear the keyboard configuration cache."""
     _keyboard_configs.clear()
     logger.debug("Cleared keyboard configuration cache")
+
+
+def load_keyboard_config_with_includes(
+    keyboard_name: str, user_config: Optional["UserConfig"] = None
+) -> KeyboardConfig:
+    """Load a keyboard configuration with include directive support.
+
+    This function provides enhanced configuration loading that supports
+    include directives for configuration composition and reuse.
+
+    Args:
+        keyboard_name: Name of the keyboard to load
+        user_config: Optional user configuration instance
+
+    Returns:
+        Typed KeyboardConfig object with includes resolved
+
+    Raises:
+        ConfigError: If the keyboard configuration cannot be found or loaded
+    """
+    from glovebox.config.include_loader import create_include_loader
+
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug("Loading keyboard configuration with includes: %s", keyboard_name)
+
+    # Initialize search paths
+    search_paths = initialize_search_paths(user_config)
+
+    # Create include loader
+    loader = create_include_loader(search_paths)
+
+    # Load configuration with include support
+    return loader.load_keyboard_config(keyboard_name)
+
+
+def create_keyboard_profile_with_includes(
+    keyboard_name: str,
+    firmware_version: str | None = None,
+    user_config: Optional["UserConfig"] = None,
+) -> "KeyboardProfile":
+    """Create a KeyboardProfile with include directive support.
+
+    This function creates a keyboard profile using the enhanced configuration
+    loading that supports include directives.
+
+    Args:
+        keyboard_name: Name of the keyboard
+        firmware_version: Version of firmware to use (optional)
+        user_config: Optional user configuration instance
+
+    Returns:
+        KeyboardProfile configured for the keyboard and firmware
+
+    Raises:
+        ConfigError: If the keyboard configuration cannot be found, or if firmware
+                    version is specified but not found
+    """
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(
+            "Creating keyboard profile with includes: keyboard='%s', firmware='%s'",
+            keyboard_name,
+            firmware_version,
+        )
+
+    from glovebox.config.profile import KeyboardProfile
+
+    # Load keyboard configuration with include support
+    keyboard_config = load_keyboard_config_with_includes(keyboard_name, user_config)
+
+    if logger.isEnabledFor(logging.DEBUG):
+        if firmware_version:
+            logger.debug("  → Profile will use firmware: %s", firmware_version)
+        else:
+            logger.debug("  → Profile will be keyboard-only (no firmware)")
+
+    return KeyboardProfile(
+        keyboard_config=keyboard_config,
+        firmware_version=firmware_version,
+    )
