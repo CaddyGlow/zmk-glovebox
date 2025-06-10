@@ -16,12 +16,15 @@ from .keyboard_profile import (
     load_keyboard_config,
 )
 from .models import (
+    BehaviorConfig,
+    BehaviorMapping,
     BuildOptions,
     FirmwareConfig,
     FormattingConfig,
     KConfigOption,
     KeyboardConfig,
     KeymapSection,
+    ModifierMapping,
     UserConfigData,
     VisualLayout,
 )
@@ -42,12 +45,15 @@ __all__ = [
     "UserConfig",
     "create_user_config",
     # Config models
+    "BehaviorConfig",
+    "BehaviorMapping",
     "BuildOptions",
     "FirmwareConfig",
     "FormattingConfig",
     "KConfigOption",
     "KeyboardConfig",
     "KeymapSection",
+    "ModifierMapping",
     "UserConfigData",
     "VisualLayout",
 ]
