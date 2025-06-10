@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from glovebox.config.flash_methods import USBFlashConfig
 
-from glovebox.adapters.usb_adapter import create_usb_adapter
 from glovebox.cli.helpers.output import print_info_message, print_warning_message
 from glovebox.firmware.flash.models import BlockDevice
 from glovebox.firmware.flash.usb_monitor import create_usb_monitor
@@ -24,6 +23,9 @@ class DeviceWaitService:
     def __init__(self) -> None:
         """Initialize device wait service."""
         self.usb_monitor = create_usb_monitor()
+        # Import here to avoid circular import
+        from glovebox.adapters.usb_adapter import create_usb_adapter
+
         self.usb_adapter = create_usb_adapter()
 
     def wait_for_devices(

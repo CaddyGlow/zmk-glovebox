@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 from glovebox.adapters.file_adapter import create_file_adapter
 from glovebox.config.flash_methods import FlashMethodConfig, USBFlashConfig
+from glovebox.firmware.flash.device_wait_service import create_device_wait_service
 from glovebox.firmware.flash.models import BlockDevice, FlashResult
 from glovebox.firmware.method_selector import select_flasher_with_fallback
 from glovebox.protocols import FileAdapterProtocol
@@ -39,6 +40,7 @@ class FlashService:
         self._service_name = "FlashService"
         self._service_version = "2.0.0"
         self.file_adapter = file_adapter or create_file_adapter()
+        self.device_wait_service = create_device_wait_service()
         self.loglevel = loglevel
         logger.debug(
             "FlashService v2 initialized with File adapter: %s, Log level: %s",
@@ -55,6 +57,9 @@ class FlashService:
         count: int = 1,
         track_flashed: bool = True,
         skip_existing: bool = False,
+        wait: bool = False,
+        poll_interval: float = 0.5,
+        show_progress: bool = True,
     ) -> FlashResult:
         """Flash firmware from a file to devices using method selection.
 
@@ -66,6 +71,9 @@ class FlashService:
             count: Number of devices to flash (0 for unlimited)
             track_flashed: Whether to track which devices have been flashed
             skip_existing: Whether to skip devices already present at startup
+            wait: Wait for devices to connect before flashing
+            poll_interval: Polling interval in seconds when waiting for devices
+            show_progress: Show real-time device detection progress
 
         Returns:
             FlashResult with details of the flash operation
@@ -81,7 +89,7 @@ class FlashService:
             return result
 
         try:
-            # Use the main flash method
+            # Use the main flash method with wait parameters
             return self.flash(
                 firmware_file=firmware_file_path,
                 profile=profile,
@@ -90,6 +98,9 @@ class FlashService:
                 count=count,
                 track_flashed=track_flashed,
                 skip_existing=skip_existing,
+                wait=wait,
+                poll_interval=poll_interval,
+                show_progress=show_progress,
             )
         except Exception as e:
             logger.error("Error preparing flash operation: %s", e)
@@ -106,6 +117,9 @@ class FlashService:
         count: int = 1,
         track_flashed: bool = True,
         skip_existing: bool = False,
+        wait: bool = False,
+        poll_interval: float = 0.5,
+        show_progress: bool = True,
     ) -> FlashResult:
         """Flash firmware using method selection with fallbacks.
 
@@ -117,11 +131,17 @@ class FlashService:
             count: Number of devices to flash (0 for unlimited)
             track_flashed: Whether to track which devices have been flashed
             skip_existing: Whether to skip devices already present at startup
+            wait: Wait for devices to connect before flashing
+            poll_interval: Polling interval in seconds when waiting for devices
+            show_progress: Show real-time device detection progress
 
         Returns:
             FlashResult with details of the flash operation
         """
-        logger.info("Starting firmware flash operation using method selection")
+        logger.info(
+            "Starting firmware flash operation using method selection with wait=%s",
+            wait,
+        )
         result = FlashResult(success=True)
 
         try:
@@ -137,8 +157,37 @@ class FlashService:
 
             logger.info("Selected flasher method: %s", type(flasher).__name__)
 
-            # List available devices using the selected flasher
-            devices = flasher.list_devices(flash_configs[0])
+            # Get devices - either wait for them or list immediately
+            if wait:
+                # Use device wait service to wait for devices
+                # Check if we have a USB flash config for device query
+                device_query_to_use = query
+                flash_config = flash_configs[0]
+
+                if hasattr(flash_config, "device_query") and flash_config.device_query:
+                    device_query_to_use = flash_config.device_query
+                elif not device_query_to_use:
+                    device_query_to_use = "removable=true"  # Default fallback
+
+                # Only use wait service with USB flash configs
+                if isinstance(flash_config, USBFlashConfig):
+                    devices = self.device_wait_service.wait_for_devices(
+                        target_count=count if count > 0 else 1,
+                        timeout=float(timeout),
+                        query=device_query_to_use,
+                        flash_config=flash_config,
+                        poll_interval=poll_interval,
+                        show_progress=show_progress,
+                    )
+                else:
+                    # For non-USB configs, fall back to immediate listing
+                    logger.warning(
+                        "Wait mode only supported with USB flash methods, listing devices immediately"
+                    )
+                    devices = flasher.list_devices(flash_configs[0])
+            else:
+                # List available devices immediately using the selected flasher
+                devices = flasher.list_devices(flash_configs[0])
 
             if not devices:
                 result.success = False
