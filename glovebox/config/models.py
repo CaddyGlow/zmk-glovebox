@@ -20,6 +20,21 @@ from pydantic import (
 )
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from glovebox.config.compile_methods import (
+    CompileMethodConfig,
+    CrossCompileConfig,
+    DockerCompileConfig,
+    LocalCompileConfig,
+    QemuCompileConfig,
+)
+from glovebox.config.flash_methods import (
+    BootloaderFlashConfig,
+    DFUFlashConfig,
+    FlashMethodConfig,
+    USBFlashConfig,
+    WiFiFlashConfig,
+)
+
 
 def parse_keyboard_paths(value: Any) -> list[Path]:
     """Parse keyboard_paths from various input formats."""
@@ -141,23 +156,34 @@ class KeymapSection(BaseModel):
     key_position_header: str | None = None
 
 
+# Union types for method configurations
+CompileMethodConfigUnion = (
+    DockerCompileConfig | LocalCompileConfig | CrossCompileConfig | QemuCompileConfig
+)
+
+FlashMethodConfigUnion = (
+    USBFlashConfig | DFUFlashConfig | BootloaderFlashConfig | WiFiFlashConfig
+)
+
+
 # Complete keyboard configuration
 class KeyboardConfig(BaseModel):
-    """Complete keyboard configuration."""
+    """Complete keyboard configuration with method-specific configs."""
 
     keyboard: str
     description: str
     vendor: str
     key_count: int = Field(gt=0, description="Number of keys must be positive")
-    flash: FlashConfig
-    build: BuildConfig = Field(
-        default_factory=lambda: BuildConfig(
-            method="",
-            branch="",
-            docker_image="",
-            repository="",
-        )
-    )
+
+    # Method-specific configurations
+    compile_methods: list[CompileMethodConfigUnion] = Field(min_length=1)
+    flash_methods: list[FlashMethodConfigUnion] = Field(min_length=1)
+
+    # Legacy configurations for backward compatibility (deprecated)
+    flash: FlashConfig | None = None
+    build: BuildConfig | None = None
+
+    # Optional sections
     firmwares: dict[str, FirmwareConfig] = Field(default_factory=dict)
     keymap: KeymapSection = Field(
         default_factory=lambda: KeymapSection(

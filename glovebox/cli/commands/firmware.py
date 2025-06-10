@@ -260,10 +260,8 @@ def list_devices(
         keyboard_profile = get_keyboard_profile_from_context(ctx)
 
         # Use profile-based method with keyboard profile
-        result = flash_service.list_devices_with_profile(
-            profile_name=f"{keyboard_profile.keyboard_name}/{keyboard_profile.firmware_version}"
-            if keyboard_profile.firmware_version
-            else keyboard_profile.keyboard_name,
+        result = flash_service.list_devices(
+            profile=keyboard_profile,
             query=query,
         )
 

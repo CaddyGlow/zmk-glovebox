@@ -258,16 +258,30 @@ def show_keyboard(
             "vendor": keyboard_config.vendor,
             "key_count": keyboard_config.key_count,
             "flash": {
-                "method": keyboard_config.flash.method,
-                "query": keyboard_config.flash.query,
-                "usb_vid": keyboard_config.flash.usb_vid,
-                "usb_pid": keyboard_config.flash.usb_pid,
+                "method": keyboard_config.flash.method
+                if keyboard_config.flash
+                else None,
+                "query": keyboard_config.flash.query if keyboard_config.flash else None,
+                "usb_vid": keyboard_config.flash.usb_vid
+                if keyboard_config.flash
+                else None,
+                "usb_pid": keyboard_config.flash.usb_pid
+                if keyboard_config.flash
+                else None,
             },
             "build": {
-                "method": keyboard_config.build.method,
-                "docker_image": keyboard_config.build.docker_image,
-                "repository": keyboard_config.build.repository,
-                "branch": keyboard_config.build.branch,
+                "method": keyboard_config.build.method
+                if keyboard_config.build
+                else None,
+                "docker_image": keyboard_config.build.docker_image
+                if keyboard_config.build
+                else None,
+                "repository": keyboard_config.build.repository
+                if keyboard_config.build
+                else None,
+                "branch": keyboard_config.build.branch
+                if keyboard_config.build
+                else None,
             },
             "firmwares": {
                 name: {
