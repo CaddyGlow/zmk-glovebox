@@ -73,6 +73,64 @@ class FirmwareScanner:
 
         return unique_files
 
+    def scan_workspace_and_output(
+        self, workspace_path: Path, output_path: Path, pattern: str = "*.uf2"
+    ) -> list[Path]:
+        """Scan both workspace and output directories for firmware files.
+
+        This method is specifically designed for compilation strategies that
+        generate firmware files in workspace build directories (like ZMK config
+        compilation) and optionally copy them to output directories.
+
+        Args:
+            workspace_path: Path to workspace directory with build subdirectories
+            output_path: Path to output directory where files may be copied
+            pattern: File pattern to match
+
+        Returns:
+            list[Path]: List of firmware files found, with workspace files prioritized
+        """
+        logger.debug(
+            "Scanning workspace and output directories: workspace=%s, output=%s",
+            workspace_path,
+            output_path,
+        )
+
+        firmware_files = []
+
+        # First, scan workspace directory (priority location for ZMK builds)
+        if self.file_adapter.check_exists(workspace_path):
+            workspace_files = self.scan_firmware_files(workspace_path, pattern)
+            firmware_files.extend(workspace_files)
+            logger.debug("Found %d firmware files in workspace", len(workspace_files))
+        else:
+            logger.debug("Workspace directory does not exist: %s", workspace_path)
+
+        # Then, scan output directory (fallback or copy location)
+        if self.file_adapter.check_exists(output_path):
+            output_files = self.scan_firmware_files(output_path, pattern)
+            firmware_files.extend(output_files)
+            logger.debug("Found %d firmware files in output", len(output_files))
+        else:
+            logger.debug("Output directory does not exist: %s", output_path)
+
+        # Remove duplicates while preserving order (workspace files first)
+        unique_files = []
+        seen = set()
+        for file_path in firmware_files:
+            # Use resolved path for duplicate detection
+            resolved_path = file_path.resolve()
+            if resolved_path not in seen:
+                seen.add(resolved_path)
+                unique_files.append(file_path)
+
+        logger.info(
+            "Scanned workspace and output directories: found %d unique firmware files",
+            len(unique_files),
+        )
+
+        return unique_files
+
     def _scan_direct(self, directory: Path, pattern: str) -> list[Path]:
         """Scan directory directly for firmware files.
 
@@ -105,6 +163,8 @@ class FirmwareScanner:
             └── zephyr/
                 └── zmk.uf2
 
+        Enhanced to provide better debugging information for workspace scanning.
+
         Args:
             directory: Base directory to scan
             pattern: File pattern to match
@@ -119,10 +179,14 @@ class FirmwareScanner:
             if self.file_adapter.check_exists(build_dir) and self.file_adapter.is_dir(
                 build_dir
             ):
+                logger.debug("Scanning west build structure: %s", build_dir)
                 # Scan board-specific directories
                 board_dirs = self.file_adapter.list_directory(build_dir)
+
+                board_count = 0
                 for board_dir in board_dirs:
                     if self.file_adapter.is_dir(board_dir):
+                        board_count += 1
                         zephyr_dir = board_dir / "zephyr"
                         if self.file_adapter.check_exists(zephyr_dir):
                             zephyr_files = self.file_adapter.list_files(
@@ -130,10 +194,23 @@ class FirmwareScanner:
                             )
                             firmware_files.extend(zephyr_files)
                             logger.debug(
-                                "West structure scan found %d files in %s",
+                                "West structure scan found %d files in %s (board: %s)",
                                 len(zephyr_files),
                                 zephyr_dir,
+                                board_dir.name,
                             )
+                        else:
+                            logger.debug(
+                                "No zephyr directory in board dir: %s", board_dir
+                            )
+
+                logger.debug(
+                    "West structure scan completed: %d board directories, %d firmware files",
+                    board_count,
+                    len(firmware_files),
+                )
+            else:
+                logger.debug("No west build directory found: %s", build_dir)
 
         except Exception as e:
             logger.warning("Failed to scan west structure in %s: %s", directory, str(e))

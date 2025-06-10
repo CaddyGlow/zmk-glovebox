@@ -7,6 +7,7 @@ A comprehensive tool for ZMK keyboard firmware management, supporting multiple k
 - **Multi-Keyboard Support**: Extensible architecture supporting different keyboard types
 - **Keymap Building**: Convert JSON layouts to ZMK keymap and configuration files
 - **Firmware Building**: Docker-based ZMK build chain with extensible architecture
+- **Docker Volume Permissions**: Automatic handling of Docker volume permission issues on Linux/macOS
 - **Dynamic ZMK Config Generation**: Create complete ZMK config workspaces on-the-fly without external repositories
 - **Device Flashing**: USB device detection and firmware flashing with retry logic
 - **Configuration Management**: Profile-based configuration system with inheritance
@@ -84,6 +85,43 @@ glovebox firmware compile keymap.keymap config.conf --keyboard glove80 --firmwar
 # Specify custom branch and repository (overrides profile settings)
 glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --branch dev --repo custom/zmk-fork
 ```
+
+### Docker Volume Permission Handling (NEW)
+
+Glovebox automatically handles Docker volume permission issues that can occur when building firmware on Linux/macOS systems:
+
+```bash
+# Volume permissions are automatically managed
+glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
+
+# The system automatically:
+# - Detects current user ID (UID) and group ID (GID)  
+# - Adds --user UID:GID flag to Docker commands
+# - Ensures build artifacts have correct host permissions
+# - Works transparently across Linux and macOS platforms
+```
+
+**Configuration Options:**
+```yaml
+# In keyboard configurations (keyboards/*.yaml)
+build:
+  method: generic_docker
+  # Docker user mapping configuration
+  enable_user_mapping: true      # Enable --user flag (default: true)
+  detect_user_automatically: true # Auto-detect UID/GID (default: true)
+```
+
+**Key Features:**
+- **Automatic Detection**: User context automatically detected on Linux/macOS
+- **Cross-Platform**: Graceful fallback on unsupported platforms (Windows)
+- **Configurable**: Can be disabled via configuration if needed
+- **Template Variables**: UID/GID available as `{uid}`, `{gid}`, `{docker_user}` in environment templates
+- **Type-Safe**: Full model validation and error handling
+
+**Benefits:**
+- **No Permission Errors**: Eliminates `permission denied` errors when accessing build artifacts
+- **Seamless Operation**: Works transparently without user intervention
+- **Maintains Security**: Uses least-privilege principle with actual user permissions
 
 ### Flash Firmware
 

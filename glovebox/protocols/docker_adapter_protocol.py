@@ -3,6 +3,8 @@
 from pathlib import Path
 from typing import Any, Protocol, TypeAlias, runtime_checkable
 
+from glovebox.models.docker import DockerUserContext
+
 
 # Type aliases for Docker operations
 DockerVolume: TypeAlias = tuple[str, str]  # (host_path, container_path)
@@ -31,6 +33,7 @@ class DockerAdapterProtocol(Protocol):
         environment: DockerEnv,
         command: list[str] | None = None,
         middleware: Any | None = None,
+        user_context: DockerUserContext | None = None,
     ) -> DockerResult:
         """Run a Docker container with specified configuration.
 
@@ -40,6 +43,7 @@ class DockerAdapterProtocol(Protocol):
             environment: Dictionary of environment variables
             command: Optional command to run in the container
             middleware: Optional middleware for processing output
+            user_context: Optional user context for Docker --user flag
 
         Returns:
             Tuple containing (return_code, stdout_lines, stderr_lines)

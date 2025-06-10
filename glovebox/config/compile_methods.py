@@ -127,6 +127,9 @@ class GenericDockerCompileConfig(DockerCompileConfig):
     volume_templates: list[str] = Field(default_factory=list)
     board_targets: list[str] = Field(default_factory=list)
     cache_workspace: bool = True
+    # Docker user mapping configuration
+    enable_user_mapping: bool = True
+    detect_user_automatically: bool = True
 
     @field_validator("volume_templates")
     @classmethod

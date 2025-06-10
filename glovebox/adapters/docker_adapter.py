@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from glovebox.core.errors import BuildError, DockerError
+from glovebox.models.docker import DockerUserContext
 from glovebox.protocols.docker_adapter_protocol import (
     DockerAdapterProtocol,
     DockerEnv,
@@ -55,11 +56,18 @@ class DockerAdapter:
         environment: DockerEnv,
         command: list[str] | None = None,
         middleware: Any | None = None,
+        user_context: DockerUserContext | None = None,
     ) -> DockerResult:
         """Run a Docker container with specified configuration."""
         from glovebox.utils import stream_process
 
         docker_cmd = ["docker", "run", "--rm"]
+
+        # Add user context if provided and should be used
+        if user_context and user_context.should_use_user_mapping():
+            docker_user_flag = user_context.get_docker_user_flag()
+            docker_cmd.extend(["--user", docker_user_flag])
+            logger.debug("Using Docker user mapping: %s", docker_user_flag)
 
         # Add volume mounts
         for host_path, container_path in volumes:

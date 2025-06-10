@@ -17,7 +17,7 @@ compile_methods:
       workspace_path: "~/.glovebox/dynamic-zmk-config/corne"
       config_path: "config"
       build_yaml_path: "build.yaml"
-      west_commands:
+      wesnt_commands:
         - "west init -l config"
         - "west update"
     build_commands: [] # Commands auto-generated from build.yaml
@@ -341,4 +341,3 @@ keymap:
     #define POS_R18 39
     #define POS_R19 40
     #define POS_R20 41
-

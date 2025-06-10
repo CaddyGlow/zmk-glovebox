@@ -94,6 +94,10 @@ class EnvironmentManager:
             "user": os.getenv("USER", "unknown"),
             "home": os.getenv("HOME", "/home/unknown"),
             "pwd": str(Path.cwd()),
+            # Docker user context for volume permissions
+            "uid": str(self._get_current_uid()),
+            "gid": str(self._get_current_gid()),
+            "docker_user": f"{self._get_current_uid()}:{self._get_current_gid()}",
             # Common ZMK environment variables
             "zmk_config": os.getenv("ZMK_CONFIG", ""),
             "zephyr_base": os.getenv("ZEPHYR_BASE", ""),
@@ -184,6 +188,38 @@ class EnvironmentManager:
 
         self.logger.debug("Retrieved %d system environment variables", len(system_env))
         return system_env
+
+    def _get_current_uid(self) -> int:
+        """Get current user ID with fallback.
+
+        Returns:
+            int: Current user ID, or -1 if unavailable
+        """
+        try:
+            return os.getuid()
+        except AttributeError:
+            # Windows doesn't have getuid()
+            self.logger.debug("getuid() not available on this platform")
+            return -1
+        except Exception as e:
+            self.logger.warning("Failed to get UID: %s", e)
+            return -1
+
+    def _get_current_gid(self) -> int:
+        """Get current group ID with fallback.
+
+        Returns:
+            int: Current group ID, or -1 if unavailable
+        """
+        try:
+            return os.getgid()
+        except AttributeError:
+            # Windows doesn't have getgid()
+            self.logger.debug("getgid() not available on this platform")
+            return -1
+        except Exception as e:
+            self.logger.warning("Failed to get GID: %s", e)
+            return -1
 
     def validate_environment_templates(
         self, environment_template: dict[str, Any]

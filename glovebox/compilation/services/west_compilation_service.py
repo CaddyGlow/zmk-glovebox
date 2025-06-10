@@ -16,6 +16,10 @@ from glovebox.compilation.configuration.environment_manager import (
     EnvironmentManager,
     create_environment_manager,
 )
+from glovebox.compilation.configuration.user_context_manager import (
+    UserContextManager,
+    create_user_context_manager,
+)
 from glovebox.compilation.configuration.volume_manager import (
     VolumeManager,
     create_volume_manager,
@@ -59,6 +63,7 @@ class WestCompilationService(BaseCompilationService):
         artifact_collector: ArtifactCollectorProtocol | None = None,
         environment_manager: EnvironmentManager | None = None,
         volume_manager: VolumeManager | None = None,
+        user_context_manager: UserContextManager | None = None,
         docker_adapter: DockerAdapterProtocol | None = None,
     ) -> None:
         """Initialize west compilation service.
@@ -69,6 +74,7 @@ class WestCompilationService(BaseCompilationService):
             artifact_collector: Artifact collection service
             environment_manager: Environment variable manager
             volume_manager: Docker volume manager
+            user_context_manager: User context manager for Docker user mapping
             docker_adapter: Docker adapter for container operations
         """
         super().__init__("west_compilation", "1.0.0")
@@ -79,6 +85,9 @@ class WestCompilationService(BaseCompilationService):
         self.artifact_collector = artifact_collector  # Will be None until Phase 5
         self.environment_manager = environment_manager or create_environment_manager()
         self.volume_manager = volume_manager or create_volume_manager()
+        self.user_context_manager = (
+            user_context_manager or create_user_context_manager()
+        )
 
         # Docker adapter will be injected from parent coordinator
         self._docker_adapter: DockerAdapterProtocol | None = docker_adapter
@@ -150,6 +159,12 @@ class WestCompilationService(BaseCompilationService):
                 else "/zmk-workspace"
             )
 
+            # Get user context for Docker volume permissions
+            user_context = self.user_context_manager.get_user_context(
+                enable_user_mapping=config.enable_user_mapping,
+                detect_automatically=config.detect_user_automatically,
+            )
+
             return_code, stdout_lines, stderr_lines = (
                 self._docker_adapter.run_container(
                     image=docker_image,
@@ -160,6 +175,7 @@ class WestCompilationService(BaseCompilationService):
                     ],
                     volumes=volumes,
                     environment=build_env,
+                    user_context=user_context,
                 )
             )
 
@@ -485,6 +501,7 @@ def create_west_compilation_service(
     artifact_collector: ArtifactCollectorProtocol | None = None,
     environment_manager: EnvironmentManager | None = None,
     volume_manager: VolumeManager | None = None,
+    user_context_manager: UserContextManager | None = None,
     docker_adapter: DockerAdapterProtocol | None = None,
 ) -> WestCompilationService:
     """Create west compilation service instance.
@@ -495,6 +512,7 @@ def create_west_compilation_service(
         artifact_collector: Artifact collector
         environment_manager: Environment manager
         volume_manager: Volume manager
+        user_context_manager: User context manager for Docker user mapping
         docker_adapter: Docker adapter
 
     Returns:
@@ -506,5 +524,6 @@ def create_west_compilation_service(
         artifact_collector=artifact_collector,
         environment_manager=environment_manager,
         volume_manager=volume_manager,
+        user_context_manager=user_context_manager,
         docker_adapter=docker_adapter,
     )

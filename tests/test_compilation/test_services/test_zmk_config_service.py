@@ -31,6 +31,7 @@ class TestZmkConfigCompilationService:
         self.service.artifact_collector = Mock()
         self.service.environment_manager = Mock()
         self.service.volume_manager = Mock()
+        self.service.firmware_scanner = Mock()
 
         # Mock Docker adapter
         self.mock_docker_adapter = Mock()
@@ -69,14 +70,15 @@ class TestZmkConfigCompilationService:
         assert result is False
 
     def test_validate_configuration_missing_url(self):
-        """Test configuration validation with missing repo URL."""
+        """Test configuration validation with missing repo URL (dynamic mode)."""
         config = Mock(spec=GenericDockerCompileConfig)
         config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
         config.zmk_config_repo.config_repo_url = ""
         config.zmk_config_repo.workspace_path = "/tmp/workspace"
 
+        # Missing URL is now valid for dynamic generation mode
         result = self.service.validate_configuration(config)
-        assert result is False
+        assert result is True
 
     def test_validate_configuration_missing_workspace(self):
         """Test configuration validation with missing workspace path."""
@@ -108,6 +110,10 @@ class TestZmkConfigCompilationService:
             config.zmk_config_repo.workspace_path = str(Path(temp_dir) / "workspace")
             config.zmk_config_repo.build_yaml_path = "build.yaml"
             config.zmk_config_repo.config_repo_revision = "main"
+            config.zmk_config_repo.west_commands = [
+                "west init -l config",
+                "west update",
+            ]
             config.image = "zmkfirmware/zmk-build-arm:stable"
             config.board_targets = ["nice_nano_v2"]
             config.build_commands = []
@@ -219,6 +225,10 @@ class TestZmkConfigCompilationService:
             config.zmk_config_repo.workspace_path = str(Path(temp_dir) / "workspace")
             config.zmk_config_repo.build_yaml_path = "build.yaml"
             config.zmk_config_repo.config_repo_revision = "main"
+            config.zmk_config_repo.west_commands = [
+                "west init -l config",
+                "west update",
+            ]
             config.image = "zmkfirmware/zmk-build-arm:stable"
             config.board_targets = []
             config.build_commands = []
@@ -276,18 +286,26 @@ class TestZmkConfigCompilationService:
         )
 
         config = Mock(spec=GenericDockerCompileConfig)
+        config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
+        config.zmk_config_repo.west_commands = ["west init -l config", "west update"]
         config.board_targets = []
         config.build_commands = []
 
         commands = self.service._generate_build_commands(build_matrix, config)
 
-        assert len(commands) == 2
         assert (
-            "west build -p always -b nice_nano_v2 -d build/corne_left -- -DSHIELD=corne_left"
-            in commands[0]
+            len(commands) == 5
+        )  # 2 west commands + 1 zephyr-export + 2 build commands
+        assert "west init -l config" in commands
+        assert "west update" in commands
+        assert "west zephyr-export" in commands
+        assert (
+            "west build -s zmk/app -p always -b nice_nano_v2 -d build/corne_left -- -DSHIELD=corne_left"
+            in commands
         )
         assert (
-            "west build -p always -b nice_nano_v2 -d build/nice_nano_v2" in commands[1]
+            "west build -s zmk/app -p always -b nice_nano_v2 -d build/nice_nano_v2"
+            in commands
         )
 
     def test_generate_build_commands_from_config(self):
@@ -295,15 +313,20 @@ class TestZmkConfigCompilationService:
         build_matrix = BuildMatrix(targets=[], board_defaults=[], shield_defaults=[])
 
         config = Mock(spec=GenericDockerCompileConfig)
+        config.zmk_config_repo = None  # No west commands in this case
         config.board_targets = ["nice_nano_v2", "bluemicro840_v1"]
         config.build_commands = []
 
         commands = self.service._generate_build_commands(build_matrix, config)
 
-        assert len(commands) == 2
-        assert "west build -p always -b nice_nano_v2 -d build/nice_nano_v2" in commands
+        assert len(commands) == 3  # 1 zephyr-export + 2 build commands
+        assert "west zephyr-export" in commands
         assert (
-            "west build -p always -b bluemicro840_v1 -d build/bluemicro840_v1"
+            "west build -s zmk/app -p always -b nice_nano_v2 -d build/nice_nano_v2"
+            in commands
+        )
+        assert (
+            "west build -s zmk/app -p always -b bluemicro840_v1 -d build/bluemicro840_v1"
             in commands
         )
 
@@ -312,26 +335,32 @@ class TestZmkConfigCompilationService:
         build_matrix = BuildMatrix(targets=[], board_defaults=[], shield_defaults=[])
 
         config = Mock(spec=GenericDockerCompileConfig)
+        config.zmk_config_repo = None  # No west commands in this case
         config.board_targets = []
         config.build_commands = []
 
         commands = self.service._generate_build_commands(build_matrix, config)
 
-        assert len(commands) == 1
-        assert "west build -p always" in commands
+        assert len(commands) == 2  # 1 zephyr-export + 1 default build command
+        assert "west zephyr-export" in commands
+        assert "west build -s zmk/app -p always" in commands
 
     def test_generate_build_commands_with_custom(self):
         """Test build command generation with custom commands."""
         build_matrix = BuildMatrix(targets=[], board_defaults=[], shield_defaults=[])
 
         config = Mock(spec=GenericDockerCompileConfig)
+        config.zmk_config_repo = None  # No west commands in this case
         config.board_targets = []
         config.build_commands = ["custom command 1", "custom command 2"]
 
         commands = self.service._generate_build_commands(build_matrix, config)
 
-        assert len(commands) == 3
-        assert "west build -p always" in commands
+        assert (
+            len(commands) == 4
+        )  # 1 zephyr-export + 1 default build + 2 custom commands
+        assert "west zephyr-export" in commands
+        assert "west build -s zmk/app -p always" in commands
         assert "custom command 1" in commands
         assert "custom command 2" in commands
 
@@ -344,7 +373,7 @@ class TestZmkConfigCompilationService:
         )
 
         command = self.service._generate_target_command(target)
-        expected = "west build -p always -b nice_nano_v2 -d build/corne_left -- -DSHIELD=corne_left"
+        expected = "west build -s zmk/app -p always -b nice_nano_v2 -d build/corne_left -- -DSHIELD=corne_left"
 
         assert command == expected
 
@@ -357,7 +386,9 @@ class TestZmkConfigCompilationService:
         )
 
         command = self.service._generate_target_command(target)
-        expected = "west build -p always -b nice_nano_v2 -d build/nice_nano_v2"
+        expected = (
+            "west build -s zmk/app -p always -b nice_nano_v2 -d build/nice_nano_v2"
+        )
 
         assert command == expected
 
@@ -370,7 +401,7 @@ class TestZmkConfigCompilationService:
         )
 
         command = self.service._generate_target_command(target)
-        expected = "west build -p always -b nice_nano_v2 -d build/nice_nano_v2_corne_left -- -DSHIELD=corne_left"
+        expected = "west build -s zmk/app -p always -b nice_nano_v2 -d build/nice_nano_v2_corne_left -- -DSHIELD=corne_left"
 
         assert command == expected
 
@@ -395,6 +426,10 @@ class TestZmkConfigCompilationService:
             config.zmk_config_repo.workspace_path = str(Path(temp_dir) / "workspace")
             config.zmk_config_repo.build_yaml_path = "build.yaml"
             config.zmk_config_repo.config_repo_revision = "main"
+            config.zmk_config_repo.west_commands = [
+                "west init -l config",
+                "west update",
+            ]
             config.image = "zmkfirmware/zmk-build-arm:stable"
             config.board_targets = []
             config.build_commands = []
@@ -480,6 +515,10 @@ class TestZmkConfigServiceIntegration:
             config.zmk_config_repo.workspace_path = "/tmp/workspace"
             config.zmk_config_repo.build_yaml_path = "build.yaml"
             config.zmk_config_repo.config_repo_revision = "main"
+            config.zmk_config_repo.west_commands = [
+                "west init -l config",
+                "west update",
+            ]
             config.image = "test:latest"
             config.board_targets = []
             config.build_commands = []

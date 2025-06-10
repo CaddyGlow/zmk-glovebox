@@ -17,7 +17,7 @@ compile_methods:
       config_path: "config"
       build_yaml_path: "build.yaml"
       west_commands:
-        # - "west init -l config"
+        - "west init -l config"
         - "west update"
     build_commands: [] # commands auto-generated from build.yaml
     environment_template:

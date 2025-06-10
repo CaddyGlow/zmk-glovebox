@@ -2,7 +2,7 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -387,6 +387,72 @@ class TestFirmwareScanner:
         # this may or may not have an error depending on the system,
         # so let's just check it's handled gracefully
         assert "filename" in result
+
+    def test_scan_workspace_and_output(self):
+        """Test scanning both workspace and output directories."""
+        workspace_dir = Path("/workspace")
+        output_dir = Path("/output")
+
+        # Mock workspace directory exists and has files
+        self.mock_file_adapter.check_exists.side_effect = lambda path: (
+            path == workspace_dir or path == output_dir
+        )
+
+        # Mock scan results for workspace and output
+        workspace_files = [Path("/workspace/build/left/zephyr/zmk.uf2")]
+        output_files = [Path("/output/firmware.uf2")]
+
+        with patch.object(self.scanner, "scan_firmware_files") as mock_scan:
+            mock_scan.side_effect = [workspace_files, output_files]
+
+            result = self.scanner.scan_workspace_and_output(workspace_dir, output_dir)
+
+            # Should include files from both directories
+            assert len(result) == 2
+            assert workspace_files[0] in result
+            assert output_files[0] in result
+
+            # Verify scan_firmware_files was called for both directories
+            assert mock_scan.call_count == 2
+            mock_scan.assert_any_call(workspace_dir, "*.uf2")
+            mock_scan.assert_any_call(output_dir, "*.uf2")
+
+    def test_scan_workspace_and_output_duplicates(self):
+        """Test scanning with duplicate files removes duplicates."""
+        workspace_dir = Path("/workspace")
+        output_dir = Path("/output")
+
+        # Mock both directories exist
+        self.mock_file_adapter.check_exists.return_value = True
+
+        # Mock duplicate files in both directories
+        duplicate_file = Path("/shared/firmware.uf2")
+        workspace_files = [duplicate_file, Path("/workspace/left.uf2")]
+        output_files = [duplicate_file, Path("/output/right.uf2")]
+
+        with patch.object(self.scanner, "scan_firmware_files") as mock_scan:
+            mock_scan.side_effect = [workspace_files, output_files]
+
+            result = self.scanner.scan_workspace_and_output(workspace_dir, output_dir)
+
+            # Should remove duplicates while preserving order (workspace first)
+            assert len(result) == 3
+            assert result[0] == duplicate_file  # First occurrence (from workspace)
+            assert Path("/workspace/left.uf2") in result
+            assert Path("/output/right.uf2") in result
+
+    def test_scan_workspace_and_output_nonexistent_directories(self):
+        """Test scanning with nonexistent directories."""
+        workspace_dir = Path("/nonexistent/workspace")
+        output_dir = Path("/nonexistent/output")
+
+        # Mock both directories don't exist
+        self.mock_file_adapter.check_exists.return_value = False
+
+        result = self.scanner.scan_workspace_and_output(workspace_dir, output_dir)
+
+        # Should return empty list
+        assert result == []
 
 
 class TestFirmwareScannerIntegration:
