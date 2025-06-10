@@ -11,13 +11,18 @@ if TYPE_CHECKING:
 
 from glovebox.adapters.docker_adapter import create_docker_adapter
 from glovebox.adapters.file_adapter import create_file_adapter
-from glovebox.config.compile_methods import DockerCompileConfig
+from glovebox.config.compile_methods import (
+    DockerCompileConfig,
+    GenericDockerCompileConfig,
+    WestWorkspaceConfig,
+)
 from glovebox.core.errors import BuildError
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
 from glovebox.protocols.compile_protocols import (
     CompilerProtocol,
     DockerCompilerProtocol,
+    GenericDockerCompilerProtocol,
 )
 from glovebox.protocols.docker_adapter_protocol import DockerVolume
 from glovebox.utils import stream_process
