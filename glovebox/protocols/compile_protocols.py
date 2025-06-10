@@ -3,7 +3,12 @@
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from glovebox.config.compile_methods import CompileMethodConfig, DockerCompileConfig
+from glovebox.config.compile_methods import (
+    CompileMethodConfig,
+    DockerCompileConfig,
+    GenericDockerCompileConfig,
+    WestWorkspaceConfig,
+)
 from glovebox.firmware.models import BuildResult
 
 
@@ -51,3 +56,51 @@ class DockerCompilerProtocol(Protocol):
     def validate_config(self, config: DockerCompileConfig) -> bool:
         """Validate Docker-specific configuration."""
         ...
+
+
+@runtime_checkable
+class GenericDockerCompilerProtocol(Protocol):
+    """Protocol for generic Docker compiler with build strategies."""
+
+    # Include all methods from DockerCompilerProtocol
+    def compile(
+        self,
+        keymap_file: Path,
+        config_file: Path,
+        output_dir: Path,
+        config: GenericDockerCompileConfig,
+    ) -> BuildResult:
+        """Compile firmware using generic Docker method."""
+        ...
+
+    def build_image(self, config: GenericDockerCompileConfig) -> BuildResult:
+        """Build Docker image for compilation."""
+        ...
+
+    def validate_config(self, config: GenericDockerCompileConfig) -> bool:
+        """Validate generic Docker configuration."""
+        ...
+
+    # New methods specific to generic Docker compiler
+    def initialize_workspace(self, config: GenericDockerCompileConfig) -> bool:
+        """Initialize build workspace (west, cmake, etc.)."""
+        ...
+
+    def execute_build_strategy(self, strategy: str, commands: list[str]) -> BuildResult:
+        """Execute build using specified strategy."""
+        ...
+
+    def manage_west_workspace(self, workspace_config: WestWorkspaceConfig) -> bool:
+        """Manage ZMK west workspace lifecycle."""
+        ...
+
+    def cache_workspace(self, workspace_path: Path) -> bool:
+        """Cache workspace for reuse."""
+        ...
+
+
+__all__ = [
+    "CompilerProtocol",
+    "DockerCompilerProtocol",
+    "GenericDockerCompilerProtocol",
+]
