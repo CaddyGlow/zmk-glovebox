@@ -282,6 +282,11 @@ class KeyboardConfig(BaseModel):
         )
     )
 
+    # New configuration sections (Phase 2 additions)
+    behavior: BehaviorConfig = Field(default_factory=BehaviorConfig)
+    display: DisplayConfig = Field(default_factory=DisplayConfig)
+    zmk: ZmkConfig = Field(default_factory=ZmkConfig)
+
     @field_validator("keyboard", "description", "vendor")
     @classmethod
     def validate_non_empty_strings(cls, v: str) -> str:
