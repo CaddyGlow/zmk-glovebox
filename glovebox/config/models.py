@@ -144,6 +144,7 @@ class ZmkCompatibleStrings(BaseModel):
     macro: str = Field(default="zmk,behavior-macro")
     hold_tap: str = Field(default="zmk,behavior-hold-tap")
     combos: str = Field(default="zmk,combos")
+    keymap: str = Field(default="zmk,keymap")
 
 
 class ZmkPatterns(BaseModel):
@@ -151,6 +152,7 @@ class ZmkPatterns(BaseModel):
 
     layer_define: str = Field(default="LAYER_{}")
     node_name_sanitize: str = Field(default="[^A-Z0-9_]")
+    kconfig_prefix: str = Field(default="CONFIG_")
 
 
 class FileExtensions(BaseModel):

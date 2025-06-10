@@ -52,9 +52,10 @@ class ZmkFileContentGenerator:
             String with #define statements for each layer
         """
         defines = []
+        layer_define_pattern = profile.keyboard_config.zmk.patterns.layer_define
         for i, name in enumerate(layer_names):
             define_name = re.sub(r"\W|^(?=\d)", "_", name)
-            defines.append(f"#define LAYER_{define_name} {i}")
+            defines.append(f"#define {layer_define_pattern.format(define_name)} {i}")
         return "\n".join(defines)
 
     def generate_behaviors_dtsi(
@@ -95,9 +96,12 @@ class ZmkFileContentGenerator:
             hold_on_release = ht.hold_trigger_on_release
             hold_key_positions_indices = ht.hold_trigger_key_positions
 
-            if len(bindings) != 2:
+            required_bindings = (
+                profile.keyboard_config.zmk.validation_limits.required_holdtap_bindings
+            )
+            if len(bindings) != required_bindings:
                 logger.warning(
-                    f"Behavior '{name}' requires exactly 2 bindings (hold, tap). Found {len(bindings)}. Skipping."
+                    f"Behavior '{name}' requires exactly {required_bindings} bindings (hold, tap). Found {len(bindings)}. Skipping."
                 )
                 continue
 
@@ -118,7 +122,8 @@ class ZmkFileContentGenerator:
 
             dtsi_parts.extend(label)
             dtsi_parts.append(f"{node_name}: {node_name} {{")
-            dtsi_parts.append('    compatible = "zmk,behavior-hold-tap";')
+            compatible_string = profile.keyboard_config.zmk.compatible_strings.hold_tap
+            dtsi_parts.append(f'    compatible = "{compatible_string}";')
             dtsi_parts.append("    #binding-cells = <2>;")
 
             if tapping_term is not None:
@@ -132,25 +137,27 @@ class ZmkFileContentGenerator:
                     self._behavior_formatter.format_binding(binding_ref)
                 )
 
-            if len(formatted_bindings) == 2:
-                dtsi_parts.append(
-                    f"    bindings = <{formatted_bindings[0]}>, <{formatted_bindings[1]}>;"
-                )
+            if len(formatted_bindings) == required_bindings:
+                if required_bindings == 2:
+                    dtsi_parts.append(
+                        f"    bindings = <{formatted_bindings[0]}>, <{formatted_bindings[1]}>;"
+                    )
+                else:
+                    # Handle other cases if required_bindings is configurable to other values
+                    bindings_str = ", ".join(f"<{b}>" for b in formatted_bindings)
+                    dtsi_parts.append(f"    bindings = {bindings_str};")
             else:
-                dtsi_parts.append("    bindings = <&error>, <&error>;")
+                # Generate error placeholders based on required count
+                error_bindings = ", ".join("<&error>" for _ in range(required_bindings))
+                dtsi_parts.append(f"    bindings = {error_bindings};")
 
             if flavor is not None:
-                allowed_flavors = [
-                    "tap-preferred",
-                    "hold-preferred",
-                    "balanced",
-                    "tap-unless-interrupted",
-                ]
+                allowed_flavors = profile.keyboard_config.zmk.hold_tap_flavors
                 if flavor in allowed_flavors:
                     dtsi_parts.append(f'    flavor = "{flavor}";')
                 else:
                     logger.warning(
-                        f"Invalid flavor '{flavor}' for behavior '{name}'. Omitting."
+                        f"Invalid flavor '{flavor}' for behavior '{name}'. Allowed: {allowed_flavors}. Omitting."
                     )
 
             if quick_tap is not None:
@@ -213,18 +220,24 @@ class ZmkFileContentGenerator:
             tap_ms = macro.tap_ms
 
             # Determine compatible and binding-cells based on params
+            compatible_strings = profile.keyboard_config.zmk.compatible_strings
             if not params:
-                compatible = "zmk,behavior-macro"
+                compatible = compatible_strings.macro
                 binding_cells = "0"
             elif len(params) == 1:
-                compatible = "zmk,behavior-macro-one-param"
+                # Use macro for one-param case as well, since the config may not have separate ones
+                compatible = compatible_strings.macro
                 binding_cells = "1"
             elif len(params) == 2:
-                compatible = "zmk,behavior-macro-two-param"
+                # Use macro for two-param case as well, since the config may not have separate ones
+                compatible = compatible_strings.macro
                 binding_cells = "2"
             else:
+                max_params = (
+                    profile.keyboard_config.zmk.validation_limits.max_macro_params
+                )
                 logger.warning(
-                    f"Macro '{name}' has {len(params)} params, which is not supported. Maximum is 2."
+                    f"Macro '{name}' has {len(params)} params, which is not supported. Maximum is {max_params}."
                 )
                 continue
 
@@ -290,11 +303,14 @@ class ZmkFileContentGenerator:
             key_position_map[f"KEY_{i}"] = i
 
         dtsi_parts = ["combos {"]
-        dtsi_parts.append('    compatible = "zmk,combos";')
+        combos_compatible = profile.keyboard_config.zmk.compatible_strings.combos
+        dtsi_parts.append(f'    compatible = "{combos_compatible}";')
 
         layer_name_to_index = {name: i for i, name in enumerate(layer_names)}
+        layer_define_pattern = profile.keyboard_config.zmk.patterns.layer_define
+        sanitize_pattern = profile.keyboard_config.zmk.patterns.node_name_sanitize
         layer_defines = {
-            i: f"LAYER_{re.sub(r'[^A-Z0-9_]', '_', name.upper())}"
+            i: layer_define_pattern.format(re.sub(sanitize_pattern, "_", name.upper()))
             for i, name in enumerate(layer_names)
         }
 
@@ -458,7 +474,8 @@ class ZmkFileContentGenerator:
         logger.info(f"Generating keymap node with {len(layers_data)} layers")
 
         # Create the keymap opening
-        dtsi_parts = ["keymap {", '    compatible = "zmk,keymap";']
+        keymap_compatible = profile.keyboard_config.zmk.compatible_strings.keymap
+        dtsi_parts = ["keymap {", f'    compatible = "{keymap_compatible}";']
 
         # Process each layer
         for i, (layer_name, layer_bindings) in enumerate(

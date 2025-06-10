@@ -22,7 +22,9 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-def prepare_output_paths(output_file_prefix: str | Path) -> OutputPaths:
+def prepare_output_paths(
+    output_file_prefix: str | Path, profile: "KeyboardProfile | None" = None
+) -> OutputPaths:
     """Prepare standardized output file paths.
 
     Given an output file prefix (which can be a path and base name),
@@ -30,6 +32,7 @@ def prepare_output_paths(output_file_prefix: str | Path) -> OutputPaths:
 
     Args:
         output_file_prefix: Base path and name for output files (str or Path)
+        profile: Optional keyboard profile for configurable file extensions
 
     Returns:
         OutputPaths with standardized paths for keymap, conf, and json files
@@ -46,10 +49,22 @@ def prepare_output_paths(output_file_prefix: str | Path) -> OutputPaths:
     output_dir = output_prefix_path.parent
     base_name = output_prefix_path.name
 
+    # Use configurable file extensions if profile is provided, otherwise use defaults
+    if profile:
+        extensions = profile.keyboard_config.zmk.file_extensions
+        keymap_ext = extensions.keymap
+        conf_ext = extensions.conf
+        json_ext = extensions.metadata
+    else:
+        # Default extensions for backward compatibility
+        keymap_ext = ".keymap"
+        conf_ext = ".conf"
+        json_ext = ".json"
+
     return OutputPaths(
-        keymap=output_dir / f"{base_name}.keymap",
-        conf=output_dir / f"{base_name}.conf",
-        json=output_dir / f"{base_name}.json",
+        keymap=output_dir / f"{base_name}{keymap_ext}",
+        conf=output_dir / f"{base_name}{conf_ext}",
+        json=output_dir / f"{base_name}{json_ext}",
     )
 
 
@@ -284,8 +299,9 @@ def generate_kconfig_conf(
                 line = "# "
         else:
             name = opt.param_name
-            if not name.startswith("CONFIG_"):
-                name = "CONFIG_" + name
+            kconfig_prefix = profile.keyboard_config.zmk.patterns.kconfig_prefix
+            if not name.startswith(kconfig_prefix):
+                name = kconfig_prefix + name
 
         line += f"{name}={opt.value}"
         lines.append(line)

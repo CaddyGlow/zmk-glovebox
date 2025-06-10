@@ -168,7 +168,7 @@ class LayoutService(BaseService):
         logger.info("Starting keymap generation for %s", profile.keyboard_name)
 
         # Prepare output paths
-        output_paths = prepare_output_paths(output_file_prefix)
+        output_paths = prepare_output_paths(output_file_prefix, profile)
 
         # Check if output files already exist (unless force=True)
         if not force:
@@ -282,10 +282,13 @@ class LayoutService(BaseService):
                     profile_keyboard_type,
                 )
 
-            # Check layer count is reasonable
-            if len(keymap_data.layers) > 10:  # Arbitrary reasonable limit
+            # Check layer count is reasonable using configurable limit
+            validation_limits = profile.keyboard_config.zmk.validation_limits
+            if len(keymap_data.layers) > validation_limits.warn_many_layers_threshold:
                 logger.warning(
-                    "High layer count detected: %d layers", len(keymap_data.layers)
+                    "High layer count detected: %d layers (threshold: %d)",
+                    len(keymap_data.layers),
+                    validation_limits.warn_many_layers_threshold,
                 )
 
             logger.debug(
