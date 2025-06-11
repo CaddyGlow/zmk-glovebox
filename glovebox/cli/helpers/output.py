@@ -1,12 +1,10 @@
 """Helper functions for CLI output formatting with Rich integration."""
 
-from typing import Any, Optional
+from typing import Any
 
 from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
 
-from glovebox.cli.helpers.theme import Colors, Icons, ThemedConsole, get_themed_console
+from glovebox.cli.helpers.theme import get_themed_console
 from glovebox.models.results import BaseResult
 
 

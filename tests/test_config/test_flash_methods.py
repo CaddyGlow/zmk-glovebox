@@ -1,7 +1,5 @@
 """Tests for flash method configuration models."""
 
-from pathlib import Path
-
 import pytest
 from pydantic import ValidationError
 

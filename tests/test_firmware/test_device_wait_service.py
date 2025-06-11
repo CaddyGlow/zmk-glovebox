@@ -1,6 +1,5 @@
 """Tests for device wait service functionality."""
 
-import threading
 import time
 from unittest.mock import Mock, patch
 

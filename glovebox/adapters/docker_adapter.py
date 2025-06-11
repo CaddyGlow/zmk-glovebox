@@ -6,7 +6,6 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from glovebox.core.errors import BuildError, DockerError
 from glovebox.models.docker import DockerUserContext
 from glovebox.protocols.docker_adapter_protocol import (
     DockerAdapterProtocol,

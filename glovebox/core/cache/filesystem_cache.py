@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from glovebox.core.cache.cache_manager import BaseCacheManager
-from glovebox.core.cache.models import CacheConfig, CacheEntry, CacheMetadata
+from glovebox.core.cache.models import CacheConfig, CacheMetadata
 from glovebox.core.errors import GloveboxError
 
 

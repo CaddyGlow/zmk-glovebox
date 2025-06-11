@@ -1,7 +1,7 @@
 """Tests for TemplateAdapter implementation."""
 
 from pathlib import Path
-from unittest.mock import Mock, mock_open, patch
+from unittest.mock import mock_open, patch
 
 import pytest
 
@@ -9,7 +9,7 @@ from glovebox.adapters.template_adapter import (
     TemplateAdapter,
     create_template_adapter,
 )
-from glovebox.core.errors import GloveboxError, TemplateError
+from glovebox.core.errors import TemplateError
 from glovebox.protocols.template_adapter_protocol import TemplateAdapterProtocol
 
 

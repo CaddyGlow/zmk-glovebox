@@ -123,25 +123,26 @@ Firmware Domain
 
 ### Compilation Domain (`glovebox/compilation/`)
 
-**Responsibility**: Advanced compilation strategies and workspace management
+**Responsibility**: Direct compilation strategies with generic caching
 
 ```
 Compilation Domain
 ├── Services
-│   ├── CompilationCoordinator  # Strategy orchestration
-│   ├── ZmkConfigService       # ZMK config builds
+│   ├── BaseCompilationService  # Common Docker compilation logic
+│   ├── ZmkConfigService       # ZMK config builds (GitHub Actions style)
 │   └── WestService            # Traditional west builds
+├── Cache System
+│   └── CompilationCache       # Domain-specific cache using generic system
 ├── Generation
 │   └── ZmkConfigGenerator     # Dynamic workspace creation
 ├── Configuration
-│   ├── BuildMatrixResolver    # GitHub Actions matrix
+│   ├── BuildMatrixResolver    # GitHub Actions matrix support
 │   ├── EnvironmentManager     # Environment variables
 │   └── VolumeManager          # Docker volume mapping
 ├── Workspace
-│   ├── WorkspaceManager       # Workspace coordination
+│   ├── WorkspaceManager       # Base workspace coordination
 │   ├── ZmkConfigWorkspace     # ZMK config workspaces
-│   ├── WestWorkspace          # West workspaces
-│   └── CacheManager           # Intelligent caching
+│   └── WestWorkspace          # West workspaces
 └── Models
     ├── BuildMatrix            # Compilation matrix
     ├── WorkspaceConfig        # Workspace configuration
@@ -149,11 +150,12 @@ Compilation Domain
 ```
 
 **Key Responsibilities**:
-- Coordinate multiple compilation strategies
+- Provide direct strategy selection via CLI (no coordination layer)
 - Generate complete ZMK workspaces dynamically
-- Manage workspace caching and cleanup
+- Manage intelligent caching using generic cache system
 - Resolve GitHub Actions build matrices
 - Handle environment variable templating
+- Execute Docker-based compilation with common patterns
 
 ### Configuration Domain (`glovebox/config/`)
 
@@ -187,6 +189,34 @@ Configuration Domain
 - Support keyboard-only profiles for minimal setups
 
 ## Cross-Cutting Concerns
+
+### Generic Cache System
+
+Glovebox includes a domain-agnostic caching system that can be used across all domains:
+
+```python
+from glovebox.core.cache import (
+    create_filesystem_cache,
+    create_memory_cache,
+    create_default_cache
+)
+
+# Create cache managers
+fs_cache = create_filesystem_cache(max_size_mb=500, default_ttl_hours=24)
+memory_cache = create_memory_cache(max_size_mb=100, max_entries=1000)
+default_cache = create_default_cache()  # Reasonable defaults
+
+# Use in domain-specific services
+from glovebox.compilation.cache import create_compilation_cache
+compilation_cache = create_compilation_cache(cache_manager=fs_cache)
+```
+
+**Cache Features**:
+- Multiple backends (filesystem, memory, future: Redis, SQLite)
+- TTL support with automatic expiration
+- Size-based and count-based eviction policies
+- Cache hit/miss statistics and performance monitoring
+- Domain-specific cache wrappers for specialized operations
 
 ### Adapter Layer
 
@@ -251,8 +281,9 @@ from glovebox.firmware.flash import create_flash_service
 
 # Compilation domain
 from glovebox.compilation import (
-    create_compilation_coordinator,
-    create_zmk_config_service
+    create_compilation_service,
+    create_zmk_config_service,
+    create_west_service
 )
 
 # Configuration domain
@@ -298,16 +329,18 @@ def load_keyboard_config(keyboard_name: str) -> KeyboardConfig:
 
 ### Strategy Pattern
 
-Compilation uses strategy pattern for multiple build methods:
+Compilation uses direct strategy selection with factory functions:
 
 ```python
-class CompilationCoordinator:
-    def __init__(self, compilation_services: dict[str, CompilationServiceProtocol]):
-        self._services = compilation_services
-        
-    def compile(self, strategy: str, ...) -> CompilationResult:
-        service = self._services[strategy]
-        return service.compile(...)
+from glovebox.compilation import create_compilation_service
+
+# Direct strategy selection - user chooses via CLI
+def compile_firmware(strategy: str, ...) -> CompilationResult:
+    service = create_compilation_service(strategy)
+    return service.compile(...)
+
+# Available strategies: "zmk_config", "west", "cmake", "make", "ninja", "custom"
+# Each strategy implemented as separate service extending BaseCompilationService
 ```
 
 ## Data Flow
@@ -382,9 +415,11 @@ except ProcessingError as e:
 
 ### Caching Strategy
 
+- **Generic Cache System**: Domain-agnostic caching with multiple backends
 - **Configuration Cache**: Keyboard configs cached after first load
-- **Workspace Cache**: Compilation workspaces reused when possible
+- **Compilation Cache**: ZMK dependencies, workspace data, and build matrices
 - **Template Cache**: Jinja2 templates cached for performance
+- **Intelligent Invalidation**: Cache entries invalidated based on content changes
 
 ### Lazy Loading
 

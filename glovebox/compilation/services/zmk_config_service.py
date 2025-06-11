@@ -14,7 +14,6 @@ from glovebox.compilation.workspace.zmk_config_workspace_manager import (
     create_zmk_config_workspace_manager,
 )
 from glovebox.config.compile_methods import CompilationConfig
-from glovebox.core.errors import BuildError
 
 
 if TYPE_CHECKING:

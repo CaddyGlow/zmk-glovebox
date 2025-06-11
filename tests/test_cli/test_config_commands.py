@@ -1,17 +1,13 @@
 """Tests for CLI config commands."""
 
 import json
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-import typer
-from typer.testing import CliRunner
 
 from glovebox.cli.app import app
 from glovebox.cli.commands import register_all_commands
 from glovebox.config.models import (
-    FirmwareConfig,
     KeyboardConfig,
 )
 from glovebox.config.user_config import UserConfig

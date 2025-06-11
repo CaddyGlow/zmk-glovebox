@@ -4,8 +4,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import Mock
 
-import pytest
-
 from glovebox.compilation.generation.zmk_config_generator import (
     ZmkConfigContentGenerator,
     create_zmk_config_content_generator,

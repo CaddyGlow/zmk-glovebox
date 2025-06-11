@@ -1,13 +1,9 @@
 """Tests for LayoutComponentService."""
 
-import json
-from datetime import datetime
 from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
-from pydantic import ValidationError
 
 from glovebox.core.errors import LayoutError
 from glovebox.layout.component_service import (
@@ -19,7 +15,6 @@ from glovebox.layout.models import (
     LayoutData,
     LayoutMetadata,
     LayoutParam,
-    LayoutResult,
 )
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 

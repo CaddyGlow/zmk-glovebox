@@ -3,8 +3,6 @@
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import pytest
-
 from glovebox.config.flash_methods import DFUFlashConfig, USBFlashConfig
 from glovebox.config.profile import KeyboardProfile
 from glovebox.firmware.flash.models import BlockDevice, FlashResult

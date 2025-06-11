@@ -2,11 +2,9 @@
 
 import json
 import logging
-from pathlib import Path
-from typing import Annotated, Any, Optional, cast
+from typing import Annotated, Any
 
 import typer
-from rich import print as rprint
 from rich.console import Console
 from rich.table import Table
 

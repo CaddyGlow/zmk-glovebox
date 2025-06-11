@@ -9,8 +9,6 @@ from glovebox.config.models import (
     DisplayConfig,
     DisplayFormatting,
     KeyboardConfig,
-    LayoutStructure,
-    ModifierMapping,
     ValidationLimits,
     ZmkConfig,
     ZmkPatterns,

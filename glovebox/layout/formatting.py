@@ -2,7 +2,6 @@
 
 import enum
 import logging
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -11,7 +10,6 @@ from glovebox.layout.models import LayoutBinding
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
-    from glovebox.layout.models import LayoutData
 
 
 logger = logging.getLogger(__name__)

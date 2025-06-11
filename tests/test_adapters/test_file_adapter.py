@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from unittest.mock import Mock, mock_open, patch
+from unittest.mock import mock_open, patch
 
 import pytest
 from pydantic import BaseModel, Field
@@ -11,7 +11,7 @@ from glovebox.adapters.file_adapter import (
     FileAdapter,
     create_file_adapter,
 )
-from glovebox.core.errors import FileSystemError, GloveboxError
+from glovebox.core.errors import FileSystemError
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 
 

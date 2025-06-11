@@ -3,7 +3,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Annotated, Any, Optional
+from typing import Annotated
 
 import typer
 
@@ -15,7 +15,6 @@ from glovebox.cli.helpers import (
 )
 from glovebox.cli.helpers.parameters import OutputFormatOption, ProfileOption
 from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
-from glovebox.config.profile import KeyboardProfile
 from glovebox.layout.service import create_layout_service
 
 

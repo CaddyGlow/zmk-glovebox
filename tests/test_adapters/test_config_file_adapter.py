@@ -1,6 +1,5 @@
 """Tests for ConfigFileAdapter."""
 
-import os
 import tempfile
 from pathlib import Path
 

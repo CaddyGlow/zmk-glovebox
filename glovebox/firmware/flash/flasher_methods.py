@@ -9,9 +9,7 @@ if TYPE_CHECKING:
     from glovebox.protocols import FileAdapterProtocol, USBAdapterProtocol
 
 from glovebox.config.flash_methods import DFUFlashConfig, USBFlashConfig
-from glovebox.core.errors import FlashError
 from glovebox.firmware.flash.models import BlockDevice, FlashResult
-from glovebox.protocols.flash_protocols import FlasherProtocol
 
 
 logger = logging.getLogger(__name__)

@@ -4,12 +4,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, Union, runtime_checkable
 
 from glovebox.config.compile_methods import (
-    BuildYamlConfig,
     CompilationConfig,
     CompileMethodConfig,
     DockerCompileConfig,
-    WestWorkspaceConfig,
-    ZmkConfigRepoConfig,
 )
 from glovebox.firmware.models import BuildResult
 

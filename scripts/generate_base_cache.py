@@ -11,11 +11,9 @@ Usage:
 """
 
 import argparse
-import json
 import logging
 import sys
 from pathlib import Path
-from typing import Any
 
 
 # Add the project root to Python path

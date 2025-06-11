@@ -3,11 +3,8 @@
 from pathlib import Path
 from unittest.mock import Mock
 
-import pytest
-
 from glovebox.config.compile_methods import (
     CompilationConfig,
-    WestWorkspaceConfig,
 )
 from glovebox.firmware.models import BuildResult
 from glovebox.protocols.compile_protocols import GenericDockerCompilerProtocol

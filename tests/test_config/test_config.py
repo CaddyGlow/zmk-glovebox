@@ -9,7 +9,6 @@ import os
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -18,7 +17,6 @@ import yaml
 from glovebox.config.keyboard_profile import (
     clear_cache,
     create_keyboard_profile,
-    get_available_firmwares,
     get_available_keyboards,
     get_firmware_config,
     load_keyboard_config,
@@ -33,9 +31,7 @@ from glovebox.config.models import (
 )
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import ConfigError
-from glovebox.firmware.flash.models import FlashResult
-from glovebox.firmware.models import BuildResult
-from glovebox.layout.models import LayoutResult, SystemBehavior
+from glovebox.layout.models import SystemBehavior
 
 
 # ---- Test Data Fixtures ----

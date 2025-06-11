@@ -2,10 +2,7 @@
 
 import tempfile
 from pathlib import Path
-from typing import cast
 from unittest.mock import Mock, patch
-
-import pytest
 
 from glovebox.compilation.models.build_matrix import BuildMatrix, BuildTarget
 from glovebox.compilation.services.zmk_config_service import (
@@ -16,7 +13,7 @@ from glovebox.config.compile_methods import (
     CompilationConfig,
     ZmkConfigRepoConfig,
 )
-from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
+from glovebox.firmware.models import FirmwareOutputFiles
 
 
 class TestZmkConfigCompilationService:

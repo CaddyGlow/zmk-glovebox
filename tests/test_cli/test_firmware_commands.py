@@ -1,14 +1,11 @@
 """Tests for firmware CLI command execution."""
 
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-import typer
 
 from glovebox.cli import app
 from glovebox.cli.commands import register_all_commands
-from glovebox.firmware.flash.models import FlashResult
 
 
 # Register commands with the app before running tests

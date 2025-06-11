@@ -7,12 +7,10 @@ This module tests how the CLI handles various error conditions including:
 """
 
 import json
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 import typer
-from pydantic import ValidationError
 
 from glovebox.cli.decorators.error_handling import (
     handle_errors,

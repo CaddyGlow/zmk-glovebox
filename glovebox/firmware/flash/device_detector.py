@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from glovebox.firmware.flash.models import BlockDevice
 
-from glovebox.core.errors import ConfigError
 from glovebox.firmware.flash.models import BlockDevice
 from glovebox.firmware.flash.usb_monitor import USBDeviceMonitorBase
 from glovebox.protocols.device_detector_protocol import DeviceDetectorProtocol

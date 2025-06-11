@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..compile_methods import (
     CompilationConfig,
-    CompileMethodConfig,
     CrossCompileConfig,
     DockerCompileConfig,
     LocalCompileConfig,
@@ -15,7 +14,6 @@ from ..compile_methods import (
 from ..flash_methods import (
     BootloaderFlashConfig,
     DFUFlashConfig,
-    FlashMethodConfig,
     USBFlashConfig,
     WiFiFlashConfig,
 )

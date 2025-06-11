@@ -5,11 +5,7 @@ This module provides a class that encapsulates keyboard configuration and
 provides convenient methods for accessing and manipulating that configuration.
 """
 
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
-
 from glovebox.config.models import (
-    BuildOptions,
     FirmwareConfig,
     KConfigOption,
     KeyboardConfig,

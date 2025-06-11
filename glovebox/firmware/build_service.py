@@ -10,7 +10,6 @@ if TYPE_CHECKING:
 
 from glovebox.compilation import create_compilation_service
 from glovebox.config.compile_methods import CompilationConfig
-from glovebox.core.errors import BuildError
 from glovebox.firmware.models import BuildResult
 from glovebox.services.base_service import BaseService
 

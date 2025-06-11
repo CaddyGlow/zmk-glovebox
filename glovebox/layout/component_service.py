@@ -1,7 +1,6 @@
 """Service for layout component extraction and management."""
 
 import logging
-from datetime import datetime
 from pathlib import Path
 from typing import Any, TypeAlias
 
@@ -163,7 +162,6 @@ class LayoutComponentService(BaseService):
             layout: Keymap data model
             output_layer_dir: Directory to write individual layer files
         """
-        from glovebox.layout.models import LayoutBinding
 
         # Access layer data directly from the model
         layer_names = layout.layer_names
@@ -232,7 +230,7 @@ class LayoutComponentService(BaseService):
             combined_layout: Base layout data model to which layers will be added
             layers_dir: Directory containing layer files
         """
-        from glovebox.layout.models import LayerBindings, LayoutBinding
+        from glovebox.layout.models import LayoutBinding
 
         # Clear existing layers while preserving layer names
         combined_layout.layers = []

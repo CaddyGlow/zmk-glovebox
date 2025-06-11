@@ -4,18 +4,13 @@ from pathlib import Path
 from typing import Protocol, runtime_checkable
 from unittest.mock import Mock
 
-import pytest
-
 from glovebox.config.compile_methods import (
-    CompilationConfig,
     CompileMethodConfig,
     DockerCompileConfig,
-    WestWorkspaceConfig,
 )
 from glovebox.firmware.models import BuildResult
 from glovebox.protocols.compile_protocols import (
     CompilerProtocol,
-    GenericDockerCompilerProtocol,
 )
 
 

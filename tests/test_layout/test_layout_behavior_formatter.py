@@ -1,7 +1,5 @@
 """Tests for the behavior formatter."""
 
-from unittest.mock import Mock, patch
-
 import pytest
 
 from glovebox.config.models import BehaviorConfig, BehaviorMapping, ModifierMapping

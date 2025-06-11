@@ -2,15 +2,12 @@
 
 import json
 from pathlib import Path
-from typing import Any, cast
 from unittest.mock import Mock, patch
 
 import pytest
-import typer
 
 from glovebox.cli import app
 from glovebox.cli.commands import register_all_commands
-from glovebox.firmware.flash.models import FlashResult
 from glovebox.firmware.models import BuildResult
 from glovebox.layout.models import LayoutResult
 

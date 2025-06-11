@@ -3,7 +3,6 @@
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 import yaml
@@ -15,7 +14,6 @@ from glovebox.cli.helpers.profile import (
 )
 from glovebox.config.keyboard_profile import (
     create_keyboard_profile,
-    load_keyboard_config,
 )
 from glovebox.config.models import KeyboardConfig, UserConfigData
 from glovebox.core.errors import ConfigError

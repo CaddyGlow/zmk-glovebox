@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 
@@ -23,7 +23,6 @@ from glovebox.config.compile_methods import (
     CompilationConfig,
     DockerUserConfig,
 )
-from glovebox.config.profile import KeyboardProfile
 from glovebox.firmware.flash import create_flash_service
 
 

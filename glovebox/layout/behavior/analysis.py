@@ -9,7 +9,6 @@ if TYPE_CHECKING:
     from glovebox.layout.models import LayoutData
     from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
 
-    from .models import SystemBehavior
 
 logger = logging.getLogger(__name__)
 

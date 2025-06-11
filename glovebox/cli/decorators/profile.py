@@ -8,8 +8,6 @@ from typing import Any
 import typer
 from click.core import Context
 
-from glovebox.config.profile import KeyboardProfile
-
 
 logger = logging.getLogger(__name__)
 

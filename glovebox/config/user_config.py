@@ -12,7 +12,7 @@ This module handles user-specific configuration settings with multiple sources:
 import logging
 import os
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from glovebox.adapters.config_file_adapter import (
     ConfigFileAdapter,

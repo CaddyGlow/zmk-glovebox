@@ -1,7 +1,6 @@
 """Unified output formatting system with Rich integration and multiple format support."""
 
 import json
-from pathlib import Path
 from typing import Any, Protocol
 
 from rich.console import Console

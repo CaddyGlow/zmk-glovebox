@@ -1,7 +1,5 @@
 """Test that protocols are runtime checkable."""
 
-import pytest
-
 
 def test_compilation_protocols_runtime_checkable():
     """Test that compilation protocols are runtime checkable."""

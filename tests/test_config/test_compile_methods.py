@@ -695,7 +695,6 @@ class TestCompilationConfig:
 
     def test_west_workspace_path_expansion_in_generic_config(self):
         """Test workspace path expansion when used within CompilationConfig."""
-        import os
         from pathlib import Path
 
         config = CompilationConfig(

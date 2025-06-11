@@ -1,12 +1,10 @@
 """Helper functions for creating standardized mocks in tests."""
 
-from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Optional, Protocol, Union
+from typing import Any
 from unittest.mock import Mock, patch
 
-from glovebox.config.profile import KeyboardProfile
 from glovebox.firmware.flash.models import FlashResult
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.layout.models import LayoutResult, SystemBehavior

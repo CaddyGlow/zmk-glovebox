@@ -5,11 +5,8 @@ test fixtures. They verify that the interface works correctly but don't test
 the actual implementation.
 """
 
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock
 
-import pytest
-
-from glovebox.core.errors import ConfigError
 from glovebox.models.results import BaseResult
 
 

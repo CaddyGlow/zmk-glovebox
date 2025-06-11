@@ -13,7 +13,7 @@ import pytest
 from pydantic import ValidationError
 
 from glovebox.config.models import UserConfigData
-from glovebox.config.user_config import UserConfig, create_user_config
+from glovebox.config.user_config import create_user_config
 
 
 class TestEnvironmentVariableOverrides:
