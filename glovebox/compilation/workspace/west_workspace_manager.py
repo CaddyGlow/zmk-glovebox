@@ -2,12 +2,16 @@
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from glovebox.adapters import create_docker_adapter, create_file_adapter
 from glovebox.compilation.workspace.workspace_manager import WorkspaceManager
 from glovebox.config.compile_methods import WestWorkspaceConfig
 from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
+
+
+if TYPE_CHECKING:
+    from glovebox.config.models.workspace import UserWorkspaceConfig
 
 
 logger = logging.getLogger(__name__)
@@ -24,6 +28,7 @@ class WestWorkspaceManager(WorkspaceManager):
         file_adapter: FileAdapterProtocol | None = None,
         docker_adapter: DockerAdapterProtocol | None = None,
         workspace_root: Path | None = None,
+        workspace_config: "UserWorkspaceConfig | None" = None,
     ) -> None:
         """Initialize west workspace manager.
 
@@ -31,8 +36,9 @@ class WestWorkspaceManager(WorkspaceManager):
             file_adapter: File adapter for filesystem operations
             docker_adapter: Docker adapter for container operations
             workspace_root: Root directory for workspace operations
+            workspace_config: User workspace configuration for cleanup/preservation
         """
-        super().__init__(workspace_root)
+        super().__init__(workspace_root, workspace_config)
         self.file_adapter = file_adapter or create_file_adapter()
         self.docker_adapter = docker_adapter or create_docker_adapter()
 
@@ -230,14 +236,18 @@ class WestWorkspaceManager(WorkspaceManager):
 def create_west_workspace_manager(
     file_adapter: FileAdapterProtocol | None = None,
     docker_adapter: DockerAdapterProtocol | None = None,
+    workspace_config: "UserWorkspaceConfig | None" = None,
 ) -> WestWorkspaceManager:
     """Create west workspace manager instance.
 
     Args:
         file_adapter: File adapter for filesystem operations
         docker_adapter: Docker adapter for container operations
+        workspace_config: User workspace configuration for cleanup/preservation
 
     Returns:
         WestWorkspaceManager: West workspace manager instance
     """
-    return WestWorkspaceManager(file_adapter, docker_adapter)
+    return WestWorkspaceManager(
+        file_adapter, docker_adapter, workspace_config=workspace_config
+    )

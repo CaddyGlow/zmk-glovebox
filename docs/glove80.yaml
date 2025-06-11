@@ -6,7 +6,7 @@ key_count: 80
 # Compile method configurations
 compile_methods:
   - method_type: docker
-    image: moergo-zmk-build
+    # image: moergo-zmk-build
     repository: moergo-sc/zmk
     branch: v25.05
     jobs: 8

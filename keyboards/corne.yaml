@@ -3,62 +3,42 @@ description: "Corne (CRKBD) 42-key split keyboard"
 vendor: "foostan"
 key_count: 42
 
+# Workspace configuration for compilation
+workspace:
+  # Custom workspace root for Corne builds (optional)
+  root_directory: null # Uses default system temp directory
+  # Keep workspaces longer for development/debugging
+  cleanup_after_build: true
+  preserve_on_failure: true # Preserve failed builds for troubleshooting
+  max_preserved_workspaces: 5
+
 # Compile method configurations
 compile_methods:
   # Dynamic ZMK Config generation - generates workspace on-the-fly
-  - method_type: generic_docker
-    image: zmkfirmware/zmk-build-arm:stable
-    strategy: zmk_config
-    cache:
-      enabled: true
-      max_age_hours: 24.0
-      max_cache_size_gb: 5.0
-    zmk_config_repo:
-      config_repo_revision: "dynamic"
-      config_repo_url: ""
-      workspace_path: "~/.glovebox/dynamic-zmk-config/corne"
-      config_path: "config"
-      build_yaml_path: "build.yaml"
-      west_commands:
-        - "rm -rf .west"
-        - "west init -l config"
-        - "west update"
-    build_commands: [] # Commands auto-generated from build.yaml
-    environment_template:
-      ZEPHYR_TOOLCHAIN_VARIANT: "zephyr"
-      ZEPHYR_SDK_INSTALL_DIR: "/opt/zephyr-sdk"
-    volume_templates: [] # Volume mappings auto-generated
-    fallback_methods: ["west"]
+  - strategy: zmk_config
+    # image: zmkfirmware/zmk-build-arm:stable
+    # repository: "zmkfirmware/zmk"
+    # branch: "main"
+    # environment_template:
+    #   ZEPHYR_TOOLCHAIN_VARIANT: "zephyr"
+    #   ZEPHYR_SDK_INSTALL_DIR: "/opt/zephyr-sdk"
 
-  # Fallback to traditional ZMK west workspace
-  - method_type: generic_docker
-    image: zmkfirmware/zmk-build-arm:stable
-    strategy: west
-    board_targets: ["nice_nano_v2"]
-    cache:
-      enabled: true
-      max_age_hours: 24.0
-      max_cache_size_gb: 5.0
-    west_workspace:
-      manifest_url: "https://github.com/zmkfirmware/zmk.git"
-      manifest_revision: "main"
-      modules: []
-      west_commands:
-        - "west init -m https://github.com/zmkfirmware/zmk.git --mr main"
-        - "west update"
-      workspace_path: "~/.zmk-workspace"
-      config_path: "config"
-    build_commands:
-      - "west zehpyr-export"
-      - "west build -d build/left -s app -b nice_nano_v2 -- -DSHIELD=corne_left -DZMK_CONFIG=/zmk-workspace/config"
-      - "west build -d build/right -s app -b nice_nano_v2 -- -DSHIELD=corne_right -DZMK_CONFIG=/zmk-workspace/config"
-    environment_template:
-      ZEPHYR_TOOLCHAIN_VARIANT: "zephyr"
-      ZEPHYR_SDK_INSTALL_DIR: "/opt/zephyr-sdk"
-    volume_templates:
-      - "~/.zmk-workspace/config:/workspace/config:rw"
-      - "~/.zmk-workspace/.west:/workspace/.west:rw"
-    fallback_methods: ["local"]
+  # # Fallback to traditional ZMK west workspace
+  # - strategy: west
+  #   image: zmkfirmware/zmk-build-arm:stable
+  #   repository: "zmkfirmware/zmk"
+  #   branch: "main"
+  #   board_targets: ["nice_nano_v2"]
+  #   west_workspace:
+  #     workspace_path: "~/.zmk-workspace"
+  #   build_commands:
+  #     - "west zephyr-export"
+  #     - "west build -d build/left -s app -b nice_nano_v2 -- -DSHIELD=corne_left -DZMK_CONFIG=/workspace/config"
+  #     - "west build -d build/right -s app -b nice_nano_v2 -- -DSHIELD=corne_right -DZMK_CONFIG=/workspace/config"
+  #   environment_template:
+  #     ZEPHYR_TOOLCHAIN_VARIANT: "zephyr"
+  #     ZEPHYR_SDK_INSTALL_DIR: "/opt/zephyr-sdk"
+  #   fallback_methods: ["local"]
 
 # Flash method configurations
 flash_methods:

@@ -31,11 +31,8 @@ def test_compilation_domain_imports():
 def test_protocol_imports():
     """Test that all protocol imports work correctly."""
     from glovebox.compilation.protocols import (
-        ArtifactCollectorProtocol,
-        ArtifactValidatorProtocol,
         CompilationCoordinatorProtocol,
         CompilationServiceProtocol,
-        FirmwareScannerProtocol,
         WestWorkspaceManagerProtocol,
         WorkspaceManagerProtocol,
         ZmkConfigWorkspaceManagerProtocol,
@@ -48,9 +45,6 @@ def test_protocol_imports():
         WorkspaceManagerProtocol,
         WestWorkspaceManagerProtocol,
         ZmkConfigWorkspaceManagerProtocol,
-        ArtifactCollectorProtocol,
-        FirmwareScannerProtocol,
-        ArtifactValidatorProtocol,
     ]
 
     for protocol in protocols:
@@ -84,11 +78,6 @@ def test_factory_functions_exist():
 
 def test_subdomain_factory_functions():
     """Test that subdomain factory functions exist."""
-    from glovebox.compilation.artifacts import (
-        create_artifact_collector,
-        create_artifact_validator,
-        create_firmware_scanner,
-    )
     from glovebox.compilation.configuration import (
         create_build_matrix_resolver,
         create_environment_manager,
@@ -103,10 +92,6 @@ def test_subdomain_factory_functions():
 
     # Test all factory functions exist
     factory_functions = [
-        # Artifacts
-        create_artifact_collector,
-        create_firmware_scanner,
-        create_artifact_validator,
         # Configuration
         create_build_matrix_resolver,
         create_volume_manager,
@@ -139,18 +124,6 @@ def test_subdomain_factory_functions():
     ]
 
     for func in implemented_workspace_functions:
-        factory_func = cast(Callable[[], Any], func)
-        result = factory_func()
-        assert result is not None
-
-    # Test artifact factory functions return actual objects (Phase 5 completed)
-    artifact_functions = [
-        create_artifact_collector,
-        create_firmware_scanner,
-        create_artifact_validator,
-    ]
-
-    for func in artifact_functions:
         factory_func = cast(Callable[[], Any], func)
         result = factory_func()
         assert result is not None

@@ -25,9 +25,8 @@ from glovebox.compilation.configuration.volume_manager import (
     VolumeManager,
     create_volume_manager,
 )
-from glovebox.compilation.protocols.artifact_protocols import (
-    ArtifactCollectorProtocol,
-)
+
+# Artifact collection will be replaced with SimpleArtifactCollector in Phase 3
 from glovebox.config.compile_methods import CompilationConfig
 from glovebox.core.errors import BuildError
 from glovebox.firmware.models import BuildResult
@@ -48,7 +47,8 @@ class BaseCompilationService(BaseService):
         name: str,
         version: str,
         build_matrix_resolver: BuildMatrixResolver | None = None,
-        artifact_collector: ArtifactCollectorProtocol | None = None,
+        artifact_collector: Any
+        | None = None,  # Will be SimpleArtifactCollector in Phase 3
         environment_manager: EnvironmentManager | None = None,
         volume_manager: VolumeManager | None = None,
         user_context_manager: UserContextManager | None = None,
@@ -286,8 +286,8 @@ class BaseCompilationService(BaseService):
             # Prepare build environment
             build_env = self._prepare_build_environment(config)
 
-            # Prepare Docker volumes
-            volumes = self._prepare_build_volumes(workspace_path, output_dir, config)
+            # Prepare Docker volumes (single workspace strategy)
+            volumes = self._prepare_build_volumes(workspace_path, config)
 
             # Get compilation command from strategy
             compilation_command = self._build_compilation_command(
@@ -373,14 +373,15 @@ class BaseCompilationService(BaseService):
     def _prepare_build_volumes(
         self,
         workspace_path: Path,
-        output_dir: Path,
         config: CompilationConfig,
     ) -> list[tuple[str, str]]:
-        """Prepare Docker volumes for compilation.
+        """Prepare Docker volumes for compilation using single workspace volume strategy.
+
+        Simplified volume strategy: only mounts workspace volume to Docker container.
+        Artifacts are extracted from workspace post-execution using build matrix.
 
         Args:
             workspace_path: Path to workspace directory
-            output_dir: Output directory for artifacts
             config: Compilation configuration
 
         Returns:
@@ -388,23 +389,21 @@ class BaseCompilationService(BaseService):
         """
         volumes = []
 
-        # Add workspace volume - mount at /workspace for consistent path
+        # Single workspace volume only - mount at /workspace for consistent path
         volumes.append((str(workspace_path.resolve()), "/workspace"))
 
-        # Add output volume - ensure absolute path to avoid Docker named volume confusion
-        volumes.append((str(output_dir.resolve()), "/output"))
-
-        # Add custom volume templates
+        # Add custom volume templates (if specified by user)
         for volume_template in config.volume_templates:
             # Parse volume template (format: host_path:container_path)
             parts = volume_template.split(":")
             if len(parts) >= 2:
                 host_path = parts[0]
                 container_path = parts[1]
-
                 volumes.append((host_path, container_path))
 
-        self.logger.debug("Prepared %d Docker volumes", len(volumes))
+        self.logger.debug(
+            "Prepared %d Docker volumes (single workspace strategy)", len(volumes)
+        )
         return volumes
 
     def _collect_firmware_artifacts(
@@ -419,35 +418,16 @@ class BaseCompilationService(BaseService):
         Returns:
             Any: Firmware files collection (will be properly typed in Phase 2)
         """
-        # TODO: This will be enhanced with the generic cache system in Phase 2
-        # For now, use basic artifact collection pattern
+        # Use new SimpleArtifactCollector with ZMK GitHub Actions conventions
         if not self.artifact_collector:
-            # Fallback implementation - scan both workspace and output directories
-            from glovebox.compilation.artifacts import create_firmware_scanner
-            from glovebox.firmware.models import FirmwareOutputFiles
+            from glovebox.compilation.artifacts import create_simple_artifact_collector
 
-            scanner = create_firmware_scanner()
-            firmware_files = scanner.scan_workspace_and_output(
-                workspace_path, output_dir
+            collector = create_simple_artifact_collector()
+
+            # Collect and copy artifacts using ZMK build matrix
+            output_files = collector.collect_and_copy(
+                workspace_path=workspace_path, output_dir=output_dir
             )
-
-            # Create basic output files structure
-            output_files = FirmwareOutputFiles(output_dir=output_dir)
-            if firmware_files:
-                output_files.main_uf2 = firmware_files[0]
-                # Try to identify left/right hand files
-                for file_path in firmware_files:
-                    parent_name = file_path.parent.name.lower()
-                    if (
-                        parent_name in ["lf", "left"]
-                        or "left" in file_path.name.lower()
-                    ):
-                        output_files.left_uf2 = file_path
-                    elif (
-                        parent_name in ["rh", "right"]
-                        or "right" in file_path.name.lower()
-                    ):
-                        output_files.right_uf2 = file_path
 
             return output_files
 

@@ -17,6 +17,11 @@ from .keyboard import (
     VisualLayout,
 )
 from .user import UserConfigData
+from .workspace import (
+    UserArtifactConfig,
+    UserCompilationConfig,
+    UserWorkspaceConfig,
+)
 from .zmk import (
     FileExtensions,
     ValidationLimits,
@@ -48,6 +53,10 @@ __all__ = [
     "VisualLayout",
     # User models
     "UserConfigData",
+    # Workspace models
+    "UserArtifactConfig",
+    "UserCompilationConfig",
+    "UserWorkspaceConfig",
     # ZMK models
     "FileExtensions",
     "ValidationLimits",

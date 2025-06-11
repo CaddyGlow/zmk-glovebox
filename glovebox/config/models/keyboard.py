@@ -17,6 +17,7 @@ from ..flash_methods import (
     USBFlashConfig,
     WiFiFlashConfig,
 )
+from ..models.workspace import UserWorkspaceConfig
 from .behavior import BehaviorConfig
 from .display import DisplayConfig
 from .firmware import FirmwareConfig, KConfigOption

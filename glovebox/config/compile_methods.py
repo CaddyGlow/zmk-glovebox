@@ -170,8 +170,8 @@ class CompilationConfig(BaseModel):
     ] = "west"
 
     # Docker configuration (for docker-based strategies)
-    image: str = "moergo-zmk-build:latest"
-    repository: str = "moergo-sc/zmk"
+    image: str = "zmkfirmware/zmk-build-arm:stable"
+    repository: str = "zmkfirmware/zmk"
     branch: str = "main"
     jobs: int | None = None
     build_commands: list[str] = Field(default_factory=list)
@@ -192,6 +192,17 @@ class CompilationConfig(BaseModel):
 
     # Docker user configuration
     docker_user: DockerUserConfig = Field(default_factory=DockerUserConfig)
+
+    # Workspace configuration
+    workspace_root: Path | None = None
+    cleanup_workspace: bool = True
+    preserve_on_failure: bool = False
+
+    # Artifact handling
+    artifact_naming: str = (
+        "zmk_github_actions"  # zmk_github_actions, descriptive, preserve
+    )
+    build_matrix_file: Path | None = None  # Path to build.yaml
 
     # Fallback methods
     fallback_methods: list[str] = Field(default_factory=list)

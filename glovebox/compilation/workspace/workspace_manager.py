@@ -3,10 +3,14 @@
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from glovebox.core.errors import GloveboxError
 
+
+if TYPE_CHECKING:
+    from glovebox.compilation.workspace.workspace_context import WorkspaceContext
+    from glovebox.config.models.workspace import UserWorkspaceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -20,16 +24,23 @@ class WorkspaceManager(ABC):
 
     Provides common workspace management functionality including
     initialization, validation, and cleanup operations.
+    Enhanced to support workspace configuration for cleanup and preservation.
     """
 
-    def __init__(self, workspace_root: Path | None = None) -> None:
+    def __init__(
+        self,
+        workspace_root: Path | None = None,
+        workspace_config: "UserWorkspaceConfig | None" = None,
+    ) -> None:
         """Initialize workspace manager.
 
         Args:
             workspace_root: Root directory for workspace operations
+            workspace_config: User workspace configuration for cleanup/preservation
         """
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.workspace_root = workspace_root or Path.cwd() / ".workspace"
+        self.workspace_config = workspace_config
 
     @abstractmethod
     def initialize_workspace(self, **context: Any) -> bool:
@@ -162,6 +173,52 @@ class WorkspaceManager(ABC):
         except Exception as e:
             self.logger.error("Failed to get workspace info: %s", e)
             return {"path": str(workspace_path), "error": str(e)}
+
+    def create_workspace_context(
+        self,
+        workspace_path: Path,
+        keyboard_name: str,
+        strategy: str,
+        cleanup_after_build: bool | None = None,
+        preserve_on_failure: bool | None = None,
+    ) -> "WorkspaceContext":
+        """Create workspace context for lifecycle management.
+
+        Args:
+            workspace_path: Path to workspace directory
+            keyboard_name: Name of keyboard for identification
+            strategy: Compilation strategy name
+            cleanup_after_build: Override workspace cleanup setting
+            preserve_on_failure: Override failure preservation setting
+
+        Returns:
+            WorkspaceContext: Context manager for workspace lifecycle
+        """
+        from datetime import datetime
+
+        from glovebox.compilation.workspace.workspace_context import WorkspaceContext
+
+        # Determine cleanup settings with precedence
+        should_cleanup = cleanup_after_build
+        if should_cleanup is None and self.workspace_config:
+            should_cleanup = self.workspace_config.cleanup_after_build
+        elif should_cleanup is None:
+            should_cleanup = True  # Default to cleanup
+
+        should_preserve_on_failure = preserve_on_failure
+        if should_preserve_on_failure is None and self.workspace_config:
+            should_preserve_on_failure = self.workspace_config.preserve_on_failure
+        elif should_preserve_on_failure is None:
+            should_preserve_on_failure = False  # Default to no preservation
+
+        return WorkspaceContext(
+            path=workspace_path,
+            keyboard_name=keyboard_name,
+            strategy=strategy,
+            created_at=datetime.now(),
+            should_cleanup=should_cleanup,
+            preserve_on_failure=should_preserve_on_failure,
+        )
 
 
 def create_workspace_manager() -> WorkspaceManager:

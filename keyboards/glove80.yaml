@@ -3,21 +3,26 @@ description: "MoErgo Glove80 split ergonomic keyboard"
 vendor: "MoErgo"
 key_count: 80
 
+# Workspace configuration for compilation
+workspace:
+  # Custom workspace root for Glove80 builds (optional)
+  root_directory: null # Uses default system temp directory
+  # Preserve workspaces for debugging (useful for development)
+  cleanup_after_build: true
+  preserve_on_failure: false
+  max_preserved_workspaces: 3
+
 # Compile method configurations
 compile_methods:
-  - method_type: generic_docker
+  - strategy: zmk_config
     image: zmkfirmware/zmk-build-arm:stable
-    strategy: zmk_config
-    cache:
-      enabled: true
-      max_age_hours: 24.0
-      max_cache_size_gb: 5.0
-    zmk_config_repo:
-      workspace_path: "~/.glovebox/dynamic-zmk-config/glove80"
-    environment_template:
-      ZEPHYR_TOOLCHAIN_VARIANT: "zephyr"
-      ZEPHYR_SDK_INSTALL_DIR: "/opt/zephyr-sdk"
-    fallback_methods: ["west"]
+    repository: "moergo-sc/zmk"
+    branch: "v25.05"
+    # zmk_config_repo:
+    #   config_repo_revision: "dynamic"
+    # environment_template:
+    #   ZEPHYR_TOOLCHAIN_VARIANT: "zephyr"
+    #   ZEPHYR_SDK_INSTALL_DIR: "/opt/zephyr-sdk"
 
 # flash method configurations
 flash_methods:

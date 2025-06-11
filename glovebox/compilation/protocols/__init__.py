@@ -1,10 +1,5 @@
 """Compilation-specific protocols for type safety."""
 
-from glovebox.compilation.protocols.artifact_protocols import (
-    ArtifactCollectorProtocol,
-    ArtifactValidatorProtocol,
-    FirmwareScannerProtocol,
-)
 from glovebox.compilation.protocols.compilation_protocols import (
     CompilationCoordinatorProtocol,
     CompilationServiceProtocol,
@@ -24,8 +19,4 @@ __all__ = [
     "WorkspaceManagerProtocol",
     "ZmkConfigWorkspaceManagerProtocol",
     "WestWorkspaceManagerProtocol",
-    # Artifact protocols
-    "ArtifactCollectorProtocol",
-    "FirmwareScannerProtocol",
-    "ArtifactValidatorProtocol",
 ]

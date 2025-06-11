@@ -7,6 +7,7 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from .firmware import UserFirmwareConfig
+from .workspace import UserArtifactConfig, UserCompilationConfig, UserWorkspaceConfig
 
 
 class UserConfigData(BaseSettings):
@@ -83,6 +84,9 @@ class UserConfigData(BaseSettings):
 
     # Firmware settings
     firmware: UserFirmwareConfig = Field(default_factory=UserFirmwareConfig)
+
+    # Compilation settings
+    compilation: UserCompilationConfig = Field(default_factory=UserCompilationConfig)
 
     @field_validator("profile")
     @classmethod

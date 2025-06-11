@@ -140,6 +140,26 @@ def firmware_compile(
             help="Disable Docker user mapping entirely (overrides all user context settings)",
         ),
     ] = False,
+    # Workspace configuration options
+    workspace_dir: Annotated[
+        Path | None,
+        typer.Option("--workspace-dir", help="Custom workspace root directory"),
+    ] = None,
+    preserve_workspace: Annotated[
+        bool,
+        typer.Option("--preserve-workspace", help="Don't delete workspace after build"),
+    ] = False,
+    force_cleanup: Annotated[
+        bool,
+        typer.Option("--force-cleanup", help="Force workspace cleanup even on failure"),
+    ] = False,
+    build_matrix: Annotated[
+        Path | None,
+        typer.Option(
+            "--build-matrix",
+            help="Path to build.yaml file (auto-detected if not specified)",
+        ),
+    ] = None,
     output_format: OutputFormatOption = "text",
 ) -> None:
     """Build ZMK firmware from keymap and config files.
@@ -244,14 +264,17 @@ def firmware_compile(
             ]
 
     # Extract Docker image from keyboard profile configuration
-    image_value = "moergo-zmk-build:latest"  # Default fallback
+    image_value = "zmkfirmware/zmk-build-arm:stable"  # Default fallback
     if keyboard_profile and keyboard_profile.keyboard_config:
         # Find the compile method that matches the strategy
         for compile_method in keyboard_profile.keyboard_config.compile_methods:
-            if compile_method.strategy == strategy:
-                if hasattr(compile_method, "image") and compile_method.image:
-                    image_value = compile_method.image
-                    break
+            if (
+                compile_method.strategy == strategy
+                and hasattr(compile_method, "image")
+                and compile_method.image
+            ):
+                image_value = compile_method.image
+                break
 
     config = CompilationConfig(
         strategy=strategy,  # type: ignore[arg-type]
@@ -262,6 +285,13 @@ def firmware_compile(
         board_targets=board_targets_list or [],
         cache=cache_config,
         docker_user=docker_user_config,
+        # Workspace configuration
+        workspace_root=workspace_dir,
+        cleanup_workspace=not preserve_workspace if not force_cleanup else True,
+        preserve_on_failure=preserve_workspace and not force_cleanup,
+        # Artifact configuration
+        artifact_naming="zmk_github_actions",
+        build_matrix_file=build_matrix,
     )
 
     # Clear cache if requested
