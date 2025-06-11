@@ -1,6 +1,7 @@
 """ZMK config compilation service implementation."""
 
 import logging
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -14,6 +15,7 @@ from glovebox.compilation.workspace.zmk_config_workspace_manager import (
     create_zmk_config_workspace_manager,
 )
 from glovebox.config.compile_methods import CompilationConfig
+from glovebox.config.models.workspace import UserWorkspaceConfig
 
 
 if TYPE_CHECKING:
@@ -34,15 +36,20 @@ class ZmkConfigCompilationService(BaseCompilationService):
     def __init__(
         self,
         workspace_manager: ZmkConfigWorkspaceManagerProtocol | None = None,
+        user_workspace_config: UserWorkspaceConfig | None = None,
         **base_kwargs: Any,
     ) -> None:
         """Initialize ZMK config compilation service.
 
         Args:
             workspace_manager: ZMK config workspace manager
+            user_workspace_config: User workspace configuration
             **base_kwargs: Arguments passed to BaseCompilationService
         """
         super().__init__("zmk_config_compilation", "1.0.0", **base_kwargs)
+
+        # Store user workspace configuration
+        self.user_workspace_config = user_workspace_config or UserWorkspaceConfig()
 
         # Create workspace manager with content generator for dynamic workspace support
         from glovebox.compilation.generation.zmk_config_generator import (
@@ -335,8 +342,11 @@ class ZmkConfigCompilationService(BaseCompilationService):
         if config.zmk_config_repo and config.zmk_config_repo.workspace_path:
             return Path(config.zmk_config_repo.workspace_path)
 
-        # Fallback to default dynamic workspace location
-        return Path.cwd() / "build" / f"zmk_config_{keyboard_profile.keyboard_name}"
+        # Fallback to user-configured workspace location
+        return (
+            self.user_workspace_config.root_directory
+            / f"zmk_config_{keyboard_profile.keyboard_name}"
+        )
 
     def _extract_shield_name(
         self, config: CompilationConfig, keyboard_profile: "KeyboardProfile"
@@ -395,6 +405,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
 def create_zmk_config_service(
     workspace_manager: ZmkConfigWorkspaceManagerProtocol | None = None,
+    user_workspace_config: UserWorkspaceConfig | None = None,
     compilation_cache: Any | None = None,
     **base_kwargs: Any,
 ) -> ZmkConfigCompilationService:
@@ -402,6 +413,7 @@ def create_zmk_config_service(
 
     Args:
         workspace_manager: ZMK config workspace manager
+        user_workspace_config: User workspace configuration
         compilation_cache: Compilation cache instance
         **base_kwargs: Arguments passed to BaseCompilationService
 
@@ -414,5 +426,6 @@ def create_zmk_config_service(
 
     return ZmkConfigCompilationService(
         workspace_manager=workspace_manager,
+        user_workspace_config=user_workspace_config,
         **base_kwargs,
     )
