@@ -17,6 +17,15 @@ from glovebox.compilation.models.compilation_result import (
     CompilationResult,
     StrategyResult,
 )
+from glovebox.compilation.models.west_config import (
+    WestCommandsConfig,
+    WestDefaults,
+    WestManifest,
+    WestManifestConfig,
+    WestProject,
+    WestRemote,
+    WestSelf,
+)
 from glovebox.compilation.models.workspace_config import (
     WestWorkspaceConfig,
     WorkspaceConfig,
@@ -30,6 +39,14 @@ __all__: list[str] = [
     "BuildTarget",
     "BuildTargetConfig",
     "BuildYamlConfig",
+    # West configuration models
+    "WestCommandsConfig",
+    "WestDefaults",
+    "WestManifest",
+    "WestManifestConfig",
+    "WestProject",
+    "WestRemote",
+    "WestSelf",
     # Workspace models
     "WorkspaceConfig",
     "WestWorkspaceConfig",
