@@ -110,12 +110,19 @@ class ZmkConfigCompilationService(BaseCompilationService):
         # Build command sequence: initialize west workspace then build
         commands = [
             "cd /workspace",  # Ensure we're in the workspace
-            "rm -rf .west build build_right",  # Remove existing west workspace and build dirs
+            "rm -rf .west build build_left build_right",  # Remove existing west workspace and build dirs
             "west init -l config",  # Initialize west workspace with config
             "west update",  # Download dependencies
             "west zephyr-export",  # Export Zephyr build environment
             f"west build -s zmk/app -b {board_name} -d build_left -- -DSHIELD=corne_left -DZMK_CONFIG=/workspace/config",  # Build left half
             f"west build -s zmk/app -b {board_name} -d build_right -- -DSHIELD=corne_right -DZMK_CONFIG=/workspace/config",  # Build right half
+            # Copy firmware files to output directory in expected structure
+            "mkdir -p /output/build/lf/zephyr /output/build/rh/zephyr",  # Create output directories
+            "cp build_left/zephyr/zmk.uf2 /output/build/lf/zephyr/ 2>/dev/null || true",  # Copy left firmware
+            "cp build_right/zephyr/zmk.uf2 /output/build/rh/zephyr/ 2>/dev/null || true",  # Copy right firmware
+            # Also copy to base output directory for easier access
+            "cp build_left/zephyr/zmk.uf2 /output/corne_left.uf2 2>/dev/null || true",  # Copy left firmware to base
+            "cp build_right/zephyr/zmk.uf2 /output/corne_right.uf2 2>/dev/null || true",  # Copy right firmware to base
         ]
 
         return " && ".join(commands)

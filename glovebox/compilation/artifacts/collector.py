@@ -218,13 +218,14 @@ class ArtifactCollector:
         # Set main firmware file (first one found)
         output_files.main_uf2 = firmware_files[0]
 
-        # Try to identify left/right hand files based on directory structure
+        # Try to identify left/right hand files based on directory structure and filename
         for firmware_file in firmware_files:
             parent_dir = firmware_file.parent.name.lower()
+            filename = firmware_file.name.lower()
 
-            if parent_dir == "lf" or "left" in parent_dir:
+            if parent_dir == "lf" or "left" in parent_dir or "left" in filename:
                 output_files.left_uf2 = firmware_file
-            elif parent_dir == "rh" or "right" in parent_dir:
+            elif parent_dir == "rh" or "right" in parent_dir or "right" in filename:
                 output_files.right_uf2 = firmware_file
 
         # Set artifacts directory if we found build artifacts
