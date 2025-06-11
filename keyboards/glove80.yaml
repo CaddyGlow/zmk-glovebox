@@ -6,13 +6,17 @@ key_count: 80
 # Compile method configurations
 compile_methods:
   - method_type: generic_docker
-    build_strategy: zmk_config
-    cache_workspace: true
+    image: zmkfirmware/zmk-build-arm:stable
+    strategy: zmk_config
+    cache:
+      enabled: true
+      max_age_hours: 24.0
+      max_cache_size_gb: 5.0
     zmk_config_repo:
       workspace_path: "~/.glovebox/dynamic-zmk-config/glove80"
     environment_template:
-      zephyr_toolchain_variant: "zephyr"
-      zephyr_sdk_install_dir: "/opt/zephyr-sdk"
+      ZEPHYR_TOOLCHAIN_VARIANT: "zephyr"
+      ZEPHYR_SDK_INSTALL_DIR: "/opt/zephyr-sdk"
     fallback_methods: ["west"]
 
 # flash method configurations

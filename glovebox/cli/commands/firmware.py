@@ -243,8 +243,19 @@ def firmware_compile(
                 "enable_user_mapping"
             ]
 
+    # Extract Docker image from keyboard profile configuration
+    image_value = "moergo-zmk-build:latest"  # Default fallback
+    if keyboard_profile and keyboard_profile.keyboard_config:
+        # Find the compile method that matches the strategy
+        for compile_method in keyboard_profile.keyboard_config.compile_methods:
+            if compile_method.strategy == strategy:
+                if hasattr(compile_method, "image") and compile_method.image:
+                    image_value = compile_method.image
+                    break
+
     config = CompilationConfig(
         strategy=strategy,  # type: ignore[arg-type]
+        image=image_value,
         repository=repo_value,
         branch=branch_value,
         jobs=jobs,

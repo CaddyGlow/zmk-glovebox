@@ -609,9 +609,11 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
                     "Content generator failed to create workspace"
                 )
 
-            # Initialize west workspace in the generated config directory
-            if not self.initialize_west_workspace(workspace_path):
-                return False
+            # Skip west workspace initialization for dynamic workspaces
+            # West commands will be run inside Docker container during compilation
+            self.logger.debug(
+                "Skipping west initialization for dynamic workspace (will be done in Docker)"
+            )
 
             self.logger.info(
                 "Dynamic ZMK config workspace initialized successfully (direct)"

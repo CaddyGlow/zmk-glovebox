@@ -36,6 +36,7 @@ def create_zmk_config_service() -> CompilationServiceProtocol:
     Returns:
         CompilationServiceProtocol: ZMK config compilation service
     """
+    from glovebox.adapters import create_docker_adapter
     from glovebox.compilation.cache import create_compilation_cache
     from glovebox.compilation.services.zmk_config_service import (
         create_zmk_config_service as _create_service,
@@ -44,7 +45,13 @@ def create_zmk_config_service() -> CompilationServiceProtocol:
     # Create compilation cache for service
     compilation_cache = create_compilation_cache()
 
-    return _create_service(compilation_cache=compilation_cache)
+    # Create Docker adapter for service
+    docker_adapter = create_docker_adapter()
+
+    return _create_service(
+        compilation_cache=compilation_cache,
+        docker_adapter=docker_adapter,
+    )
 
 
 def create_west_service() -> CompilationServiceProtocol:
@@ -53,6 +60,7 @@ def create_west_service() -> CompilationServiceProtocol:
     Returns:
         CompilationServiceProtocol: West compilation service
     """
+    from glovebox.adapters import create_docker_adapter
     from glovebox.compilation.cache import create_compilation_cache
     from glovebox.compilation.services.west_compilation_service import (
         create_west_service as _create_service,
@@ -61,7 +69,13 @@ def create_west_service() -> CompilationServiceProtocol:
     # Create compilation cache for service
     compilation_cache = create_compilation_cache()
 
-    return _create_service(compilation_cache=compilation_cache)
+    # Create Docker adapter for service
+    docker_adapter = create_docker_adapter()
+
+    return _create_service(
+        compilation_cache=compilation_cache,
+        docker_adapter=docker_adapter,
+    )
 
 
 def create_cmake_service() -> CompilationServiceProtocol:

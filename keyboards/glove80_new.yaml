@@ -31,22 +31,27 @@ compile_methods:
   # Modern Generic Docker compiler (primary)
   - method_type: generic_docker
     image: moergo-zmk-build
-    build_strategy: west # or cmake
-    repository: moergo-sc/zmk
-    branch: v25.05
-    jobs: 8
-    # Configure for Glove80's specific build process
+    strategy: west
+    cache:
+      enabled: true
+      max_age_hours: 24.0
+      max_cache_size_gb: 5.0
     west_workspace:
       manifest_url: "https://github.com/moergo-sc/zmk.git"
       manifest_revision: "v25.05"
       workspace_path: "/zmk-workspace"
       config_path: "config"
 
-  # Legacy fallback (keep for backward compatibility)
-  - method_type: docker
+  # Fallback to zmk_config strategy
+  - method_type: generic_docker
     image: moergo-zmk-build
-    repository: moergo-sc/zmk
-    branch: v25.05
+    strategy: zmk_config
+    cache:
+      enabled: true
+      max_age_hours: 24.0
+      max_cache_size_gb: 5.0
+    zmk_config_repo:
+      workspace_path: "~/.glovebox/dynamic-zmk-config/glove80"
     fallback_methods: ["local"]
 
 # Flash method configurations

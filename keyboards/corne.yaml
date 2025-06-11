@@ -8,8 +8,11 @@ compile_methods:
   # Dynamic ZMK Config generation - generates workspace on-the-fly
   - method_type: generic_docker
     image: zmkfirmware/zmk-build-arm:stable
-    build_strategy: zmk_config
-    cache_workspace: true
+    strategy: zmk_config
+    cache:
+      enabled: true
+      max_age_hours: 24.0
+      max_cache_size_gb: 5.0
     zmk_config_repo:
       config_repo_revision: "dynamic"
       config_repo_url: ""
@@ -30,9 +33,12 @@ compile_methods:
   # Fallback to traditional ZMK west workspace
   - method_type: generic_docker
     image: zmkfirmware/zmk-build-arm:stable
-    build_strategy: west
+    strategy: west
     board_targets: ["nice_nano_v2"]
-    cache_workspace: true
+    cache:
+      enabled: true
+      max_age_hours: 24.0
+      max_cache_size_gb: 5.0
     west_workspace:
       manifest_url: "https://github.com/zmkfirmware/zmk.git"
       manifest_revision: "main"
