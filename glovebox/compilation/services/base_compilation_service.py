@@ -388,8 +388,8 @@ class BaseCompilationService(BaseService):
         """
         volumes = []
 
-        # Add workspace volume
-        volumes.append((str(workspace_path), str(workspace_path)))
+        # Add workspace volume - mount at /workspace for consistent path
+        volumes.append((str(workspace_path), "/workspace"))
 
         # Add output volume
         volumes.append((str(output_dir), "/output"))

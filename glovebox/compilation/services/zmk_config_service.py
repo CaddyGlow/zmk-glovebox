@@ -102,11 +102,23 @@ class ZmkConfigCompilationService(BaseCompilationService):
             config: Compilation configuration
 
         Returns:
-            str: West build command
+            str: Complete west command sequence
         """
-        # ZMK config uses west build with specific board configuration
+        # ZMK config requires west workspace initialization and build
         board_name = self._extract_board_name(config)
-        return f"west build -s app -b {board_name}"
+
+        # Build command sequence: initialize west workspace then build
+        commands = [
+            "cd /workspace",  # Ensure we're in the workspace
+            "rm -rf .west build build_right",  # Remove existing west workspace and build dirs
+            "west init -l config",  # Initialize west workspace with config
+            "west update",  # Download dependencies
+            "west zephyr-export",  # Export Zephyr build environment
+            f"west build -s zmk/app -b {board_name} -d build_left -- -DSHIELD=corne_left -DZMK_CONFIG=/workspace/config",  # Build left half
+            f"west build -s zmk/app -b {board_name} -d build_right -- -DSHIELD=corne_right -DZMK_CONFIG=/workspace/config",  # Build right half
+        ]
+
+        return " && ".join(commands)
 
     def _should_use_dynamic_generation(
         self,
