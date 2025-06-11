@@ -86,34 +86,6 @@ class DockerCompileConfig(CompileMethodConfig):
     jobs: int | None = None
 
 
-class LocalCompileConfig(CompileMethodConfig):
-    """Local ZMK compilation configuration."""
-
-    method_type: str = "local"
-    zmk_path: Path
-    toolchain_path: Path | None = None
-    zephyr_base: Path | None = None
-    jobs: int | None = None
-
-
-class CrossCompileConfig(CompileMethodConfig):
-    """Cross-compilation configuration."""
-
-    method_type: str = "cross"
-    target_arch: str  # "arm", "x86_64", etc.
-    sysroot: Path
-    toolchain_prefix: str  # "arm-none-eabi-"
-    cmake_toolchain: Path | None = None
-
-
-class QemuCompileConfig(CompileMethodConfig):
-    """QEMU-based compilation for testing."""
-
-    method_type: str = "qemu"
-    qemu_target: str = "native_posix"
-    test_runners: list[str] = Field(default_factory=list)
-
-
 class CacheConfig(BaseModel):
     """Configuration for cache management."""
 
@@ -159,15 +131,7 @@ class CompilationConfig(BaseModel):
     strategy: Literal[
         "zmk_config",
         "west",
-        "docker",
-        "local",
-        "cross",
-        "qemu",
-        "cmake",
-        "make",
-        "ninja",
-        "custom",
-    ] = "west"
+    ] = "zmk_config"
 
     # Docker configuration (for docker-based strategies)
     image: str = "zmkfirmware/zmk-build-arm:stable"
@@ -269,11 +233,6 @@ class CompilationConfig(BaseModel):
         return self.strategy in [
             "zmk_config",
             "west",
-            "docker",
-            "cmake",
-            "make",
-            "ninja",
-            "custom",
         ]
 
     def get_method_type(self) -> str:
@@ -332,7 +291,4 @@ __all__ = [
     "DockerUserConfig",
     "CompilationConfig",
     "GenericDockerCompileConfig",  # Backward compatibility
-    "LocalCompileConfig",
-    "CrossCompileConfig",
-    "QemuCompileConfig",
 ]

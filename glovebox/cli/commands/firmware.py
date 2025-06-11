@@ -71,7 +71,7 @@ def firmware_compile(
         str,
         typer.Option(
             "--strategy",
-            help="Compilation strategy: zmk_config (default), west, cmake, make, ninja, custom",
+            help="Compilation strategy: zmk_config (default), west",
         ),
     ] = "zmk_config",
     no_cache: Annotated[
@@ -170,10 +170,6 @@ def firmware_compile(
     Supports multiple compilation strategies:
     - zmk_config: ZMK config repository builds (default, recommended)
     - west: Traditional ZMK west workspace builds
-    - cmake: Direct CMake builds
-    - make: Traditional make builds
-    - ninja: Ninja build system
-    - custom: Custom build commands
 
     Examples:
         # Basic ZMK config build (default strategy)
@@ -194,8 +190,6 @@ def firmware_compile(
         # Manual Docker user context (solves permission issues)
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --docker-uid 1000 --docker-gid 1000
 
-        # CMake build strategy (for custom builds)
-        glovebox firmware compile keymap.keymap config.conf --profile custom/board --strategy cmake
 
         # Verbose output with build details
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --verbose

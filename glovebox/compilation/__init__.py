@@ -14,7 +14,7 @@ def create_compilation_service(strategy: str) -> CompilationServiceProtocol:
     """Create compilation service for specified strategy.
 
     Args:
-        strategy: Compilation strategy ("zmk_config" or "west")
+        strategy: Compilation strategy
 
     Returns:
         CompilationServiceProtocol: Configured compilation service
@@ -27,7 +27,9 @@ def create_compilation_service(strategy: str) -> CompilationServiceProtocol:
     elif strategy == "west":
         return create_west_service()
     else:
-        raise ValueError(f"Unknown compilation strategy: {strategy}")
+        raise ValueError(
+            f"Unknown compilation strategy: {strategy}. Supported strategies: zmk_config, west"
+        )
 
 
 def create_zmk_config_service() -> CompilationServiceProtocol:
@@ -97,5 +99,4 @@ __all__ = [
     "create_compilation_service",
     "create_zmk_config_service",
     "create_west_service",
-    "create_cmake_service",
 ]

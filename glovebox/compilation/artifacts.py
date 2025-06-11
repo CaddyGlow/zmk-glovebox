@@ -161,12 +161,14 @@ class SimpleArtifactCollector:
         Returns:
             Path: Expected build directory
         """
-        if entry.shield:
-            # Split keyboard builds use separate directories
-            return workspace_path / f"build_{entry.shield}"
-        else:
-            # Single board builds use build directory
-            return workspace_path / "build"
+        shield_prefix = f"{entry.shield}-" if entry.shield else ""
+        return workspace_path / "build" / f"{shield_prefix}{entry.board}"
+        # if entry.shield:
+        #     # Split keyboard builds use separate directories
+        #     return workspace_path / f"build_{entry.shield}"
+        # else:
+        #     # Single board builds use build directory
+        #     return workspace_path / "build"
 
     def copy_to_output(
         self, artifacts: dict[str, Path], output_dir: Path

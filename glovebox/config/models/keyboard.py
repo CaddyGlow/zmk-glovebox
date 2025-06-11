@@ -6,10 +6,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..compile_methods import (
     CompilationConfig,
-    CrossCompileConfig,
     DockerCompileConfig,
-    LocalCompileConfig,
-    QemuCompileConfig,
 )
 from ..flash_methods import (
     BootloaderFlashConfig,
@@ -65,13 +62,7 @@ class KeymapSection(BaseModel):
 
 
 # Union types for method configurations
-CompileMethodConfigUnion = (
-    DockerCompileConfig
-    | CompilationConfig
-    | LocalCompileConfig
-    | CrossCompileConfig
-    | QemuCompileConfig
-)
+CompileMethodConfigUnion = DockerCompileConfig | CompilationConfig
 
 FlashMethodConfigUnion = (
     USBFlashConfig | DFUFlashConfig | BootloaderFlashConfig | WiFiFlashConfig

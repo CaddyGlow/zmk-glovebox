@@ -17,6 +17,7 @@ from glovebox.config.compile_methods import CompilationConfig
 
 
 if TYPE_CHECKING:
+    from glovebox.compilation.models.build_matrix import BuildMatrix
     from glovebox.config.profile import KeyboardProfile
 
 logger = logging.getLogger(__name__)
@@ -97,6 +98,9 @@ class ZmkConfigCompilationService(BaseCompilationService):
     ) -> str:
         """Build west compilation command for ZMK config strategy.
 
+        Uses build.yaml from workspace to generate west build commands
+        following GitHub Actions workflow pattern.
+
         Args:
             workspace_path: Path to workspace directory
             config: Compilation configuration
@@ -104,28 +108,126 @@ class ZmkConfigCompilationService(BaseCompilationService):
         Returns:
             str: Complete west command sequence
         """
-        # ZMK config requires west workspace initialization and build
-        board_name = self._extract_board_name(config)
+        # Import build matrix resolver
+        from glovebox.compilation.configuration.build_matrix_resolver import (
+            create_build_matrix_resolver,
+        )
 
-        # Build command sequence: initialize west workspace then build
+        # Initialize commands with workspace setup
         commands = [
             "cd /workspace",  # Ensure we're in the workspace
-            "rm -rf .west build build_left build_right",  # Remove existing west workspace and build dirs
+            "rm -rf .west build",  # Remove existing west workspace and build dirs
             "west init -l config",  # Initialize west workspace with config
             "west update",  # Download dependencies
             "west zephyr-export",  # Export Zephyr build environment
-            f"west build -s zmk/app -b {board_name} -d build_left -- -DSHIELD=corne_left -DZMK_CONFIG=/workspace/config",  # Build left half
-            f"west build -s zmk/app -b {board_name} -d build_right -- -DSHIELD=corne_right -DZMK_CONFIG=/workspace/config",  # Build right half
-            # Copy firmware files to output directory in expected structure
-            "mkdir -p /output/build/lf/zephyr /output/build/rh/zephyr",  # Create output directories
-            "cp build_left/zephyr/zmk.uf2 /output/build/lf/zephyr/ 2>/dev/null || true",  # Copy left firmware
-            "cp build_right/zephyr/zmk.uf2 /output/build/rh/zephyr/ 2>/dev/null || true",  # Copy right firmware
-            # Also copy to base output directory for easier access
-            "cp build_left/zephyr/zmk.uf2 /output/corne_left.uf2 2>/dev/null || true",  # Copy left firmware to base
-            "cp build_right/zephyr/zmk.uf2 /output/corne_right.uf2 2>/dev/null || true",  # Copy right firmware to base
         ]
 
+        # Check for build.yaml in workspace config directory
+        build_yaml_path = workspace_path / "build.yaml"
+        if build_yaml_path.exists():
+            try:
+                # Parse build matrix from build.yaml
+                resolver = create_build_matrix_resolver()
+                build_matrix = resolver.resolve_from_build_yaml(build_yaml_path)
+
+                # Generate west build commands for each target
+                build_commands = self._generate_build_commands_from_matrix(build_matrix)
+                commands.extend(build_commands)
+
+            except Exception as e:
+                self.logger.warning("Failed to parse build.yaml, using fallback: %s", e)
+                commands.extend(self._generate_fallback_build_commands(config))
+        else:
+            # No build.yaml found, use fallback approach
+            self.logger.debug("No build.yaml found, using fallback build commands")
+            commands.extend(self._generate_fallback_build_commands(config))
+
         return " && ".join(commands)
+
+    def _generate_build_commands_from_matrix(
+        self, build_matrix: "BuildMatrix"
+    ) -> list[str]:
+        """Generate west build commands from build matrix.
+
+        Creates build commands following GitHub Actions workflow pattern
+        with proper build directories and CMake arguments.
+
+        Args:
+            build_matrix: Resolved build matrix from build.yaml
+
+        Returns:
+            list[str]: West build commands for each target
+        """
+
+        commands = []
+
+        for target in build_matrix.targets:
+            # Generate build directory name
+            build_dir = Path("build") / f"{target.artifact_name or target.board}"
+            if target.shield:
+                build_dir = Path("build") / f"{target.shield}-{target.board}"
+
+            # Build west command with GitHub Actions workflow parameters
+            west_cmd = f"west build -s zmk/app -b {target.board} -d {build_dir}"
+
+            # Add CMake arguments
+            cmake_args = ["-DZMK_CONFIG=/workspace/config"]
+
+            # Add shield if specified
+            if target.shield:
+                cmake_args.append(f"-DSHIELD={target.shield}")
+
+            # Add target-specific cmake args
+            if target.cmake_args:
+                cmake_args.extend(target.cmake_args)
+
+            # Add snippet if specified
+            if target.snippet:
+                cmake_args.append(f"-DZMK_EXTRA_MODULES={target.snippet}")
+
+            # Combine command with cmake args
+            if cmake_args:
+                west_cmd += f" -- {' '.join(cmake_args)}"
+
+            commands.append(west_cmd)
+            self.logger.debug(
+                "Generated build command for %s: %s", target.artifact_name, west_cmd
+            )
+
+        return commands
+
+    def _generate_fallback_build_commands(self, config: CompilationConfig) -> list[str]:
+        """Generate fallback build commands when build.yaml is not available.
+
+        Uses configuration to generate basic west build commands.
+
+        Args:
+            config: Compilation configuration
+
+        Returns:
+            list[str]: Fallback west build commands
+        """
+        commands = []
+        board_name = self._extract_board_name(config)
+
+        # Generate basic build command
+        west_cmd = f"west build -s zmk/app -b {board_name} -d build"
+        cmake_args = ["-DZMK_CONFIG=/workspace/config"]
+
+        # Add board targets as shields if available
+        if config.board_targets and len(config.board_targets) > 1:
+            # Multiple board targets - generate commands for each
+            for board_target in config.board_targets:
+                build_dir = f"build_{board_target}"
+                target_cmd = f"west build -s zmk/app -b {board_target} -d {build_dir}"
+                target_cmd += f" -- {' '.join(cmake_args)}"
+                commands.append(target_cmd)
+        else:
+            # Single board target
+            west_cmd += f" -- {' '.join(cmake_args)}"
+            commands.append(west_cmd)
+
+        return commands
 
     def _should_use_dynamic_generation(
         self,

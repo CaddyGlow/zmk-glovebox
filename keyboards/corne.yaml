@@ -3,42 +3,22 @@ description: "Corne (CRKBD) 42-key split keyboard"
 vendor: "foostan"
 key_count: 42
 
-# Workspace configuration for compilation
-workspace:
-  # Custom workspace root for Corne builds (optional)
-  root_directory: null # Uses default system temp directory
-  # Keep workspaces longer for development/debugging
-  cleanup_after_build: true
-  preserve_on_failure: true # Preserve failed builds for troubleshooting
-  max_preserved_workspaces: 5
-
-# Compile method configurations
 compile_methods:
-  # Dynamic ZMK Config generation - generates workspace on-the-fly
+  # ZMK Config strategy - generates workspace dynamically
   - strategy: zmk_config
-    # image: zmkfirmware/zmk-build-arm:stable
-    # repository: "zmkfirmware/zmk"
-    # branch: "main"
-    # environment_template:
-    #   ZEPHYR_TOOLCHAIN_VARIANT: "zephyr"
-    #   ZEPHYR_SDK_INSTALL_DIR: "/opt/zephyr-sdk"
-
-  # # Fallback to traditional ZMK west workspace
-  # - strategy: west
-  #   image: zmkfirmware/zmk-build-arm:stable
-  #   repository: "zmkfirmware/zmk"
-  #   branch: "main"
-  #   board_targets: ["nice_nano_v2"]
-  #   west_workspace:
-  #     workspace_path: "~/.zmk-workspace"
-  #   build_commands:
-  #     - "west zephyr-export"
-  #     - "west build -d build/left -s app -b nice_nano_v2 -- -DSHIELD=corne_left -DZMK_CONFIG=/workspace/config"
-  #     - "west build -d build/right -s app -b nice_nano_v2 -- -DSHIELD=corne_right -DZMK_CONFIG=/workspace/config"
-  #   environment_template:
-  #     ZEPHYR_TOOLCHAIN_VARIANT: "zephyr"
-  #     ZEPHYR_SDK_INSTALL_DIR: "/opt/zephyr-sdk"
-  #   fallback_methods: ["local"]
+    image: "zmkfirmware/zmk-build-arm:stable"
+    repository: "zmkfirmware/zmk"
+    branch: "main"
+    board_targets: ["nice_nano_v2"]
+    environment_template:
+      ZEPHYR_TOOLCHAIN_VARIANT: "zephyr"
+      ZEPHYR_SDK_INSTALL_DIR: "/opt/zephyr-sdk"
+    cache:
+      enabled: true
+      max_age_hours: 24.0
+    docker_user:
+      enable_user_mapping: true
+      detect_user_automatically: true
 
 # Flash method configurations
 flash_methods:
@@ -47,14 +27,13 @@ flash_methods:
     mount_timeout: 30
     copy_timeout: 60
     sync_after_copy: true
-    fallback_methods: ["dfu"]
+
   - method_type: dfu
     vid: "0x1209"
     pid: "0x0001"
     interface: 0
     alt_setting: 0
     timeout: 30
-    fallback_methods: []
 
 firmwares:
   main:
