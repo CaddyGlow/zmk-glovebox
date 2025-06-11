@@ -1,13 +1,17 @@
 """Workspace management protocols."""
 
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from glovebox.config.compile_methods import (
     GenericDockerCompileConfig,
     WestWorkspaceConfig,
     ZmkConfigRepoConfig,
 )
+
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
 
 
 @runtime_checkable
@@ -101,5 +105,29 @@ class ZmkConfigWorkspaceManagerProtocol(WorkspaceManagerProtocol, Protocol):
 
         Returns:
             bool: True if clone succeeded
+        """
+        ...
+
+    def initialize_dynamic_workspace(
+        self,
+        workspace_path: Path,
+        keymap_file: Path,
+        config_file: Path,
+        keyboard_profile: "KeyboardProfile",
+        shield_name: str | None = None,
+        board_name: str = "nice_nano_v2",
+    ) -> bool:
+        """Initialize dynamic ZMK config workspace without external repository.
+
+        Args:
+            workspace_path: Path to workspace directory
+            keymap_file: Source keymap file
+            config_file: Source config file
+            keyboard_profile: Keyboard profile for configuration
+            shield_name: Shield name (defaults to keyboard name)
+            board_name: Board name for builds
+
+        Returns:
+            bool: True if workspace initialized successfully
         """
         ...

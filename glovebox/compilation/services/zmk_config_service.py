@@ -24,10 +24,6 @@ from glovebox.compilation.configuration.volume_manager import (
     VolumeManager,
     create_volume_manager,
 )
-from glovebox.compilation.generation.zmk_config_generator import (
-    ZmkConfigContentGenerator,
-    create_zmk_config_content_generator,
-)
 from glovebox.compilation.models.build_matrix import BuildMatrix, BuildTarget
 from glovebox.compilation.protocols.artifact_protocols import (
     ArtifactCollectorProtocol,
@@ -75,7 +71,6 @@ class ZmkConfigCompilationService(BaseCompilationService):
         volume_manager: VolumeManager | None = None,
         user_context_manager: UserContextManager | None = None,
         docker_adapter: DockerAdapterProtocol | None = None,
-        content_generator: ZmkConfigContentGenerator | None = None,
         firmware_scanner: FirmwareScanner | None = None,
         file_adapter: FileAdapterProtocol | None = None,
     ) -> None:
@@ -89,13 +84,20 @@ class ZmkConfigCompilationService(BaseCompilationService):
             volume_manager: Docker volume manager
             user_context_manager: User context manager for Docker user mapping
             docker_adapter: Docker adapter for container operations
-            content_generator: ZMK config content generator for dynamic workspaces
             firmware_scanner: Firmware scanner for workspace and output scanning
             file_adapter: File operations adapter
         """
         super().__init__("zmk_config_compilation", "1.0.0")
+
+        # Create workspace manager with content generator for dynamic workspace support
+        from glovebox.compilation.generation.zmk_config_generator import (
+            create_zmk_config_content_generator,
+        )
+
+        content_generator = create_zmk_config_content_generator()
         self.workspace_manager = (
-            workspace_manager or create_zmk_config_workspace_manager()
+            workspace_manager
+            or create_zmk_config_workspace_manager(content_generator=content_generator)
         )
         self.build_matrix_resolver = (
             build_matrix_resolver or create_build_matrix_resolver()
@@ -105,9 +107,6 @@ class ZmkConfigCompilationService(BaseCompilationService):
         self.volume_manager = volume_manager or create_volume_manager()
         self.user_context_manager = (
             user_context_manager or create_user_context_manager()
-        )
-        self.content_generator = (
-            content_generator or create_zmk_config_content_generator()
         )
         self.firmware_scanner = firmware_scanner or create_firmware_scanner()
 
@@ -146,24 +145,44 @@ class ZmkConfigCompilationService(BaseCompilationService):
         result = BuildResult(success=True)
 
         try:
-            # Handle dynamic generation or repository-based configuration
+            # Determine workspace initialization strategy and initialize workspace
             if self._should_use_dynamic_generation(config, keyboard_profile):
-                # Use dynamic generation mode
+                # Validate keyboard profile is available for dynamic generation
+                if not keyboard_profile:
+                    result.success = False
+                    result.add_error(
+                        "Keyboard profile required for dynamic workspace generation"
+                    )
+                    return result
+
+                # Use dynamic generation mode via workspace manager
                 workspace_path = self._get_dynamic_workspace_path(
                     config, keyboard_profile
                 )
 
-                if not self._initialize_dynamic_workspace(
-                    workspace_path, keymap_file, config_file, keyboard_profile, config
+                # Extract shield and board names for dynamic workspace
+                shield_name = self._extract_shield_name(config, keyboard_profile)
+                board_name = self._extract_board_name(config)
+
+                # Initialize dynamic workspace using workspace manager
+                if not self.workspace_manager.initialize_dynamic_workspace(
+                    workspace_path=workspace_path,
+                    keymap_file=keymap_file,
+                    config_file=config_file,
+                    keyboard_profile=keyboard_profile,
+                    shield_name=shield_name,
+                    board_name=board_name,
                 ):
                     result.success = False
-                    result.add_error("Failed to generate dynamic ZMK config workspace")
+                    result.add_error(
+                        "Failed to initialize dynamic ZMK config workspace"
+                    )
                     return result
 
                 # Create minimal config for dynamic mode
                 config_repo_config = self._create_dynamic_config(workspace_path)
             else:
-                # Use repository-based configuration
+                # Use repository-based configuration via workspace manager
                 if not self._validate_zmk_config(config, result):
                     return result
 
@@ -174,9 +193,11 @@ class ZmkConfigCompilationService(BaseCompilationService):
                     return result
                 workspace_path = Path(config_repo_config.workspace_path)
 
-                # Initialize repository workspace
-                if not self._initialize_workspace(
-                    config_repo_config, keymap_file, config_file
+                # Initialize repository workspace using workspace manager
+                if not self.workspace_manager.initialize_workspace(
+                    config_repo_config=config_repo_config,
+                    keymap_file=keymap_file,
+                    config_file=config_file,
                 ):
                     result.success = False
                     result.add_error("Failed to initialize ZMK config workspace")
@@ -310,28 +331,6 @@ class ZmkConfigCompilationService(BaseCompilationService):
             docker_adapter: Docker adapter instance
         """
         self._docker_adapter = docker_adapter
-
-    def _initialize_workspace(
-        self,
-        config_repo_config: Any,
-        keymap_file: Path,
-        config_file: Path,
-    ) -> bool:
-        """Initialize ZMK config workspace.
-
-        Args:
-            config_repo_config: ZMK config repository configuration
-            keymap_file: User keymap file
-            config_file: User config file
-
-        Returns:
-            bool: True if workspace initialized successfully
-        """
-        return self.workspace_manager.initialize_workspace(
-            config_repo_config=config_repo_config,
-            keymap_file=keymap_file,
-            config_file=config_file,
-        )
 
     def _resolve_build_matrix(
         self, workspace_path: Path, config_repo_config: Any
@@ -557,22 +556,20 @@ class ZmkConfigCompilationService(BaseCompilationService):
     def _collect_firmware_artifacts(
         self, workspace_path: Path, output_dir: Path
     ) -> Any:
-        """Collect firmware artifacts from workspace and output directories.
+        """Collect firmware artifacts from workspace directories only.
 
-        Uses enhanced scanning to find firmware files in both workspace build
-        directories (where ZMK config compilation generates them) and output
-        directories (where they may be copied).
+        For ZMK config compilation, only scan workspace build directories where
+        the current compilation generates firmware files. Avoid scanning output
+        directories to prevent processing previous build artifacts.
 
         Args:
             workspace_path: Path to compilation workspace
-            output_dir: Output directory to scan
+            output_dir: Output directory for copying artifacts
 
         Returns:
             FirmwareOutputFiles: Collected firmware files
         """
-        logger.info(
-            "Collecting firmware artifacts from workspace and output directories"
-        )
+        logger.info("Collecting firmware artifacts from workspace directory")
         logger.debug("Workspace path: %s", workspace_path)
         logger.debug("Output directory: %s", output_dir)
 
@@ -580,16 +577,13 @@ class ZmkConfigCompilationService(BaseCompilationService):
             # Enhanced fallback implementation using firmware scanner
             from glovebox.firmware.models import FirmwareOutputFiles
 
-            # Use the enhanced firmware scanner to scan both directories
-            firmware_files = self.firmware_scanner.scan_workspace_and_output(
-                workspace_path, output_dir
-            )
+            # Only scan workspace directory to avoid processing previous builds
+            firmware_files = self.firmware_scanner.scan_firmware_files(workspace_path)
 
             if not firmware_files:
                 logger.warning(
-                    "No firmware files found in workspace (%s) or output (%s)",
+                    "No firmware files found in workspace (%s)",
                     workspace_path,
-                    output_dir,
                 )
                 return FirmwareOutputFiles(output_dir=output_dir)
 
@@ -971,48 +965,6 @@ class ZmkConfigCompilationService(BaseCompilationService):
         )
         return Path.home() / f".glovebox/dynamic-zmk-config/{keyboard_name}"
 
-    def _initialize_dynamic_workspace(
-        self,
-        workspace_path: Path,
-        keymap_file: Path,
-        config_file: Path,
-        keyboard_profile: "KeyboardProfile | None",
-        config: GenericDockerCompileConfig,
-    ) -> bool:
-        """Initialize dynamic ZMK config workspace.
-
-        Args:
-            workspace_path: Path to workspace directory
-            keymap_file: Source keymap file
-            config_file: Source config file
-            keyboard_profile: Keyboard profile for configuration
-            config: Compilation configuration
-
-        Returns:
-            bool: True if workspace initialized successfully
-        """
-        if not keyboard_profile:
-            logger.error("Keyboard profile required for dynamic workspace generation")
-            return False
-
-        try:
-            # Extract shield name from config or keyboard profile
-            shield_name = self._extract_shield_name(config, keyboard_profile)
-
-            # Generate workspace content using content generator
-            return self.content_generator.generate_config_workspace(
-                workspace_path=workspace_path,
-                keymap_file=keymap_file,
-                config_file=config_file,
-                keyboard_profile=keyboard_profile,
-                shield_name=shield_name,
-                board_name=self._extract_board_name(config),
-            )
-
-        except Exception as e:
-            logger.error("Failed to initialize dynamic workspace: %s", e)
-            return False
-
     def _extract_shield_name(
         self, config: GenericDockerCompileConfig, keyboard_profile: "KeyboardProfile"
     ) -> str:
@@ -1094,7 +1046,6 @@ def create_zmk_config_service(
     volume_manager: VolumeManager | None = None,
     user_context_manager: UserContextManager | None = None,
     docker_adapter: DockerAdapterProtocol | None = None,
-    content_generator: ZmkConfigContentGenerator | None = None,
     firmware_scanner: FirmwareScanner | None = None,
     file_adapter: FileAdapterProtocol | None = None,
 ) -> ZmkConfigCompilationService:
@@ -1108,7 +1059,6 @@ def create_zmk_config_service(
         volume_manager: Volume manager
         user_context_manager: User context manager for Docker user mapping
         docker_adapter: Docker adapter
-        content_generator: ZMK config content generator
         firmware_scanner: Firmware scanner for enhanced artifact collection
         file_adapter: File operations adapter
 
@@ -1123,7 +1073,6 @@ def create_zmk_config_service(
         volume_manager=volume_manager,
         user_context_manager=user_context_manager,
         docker_adapter=docker_adapter,
-        content_generator=content_generator,
         firmware_scanner=firmware_scanner,
         file_adapter=file_adapter,
     )
