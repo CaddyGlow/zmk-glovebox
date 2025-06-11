@@ -1,10 +1,39 @@
 """ZMK compilation caching system.
 
-This module implements a tiered caching strategy for ZMK firmware compilation:
+This module implements a modern caching strategy for ZMK firmware compilation
+using the generic cache system:
 
-1. Base ZMK Dependencies Cache - Caches Zephyr, modules, and ZMK repositories
-2. Keyboard Configuration Cache - Caches keyboard-specific workspace configurations
+1. Generic Cache System - Domain-agnostic caching infrastructure
+2. Compilation Cache - High-level compilation-specific caching operations
+3. Legacy Cache Migration - Backward compatibility for existing cache implementations
 
 The caching system reduces compilation time by reusing shared dependencies
 and previously compiled components across multiple builds.
 """
+
+from glovebox.compilation.cache.compilation_cache import (
+    CompilationCache,
+    CompilationCacheError,
+    create_compilation_cache,
+)
+
+# Legacy cache imports for backward compatibility during migration
+from glovebox.compilation.cache.base_dependencies_cache import (
+    BaseDependenciesCache,
+    BaseDependenciesCacheError,
+)
+from glovebox.compilation.cache.keyboard_config_cache import (
+    KeyboardConfigCache,
+    KeyboardConfigCacheError,
+)
+
+__all__ = [
+    "CompilationCache",
+    "CompilationCacheError", 
+    "create_compilation_cache",
+    # Legacy exports
+    "BaseDependenciesCache",
+    "BaseDependenciesCacheError",
+    "KeyboardConfigCache",
+    "KeyboardConfigCacheError",
+]
