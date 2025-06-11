@@ -535,6 +535,7 @@ class TestZmkConfigServiceIntegration:
             config.zmk_config_repo.workspace_path = "/tmp/workspace"
             config.zmk_config_repo.build_yaml_path = "build.yaml"
             config.zmk_config_repo.config_repo_revision = "main"
+            config.zmk_config_repo.config_path = "config"
             config.zmk_config_repo.west_commands = [
                 "west init -l config",
                 "west update",
@@ -542,6 +543,8 @@ class TestZmkConfigServiceIntegration:
             config.image = "test:latest"
             config.board_targets = []
             config.build_commands = []
+            config.enable_user_mapping = True
+            config.detect_user_automatically = True
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 keymap_file = Path(temp_dir) / "test.keymap"

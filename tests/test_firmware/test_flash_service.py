@@ -187,6 +187,9 @@ class TestFlashService:
                 count=2,
                 track_flashed=True,
                 skip_existing=False,
+                wait=False,
+                poll_interval=0.5,
+                show_progress=True,
             )
 
     def test_flash_from_file_not_found(self):

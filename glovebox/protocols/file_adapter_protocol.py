@@ -36,6 +36,32 @@ class FileAdapterProtocol(Protocol):
         """
         ...
 
+    def read_binary(self, path: Path) -> bytes:
+        """Read binary content from a file.
+
+        Args:
+            path: Path to the file to read
+
+        Returns:
+            File content as bytes
+
+        Raises:
+            GloveboxError: If file cannot be read
+        """
+        ...
+
+    def write_binary(self, path: Path, content: bytes) -> None:
+        """Write binary content to a file.
+
+        Args:
+            path: Path to the file to write
+            content: Binary content to write
+
+        Raises:
+            GloveboxError: If file cannot be written
+        """
+        ...
+
     def read_json(self, path: Path, encoding: str = "utf-8") -> dict[str, Any]:
         """Read and parse JSON content from a file.
 

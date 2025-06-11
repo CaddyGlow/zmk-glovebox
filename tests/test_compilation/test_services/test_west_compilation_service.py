@@ -485,6 +485,8 @@ class TestWestCompilationServiceIntegration:
             config.board_targets = []
             config.build_commands = []
             config.volume_templates = []
+            config.enable_user_mapping = True
+            config.detect_user_automatically = True
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 keymap_file = Path(temp_dir) / "test.keymap"

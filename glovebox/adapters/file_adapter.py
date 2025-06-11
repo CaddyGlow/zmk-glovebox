@@ -73,6 +73,56 @@ class FileAdapter:
             logger.error("Error writing file %s: %s", path, e)
             raise error from e
 
+    def read_binary(self, path: Path) -> bytes:
+        """Read binary content from a file."""
+        try:
+            logger.debug("Reading binary file: %s", path)
+            with path.open(mode="rb") as f:
+                content = f.read()
+            logger.debug("Successfully read %d bytes from %s", len(content), path)
+            return content
+        except FileNotFoundError as e:
+            error = create_file_error(path, "read_binary", e, {})
+            logger.error("File not found: %s", path)
+            raise error from e
+        except PermissionError as e:
+            error = create_file_error(path, "read_binary", e, {})
+            logger.error("Permission denied reading file: %s", path)
+            raise error from e
+        except Exception as e:
+            error = create_file_error(path, "read_binary", e, {})
+            logger.error("Error reading binary file %s: %s", path, e)
+            raise error from e
+
+    def write_binary(self, path: Path, content: bytes) -> None:
+        """Write binary content to a file."""
+        try:
+            # Ensure parent directory exists
+            self.create_directory(path.parent)
+
+            logger.debug("Writing binary file: %s", path)
+            with path.open(mode="wb") as f:
+                f.write(content)
+            logger.debug("Successfully wrote %d bytes to %s", len(content), path)
+        except PermissionError as e:
+            error = create_file_error(
+                path,
+                "write_binary",
+                e,
+                {"content_length": len(content)},
+            )
+            logger.error("Permission denied writing file: %s", path)
+            raise error from e
+        except Exception as e:
+            error = create_file_error(
+                path,
+                "write_binary",
+                e,
+                {"content_length": len(content)},
+            )
+            logger.error("Error writing binary file %s: %s", path, e)
+            raise error from e
+
     def read_json(self, path: Path, encoding: str = "utf-8") -> dict[str, Any]:
         """Read and parse JSON content from a file.
 
@@ -313,7 +363,7 @@ class FileAdapter:
     def remove_dir(self, path: Path, recursive: bool = True) -> None:
         """Remove a directory and optionally its contents.
 
-        Uses shutil.rmtree for recursive removal or os.rmdir for empty directory removal.
+        Uses shutil.rmtree for recursive removal or path.rmdir for empty directory removal.
 
         Args:
             path: Path to the directory to remove
@@ -322,48 +372,43 @@ class FileAdapter:
         Raises:
             GloveboxError: If directory cannot be removed
         """
-        # TODO: Implement this method
-        # This is a sketch of the implementation:
-        #
-        # try:
-        #     logger.debug("Removing directory: %s (recursive=%s)", path, recursive)
-        #
-        #     if not self.exists(path):
-        #         logger.debug("Directory does not exist, nothing to remove: %s", path)
-        #         return
-        #
-        #     if not self.is_dir(path):
-        #         error = create_file_error(
-        #             path, "remove_dir", ValueError("Not a directory"),
-        #             {"recursive": recursive}
-        #         )
-        #         logger.error("Path is not a directory: %s", path)
-        #         raise error
-        #
-        #     if recursive:
-        #         import shutil
-        #         shutil.rmtree(path)
-        #         logger.debug("Successfully removed directory recursively: %s", path)
-        #     else:
-        #         # This will only work if the directory is empty
-        #         path.rmdir()
-        #         logger.debug("Successfully removed empty directory: %s", path)
-        #
-        # except PermissionError as e:
-        #     error = create_file_error(path, "remove_dir", e, {"recursive": recursive})
-        #     logger.error("Permission denied removing directory: %s", path)
-        #     raise error from e
-        # except OSError as e:
-        #     error = create_file_error(path, "remove_dir", e, {"recursive": recursive})
-        #     logger.error("OS error removing directory %s: %s", path, e)
-        #     raise error from e
-        # except Exception as e:
-        #     error = create_file_error(path, "remove_dir", e, {"recursive": recursive})
-        #     logger.error("Error removing directory %s: %s", path, e)
-        #     raise error from e
+        try:
+            logger.debug("Removing directory: %s (recursive=%s)", path, recursive)
 
-        # For now, just log that this is not implemented
-        logger.warning("remove_dir not implemented yet - could not remove: %s", path)
+            if not self.check_exists(path):
+                logger.debug("Directory does not exist, nothing to remove: %s", path)
+                return
+
+            if not self.is_dir(path):
+                error = create_file_error(
+                    path,
+                    "remove_dir",
+                    ValueError("Not a directory"),
+                    {"recursive": recursive},
+                )
+                logger.error("Path is not a directory: %s", path)
+                raise error
+
+            if recursive:
+                shutil.rmtree(path)
+                logger.debug("Successfully removed directory recursively: %s", path)
+            else:
+                # This will only work if the directory is empty
+                path.rmdir()
+                logger.debug("Successfully removed empty directory: %s", path)
+
+        except PermissionError as e:
+            error = create_file_error(path, "remove_dir", e, {"recursive": recursive})
+            logger.error("Permission denied removing directory: %s", path)
+            raise error from e
+        except OSError as e:
+            error = create_file_error(path, "remove_dir", e, {"recursive": recursive})
+            logger.error("OS error removing directory %s: %s", path, e)
+            raise error from e
+        except Exception as e:
+            error = create_file_error(path, "remove_dir", e, {"recursive": recursive})
+            logger.error("Error removing directory %s: %s", path, e)
+            raise error from e
 
     def create_timestamped_backup(self, file_path: Path) -> Path | None:
         """Create a timestamped backup of a file."""

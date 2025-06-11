@@ -321,6 +321,163 @@ class TestFileAdapter:
         ):
             adapter.list_directory(Path("/test/file.txt"))
 
+    def test_read_binary_success(self):
+        """Test successful binary file reading."""
+        adapter = FileAdapter()
+        test_content = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+
+        with patch("pathlib.Path.open", mock_open(read_data=test_content)):
+            result = adapter.read_binary(Path("/test/file.png"))
+
+        assert result == test_content
+
+    def test_read_binary_file_not_found(self):
+        """Test read_binary raises GloveboxError when file doesn't exist."""
+        adapter = FileAdapter()
+
+        with (
+            patch("pathlib.Path.open", side_effect=FileNotFoundError("File not found")),
+            pytest.raises(
+                FileSystemError,
+                match="File operation 'read_binary' failed on '/nonexistent/file.bin': File not found",
+            ),
+        ):
+            adapter.read_binary(Path("/nonexistent/file.bin"))
+
+    def test_read_binary_permission_error(self):
+        """Test read_binary raises GloveboxError when access denied."""
+        adapter = FileAdapter()
+
+        with (
+            patch(
+                "pathlib.Path.open", side_effect=PermissionError("Permission denied")
+            ),
+            pytest.raises(
+                FileSystemError,
+                match="File operation 'read_binary' failed on '/restricted/file.bin': Permission denied",
+            ),
+        ):
+            adapter.read_binary(Path("/restricted/file.bin"))
+
+    def test_write_binary_success(self):
+        """Test successful binary file writing."""
+        adapter = FileAdapter()
+        test_content = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+        test_path = Path("/test/file.png")
+
+        with (
+            patch("pathlib.Path.open", mock_open()) as mock_path_open,
+            patch("pathlib.Path.mkdir") as mock_mkdir,
+        ):
+            adapter.write_binary(test_path, test_content)
+
+        mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
+        mock_path_open.assert_called_once_with(mode="wb")
+        mock_path_open().write.assert_called_once_with(test_content)
+
+    def test_write_binary_creates_directory(self):
+        """Test write_binary creates parent directories."""
+        adapter = FileAdapter()
+        test_path = Path("/new/directory/file.bin")
+
+        with (
+            patch("pathlib.Path.open", mock_open()) as mock_path_open,
+            patch("pathlib.Path.mkdir") as mock_mkdir,
+        ):
+            adapter.write_binary(test_path, b"binary content")
+
+        # Should create parent directory
+        mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
+
+    def test_write_binary_permission_error(self):
+        """Test write_binary raises PermissionError when access denied."""
+        adapter = FileAdapter()
+
+        with (
+            patch(
+                "pathlib.Path.open", side_effect=PermissionError("Permission denied")
+            ),
+            patch("pathlib.Path.mkdir"),
+            pytest.raises(
+                FileSystemError,
+                match="File operation 'write_binary' failed on '/restricted/file.bin': Permission denied",
+            ),
+        ):
+            adapter.write_binary(Path("/restricted/file.bin"), b"content")
+
+    def test_remove_dir_recursive_success(self):
+        """Test successful recursive directory removal."""
+        adapter = FileAdapter()
+        test_path = Path("/test/directory")
+
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("pathlib.Path.is_dir", return_value=True),
+            patch("shutil.rmtree") as mock_rmtree,
+        ):
+            adapter.remove_dir(test_path, recursive=True)
+
+        mock_rmtree.assert_called_once_with(test_path)
+
+    def test_remove_dir_non_recursive_success(self):
+        """Test successful non-recursive directory removal."""
+        adapter = FileAdapter()
+        test_path = Path("/test/directory")
+
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("pathlib.Path.is_dir", return_value=True),
+            patch("pathlib.Path.rmdir") as mock_rmdir,
+        ):
+            adapter.remove_dir(test_path, recursive=False)
+
+        mock_rmdir.assert_called_once()
+
+    def test_remove_dir_not_exists(self):
+        """Test remove_dir handles non-existent directory gracefully."""
+        adapter = FileAdapter()
+        test_path = Path("/nonexistent/directory")
+
+        with (
+            patch("pathlib.Path.exists", return_value=False),
+            patch("shutil.rmtree") as mock_rmtree,
+        ):
+            adapter.remove_dir(test_path)
+
+        # Should not attempt to remove if directory doesn't exist
+        mock_rmtree.assert_not_called()
+
+    def test_remove_dir_not_directory(self):
+        """Test remove_dir raises error when path is not a directory."""
+        adapter = FileAdapter()
+        test_path = Path("/test/file.txt")
+
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("pathlib.Path.is_dir", return_value=False),
+            pytest.raises(
+                FileSystemError,
+                match="File operation 'remove_dir' failed on '/test/file.txt': Not a directory",
+            ),
+        ):
+            adapter.remove_dir(test_path)
+
+    def test_remove_dir_permission_error(self):
+        """Test remove_dir raises error when permission denied."""
+        adapter = FileAdapter()
+        test_path = Path("/restricted/directory")
+
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("pathlib.Path.is_dir", return_value=True),
+            patch("shutil.rmtree", side_effect=PermissionError("Permission denied")),
+            pytest.raises(
+                FileSystemError,
+                match="File operation 'remove_dir' failed on '/restricted/directory': Permission denied",
+            ),
+        ):
+            adapter.remove_dir(test_path)
+
 
 class TestCreateFileAdapter:
     """Test create_file_adapter factory function."""
@@ -462,6 +619,86 @@ class TestFileAdapterIntegration:
 
         # Destination should still exist
         assert adapter.check_exists(destination)
+
+    def test_binary_read_write_roundtrip(self, tmp_path):
+        """Test reading and writing binary files with real file system."""
+        adapter = FileAdapter()
+        test_file = tmp_path / "test.bin"
+        test_content = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x10"
+
+        # Write binary content
+        adapter.write_binary(test_file, test_content)
+
+        # Verify file exists
+        assert adapter.check_exists(test_file)
+        assert adapter.is_file(test_file)
+
+        # Read binary content back
+        result = adapter.read_binary(test_file)
+        assert result == test_content
+
+    def test_remove_dir_operations(self, tmp_path):
+        """Test directory removal operations with real file system."""
+        adapter = FileAdapter()
+
+        # Create test directory structure
+        test_dir = tmp_path / "test_dir"
+        sub_dir = test_dir / "sub_dir"
+        adapter.create_directory(sub_dir)
+
+        # Create files in directories
+        file1 = test_dir / "file1.txt"
+        file2 = sub_dir / "file2.txt"
+        adapter.write_text(file1, "content1")
+        adapter.write_text(file2, "content2")
+
+        # Verify structure exists
+        assert adapter.check_exists(test_dir)
+        assert adapter.check_exists(sub_dir)
+        assert adapter.check_exists(file1)
+        assert adapter.check_exists(file2)
+
+        # Remove directory recursively
+        adapter.remove_dir(test_dir, recursive=True)
+
+        # Verify directory and all contents are removed
+        assert not adapter.check_exists(test_dir)
+        assert not adapter.check_exists(sub_dir)
+        assert not adapter.check_exists(file1)
+        assert not adapter.check_exists(file2)
+
+    def test_remove_dir_non_recursive_empty(self, tmp_path):
+        """Test non-recursive directory removal on empty directory."""
+        adapter = FileAdapter()
+
+        # Create empty directory
+        test_dir = tmp_path / "empty_dir"
+        adapter.create_directory(test_dir)
+        assert adapter.check_exists(test_dir)
+
+        # Remove empty directory non-recursively
+        adapter.remove_dir(test_dir, recursive=False)
+
+        # Verify directory is removed
+        assert not adapter.check_exists(test_dir)
+
+    def test_remove_dir_non_recursive_with_contents_fails(self, tmp_path):
+        """Test non-recursive directory removal fails when directory has contents."""
+        adapter = FileAdapter()
+
+        # Create directory with file
+        test_dir = tmp_path / "non_empty_dir"
+        test_file = test_dir / "file.txt"
+        adapter.create_directory(test_dir)
+        adapter.write_text(test_file, "content")
+
+        # Attempt to remove non-recursively should fail
+        with pytest.raises(FileSystemError):
+            adapter.remove_dir(test_dir, recursive=False)
+
+        # Directory should still exist
+        assert adapter.check_exists(test_dir)
+        assert adapter.check_exists(test_file)
 
 
 class TestFileAdapterProtocol:
