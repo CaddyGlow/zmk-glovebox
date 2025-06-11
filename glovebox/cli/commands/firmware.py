@@ -262,8 +262,11 @@ def firmware_compile(
     if keyboard_profile and keyboard_profile.keyboard_config:
         # Find the compile method that matches the strategy
         for compile_method in keyboard_profile.keyboard_config.compile_methods:
+            method_identifier = getattr(
+                compile_method, "strategy", getattr(compile_method, "method_type", None)
+            )
             if (
-                compile_method.strategy == strategy
+                method_identifier == strategy
                 and hasattr(compile_method, "image")
                 and compile_method.image
             ):

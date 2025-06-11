@@ -198,36 +198,6 @@ class CompilationConfig(BaseModel):
         """Expand environment variables and user home in environment template values."""
         return {key: expand_path_variables(value) for key, value in v.items()}
 
-    @model_validator(mode="before")
-    @classmethod
-    def handle_backward_compatibility(
-        cls, values: dict[str, Any] | object
-    ) -> dict[str, Any] | object:
-        """Handle backward compatibility for renamed fields."""
-        if isinstance(values, dict):
-            # Handle build_strategy -> strategy mapping
-            if "build_strategy" in values and "strategy" not in values:
-                values["strategy"] = values.pop("build_strategy")
-
-            # Handle cache_workspace -> cache.enabled mapping
-            if "cache_workspace" in values and "cache" not in values:
-                values["cache"] = {"enabled": values.pop("cache_workspace")}
-            elif "cache_workspace" in values and isinstance(values.get("cache"), dict):
-                values["cache"]["enabled"] = values.pop("cache_workspace")
-
-            # Handle user mapping fields -> docker_user mapping
-            user_mapping_fields = ["enable_user_mapping", "detect_user_automatically"]
-            docker_user_data = {}
-            for field in user_mapping_fields:
-                if field in values:
-                    docker_user_data[field] = values.pop(field)
-            if docker_user_data and "docker_user" not in values:
-                values["docker_user"] = docker_user_data
-            elif docker_user_data and isinstance(values.get("docker_user"), dict):
-                values["docker_user"].update(docker_user_data)
-
-        return values
-
     def is_docker_based(self) -> bool:
         """Check if this configuration uses Docker."""
         return self.strategy in [
@@ -238,46 +208,6 @@ class CompilationConfig(BaseModel):
     def get_method_type(self) -> str:
         """Get the method type for compatibility with existing code."""
         return "generic_docker" if self.is_docker_based() else self.strategy
-
-    @property
-    def method_type(self) -> str:
-        """Backward compatibility property for method_type."""
-        return self.get_method_type()
-
-    @property
-    def build_strategy(self) -> str:
-        """Backward compatibility property for build_strategy."""
-        return self.strategy
-
-    @property
-    def cache_workspace(self) -> bool:
-        """Backward compatibility property for cache_workspace."""
-        return self.cache.enabled
-
-    @property
-    def enable_user_mapping(self) -> bool:
-        """Backward compatibility property for enable_user_mapping."""
-        return self.docker_user.enable_user_mapping
-
-    @property
-    def detect_user_automatically(self) -> bool:
-        """Backward compatibility property for detect_user_automatically."""
-        return self.docker_user.detect_user_automatically
-
-    def model_dump(self, **kwargs: Any) -> dict[str, Any]:
-        """Override model_dump to include computed properties for backward compatibility."""
-        data = super().model_dump(**kwargs)
-        # Add computed properties for backward compatibility
-        data["method_type"] = self.method_type
-        data["build_strategy"] = self.build_strategy
-        data["cache_workspace"] = self.cache_workspace
-        data["enable_user_mapping"] = self.enable_user_mapping
-        data["detect_user_automatically"] = self.detect_user_automatically
-        return data
-
-
-# Backward compatibility alias
-GenericDockerCompileConfig = CompilationConfig
 
 
 __all__ = [
@@ -290,5 +220,4 @@ __all__ = [
     "CacheConfig",
     "DockerUserConfig",
     "CompilationConfig",
-    "GenericDockerCompileConfig",  # Backward compatibility
 ]

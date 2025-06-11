@@ -3,7 +3,7 @@
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from glovebox.config.compile_methods import DockerCompileConfig, LocalCompileConfig
+from glovebox.config.compile_methods import CompilationConfig, DockerCompileConfig
 from glovebox.config.profile import KeyboardProfile
 from glovebox.firmware.build_service import BuildService, create_build_service
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
@@ -192,7 +192,7 @@ class TestBuildService:
         mock_keyboard_config = Mock()
         mock_keyboard_config.compile_methods = [
             DockerCompileConfig(image="profile:latest"),
-            LocalCompileConfig(zmk_path=Path("/profile/zmk")),
+            CompilationConfig(strategy="zmk_config"),
         ]
         mock_profile.keyboard_config = mock_keyboard_config
 
@@ -207,7 +207,7 @@ class TestBuildService:
         assert len(configs) == 2
         assert isinstance(configs[0], DockerCompileConfig)
         assert configs[0].image == "profile:latest"
-        assert isinstance(configs[1], LocalCompileConfig)
+        assert isinstance(configs[1], CompilationConfig)
 
     def test_get_compile_method_configs_without_profile(self):
         """Test _get_compile_method_configs without profile."""
@@ -306,7 +306,7 @@ class TestBuildServiceIntegration:
         mock_keyboard_config = Mock()
         mock_keyboard_config.compile_methods = [
             DockerCompileConfig(),  # Primary (would fail)
-            LocalCompileConfig(zmk_path=Path("/opt/zmk")),  # Fallback (succeeds)
+            CompilationConfig(strategy="west"),  # Fallback (succeeds)
         ]
         mock_profile.keyboard_config = mock_keyboard_config
 

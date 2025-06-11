@@ -1,6 +1,6 @@
 """Configuration models organized by domain."""
 
-# Import all models for backward compatibility
+# Export commonly used models that are referenced throughout the codebase
 from .behavior import BehaviorConfig, BehaviorMapping, ModifierMapping
 from .display import DisplayConfig, DisplayFormatting, LayoutStructure
 from .firmware import (
@@ -10,18 +10,9 @@ from .firmware import (
     KConfigOption,
     UserFirmwareConfig,
 )
-from .keyboard import (
-    FormattingConfig,
-    KeyboardConfig,
-    KeymapSection,
-    VisualLayout,
-)
+from .keyboard import FormattingConfig, KeyboardConfig, KeymapSection, VisualLayout
 from .user import UserConfigData
-from .workspace import (
-    UserArtifactConfig,
-    UserCompilationConfig,
-    UserWorkspaceConfig,
-)
+from .workspace import UserArtifactConfig, UserCompilationConfig, UserWorkspaceConfig
 from .zmk import (
     FileExtensions,
     ValidationLimits,
@@ -32,34 +23,27 @@ from .zmk import (
 
 
 __all__ = [
-    # Behavior models
     "BehaviorConfig",
     "BehaviorMapping",
-    "ModifierMapping",
-    # Display models
+    "BuildOptions",
     "DisplayConfig",
     "DisplayFormatting",
-    "LayoutStructure",
-    # Firmware models
-    "BuildOptions",
+    "FileExtensions",
     "FirmwareConfig",
     "FirmwareFlashConfig",
-    "KConfigOption",
-    "UserFirmwareConfig",
-    # Keyboard models
     "FormattingConfig",
+    "KConfigOption",
     "KeyboardConfig",
     "KeymapSection",
-    "VisualLayout",
-    # User models
-    "UserConfigData",
-    # Workspace models
+    "LayoutStructure",
+    "ModifierMapping",
     "UserArtifactConfig",
     "UserCompilationConfig",
+    "UserConfigData",
+    "UserFirmwareConfig",
     "UserWorkspaceConfig",
-    # ZMK models
-    "FileExtensions",
     "ValidationLimits",
+    "VisualLayout",
     "ZmkCompatibleStrings",
     "ZmkConfig",
     "ZmkPatterns",

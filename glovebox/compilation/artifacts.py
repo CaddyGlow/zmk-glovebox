@@ -290,51 +290,10 @@ def create_simple_artifact_collector() -> SimpleArtifactCollector:
     return SimpleArtifactCollector()
 
 
-# Backward compatibility aliases
-def create_firmware_scanner() -> Any:
-    """Backward compatibility function.
-
-    Returns:
-        SimpleArtifactCollector: Simple artifact collector (backwards compatible)
-    """
-    logger.warning(
-        "create_firmware_scanner is deprecated. Use create_simple_artifact_collector instead."
-    )
-    return create_simple_artifact_collector()
-
-
-def create_artifact_collector() -> Any:
-    """Backward compatibility function.
-
-    Returns:
-        SimpleArtifactCollector: Simple artifact collector (backwards compatible)
-    """
-    logger.warning(
-        "create_artifact_collector is deprecated. Use create_simple_artifact_collector instead."
-    )
-    return create_simple_artifact_collector()
-
-
-def create_artifact_validator() -> Any:
-    """Backward compatibility function - artifact validation is now built-in.
-
-    Returns:
-        None: Artifact validation is now built-in to SimpleArtifactCollector
-    """
-    logger.warning(
-        "create_artifact_validator is deprecated. Validation is now built-in to SimpleArtifactCollector."
-    )
-    return None
-
-
 __all__ = [
     "BuildMatrix",
     "BuildMatrixEntry",
     "SimpleArtifactCollector",
     "generate_zmk_env_vars",
     "create_simple_artifact_collector",
-    # Backward compatibility
-    "create_firmware_scanner",
-    "create_artifact_collector",
-    "create_artifact_validator",
 ]
