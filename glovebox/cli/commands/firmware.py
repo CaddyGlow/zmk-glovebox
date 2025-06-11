@@ -85,6 +85,51 @@ def firmware_compile(
             help="Comma-separated board targets for split keyboards (e.g., 'glove80_lh,glove80_rh')",
         ),
     ] = None,
+    # Docker user context override options
+    docker_uid: Annotated[
+        int | None,
+        typer.Option(
+            "--docker-uid",
+            help="Manual Docker UID override (takes precedence over auto-detection and config)",
+            min=0,
+        ),
+    ] = None,
+    docker_gid: Annotated[
+        int | None,
+        typer.Option(
+            "--docker-gid",
+            help="Manual Docker GID override (takes precedence over auto-detection and config)",
+            min=0,
+        ),
+    ] = None,
+    docker_username: Annotated[
+        str | None,
+        typer.Option(
+            "--docker-username",
+            help="Manual Docker username override (takes precedence over auto-detection and config)",
+        ),
+    ] = None,
+    docker_home: Annotated[
+        str | None,
+        typer.Option(
+            "--docker-home",
+            help="Custom Docker home directory override (host path to map as container home)",
+        ),
+    ] = None,
+    docker_container_home: Annotated[
+        str | None,
+        typer.Option(
+            "--docker-container-home",
+            help="Custom container home directory path (default: /tmp)",
+        ),
+    ] = None,
+    no_docker_user_mapping: Annotated[
+        bool,
+        typer.Option(
+            "--no-docker-user-mapping",
+            help="Disable Docker user mapping entirely (overrides all user context settings)",
+        ),
+    ] = False,
     output_format: OutputFormatOption = "text",
 ) -> None:
     """Build ZMK firmware from keymap and config files.
@@ -109,6 +154,19 @@ def firmware_compile(
         # Split keyboard build with specific board targets
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --board-targets glove80_lh,glove80_rh
 
+        # Manual Docker user context (solves permission issues)
+        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --docker-uid 1000 --docker-gid 1000
+
+        # Custom Docker home directory (instead of /tmp)
+        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --docker-home /home/builder
+
+        # Full manual Docker user context
+        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 \\
+            --docker-uid 1000 --docker-gid 1000 --docker-username builder --docker-home /workspace
+
+        # Disable Docker user mapping entirely
+        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --no-docker-user-mapping
+
         # CMake build strategy (for custom builds)
         glovebox firmware compile keymap.keymap config.conf --profile custom/board --build-strategy cmake
 
@@ -116,7 +174,7 @@ def firmware_compile(
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --verbose
     """
     keyboard_profile = get_keyboard_profile_from_context(ctx)
-    _ = get_user_config_from_context(ctx)
+    user_config = get_user_config_from_context(ctx)
 
     # Use the branch and repo parameters if provided, otherwise use defaults
     branch_value = branch if branch is not None else "main"
@@ -127,9 +185,22 @@ def firmware_compile(
     if board_targets:
         board_targets_list = [target.strip() for target in board_targets.split(",")]
 
-    # Compile firmware using the file-based method with profile if available
-    # TODO: Future enhancement - pass CLI parameters to BuildService for generic docker compiler support
-    # For now, use existing interface for backward compatibility
+    # Collect Docker user context overrides from CLI
+    docker_overrides: dict[str, str | int | None] = {}
+    if docker_uid is not None:
+        docker_overrides["manual_uid"] = docker_uid
+    if docker_gid is not None:
+        docker_overrides["manual_gid"] = docker_gid
+    if docker_username is not None:
+        docker_overrides["manual_username"] = docker_username
+    if docker_home is not None:
+        docker_overrides["host_home_dir"] = docker_home
+    if docker_container_home is not None:
+        docker_overrides["container_home_dir"] = docker_container_home
+    if no_docker_user_mapping:
+        docker_overrides["enable_user_mapping"] = False
+
+    # Compile firmware using the file-based method with Docker overrides
     build_service = create_build_service()
 
     try:
@@ -142,6 +213,7 @@ def firmware_compile(
             repo=repo_value,
             jobs=jobs,
             verbose=verbose,
+            docker_user_overrides=docker_overrides,
         )
 
         if result.success:

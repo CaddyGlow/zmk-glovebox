@@ -395,7 +395,7 @@ class TestFirmwareScanner:
 
         # Mock workspace directory exists and has files
         self.mock_file_adapter.check_exists.side_effect = lambda path: (
-            path == workspace_dir or path == output_dir
+            path in (workspace_dir, output_dir)
         )
 
         # Mock scan results for workspace and output

@@ -165,6 +165,27 @@ class WestCompilationService(BaseCompilationService):
                 detect_automatically=config.detect_user_automatically,
             )
 
+            # Update environment for Docker user mapping if enabled
+            if user_context and user_context.should_use_user_mapping():
+                # Prepare context for environment preparation
+                context = {}
+                if config.west_workspace:
+                    context.update(
+                        {
+                            "workspace_path": config.west_workspace.workspace_path,
+                            "config_path": config.west_workspace.config_path,
+                            "manifest_url": config.west_workspace.manifest_url,
+                            "manifest_revision": config.west_workspace.manifest_revision,
+                        }
+                    )
+
+                build_env = self.environment_manager.prepare_docker_environment(
+                    config,
+                    user_context=user_context,
+                    user_mapping_enabled=True,
+                    **context,
+                )
+
             return_code, stdout_lines, stderr_lines = (
                 self._docker_adapter.run_container(
                     image=docker_image,

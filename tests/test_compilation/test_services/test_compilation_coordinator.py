@@ -72,6 +72,7 @@ class TestCompilationCoordinator:
             config = Mock(spec=GenericDockerCompileConfig)
             config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
             config.west_workspace = None
+            config.build_strategy = "zmk_config"
 
             # Mock service availability and validation
             self.mock_zmk_config_service.check_available.return_value = True
@@ -87,7 +88,7 @@ class TestCompilationCoordinator:
 
             assert result.success is True
             self.mock_zmk_config_service.compile.assert_called_once_with(
-                keymap_file, config_file, output_dir, config
+                keymap_file, config_file, output_dir, config, None
             )
 
     def test_compile_west_strategy(self):
@@ -105,6 +106,7 @@ class TestCompilationCoordinator:
             config = Mock(spec=GenericDockerCompileConfig)
             config.zmk_config_repo = None
             config.west_workspace = Mock(spec=WestWorkspaceConfig)
+            config.build_strategy = "west"
 
             # Mock service availability and validation
             self.mock_west_service.check_available.return_value = True
@@ -120,7 +122,7 @@ class TestCompilationCoordinator:
 
             assert result.success is True
             self.mock_west_service.compile.assert_called_once_with(
-                keymap_file, config_file, output_dir, config
+                keymap_file, config_file, output_dir, config, None
             )
 
     def test_compile_cmake_strategy_fallback(self):
@@ -138,6 +140,7 @@ class TestCompilationCoordinator:
             config = Mock(spec=GenericDockerCompileConfig)
             config.zmk_config_repo = None
             config.west_workspace = None
+            config.build_strategy = "cmake"
 
             # Mock service availability and validation
             self.mock_cmake_service.check_available.return_value = True
@@ -153,7 +156,7 @@ class TestCompilationCoordinator:
 
             assert result.success is True
             self.mock_cmake_service.compile.assert_called_once_with(
-                keymap_file, config_file, output_dir, config
+                keymap_file, config_file, output_dir, config, keyboard_profile=None
             )
 
     def test_compile_no_suitable_strategy(self):
@@ -166,6 +169,7 @@ class TestCompilationCoordinator:
             config = Mock(spec=GenericDockerCompileConfig)
             config.zmk_config_repo = None
             config.west_workspace = None
+            config.build_strategy = "cmake"
 
             # Mock all services as unavailable
             self.mock_zmk_config_service.check_available.return_value = False
@@ -194,6 +198,7 @@ class TestCompilationCoordinator:
             config = Mock(spec=GenericDockerCompileConfig)
             config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
             config.west_workspace = None
+            config.build_strategy = "zmk_config"
 
             result = coordinator.compile(keymap_file, config_file, output_dir, config)
 
@@ -208,6 +213,7 @@ class TestCompilationCoordinator:
         config = Mock(spec=GenericDockerCompileConfig)
         config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
         config.west_workspace = None
+        config.build_strategy = "zmk_config"
 
         # Mock service availability and validation
         self.mock_zmk_config_service.check_available.return_value = True
@@ -221,6 +227,7 @@ class TestCompilationCoordinator:
         config = Mock(spec=GenericDockerCompileConfig)
         config.zmk_config_repo = None
         config.west_workspace = None
+        config.build_strategy = "cmake"
 
         # Mock all services as unavailable
         self.mock_zmk_config_service.check_available.return_value = False
@@ -287,6 +294,7 @@ class TestCompilationCoordinator:
             config = Mock(spec=GenericDockerCompileConfig)
             config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
             config.west_workspace = None
+            config.build_strategy = "zmk_config"
 
             # Mock service availability and validation
             self.mock_zmk_config_service.check_available.return_value = True
@@ -297,8 +305,8 @@ class TestCompilationCoordinator:
 
             self.coordinator.compile(keymap_file, config_file, output_dir, config)
 
-            # Verify Docker adapter was injected
-            self.mock_zmk_config_service.set_docker_adapter.assert_called_once_with(
+            # Verify Docker adapter was injected (may be called multiple times during strategy selection and compilation)
+            self.mock_zmk_config_service.set_docker_adapter.assert_called_with(
                 self.mock_docker_adapter
             )
 
@@ -308,6 +316,7 @@ class TestCompilationCoordinator:
         config = Mock(spec=GenericDockerCompileConfig)
         config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
         config.west_workspace = Mock(spec=WestWorkspaceConfig)
+        config.build_strategy = "zmk_config"
 
         # Mock all services as available and valid
         self.mock_zmk_config_service.check_available.return_value = True
@@ -331,6 +340,7 @@ class TestCompilationCoordinator:
             config = Mock(spec=GenericDockerCompileConfig)
             config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
             config.west_workspace = None
+            config.build_strategy = "zmk_config"
 
             # Mock service to raise exception
             self.mock_zmk_config_service.check_available.return_value = True
@@ -373,7 +383,13 @@ class TestCompilationCoordinatorIntegration:
         # Test ZMK config strategy selection
         config_zmk = Mock(spec=GenericDockerCompileConfig)
         config_zmk.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
+        config_zmk.zmk_config_repo.config_repo_url = (
+            "https://github.com/test/zmk-config"
+        )
+        config_zmk.zmk_config_repo.workspace_path = "/zmk-config-workspace"
+        config_zmk.zmk_config_repo.config_path = "config"
         config_zmk.west_workspace = None
+        config_zmk.build_strategy = "zmk_config"
 
         strategy = self.coordinator._select_compilation_strategy(config_zmk)
         assert strategy in [
@@ -387,6 +403,10 @@ class TestCompilationCoordinatorIntegration:
         config_west = Mock(spec=GenericDockerCompileConfig)
         config_west.zmk_config_repo = None
         config_west.west_workspace = Mock(spec=WestWorkspaceConfig)
+        config_west.west_workspace.workspace_path = "/west-workspace"
+        config_west.west_workspace.manifest_url = "https://github.com/zmkfirmware/zmk"
+        config_west.west_workspace.manifest_revision = "main"
+        config_west.build_strategy = "west"
 
         strategy = self.coordinator._select_compilation_strategy(config_west)
         assert strategy in ["west", "cmake", None]  # Depends on service availability
@@ -397,6 +417,7 @@ class TestCompilationCoordinatorIntegration:
         config = Mock(spec=GenericDockerCompileConfig)
         config.zmk_config_repo = None
         config.west_workspace = None
+        config.build_strategy = "cmake"
 
         # Should be able to validate config
         is_valid = self.coordinator.validate_config(config)

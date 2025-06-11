@@ -50,6 +50,7 @@ class BuildService(BaseService):
         repo: str = "moergo-sc/zmk",
         jobs: int | None = None,
         verbose: bool = False,
+        docker_user_overrides: dict[str, str | int | None] | None = None,
     ) -> BuildResult:
         """Compile firmware from specific files using method selection.
 
@@ -57,11 +58,12 @@ class BuildService(BaseService):
             keymap_file_path: Path to the keymap (.keymap) file
             kconfig_file_path: Path to the kconfig (.conf) file
             output_dir: Directory where build artifacts will be stored
-            profile: KeyboardProfile with build configuration
+            keyboard_profile: KeyboardProfile with build configuration
             branch: Git branch to use for ZMK (default: main)
             repo: Git repository to use for ZMK (default: moergo-sc/zmk)
             jobs: Number of parallel jobs (default: auto-detect)
             verbose: Enable verbose output
+            docker_user_overrides: Docker user context manual overrides from CLI
 
         Returns:
             BuildResult with success status and firmware file paths
@@ -79,6 +81,7 @@ class BuildService(BaseService):
                 repo=repo,
                 jobs=jobs,
                 verbose=verbose,
+                docker_user_overrides=docker_user_overrides,
             )
 
             # Use the main compile method

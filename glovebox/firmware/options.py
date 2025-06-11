@@ -41,3 +41,6 @@ class BuildServiceCompileOpts:
 
     board_targets: list[str] | None = None
     """Board targets for split keyboards (e.g., ['glove80_lh', 'glove80_rh'])"""
+
+    docker_user_overrides: dict[str, str | int | None] | None = None
+    """Docker user context manual overrides from CLI (manual_uid, manual_gid, etc.)"""

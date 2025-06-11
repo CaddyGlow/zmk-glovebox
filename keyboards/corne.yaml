@@ -11,20 +11,20 @@ compile_methods:
     build_strategy: zmk_config
     cache_workspace: true
     zmk_config_repo:
-      # Leave config_repo_url empty to enable dynamic generation
-      config_repo_url: ""
       config_repo_revision: "dynamic"
-      workspace_path: "~/.glovebox/dynamic-zmk-config/corne"
-      config_path: "config"
-      build_yaml_path: "build.yaml"
-      wesnt_commands:
-        - "west init -l config"
-        - "west update"
-    build_commands: [] # Commands auto-generated from build.yaml
-    environment_template:
-      ZEPHYR_TOOLCHAIN_VARIANT: "zephyr"
-      ZEPHYR_SDK_INSTALL_DIR: "/opt/zephyr-sdk"
-    volume_templates: [] # Volume mappings auto-generated
+    # Leave config_repo_url empty to enable dynamic generation
+    # config_repo_url: ""
+    # workspace_path: "~/.glovebox/dynamic-zmk-config/corne"
+    # config_path: "config"
+    # build_yaml_path: "build.yaml"
+    # west_commands:
+    #   - "west init -l config"
+    #   - "west update"
+    # build_commands: [] # Commands auto-generated from build.yaml
+    # environment_template:
+    #   ZEPHYR_TOOLCHAIN_VARIANT: "zephyr"
+    #   ZEPHYR_SDK_INSTALL_DIR: "/opt/zephyr-sdk"
+    # volume_templates: [] # Volume mappings auto-generated
     fallback_methods: ["west"]
 
   # Fallback to traditional ZMK west workspace
@@ -43,6 +43,7 @@ compile_methods:
       workspace_path: "~/.zmk-workspace"
       config_path: "config"
     build_commands:
+      - "west zehpyr-export"
       - "west build -d build/left -s app -b nice_nano_v2 -- -DSHIELD=corne_left -DZMK_CONFIG=/zmk-workspace/config"
       - "west build -d build/right -s app -b nice_nano_v2 -- -DSHIELD=corne_right -DZMK_CONFIG=/zmk-workspace/config"
     environment_template:

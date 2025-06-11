@@ -387,6 +387,19 @@ class ZmkConfigCompilationService(BaseCompilationService):
             detect_automatically=config.detect_user_automatically,
         )
 
+        # Update environment for Docker user mapping if enabled
+        if user_context and user_context.should_use_user_mapping():
+            # Prepare context for environment preparation
+            context = {
+                "workspace_path": config_repo_config.workspace_path,
+                "config_path": config_repo_config.config_path,
+                "build_yaml_path": config_repo_config.build_yaml_path,
+            }
+
+            build_env = self.environment_manager.prepare_docker_environment(
+                config, user_mapping_enabled=True, **context
+            )
+
         return_code, stdout_lines, stderr_lines = self._docker_adapter.run_container(
             image=docker_image,
             command=[
@@ -621,7 +634,8 @@ class ZmkConfigCompilationService(BaseCompilationService):
         build_output_dir = output_dir / f"build-{timestamp}"
 
         # Use injected FileAdapter for directory creation
-        if not self.file_adapter.create_directory(build_output_dir):
+        self.file_adapter.create_directory(build_output_dir)
+        if not self.file_adapter.check_exists(build_output_dir):
             logger.error(
                 "Failed to create build output directory: %s", build_output_dir
             )
@@ -822,7 +836,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         if devicetree_content:
             combined_content = "".join(devicetree_content)
             try:
-                self.file_adapter.write_file(devicetree_output, combined_content)
+                self.file_adapter.write_text(devicetree_output, combined_content)
                 logger.info("Saved devicetree information: %s", devicetree_output)
             except Exception as e:
                 logger.error(
@@ -831,7 +845,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         else:
             # No devicetree output found
             try:
-                self.file_adapter.write_file(devicetree_output, "No Devicetree output")
+                self.file_adapter.write_text(devicetree_output, "No Devicetree output")
                 logger.debug("No devicetree files found for %s", side)
             except Exception as e:
                 logger.warning(

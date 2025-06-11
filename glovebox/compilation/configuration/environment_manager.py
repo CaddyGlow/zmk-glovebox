@@ -3,10 +3,14 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from glovebox.config.compile_methods import GenericDockerCompileConfig
 from glovebox.core.errors import GloveboxError
+
+
+if TYPE_CHECKING:
+    from glovebox.models.docker import DockerUserContext
 
 
 logger = logging.getLogger(__name__)
@@ -188,6 +192,67 @@ class EnvironmentManager:
 
         self.logger.debug("Retrieved %d system environment variables", len(system_env))
         return system_env
+
+    def prepare_docker_environment(
+        self,
+        config: GenericDockerCompileConfig,
+        user_context: "DockerUserContext | None" = None,
+        user_mapping_enabled: bool = False,
+        **context: Any,
+    ) -> dict[str, str]:
+        """Prepare environment variables specifically for Docker containers.
+
+        Args:
+            config: Compilation configuration with environment templates
+            user_context: Docker user context with home directory settings
+            user_mapping_enabled: Whether Docker user mapping is enabled (fallback)
+            **context: Additional context for template expansion
+
+        Returns:
+            dict[str, str]: Environment variables optimized for Docker containers
+        """
+        # Start with regular environment preparation
+        environment = self.prepare_environment(config, **context)
+
+        # Configure home directory based on user context or fallback
+        if user_context and user_context.should_use_user_mapping():
+            # Use custom home directory from user context
+            home_env = user_context.get_home_environment()
+            environment.update(home_env)
+
+            self.logger.debug(
+                "Set HOME=%s from user context (%s)",
+                user_context.container_home_dir,
+                user_context.detection_source,
+            )
+        elif user_mapping_enabled:
+            # Fallback to /tmp if user mapping enabled but no context provided
+            environment["HOME"] = "/tmp"
+            self.logger.debug(
+                "Set HOME=/tmp for Docker user mapping compatibility (fallback)"
+            )
+
+        return environment
+
+    def prepare_docker_environment_with_context(
+        self,
+        config: GenericDockerCompileConfig,
+        user_context: "DockerUserContext",
+        **context: Any,
+    ) -> dict[str, str]:
+        """Prepare Docker environment with user context (convenience method).
+
+        Args:
+            config: Compilation configuration with environment templates
+            user_context: Docker user context with home directory settings
+            **context: Additional context for template expansion
+
+        Returns:
+            dict[str, str]: Environment variables optimized for Docker containers
+        """
+        return self.prepare_docker_environment(
+            config=config, user_context=user_context, **context
+        )
 
     def _get_current_uid(self) -> int:
         """Get current user ID with fallback.

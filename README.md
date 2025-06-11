@@ -88,7 +88,7 @@ glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --b
 
 ### Docker Volume Permission Handling (NEW)
 
-Glovebox automatically handles Docker volume permission issues that can occur when building firmware on Linux/macOS systems:
+Glovebox automatically handles Docker volume permission issues that can occur when building firmware on Linux/macOS systems, with comprehensive manual override capabilities:
 
 ```bash
 # Volume permissions are automatically managed
@@ -101,27 +101,76 @@ glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
 # - Works transparently across Linux and macOS platforms
 ```
 
+**Manual Override Options (NEW):**
+```bash
+# Override UID/GID manually
+glovebox firmware compile keymap.keymap config.conf --docker-uid 1001 --docker-gid 1001
+
+# Specify custom username
+glovebox firmware compile keymap.keymap config.conf --docker-username myuser
+
+# Custom home directory mapping (host path → container path)
+glovebox firmware compile keymap.keymap config.conf \
+  --docker-home /custom/host/home --docker-container-home /home/myuser
+
+# Complete manual override
+glovebox firmware compile keymap.keymap config.conf \
+  --docker-uid 1001 --docker-gid 1001 --docker-username myuser \
+  --docker-home /custom/home --docker-container-home /home/myuser
+
+# Disable user mapping entirely
+glovebox firmware compile keymap.keymap config.conf --no-docker-user-mapping
+```
+
 **Configuration Options:**
 ```yaml
 # In keyboard configurations (keyboards/*.yaml)
 build:
   method: generic_docker
   # Docker user mapping configuration
-  enable_user_mapping: true      # Enable --user flag (default: true)
-  detect_user_automatically: true # Auto-detect UID/GID (default: true)
+  enable_user_mapping: true         # Enable --user flag (default: true)
+  detect_user_automatically: true   # Auto-detect UID/GID (default: true)
+  
+  # Manual override options (take precedence over auto-detection)
+  manual_uid: 1001                  # Manual UID override
+  manual_gid: 1001                  # Manual GID override  
+  manual_username: myuser           # Manual username override
+  host_home_dir: /custom/home       # Host home directory to map
+  container_home_dir: /home/myuser  # Container home directory path
+  force_manual: true                # Force manual settings, skip auto-detection
 ```
+
+**User Configuration:**
+```yaml
+# In user config (~/.config/glovebox/config.yaml)
+firmware:
+  docker:
+    enable_user_mapping: true
+    manual_uid: 1001
+    manual_gid: 1001
+    manual_username: myuser
+    host_home_dir: /custom/home
+    container_home_dir: /home/myuser
+```
+
+**Precedence Rules:**
+CLI flags → Keyboard config → User config → Auto-detection
 
 **Key Features:**
 - **Automatic Detection**: User context automatically detected on Linux/macOS
+- **Manual Overrides**: Complete control over UID/GID/username/home directories
+- **Home Directory Mapping**: Map custom host directories into containers
 - **Cross-Platform**: Graceful fallback on unsupported platforms (Windows)
-- **Configurable**: Can be disabled via configuration if needed
+- **Precedence Resolution**: CLI takes priority over config files over auto-detection
 - **Template Variables**: UID/GID available as `{uid}`, `{gid}`, `{docker_user}` in environment templates
 - **Type-Safe**: Full model validation and error handling
 
 **Benefits:**
 - **No Permission Errors**: Eliminates `permission denied` errors when accessing build artifacts
-- **Seamless Operation**: Works transparently without user intervention
+- **Flexible Configuration**: Manual overrides for complex Docker setups
+- **Seamless Operation**: Works transparently without user intervention in most cases
 - **Maintains Security**: Uses least-privilege principle with actual user permissions
+- **CI/CD Compatible**: Manual overrides enable consistent builds in automated environments
 
 ### Flash Firmware
 
@@ -384,6 +433,14 @@ glovebox firmware compile [OPTIONS] KEYMAP_FILE KCONFIG_FILE
 - `--repo`: Git repository (overrides profile settings)
 - `--jobs, -j`: Number of parallel jobs
 - `--verbose, -v`: Enable verbose build output
+
+**Docker User Context Override Options (NEW):**
+- `--docker-uid`: Manual Docker UID override (takes precedence over auto-detection and config)
+- `--docker-gid`: Manual Docker GID override (takes precedence over auto-detection and config)
+- `--docker-username`: Manual Docker username override (takes precedence over auto-detection and config)
+- `--docker-home`: Custom Docker home directory override (host path to map as container home)
+- `--docker-container-home`: Custom container home directory path (default: /tmp)
+- `--no-docker-user-mapping`: Disable Docker user mapping entirely
 
 #### `glovebox firmware flash`
 
