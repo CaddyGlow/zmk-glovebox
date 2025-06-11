@@ -9,29 +9,24 @@ import pytest
 def test_compilation_domain_imports():
     """Test that compilation domain can be imported successfully."""
     from glovebox.compilation import (
-        CompilationCoordinatorProtocol,
         CompilationServiceProtocol,
-        create_cmake_service,
-        create_compilation_coordinator,
+        create_compilation_service,
         create_west_service,
         create_zmk_config_service,
     )
 
     # Test protocol imports
-    assert CompilationCoordinatorProtocol is not None
     assert CompilationServiceProtocol is not None
 
     # Test factory function availability
-    assert callable(create_compilation_coordinator)
+    assert callable(create_compilation_service)
     assert callable(create_zmk_config_service)
     assert callable(create_west_service)
-    assert callable(create_cmake_service)
 
 
 def test_protocol_imports():
     """Test that all protocol imports work correctly."""
     from glovebox.compilation.protocols import (
-        CompilationCoordinatorProtocol,
         CompilationServiceProtocol,
         WestWorkspaceManagerProtocol,
         WorkspaceManagerProtocol,
@@ -40,7 +35,6 @@ def test_protocol_imports():
 
     # Test all protocols are available
     protocols = [
-        CompilationCoordinatorProtocol,
         CompilationServiceProtocol,
         WorkspaceManagerProtocol,
         WestWorkspaceManagerProtocol,
@@ -52,28 +46,33 @@ def test_protocol_imports():
 
 
 def test_factory_functions_exist():
-    """Test that factory functions exist but are not implemented yet."""
+    """Test that factory functions exist and work correctly."""
     from glovebox.compilation import (
-        create_cmake_service,
-        create_compilation_coordinator,
+        create_compilation_service,
         create_west_service,
         create_zmk_config_service,
     )
 
-    # Compilation coordinator is now implemented (Phase 4, Step 4.3)
-    coordinator = create_compilation_coordinator()
-    assert coordinator is not None
-
-    # ZMK config service is now implemented (Phase 4, Step 4.1)
+    # ZMK config service is implemented
     zmk_service = create_zmk_config_service()
     assert zmk_service is not None
 
-    # West service is now implemented (Phase 4, Step 4.2)
+    # West service is implemented
     west_service = create_west_service()
     assert west_service is not None
 
-    with pytest.raises(NotImplementedError):
-        create_cmake_service()
+    # Test compilation service factory with different strategies
+    zmk_service_via_factory = create_compilation_service("zmk_config")
+    assert zmk_service_via_factory is not None
+
+    west_service_via_factory = create_compilation_service("west")
+    assert west_service_via_factory is not None
+
+    # Test that unsupported strategies raise ValueError
+    with pytest.raises(
+        ValueError, match="Unknown compilation strategy.*Supported strategies"
+    ):
+        create_compilation_service("unsupported_strategy")
 
 
 def test_subdomain_factory_functions():
