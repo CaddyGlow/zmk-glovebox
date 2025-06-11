@@ -4,32 +4,6 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-
-if TYPE_CHECKING:
-    from glovebox.config.profile import KeyboardProfile
-
-from glovebox.compilation.configuration.build_matrix_resolver import (
-    BuildMatrixResolver,
-    create_build_matrix_resolver,
-)
-from glovebox.compilation.configuration.environment_manager import (
-    EnvironmentManager,
-    create_environment_manager,
-)
-from glovebox.compilation.configuration.user_context_manager import (
-    UserContextManager,
-    create_user_context_manager,
-)
-from glovebox.compilation.configuration.volume_manager import (
-    VolumeManager,
-    create_volume_manager,
-)
-from glovebox.compilation.protocols.artifact_protocols import (
-    ArtifactCollectorProtocol,
-)
-from glovebox.compilation.protocols.compilation_protocols import (
-    CompilationServiceProtocol,
-)
 from glovebox.compilation.protocols.workspace_protocols import (
     WestWorkspaceManagerProtocol,
 )
@@ -40,11 +14,10 @@ from glovebox.compilation.workspace.west_workspace_manager import (
     create_west_workspace_manager,
 )
 from glovebox.config.compile_methods import GenericDockerCompileConfig
-from glovebox.core.errors import BuildError
-from glovebox.firmware.models import BuildResult
-from glovebox.protocols import DockerAdapterProtocol
-from glovebox.protocols.docker_adapter_protocol import DockerVolume
 
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
 
 logger = logging.getLogger(__name__)
 
@@ -59,228 +32,82 @@ class WestCompilationService(BaseCompilationService):
     def __init__(
         self,
         workspace_manager: WestWorkspaceManagerProtocol | None = None,
-        build_matrix_resolver: BuildMatrixResolver | None = None,
-        artifact_collector: ArtifactCollectorProtocol | None = None,
-        environment_manager: EnvironmentManager | None = None,
-        volume_manager: VolumeManager | None = None,
-        user_context_manager: UserContextManager | None = None,
-        docker_adapter: DockerAdapterProtocol | None = None,
+        **base_kwargs: Any,
     ) -> None:
         """Initialize west compilation service.
 
         Args:
             workspace_manager: West workspace manager
-            build_matrix_resolver: Build matrix resolver (not used for west strategy)
-            artifact_collector: Artifact collection service
-            environment_manager: Environment variable manager
-            volume_manager: Docker volume manager
-            user_context_manager: User context manager for Docker user mapping
-            docker_adapter: Docker adapter for container operations
+            **base_kwargs: Arguments passed to BaseCompilationService
         """
-        super().__init__("west_compilation", "1.0.0")
+        super().__init__("west_compilation", "1.0.0", **base_kwargs)
         self.workspace_manager = workspace_manager or create_west_workspace_manager()
-        self.build_matrix_resolver = (
-            build_matrix_resolver or create_build_matrix_resolver()
-        )
-        self.artifact_collector = artifact_collector  # Will be None until Phase 5
-        self.environment_manager = environment_manager or create_environment_manager()
-        self.volume_manager = volume_manager or create_volume_manager()
-        self.user_context_manager = (
-            user_context_manager or create_user_context_manager()
-        )
 
-        # Docker adapter will be injected from parent coordinator
-        self._docker_adapter: DockerAdapterProtocol | None = docker_adapter
-
-    def compile(
+    def _setup_workspace(
         self,
         keymap_file: Path,
         config_file: Path,
-        output_dir: Path,
         config: GenericDockerCompileConfig,
         keyboard_profile: "KeyboardProfile | None" = None,
-    ) -> BuildResult:
-        """Execute west compilation strategy.
+    ) -> Path | None:
+        """Setup West workspace for compilation.
 
         Args:
             keymap_file: Path to keymap file
             config_file: Path to config file
-            output_dir: Output directory for firmware files
             config: Compilation configuration
-            keyboard_profile: Keyboard profile (unused for west strategy)
+            keyboard_profile: Keyboard profile (unused in west strategy)
 
         Returns:
-            BuildResult: Compilation results with firmware files
-
-        Raises:
-            BuildError: If compilation fails
+            Path | None: Workspace path if successful, None if failed
         """
-        logger.info("Starting west build strategy")
-        result = BuildResult(success=True)
-
         try:
-            if not self._docker_adapter:
-                result.success = False
-                result.add_error("Docker adapter not available for west compilation")
-                return result
+            if not config.west_workspace:
+                self.logger.error("West workspace configuration is missing")
+                return None
 
-            workspace_path = None
+            workspace_path = Path(config.west_workspace.workspace_path)
 
-            # Initialize west workspace if configured
-            if config.west_workspace:
-                workspace_path = Path(config.west_workspace.workspace_path)
-
-                if not self._initialize_workspace(
-                    config.west_workspace, keymap_file, config_file
-                ):
-                    result.success = False
-                    result.add_error("Failed to initialize west workspace")
-                    return result
-
-            # Prepare build environment for west
-            build_env = self._prepare_build_environment(config)
-
-            # Prepare Docker volumes for west workspace
-            volumes = self._prepare_build_volumes(
-                workspace_path, keymap_file, config_file, output_dir, config
-            )
-
-            # Generate west build commands
-            build_commands = self._generate_build_commands(config)
-
-            # Execute build commands in Docker container
-            west_command = " && ".join(build_commands)
-            docker_image = config.image
-
-            # Determine working directory
-            work_dir = (
-                config.west_workspace.workspace_path
-                if config.west_workspace
-                else "/zmk-workspace"
-            )
-
-            # Get user context for Docker volume permissions
-            user_context = self.user_context_manager.get_user_context(
-                enable_user_mapping=config.enable_user_mapping,
-                detect_automatically=config.detect_user_automatically,
-            )
-
-            # Update environment for Docker user mapping if enabled
-            if user_context and user_context.should_use_user_mapping():
-                # Prepare context for environment preparation
-                context = {}
-                if config.west_workspace:
-                    context.update(
-                        {
-                            "workspace_path": config.west_workspace.workspace_path,
-                            "config_path": config.west_workspace.config_path,
-                            "manifest_url": config.west_workspace.manifest_url,
-                            "manifest_revision": config.west_workspace.manifest_revision,
-                        }
-                    )
-
-                build_env = self.environment_manager.prepare_docker_environment(
-                    config,
-                    user_context=user_context,
-                    user_mapping_enabled=True,
-                    **context,
-                )
-
-            return_code, stdout_lines, stderr_lines = (
-                self._docker_adapter.run_container(
-                    image=docker_image,
-                    command=[
-                        "sh",
-                        "-c",
-                        f"cd {work_dir} && {west_command}",
-                    ],
-                    volumes=volumes,
-                    environment=build_env,
-                    user_context=user_context,
-                )
-            )
-
-            if return_code != 0:
-                error_msg = (
-                    "\\n".join(stderr_lines)
-                    if stderr_lines
-                    else "West compilation failed"
-                )
-                logger.error(
-                    "West compilation failed with exit code %d: %s",
-                    return_code,
-                    error_msg,
-                )
-                result.success = False
-                result.add_error(
-                    f"West compilation failed with exit code {return_code}: {error_msg}"
-                )
-                return result
-
-            # Collect and validate artifacts
-            firmware_files = self._collect_firmware_artifacts(output_dir)
-            if not firmware_files or not (
-                firmware_files.main_uf2
-                or firmware_files.left_uf2
-                or firmware_files.right_uf2
+            # Initialize west workspace
+            if self.workspace_manager.initialize_workspace(
+                workspace_config=config.west_workspace,
+                keymap_file=keymap_file,
+                config_file=config_file,
             ):
-                result.success = False
-                result.add_error("No firmware files generated")
-                return result
+                return workspace_path
 
-            # Store results
-            result.output_files = firmware_files
-
-            # Count the actual firmware files
-            firmware_count = 0
-            if firmware_files.main_uf2:
-                firmware_count += 1
-            if firmware_files.left_uf2:
-                firmware_count += 1
-            if firmware_files.right_uf2:
-                firmware_count += 1
-
-            result.add_message(
-                f"West compilation completed. Generated {firmware_count} firmware files."
-            )
-
-            return result
+            return None
 
         except Exception as e:
-            msg = f"West compilation failed: {e}"
-            logger.error(msg)
-            result.success = False
-            result.add_error(msg)
-            return result
+            self.logger.error("Failed to setup West workspace: %s", e)
+            return None
 
-    def validate_configuration(self, config: GenericDockerCompileConfig) -> bool:
-        """Validate west compilation configuration.
+    def _build_compilation_command(
+        self, workspace_path: Path, config: GenericDockerCompileConfig
+    ) -> str:
+        """Build west compilation command for west strategy.
 
         Args:
-            config: Compilation configuration to validate
+            workspace_path: Path to workspace directory
+            config: Compilation configuration
 
         Returns:
-            bool: True if configuration is valid
+            str: West build command
         """
-        # West strategy doesn't require specific configuration
-        # but can optionally use west_workspace configuration
-        if config.west_workspace:
-            if not config.west_workspace.workspace_path:
-                logger.error(
-                    "West workspace path is required when workspace is configured"
-                )
-                return False
+        # Use board targets from config for west builds
+        if config.board_targets and len(config.board_targets) > 0:
+            # Use first board target as primary build target
+            board = config.board_targets[0]
+        else:
+            # Default board for most ZMK keyboards
+            board = "nice_nano_v2"
 
-            if not config.west_workspace.manifest_url:
-                logger.error(
-                    "West manifest URL is required when workspace is configured"
-                )
-                return False
-
-        return True
+        # For west strategy, we build without shield specification by default
+        # Shield configuration is typically handled through the keymap files
+        return f"west build -b {board}"
 
     def validate_config(self, config: GenericDockerCompileConfig) -> bool:
-        """Validate configuration for this compilation strategy.
+        """Validate configuration for west compilation strategy.
 
         Args:
             config: Compilation configuration to validate
@@ -288,263 +115,38 @@ class WestCompilationService(BaseCompilationService):
         Returns:
             bool: True if configuration is valid
         """
-        return self.validate_configuration(config)
+        if not config.west_workspace:
+            self.logger.error("West workspace configuration is required")
+            return False
 
-    def check_available(self) -> bool:
-        """Check if this compilation strategy is available.
+        if not config.west_workspace.workspace_path:
+            self.logger.error("West workspace path is required")
+            return False
 
-        Returns:
-            bool: True if strategy is available
-        """
-        # West compilation requires Docker adapter
-        return self._docker_adapter is not None and self._docker_adapter.is_available()
-
-    def set_docker_adapter(self, docker_adapter: DockerAdapterProtocol) -> None:
-        """Set Docker adapter for this compilation service.
-
-        Args:
-            docker_adapter: Docker adapter instance
-        """
-        self._docker_adapter = docker_adapter
-
-    def _initialize_workspace(
-        self,
-        workspace_config: Any,
-        keymap_file: Path,
-        config_file: Path,
-    ) -> bool:
-        """Initialize west workspace.
-
-        Args:
-            workspace_config: West workspace configuration
-            keymap_file: User keymap file
-            config_file: User config file
-
-        Returns:
-            bool: True if workspace initialized successfully
-        """
-        return self.workspace_manager.initialize_workspace(
-            workspace_config=workspace_config,
-            keymap_file=keymap_file,
-            config_file=config_file,
-        )
-
-    def _prepare_build_environment(
-        self, config: GenericDockerCompileConfig
-    ) -> dict[str, str]:
-        """Prepare build environment variables.
-
-        Args:
-            config: Compilation configuration
-
-        Returns:
-            dict[str, str]: Environment variables for Docker container
-        """
-        context = {}
-
-        # Add west-specific environment
-        if config.west_workspace:
-            context.update(
-                {
-                    "workspace_path": config.west_workspace.workspace_path,
-                    "config_path": config.west_workspace.config_path,
-                    "manifest_url": config.west_workspace.manifest_url,
-                    "manifest_revision": config.west_workspace.manifest_revision,
-                }
-            )
-
-        return self.environment_manager.prepare_environment(config, **context)
-
-    def _prepare_build_volumes(
-        self,
-        workspace_path: Path | None,
-        keymap_file: Path,
-        config_file: Path,
-        output_dir: Path,
-        config: GenericDockerCompileConfig,
-    ) -> list[DockerVolume]:
-        """Prepare Docker volumes for build.
-
-        Args:
-            workspace_path: Path to west workspace (if any)
-            keymap_file: Path to keymap file
-            config_file: Path to config file
-            output_dir: Output directory for firmware files
-            config: Compilation configuration
-
-        Returns:
-            list[DockerVolume]: Docker volume mount tuples
-        """
-        volumes = []
-
-        # Map output directory
-        output_dir_abs = output_dir.absolute()
-        volumes.append((str(output_dir_abs), "/build"))
-
-        # Use volume templates if provided, otherwise use optimized defaults
-        if config.volume_templates:
-            # Apply volume templates (this would be expanded based on templates)
-            for template in config.volume_templates:
-                logger.debug("Applying volume template: %s", template)
-                # Parse template and add to volumes
-                self._parse_volume_template(template, volumes)
-        else:
-            # Optimized west workspace volume mapping
-            if config.west_workspace and workspace_path:
-                config_path = config.west_workspace.config_path
-                workspace_path_str = config.west_workspace.workspace_path
-
-                # Map files to west workspace config directory
-                keymap_abs = keymap_file.absolute()
-                config_abs = config_file.absolute()
-
-                volumes.append(
-                    (
-                        str(keymap_abs),
-                        f"{workspace_path_str}/{config_path}/keymap.keymap:ro",
-                    )
-                )
-                volumes.append(
-                    (
-                        str(config_abs),
-                        f"{workspace_path_str}/{config_path}/config.conf:ro",
-                    )
-                )
-
-                # Add workspace directory for persistent builds
-                workspace_host_path = workspace_path.absolute()
-                if workspace_host_path.exists():
-                    volumes.append(
-                        (str(workspace_host_path), f"{workspace_path_str}:rw")
-                    )
-                    logger.debug(
-                        "Mounted workspace directory: %s",
-                        workspace_path_str,
-                    )
-            else:
-                # Default volume mappings without workspace
-                keymap_abs = keymap_file.absolute()
-                config_abs = config_file.absolute()
-                volumes.append(
-                    (str(keymap_abs), "/zmk-workspace/config/keymap.keymap:ro")
-                )
-                volumes.append(
-                    (str(config_abs), "/zmk-workspace/config/config.conf:ro")
-                )
-
-        return volumes
-
-    def _parse_volume_template(
-        self, template: str, volumes: list[DockerVolume]
-    ) -> None:
-        """Parse volume template string and add to volumes list.
-
-        Args:
-            template: Volume template string
-            volumes: List to append volumes to
-        """
-        try:
-            # Simple template parsing - format: "host_path:container_path:mode"
-            parts = template.split(":")
-            if len(parts) >= 2:
-                host_path = parts[0]
-                container_path = parts[1]
-                mode = parts[2] if len(parts) > 2 else "rw"
-
-                # Expand templates like {workspace_path}
-                # This could be enhanced to support more template variables
-                volumes.append((host_path, f"{container_path}:{mode}"))
-                logger.debug(
-                    "Parsed volume template: %s -> %s:%s",
-                    host_path,
-                    container_path,
-                    mode,
-                )
-        except Exception as e:
-            logger.warning("Failed to parse volume template '%s': %s", template, e)
-
-    def _generate_build_commands(self, config: GenericDockerCompileConfig) -> list[str]:
-        """Generate west build commands.
-
-        Args:
-            config: Compilation configuration
-
-        Returns:
-            list[str]: List of west build commands
-        """
-        build_commands = []
-
-        # Add west zephyr-export command (required after west workspace initialization)
-        build_commands.append("west zephyr-export")
-
-        # Build west compilation command
-        if config.board_targets:
-            # Build for specific board targets
-            for board in config.board_targets:
-                build_commands.append(
-                    f"west build -s zmk/app -p always -b {board} -d build/{board}"
-                )
-        else:
-            # Default build command
-            build_commands.append("west build -s zmk/app -p always")
-
-        # Add any custom build commands
-        if config.build_commands:
-            build_commands.extend(config.build_commands)
-
-        return build_commands
-
-    def _collect_firmware_artifacts(self, output_dir: Path) -> Any:
-        """Collect firmware artifacts from output directory.
-
-        Args:
-            output_dir: Output directory to scan
-
-        Returns:
-            FirmwareOutputFiles: Collected firmware files
-        """
-        if not self.artifact_collector:
-            # Fallback implementation until Phase 5
-            from glovebox.firmware.models import FirmwareOutputFiles
-
-            return FirmwareOutputFiles(output_dir=output_dir)
-
-        # Use the protocol method when artifact collector is implemented
-        firmware_files, output_files = self.artifact_collector.collect_artifacts(
-            output_dir
-        )
-        return output_files
+        self.logger.debug("West workspace validation passed")
+        return True
 
 
-def create_west_compilation_service(
+def create_west_service(
     workspace_manager: WestWorkspaceManagerProtocol | None = None,
-    build_matrix_resolver: BuildMatrixResolver | None = None,
-    artifact_collector: ArtifactCollectorProtocol | None = None,
-    environment_manager: EnvironmentManager | None = None,
-    volume_manager: VolumeManager | None = None,
-    user_context_manager: UserContextManager | None = None,
-    docker_adapter: DockerAdapterProtocol | None = None,
+    compilation_cache: Any | None = None,
+    **base_kwargs: Any,
 ) -> WestCompilationService:
-    """Create west compilation service instance.
+    """Create West compilation service.
 
     Args:
         workspace_manager: West workspace manager
-        build_matrix_resolver: Build matrix resolver
-        artifact_collector: Artifact collector
-        environment_manager: Environment manager
-        volume_manager: Volume manager
-        user_context_manager: User context manager for Docker user mapping
-        docker_adapter: Docker adapter
+        compilation_cache: Compilation cache instance
+        **base_kwargs: Arguments passed to BaseCompilationService
 
     Returns:
-        WestCompilationService: New service instance
+        WestCompilationService: Configured service instance
     """
+    # Pass compilation cache to base service
+    if compilation_cache:
+        base_kwargs["compilation_cache"] = compilation_cache
+
     return WestCompilationService(
         workspace_manager=workspace_manager,
-        build_matrix_resolver=build_matrix_resolver,
-        artifact_collector=artifact_collector,
-        environment_manager=environment_manager,
-        volume_manager=volume_manager,
-        user_context_manager=user_context_manager,
-        docker_adapter=docker_adapter,
+        **base_kwargs,
     )

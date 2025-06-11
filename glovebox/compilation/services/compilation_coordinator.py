@@ -284,6 +284,56 @@ class CompilationCoordinator(BaseCompilationService):
             service.set_docker_adapter(self.docker_adapter)
             logger.debug("Injected Docker adapter into compilation service")
 
+    def _setup_workspace(
+        self,
+        keymap_file: Path,
+        config_file: Path,
+        config: GenericDockerCompileConfig,
+        keyboard_profile: "KeyboardProfile | None" = None,
+    ) -> Path | None:
+        """Dummy implementation - coordinator delegates to other services.
+
+        This is a placeholder implementation since the CompilationCoordinator
+        delegates workspace setup to the actual compilation services.
+        Will be removed in Phase 4.
+
+        Args:
+            keymap_file: Path to keymap file
+            config_file: Path to config file
+            config: Compilation configuration
+            keyboard_profile: Keyboard profile for dynamic generation
+
+        Returns:
+            Path | None: Always returns None as this is not used
+        """
+        logger.warning(
+            "CompilationCoordinator._setup_workspace called - "
+            "this should delegate to compilation services"
+        )
+        return None
+
+    def _build_compilation_command(
+        self, workspace_path: Path, config: GenericDockerCompileConfig
+    ) -> str:
+        """Dummy implementation - coordinator delegates to other services.
+
+        This is a placeholder implementation since the CompilationCoordinator
+        delegates command building to the actual compilation services.
+        Will be removed in Phase 4.
+
+        Args:
+            workspace_path: Path to workspace directory
+            config: Compilation configuration
+
+        Returns:
+            str: Empty command as this is not used
+        """
+        logger.warning(
+            "CompilationCoordinator._build_compilation_command called - "
+            "this should delegate to compilation services"
+        )
+        return ""
+
 
 def create_compilation_coordinator(
     compilation_services: dict[str, CompilationServiceProtocol] | None = None,

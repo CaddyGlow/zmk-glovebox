@@ -4,11 +4,13 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
 
 from glovebox.core.cache import CacheKey, CacheManager, create_default_cache
 from glovebox.core.errors import GloveboxError
+
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +49,11 @@ class CompilationCache:
         return self.cache.get(key)
 
     def cache_zmk_dependencies(
-        self, repository: str, branch: str, dependencies: dict[str, Any], ttl_hours: int = 24
+        self,
+        repository: str,
+        branch: str,
+        dependencies: dict[str, Any],
+        ttl_hours: int = 24,
     ) -> None:
         """Cache ZMK dependencies for repository and branch.
 
@@ -61,9 +67,7 @@ class CompilationCache:
         self.cache.set(key, dependencies, ttl=ttl_hours * 3600)
         logger.debug("Cached ZMK dependencies for %s:%s", repository, branch)
 
-    def get_keyboard_config(
-        self, keyboard_profile: "KeyboardProfile"
-    ) -> Any:
+    def get_keyboard_config(self, keyboard_profile: "KeyboardProfile") -> Any:
         """Get cached keyboard configuration.
 
         Args:
@@ -77,13 +81,17 @@ class CompilationCache:
             "keyboard_config",
             keyboard_profile.keyboard_name,
         ]
-        
+
         if keyboard_profile.firmware_version:
             key_parts.append(keyboard_profile.firmware_version)
-            
+
         # Include configuration hash for cache invalidation
         if hasattr(keyboard_profile, "keyboard_config"):
-            config_data = keyboard_profile.keyboard_config.dict() if hasattr(keyboard_profile.keyboard_config, "dict") else str(keyboard_profile.keyboard_config)
+            config_data = (
+                keyboard_profile.keyboard_config.dict()
+                if hasattr(keyboard_profile.keyboard_config, "dict")
+                else str(keyboard_profile.keyboard_config)
+            )
             config_key = CacheKey.from_dict({"config": config_data})
             key_parts.append(config_key)
 
@@ -91,10 +99,10 @@ class CompilationCache:
         return self.cache.get(key)
 
     def cache_keyboard_config(
-        self, 
-        keyboard_profile: "KeyboardProfile", 
-        config_data: dict[str, Any], 
-        ttl_hours: int = 6
+        self,
+        keyboard_profile: "KeyboardProfile",
+        config_data: dict[str, Any],
+        ttl_hours: int = 6,
     ) -> None:
         """Cache keyboard configuration.
 
@@ -108,12 +116,16 @@ class CompilationCache:
             "keyboard_config",
             keyboard_profile.keyboard_name,
         ]
-        
+
         if keyboard_profile.firmware_version:
             key_parts.append(keyboard_profile.firmware_version)
-            
+
         if hasattr(keyboard_profile, "keyboard_config"):
-            config_data_for_key = keyboard_profile.keyboard_config.dict() if hasattr(keyboard_profile.keyboard_config, "dict") else str(keyboard_profile.keyboard_config)
+            config_data_for_key = (
+                keyboard_profile.keyboard_config.dict()
+                if hasattr(keyboard_profile.keyboard_config, "dict")
+                else str(keyboard_profile.keyboard_config)
+            )
             config_key = CacheKey.from_dict({"config": config_data_for_key})
             key_parts.append(config_key)
 
@@ -173,9 +185,7 @@ class CompilationCache:
         self.cache.set(key, build_matrix, ttl=ttl_hours * 3600)
         logger.debug("Cached build matrix for config %s", config_hash)
 
-    def get_compilation_result(
-        self, keymap_path: Path, config_path: Path
-    ) -> Any:
+    def get_compilation_result(self, keymap_path: Path, config_path: Path) -> Any:
         """Get cached compilation result.
 
         Args:
@@ -210,7 +220,9 @@ class CompilationCache:
         config_key = CacheKey.from_path(config_path)
         key = CacheKey.from_parts("compilation", keymap_key, config_key)
         self.cache.set(key, result_data, ttl=ttl_hours * 3600)
-        logger.debug("Cached compilation result for %s + %s", keymap_path.name, config_path.name)
+        logger.debug(
+            "Cached compilation result for %s + %s", keymap_path.name, config_path.name
+        )
 
     def clear_compilation_cache(self) -> None:
         """Clear all compilation-related cache entries."""
@@ -247,7 +259,9 @@ class CompilationCache:
         return removed
 
 
-def create_compilation_cache(cache_manager: CacheManager | None = None) -> CompilationCache:
+def create_compilation_cache(
+    cache_manager: CacheManager | None = None,
+) -> CompilationCache:
     """Create a compilation cache instance.
 
     Args:

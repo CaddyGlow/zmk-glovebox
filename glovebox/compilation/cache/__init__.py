@@ -11,25 +11,25 @@ The caching system reduces compilation time by reusing shared dependencies
 and previously compiled components across multiple builds.
 """
 
-from glovebox.compilation.cache.compilation_cache import (
-    CompilationCache,
-    CompilationCacheError,
-    create_compilation_cache,
-)
-
 # Legacy cache imports for backward compatibility during migration
 from glovebox.compilation.cache.base_dependencies_cache import (
     BaseDependenciesCache,
     BaseDependenciesCacheError,
+)
+from glovebox.compilation.cache.compilation_cache import (
+    CompilationCache,
+    CompilationCacheError,
+    create_compilation_cache,
 )
 from glovebox.compilation.cache.keyboard_config_cache import (
     KeyboardConfigCache,
     KeyboardConfigCacheError,
 )
 
+
 __all__ = [
     "CompilationCache",
-    "CompilationCacheError", 
+    "CompilationCacheError",
     "create_compilation_cache",
     # Legacy exports
     "BaseDependenciesCache",
