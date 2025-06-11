@@ -371,7 +371,9 @@ class FlashService:
         # Default fallback
         return "removable=true"
 
-    def _select_flasher_with_fallback(self, flash_configs: list[FlashMethodConfig]) -> FlasherProtocol:
+    def _select_flasher_with_fallback(
+        self, flash_configs: list[FlashMethodConfig]
+    ) -> FlasherProtocol:
         """Select the first available flasher from configuration list.
 
         Args:

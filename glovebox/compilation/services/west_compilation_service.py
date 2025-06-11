@@ -13,7 +13,7 @@ from glovebox.compilation.services.base_compilation_service import (
 from glovebox.compilation.workspace.west_workspace_manager import (
     create_west_workspace_manager,
 )
-from glovebox.config.compile_methods import GenericDockerCompileConfig
+from glovebox.config.compile_methods import CompilationConfig
 
 
 if TYPE_CHECKING:
@@ -47,7 +47,7 @@ class WestCompilationService(BaseCompilationService):
         self,
         keymap_file: Path,
         config_file: Path,
-        config: GenericDockerCompileConfig,
+        config: CompilationConfig,
         keyboard_profile: "KeyboardProfile | None" = None,
     ) -> Path | None:
         """Setup West workspace for compilation.
@@ -83,7 +83,7 @@ class WestCompilationService(BaseCompilationService):
             return None
 
     def _build_compilation_command(
-        self, workspace_path: Path, config: GenericDockerCompileConfig
+        self, workspace_path: Path, config: CompilationConfig
     ) -> str:
         """Build west compilation command for west strategy.
 
@@ -106,7 +106,7 @@ class WestCompilationService(BaseCompilationService):
         # Shield configuration is typically handled through the keymap files
         return f"west build -b {board}"
 
-    def validate_config(self, config: GenericDockerCompileConfig) -> bool:
+    def validate_config(self, config: CompilationConfig) -> bool:
         """Validate configuration for west compilation strategy.
 
         Args:

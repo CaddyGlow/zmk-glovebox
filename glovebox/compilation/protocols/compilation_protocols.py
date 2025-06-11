@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from glovebox.config.compile_methods import GenericDockerCompileConfig
+from glovebox.config.compile_methods import CompilationConfig
 from glovebox.firmware.models import BuildResult
 
 
@@ -20,7 +20,7 @@ class CompilationServiceProtocol(Protocol):
         keymap_file: Path,
         config_file: Path,
         output_dir: Path,
-        config: GenericDockerCompileConfig,
+        config: CompilationConfig,
         keyboard_profile: "KeyboardProfile | None" = None,
     ) -> BuildResult:
         """Execute compilation using this strategy.
@@ -37,7 +37,7 @@ class CompilationServiceProtocol(Protocol):
         """
         ...
 
-    def validate_config(self, config: GenericDockerCompileConfig) -> bool:
+    def validate_config(self, config: CompilationConfig) -> bool:
         """Validate configuration for this compilation strategy.
 
         Args:
@@ -66,7 +66,7 @@ class CompilationCoordinatorProtocol(Protocol):
         keymap_file: Path,
         config_file: Path,
         output_dir: Path,
-        config: GenericDockerCompileConfig,
+        config: CompilationConfig,
         keyboard_profile: "KeyboardProfile | None" = None,
     ) -> BuildResult:
         """Coordinate compilation using appropriate strategy.
@@ -83,7 +83,7 @@ class CompilationCoordinatorProtocol(Protocol):
         """
         ...
 
-    def validate_config(self, config: GenericDockerCompileConfig) -> bool:
+    def validate_config(self, config: CompilationConfig) -> bool:
         """Validate configuration across all strategies.
 
         Args:

@@ -13,7 +13,7 @@ from glovebox.compilation.services.base_compilation_service import (
 from glovebox.compilation.workspace.zmk_config_workspace_manager import (
     create_zmk_config_workspace_manager,
 )
-from glovebox.config.compile_methods import GenericDockerCompileConfig
+from glovebox.config.compile_methods import CompilationConfig
 from glovebox.core.errors import BuildError
 
 
@@ -59,7 +59,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         self,
         keymap_file: Path,
         config_file: Path,
-        config: GenericDockerCompileConfig,
+        config: CompilationConfig,
         keyboard_profile: "KeyboardProfile | None" = None,
     ) -> Path | None:
         """Setup ZMK config workspace for compilation.
@@ -94,7 +94,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
             return None
 
     def _build_compilation_command(
-        self, workspace_path: Path, config: GenericDockerCompileConfig
+        self, workspace_path: Path, config: CompilationConfig
     ) -> str:
         """Build west compilation command for ZMK config strategy.
 
@@ -111,7 +111,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
     def _should_use_dynamic_generation(
         self,
-        config: GenericDockerCompileConfig,
+        config: CompilationConfig,
         keyboard_profile: "KeyboardProfile | None",
     ) -> bool:
         """Determine if dynamic workspace generation should be used.
@@ -137,7 +137,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         self,
         keymap_file: Path,
         config_file: Path,
-        config: GenericDockerCompileConfig,
+        config: CompilationConfig,
         keyboard_profile: "KeyboardProfile",
     ) -> Path | None:
         """Setup dynamic ZMK config workspace.
@@ -172,7 +172,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         return None
 
     def _setup_repository_workspace(
-        self, keymap_file: Path, config_file: Path, config: GenericDockerCompileConfig
+        self, keymap_file: Path, config_file: Path, config: CompilationConfig
     ) -> Path | None:
         """Setup repository-based ZMK config workspace.
 
@@ -201,7 +201,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         return None
 
     def _get_dynamic_workspace_path(
-        self, config: GenericDockerCompileConfig, keyboard_profile: "KeyboardProfile"
+        self, config: CompilationConfig, keyboard_profile: "KeyboardProfile"
     ) -> Path:
         """Get workspace path for dynamic generation.
 
@@ -219,7 +219,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         return Path.cwd() / "build" / f"zmk_config_{keyboard_profile.keyboard_name}"
 
     def _extract_shield_name(
-        self, config: GenericDockerCompileConfig, keyboard_profile: "KeyboardProfile"
+        self, config: CompilationConfig, keyboard_profile: "KeyboardProfile"
     ) -> str:
         """Extract shield name from configuration or keyboard profile.
 
@@ -233,7 +233,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         # Use keyboard name as shield name for dynamic generation
         return keyboard_profile.keyboard_name
 
-    def _extract_board_name(self, config: GenericDockerCompileConfig) -> str:
+    def _extract_board_name(self, config: CompilationConfig) -> str:
         """Extract board name from compilation configuration.
 
         Args:
@@ -249,7 +249,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         # Default board for most ZMK keyboards
         return "nice_nano_v2"
 
-    def validate_config(self, config: GenericDockerCompileConfig) -> bool:
+    def validate_config(self, config: CompilationConfig) -> bool:
         """Validate configuration for ZMK config compilation strategy.
 
         Args:

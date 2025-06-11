@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from glovebox.config.compile_methods import GenericDockerCompileConfig
+from glovebox.config.compile_methods import CompilationConfig
 from glovebox.core.errors import GloveboxError
 
 
@@ -33,7 +33,7 @@ class EnvironmentManager:
 
     def prepare_environment(
         self,
-        config: GenericDockerCompileConfig,
+        config: CompilationConfig,
         **context: Any,
     ) -> dict[str, str]:
         """Prepare environment variables for compilation.
@@ -195,7 +195,7 @@ class EnvironmentManager:
 
     def prepare_docker_environment(
         self,
-        config: GenericDockerCompileConfig,
+        config: CompilationConfig,
         user_context: "DockerUserContext | None" = None,
         user_mapping_enabled: bool = False,
         **context: Any,
@@ -236,7 +236,7 @@ class EnvironmentManager:
 
     def prepare_docker_environment_with_context(
         self,
-        config: GenericDockerCompileConfig,
+        config: CompilationConfig,
         user_context: "DockerUserContext",
         **context: Any,
     ) -> dict[str, str]:

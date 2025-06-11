@@ -15,7 +15,7 @@ from glovebox.compilation.services.compilation_coordinator import (
     create_compilation_coordinator,
 )
 from glovebox.config.compile_methods import (
-    GenericDockerCompileConfig,
+    CompilationConfig,
     WestWorkspaceConfig,
     ZmkConfigRepoConfig,
 )
@@ -77,7 +77,7 @@ class TestCompilationCoordinator:
             output_dir.mkdir()
 
             # Mock configuration for ZMK config strategy
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
             config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
             config.west_workspace = None
             config.build_strategy = "zmk_config"
@@ -111,7 +111,7 @@ class TestCompilationCoordinator:
             output_dir.mkdir()
 
             # Mock configuration for west strategy
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
             config.zmk_config_repo = None
             config.west_workspace = Mock(spec=WestWorkspaceConfig)
             config.build_strategy = "west"
@@ -145,7 +145,7 @@ class TestCompilationCoordinator:
             output_dir.mkdir()
 
             # Mock configuration with no specific strategy indicators
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
             config.zmk_config_repo = None
             config.west_workspace = None
             config.build_strategy = "cmake"
@@ -174,7 +174,7 @@ class TestCompilationCoordinator:
             config_file = Path(temp_dir) / "config.conf"
             output_dir = Path(temp_dir) / "output"
 
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
             config.zmk_config_repo = None
             config.west_workspace = None
             config.build_strategy = "cmake"
@@ -203,7 +203,7 @@ class TestCompilationCoordinator:
             config_file = Path(temp_dir) / "config.conf"
             output_dir = Path(temp_dir) / "output"
 
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
             config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
             config.west_workspace = None
             config.build_strategy = "zmk_config"
@@ -218,7 +218,7 @@ class TestCompilationCoordinator:
 
     def test_validate_config_valid(self):
         """Test configuration validation with valid config."""
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
         config.west_workspace = None
         config.build_strategy = "zmk_config"
@@ -232,7 +232,7 @@ class TestCompilationCoordinator:
 
     def test_validate_config_invalid(self):
         """Test configuration validation with invalid config."""
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.zmk_config_repo = None
         config.west_workspace = None
         config.build_strategy = "cmake"
@@ -300,7 +300,7 @@ class TestCompilationCoordinator:
             config_file = Path(temp_dir) / "config.conf"
             output_dir = Path(temp_dir) / "output"
 
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
             config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
             config.west_workspace = None
             config.build_strategy = "zmk_config"
@@ -322,7 +322,7 @@ class TestCompilationCoordinator:
     def test_strategy_selection_priority(self):
         """Test strategy selection follows priority order."""
         # Mock configuration that matches multiple strategies
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
         config.west_workspace = Mock(spec=WestWorkspaceConfig)
         config.build_strategy = "zmk_config"
@@ -347,7 +347,7 @@ class TestCompilationCoordinator:
             config_file = Path(temp_dir) / "config.conf"
             output_dir = Path(temp_dir) / "output"
 
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
             config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
             config.west_workspace = None
             config.build_strategy = "zmk_config"
@@ -392,7 +392,7 @@ class TestCompilationCoordinatorIntegration:
     def test_strategy_selection_integration(self):
         """Test strategy selection with real service instances."""
         # Test ZMK config strategy selection
-        config_zmk = Mock(spec=GenericDockerCompileConfig)
+        config_zmk = Mock(spec=CompilationConfig)
         config_zmk.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
         config_zmk.zmk_config_repo.config_repo_url = (
             "https://github.com/test/zmk-config"
@@ -412,7 +412,7 @@ class TestCompilationCoordinatorIntegration:
         ]  # Depends on service availability
 
         # Test west strategy selection
-        config_west = Mock(spec=GenericDockerCompileConfig)
+        config_west = Mock(spec=CompilationConfig)
         config_west.zmk_config_repo = None
         config_west.west_workspace = Mock(spec=WestWorkspaceConfig)
         config_west.west_workspace.workspace_path = "/west-workspace"
@@ -427,7 +427,7 @@ class TestCompilationCoordinatorIntegration:
     def test_service_coordination_workflow(self):
         """Test complete service coordination workflow."""
         # Test that coordinator properly coordinates services
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.zmk_config_repo = None
         config.west_workspace = None
         config.build_strategy = "cmake"

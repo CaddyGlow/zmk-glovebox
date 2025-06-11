@@ -18,7 +18,7 @@ from glovebox.compilation.workspace.cache_manager import (
     CacheManagerError,
     create_cache_manager,
 )
-from glovebox.config.compile_methods import GenericDockerCompileConfig
+from glovebox.config.compile_methods import CompilationConfig
 
 
 class TestCacheManager:
@@ -116,7 +116,7 @@ class TestCacheManager:
             workspace_path = Path(temp_dir) / "no_cache_workspace"
             workspace_path.mkdir()
 
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
             result = self.manager.is_cache_valid(workspace_path, config)
             assert result is False
 
@@ -132,7 +132,7 @@ class TestCacheManager:
             # Cache the workspace first
             self.manager.cache_workspace(workspace_path)
 
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
             result = self.manager.is_cache_valid(workspace_path, config)
             assert result is True
 
@@ -148,7 +148,7 @@ class TestCacheManager:
             # Cache the workspace
             self.manager.cache_workspace(workspace_path)
 
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
             result = self.manager.validate_cache(workspace_path, config)
 
             assert isinstance(result, CacheValidationResult)
@@ -175,7 +175,7 @@ class TestCacheManager:
             with metadata_file.open("w", encoding="utf-8") as f:
                 f.write(old_metadata.model_dump_json())
 
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
             result = self.manager.validate_cache(workspace_path, config)
 
             assert result.is_valid is False
@@ -198,7 +198,7 @@ class TestCacheManager:
             # Change the manifest
             west_yml.write_text("manifest: {modified: true}")
 
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
             result = self.manager.validate_cache(workspace_path, config)
 
             assert result.is_valid is False
@@ -410,7 +410,7 @@ class TestCacheManager:
             metadata_file = cache_dir / f"{workspace_path.name}_metadata.json"
             metadata_file.write_text("invalid json content")
 
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
 
             with pytest.raises(CacheManagerError):
                 self.manager.validate_cache(workspace_path, config)
@@ -436,7 +436,7 @@ class TestCacheManagerIntegration:
             config_dir.mkdir()
             (config_dir / "test.keymap").write_text("/* test keymap */")
 
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
 
             # 1. Initial cache validation (should be invalid)
             assert self.manager.is_cache_valid(workspace_path, config) is False
@@ -468,7 +468,7 @@ class TestCacheManagerIntegration:
         """Test caching multiple workspaces."""
         with tempfile.TemporaryDirectory() as temp_dir:
             workspaces = []
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
 
             # Mock the cache base directory to point to our temp directory
             cache_base = Path(temp_dir) / "cache_base"
@@ -502,7 +502,7 @@ class TestCacheManagerIntegration:
             workspace_path = Path(temp_dir) / "invalidation_workspace"
             workspace_path.mkdir()
 
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
 
             # Create initial workspace
             (workspace_path / "west.yml").write_text("manifest: {test: initial}")
@@ -546,7 +546,7 @@ class TestCacheManagerIntegration:
             (config_dir / "test.keymap").write_text("/* test keymap */")
             (config_dir / "test.conf").write_text("CONFIG_TEST=y")
 
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
 
             # Measure cache operations
             start_time = time.time()

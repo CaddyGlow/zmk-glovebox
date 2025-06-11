@@ -5,10 +5,10 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..compile_methods import (
+    CompilationConfig,
     CompileMethodConfig,
     CrossCompileConfig,
     DockerCompileConfig,
-    GenericDockerCompileConfig,
     LocalCompileConfig,
     QemuCompileConfig,
 )
@@ -68,7 +68,7 @@ class KeymapSection(BaseModel):
 # Union types for method configurations
 CompileMethodConfigUnion = (
     DockerCompileConfig
-    | GenericDockerCompileConfig
+    | CompilationConfig
     | LocalCompileConfig
     | CrossCompileConfig
     | QemuCompileConfig

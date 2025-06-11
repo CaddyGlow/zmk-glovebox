@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from glovebox.config.compile_methods import GenericDockerCompileConfig
+from glovebox.config.compile_methods import CompilationConfig
 from glovebox.firmware.compile.generic_docker_compiler import (
     GenericDockerCompiler,
     create_generic_docker_compiler,
@@ -61,7 +61,7 @@ class TestGenericDockerCompiler:
     @pytest.fixture
     def basic_config(self):
         """Create basic valid configuration."""
-        return GenericDockerCompileConfig(
+        return CompilationConfig(
             image="zmkfirmware/zmk-build-arm:stable",
             build_strategy="west",
         )
@@ -119,19 +119,19 @@ class TestGenericDockerCompiler:
 
     def test_validate_config_invalid_image(self, compiler):
         """Test config validation with missing image."""
-        config = GenericDockerCompileConfig(image="", build_strategy="west")
+        config = CompilationConfig(image="", build_strategy="west")
         assert compiler.validate_config(config) is False
 
     def test_validate_config_invalid_strategy(self, compiler):
         """Test config validation with invalid build strategy."""
-        config = GenericDockerCompileConfig(
+        config = CompilationConfig(
             image="test:latest", build_strategy="invalid_strategy"
         )
         assert compiler.validate_config(config) is False
 
     def test_validate_config_missing_strategy(self, compiler):
         """Test config validation with missing build strategy."""
-        config = GenericDockerCompileConfig(image="test:latest", build_strategy="")
+        config = CompilationConfig(image="test:latest", build_strategy="")
         assert compiler.validate_config(config) is False
 
     def test_build_image(self, compiler, basic_config):

@@ -28,7 +28,7 @@ from glovebox.compilation.configuration.volume_manager import (
 from glovebox.compilation.protocols.artifact_protocols import (
     ArtifactCollectorProtocol,
 )
-from glovebox.config.compile_methods import GenericDockerCompileConfig
+from glovebox.config.compile_methods import CompilationConfig
 from glovebox.core.errors import BuildError
 from glovebox.firmware.models import BuildResult
 from glovebox.protocols import DockerAdapterProtocol
@@ -93,7 +93,7 @@ class BaseCompilationService(BaseService):
         keymap_file: Path,
         config_file: Path,
         output_dir: Path,
-        config: GenericDockerCompileConfig,
+        config: CompilationConfig,
         keyboard_profile: "KeyboardProfile | None" = None,
     ) -> BuildResult:
         """Execute compilation using template method pattern.
@@ -166,7 +166,7 @@ class BaseCompilationService(BaseService):
         self,
         keymap_file: Path,
         config_file: Path,
-        config: GenericDockerCompileConfig,
+        config: CompilationConfig,
         keyboard_profile: "KeyboardProfile | None" = None,
     ) -> Path | None:
         """Setup workspace for compilation (strategy-specific).
@@ -184,7 +184,7 @@ class BaseCompilationService(BaseService):
 
     @abstractmethod
     def _build_compilation_command(
-        self, workspace_path: Path, config: GenericDockerCompileConfig
+        self, workspace_path: Path, config: CompilationConfig
     ) -> str:
         """Build compilation command for this strategy.
 
@@ -197,7 +197,7 @@ class BaseCompilationService(BaseService):
         """
         pass
 
-    def validate_configuration(self, config: GenericDockerCompileConfig) -> bool:
+    def validate_configuration(self, config: CompilationConfig) -> bool:
         """Validate compilation configuration.
 
         Base validation that all compilation strategies should perform.
@@ -214,10 +214,6 @@ class BaseCompilationService(BaseService):
         # Base validation checks
         if not config.image:
             self.logger.error("Docker image not specified")
-            valid = False
-
-        if not config.build_strategy:
-            self.logger.error("Build strategy not specified")
             valid = False
 
         # Strategy-specific validation should be in subclasses
@@ -245,7 +241,7 @@ class BaseCompilationService(BaseService):
         self._docker_adapter = docker_adapter
 
     def _validate_common_config(
-        self, config: GenericDockerCompileConfig, result: BuildResult
+        self, config: CompilationConfig, result: BuildResult
     ) -> bool:
         """Validate common configuration requirements.
 
@@ -272,7 +268,7 @@ class BaseCompilationService(BaseService):
         self,
         workspace_path: Path,
         output_dir: Path,
-        config: GenericDockerCompileConfig,
+        config: CompilationConfig,
         result: BuildResult,
     ) -> bool:
         """Execute Docker compilation using common patterns.
@@ -300,8 +296,8 @@ class BaseCompilationService(BaseService):
 
             # Get user context for Docker volume permissions
             user_context = self.user_context_manager.get_user_context(
-                enable_user_mapping=config.enable_user_mapping,
-                detect_automatically=config.detect_user_automatically,
+                enable_user_mapping=config.docker_user.enable_user_mapping,
+                detect_automatically=config.docker_user.detect_user_automatically,
             )
 
             # Update environment for Docker user mapping if enabled
@@ -350,9 +346,7 @@ class BaseCompilationService(BaseService):
             result.add_error(f"Docker compilation execution failed: {e}")
             return False
 
-    def _prepare_build_environment(
-        self, config: GenericDockerCompileConfig
-    ) -> dict[str, str]:
+    def _prepare_build_environment(self, config: CompilationConfig) -> dict[str, str]:
         """Prepare build environment variables for compilation.
 
         Base environment preparation that all strategies can use.
@@ -380,7 +374,7 @@ class BaseCompilationService(BaseService):
         self,
         workspace_path: Path,
         output_dir: Path,
-        config: GenericDockerCompileConfig,
+        config: CompilationConfig,
     ) -> list[tuple[str, str]]:
         """Prepare Docker volumes for compilation.
 
