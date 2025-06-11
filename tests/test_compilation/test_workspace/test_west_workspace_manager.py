@@ -2,6 +2,7 @@
 
 import tempfile
 from pathlib import Path
+from typing import cast
 from unittest.mock import Mock
 
 import pytest
@@ -11,6 +12,7 @@ from glovebox.compilation.workspace.west_workspace_manager import (
     create_west_workspace_manager,
 )
 from glovebox.config.compile_methods import WestWorkspaceConfig
+from glovebox.protocols import DockerAdapterProtocol
 
 
 class TestWestWorkspaceManager:
@@ -123,17 +125,23 @@ class TestWestWorkspaceManager:
 
     def test_initialize_workspace_no_docker_adapter(self):
         """Test workspace initialization without Docker adapter."""
-        self.manager.docker_adapter = None
+        # Temporarily set docker_adapter to None for testing
+        original_adapter = self.manager.docker_adapter
+        self.manager.docker_adapter = None  # type: ignore[assignment]
 
         workspace_config = Mock(spec=WestWorkspaceConfig)
         keymap_file = Path("/tmp/keymap.keymap")
         config_file = Path("/tmp/config.conf")
 
-        result = self.manager.initialize_west_workspace(
-            workspace_config, keymap_file, config_file
-        )
+        try:
+            result = self.manager.initialize_west_workspace(
+                workspace_config, keymap_file, config_file
+            )
 
-        assert result is False
+            assert result is False
+        finally:
+            # Restore original adapter
+            self.manager.docker_adapter = original_adapter
 
     def test_initialize_workspace_docker_failure(self):
         """Test workspace initialization with Docker failure."""

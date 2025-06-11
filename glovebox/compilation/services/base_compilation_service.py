@@ -5,6 +5,7 @@ from pathlib import Path
 
 from glovebox.config.compile_methods import GenericDockerCompileConfig
 from glovebox.firmware.models import BuildResult
+from glovebox.protocols import DockerAdapterProtocol
 from glovebox.services.base_service import BaseService
 
 

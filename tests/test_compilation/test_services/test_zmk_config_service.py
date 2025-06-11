@@ -2,6 +2,7 @@
 
 import tempfile
 from pathlib import Path
+from typing import cast
 from unittest.mock import Mock, patch
 
 import pytest
@@ -36,6 +37,26 @@ class TestZmkConfigCompilationService:
         # Mock Docker adapter
         self.mock_docker_adapter = Mock()
         self.service.set_docker_adapter(self.mock_docker_adapter)
+
+    def _create_mock_config(self, **overrides):
+        """Create a mock GenericDockerCompileConfig with all required attributes."""
+        config = Mock(spec=GenericDockerCompileConfig)
+
+        # Set default values for all required attributes
+        config.image = "zmkfirmware/zmk-build-arm:stable"
+        config.board_targets = ["nice_nano_v2"]
+        config.build_commands = []
+        config.volume_templates = []
+        config.environment_template = {}
+        config.enable_user_mapping = True
+        config.detect_user_automatically = True
+        config.zmk_config_repo = None
+
+        # Apply any overrides
+        for key, value in overrides.items():
+            setattr(config, key, value)
+
+        return config
 
     def test_initialization(self):
         """Test service initialization."""
@@ -102,21 +123,22 @@ class TestZmkConfigCompilationService:
             output_dir.mkdir()
 
             # Mock configuration
-            config = Mock(spec=GenericDockerCompileConfig)
-            config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
-            config.zmk_config_repo.config_repo_url = (
-                "https://github.com/user/zmk-config"
-            )
-            config.zmk_config_repo.workspace_path = str(Path(temp_dir) / "workspace")
-            config.zmk_config_repo.build_yaml_path = "build.yaml"
-            config.zmk_config_repo.config_repo_revision = "main"
-            config.zmk_config_repo.west_commands = [
+            zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
+            zmk_config_repo.config_repo_url = "https://github.com/user/zmk-config"
+            zmk_config_repo.workspace_path = str(Path(temp_dir) / "workspace")
+            zmk_config_repo.config_path = "config"
+            zmk_config_repo.build_yaml_path = "build.yaml"
+            zmk_config_repo.config_repo_revision = "main"
+            zmk_config_repo.west_commands = [
                 "west init -l config",
                 "west update",
             ]
-            config.image = "zmkfirmware/zmk-build-arm:stable"
-            config.board_targets = ["nice_nano_v2"]
-            config.build_commands = []
+
+            config = self._create_mock_config(
+                zmk_config_repo=zmk_config_repo,
+                board_targets=["nice_nano_v2"],
+                build_commands=[],
+            )
 
             # Mock workspace initialization
             self.service.workspace_manager.initialize_workspace.return_value = True
@@ -217,21 +239,20 @@ class TestZmkConfigCompilationService:
             config_file = Path(temp_dir) / "config.conf"
             output_dir = Path(temp_dir) / "output"
 
-            config = Mock(spec=GenericDockerCompileConfig)
-            config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
-            config.zmk_config_repo.config_repo_url = (
-                "https://github.com/user/zmk-config"
-            )
-            config.zmk_config_repo.workspace_path = str(Path(temp_dir) / "workspace")
-            config.zmk_config_repo.build_yaml_path = "build.yaml"
-            config.zmk_config_repo.config_repo_revision = "main"
-            config.zmk_config_repo.west_commands = [
+            zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
+            zmk_config_repo.config_repo_url = "https://github.com/user/zmk-config"
+            zmk_config_repo.workspace_path = str(Path(temp_dir) / "workspace")
+            zmk_config_repo.config_path = "config"
+            zmk_config_repo.build_yaml_path = "build.yaml"
+            zmk_config_repo.config_repo_revision = "main"
+            zmk_config_repo.west_commands = [
                 "west init -l config",
                 "west update",
             ]
-            config.image = "zmkfirmware/zmk-build-arm:stable"
-            config.board_targets = []
-            config.build_commands = []
+
+            config = self._create_mock_config(
+                zmk_config_repo=zmk_config_repo, board_targets=[], build_commands=[]
+            )
 
             # Mock successful workspace and build execution
             self.service.workspace_manager.initialize_workspace.return_value = True
@@ -418,21 +439,20 @@ class TestZmkConfigCompilationService:
             config_file = Path(temp_dir) / "config.conf"
             output_dir = Path(temp_dir) / "output"
 
-            config = Mock(spec=GenericDockerCompileConfig)
-            config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
-            config.zmk_config_repo.config_repo_url = (
-                "https://github.com/user/zmk-config"
-            )
-            config.zmk_config_repo.workspace_path = str(Path(temp_dir) / "workspace")
-            config.zmk_config_repo.build_yaml_path = "build.yaml"
-            config.zmk_config_repo.config_repo_revision = "main"
-            config.zmk_config_repo.west_commands = [
+            zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
+            zmk_config_repo.config_repo_url = "https://github.com/user/zmk-config"
+            zmk_config_repo.workspace_path = str(Path(temp_dir) / "workspace")
+            zmk_config_repo.config_path = "config"
+            zmk_config_repo.build_yaml_path = "build.yaml"
+            zmk_config_repo.config_repo_revision = "main"
+            zmk_config_repo.west_commands = [
                 "west init -l config",
                 "west update",
             ]
-            config.image = "zmkfirmware/zmk-build-arm:stable"
-            config.board_targets = []
-            config.build_commands = []
+
+            config = self._create_mock_config(
+                zmk_config_repo=zmk_config_repo, board_targets=[], build_commands=[]
+            )
 
             # Mock successful initialization
             self.service.workspace_manager.initialize_workspace.return_value = True

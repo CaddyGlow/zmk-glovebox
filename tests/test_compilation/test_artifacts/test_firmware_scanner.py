@@ -316,10 +316,11 @@ class TestFirmwareScanner:
                     return [dir_path / "firmware.bin"]
                 return []
 
-            # Replace scan_firmware_files method for this test
-            self.scanner.scan_firmware_files = mock_scan_files
-
-            result = self.scanner.scan_specific_patterns(directory, patterns)
+            # Use patch to properly mock the method
+            with patch.object(
+                self.scanner, "scan_firmware_files", side_effect=mock_scan_files
+            ):
+                result = self.scanner.scan_specific_patterns(directory, patterns)
 
             assert len(result) == 3
             assert "*.uf2" in result

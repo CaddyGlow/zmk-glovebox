@@ -2,6 +2,7 @@
 
 import tempfile
 from pathlib import Path
+from typing import cast
 from unittest.mock import Mock, patch
 
 import pytest
@@ -35,6 +36,26 @@ class TestWestCompilationService:
         self.mock_docker_adapter = Mock()
         self.service.set_docker_adapter(self.mock_docker_adapter)
 
+    def _create_mock_config(self, **overrides):
+        """Create a mock GenericDockerCompileConfig with all required attributes."""
+        config = Mock(spec=GenericDockerCompileConfig)
+
+        # Set default values for all required attributes
+        config.image = "zmkfirmware/zmk-build-arm:stable"
+        config.board_targets = ["nice_nano_v2"]
+        config.build_commands = []
+        config.volume_templates = []
+        config.environment_template = {}
+        config.enable_user_mapping = True
+        config.detect_user_automatically = True
+        config.west_workspace = None
+
+        # Apply any overrides
+        for key, value in overrides.items():
+            setattr(config, key, value)
+
+        return config
+
     def test_initialization(self):
         """Test service initialization."""
         service = WestCompilationService()
@@ -51,8 +72,7 @@ class TestWestCompilationService:
 
     def test_validate_configuration_valid_no_workspace(self):
         """Test configuration validation with no workspace config."""
-        config = Mock(spec=GenericDockerCompileConfig)
-        config.west_workspace = None
+        config = self._create_mock_config(west_workspace=None)
 
         result = self.service.validate_configuration(config)
         assert result is True
@@ -99,16 +119,13 @@ class TestWestCompilationService:
             output_dir.mkdir()
 
             # Mock configuration
-            config = Mock(spec=GenericDockerCompileConfig)
-            config.west_workspace = Mock(spec=WestWorkspaceConfig)
-            config.west_workspace.workspace_path = str(Path(temp_dir) / "workspace")
-            config.west_workspace.config_path = "config"
-            config.west_workspace.manifest_url = "https://github.com/zmkfirmware/zmk"
-            config.west_workspace.manifest_revision = "main"
-            config.image = "zmkfirmware/zmk-build-arm:stable"
-            config.board_targets = ["nice_nano_v2"]
-            config.build_commands = []
-            config.volume_templates = []
+            west_workspace = Mock(spec=WestWorkspaceConfig)
+            west_workspace.workspace_path = str(Path(temp_dir) / "workspace")
+            west_workspace.config_path = "config"
+            west_workspace.manifest_url = "https://github.com/zmkfirmware/zmk"
+            west_workspace.manifest_revision = "main"
+
+            config = self._create_mock_config(west_workspace=west_workspace)
 
             # Mock workspace initialization
             self.service.workspace_manager.initialize_workspace.return_value = True
@@ -149,12 +166,12 @@ class TestWestCompilationService:
             output_dir.mkdir()
 
             # Mock configuration without workspace
-            config = Mock(spec=GenericDockerCompileConfig)
-            config.west_workspace = None
-            config.image = "zmkfirmware/zmk-build-arm:stable"
-            config.board_targets = []
-            config.build_commands = []
-            config.volume_templates = []
+            config = self._create_mock_config(
+                west_workspace=None,
+                board_targets=[],
+                build_commands=[],
+                volume_templates=[],
+            )
 
             # Mock Docker execution
             self.mock_docker_adapter.run_container.return_value = (0, [], [])
@@ -229,12 +246,12 @@ class TestWestCompilationService:
             config_file = Path(temp_dir) / "config.conf"
             output_dir = Path(temp_dir) / "output"
 
-            config = Mock(spec=GenericDockerCompileConfig)
-            config.west_workspace = None
-            config.image = "zmkfirmware/zmk-build-arm:stable"
-            config.board_targets = []
-            config.build_commands = []
-            config.volume_templates = []
+            config = self._create_mock_config(
+                west_workspace=None,
+                board_targets=[],
+                build_commands=[],
+                volume_templates=[],
+            )
 
             # Mock successful Docker execution
             self.mock_docker_adapter.run_container.return_value = (0, [], [])
@@ -261,40 +278,44 @@ class TestWestCompilationService:
 
     def test_generate_build_commands_with_board_targets(self):
         """Test build command generation with board targets."""
-        config = Mock(spec=GenericDockerCompileConfig)
-        config.board_targets = ["nice_nano_v2", "bluemicro840_v1"]
-        config.build_commands = []
+        config = self._create_mock_config(
+            board_targets=["nice_nano_v2", "bluemicro840_v1"], build_commands=[]
+        )
 
         commands = self.service._generate_build_commands(config)
 
-        assert len(commands) == 2
-        assert "west build -p always -b nice_nano_v2 -d build/nice_nano_v2" in commands
+        assert len(commands) == 3  # west zephyr-export + 2 board targets
+        assert "west zephyr-export" in commands
         assert (
-            "west build -p always -b bluemicro840_v1 -d build/bluemicro840_v1"
+            "west build -s zmk/app -p always -b nice_nano_v2 -d build/nice_nano_v2"
+            in commands
+        )
+        assert (
+            "west build -s zmk/app -p always -b bluemicro840_v1 -d build/bluemicro840_v1"
             in commands
         )
 
     def test_generate_build_commands_default(self):
         """Test default build command generation."""
-        config = Mock(spec=GenericDockerCompileConfig)
-        config.board_targets = []
-        config.build_commands = []
+        config = self._create_mock_config(board_targets=[], build_commands=[])
 
         commands = self.service._generate_build_commands(config)
 
-        assert len(commands) == 1
-        assert "west build -p always" in commands
+        assert len(commands) == 2  # west zephyr-export + default build
+        assert "west zephyr-export" in commands
+        assert "west build -s zmk/app -p always" in commands
 
     def test_generate_build_commands_with_custom(self):
         """Test build command generation with custom commands."""
-        config = Mock(spec=GenericDockerCompileConfig)
-        config.board_targets = []
-        config.build_commands = ["custom command 1", "custom command 2"]
+        config = self._create_mock_config(
+            board_targets=[], build_commands=["custom command 1", "custom command 2"]
+        )
 
         commands = self.service._generate_build_commands(config)
 
-        assert len(commands) == 3
-        assert "west build -p always" in commands
+        assert len(commands) == 4  # west zephyr-export + default build + 2 custom
+        assert "west zephyr-export" in commands
+        assert "west build -s zmk/app -p always" in commands
         assert "custom command 1" in commands
         assert "custom command 2" in commands
 
@@ -321,12 +342,12 @@ class TestWestCompilationService:
             config_file = Path(temp_dir) / "config.conf"
             output_dir = Path(temp_dir) / "output"
 
-            config = Mock(spec=GenericDockerCompileConfig)
-            config.west_workspace = None
-            config.image = "zmkfirmware/zmk-build-arm:stable"
-            config.board_targets = []
-            config.build_commands = []
-            config.volume_templates = []
+            config = self._create_mock_config(
+                west_workspace=None,
+                board_targets=[],
+                build_commands=[],
+                volume_templates=[],
+            )
 
             # Mock Docker execution failure
             self.mock_docker_adapter.run_container.return_value = (
@@ -398,7 +419,7 @@ class TestWestCompilationService:
 
     def test_parse_volume_template(self):
         """Test volume template parsing."""
-        volumes = []
+        volumes: list[tuple[str, str]] = []
         template = "/host/path:/container/path:ro"
 
         self.service._parse_volume_template(template, volumes)
@@ -408,7 +429,7 @@ class TestWestCompilationService:
 
     def test_parse_volume_template_invalid(self):
         """Test volume template parsing with invalid template."""
-        volumes = []
+        volumes: list[tuple[str, str]] = []
         template = "invalid_template"
 
         # Should not raise exception but log warning

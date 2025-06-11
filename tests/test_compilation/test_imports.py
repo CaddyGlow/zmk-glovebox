@@ -1,5 +1,8 @@
 """Test imports work correctly for compilation domain."""
 
+from collections.abc import Callable
+from typing import Any, cast
+
 import pytest
 
 
@@ -136,7 +139,8 @@ def test_subdomain_factory_functions():
     ]
 
     for func in implemented_workspace_functions:
-        result = func()
+        factory_func = cast(Callable[[], Any], func)
+        result = factory_func()
         assert result is not None
 
     # Test artifact factory functions return actual objects (Phase 5 completed)
@@ -147,7 +151,8 @@ def test_subdomain_factory_functions():
     ]
 
     for func in artifact_functions:
-        result = func()
+        factory_func = cast(Callable[[], Any], func)
+        result = factory_func()
         assert result is not None
 
     # Test abstract workspace manager raises NotImplementedError

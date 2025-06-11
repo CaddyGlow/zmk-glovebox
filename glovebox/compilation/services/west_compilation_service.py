@@ -299,6 +299,14 @@ class WestCompilationService(BaseCompilationService):
         # West compilation requires Docker adapter
         return self._docker_adapter is not None and self._docker_adapter.is_available()
 
+    def set_docker_adapter(self, docker_adapter: DockerAdapterProtocol) -> None:
+        """Set Docker adapter for this compilation service.
+
+        Args:
+            docker_adapter: Docker adapter instance
+        """
+        self._docker_adapter = docker_adapter
+
     def _initialize_workspace(
         self,
         workspace_config: Any,
@@ -506,14 +514,6 @@ class WestCompilationService(BaseCompilationService):
             output_dir
         )
         return output_files
-
-    def set_docker_adapter(self, docker_adapter: DockerAdapterProtocol) -> None:
-        """Set Docker adapter for compilation operations.
-
-        Args:
-            docker_adapter: Docker adapter instance
-        """
-        self._docker_adapter = docker_adapter
 
 
 def create_west_compilation_service(

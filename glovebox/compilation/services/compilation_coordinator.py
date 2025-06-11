@@ -89,7 +89,11 @@ class CompilationCoordinator(BaseCompilationService):
 
             # Execute compilation using selected strategy
             result = compilation_service.compile(
-                keymap_file, config_file, output_dir, config, keyboard_profile
+                keymap_file,
+                config_file,
+                output_dir,
+                config,
+                keyboard_profile=keyboard_profile,
             )
 
             if result.success:

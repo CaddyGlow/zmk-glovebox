@@ -2,10 +2,14 @@
 
 import tempfile
 from pathlib import Path
+from typing import cast
 from unittest.mock import Mock
 
 import pytest
 
+from glovebox.compilation.protocols.compilation_protocols import (
+    CompilationServiceProtocol,
+)
 from glovebox.compilation.services.compilation_coordinator import (
     CompilationCoordinator,
     create_compilation_coordinator,
@@ -28,11 +32,14 @@ class TestCompilationCoordinator:
         self.mock_west_service = Mock()
         self.mock_cmake_service = Mock()
 
-        compilation_services = {
-            "zmk_config": self.mock_zmk_config_service,
-            "west": self.mock_west_service,
-            "cmake": self.mock_cmake_service,
-        }
+        compilation_services = cast(
+            dict[str, CompilationServiceProtocol],
+            {
+                "zmk_config": self.mock_zmk_config_service,
+                "west": self.mock_west_service,
+                "cmake": self.mock_cmake_service,
+            },
+        )
 
         # Mock Docker adapter
         self.mock_docker_adapter = Mock()
@@ -45,12 +52,13 @@ class TestCompilationCoordinator:
 
     def test_initialization(self):
         """Test coordinator initialization."""
-        assert self.coordinator.service_name == "compilation_coordinator"
-        assert self.coordinator.service_version == "1.0.0"
-        assert len(self.coordinator.compilation_services) == 3
-        assert "zmk_config" in self.coordinator.compilation_services
-        assert "west" in self.coordinator.compilation_services
-        assert "cmake" in self.coordinator.compilation_services
+        coordinator = self.coordinator
+        assert coordinator.service_name == "compilation_coordinator"
+        assert coordinator.service_version == "1.0.0"
+        assert len(coordinator.compilation_services) == 3
+        assert "zmk_config" in coordinator.compilation_services
+        assert "west" in coordinator.compilation_services
+        assert "cmake" in coordinator.compilation_services
 
     def test_create_compilation_coordinator(self):
         """Test factory function creates coordinator."""
@@ -88,7 +96,7 @@ class TestCompilationCoordinator:
 
             assert result.success is True
             self.mock_zmk_config_service.compile.assert_called_once_with(
-                keymap_file, config_file, output_dir, config, None
+                keymap_file, config_file, output_dir, config, keyboard_profile=None
             )
 
     def test_compile_west_strategy(self):
@@ -122,7 +130,7 @@ class TestCompilationCoordinator:
 
             assert result.success is True
             self.mock_west_service.compile.assert_called_once_with(
-                keymap_file, config_file, output_dir, config, None
+                keymap_file, config_file, output_dir, config, keyboard_profile=None
             )
 
     def test_compile_cmake_strategy_fallback(self):
@@ -278,8 +286,9 @@ class TestCompilationCoordinator:
         new_service = Mock()
         self.coordinator.add_compilation_service("new_strategy", new_service)
 
-        assert "new_strategy" in self.coordinator.compilation_services
-        assert self.coordinator.compilation_services["new_strategy"] is new_service
+        coordinator = self.coordinator
+        assert "new_strategy" in coordinator.compilation_services
+        assert coordinator.compilation_services["new_strategy"] is new_service
 
     def test_docker_adapter_injection(self):
         """Test Docker adapter injection into services."""
@@ -327,7 +336,8 @@ class TestCompilationCoordinator:
         self.mock_cmake_service.validate_config.return_value = True
 
         # ZMK config should have priority
-        strategy = self.coordinator._select_compilation_strategy(config)
+        coordinator = self.coordinator
+        strategy = coordinator._select_compilation_strategy(config)
         assert strategy == "zmk_config"
 
     def test_exception_handling(self):
@@ -375,8 +385,9 @@ class TestCompilationCoordinatorIntegration:
         assert isinstance(available_strategies, list)
 
         # Should include zmk_config and west strategies
-        assert "zmk_config" in self.coordinator.compilation_services
-        assert "west" in self.coordinator.compilation_services
+        coordinator = self.coordinator
+        assert "zmk_config" in coordinator.compilation_services
+        assert "west" in coordinator.compilation_services
 
     def test_strategy_selection_integration(self):
         """Test strategy selection with real service instances."""
@@ -391,7 +402,8 @@ class TestCompilationCoordinatorIntegration:
         config_zmk.west_workspace = None
         config_zmk.build_strategy = "zmk_config"
 
-        strategy = self.coordinator._select_compilation_strategy(config_zmk)
+        coordinator = self.coordinator
+        strategy = coordinator._select_compilation_strategy(config_zmk)
         assert strategy in [
             "zmk_config",
             "west",
@@ -408,7 +420,8 @@ class TestCompilationCoordinatorIntegration:
         config_west.west_workspace.manifest_revision = "main"
         config_west.build_strategy = "west"
 
-        strategy = self.coordinator._select_compilation_strategy(config_west)
+        coordinator = self.coordinator
+        strategy = coordinator._select_compilation_strategy(config_west)
         assert strategy in ["west", "cmake", None]  # Depends on service availability
 
     def test_service_coordination_workflow(self):
@@ -424,5 +437,6 @@ class TestCompilationCoordinatorIntegration:
         assert isinstance(is_valid, bool)
 
         # Should be able to check availability
-        is_available = self.coordinator.check_available()
+        coordinator = self.coordinator
+        is_available = coordinator.check_available()
         assert isinstance(is_available, bool)

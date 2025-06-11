@@ -251,7 +251,7 @@ class TestArtifactCollector:
         """Test organizing output files with no firmware files."""
         with tempfile.TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir)
-            firmware_files = []
+            firmware_files: list[Path] = []
 
             result = self.collector._organize_output_files(firmware_files, output_dir)
 

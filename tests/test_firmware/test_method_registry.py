@@ -1,10 +1,14 @@
 """Tests for method registry system."""
 
 from pathlib import Path
-from typing import Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, Union
 from unittest.mock import Mock
 
 import pytest
+
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
 
 from glovebox.config.compile_methods import CompileMethodConfig, DockerCompileConfig
 from glovebox.config.flash_methods import FlashMethodConfig, USBFlashConfig
@@ -194,6 +198,7 @@ class TestCompilerRegistry:
                 config_file: Path,
                 output_dir: Path,
                 config: CompileMethodConfig,
+                keyboard_profile: Union["KeyboardProfile", None] = None,
             ) -> BuildResult:
                 return BuildResult(success=True)
 
@@ -230,6 +235,7 @@ class TestCompilerRegistry:
                 config_file: Path,
                 output_dir: Path,
                 config: CompileMethodConfig,
+                keyboard_profile: Union["KeyboardProfile", None] = None,
             ) -> BuildResult:
                 return BuildResult(
                     success=True,

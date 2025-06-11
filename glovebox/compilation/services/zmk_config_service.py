@@ -1,4 +1,4 @@
-"""ZMK config compilation service following GitHub Actions workflow pattern."""
+"""West compilation service for ZMK firmware builds."""
 
 import logging
 from pathlib import Path
@@ -46,13 +46,12 @@ from glovebox.compilation.workspace.zmk_config_workspace_manager import (
 )
 from glovebox.config.compile_methods import GenericDockerCompileConfig
 from glovebox.core.errors import BuildError
-from glovebox.protocols import FileAdapterProtocol
+from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
 
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
 from glovebox.firmware.models import BuildResult
-from glovebox.protocols import DockerAdapterProtocol
 from glovebox.protocols.docker_adapter_protocol import DockerVolume
 
 
@@ -303,6 +302,14 @@ class ZmkConfigCompilationService(BaseCompilationService):
         """
         # ZMK config compilation requires Docker adapter
         return self._docker_adapter is not None and self._docker_adapter.is_available()
+
+    def set_docker_adapter(self, docker_adapter: DockerAdapterProtocol) -> None:
+        """Set Docker adapter for this compilation service.
+
+        Args:
+            docker_adapter: Docker adapter instance
+        """
+        self._docker_adapter = docker_adapter
 
     def _initialize_workspace(
         self,
@@ -912,14 +919,6 @@ class ZmkConfigCompilationService(BaseCompilationService):
                     )
 
         logger.info("Captured build artifacts for %s hand", side)
-
-    def set_docker_adapter(self, docker_adapter: DockerAdapterProtocol) -> None:
-        """Set Docker adapter for compilation operations.
-
-        Args:
-            docker_adapter: Docker adapter instance
-        """
-        self._docker_adapter = docker_adapter
 
     def _should_use_dynamic_generation(
         self,
