@@ -230,6 +230,20 @@ class FileAdapterProtocol(Protocol):
         """
         ...
 
+    def get_file_size(self, path: Path) -> int:
+        """Get file size safely with proper error handling.
+
+        Args:
+            path: Path to file
+
+        Returns:
+            int: File size in bytes
+
+        Raises:
+            GloveboxError: If file cannot be accessed or sized
+        """
+        ...
+
     def sanitize_filename(self, filename: str) -> str:
         """Sanitize a string for use as a filename.
 

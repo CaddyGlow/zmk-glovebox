@@ -430,6 +430,36 @@ class FileAdapter:
             logger.error("Failed to create backup of %s: %s", file_path, e)
             return None
 
+    def get_file_size(self, path: Path) -> int:
+        """Get file size safely with proper error handling.
+
+        Args:
+            path: Path to file
+
+        Returns:
+            int: File size in bytes
+
+        Raises:
+            FileSystemError: If file cannot be accessed or sized
+        """
+        try:
+            logger.debug("Getting file size: %s", path)
+            file_size = path.stat().st_size
+            logger.debug("File size: %s = %d bytes", path, file_size)
+            return file_size
+        except FileNotFoundError as e:
+            error = create_file_error(path, "get_file_size", e)
+            logger.error("File not found: %s", path)
+            raise error from e
+        except PermissionError as e:
+            error = create_file_error(path, "get_file_size", e)
+            logger.error("Permission denied accessing file: %s", path)
+            raise error from e
+        except Exception as e:
+            error = create_file_error(path, "get_file_size", e)
+            logger.error("Error getting file size %s: %s", path, e)
+            raise error from e
+
     def sanitize_filename(self, filename: str) -> str:
         """Sanitize a string for use as a filename."""
         try:

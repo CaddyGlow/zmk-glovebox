@@ -12,19 +12,19 @@ compile_methods:
     cache_workspace: true
     zmk_config_repo:
       config_repo_revision: "dynamic"
-    # Leave config_repo_url empty to enable dynamic generation
-    # config_repo_url: ""
-    # workspace_path: "~/.glovebox/dynamic-zmk-config/corne"
-    # config_path: "config"
-    # build_yaml_path: "build.yaml"
-    # west_commands:
-    #   - "west init -l config"
-    #   - "west update"
-    # build_commands: [] # Commands auto-generated from build.yaml
-    # environment_template:
-    #   ZEPHYR_TOOLCHAIN_VARIANT: "zephyr"
-    #   ZEPHYR_SDK_INSTALL_DIR: "/opt/zephyr-sdk"
-    # volume_templates: [] # Volume mappings auto-generated
+      config_repo_url: ""
+      workspace_path: "~/.glovebox/dynamic-zmk-config/corne"
+      config_path: "config"
+      build_yaml_path: "build.yaml"
+      west_commands:
+        - "rm -rf .west"
+        - "west init -l config"
+        - "west update"
+    build_commands: [] # Commands auto-generated from build.yaml
+    environment_template:
+      ZEPHYR_TOOLCHAIN_VARIANT: "zephyr"
+      ZEPHYR_SDK_INSTALL_DIR: "/opt/zephyr-sdk"
+    volume_templates: [] # Volume mappings auto-generated
     fallback_methods: ["west"]
 
   # Fallback to traditional ZMK west workspace
