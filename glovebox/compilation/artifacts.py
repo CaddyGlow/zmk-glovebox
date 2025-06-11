@@ -51,8 +51,36 @@ class BuildMatrix:
                 data = yaml.safe_load(f)
 
             entries = []
+
+            # Support include format: include: [{"board": "...", "shield": "..."}, ...]
             for item in data.get("include", []):
                 entries.append(BuildMatrixEntry(**item))
+
+            # Support board array format: board: ["board1", "board2", ...]
+            if "board" in data and isinstance(data["board"], list):
+                for board_name in data["board"]:
+                    entries.append(BuildMatrixEntry(board=board_name))
+
+            # Support shield array format: shield: ["shield1", "shield2", ...]
+            # (combined with board array if both present)
+            if "shield" in data and isinstance(data["shield"], list):
+                shields = data["shield"]
+                boards = data.get("board", [])
+
+                # If we have both boards and shields, create combinations
+                if boards and isinstance(boards, list):
+                    # Clear entries from board-only processing above
+                    entries = [e for e in entries if e.shield is not None]
+                    # Create board+shield combinations
+                    for board_name in boards:
+                        for shield_name in shields:
+                            entries.append(
+                                BuildMatrixEntry(board=board_name, shield=shield_name)
+                            )
+                else:
+                    # Shield-only entries (will need default board)
+                    for shield_name in shields:
+                        entries.append(BuildMatrixEntry(board="", shield=shield_name))
 
             return cls(include=entries)
         except Exception as e:
