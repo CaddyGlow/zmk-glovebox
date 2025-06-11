@@ -53,6 +53,7 @@ class BaseCompilationService(BaseService):
         volume_manager: VolumeManager | None = None,
         user_context_manager: UserContextManager | None = None,
         docker_adapter: DockerAdapterProtocol | None = None,
+        compilation_cache: Any | None = None,
     ):
         """Initialize base compilation service with common dependencies.
 
@@ -65,6 +66,7 @@ class BaseCompilationService(BaseService):
             volume_manager: Docker volume manager
             user_context_manager: User context manager for Docker user mapping
             docker_adapter: Docker adapter for container operations
+            compilation_cache: Compilation cache instance
         """
         super().__init__(name, version)
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
@@ -79,6 +81,9 @@ class BaseCompilationService(BaseService):
         self.user_context_manager = (
             user_context_manager or create_user_context_manager()
         )
+
+        # Initialize generic cache system
+        self.compilation_cache = compilation_cache
 
         # Docker adapter will be injected from parent coordinator
         self._docker_adapter: DockerAdapterProtocol | None = docker_adapter

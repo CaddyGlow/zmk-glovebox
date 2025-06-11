@@ -36,29 +36,37 @@ def create_compilation_coordinator() -> CompilationCoordinatorProtocol:
 
 
 def create_zmk_config_service() -> CompilationServiceProtocol:
-    """Create ZMK config compilation service.
+    """Create ZMK config compilation service with generic cache.
 
     Returns:
         CompilationServiceProtocol: ZMK config compilation service
     """
+    from glovebox.compilation.cache import create_compilation_cache
     from glovebox.compilation.services.zmk_config_service import (
         create_zmk_config_service as _create_service,
     )
 
-    return _create_service()
+    # Create compilation cache for service
+    compilation_cache = create_compilation_cache()
+
+    return _create_service(compilation_cache=compilation_cache)
 
 
 def create_west_service() -> CompilationServiceProtocol:
-    """Create west compilation service.
+    """Create west compilation service with generic cache.
 
     Returns:
         CompilationServiceProtocol: West compilation service
     """
+    from glovebox.compilation.cache import create_compilation_cache
     from glovebox.compilation.services.west_compilation_service import (
-        create_west_compilation_service as _create_service,
+        create_west_service as _create_service,
     )
 
-    return _create_service()
+    # Create compilation cache for service
+    compilation_cache = create_compilation_cache()
+
+    return _create_service(compilation_cache=compilation_cache)
 
 
 def create_cmake_service() -> CompilationServiceProtocol:

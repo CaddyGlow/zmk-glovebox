@@ -14,7 +14,7 @@ from glovebox.compilation.services.compilation_coordinator import (
 # Phase 4, Step 4.2: West Compilation Service
 from glovebox.compilation.services.west_compilation_service import (
     WestCompilationService,
-    create_west_compilation_service,
+    create_west_service,
 )
 
 # Phase 4, Step 4.1: ZMK Config Compilation Service
@@ -35,7 +35,7 @@ __all__: list[str] = [
     "create_zmk_config_service",
     # Phase 4, Step 4.2: West Compilation Service
     "WestCompilationService",
-    "create_west_compilation_service",
+    "create_west_service",
     # Phase 4, Step 4.3: Compilation Coordinator
     "CompilationCoordinator",
     "create_compilation_coordinator",

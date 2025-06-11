@@ -9,7 +9,7 @@ import pytest
 
 from glovebox.compilation.services.west_compilation_service import (
     WestCompilationService,
-    create_west_compilation_service,
+    create_west_service,
 )
 from glovebox.config.compile_methods import (
     GenericDockerCompileConfig,
@@ -23,7 +23,7 @@ class TestWestCompilationService:
 
     def setup_method(self):
         """Set up test instance."""
-        self.service = create_west_compilation_service()
+        self.service = create_west_service()
 
         # Mock dependencies
         self.service.workspace_manager = Mock()
@@ -65,9 +65,9 @@ class TestWestCompilationService:
         assert hasattr(service, "build_matrix_resolver")
         assert hasattr(service, "artifact_collector")
 
-    def test_create_west_compilation_service(self):
+    def test_create_west_service(self):
         """Test factory function creates service."""
-        service = create_west_compilation_service()
+        service = create_west_service()
         assert isinstance(service, WestCompilationService)
 
     def test_validate_configuration_valid_no_workspace(self):
@@ -444,7 +444,7 @@ class TestWestCompilationServiceIntegration:
 
     def setup_method(self):
         """Set up test instance."""
-        self.service = create_west_compilation_service()
+        self.service = create_west_service()
 
     def test_service_integration_workflow(self):
         """Test complete service integration workflow."""
