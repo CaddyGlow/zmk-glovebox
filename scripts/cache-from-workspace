@@ -1,0 +1,10 @@
+#!/bin/bash
+"""Wrapper script to generate base cache from existing workspace."""
+
+# Get the script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Run the Python script with proper Python path
+cd "$PROJECT_ROOT"
+python3 scripts/generate_base_cache.py "$@"

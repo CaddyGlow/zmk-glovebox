@@ -148,6 +148,7 @@ glovebox firmware compile my_layout.keymap my_config.conf --profile corne/main
 - **Automatic split keyboard detection**: Generates left/right targets for Corne, Lily58, Sofle, Kyria
 - **Shield naming conventions**: Automatically renames files to match ZMK expectations
 - **Full ZMK compatibility**: Generated workspaces work with all standard ZMK workflows
+- **Intelligent Caching**: 2-tier caching system dramatically reduces compilation times by reusing shared ZMK dependencies
 
 ### Docker Volume Permission Handling
 
