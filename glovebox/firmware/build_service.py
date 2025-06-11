@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Union
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
 
-from glovebox.compilation import create_west_service, create_zmk_config_service
+from glovebox.compilation import create_compilation_service
 from glovebox.config.compile_methods import CompilationConfig
 from glovebox.core.errors import BuildError
 from glovebox.firmware.models import BuildResult
@@ -42,17 +42,15 @@ class BuildService(BaseService):
         output_dir: Path,
         config: CompilationConfig,
         keyboard_profile: Union["KeyboardProfile", None] = None,
-        strategy: str = "zmk_config",
     ) -> BuildResult:
-        """Compile firmware using specified strategy.
+        """Compile firmware using the strategy specified in config.
 
         Args:
             keymap_file: Path to keymap file
             config_file: Path to config file
             output_dir: Output directory for build artifacts
-            config: Compilation configuration
+            config: Compilation configuration with strategy selection
             keyboard_profile: Keyboard profile for dynamic generation
-            strategy: Compilation strategy ("zmk_config" or "west")
 
         Returns:
             BuildResult: Results of compilation
@@ -60,16 +58,12 @@ class BuildService(BaseService):
         Raises:
             BuildError: If compilation fails
         """
+        strategy = config.strategy
         logger.info("Starting firmware compilation with %s strategy", strategy)
 
         try:
-            # Create appropriate compilation service based on strategy
-            if strategy == "zmk_config":
-                service = create_zmk_config_service()
-            elif strategy == "west":
-                service = create_west_service()
-            else:
-                raise BuildError(f"Unknown compilation strategy: {strategy}")
+            # Create compilation service using factory
+            service = create_compilation_service(strategy)
 
             # Execute compilation
             result = service.compile(

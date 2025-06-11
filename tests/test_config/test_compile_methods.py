@@ -6,10 +6,11 @@ import pytest
 from pydantic import ValidationError
 
 from glovebox.config.compile_methods import (
+    CacheConfig,
+    CompilationConfig,
     CompileMethodConfig,
     CrossCompileConfig,
     DockerCompileConfig,
-    CompilationConfig,
     LocalCompileConfig,
     QemuCompileConfig,
     WestWorkspaceConfig,
@@ -425,13 +426,13 @@ class TestCompilationConfig:
 
         config = CompilationConfig(
             image="custom-zmk:latest",
-            build_strategy="cmake",
+            strategy="cmake",
             west_workspace=west_config,
             build_commands=["cmake -B build", "cmake --build build"],
             environment_template={"CC": "gcc", "CXX": "g++"},
             volume_templates=["/workspace:/src:rw"],
             board_targets=["nice_nano_v2", "pro_micro"],
-            cache_workspace=False,
+            cache=CacheConfig(enabled=False),
             fallback_methods=["docker", "local"],
         )
 
@@ -449,7 +450,7 @@ class TestCompilationConfig:
     def test_west_workspace_nesting(self):
         """Test nested west workspace configuration."""
         config = CompilationConfig(
-            build_strategy="west",
+            strategy="west",
             west_workspace=WestWorkspaceConfig(
                 manifest_url="https://github.com/zmkfirmware/zmk.git",
                 manifest_revision="v3.5.0",
@@ -473,7 +474,7 @@ class TestCompilationConfig:
         # Valid strategies
         valid_strategies = ["west", "cmake", "make", "ninja", "custom"]
         for strategy in valid_strategies:
-            config = CompilationConfig(build_strategy=strategy)
+            config = CompilationConfig(strategy=strategy)  # type: ignore[arg-type]
             assert config.build_strategy == strategy
 
     def test_inheritance_from_docker_config(self):
@@ -505,12 +506,12 @@ class TestCompilationConfig:
 
         config = CompilationConfig(
             image="test:v1",
-            build_strategy="west",
+            strategy="west",
             west_workspace=west_config,
             build_commands=["west build"],
             environment_template={"BOARD": "nice_nano_v2"},
             board_targets=["nice_nano_v2"],
-            cache_workspace=True,
+            cache=CacheConfig(enabled=True),
         )
 
         config_dict = config.model_dump()
@@ -571,7 +572,7 @@ class TestCompilationConfig:
     def test_without_west_workspace(self):
         """Test generic docker config without west workspace."""
         config = CompilationConfig(
-            build_strategy="cmake",
+            strategy="cmake",
             build_commands=["cmake -B build", "make -C build"],
             west_workspace=None,
         )
@@ -589,7 +590,7 @@ class TestCompilationConfig:
             branch="main",
             jobs=8,
             # Generic Docker specific fields
-            build_strategy="west",
+            strategy="west",
             west_workspace=WestWorkspaceConfig(
                 manifest_url="https://github.com/zmkfirmware/zmk.git",
                 manifest_revision="main",
@@ -617,7 +618,7 @@ class TestCompilationConfig:
                 "/build:/workspace/build:rw",
             ],
             board_targets=["glove80_lh", "glove80_rh"],
-            cache_workspace=True,
+            cache=CacheConfig(enabled=True),
             fallback_methods=["docker", "local"],
         )
 
@@ -698,7 +699,7 @@ class TestCompilationConfig:
         from pathlib import Path
 
         config = CompilationConfig(
-            build_strategy="west",
+            strategy="west",
             west_workspace=WestWorkspaceConfig(workspace_path="~/.zmk-workspace"),
         )
 

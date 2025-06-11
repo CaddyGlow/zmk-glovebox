@@ -17,10 +17,14 @@ from glovebox.cli.helpers.profile import (
     get_keyboard_profile_from_context,
     get_user_config_from_context,
 )
+from glovebox.compilation import create_compilation_service
+from glovebox.config.compile_methods import (
+    CacheConfig,
+    CompilationConfig,
+    DockerUserConfig,
+)
 from glovebox.config.profile import KeyboardProfile
-from glovebox.firmware import create_build_service
 from glovebox.firmware.flash import create_flash_service
-from glovebox.firmware.options import BuildServiceCompileOpts
 
 
 logger = logging.getLogger(__name__)
@@ -64,20 +68,27 @@ def firmware_compile(
     verbose: Annotated[
         bool, typer.Option("--verbose", "-v", help="Enable verbose build output")
     ] = False,
-    build_strategy: Annotated[
-        str | None,
+    strategy: Annotated[
+        str,
         typer.Option(
-            "--build-strategy",
-            help="Build strategy: west (ZMK), cmake, make, ninja, custom (overrides profile strategy)",
+            "--strategy",
+            help="Compilation strategy: zmk_config (default), west, cmake, make, ninja, custom",
         ),
-    ] = None,
-    cache_workspace: Annotated[
-        bool | None,
+    ] = "zmk_config",
+    no_cache: Annotated[
+        bool,
         typer.Option(
-            "--cache-workspace/--no-cache-workspace",
-            help="Enable/disable workspace caching for faster builds (overrides profile setting)",
+            "--no-cache",
+            help="Disable workspace caching for this build",
         ),
-    ] = None,
+    ] = False,
+    clear_cache: Annotated[
+        bool,
+        typer.Option(
+            "--clear-cache",
+            help="Clear cache before starting build",
+        ),
+    ] = False,
     board_targets: Annotated[
         str | None,
         typer.Option(
@@ -137,19 +148,26 @@ def firmware_compile(
     Compiles .keymap and .conf files into a flashable .uf2 firmware file
     using Docker and the ZMK build system. Requires Docker to be running.
 
-    Supports multiple build strategies:
-    - west: ZMK west workspace builds (default, recommended)
+    Supports multiple compilation strategies:
+    - zmk_config: ZMK config repository builds (default, recommended)
+    - west: Traditional ZMK west workspace builds
     - cmake: Direct CMake builds
     - make: Traditional make builds
     - ninja: Ninja build system
     - custom: Custom build commands
 
     Examples:
-        # Basic ZMK west workspace build (recommended)
+        # Basic ZMK config build (default strategy)
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
 
-        # ZMK build with caching for faster subsequent builds
-        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --cache-workspace
+        # West workspace build strategy
+        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --strategy west
+
+        # Build without caching for clean build
+        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --no-cache
+
+        # Clear cache before building
+        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --clear-cache
 
         # Split keyboard build with specific board targets
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --board-targets glove80_lh,glove80_rh
@@ -157,18 +175,8 @@ def firmware_compile(
         # Manual Docker user context (solves permission issues)
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --docker-uid 1000 --docker-gid 1000
 
-        # Custom Docker home directory (instead of /tmp)
-        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --docker-home /home/builder
-
-        # Full manual Docker user context
-        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 \\
-            --docker-uid 1000 --docker-gid 1000 --docker-username builder --docker-home /workspace
-
-        # Disable Docker user mapping entirely
-        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --no-docker-user-mapping
-
         # CMake build strategy (for custom builds)
-        glovebox firmware compile keymap.keymap config.conf --profile custom/board --build-strategy cmake
+        glovebox firmware compile keymap.keymap config.conf --profile custom/board --strategy cmake
 
         # Verbose output with build details
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --verbose
@@ -200,20 +208,67 @@ def firmware_compile(
     if no_docker_user_mapping:
         docker_overrides["enable_user_mapping"] = False
 
-    # Compile firmware using the file-based method with Docker overrides
-    build_service = create_build_service()
+    # Create unified compilation configuration
+    cache_config = CacheConfig(enabled=not no_cache)
+
+    # Create DockerUserConfig with proper field mapping
+    docker_user_config = DockerUserConfig()
+    if docker_overrides:
+        # Map CLI parameters to DockerUserConfig fields with type checking
+        if "manual_uid" in docker_overrides and isinstance(
+            docker_overrides["manual_uid"], int
+        ):
+            docker_user_config.manual_uid = docker_overrides["manual_uid"]
+        if "manual_gid" in docker_overrides and isinstance(
+            docker_overrides["manual_gid"], int
+        ):
+            docker_user_config.manual_gid = docker_overrides["manual_gid"]
+        if "manual_username" in docker_overrides and isinstance(
+            docker_overrides["manual_username"], str
+        ):
+            docker_user_config.manual_username = docker_overrides["manual_username"]
+        if "host_home_dir" in docker_overrides and isinstance(
+            docker_overrides["host_home_dir"], str
+        ):
+            docker_user_config.host_home_dir = Path(docker_overrides["host_home_dir"])
+        if "container_home_dir" in docker_overrides and isinstance(
+            docker_overrides["container_home_dir"], str
+        ):
+            docker_user_config.container_home_dir = docker_overrides[
+                "container_home_dir"
+            ]
+        if "enable_user_mapping" in docker_overrides and isinstance(
+            docker_overrides["enable_user_mapping"], bool
+        ):
+            docker_user_config.enable_user_mapping = docker_overrides[
+                "enable_user_mapping"
+            ]
+
+    config = CompilationConfig(
+        strategy=strategy,  # type: ignore[arg-type]
+        repository=repo_value,
+        branch=branch_value,
+        jobs=jobs,
+        board_targets=board_targets_list or [],
+        cache=cache_config,
+        docker_user=docker_user_config,
+    )
+
+    # Clear cache if requested
+    if clear_cache:
+        # TODO: Implement cache clearing in Phase 7
+        logger.info("Cache clearing requested (will be implemented in Phase 7)")
+
+    # Create compilation service for the specified strategy
+    compilation_service = create_compilation_service(strategy)
 
     try:
-        result = build_service.compile_from_files(
-            keymap_file_path=keymap_file,
-            kconfig_file_path=kconfig_file,
+        result = compilation_service.compile(
+            keymap_file=keymap_file,
+            config_file=kconfig_file,
             output_dir=output_dir,
+            config=config,
             keyboard_profile=keyboard_profile,
-            branch=branch_value,
-            repo=repo_value,
-            jobs=jobs,
-            verbose=verbose,
-            docker_user_overrides=docker_overrides,
         )
 
         if result.success:
