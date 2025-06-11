@@ -3,39 +3,13 @@
 import logging
 from typing import cast
 
-from glovebox.config.compile_methods import (
-    DockerCompileConfig,
-    GenericDockerCompileConfig,
-)
 from glovebox.config.flash_methods import DFUFlashConfig, USBFlashConfig
-from glovebox.firmware.compile.generic_docker_compiler import GenericDockerCompiler
-from glovebox.firmware.compile.methods import DockerCompiler
 from glovebox.firmware.flash.flasher_methods import DFUFlasher, USBFlasher
-from glovebox.firmware.method_registry import compiler_registry, flasher_registry
-from glovebox.protocols.compile_protocols import CompilerProtocol
+from glovebox.firmware.method_registry import flasher_registry
 from glovebox.protocols.flash_protocols import FlasherProtocol
 
 
 logger = logging.getLogger(__name__)
-
-
-def register_compile_methods() -> None:
-    """Register all available compilation methods."""
-    # Register Docker compiler - cast helps type checker understand DockerCompiler implements CompilerProtocol
-    compiler_registry.register_method(
-        method_name="docker",
-        implementation=cast(type[CompilerProtocol], DockerCompiler),
-        config_type=DockerCompileConfig,
-    )
-    logger.debug("Registered docker compiler")
-
-    # Register Generic Docker compiler - cast helps type checker understand GenericDockerCompiler implements CompilerProtocol
-    compiler_registry.register_method(
-        method_name="generic_docker",
-        implementation=cast(type[CompilerProtocol], GenericDockerCompiler),
-        config_type=GenericDockerCompileConfig,
-    )
-    logger.debug("Registered generic docker compiler")
 
 
 def register_flash_methods() -> None:
@@ -58,10 +32,12 @@ def register_flash_methods() -> None:
 
 
 def initialize_registries() -> None:
-    """Initialize all method registries with available implementations."""
-    register_compile_methods()
+    """Initialize flash method registry with available implementations.
+
+    Note: Compilation methods are now handled by the compilation domain services.
+    """
     register_flash_methods()
-    logger.info("Method registries initialized")
+    logger.info("Flash method registry initialized")
 
 
 # Auto-initialize when module is imported

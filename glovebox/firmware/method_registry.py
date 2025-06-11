@@ -3,9 +3,7 @@
 import logging
 from typing import Any, Generic, TypeVar
 
-from glovebox.config.compile_methods import CompileMethodConfig
 from glovebox.config.flash_methods import FlashMethodConfig
-from glovebox.protocols.compile_protocols import CompilerProtocol
 from glovebox.protocols.flash_protocols import FlasherProtocol
 
 
@@ -81,8 +79,6 @@ class MethodRegistry(Generic[ConfigType, ProtocolType]):
         return list(self._methods.keys())
 
 
-# Global registry instances
-compiler_registry: MethodRegistry[CompileMethodConfig, CompilerProtocol] = (
-    MethodRegistry()
-)
+# Global registry instance for flash methods
+# Note: Compilation methods are now handled by the compilation domain services
 flasher_registry: MethodRegistry[FlashMethodConfig, FlasherProtocol] = MethodRegistry()

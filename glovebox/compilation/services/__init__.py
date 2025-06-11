@@ -5,12 +5,7 @@ from glovebox.compilation.services.base_compilation_service import (
     BaseCompilationService,
 )
 
-# Phase 4, Step 4.3: Compilation Coordinator
-from glovebox.compilation.services.compilation_coordinator import (
-    CompilationCoordinator,
-    create_compilation_coordinator,
-)
-
+# Note: CompilationCoordinator removed in Phase 4 - use direct service creation
 # Phase 4, Step 4.2: West Compilation Service
 from glovebox.compilation.services.west_compilation_service import (
     WestCompilationService,
@@ -36,9 +31,7 @@ __all__: list[str] = [
     # Phase 4, Step 4.2: West Compilation Service
     "WestCompilationService",
     "create_west_service",
-    # Phase 4, Step 4.3: Compilation Coordinator
-    "CompilationCoordinator",
-    "create_compilation_coordinator",
+    # Note: CompilationCoordinator removed in Phase 4
     # Strategy services (to be added)
     # "CMakeCompilationService",
 ]

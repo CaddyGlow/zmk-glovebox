@@ -1,15 +1,8 @@
-"""Compilation methods subdomain."""
+"""Compilation methods subdomain - deprecated.
 
-from .generic_docker_compiler import (
-    GenericDockerCompiler,
-    create_generic_docker_compiler,
-)
-from .methods import DockerCompiler, create_docker_compiler
+This module is deprecated as part of the compilation domain simplification.
+All compilation functionality has been moved to the compilation domain.
+"""
 
-
-__all__ = [
-    "DockerCompiler",
-    "create_docker_compiler",
-    "GenericDockerCompiler",
-    "create_generic_docker_compiler",
-]
+# No exports - this module will be removed in future versions
+__all__: list[str] = []
