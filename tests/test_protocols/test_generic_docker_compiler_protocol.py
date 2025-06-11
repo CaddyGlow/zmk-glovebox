@@ -6,7 +6,7 @@ from unittest.mock import Mock
 import pytest
 
 from glovebox.config.compile_methods import (
-    GenericDockerCompileConfig,
+    CompilationConfig,
     WestWorkspaceConfig,
 )
 from glovebox.firmware.models import BuildResult
@@ -62,17 +62,17 @@ class TestGenericDockerCompilerProtocol:
                 keymap_file: Path,
                 config_file: Path,
                 output_dir: Path,
-                config: GenericDockerCompileConfig,
+                config: CompilationConfig,
             ) -> BuildResult:
                 return BuildResult(success=True)
 
             def check_available(self) -> bool:
                 return True
 
-            def validate_config(self, config: GenericDockerCompileConfig) -> bool:
+            def validate_config(self, config: CompilationConfig) -> bool:
                 return True
 
-            def build_image(self, config: GenericDockerCompileConfig) -> BuildResult:
+            def build_image(self, config: CompilationConfig) -> BuildResult:
                 return BuildResult(success=True)
 
             def get_available_strategies(self) -> list[str]:
@@ -90,17 +90,17 @@ class TestGenericDockerCompilerProtocol:
                 keymap_file: Path,
                 config_file: Path,
                 output_dir: Path,
-                config: GenericDockerCompileConfig,
+                config: CompilationConfig,
             ) -> BuildResult:
                 return BuildResult(success=True)
 
             def check_available(self) -> bool:
                 return True
 
-            def validate_config(self, config: GenericDockerCompileConfig) -> bool:
-                return isinstance(config, GenericDockerCompileConfig)
+            def validate_config(self, config: CompilationConfig) -> bool:
+                return isinstance(config, CompilationConfig)
 
-            def build_image(self, config: GenericDockerCompileConfig) -> BuildResult:
+            def build_image(self, config: CompilationConfig) -> BuildResult:
                 return BuildResult(success=True, messages=["Image built"])
 
             def get_available_strategies(self) -> list[str]:
@@ -110,7 +110,7 @@ class TestGenericDockerCompilerProtocol:
         assert isinstance(compiler, GenericDockerCompilerProtocol)
 
         # Test method calls with proper types
-        config = GenericDockerCompileConfig(
+        config = CompilationConfig(
             image="test:latest",
             build_strategy="west",
         )

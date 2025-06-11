@@ -5,9 +5,9 @@ from typing import TYPE_CHECKING, Protocol, Union, runtime_checkable
 
 from glovebox.config.compile_methods import (
     BuildYamlConfig,
+    CompilationConfig,
     CompileMethodConfig,
     DockerCompileConfig,
-    GenericDockerCompileConfig,
     WestWorkspaceConfig,
     ZmkConfigRepoConfig,
 )
@@ -78,12 +78,12 @@ class GenericDockerCompilerProtocol(Protocol):
         keymap_file: Path,
         config_file: Path,
         output_dir: Path,
-        config: GenericDockerCompileConfig,
+        config: CompilationConfig,
     ) -> BuildResult:
         """Compile firmware using generic Docker method."""
         ...
 
-    def build_image(self, config: GenericDockerCompileConfig) -> BuildResult:
+    def build_image(self, config: CompilationConfig) -> BuildResult:
         """Build Docker image for compilation."""
         ...
 
@@ -91,7 +91,7 @@ class GenericDockerCompilerProtocol(Protocol):
         """Check if generic Docker compiler is available."""
         ...
 
-    def validate_config(self, config: GenericDockerCompileConfig) -> bool:
+    def validate_config(self, config: CompilationConfig) -> bool:
         """Validate generic Docker configuration."""
         ...
 

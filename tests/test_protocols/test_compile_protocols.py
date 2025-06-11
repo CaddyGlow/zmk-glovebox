@@ -9,7 +9,7 @@ import pytest
 from glovebox.config.compile_methods import (
     CompileMethodConfig,
     DockerCompileConfig,
-    GenericDockerCompileConfig,
+    CompilationConfig,
     WestWorkspaceConfig,
 )
 from glovebox.firmware.models import BuildResult

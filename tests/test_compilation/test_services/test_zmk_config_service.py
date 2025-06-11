@@ -13,7 +13,7 @@ from glovebox.compilation.services.zmk_config_service import (
     create_zmk_config_service,
 )
 from glovebox.config.compile_methods import (
-    GenericDockerCompileConfig,
+    CompilationConfig,
     ZmkConfigRepoConfig,
 )
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
@@ -39,8 +39,8 @@ class TestZmkConfigCompilationService:
         self.service.set_docker_adapter(self.mock_docker_adapter)
 
     def _create_mock_config(self, **overrides):
-        """Create a mock GenericDockerCompileConfig with all required attributes."""
-        config = Mock(spec=GenericDockerCompileConfig)
+        """Create a mock CompilationConfig with all required attributes."""
+        config = Mock(spec=CompilationConfig)
 
         # Set default values for all required attributes
         config.image = "zmkfirmware/zmk-build-arm:stable"
@@ -74,7 +74,7 @@ class TestZmkConfigCompilationService:
 
     def test_validate_configuration_valid(self):
         """Test configuration validation with valid config."""
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
         config.zmk_config_repo.config_repo_url = "https://github.com/user/zmk-config"
         config.zmk_config_repo.workspace_path = "/tmp/workspace"
@@ -84,7 +84,7 @@ class TestZmkConfigCompilationService:
 
     def test_validate_configuration_missing_repo(self):
         """Test configuration validation with missing repo config."""
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.zmk_config_repo = None
 
         result = self.service.validate_configuration(config)
@@ -92,7 +92,7 @@ class TestZmkConfigCompilationService:
 
     def test_validate_configuration_missing_url(self):
         """Test configuration validation with missing repo URL (dynamic mode)."""
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
         config.zmk_config_repo.config_repo_url = ""
         config.zmk_config_repo.workspace_path = "/tmp/workspace"
@@ -103,7 +103,7 @@ class TestZmkConfigCompilationService:
 
     def test_validate_configuration_missing_workspace(self):
         """Test configuration validation with missing workspace path."""
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
         config.zmk_config_repo.config_repo_url = "https://github.com/user/zmk-config"
         config.zmk_config_repo.workspace_path = ""
@@ -196,7 +196,7 @@ class TestZmkConfigCompilationService:
             config_file = Path(temp_dir) / "config.conf"
             output_dir = Path(temp_dir) / "output"
 
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
             config.zmk_config_repo = None
 
             result = self.service.compile(keymap_file, config_file, output_dir, config)
@@ -214,7 +214,7 @@ class TestZmkConfigCompilationService:
             config_file = Path(temp_dir) / "config.conf"
             output_dir = Path(temp_dir) / "output"
 
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
             config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
             config.zmk_config_repo.config_repo_url = (
                 "https://github.com/user/zmk-config"
@@ -306,7 +306,7 @@ class TestZmkConfigCompilationService:
             shield_defaults=[],
         )
 
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
         config.zmk_config_repo.west_commands = ["west init -l config", "west update"]
         config.board_targets = []
@@ -333,7 +333,7 @@ class TestZmkConfigCompilationService:
         """Test build command generation from config board targets."""
         build_matrix = BuildMatrix(targets=[], board_defaults=[], shield_defaults=[])
 
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.zmk_config_repo = None  # No west commands in this case
         config.board_targets = ["nice_nano_v2", "bluemicro840_v1"]
         config.build_commands = []
@@ -355,7 +355,7 @@ class TestZmkConfigCompilationService:
         """Test default build command generation."""
         build_matrix = BuildMatrix(targets=[], board_defaults=[], shield_defaults=[])
 
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.zmk_config_repo = None  # No west commands in this case
         config.board_targets = []
         config.build_commands = []
@@ -370,7 +370,7 @@ class TestZmkConfigCompilationService:
         """Test build command generation with custom commands."""
         build_matrix = BuildMatrix(targets=[], board_defaults=[], shield_defaults=[])
 
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.zmk_config_repo = None  # No west commands in this case
         config.board_targets = []
         config.build_commands = ["custom command 1", "custom command 2"]
@@ -529,7 +529,7 @@ class TestZmkConfigServiceIntegration:
             self.service.set_docker_adapter(mock_docker)
 
             # Test configuration
-            config = Mock(spec=GenericDockerCompileConfig)
+            config = Mock(spec=CompilationConfig)
             config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
             config.zmk_config_repo.config_repo_url = "https://github.com/test/config"
             config.zmk_config_repo.workspace_path = "/tmp/workspace"
@@ -629,7 +629,7 @@ class TestZmkConfigServiceIntegration:
                         self.service, service_attr
                     ).collect_artifacts.side_effect = exception
 
-                config = Mock(spec=GenericDockerCompileConfig)
+                config = Mock(spec=CompilationConfig)
                 config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
                 config.zmk_config_repo.config_repo_url = (
                     "https://github.com/test/config"

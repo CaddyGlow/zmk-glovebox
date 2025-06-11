@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
 
 from glovebox.compilation import create_west_service, create_zmk_config_service
-from glovebox.config.compile_methods import GenericDockerCompileConfig
+from glovebox.config.compile_methods import CompilationConfig
 from glovebox.core.errors import BuildError
 from glovebox.firmware.models import BuildResult
 from glovebox.services.base_service import BaseService
@@ -40,7 +40,7 @@ class BuildService(BaseService):
         keymap_file: Path,
         config_file: Path,
         output_dir: Path,
-        config: GenericDockerCompileConfig,
+        config: CompilationConfig,
         keyboard_profile: Union["KeyboardProfile", None] = None,
         strategy: str = "zmk_config",
     ) -> BuildResult:

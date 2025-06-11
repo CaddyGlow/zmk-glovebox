@@ -1,10 +1,11 @@
-"""Method-specific configuration models for compilation methods."""
+"""Unified compilation configuration models."""
 
 import os
 from abc import ABC
 from pathlib import Path
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 def expand_path_variables(path_str: str) -> str:
@@ -113,23 +114,102 @@ class QemuCompileConfig(CompileMethodConfig):
     test_runners: list[str] = Field(default_factory=list)
 
 
-class GenericDockerCompileConfig(DockerCompileConfig):
-    """Generic Docker compiler with pluggable build strategies."""
+class CacheConfig(BaseModel):
+    """Configuration for cache management."""
 
-    method_type: str = "generic_docker"
-    build_strategy: str = (
-        "west"  # "west", "zmk_config", "cmake", "make", "ninja", "custom"
-    )
-    west_workspace: WestWorkspaceConfig | None = None
-    zmk_config_repo: ZmkConfigRepoConfig | None = None
+    enabled: bool = True
+    max_age_hours: float = 24.0
+    max_cache_size_gb: float = 5.0
+    cleanup_interval_hours: float = 6.0
+    enable_compression: bool = True
+    enable_smart_invalidation: bool = True
+
+
+class DockerUserConfig(BaseModel):
+    """Docker user mapping configuration."""
+
+    enable_user_mapping: bool = True
+    detect_user_automatically: bool = True
+    manual_uid: int | None = None
+    manual_gid: int | None = None
+    manual_username: str | None = None
+    host_home_dir: Path | None = None
+    container_home_dir: str = "/tmp"
+    force_manual: bool = False
+    debug_user_mapping: bool = False
+
+    @field_validator("host_home_dir", mode="before")
+    @classmethod
+    def expand_host_home_dir(cls, v: str | Path | None) -> Path | None:
+        """Expand user home and environment variables."""
+        if v is None:
+            return None
+        path = Path(v).expanduser()
+        return path.resolve() if path.exists() else path
+
+
+class CompilationConfig(BaseModel):
+    """Unified compilation configuration for all build strategies.
+
+    This replaces the multiple overlapping config classes with a single
+    unified configuration that supports all compilation strategies.
+    """
+
+    # Build strategy selection
+    strategy: Literal[
+        "zmk_config",
+        "west",
+        "docker",
+        "local",
+        "cross",
+        "qemu",
+        "cmake",
+        "make",
+        "ninja",
+        "custom",
+    ] = "west"
+
+    # Docker configuration (for docker-based strategies)
+    image: str = "moergo-zmk-build:latest"
+    repository: str = "moergo-sc/zmk"
+    branch: str = "main"
+    jobs: int | None = None
     build_commands: list[str] = Field(default_factory=list)
     environment_template: dict[str, str] = Field(default_factory=dict)
     volume_templates: list[str] = Field(default_factory=list)
+
+    # Build targets
     board_targets: list[str] = Field(default_factory=list)
-    cache_workspace: bool = True
-    # Docker user mapping configuration
-    enable_user_mapping: bool = True
-    detect_user_automatically: bool = True
+
+    # ZMK config repository configuration (strategy: zmk_config)
+    zmk_config_repo: ZmkConfigRepoConfig | None = None
+
+    # West workspace configuration (strategy: west)
+    west_workspace: WestWorkspaceConfig | None = None
+
+    # Cache configuration
+    cache: CacheConfig = Field(default_factory=CacheConfig)
+
+    # Docker user configuration
+    docker_user: DockerUserConfig = Field(default_factory=DockerUserConfig)
+
+    # Fallback methods
+    fallback_methods: list[str] = Field(default_factory=list)
+
+    # Local compilation paths (strategy: local)
+    zmk_path: Path | None = None
+    toolchain_path: Path | None = None
+    zephyr_base: Path | None = None
+
+    # Cross-compilation settings (strategy: cross)
+    target_arch: str | None = None
+    sysroot: Path | None = None
+    toolchain_prefix: str | None = None
+    cmake_toolchain: Path | None = None
+
+    # QEMU settings (strategy: qemu)
+    qemu_target: str | None = None
+    test_runners: list[str] = Field(default_factory=list)
 
     @field_validator("volume_templates")
     @classmethod
@@ -143,6 +223,90 @@ class GenericDockerCompileConfig(DockerCompileConfig):
         """Expand environment variables and user home in environment template values."""
         return {key: expand_path_variables(value) for key, value in v.items()}
 
+    @model_validator(mode="before")
+    @classmethod
+    def handle_backward_compatibility(cls, values: dict[str, Any] | object) -> dict[str, Any] | object:
+        """Handle backward compatibility for renamed fields."""
+        if isinstance(values, dict):
+            # Handle build_strategy -> strategy mapping
+            if "build_strategy" in values and "strategy" not in values:
+                values["strategy"] = values.pop("build_strategy")
+
+            # Handle cache_workspace -> cache.enabled mapping
+            if "cache_workspace" in values and "cache" not in values:
+                values["cache"] = {"enabled": values.pop("cache_workspace")}
+            elif "cache_workspace" in values and isinstance(values.get("cache"), dict):
+                values["cache"]["enabled"] = values.pop("cache_workspace")
+
+            # Handle user mapping fields -> docker_user mapping
+            user_mapping_fields = ["enable_user_mapping", "detect_user_automatically"]
+            docker_user_data = {}
+            for field in user_mapping_fields:
+                if field in values:
+                    docker_user_data[field] = values.pop(field)
+            if docker_user_data and "docker_user" not in values:
+                values["docker_user"] = docker_user_data
+            elif docker_user_data and isinstance(values.get("docker_user"), dict):
+                values["docker_user"].update(docker_user_data)
+
+        return values
+
+    def is_docker_based(self) -> bool:
+        """Check if this configuration uses Docker."""
+        return self.strategy in [
+            "zmk_config",
+            "west",
+            "docker",
+            "cmake",
+            "make",
+            "ninja",
+            "custom",
+        ]
+
+    def get_method_type(self) -> str:
+        """Get the method type for compatibility with existing code."""
+        return "generic_docker" if self.is_docker_based() else self.strategy
+
+    @property
+    def method_type(self) -> str:
+        """Backward compatibility property for method_type."""
+        return self.get_method_type()
+
+    @property
+    def build_strategy(self) -> str:
+        """Backward compatibility property for build_strategy."""
+        return self.strategy
+
+    @property
+    def cache_workspace(self) -> bool:
+        """Backward compatibility property for cache_workspace."""
+        return self.cache.enabled
+
+    @property
+    def enable_user_mapping(self) -> bool:
+        """Backward compatibility property for enable_user_mapping."""
+        return self.docker_user.enable_user_mapping
+
+    @property
+    def detect_user_automatically(self) -> bool:
+        """Backward compatibility property for detect_user_automatically."""
+        return self.docker_user.detect_user_automatically
+
+    def model_dump(self, **kwargs: Any) -> dict[str, Any]:
+        """Override model_dump to include computed properties for backward compatibility."""
+        data = super().model_dump(**kwargs)
+        # Add computed properties for backward compatibility
+        data["method_type"] = self.method_type
+        data["build_strategy"] = self.build_strategy
+        data["cache_workspace"] = self.cache_workspace
+        data["enable_user_mapping"] = self.enable_user_mapping
+        data["detect_user_automatically"] = self.detect_user_automatically
+        return data
+
+
+# Backward compatibility alias
+GenericDockerCompileConfig = CompilationConfig
+
 
 __all__ = [
     "CompileMethodConfig",
@@ -151,7 +315,10 @@ __all__ = [
     "ZmkConfigRepoConfig",
     "WestWorkspaceConfig",
     "DockerCompileConfig",
-    "GenericDockerCompileConfig",
+    "CacheConfig",
+    "DockerUserConfig",
+    "CompilationConfig",
+    "GenericDockerCompileConfig",  # Backward compatibility
     "LocalCompileConfig",
     "CrossCompileConfig",
     "QemuCompileConfig",

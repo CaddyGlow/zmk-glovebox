@@ -9,7 +9,7 @@ from glovebox.config.compile_methods import (
     CompileMethodConfig,
     CrossCompileConfig,
     DockerCompileConfig,
-    GenericDockerCompileConfig,
+    CompilationConfig,
     LocalCompileConfig,
     QemuCompileConfig,
     WestWorkspaceConfig,
@@ -213,7 +213,7 @@ class TestCompileMethodConfigInheritance:
         """Test that configs can be treated polymorphically."""
         configs = [
             DockerCompileConfig(),
-            GenericDockerCompileConfig(),
+            CompilationConfig(),
             LocalCompileConfig(zmk_path=Path("/opt/zmk")),
             CrossCompileConfig(
                 target_arch="arm", sysroot=Path("/usr/arm"), toolchain_prefix="arm-"
@@ -399,12 +399,12 @@ class TestPathExpansion:
         assert result == expected
 
 
-class TestGenericDockerCompileConfig:
-    """Tests for GenericDockerCompileConfig model."""
+class TestCompilationConfig:
+    """Tests for CompilationConfig model."""
 
     def test_default_values(self):
         """Test default values for Generic Docker compilation configuration."""
-        config = GenericDockerCompileConfig()
+        config = CompilationConfig()
 
         assert config.method_type == "generic_docker"
         assert config.build_strategy == "west"
@@ -423,7 +423,7 @@ class TestGenericDockerCompileConfig:
             workspace_path="/custom-workspace",
         )
 
-        config = GenericDockerCompileConfig(
+        config = CompilationConfig(
             image="custom-zmk:latest",
             build_strategy="cmake",
             west_workspace=west_config,
@@ -448,7 +448,7 @@ class TestGenericDockerCompileConfig:
 
     def test_west_workspace_nesting(self):
         """Test nested west workspace configuration."""
-        config = GenericDockerCompileConfig(
+        config = CompilationConfig(
             build_strategy="west",
             west_workspace=WestWorkspaceConfig(
                 manifest_url="https://github.com/zmkfirmware/zmk.git",
@@ -473,12 +473,12 @@ class TestGenericDockerCompileConfig:
         # Valid strategies
         valid_strategies = ["west", "cmake", "make", "ninja", "custom"]
         for strategy in valid_strategies:
-            config = GenericDockerCompileConfig(build_strategy=strategy)
+            config = CompilationConfig(build_strategy=strategy)
             assert config.build_strategy == strategy
 
     def test_inheritance_from_docker_config(self):
-        """Test that GenericDockerCompileConfig inherits from DockerCompileConfig."""
-        config = GenericDockerCompileConfig(
+        """Test that CompilationConfig inherits from DockerCompileConfig."""
+        config = CompilationConfig(
             image="zmk:test",
             repository="test/zmk",
             branch="test-branch",
@@ -503,7 +503,7 @@ class TestGenericDockerCompileConfig:
             workspace_path="/test-workspace",
         )
 
-        config = GenericDockerCompileConfig(
+        config = CompilationConfig(
             image="test:v1",
             build_strategy="west",
             west_workspace=west_config,
@@ -550,7 +550,7 @@ class TestGenericDockerCompileConfig:
             "fallback_methods": ["docker"],
         }
 
-        config = GenericDockerCompileConfig.model_validate(config_dict)
+        config = CompilationConfig.model_validate(config_dict)
 
         assert config.method_type == "generic_docker"
         assert config.image == "zmkfirmware/zmk-build-arm:stable"
@@ -570,7 +570,7 @@ class TestGenericDockerCompileConfig:
 
     def test_without_west_workspace(self):
         """Test generic docker config without west workspace."""
-        config = GenericDockerCompileConfig(
+        config = CompilationConfig(
             build_strategy="cmake",
             build_commands=["cmake -B build", "make -C build"],
             west_workspace=None,
@@ -582,7 +582,7 @@ class TestGenericDockerCompileConfig:
 
     def test_complex_configuration(self):
         """Test complex configuration with all features."""
-        config = GenericDockerCompileConfig(
+        config = CompilationConfig(
             # Inherited Docker fields
             image="zmkfirmware/zmk-build-arm:stable",
             repository="zmkfirmware/zmk",
@@ -647,7 +647,7 @@ class TestGenericDockerCompileConfig:
         import os
         from pathlib import Path
 
-        config = GenericDockerCompileConfig(
+        config = CompilationConfig(
             volume_templates=[
                 "~/.cache:/workspace/.cache:rw",
                 "$HOME/builds:/builds:ro",
@@ -670,7 +670,7 @@ class TestGenericDockerCompileConfig:
         import os
         from pathlib import Path
 
-        config = GenericDockerCompileConfig(
+        config = CompilationConfig(
             environment_template={
                 "HOME_DIR": "$HOME",
                 "CACHE_DIR": "~/.cache",
@@ -693,11 +693,11 @@ class TestGenericDockerCompileConfig:
         )
 
     def test_west_workspace_path_expansion_in_generic_config(self):
-        """Test workspace path expansion when used within GenericDockerCompileConfig."""
+        """Test workspace path expansion when used within CompilationConfig."""
         import os
         from pathlib import Path
 
-        config = GenericDockerCompileConfig(
+        config = CompilationConfig(
             build_strategy="west",
             west_workspace=WestWorkspaceConfig(workspace_path="~/.zmk-workspace"),
         )

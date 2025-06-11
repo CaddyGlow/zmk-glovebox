@@ -10,7 +10,7 @@ from glovebox.compilation.configuration.environment_manager import (
     EnvironmentManagerError,
     create_environment_manager,
 )
-from glovebox.config.compile_methods import GenericDockerCompileConfig
+from glovebox.config.compile_methods import CompilationConfig
 
 
 class TestEnvironmentManager:
@@ -31,7 +31,7 @@ class TestEnvironmentManager:
 
     def test_prepare_environment_basic(self):
         """Test basic environment preparation."""
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.environment_template = {
             "JOBS": "4",
             "BUILD_TYPE": "Release",
@@ -45,7 +45,7 @@ class TestEnvironmentManager:
 
     def test_prepare_environment_with_templates(self):
         """Test environment preparation with template expansion."""
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.environment_template = {
             "JOBS": "{jobs}",
             "USER_NAME": "{user}",
@@ -63,7 +63,7 @@ class TestEnvironmentManager:
 
     def test_prepare_environment_with_env_var_expansion(self):
         """Test environment variable expansion in templates."""
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.environment_template = {
             "ZMK_CONFIG": "${ZMK_CONFIG}",
             "HOME_DIR": "${HOME}",
@@ -79,7 +79,7 @@ class TestEnvironmentManager:
 
     def test_prepare_environment_missing_env_var(self):
         """Test missing environment variable expansion."""
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.environment_template = {
             "MISSING_VAR": "${NONEXISTENT_VAR}",
         }
@@ -216,7 +216,7 @@ class TestEnvironmentManager:
 
     def test_prepare_environment_inherit_system(self):
         """Test inheriting system environment variables."""
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.environment_template = {
             "CUSTOM_VAR": "custom_value",
         }
@@ -238,7 +238,7 @@ class TestEnvironmentManager:
 
     def test_prepare_environment_no_inherit_system(self):
         """Test not inheriting system environment variables."""
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.environment_template = {
             "CUSTOM_VAR": "custom_value",
         }
@@ -267,7 +267,7 @@ class TestEnvironmentManagerIntegration:
 
     def test_zmk_build_environment(self):
         """Test typical ZMK build environment configuration."""
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.environment_template = {
             "JOBS": "{jobs}",
             "BUILD_TYPE": "Release",
@@ -288,7 +288,7 @@ class TestEnvironmentManagerIntegration:
 
     def test_glove80_build_environment(self):
         """Test Glove80 build environment configuration."""
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.environment_template = {
             "JOBS": "8",
             "BUILD_TYPE": "Release",
@@ -305,7 +305,7 @@ class TestEnvironmentManagerIntegration:
 
     def test_development_environment(self):
         """Test development environment with debugging enabled."""
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.environment_template = {
             "BUILD_TYPE": "Debug",
             "CMAKE_BUILD_TYPE": "Debug",
@@ -326,7 +326,7 @@ class TestEnvironmentManagerIntegration:
 
     def test_ci_environment(self):
         """Test CI/CD environment configuration."""
-        config = Mock(spec=GenericDockerCompileConfig)
+        config = Mock(spec=CompilationConfig)
         config.environment_template = {
             "JOBS": "{jobs}",
             "BUILD_TYPE": "Release",
