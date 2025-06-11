@@ -6,25 +6,13 @@ key_count: 80
 # Compile method configurations
 compile_methods:
   - method_type: generic_docker
-    image: zmkfirmware/zmk-build-arm:stable
     build_strategy: zmk_config
     cache_workspace: true
     zmk_config_repo:
-      # Leave config_repo_url empty to enable dynamic generation
-      config_repo_url: ""
-      config_repo_revision: "dynamic"
       workspace_path: "~/.glovebox/dynamic-zmk-config/glove80"
-      config_path: "config"
-      build_yaml_path: "build.yaml"
-      west_commands:
-        - "rm -rf .west"
-        - "west init -l config"
-        - "west update"
-    build_commands: [] # commands auto-generated from build.yaml
     environment_template:
       zephyr_toolchain_variant: "zephyr"
       zephyr_sdk_install_dir: "/opt/zephyr-sdk"
-    volume_templates: [] # volume mappings auto-generated
     fallback_methods: ["west"]
 
 # flash method configurations

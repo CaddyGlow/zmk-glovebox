@@ -490,16 +490,35 @@ class ZmkConfigCompilationService(BaseCompilationService):
         Returns:
             str: West build command
         """
-        board_arg = target.board
-        shield_arg = f" -- -DSHIELD={target.shield}" if target.shield else ""
+        board = target.board
+        shield = target.shield
+        snippet = getattr(target, "snippet", None)
 
-        artifact_name = (
-            target.artifact_name or f"{target.board}_{target.shield}"
-            if target.shield
-            else target.board
-        )
+        # GitHub Actions environment variables to replicate:
+        github_env_vars = {
+            "base_dir": "${GITHUB_WORKSPACE}",  # or new_tmp_dir if zephyr/module.yml exists
+            "zmk_load_arg": ' -DZMK_EXTRA_MODULES="${GITHUB_WORKSPACE}"'
+            if True
+            else "",  # TODO: check zephyr/module.yml
+            "extra_west_args": f'-S "{snippet}"' if snippet else "",
+            "extra_cmake_args": f'-DSHIELD="{shield}"' + "${zmk_load_arg}"
+            if shield
+            else "${zmk_load_arg}",
+            "display_name": f"{shield} - {board}" if shield else board,
+            "artifact_name": f"{shield}-{board}-zmk" if shield else f"{board}-zmk",
+            "build_dir": "build/${artifact_name}",
+            "zephyr_version": "${ZEPHYR_VERSION}",
+        }
 
-        return f"west build -s zmk/app -p always -b {board_arg} -d build/{artifact_name}{shield_arg}"
+        # TODO: Implement GitHub Actions compatible environment setup:
+        # - Check if zephyr/module.yml exists to set base_dir and zmk_load_arg
+        # - Set all environment variables like GitHub Actions
+        # - Use: west build -s zmk/app -d "${{ env.build_dir }}" -b "${{ matrix.board }}" ${{ env.extra_west_args }} -- -DZMK_CONFIG=${{ env.base_dir }}/${{ inputs.config_path }} ${{ env.extra_cmake_args }} ${{ matrix.cmake-args }}
+
+        artifact_name = target.artifact_name or f"{board}_{shield}" if shield else board
+        shield_arg = f" -- -DSHIELD={shield}" if shield else ""
+
+        return f"west build -s zmk/app -p always -b {board} -d build/{artifact_name}{shield_arg}"
 
     def _prepare_build_environment(
         self, config: GenericDockerCompileConfig, config_repo_config: Any
