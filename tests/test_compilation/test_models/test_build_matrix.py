@@ -1,7 +1,5 @@
 """Test build matrix models."""
 
-import pytest
-
 from glovebox.compilation.models.build_matrix import (
     BuildMatrix,
     BuildTarget,

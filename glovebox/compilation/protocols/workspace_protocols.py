@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from glovebox.config.compile_methods import (
-    CompilationConfig,
     WestWorkspaceConfig,
     ZmkConfigRepoConfig,
 )

@@ -6,12 +6,10 @@ from typing import TYPE_CHECKING, Any, cast
 import typer
 from click.core import Context as ClickContext
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 
 from glovebox.config.keyboard_profile import (
     create_keyboard_profile,
-    get_available_firmwares,
     get_available_keyboards,
 )
 

@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from glovebox.protocols.flash_os_protocol import FlashOSProtocol
 
 from glovebox.core.errors import FlashError
-from glovebox.firmware.flash.models import BlockDevice, FlashResult
+from glovebox.firmware.flash.models import BlockDevice
 from glovebox.firmware.flash.os_adapters import create_flash_os_adapter
 
 

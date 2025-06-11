@@ -2,13 +2,12 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal, TypeAlias, Union
+from typing import Any, TypeAlias, Union
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    field_serializer,
     field_validator,
     model_validator,
 )

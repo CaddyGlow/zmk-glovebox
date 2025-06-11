@@ -1,10 +1,7 @@
 """Unified theme system for consistent Rich styling across CLI commands."""
 
-from typing import Any
-
 from rich.console import Console
 from rich.panel import Panel
-from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme

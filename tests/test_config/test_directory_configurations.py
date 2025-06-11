@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 import yaml
 
-from glovebox.config.include_loader import IncludeConfigLoader, create_include_loader
+from glovebox.config.include_loader import IncludeConfigLoader
 from glovebox.config.keyboard_profile import (
     create_keyboard_profile_with_includes,
     load_keyboard_config_with_includes,

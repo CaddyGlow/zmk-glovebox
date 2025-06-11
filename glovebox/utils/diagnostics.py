@@ -19,7 +19,6 @@ from glovebox.config.keyboard_profile import (
     load_keyboard_config,
 )
 from glovebox.config.user_config import create_user_config
-from glovebox.core.errors import GloveboxError
 
 
 logger = logging.getLogger(__name__)

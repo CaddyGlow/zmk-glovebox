@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 from glovebox.adapters.file_adapter import create_file_adapter
 from glovebox.config.flash_methods import FlashMethodConfig, USBFlashConfig
 from glovebox.firmware.flash.device_wait_service import create_device_wait_service
-from glovebox.firmware.flash.models import BlockDevice, FlashResult
+from glovebox.firmware.flash.models import FlashResult
 from glovebox.firmware.method_registry import flasher_registry
 from glovebox.protocols import FileAdapterProtocol
 from glovebox.protocols.flash_protocols import FlasherProtocol

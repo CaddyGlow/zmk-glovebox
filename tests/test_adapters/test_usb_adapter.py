@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from glovebox.adapters.usb_adapter import USBAdapter, create_usb_adapter
-from glovebox.core.errors import FlashError, USBError
+from glovebox.core.errors import USBError
 from glovebox.firmware.flash.models import BlockDevice, DiskInfo, USBDeviceInfo
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
 

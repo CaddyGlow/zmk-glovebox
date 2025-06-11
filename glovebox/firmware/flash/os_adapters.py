@@ -6,15 +6,13 @@ import platform
 import re
 import shutil
 import subprocess
-import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
     from glovebox.protocols.flash_os_protocol import FlashOSProtocol
 
-from glovebox.core.errors import FlashError
 from glovebox.firmware.flash.models import BlockDevice
 
 

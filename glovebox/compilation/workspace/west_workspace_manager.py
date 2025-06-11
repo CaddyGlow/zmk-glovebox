@@ -5,9 +5,6 @@ from pathlib import Path
 from typing import Any
 
 from glovebox.adapters import create_docker_adapter, create_file_adapter
-from glovebox.compilation.protocols.workspace_protocols import (
-    WestWorkspaceManagerProtocol,
-)
 from glovebox.compilation.workspace.workspace_manager import WorkspaceManager
 from glovebox.config.compile_methods import WestWorkspaceConfig
 from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol

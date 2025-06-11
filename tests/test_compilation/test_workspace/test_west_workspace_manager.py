@@ -2,17 +2,13 @@
 
 import tempfile
 from pathlib import Path
-from typing import cast
 from unittest.mock import Mock
-
-import pytest
 
 from glovebox.compilation.workspace.west_workspace_manager import (
     WestWorkspaceManager,
     create_west_workspace_manager,
 )
 from glovebox.config.compile_methods import WestWorkspaceConfig
-from glovebox.protocols import DockerAdapterProtocol
 
 
 class TestWestWorkspaceManager:

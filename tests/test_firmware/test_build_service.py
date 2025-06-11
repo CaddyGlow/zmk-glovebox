@@ -3,8 +3,6 @@
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import pytest
-
 from glovebox.config.compile_methods import DockerCompileConfig, LocalCompileConfig
 from glovebox.config.profile import KeyboardProfile
 from glovebox.firmware.build_service import BuildService, create_build_service

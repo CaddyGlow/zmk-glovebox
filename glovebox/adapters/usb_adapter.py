@@ -2,11 +2,8 @@
 
 import logging
 import threading
-import time
 from pathlib import Path
-from typing import Any, Optional, cast
 
-from glovebox.core.errors import FlashError, USBError
 from glovebox.firmware.flash.device_detector import create_device_detector
 from glovebox.firmware.flash.flash_operations import (
     FlashOperations,

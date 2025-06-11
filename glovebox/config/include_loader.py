@@ -7,7 +7,7 @@ include directives, recursive loading, and configuration composition.
 
 import logging
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 import yaml
 from pydantic import ValidationError

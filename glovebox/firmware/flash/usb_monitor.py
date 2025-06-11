@@ -8,7 +8,7 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any
 
 from glovebox.firmware.flash.models import (
     BlockDevice,

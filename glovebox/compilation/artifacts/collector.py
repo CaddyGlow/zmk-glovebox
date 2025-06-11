@@ -5,7 +5,6 @@ from pathlib import Path
 
 from glovebox.adapters import create_file_adapter
 from glovebox.compilation.protocols.artifact_protocols import (
-    ArtifactCollectorProtocol,
     FirmwareScannerProtocol,
 )
 from glovebox.firmware.models import FirmwareOutputFiles

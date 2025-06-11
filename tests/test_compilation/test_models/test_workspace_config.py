@@ -4,8 +4,6 @@ import os
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from glovebox.compilation.models.workspace_config import (
     WestWorkspaceConfig,
     WorkspaceConfig,

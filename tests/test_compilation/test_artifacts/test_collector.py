@@ -4,13 +4,10 @@ import tempfile
 from pathlib import Path
 from unittest.mock import Mock
 
-import pytest
-
 from glovebox.compilation.artifacts.collector import (
     ArtifactCollector,
     create_artifact_collector,
 )
-from glovebox.firmware.models import FirmwareOutputFiles
 
 
 class TestArtifactCollector:

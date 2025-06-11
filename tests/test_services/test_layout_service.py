@@ -1,7 +1,7 @@
 """Tests for LayoutService with keyboard configuration API."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -14,7 +14,7 @@ from glovebox.config.models import (
 )
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import LayoutError
-from glovebox.layout.models import LayoutData, LayoutResult, SystemBehavior
+from glovebox.layout.models import LayoutData, SystemBehavior
 from glovebox.layout.service import LayoutService
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.protocols.template_adapter_protocol import TemplateAdapterProtocol

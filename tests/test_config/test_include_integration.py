@@ -5,7 +5,6 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
-import yaml
 
 from glovebox.config import (
     create_keyboard_profile_with_includes,

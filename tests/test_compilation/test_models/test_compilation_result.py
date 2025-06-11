@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-import pytest
-
 from glovebox.compilation.models.compilation_result import (
     BuildMatrixResult,
     CompilationResult,

@@ -2,10 +2,7 @@
 
 import tempfile
 from pathlib import Path
-from typing import cast
 from unittest.mock import Mock, patch
-
-import pytest
 
 from glovebox.compilation.services.west_compilation_service import (
     WestCompilationService,
@@ -15,7 +12,7 @@ from glovebox.config.compile_methods import (
     CompilationConfig,
     WestWorkspaceConfig,
 )
-from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
+from glovebox.firmware.models import FirmwareOutputFiles
 
 
 class TestWestCompilationService:

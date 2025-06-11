@@ -2,7 +2,7 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
@@ -15,11 +15,7 @@ from glovebox.layout.models import (
 
 from ...protocols.behavior_protocols import BehaviorRegistryProtocol
 from .models import (
-    KeymapBehavior,
     ParamValue,
-    RegistryBehavior,
-    SystemBehaviorParam,
-    SystemParamList,
 )
 
 

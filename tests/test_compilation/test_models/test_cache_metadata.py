@@ -4,8 +4,6 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 from glovebox.compilation.models.cache_metadata import (
     CacheConfig,
     CacheMetadata,

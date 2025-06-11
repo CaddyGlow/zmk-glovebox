@@ -1,7 +1,5 @@
 """Test model imports and exports."""
 
-import pytest
-
 
 def test_compilation_models_import():
     """Test that all compilation models can be imported from the models package."""

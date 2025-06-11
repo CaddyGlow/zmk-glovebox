@@ -2,8 +2,6 @@
 
 import json
 import logging
-import os
-import shutil
 import tempfile
 import time
 from pathlib import Path
@@ -13,7 +11,6 @@ from glovebox.compilation.models.cache_metadata import (
     CacheConfig,
     CacheMetadata,
     CacheValidationResult,
-    WorkspaceCacheEntry,
 )
 from glovebox.config.compile_methods import CompilationConfig
 

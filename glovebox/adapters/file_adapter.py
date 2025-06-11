@@ -2,13 +2,11 @@
 
 import json
 import logging
-import os
-import shlex
 import shutil
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from glovebox.core.errors import FileSystemError, GloveboxError
+from glovebox.core.errors import FileSystemError
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.utils.error_utils import create_file_error
 

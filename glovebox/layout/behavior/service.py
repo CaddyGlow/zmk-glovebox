@@ -1,7 +1,6 @@
 """Behavior service for tracking and managing ZMK behaviors."""
 
 import logging
-from typing import Any
 
 from ...protocols.behavior_protocols import BehaviorRegistryProtocol
 from .models import (

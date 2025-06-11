@@ -1,11 +1,6 @@
 """Tests for CLI argument parsing."""
 
-import json
-from pathlib import Path
 from unittest.mock import patch
-
-import pytest
-import typer
 
 from glovebox.cli import app
 from glovebox.cli.commands import register_all_commands

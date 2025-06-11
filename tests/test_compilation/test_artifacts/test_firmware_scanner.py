@@ -4,8 +4,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import pytest
-
 from glovebox.compilation.artifacts.firmware_scanner import (
     FirmwareScanner,
     create_firmware_scanner,

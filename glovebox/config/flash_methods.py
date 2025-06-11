@@ -1,7 +1,6 @@
 """Method-specific configuration models for flash methods."""
 
 from abc import ABC
-from pathlib import Path
 
 from pydantic import BaseModel, Field
 

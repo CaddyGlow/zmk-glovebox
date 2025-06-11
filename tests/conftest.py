@@ -1,12 +1,10 @@
 """Core test fixtures for the glovebox project."""
 
 import json
-import os
-import sys
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 import yaml

@@ -7,7 +7,7 @@ Models based on:
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 
 class WestCommand(BaseModel):

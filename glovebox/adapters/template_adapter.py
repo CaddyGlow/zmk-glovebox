@@ -2,9 +2,9 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Union, assert_never
+from typing import Any, assert_never
 
-from glovebox.core.errors import GloveboxError, TemplateError
+from glovebox.core.errors import TemplateError
 from glovebox.protocols.template_adapter_protocol import TemplateAdapterProtocol
 from glovebox.utils.error_utils import create_template_error
 
@@ -88,7 +88,7 @@ class TemplateAdapter:
     def render_string(self, template_string: str, context: dict[str, Any]) -> str:
         """Render a Jinja2 template string with the given context."""
         try:
-            from jinja2 import Environment, Template
+            from jinja2 import Environment
 
             logger.debug("Rendering template string")
 

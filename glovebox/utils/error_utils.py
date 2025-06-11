@@ -2,10 +2,9 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Optional, TypeVar, cast
+from typing import Any, TypeVar
 
 from glovebox.core.errors import (
-    AdapterError,
     DockerError,
     FileSystemError,
     GloveboxError,

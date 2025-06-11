@@ -3,8 +3,6 @@
 import logging
 from unittest.mock import Mock, patch
 
-import pytest
-
 from glovebox.cli import app
 from glovebox.cli.commands import register_all_commands
 

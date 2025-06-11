@@ -5,10 +5,9 @@ import sys
 
 # Import version from package metadata directly to avoid circular imports
 from importlib.metadata import distribution
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
-from typer.main import get_command_from_info
 
 from glovebox.cli.decorators.error_handling import print_stack_trace_if_verbose
 from glovebox.config.profile import KeyboardProfile

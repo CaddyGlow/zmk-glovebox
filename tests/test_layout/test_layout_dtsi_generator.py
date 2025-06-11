@@ -1,8 +1,6 @@
 """Tests for DTSI generator functions."""
 
-from unittest.mock import Mock, patch
-
-import pytest
+from unittest.mock import Mock
 
 from glovebox.layout.models import (
     ConfigParameter,

@@ -19,7 +19,7 @@ from glovebox.core.errors import GloveboxError
 
 
 if TYPE_CHECKING:
-    from glovebox.config.profile import KeyboardProfile
+    pass
 
 logger = logging.getLogger(__name__)
 

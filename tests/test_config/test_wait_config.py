@@ -1,7 +1,6 @@
 """Tests for wait configuration functionality."""
 
 import os
-from pathlib import Path
 
 import pytest
 

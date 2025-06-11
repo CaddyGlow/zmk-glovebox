@@ -1,15 +1,10 @@
 """USB device flashing functionality."""
 
 import logging
-import os
 import platform
-import re
-import shutil
-import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Any
 
 from glovebox.core.errors import FlashError
 from glovebox.firmware.flash.device_detector import create_device_detector
