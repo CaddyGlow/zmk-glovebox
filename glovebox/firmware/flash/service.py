@@ -12,8 +12,9 @@ from glovebox.adapters.file_adapter import create_file_adapter
 from glovebox.config.flash_methods import FlashMethodConfig, USBFlashConfig
 from glovebox.firmware.flash.device_wait_service import create_device_wait_service
 from glovebox.firmware.flash.models import BlockDevice, FlashResult
-from glovebox.firmware.method_selector import select_flasher_with_fallback
+from glovebox.firmware.method_registry import flasher_registry
 from glovebox.protocols import FileAdapterProtocol
+from glovebox.protocols.flash_protocols import FlasherProtocol
 
 
 logger = logging.getLogger(__name__)
@@ -153,7 +154,7 @@ class FlashService:
             flash_configs = self._get_flash_method_configs(profile, query)
 
             # Select the best available flasher with fallbacks
-            flasher = select_flasher_with_fallback(flash_configs)
+            flasher = self._select_flasher_with_fallback(flash_configs)
 
             logger.info("Selected flasher method: %s", type(flasher).__name__)
 
@@ -273,7 +274,7 @@ class FlashService:
             flash_configs = self._get_flash_method_configs(profile, query)
 
             # Select the best available flasher
-            flasher = select_flasher_with_fallback(flash_configs)
+            flasher = self._select_flasher_with_fallback(flash_configs)
 
             logger.info("Using flasher method: %s", type(flasher).__name__)
 
@@ -369,6 +370,41 @@ class FlashService:
 
         # Default fallback
         return "removable=true"
+
+    def _select_flasher_with_fallback(self, flash_configs: list[FlashMethodConfig]) -> FlasherProtocol:
+        """Select the first available flasher from configuration list.
+
+        Args:
+            flash_configs: List of flash method configurations to try
+
+        Returns:
+            Configured flasher instance
+
+        Raises:
+            RuntimeError: If no flasher is available
+        """
+
+        for config in flash_configs:
+            try:
+                flasher = flasher_registry.create_method(
+                    config.method_type, config, file_adapter=self.file_adapter
+                )
+                # Check if flasher is available
+                if hasattr(flasher, "check_available") and flasher.check_available():
+                    return flasher
+                elif not hasattr(flasher, "check_available"):
+                    # If no check_available method, assume it's available
+                    return flasher
+            except Exception as e:
+                logger.debug("Failed to create %s flasher: %s", config.method_type, e)
+                continue
+
+        # No flasher available
+        available_methods = flasher_registry.get_available_methods()
+        raise RuntimeError(
+            f"No available flashers from {len(flash_configs)} configurations. "
+            f"Available methods: {available_methods}"
+        )
 
 
 def create_flash_service(
