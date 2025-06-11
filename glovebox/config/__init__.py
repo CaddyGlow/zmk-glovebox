@@ -17,27 +17,6 @@ from .keyboard_profile import (
     load_keyboard_config,
     load_keyboard_config_with_includes,
 )
-from .models import (
-    BehaviorConfig,
-    BehaviorMapping,
-    BuildOptions,
-    DisplayConfig,
-    DisplayFormatting,
-    FileExtensions,
-    FirmwareConfig,
-    FormattingConfig,
-    KConfigOption,
-    KeyboardConfig,
-    KeymapSection,
-    LayoutStructure,
-    ModifierMapping,
-    UserConfigData,
-    ValidationLimits,
-    VisualLayout,
-    ZmkCompatibleStrings,
-    ZmkConfig,
-    ZmkPatterns,
-)
 from .profile import KeyboardProfile
 from .user_config import UserConfig, create_user_config
 
@@ -56,24 +35,4 @@ __all__ = [
     "KeyboardProfile",
     "UserConfig",
     "create_user_config",
-    # Config models
-    "BehaviorConfig",
-    "BehaviorMapping",
-    "BuildOptions",
-    "DisplayConfig",
-    "DisplayFormatting",
-    "FileExtensions",
-    "FirmwareConfig",
-    "FormattingConfig",
-    "KConfigOption",
-    "KeyboardConfig",
-    "KeymapSection",
-    "LayoutStructure",
-    "ModifierMapping",
-    "UserConfigData",
-    "ValidationLimits",
-    "VisualLayout",
-    "ZmkCompatibleStrings",
-    "ZmkConfig",
-    "ZmkPatterns",
 ]
