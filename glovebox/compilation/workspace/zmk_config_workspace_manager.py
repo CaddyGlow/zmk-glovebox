@@ -1,6 +1,7 @@
 """ZMK config repository workspace manager."""
 
 import logging
+import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -225,7 +226,6 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
             )
 
             # Use git command to clone repository
-            import subprocess
 
             # Prepare git clone command
             cmd = ["git", "clone"]
@@ -279,8 +279,6 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
         """
         try:
             self.logger.info("Initializing west workspace: %s", workspace_path)
-
-            import subprocess
 
             # Initialize west workspace
             result = subprocess.run(

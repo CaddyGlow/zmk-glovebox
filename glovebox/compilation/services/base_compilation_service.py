@@ -389,10 +389,10 @@ class BaseCompilationService(BaseService):
         volumes = []
 
         # Add workspace volume - mount at /workspace for consistent path
-        volumes.append((str(workspace_path), "/workspace"))
+        volumes.append((str(workspace_path.resolve()), "/workspace"))
 
-        # Add output volume
-        volumes.append((str(output_dir), "/output"))
+        # Add output volume - ensure absolute path to avoid Docker named volume confusion
+        volumes.append((str(output_dir.resolve()), "/output"))
 
         # Add custom volume templates
         for volume_template in config.volume_templates:
@@ -422,10 +422,34 @@ class BaseCompilationService(BaseService):
         # TODO: This will be enhanced with the generic cache system in Phase 2
         # For now, use basic artifact collection pattern
         if not self.artifact_collector:
-            # Fallback implementation until Phase 5
+            # Fallback implementation - scan both workspace and output directories
+            from glovebox.compilation.artifacts import create_firmware_scanner
             from glovebox.firmware.models import FirmwareOutputFiles
 
-            return FirmwareOutputFiles(output_dir=output_dir)
+            scanner = create_firmware_scanner()
+            firmware_files = scanner.scan_workspace_and_output(
+                workspace_path, output_dir
+            )
+
+            # Create basic output files structure
+            output_files = FirmwareOutputFiles(output_dir=output_dir)
+            if firmware_files:
+                output_files.main_uf2 = firmware_files[0]
+                # Try to identify left/right hand files
+                for file_path in firmware_files:
+                    parent_name = file_path.parent.name.lower()
+                    if (
+                        parent_name in ["lf", "left"]
+                        or "left" in file_path.name.lower()
+                    ):
+                        output_files.left_uf2 = file_path
+                    elif (
+                        parent_name in ["rh", "right"]
+                        or "right" in file_path.name.lower()
+                    ):
+                        output_files.right_uf2 = file_path
+
+            return output_files
 
         # Use the protocol method when artifact collector is implemented
         firmware_files, output_files = self.artifact_collector.collect_artifacts(
