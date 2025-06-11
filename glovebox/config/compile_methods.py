@@ -225,7 +225,9 @@ class CompilationConfig(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def handle_backward_compatibility(cls, values: dict[str, Any] | object) -> dict[str, Any] | object:
+    def handle_backward_compatibility(
+        cls, values: dict[str, Any] | object
+    ) -> dict[str, Any] | object:
         """Handle backward compatibility for renamed fields."""
         if isinstance(values, dict):
             # Handle build_strategy -> strategy mapping

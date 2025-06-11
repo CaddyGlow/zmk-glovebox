@@ -7,9 +7,9 @@ from unittest.mock import Mock
 import pytest
 
 from glovebox.config.compile_methods import (
+    CompilationConfig,
     CompileMethodConfig,
     DockerCompileConfig,
-    CompilationConfig,
     WestWorkspaceConfig,
 )
 from glovebox.firmware.models import BuildResult
