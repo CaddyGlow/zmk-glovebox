@@ -1,9 +1,35 @@
 """Base compilation service for all compilation strategies."""
 
 import logging
+from abc import abstractmethod
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
+
+from glovebox.compilation.configuration.build_matrix_resolver import (
+    BuildMatrixResolver,
+    create_build_matrix_resolver,
+)
+from glovebox.compilation.configuration.environment_manager import (
+    EnvironmentManager,
+    create_environment_manager,
+)
+from glovebox.compilation.configuration.user_context_manager import (
+    UserContextManager,
+    create_user_context_manager,
+)
+from glovebox.compilation.configuration.volume_manager import (
+    VolumeManager,
+    create_volume_manager,
+)
+from glovebox.compilation.protocols.artifact_protocols import (
+    ArtifactCollectorProtocol,
+)
 from glovebox.config.compile_methods import GenericDockerCompileConfig
+from glovebox.core.errors import BuildError
 from glovebox.firmware.models import BuildResult
 from glovebox.protocols import DockerAdapterProtocol
 from glovebox.services.base_service import BaseService
@@ -12,19 +38,159 @@ from glovebox.services.base_service import BaseService
 class BaseCompilationService(BaseService):
     """Base service for all compilation strategies.
 
-    Provides common functionality and patterns for all compilation
-    strategies while enforcing consistent interfaces.
+    Provides common Docker execution logic, environment preparation,
+    volume management, artifact collection, and error handling patterns
+    shared across all compilation strategies.
     """
 
-    def __init__(self, name: str, version: str):
-        """Initialize base compilation service.
+    def __init__(
+        self,
+        name: str,
+        version: str,
+        build_matrix_resolver: BuildMatrixResolver | None = None,
+        artifact_collector: ArtifactCollectorProtocol | None = None,
+        environment_manager: EnvironmentManager | None = None,
+        volume_manager: VolumeManager | None = None,
+        user_context_manager: UserContextManager | None = None,
+        docker_adapter: DockerAdapterProtocol | None = None,
+    ):
+        """Initialize base compilation service with common dependencies.
 
         Args:
             name: Service name for identification
             version: Service version for compatibility tracking
+            build_matrix_resolver: Build matrix resolver
+            artifact_collector: Artifact collection service
+            environment_manager: Environment variable manager
+            volume_manager: Docker volume manager
+            user_context_manager: User context manager for Docker user mapping
+            docker_adapter: Docker adapter for container operations
         """
         super().__init__(name, version)
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+
+        # Initialize common dependencies
+        self.build_matrix_resolver = (
+            build_matrix_resolver or create_build_matrix_resolver()
+        )
+        self.artifact_collector = artifact_collector  # Will be None until Phase 5
+        self.environment_manager = environment_manager or create_environment_manager()
+        self.volume_manager = volume_manager or create_volume_manager()
+        self.user_context_manager = (
+            user_context_manager or create_user_context_manager()
+        )
+
+        # Docker adapter will be injected from parent coordinator
+        self._docker_adapter: DockerAdapterProtocol | None = docker_adapter
+
+    def compile(
+        self,
+        keymap_file: Path,
+        config_file: Path,
+        output_dir: Path,
+        config: GenericDockerCompileConfig,
+        keyboard_profile: "KeyboardProfile | None" = None,
+    ) -> BuildResult:
+        """Execute compilation using template method pattern.
+
+        Template method that orchestrates the common compilation flow
+        while allowing strategy-specific customization through abstract methods.
+
+        Args:
+            keymap_file: Path to keymap file
+            config_file: Path to config file
+            output_dir: Output directory for build artifacts
+            config: Compilation configuration
+            keyboard_profile: Keyboard profile for dynamic generation
+
+        Returns:
+            BuildResult: Results of compilation
+
+        Raises:
+            BuildError: If compilation fails
+        """
+        self.logger.info(f"Starting {self.service_name} compilation")
+        result = BuildResult(success=True)
+
+        try:
+            # Step 1: Validate configuration
+            if not self._validate_common_config(config, result):
+                return result
+
+            # Step 2: Setup workspace (strategy-specific)
+            workspace_path = self._setup_workspace(
+                keymap_file, config_file, config, keyboard_profile
+            )
+            if not workspace_path:
+                result.success = False
+                result.add_error("Failed to setup workspace")
+                return result
+
+            # Step 3: Execute Docker compilation (common logic)
+            if not self._execute_docker_compilation(
+                workspace_path, output_dir, config, result
+            ):
+                return result
+
+            # Step 4: Collect artifacts (common logic)
+            firmware_files = self._collect_firmware_artifacts(
+                workspace_path, output_dir
+            )
+            if not self._validate_artifacts(firmware_files, result):
+                return result
+
+            # Step 5: Store results and prepare response
+            result.output_files = firmware_files
+            firmware_count = self._count_firmware_files(firmware_files)
+            result.add_message(
+                f"{self.service_name} compilation completed. "
+                f"Generated {firmware_count} firmware files."
+            )
+
+            return result
+
+        except Exception as e:
+            msg = f"{self.service_name} compilation failed: {e}"
+            self.logger.error(msg)
+            result.success = False
+            result.add_error(msg)
+            return result
+
+    @abstractmethod
+    def _setup_workspace(
+        self,
+        keymap_file: Path,
+        config_file: Path,
+        config: GenericDockerCompileConfig,
+        keyboard_profile: "KeyboardProfile | None" = None,
+    ) -> Path | None:
+        """Setup workspace for compilation (strategy-specific).
+
+        Args:
+            keymap_file: Path to keymap file
+            config_file: Path to config file
+            config: Compilation configuration
+            keyboard_profile: Keyboard profile for dynamic generation
+
+        Returns:
+            Path | None: Workspace path if successful, None if failed
+        """
+        pass
+
+    @abstractmethod
+    def _build_compilation_command(
+        self, workspace_path: Path, config: GenericDockerCompileConfig
+    ) -> str:
+        """Build compilation command for this strategy.
+
+        Args:
+            workspace_path: Path to workspace directory
+            config: Compilation configuration
+
+        Returns:
+            str: Complete compilation command to execute
+        """
+        pass
 
     def validate_configuration(self, config: GenericDockerCompileConfig) -> bool:
         """Validate compilation configuration.
@@ -52,7 +218,134 @@ class BaseCompilationService(BaseService):
         # Strategy-specific validation should be in subclasses
         return valid
 
-    def prepare_build_environment(
+    def check_available(self) -> bool:
+        """Check if this compilation strategy is available.
+
+        Base implementation checks for Docker availability.
+        Subclasses can override for strategy-specific availability checks.
+
+        Returns:
+            bool: True if strategy is available
+        """
+        # Default to checking if we have necessary dependencies
+        # Subclasses should override for specific availability checks
+        return self._docker_adapter is not None
+
+    def set_docker_adapter(self, docker_adapter: DockerAdapterProtocol) -> None:
+        """Set Docker adapter for compilation operations.
+
+        Args:
+            docker_adapter: Docker adapter instance
+        """
+        self._docker_adapter = docker_adapter
+
+    def _validate_common_config(
+        self, config: GenericDockerCompileConfig, result: BuildResult
+    ) -> bool:
+        """Validate common configuration requirements.
+
+        Args:
+            config: Compilation configuration
+            result: Build result to store errors
+
+        Returns:
+            bool: True if configuration is valid
+        """
+        if not self._docker_adapter:
+            result.success = False
+            result.add_error("Docker adapter not available for compilation")
+            return False
+
+        if not self.validate_configuration(config):
+            result.success = False
+            result.add_error("Configuration validation failed")
+            return False
+
+        return True
+
+    def _execute_docker_compilation(
+        self,
+        workspace_path: Path,
+        output_dir: Path,
+        config: GenericDockerCompileConfig,
+        result: BuildResult,
+    ) -> bool:
+        """Execute Docker compilation using common patterns.
+
+        Args:
+            workspace_path: Path to workspace directory
+            output_dir: Output directory for artifacts
+            config: Compilation configuration
+            result: Build result to store errors
+
+        Returns:
+            bool: True if compilation succeeded
+        """
+        try:
+            # Prepare build environment
+            build_env = self._prepare_build_environment(config)
+
+            # Prepare Docker volumes
+            volumes = self._prepare_build_volumes(workspace_path, output_dir, config)
+
+            # Get compilation command from strategy
+            compilation_command = self._build_compilation_command(
+                workspace_path, config
+            )
+
+            # Get user context for Docker volume permissions
+            user_context = self.user_context_manager.get_user_context(
+                enable_user_mapping=config.enable_user_mapping,
+                detect_automatically=config.detect_user_automatically,
+            )
+
+            # Update environment for Docker user mapping if enabled
+            if user_context and user_context.should_use_user_mapping():
+                build_env = self.environment_manager.prepare_docker_environment(
+                    config,
+                    user_context=user_context,
+                    user_mapping_enabled=True,
+                    workspace_path=str(workspace_path),
+                )
+
+            # Execute Docker container
+            if not self._docker_adapter:
+                raise BuildError("Docker adapter not available")
+
+            return_code, stdout_lines, stderr_lines = (
+                self._docker_adapter.run_container(
+                    image=config.image,
+                    command=["sh", "-c", compilation_command],
+                    volumes=volumes,
+                    environment=build_env,
+                    user_context=user_context,
+                )
+            )
+
+            if return_code != 0:
+                error_msg = (
+                    "\n".join(stderr_lines) if stderr_lines else "Compilation failed"
+                )
+                self.logger.error(
+                    "Compilation failed with exit code %d: %s",
+                    return_code,
+                    error_msg,
+                )
+                result.success = False
+                result.add_error(
+                    f"Compilation failed with exit code {return_code}: {error_msg}"
+                )
+                return False
+
+            return True
+
+        except Exception as e:
+            self.logger.error("Docker compilation execution failed: %s", e)
+            result.success = False
+            result.add_error(f"Docker compilation execution failed: {e}")
+            return False
+
+    def _prepare_build_environment(
         self, config: GenericDockerCompileConfig
     ) -> dict[str, str]:
         """Prepare build environment variables for compilation.
@@ -78,41 +371,112 @@ class BaseCompilationService(BaseService):
         self.logger.debug("Prepared base build environment: %s", build_env)
         return build_env
 
-    def compile(
+    def _prepare_build_volumes(
         self,
-        keymap_file: Path,
-        config_file: Path,
+        workspace_path: Path,
         output_dir: Path,
         config: GenericDockerCompileConfig,
-    ) -> BuildResult:
-        """Execute compilation using this strategy.
-
-        This method must be implemented by subclasses to provide
-        strategy-specific compilation logic.
+    ) -> list[tuple[str, str]]:
+        """Prepare Docker volumes for compilation.
 
         Args:
-            keymap_file: Path to keymap file
-            config_file: Path to config file
-            output_dir: Output directory for build artifacts
+            workspace_path: Path to workspace directory
+            output_dir: Output directory for artifacts
             config: Compilation configuration
 
         Returns:
-            BuildResult: Results of compilation
-
-        Raises:
-            NotImplementedError: Must be implemented by subclasses
+            list[tuple[str, str]]: Docker volumes for compilation (host_path, container_path)
         """
-        raise NotImplementedError("Subclasses must implement compile method")
+        volumes = []
 
-    def check_available(self) -> bool:
-        """Check if this compilation strategy is available.
+        # Add workspace volume
+        volumes.append((str(workspace_path), str(workspace_path)))
 
-        Base implementation checks for Docker availability.
-        Subclasses can override for strategy-specific availability checks.
+        # Add output volume
+        volumes.append((str(output_dir), "/output"))
+
+        # Add custom volume templates
+        for volume_template in config.volume_templates:
+            # Parse volume template (format: host_path:container_path)
+            parts = volume_template.split(":")
+            if len(parts) >= 2:
+                host_path = parts[0]
+                container_path = parts[1]
+
+                volumes.append((host_path, container_path))
+
+        self.logger.debug("Prepared %d Docker volumes", len(volumes))
+        return volumes
+
+    def _collect_firmware_artifacts(
+        self, workspace_path: Path, output_dir: Path
+    ) -> Any:
+        """Collect firmware artifacts from workspace and output directories.
+
+        Args:
+            workspace_path: Path to workspace directory
+            output_dir: Output directory for artifacts
 
         Returns:
-            bool: True if strategy is available
+            Any: Firmware files collection (will be properly typed in Phase 2)
         """
-        # Default to checking if we have necessary dependencies
-        # Subclasses should override for specific availability checks
+        # TODO: This will be enhanced with the generic cache system in Phase 2
+        # For now, use basic artifact collection pattern
+        if not self.artifact_collector:
+            # Fallback implementation until Phase 5
+            from glovebox.firmware.models import FirmwareOutputFiles
+
+            return FirmwareOutputFiles(output_dir=output_dir)
+
+        # Use the protocol method when artifact collector is implemented
+        firmware_files, output_files = self.artifact_collector.collect_artifacts(
+            output_dir
+        )
+
+        self.logger.debug(
+            "Collected firmware artifacts: main=%s, left=%s, right=%s",
+            output_files.main_uf2 if output_files else None,
+            output_files.left_uf2 if output_files else None,
+            output_files.right_uf2 if output_files else None,
+        )
+
+        return output_files
+
+    def _validate_artifacts(self, firmware_files: Any, result: BuildResult) -> bool:
+        """Validate collected artifacts.
+
+        Args:
+            firmware_files: Collected firmware files
+            result: Build result to store errors
+
+        Returns:
+            bool: True if artifacts are valid
+        """
+        if not firmware_files or not (
+            firmware_files.main_uf2
+            or firmware_files.left_uf2
+            or firmware_files.right_uf2
+        ):
+            result.success = False
+            result.add_error("No firmware files generated")
+            return False
+
         return True
+
+    def _count_firmware_files(self, firmware_files: Any) -> int:
+        """Count the number of firmware files generated.
+
+        Args:
+            firmware_files: Collected firmware files
+
+        Returns:
+            int: Number of firmware files
+        """
+        count = 0
+        if firmware_files.main_uf2:
+            count += 1
+        if firmware_files.left_uf2:
+            count += 1
+        if firmware_files.right_uf2:
+            count += 1
+        return count
