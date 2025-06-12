@@ -192,9 +192,8 @@ class ZmkConfigCompilationService(BaseCompilationService):
             # Add CMake arguments with configurable config path
             config_path = Path("config")  # default
             if config and config.zmk_config_repo and config.zmk_config_repo.config_path:
-                config_path = config.zmk_config_repo.config_path
+                absolute_config_path = config.zmk_config_repo.config_path_absolute
 
-            absolute_config_path = (Path("/workspace") / config_path).resolve()
             cmake_args = [f"-DZMK_CONFIG={absolute_config_path}"]
 
             # Add shield if specified
