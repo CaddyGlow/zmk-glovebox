@@ -39,19 +39,14 @@ class BuildYamlConfig(BaseModel):
     include: list[BuildTargetConfig] = Field(default_factory=list)
 
 
-class ZmkConfigRepoConfig(BaseModel):
+class ZmkWorkspaceConfig(BaseModel):
     """ZMK config repository configuration for config-based manifests."""
 
     config_repo_url: str
     config_repo_revision: str = "main"
-    build_yaml_path: str = "build.yaml"
-    workspace_path: Path = Path("/workspace")
-    west_commands: list[str] = Field(
-        default_factory=lambda: ["west init -l config", "west update"]
-    )
-    # build_root: str = "build"
-    # config_path: str = "config"
 
+    build_yaml_path: Path = Path("build.yaml")
+    workspace_path: Path = Path("/workspace")
     build_root: Path = Path("build")
     config_path: Path = Path("config")
 
@@ -158,7 +153,7 @@ class CompilationConfig(BaseModel):
     board_targets: list[str] = Field(default_factory=list)
 
     # ZMK config repository configuration (strategy: zmk_config)
-    zmk_config_repo: ZmkConfigRepoConfig | None = None
+    zmk_config_repo: ZmkWorkspaceConfig | None = None
 
     # West workspace configuration (strategy: west)
     west_workspace: WestWorkspaceConfig | None = None
@@ -215,7 +210,7 @@ __all__ = [
     "CompileMethodConfig",
     "BuildTargetConfig",
     "BuildYamlConfig",
-    "ZmkConfigRepoConfig",
+    "ZmkWorkspaceConfig",
     "WestWorkspaceConfig",
     "CacheConfig",
     "DockerUserConfig",
