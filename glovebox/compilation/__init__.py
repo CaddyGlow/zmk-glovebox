@@ -80,18 +80,6 @@ def create_west_service() -> CompilationServiceProtocol:
     )
 
 
-def create_cmake_service() -> CompilationServiceProtocol:
-    """Create CMake compilation service.
-
-    Returns:
-        CompilationServiceProtocol: CMake compilation service
-    """
-    # Implementation will be added in Phase 4
-    # from glovebox.compilation.services.cmake_compilation_service import CMakeCompilationService
-    # return CMakeCompilationService()
-    raise NotImplementedError("CMakeCompilationService will be implemented in Phase 4")
-
-
 __all__ = [
     # Protocols
     "CompilationServiceProtocol",

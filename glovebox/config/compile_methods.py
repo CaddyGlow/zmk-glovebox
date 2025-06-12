@@ -19,7 +19,6 @@ class CompileMethodConfig(BaseModel, ABC):
     """Base configuration for compilation methods."""
 
     method_type: str
-    fallback_methods: list[str] = Field(default_factory=list)
 
 
 class BuildTargetConfig(BaseModel):
@@ -74,16 +73,6 @@ class WestWorkspaceConfig(BaseModel):
     def expand_workspace_path(cls, v: str) -> str:
         """Expand environment variables and user home in workspace path."""
         return expand_path_variables(v)
-
-
-class DockerCompileConfig(CompileMethodConfig):
-    """Docker-based compilation configuration."""
-
-    method_type: str = "docker"
-    image: str = "moergo-zmk-build:latest"
-    repository: str = "moergo-sc/zmk"
-    branch: str = "main"
-    jobs: int | None = None
 
 
 class CacheConfig(BaseModel):
@@ -168,24 +157,6 @@ class CompilationConfig(BaseModel):
     )
     build_matrix_file: Path | None = None  # Path to build.yaml
 
-    # Fallback methods
-    fallback_methods: list[str] = Field(default_factory=list)
-
-    # Local compilation paths (strategy: local)
-    zmk_path: Path | None = None
-    toolchain_path: Path | None = None
-    zephyr_base: Path | None = None
-
-    # Cross-compilation settings (strategy: cross)
-    target_arch: str | None = None
-    sysroot: Path | None = None
-    toolchain_prefix: str | None = None
-    cmake_toolchain: Path | None = None
-
-    # QEMU settings (strategy: qemu)
-    qemu_target: str | None = None
-    test_runners: list[str] = Field(default_factory=list)
-
     @field_validator("volume_templates")
     @classmethod
     def expand_volume_templates(cls, v: list[str]) -> list[str]:
@@ -205,10 +176,6 @@ class CompilationConfig(BaseModel):
             "west",
         ]
 
-    def get_method_type(self) -> str:
-        """Get the method type for compatibility with existing code."""
-        return "generic_docker" if self.is_docker_based() else self.strategy
-
 
 __all__ = [
     "CompileMethodConfig",
@@ -216,7 +183,6 @@ __all__ = [
     "BuildYamlConfig",
     "ZmkConfigRepoConfig",
     "WestWorkspaceConfig",
-    "DockerCompileConfig",
     "CacheConfig",
     "DockerUserConfig",
     "CompilationConfig",
