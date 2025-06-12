@@ -120,11 +120,16 @@ class ZmkConfigCompilationService(BaseCompilationService):
             create_build_matrix_resolver,
         )
 
+        # Get configurable config path
+        config_dir = "config"  # default
+        if config.zmk_config_repo:
+            config_dir = config.zmk_config_repo.config_path
+
         # Initialize commands with workspace setup
         commands = [
             "cd /workspace",  # Ensure we're in the workspace
             "rm -rf .west build",  # Remove existing west workspace and build dirs
-            "west init -l config",  # Initialize west workspace with config
+            f"west init -l {config_dir}",  # Initialize west workspace with config
             "west update",  # Download dependencies
             "west zephyr-export",  # Export Zephyr build environment
         ]
@@ -184,8 +189,13 @@ class ZmkConfigCompilationService(BaseCompilationService):
             # Build west command with GitHub Actions workflow parameters
             west_cmd = f"west build -s zmk/app -b {target.board} -d {build_dir}"
 
-            # Add CMake arguments
-            cmake_args = ["-DZMK_CONFIG=/workspace/config"]
+            # Add CMake arguments with configurable config path
+            config_path = "config"  # default
+            if config and config.zmk_config_repo:
+                config_path = f"{config.zmk_config_repo.config_path}"
+
+            absolute_config_path = (Path("/workspace") / Path(config_path)).resolve()
+            cmake_args = [f"-DZMK_CONFIG={absolute_config_path}"]
 
             # Add shield if specified
             if target.shield:
@@ -231,7 +241,14 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
         # Generate basic build command
         west_cmd = f"west build -s zmk/app -b {board_name} -d {base_build_dir}"
-        cmake_args = ["-DZMK_CONFIG=/workspace/config"]
+
+        # Add CMake arguments with configurable config path
+        config_path = "config"  # default
+        if config.zmk_config_repo:
+            config_path = config.zmk_config_repo.config_path
+
+        absolute_config_path = (Path("/workspace") / Path(config_path)).resolve()
+        cmake_args = [f"-DZMK_CONFIG={absolute_config_path}"]
 
         # Add board targets as shields if available
         if config.board_targets and len(config.board_targets) > 1:

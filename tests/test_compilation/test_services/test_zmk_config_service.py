@@ -746,3 +746,92 @@ class TestZmkConfigServiceIntegration:
         # Verify commands use default build root
         assert len(commands) == 1
         assert "west build -s zmk/app -b nice_nano_v2 -d build" in commands[0]
+
+    def test_generate_build_commands_from_matrix_with_custom_config_path(self):
+        """Test build command generation from matrix with custom config_path."""
+        # Create build matrix with test targets
+        targets = [BuildTarget(board="nice_nano_v2", artifact_name="firmware")]
+        build_matrix = BuildMatrix(targets=targets)
+
+        # Create config with custom config_path
+        zmk_config_repo = ZmkConfigRepoConfig(
+            config_repo_url="https://github.com/test/config",
+            config_path="custom_config",
+        )
+        config = CompilationConfig(
+            strategy="zmk_config", zmk_config_repo=zmk_config_repo
+        )
+
+        # Generate build commands
+        commands = self.service._generate_build_commands_from_matrix(
+            build_matrix, config
+        )
+
+        # Verify commands use custom config path
+        assert len(commands) == 1
+        assert "-DZMK_CONFIG=/workspace/custom_config" in commands[0]
+
+    def test_generate_fallback_build_commands_with_custom_config_path(self):
+        """Test fallback build command generation with custom config_path."""
+        # Create config with custom config_path
+        zmk_config_repo = ZmkConfigRepoConfig(
+            config_repo_url="https://github.com/test/config",
+            config_path="my_config_dir",
+        )
+        config = CompilationConfig(
+            strategy="zmk_config",
+            zmk_config_repo=zmk_config_repo,
+            board_targets=["nice_nano_v2"],
+        )
+
+        # Generate fallback build commands
+        commands = self.service._generate_fallback_build_commands(config)
+
+        # Verify commands use custom config path
+        assert len(commands) == 1
+        assert "-DZMK_CONFIG=/workspace/my_config_dir" in commands[0]
+
+    def test_build_compilation_command_with_custom_config_path(self):
+        """Test full compilation command generation with custom config_path."""
+        # Create config with custom config_path
+        zmk_config_repo = ZmkConfigRepoConfig(
+            config_repo_url="https://github.com/test/config",
+            config_path="special_config",
+        )
+        config = CompilationConfig(
+            strategy="zmk_config",
+            zmk_config_repo=zmk_config_repo,
+            board_targets=["nice_nano_v2"],
+        )
+
+        workspace_path = Path("/tmp/workspace")
+
+        # Generate full compilation command
+        command = self.service._build_compilation_command(workspace_path, config)
+
+        # Verify west init uses custom config path
+        assert "west init -l special_config" in command
+        # Verify cmake args use custom config path
+        assert "-DZMK_CONFIG=/workspace/special_config" in command
+
+    def test_build_compilation_command_with_default_config_path(self):
+        """Test full compilation command generation with default config_path."""
+        # Create config with default config_path
+        zmk_config_repo = ZmkConfigRepoConfig(
+            config_repo_url="https://github.com/test/config"
+        )
+        config = CompilationConfig(
+            strategy="zmk_config",
+            zmk_config_repo=zmk_config_repo,
+            board_targets=["nice_nano_v2"],
+        )
+
+        workspace_path = Path("/tmp/workspace")
+
+        # Generate full compilation command
+        command = self.service._build_compilation_command(workspace_path, config)
+
+        # Verify west init uses default config path
+        assert "west init -l config" in command
+        # Verify cmake args use default config path
+        assert "-DZMK_CONFIG=/workspace/config" in command
