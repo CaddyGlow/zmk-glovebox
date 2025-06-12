@@ -7,6 +7,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from glovebox.models.docker_path import DockerPath
+
 
 def expand_path_variables(path_str: Path) -> Path:
     """Expand environment variables and user home in path string."""
@@ -39,34 +41,32 @@ class BuildYamlConfig(BaseModel):
     include: list[BuildTargetConfig] = Field(default_factory=list)
 
 
-class ZmkWorkspaceConfig(BaseModel):
+class ZmkConfigRepoConfig(BaseModel):
     """ZMK config repository configuration for config-based manifests."""
 
     config_repo_url: str
     config_repo_revision: str = "main"
 
-    build_yaml_path: Path = Path("build.yaml")
-    workspace_path: Path = Path("/workspace")
-    build_root: Path = Path("build")
-    config_path: Path = Path("config")
+    build_yaml_path: str = "build.yaml"
+    workspace_path: DockerPath = Field(
+        default_factory=lambda: DockerPath(container_path="/workspace")
+    )
+    build_root: DockerPath = Field(
+        default_factory=lambda: DockerPath(container_path="build")
+    )
+    config_path: DockerPath = Field(
+        default_factory=lambda: DockerPath(container_path="config")
+    )
 
     @property
     def config_path_absolute(self) -> Path:
         """Get the fully expanded config path, relative to workspace_path if set."""
-        # self.workspace_path is already expanded by its own validator
-        return expand_path_variables(self.workspace_path / self.config_path)
+        return Path(self.workspace_path.container_path) / self.config_path.container_path
 
     @property
     def build_root_absolute(self) -> Path:
         """Get the fully expanded build root path, relative to workspace_path if set."""
-        # self.workspace_path is already expanded by its own validator
-        return expand_path_variables(self.workspace_path / self.build_root)
-
-    @field_validator("workspace_path", "build_root", "config_path")
-    @classmethod
-    def expand_paths(cls, v: Path) -> Path:
-        """Expand environment variables and user home in paths."""
-        return expand_path_variables(v)
+        return Path(self.workspace_path.container_path) / self.build_root.container_path
 
 
 class WestWorkspaceConfig(BaseModel):
@@ -153,7 +153,7 @@ class CompilationConfig(BaseModel):
     board_targets: list[str] = Field(default_factory=list)
 
     # ZMK config repository configuration (strategy: zmk_config)
-    zmk_config_repo: ZmkWorkspaceConfig | None = None
+    zmk_config_repo: ZmkConfigRepoConfig | None = None
 
     # West workspace configuration (strategy: west)
     west_workspace: WestWorkspaceConfig | None = None
@@ -210,7 +210,7 @@ __all__ = [
     "CompileMethodConfig",
     "BuildTargetConfig",
     "BuildYamlConfig",
-    "ZmkWorkspaceConfig",
+    "ZmkConfigRepoConfig",
     "WestWorkspaceConfig",
     "CacheConfig",
     "DockerUserConfig",

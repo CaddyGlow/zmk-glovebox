@@ -20,7 +20,7 @@ from glovebox.config.models.workspace import UserWorkspaceConfig
 
 if TYPE_CHECKING:
     from glovebox.compilation.models.build_matrix import BuildMatrix
-    from glovebox.config.compile_methods import ZmkWorkspaceConfig
+    from glovebox.config.compile_methods import ZmkConfigRepoConfig
     from glovebox.config.profile import KeyboardProfile
 
 logger = logging.getLogger(__name__)
@@ -130,9 +130,9 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
         # Get configurable config path
         config_dir = (
-            zmk_workspace_config.config_path
+            zmk_workspace_config.config_path.container_path
             if zmk_workspace_config
-            else Path("config")
+            else "config"
         )
 
         # Initialize commands with workspace setup
@@ -148,7 +148,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         build_yaml_path_in_repo = (
             zmk_workspace_config.build_yaml_path
             if zmk_workspace_config
-            else Path("build.yaml")
+            else "build.yaml"
         )
         build_yaml_path = workspace_path / build_yaml_path_in_repo
         if build_yaml_path.exists():
@@ -180,7 +180,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
     def _generate_build_commands_from_matrix(
         self,
         build_matrix: "BuildMatrix",
-        zmk_workspace_config: "ZmkWorkspaceConfig | None" = None,
+        zmk_workspace_config: "ZmkConfigRepoConfig | None" = None,
     ) -> list[str]:
         """Generate west build commands from build matrix.
 
@@ -200,14 +200,16 @@ class ZmkConfigCompilationService(BaseCompilationService):
         for target in build_matrix.targets:
             # Generate build directory name with optional custom build root
             base_build_dir = (
-                zmk_workspace_config.build_root
+                zmk_workspace_config.build_root.container_path
                 if zmk_workspace_config
-                else Path("build")
+                else "build"
             )
 
-            build_dir = base_build_dir / f"{target.artifact_name or target.board}"
+            build_dir = (
+                Path(base_build_dir) / f"{target.artifact_name or target.board}"
+            )
             if target.shield:
-                build_dir = base_build_dir / f"{target.shield}-{target.board}"
+                build_dir = Path(base_build_dir) / f"{target.shield}-{target.board}"
 
             # Build west command with GitHub Actions workflow parameters
             west_cmd = f"west build -s zmk/app -b {target.board} -d {build_dir}"
@@ -217,7 +219,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
                 absolute_config_path = zmk_workspace_config.config_path_absolute
             else:
                 # Fallback for dynamic mode where zmk_config_repo might be None
-                absolute_config_path = (Path("/workspace") / "config").resolve()
+                absolute_config_path = Path("/workspace/config")
 
             cmake_args = [f"-DZMK_CONFIG={absolute_config_path}"]
 
@@ -245,7 +247,9 @@ class ZmkConfigCompilationService(BaseCompilationService):
         return commands
 
     def _generate_fallback_build_commands(
-        self, config: CompilationConfig, zmk_workspace_config: "ZmkWorkspaceConfig | None"
+        self,
+        config: CompilationConfig,
+        zmk_workspace_config: "ZmkConfigRepoConfig | None",
     ) -> list[str]:
         """Generate fallback build commands when build.yaml is not available.
 
@@ -263,7 +267,9 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
         # Determine base build directory
         base_build_dir = (
-            zmk_workspace_config.build_root if zmk_workspace_config else Path("build")
+            zmk_workspace_config.build_root.container_path
+            if zmk_workspace_config
+            else "build"
         )
 
         # Generate basic build command
@@ -274,7 +280,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
             absolute_config_path = zmk_workspace_config.config_path_absolute
         else:
             # Fallback for dynamic mode where zmk_config_repo might be None
-            absolute_config_path = (Path("/workspace") / "config").resolve()
+            absolute_config_path = Path("/workspace/config")
         cmake_args = [f"-DZMK_CONFIG={absolute_config_path}"]
 
         # Add board targets as shields if available
@@ -360,7 +366,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         self,
         keymap_file: Path,
         config_file: Path,
-        zmk_workspace_config: "ZmkWorkspaceConfig",
+        zmk_workspace_config: "ZmkConfigRepoConfig",
     ) -> Path | None:
         """Setup repository-based ZMK config workspace.
 
@@ -372,7 +378,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         Returns:
             Path | None: Workspace path if successful
         """
-        workspace_path = zmk_workspace_config.workspace_path
+        workspace_path = zmk_workspace_config.workspace_path.host()
 
         # Initialize repository workspace
         if self.workspace_manager.initialize_workspace(
@@ -386,7 +392,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
     def _get_dynamic_workspace_path(
         self,
-        zmk_workspace_config: "ZmkWorkspaceConfig | None",
+        zmk_workspace_config: "ZmkConfigRepoConfig | None",
         keyboard_profile: "KeyboardProfile",
     ) -> Path:
         """Get workspace path for dynamic generation.
@@ -399,7 +405,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
             Path: Dynamic workspace path
         """
         if zmk_workspace_config:
-            return zmk_workspace_config.workspace_path
+            return zmk_workspace_config.workspace_path.host()
 
         # Fallback to user-configured workspace location
         return (
@@ -439,7 +445,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
         # Log build_root configuration for debugging
         build_root = config.zmk_config_repo.build_root
-        if build_root != Path("build"):
+        if build_root.container_path != "build":
             self.logger.debug(
                 "ZMK config custom build root configured: %s",
                 config.zmk_config_repo.build_root,
