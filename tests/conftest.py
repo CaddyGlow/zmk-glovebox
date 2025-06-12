@@ -631,30 +631,6 @@ def mock_layout_service() -> Mock:
     return mock
 
 
-@pytest.fixture
-def mock_build_service() -> Mock:
-    """Mock BuildService with common behaviors."""
-    mock = Mock()
-
-    # Create a mock FirmwareOutputFiles for the result
-    output_files = FirmwareOutputFiles(
-        main_uf2=Path("/tmp/output/glove80.uf2"), output_dir=Path("/tmp/output")
-    )
-
-    # Mock successful compile result
-    result = BuildResult(
-        success=True,
-        messages=["Firmware built successfully", "Output: /tmp/output/glove80.uf2"],
-        output_files=output_files,
-    )
-    mock.compile.return_value = result
-
-    # Also set the compile_from_files method to return the same result
-    mock.compile_from_files.return_value = result
-
-    return mock
-
-
 @pytest.fixture(scope="function")
 def mock_flash_service() -> Mock:
     """Mock FlashService with common behaviors."""

@@ -61,11 +61,11 @@ def setup_layout_command_test(mock_layout_service, mock_keyboard_profile):
 
 # Common setup for firmware command tests
 @pytest.fixture
-def setup_firmware_command_test(mock_build_service, mock_keyboard_profile):
+def setup_firmware_command_test(mock_keyboard_profile):
     """Set up common mocks for firmware command tests."""
     with (
         patch(
-            "glovebox.cli.commands.firmware.create_build_service"
+            "glovebox.cli.commands.firmware.create_compilation_service"
         ) as mock_create_service,
         patch("glovebox.cli.commands.firmware.Path") as mock_path_cls,
         patch(
@@ -77,8 +77,14 @@ def setup_firmware_command_test(mock_build_service, mock_keyboard_profile):
         mock_path_instance.exists.return_value = True
         mock_path_cls.return_value = mock_path_instance
 
-        # Set up service mock
-        mock_create_service.return_value = mock_build_service
+        # Set up compilation service mock
+        mock_compilation_service = Mock()
+        mock_compilation_service.compile.return_value = BuildResult(
+            success=True,
+            messages=["Firmware built successfully"],
+            output_files=Mock(),
+        )
+        mock_create_service.return_value = mock_compilation_service
 
         # Set up profile mock
         mock_create_profile.return_value = mock_keyboard_profile

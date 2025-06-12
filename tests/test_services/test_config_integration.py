@@ -73,9 +73,9 @@ def test_layout_service_with_keyboard_config():
     )
 
 
-def test_build_service_with_config():
-    """Test that build service configuration validation works."""
-    # Create a mock build service
+def test_compilation_service_with_config():
+    """Test that compilation service configuration validation works."""
+    # Create a mock compilation service
     mock_service = Mock()
 
     # Create a mock result object
