@@ -7,12 +7,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from ..compile_methods import (
     CompilationConfig,
 )
-from ..flash_methods import (
-    BootloaderFlashConfig,
-    DFUFlashConfig,
-    USBFlashConfig,
-    WiFiFlashConfig,
-)
+from ..flash_methods import USBFlashConfig
 from ..models.workspace import UserWorkspaceConfig
 from .behavior import BehaviorConfig
 from .display import DisplayConfig
@@ -63,9 +58,7 @@ class KeymapSection(BaseModel):
 # Union types for method configurations
 CompileMethodConfigUnion = CompilationConfig
 
-FlashMethodConfigUnion = (
-    USBFlashConfig | DFUFlashConfig | BootloaderFlashConfig | WiFiFlashConfig
-)
+FlashMethodConfigUnion = USBFlashConfig
 
 
 # Complete keyboard configuration
