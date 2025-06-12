@@ -97,9 +97,16 @@ class WestCompilationService(BaseCompilationService):
         # Extract board name using common logic
         board = self._extract_board_name(config)
 
+        # Build west command with optional build directory
+        command_parts = ["west", "build", "-b", board]
+
+        # Add build root if specified in west workspace config
+        if config.west_workspace and config.west_workspace.build_root:
+            command_parts.extend(["-d", config.west_workspace.build_root])
+
         # For west strategy, we build without shield specification by default
         # Shield configuration is typically handled through the keymap files
-        return f"west build -b {board}"
+        return " ".join(command_parts)
 
     def _validate_strategy_specific(self, config: CompilationConfig) -> bool:
         """Validate configuration for west compilation strategy.
@@ -117,6 +124,14 @@ class WestCompilationService(BaseCompilationService):
         if not config.west_workspace.workspace_path:
             self.logger.error("West workspace path is required")
             return False
+
+        # Log build_root configuration for debugging
+        if config.west_workspace.build_root:
+            self.logger.debug(
+                "West build root configured: %s", config.west_workspace.build_root
+            )
+        else:
+            self.logger.debug("West build root not configured, using default location")
 
         self.logger.debug("West workspace validation passed")
         return True

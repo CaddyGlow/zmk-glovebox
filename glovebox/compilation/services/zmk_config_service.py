@@ -138,7 +138,9 @@ class ZmkConfigCompilationService(BaseCompilationService):
                 build_matrix = resolver.resolve_from_build_yaml(build_yaml_path)
 
                 # Generate west build commands for each target
-                build_commands = self._generate_build_commands_from_matrix(build_matrix)
+                build_commands = self._generate_build_commands_from_matrix(
+                    build_matrix, config
+                )
                 commands.extend(build_commands)
 
             except Exception as e:
@@ -152,7 +154,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         return " && ".join(commands)
 
     def _generate_build_commands_from_matrix(
-        self, build_matrix: "BuildMatrix"
+        self, build_matrix: "BuildMatrix", config: CompilationConfig | None = None
     ) -> list[str]:
         """Generate west build commands from build matrix.
 
@@ -161,6 +163,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
         Args:
             build_matrix: Resolved build matrix from build.yaml
+            config: Compilation configuration for build_root access
 
         Returns:
             list[str]: West build commands for each target
@@ -169,10 +172,14 @@ class ZmkConfigCompilationService(BaseCompilationService):
         commands = []
 
         for target in build_matrix.targets:
-            # Generate build directory name
-            build_dir = Path("build") / f"{target.artifact_name or target.board}"
+            # Generate build directory name with optional custom build root
+            base_build_dir = "build"
+            if config and config.zmk_config_repo:
+                base_build_dir = config.zmk_config_repo.build_root
+
+            build_dir = Path(base_build_dir) / f"{target.artifact_name or target.board}"
             if target.shield:
-                build_dir = Path("build") / f"{target.shield}-{target.board}"
+                build_dir = Path(base_build_dir) / f"{target.shield}-{target.board}"
 
             # Build west command with GitHub Actions workflow parameters
             west_cmd = f"west build -s zmk/app -b {target.board} -d {build_dir}"
@@ -217,15 +224,20 @@ class ZmkConfigCompilationService(BaseCompilationService):
         commands = []
         board_name = self._extract_board_name(config)
 
+        # Determine base build directory
+        base_build_dir = "build"
+        if config.zmk_config_repo:
+            base_build_dir = config.zmk_config_repo.build_root
+
         # Generate basic build command
-        west_cmd = f"west build -s zmk/app -b {board_name} -d build"
+        west_cmd = f"west build -s zmk/app -b {board_name} -d {base_build_dir}"
         cmake_args = ["-DZMK_CONFIG=/workspace/config"]
 
         # Add board targets as shields if available
         if config.board_targets and len(config.board_targets) > 1:
             # Multiple board targets - generate commands for each
             for board_target in config.board_targets:
-                build_dir = f"build_{board_target}"
+                build_dir = f"{base_build_dir}_{board_target}"
                 target_cmd = f"west build -s zmk/app -b {board_target} -d {build_dir}"
                 target_cmd += f" -- {' '.join(cmake_args)}"
                 commands.append(target_cmd)
@@ -382,6 +394,15 @@ class ZmkConfigCompilationService(BaseCompilationService):
         if not config.zmk_config_repo.workspace_path:
             self.logger.error("ZMK config workspace path is required")
             return False
+
+        # Log build_root configuration for debugging
+        if config.zmk_config_repo.build_root != "build":
+            self.logger.debug(
+                "ZMK config custom build root configured: %s",
+                config.zmk_config_repo.build_root,
+            )
+        else:
+            self.logger.debug("ZMK config using default build root: build")
 
         self.logger.debug("ZMK config validation passed")
         return True
