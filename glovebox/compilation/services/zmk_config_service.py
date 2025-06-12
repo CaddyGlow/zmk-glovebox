@@ -121,8 +121,8 @@ class ZmkConfigCompilationService(BaseCompilationService):
         )
 
         # Get configurable config path
-        config_dir = "config"  # default
-        if config.zmk_config_repo:
+        config_dir = Path("config")  # default
+        if config.zmk_config_repo and config.zmk_config_repo.config_path:
             config_dir = config.zmk_config_repo.config_path
 
         # Initialize commands with workspace setup
@@ -178,23 +178,23 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
         for target in build_matrix.targets:
             # Generate build directory name with optional custom build root
-            base_build_dir = "build"
-            if config and config.zmk_config_repo:
+            base_build_dir = Path("build")
+            if config and config.zmk_config_repo and config.zmk_config_repo.build_root:
                 base_build_dir = config.zmk_config_repo.build_root
 
-            build_dir = Path(base_build_dir) / f"{target.artifact_name or target.board}"
+            build_dir = base_build_dir / f"{target.artifact_name or target.board}"
             if target.shield:
-                build_dir = Path(base_build_dir) / f"{target.shield}-{target.board}"
+                build_dir = base_build_dir / f"{target.shield}-{target.board}"
 
             # Build west command with GitHub Actions workflow parameters
             west_cmd = f"west build -s zmk/app -b {target.board} -d {build_dir}"
 
             # Add CMake arguments with configurable config path
-            config_path = "config"  # default
-            if config and config.zmk_config_repo:
-                config_path = f"{config.zmk_config_repo.config_path}"
+            config_path = Path("config")  # default
+            if config and config.zmk_config_repo and config.zmk_config_repo.config_path:
+                config_path = config.zmk_config_repo.config_path
 
-            absolute_config_path = (Path("/workspace") / Path(config_path)).resolve()
+            absolute_config_path = (Path("/workspace") / config_path).resolve()
             cmake_args = [f"-DZMK_CONFIG={absolute_config_path}"]
 
             # Add shield if specified
@@ -235,19 +235,19 @@ class ZmkConfigCompilationService(BaseCompilationService):
         board_name = self._extract_board_name(config)
 
         # Determine base build directory
-        base_build_dir = "build"
-        if config.zmk_config_repo:
+        base_build_dir = Path("build")
+        if config.zmk_config_repo and config.zmk_config_repo.build_root:
             base_build_dir = config.zmk_config_repo.build_root
 
         # Generate basic build command
         west_cmd = f"west build -s zmk/app -b {board_name} -d {base_build_dir}"
 
         # Add CMake arguments with configurable config path
-        config_path = "config"  # default
-        if config.zmk_config_repo:
+        config_path = Path("config")  # default
+        if config.zmk_config_repo and config.zmk_config_repo.config_path:
             config_path = config.zmk_config_repo.config_path
 
-        absolute_config_path = (Path("/workspace") / Path(config_path)).resolve()
+        absolute_config_path = (Path("/workspace") / config_path).resolve()
         cmake_args = [f"-DZMK_CONFIG={absolute_config_path}"]
 
         # Add board targets as shields if available
@@ -340,11 +340,13 @@ class ZmkConfigCompilationService(BaseCompilationService):
         Returns:
             Path | None: Workspace path if successful
         """
-        if not config.zmk_config_repo:
-            self.logger.error("ZMK config repository configuration is missing")
+        if not config.zmk_config_repo or not config.zmk_config_repo.workspace_path:
+            self.logger.error(
+                "ZMK config repository configuration or workspace path is missing"
+            )
             return None
 
-        workspace_path = Path(config.zmk_config_repo.workspace_path)
+        workspace_path = config.zmk_config_repo.workspace_path
 
         # Initialize repository workspace
         if self.workspace_manager.initialize_workspace(
@@ -369,7 +371,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
             Path: Dynamic workspace path
         """
         if config.zmk_config_repo and config.zmk_config_repo.workspace_path:
-            return Path(config.zmk_config_repo.workspace_path)
+            return config.zmk_config_repo.workspace_path
 
         # Fallback to user-configured workspace location
         return (
@@ -413,7 +415,8 @@ class ZmkConfigCompilationService(BaseCompilationService):
             return False
 
         # Log build_root configuration for debugging
-        if config.zmk_config_repo.build_root != "build":
+        build_root = config.zmk_config_repo.build_root
+        if build_root is not None and build_root != Path("build"):
             self.logger.debug(
                 "ZMK config custom build root configured: %s",
                 config.zmk_config_repo.build_root,
