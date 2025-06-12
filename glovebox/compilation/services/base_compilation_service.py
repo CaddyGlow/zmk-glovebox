@@ -197,11 +197,10 @@ class BaseCompilationService(BaseService):
         """
         pass
 
-    def validate_configuration(self, config: CompilationConfig) -> bool:
+    def validate_config(self, config: CompilationConfig) -> bool:
         """Validate compilation configuration.
 
-        Base validation that all compilation strategies should perform.
-        Can be overridden by subclasses for strategy-specific validation.
+        Calls both common validation and strategy-specific validation.
 
         Args:
             config: Compilation configuration to validate
@@ -209,15 +208,39 @@ class BaseCompilationService(BaseService):
         Returns:
             bool: True if configuration is valid
         """
-        valid = True
-
         # Base validation checks
+        if not self._validate_common_requirements(config):
+            return False
+
+        # Strategy-specific validation
+        return self._validate_strategy_specific(config)
+
+    def _validate_common_requirements(self, config: CompilationConfig) -> bool:
+        """Validate common configuration requirements.
+
+        Args:
+            config: Compilation configuration to validate
+
+        Returns:
+            bool: True if common requirements are met
+        """
         if not config.image:
             self.logger.error("Docker image not specified")
-            valid = False
+            return False
 
-        # Strategy-specific validation should be in subclasses
-        return valid
+        return True
+
+    @abstractmethod
+    def _validate_strategy_specific(self, config: CompilationConfig) -> bool:
+        """Validate strategy-specific configuration requirements.
+
+        Args:
+            config: Compilation configuration to validate
+
+        Returns:
+            bool: True if strategy-specific requirements are met
+        """
+        pass
 
     def check_available(self) -> bool:
         """Check if this compilation strategy is available.
@@ -257,7 +280,7 @@ class BaseCompilationService(BaseService):
             result.add_error("Docker adapter not available for compilation")
             return False
 
-        if not self.validate_configuration(config):
+        if not self.validate_config(config):
             result.success = False
             result.add_error("Configuration validation failed")
             return False
@@ -483,3 +506,30 @@ class BaseCompilationService(BaseService):
         if firmware_files.right_uf2:
             count += 1
         return count
+
+    def _extract_board_name(self, config: CompilationConfig) -> str:
+        """Extract board name from compilation configuration.
+
+        Common logic for extracting board name from config.
+
+        Args:
+            config: Compilation configuration
+
+        Returns:
+            str: Board name for compilation
+        """
+        # Use board targets from config
+        if config.board_targets and len(config.board_targets) > 0:
+            return config.board_targets[0]
+
+        # Default board for most ZMK keyboards
+        return "nice_nano_v2"
+
+    def _handle_workspace_setup_error(self, operation: str, error: Exception) -> None:
+        """Common error handling for workspace setup failures.
+
+        Args:
+            operation: Description of the operation that failed
+            error: The exception that occurred
+        """
+        self.logger.error("Failed to setup %s workspace: %s", operation, error)

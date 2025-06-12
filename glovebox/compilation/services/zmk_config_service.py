@@ -97,7 +97,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
                 )
 
         except Exception as e:
-            self.logger.error("Failed to setup ZMK config workspace: %s", e)
+            self._handle_workspace_setup_error("ZMK config", e)
             return None
 
     def _build_compilation_command(
@@ -363,23 +363,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         # Use keyboard name as shield name for dynamic generation
         return keyboard_profile.keyboard_name
 
-    def _extract_board_name(self, config: CompilationConfig) -> str:
-        """Extract board name from compilation configuration.
-
-        Args:
-            config: Compilation configuration
-
-        Returns:
-            str: Board name for west build
-        """
-        # Use board targets from config
-        if config.board_targets and len(config.board_targets) > 0:
-            return config.board_targets[0]
-
-        # Default board for most ZMK keyboards
-        return "nice_nano_v2"
-
-    def validate_config(self, config: CompilationConfig) -> bool:
+    def _validate_strategy_specific(self, config: CompilationConfig) -> bool:
         """Validate configuration for ZMK config compilation strategy.
 
         Args:

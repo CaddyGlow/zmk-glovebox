@@ -79,7 +79,7 @@ class WestCompilationService(BaseCompilationService):
             return None
 
         except Exception as e:
-            self.logger.error("Failed to setup West workspace: %s", e)
+            self._handle_workspace_setup_error("West", e)
             return None
 
     def _build_compilation_command(
@@ -94,19 +94,14 @@ class WestCompilationService(BaseCompilationService):
         Returns:
             str: West build command
         """
-        # Use board targets from config for west builds
-        if config.board_targets and len(config.board_targets) > 0:
-            # Use first board target as primary build target
-            board = config.board_targets[0]
-        else:
-            # Default board for most ZMK keyboards
-            board = "nice_nano_v2"
+        # Extract board name using common logic
+        board = self._extract_board_name(config)
 
         # For west strategy, we build without shield specification by default
         # Shield configuration is typically handled through the keymap files
         return f"west build -b {board}"
 
-    def validate_config(self, config: CompilationConfig) -> bool:
+    def _validate_strategy_specific(self, config: CompilationConfig) -> bool:
         """Validate configuration for west compilation strategy.
 
         Args:
