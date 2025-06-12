@@ -65,8 +65,6 @@ def _build_keyboard_config_data(
                 method_data["mount_timeout"] = method.mount_timeout
             if hasattr(method, "copy_timeout") and method.copy_timeout:
                 method_data["copy_timeout"] = method.copy_timeout
-            if hasattr(method, "fallback_methods") and method.fallback_methods:
-                method_data["fallback_methods"] = method.fallback_methods
 
             flash_methods.append(method_data)
 
@@ -75,7 +73,7 @@ def _build_keyboard_config_data(
         # Keep primary flash for backward compatibility
         primary_flash = keyboard_config.flash_methods[0]
         config_data["flash"] = {
-            "primary_method": primary_flash.method_type,
+            "primary_method": "usb",
             "total_methods": len(keyboard_config.flash_methods),
         }
 
@@ -97,8 +95,6 @@ def _build_keyboard_config_data(
                 method_data["branch"] = method.branch
             if hasattr(method, "jobs") and method.jobs:
                 method_data["jobs"] = method.jobs
-            if hasattr(method, "fallback_methods") and method.fallback_methods:
-                method_data["fallback_methods"] = method.fallback_methods
 
             compile_methods.append(method_data)
 
