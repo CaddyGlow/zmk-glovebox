@@ -137,7 +137,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         ]
 
         # Check for build.yaml in workspace config directory
-        build_yaml_path = workspace_path / "build.yaml"
+        build_yaml_path = workspace_path / config.zmk_config_repo.build_yaml_path
         if build_yaml_path.exists():
             try:
                 # Parse build matrix from build.yaml
