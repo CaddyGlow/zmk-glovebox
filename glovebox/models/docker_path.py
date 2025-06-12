@@ -4,32 +4,34 @@ import logging
 from pathlib import Path
 from typing import Self
 
+from pydantic import BaseModel, field_validator
+
 
 logger = logging.getLogger(__name__)
 
 
-class DockerPath:
+class DockerPath(BaseModel):
     """Represents a mapping between host and container paths.
 
     Provides a clean API for Docker volume mounting and path resolution.
 
     Example:
-        workspace = DockerPath("/some/host/local/path", "/tmp/docker/workspace")
+        workspace = DockerPath(host_path="/some/host/local/path", container_path="/tmp/docker/workspace")
         docker_vol = workspace.vol()  # Returns volume mapping tuple
         container_path = workspace.container()  # Returns container path
         host_path = workspace.host()  # Returns host path
     """
 
-    def __init__(self, host_path: str | Path, container_path: str) -> None:
-        """Initialize Docker path mapping.
+    host_path: Path | None = None
+    container_path: str
 
-        Args:
-            host_path: Path on the host system
-            container_path: Path inside the Docker container
-        """
-        self.host_path = Path(host_path).resolve()
-        self.container_path = container_path
-        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+    @field_validator("host_path", mode="before")
+    @classmethod
+    def _resolve_host_path(cls, v: str | Path | None) -> Path | None:
+        """Resolve host path to an absolute path."""
+        if v is None:
+            return None
+        return Path(v).resolve()
 
     def vol(self) -> tuple[str, str]:
         """Get Docker volume mapping tuple.
@@ -37,6 +39,8 @@ class DockerPath:
         Returns:
             tuple[str, str]: (host_path, container_path) for Docker -v flag
         """
+        if self.host_path is None:
+            raise ValueError("host_path is not set, cannot create volume mapping")
         return (str(self.host_path), self.container_path)
 
     def host(self) -> Path:
@@ -45,6 +49,8 @@ class DockerPath:
         Returns:
             Path: Resolved host path
         """
+        if self.host_path is None:
+            raise ValueError("host_path is not set")
         return self.host_path
 
     def container(self) -> str:
@@ -65,17 +71,21 @@ class DockerPath:
             DockerPath: New instance with joined paths
         """
         host_joined = self.host_path
-        container_joined = self.container_path
+        if host_joined:
+            for subpath in subpaths:
+                host_joined = host_joined / subpath
 
+        container_joined = self.container_path
         for subpath in subpaths:
-            host_joined = host_joined / subpath
             container_joined = f"{container_joined}/{subpath}".replace("//", "/")
 
-        return DockerPath(host_joined, container_joined)
+        return DockerPath(host_path=host_joined, container_path=container_joined)
 
     def __str__(self) -> str:
         """String representation showing the mapping."""
-        return f"DockerPath({self.host_path} -> {self.container_path})"
+        if self.host_path:
+            return f"DockerPath({self.host_path} -> {self.container_path})"
+        return f"DockerPath(container_path={self.container_path})"
 
     def __repr__(self) -> str:
         """Detailed representation."""
@@ -129,7 +139,9 @@ class DockerPathSet:
         else:
             host_path = self.base_host_path / host_subpath
 
-        self.paths[name] = DockerPath(host_path, container_path)
+        self.paths[name] = DockerPath(
+            host_path=host_path, container_path=container_path
+        )
         return self
 
     def add_path(self, name: str, docker_path: DockerPath) -> Self:
