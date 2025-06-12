@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 def expand_path_variables(path_str: Path) -> Path:
     """Expand environment variables and user home in path string."""
     # First expand environment variables, then user home
-    expanded = os.path.expandvars(path_str)
+    expanded = os.path.expandvars(str(path_str))
     return Path(expanded).expanduser()
 
 
@@ -45,44 +45,32 @@ class ZmkConfigRepoConfig(BaseModel):
     config_repo_url: str
     config_repo_revision: str = "main"
     build_yaml_path: str = "build.yaml"
-    workspace_path: Path | None = Path("/workspace")
+    workspace_path: Path = Path("/workspace")
     west_commands: list[str] = Field(
         default_factory=lambda: ["west init -l config", "west update"]
     )
     # build_root: str = "build"
     # config_path: str = "config"
 
-    build_root: Path | None = Path("build")
-    config_path: Path | None = Path("config")
+    build_root: Path = Path("build")
+    config_path: Path = Path("config")
 
     @property
-    def config_path_absolute(self) -> Path | None:
+    def config_path_absolute(self) -> Path:
         """Get the fully expanded config path, relative to workspace_path if set."""
-        if self.config_path is None:
-            return None
-        if self.workspace_path is None:
-            return expand_path_variables(self.config_path)
-        else:
-            # self.workspace_path is already expanded by its own validator
-            return expand_path_variables(self.workspace_path / self.config_path)
+        # self.workspace_path is already expanded by its own validator
+        return expand_path_variables(self.workspace_path / self.config_path)
 
     @property
-    def build_root_absolute(self) -> Path | None:
+    def build_root_absolute(self) -> Path:
         """Get the fully expanded build root path, relative to workspace_path if set."""
-        if self.build_root is None:
-            return None
-        if self.workspace_path is None:
-            return expand_path_variables(self.build_root)
-        else:
-            # self.workspace_path is already expanded by its own validator
-            return expand_path_variables(self.workspace_path / self.build_root)
+        # self.workspace_path is already expanded by its own validator
+        return expand_path_variables(self.workspace_path / self.build_root)
 
     @field_validator("workspace_path", "build_root", "config_path")
     @classmethod
-    def expand_paths(cls, v: Path | None) -> Path | None:
+    def expand_paths(cls, v: Path) -> Path:
         """Expand environment variables and user home in paths."""
-        if v is None:
-            return None
         return expand_path_variables(v)
 
 
