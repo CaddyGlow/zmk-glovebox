@@ -661,6 +661,8 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
         """
         try:
             config_dir = workspace_path / "config"
+            if not config_dir.exists():
+                config_dir.mkdir(parents=True)
 
             # Copy keymap file
             keymap_dest = config_dir / f"{shield_name}.keymap"
