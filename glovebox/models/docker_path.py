@@ -1,0 +1,210 @@
+"""Docker path management with clean API."""
+
+import logging
+from pathlib import Path
+from typing import Self
+
+
+logger = logging.getLogger(__name__)
+
+
+class DockerPath:
+    """Represents a mapping between host and container paths.
+
+    Provides a clean API for Docker volume mounting and path resolution.
+
+    Example:
+        workspace = DockerPath("/some/host/local/path", "/tmp/docker/workspace")
+        docker_vol = workspace.vol()  # Returns volume mapping tuple
+        container_path = workspace.container()  # Returns container path
+        host_path = workspace.host()  # Returns host path
+    """
+
+    def __init__(self, host_path: str | Path, container_path: str) -> None:
+        """Initialize Docker path mapping.
+
+        Args:
+            host_path: Path on the host system
+            container_path: Path inside the Docker container
+        """
+        self.host_path = Path(host_path).resolve()
+        self.container_path = container_path
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+
+    def vol(self) -> tuple[str, str]:
+        """Get Docker volume mapping tuple.
+
+        Returns:
+            tuple[str, str]: (host_path, container_path) for Docker -v flag
+        """
+        return (str(self.host_path), self.container_path)
+
+    def host(self) -> Path:
+        """Get host path as Path object.
+
+        Returns:
+            Path: Resolved host path
+        """
+        return self.host_path
+
+    def container(self) -> str:
+        """Get container path as string.
+
+        Returns:
+            str: Container path
+        """
+        return self.container_path
+
+    def join(self, *subpaths: str) -> "DockerPath":
+        """Create new DockerPath with subpaths joined to both host and container paths.
+
+        Args:
+            *subpaths: Path components to join
+
+        Returns:
+            DockerPath: New instance with joined paths
+        """
+        host_joined = self.host_path
+        container_joined = self.container_path
+
+        for subpath in subpaths:
+            host_joined = host_joined / subpath
+            container_joined = f"{container_joined}/{subpath}".replace("//", "/")
+
+        return DockerPath(host_joined, container_joined)
+
+    def __str__(self) -> str:
+        """String representation showing the mapping."""
+        return f"DockerPath({self.host_path} -> {self.container_path})"
+
+    def __repr__(self) -> str:
+        """Detailed representation."""
+        return f"DockerPath(host_path={self.host_path!r}, container_path={self.container_path!r})"
+
+
+class DockerPathSet:
+    """Collection of named Docker paths for organized path management.
+
+    Example:
+        paths = DockerPathSet("/tmp/build")
+        paths.add("workspace", "/workspace")
+        paths.add("config", "/workspace/config")
+
+        workspace_vol = paths.get("workspace").vol()
+        config_path = paths.get("config").container()
+    """
+
+    def __init__(self, base_host_path: str | Path | None = None) -> None:
+        """Initialize Docker path set.
+
+        Args:
+            base_host_path: Base path on host for all paths in this set
+        """
+        self.base_host_path = Path(base_host_path).resolve() if base_host_path else None
+        self.paths: dict[str, DockerPath] = {}
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+
+    def add(
+        self, name: str, container_path: str, host_subpath: str | None = None
+    ) -> Self:
+        """Add a named Docker path to the set.
+
+        Args:
+            name: Logical name for the path
+            container_path: Path inside the Docker container
+            host_subpath: Optional subpath from base_host_path, defaults to name
+
+        Returns:
+            Self: For method chaining
+        """
+        if self.base_host_path is None:
+            raise ValueError("base_host_path must be set to use add() method")
+
+        if host_subpath is None:
+            host_subpath = name
+
+        # Handle empty string to mean no subpath (use base path directly)
+        if host_subpath == "":
+            host_path = self.base_host_path
+        else:
+            host_path = self.base_host_path / host_subpath
+
+        self.paths[name] = DockerPath(host_path, container_path)
+        return self
+
+    def add_path(self, name: str, docker_path: DockerPath) -> Self:
+        """Add a pre-created DockerPath to the set.
+
+        Args:
+            name: Logical name for the path
+            docker_path: DockerPath instance to add
+
+        Returns:
+            Self: For method chaining
+        """
+        self.paths[name] = docker_path
+        return self
+
+    def get(self, name: str) -> DockerPath:
+        """Get Docker path by name.
+
+        Args:
+            name: Logical name of the path
+
+        Returns:
+            DockerPath: The Docker path instance
+
+        Raises:
+            KeyError: If path name is not found
+        """
+        if name not in self.paths:
+            raise KeyError(
+                f"Docker path '{name}' not found. Available: {list(self.paths.keys())}"
+            )
+        return self.paths[name]
+
+    def has(self, name: str) -> bool:
+        """Check if a path name exists in the set.
+
+        Args:
+            name: Logical name to check
+
+        Returns:
+            bool: True if path exists
+        """
+        return name in self.paths
+
+    def volumes(self) -> list[tuple[str, str]]:
+        """Get all volume mappings for Docker.
+
+        Returns:
+            list[tuple[str, str]]: List of (host_path, container_path) tuples
+        """
+        return [path.vol() for path in self.paths.values()]
+
+    def names(self) -> list[str]:
+        """Get all path names in the set.
+
+        Returns:
+            list[str]: List of logical path names
+        """
+        return list(self.paths.keys())
+
+
+def create_zmk_docker_paths(workspace_host_path: str | Path) -> DockerPathSet:
+    """Create standard ZMK Docker path set.
+
+    Args:
+        workspace_host_path: Host path for the workspace root
+
+    Returns:
+        DockerPathSet: Configured path set for ZMK builds
+    """
+    return (
+        DockerPathSet(workspace_host_path)
+        .add("workspace", "/workspace", "")
+        .add("config", "/workspace/config", "config")
+        .add("build", "/workspace/build", "build")
+        .add("output", "/workspace/output", "output")
+        .add("cache", "/workspace/cache", "cache")
+    )

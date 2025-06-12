@@ -45,6 +45,7 @@ class FirmwareCompileParams:
     no_cache: bool
     clear_cache: bool
     board_targets: str | None
+
     # Docker overrides
     docker_uid: int | None
     docker_gid: int | None
@@ -52,6 +53,7 @@ class FirmwareCompileParams:
     docker_home: str | None
     docker_container_home: str | None
     no_docker_user_mapping: bool
+
     # Workspace options
     workspace_dir: Path | None
     preserve_workspace: bool
