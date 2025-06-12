@@ -9,9 +9,7 @@ This package contains all flash-related functionality including:
 
 from .device_detector import create_device_detector
 from .flasher_methods import (
-    DFUFlasher,
     USBFlasher,
-    create_dfu_flasher,
     create_usb_flasher,
 )
 from .models import BlockDevice, FlashResult
@@ -28,9 +26,7 @@ __all__ = [
     "FlashResult",
     # Flash method implementations
     "USBFlasher",
-    "DFUFlasher",
     "create_usb_flasher",
-    "create_dfu_flasher",
     # Low-level operations
     "create_device_detector",
     "create_firmware_flasher",

@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
 
 from glovebox.adapters.file_adapter import create_file_adapter
-from glovebox.config.flash_methods import FlashMethodConfig, USBFlashConfig
+from glovebox.config.flash_methods import USBFlashConfig
 from glovebox.firmware.flash.device_wait_service import create_device_wait_service
 from glovebox.firmware.flash.models import FlashResult
 from glovebox.firmware.method_registry import flasher_registry
@@ -170,22 +170,15 @@ class FlashService:
                 elif not device_query_to_use:
                     device_query_to_use = "removable=true"  # Default fallback
 
-                # Only use wait service with USB flash configs
-                if isinstance(flash_config, USBFlashConfig):
-                    devices = self.device_wait_service.wait_for_devices(
-                        target_count=count if count > 0 else 1,
-                        timeout=float(timeout),
-                        query=device_query_to_use,
-                        flash_config=flash_config,
-                        poll_interval=poll_interval,
-                        show_progress=show_progress,
-                    )
-                else:
-                    # For non-USB configs, fall back to immediate listing
-                    logger.warning(
-                        "Wait mode only supported with USB flash methods, listing devices immediately"
-                    )
-                    devices = flasher.list_devices(flash_configs[0])
+                # Use wait service with USB flash configs
+                devices = self.device_wait_service.wait_for_devices(
+                    target_count=count if count > 0 else 1,
+                    timeout=float(timeout),
+                    query=device_query_to_use,
+                    flash_config=flash_config,
+                    poll_interval=poll_interval,
+                    show_progress=show_progress,
+                )
             else:
                 # List available devices immediately using the selected flasher
                 devices = flasher.list_devices(flash_configs[0])
@@ -311,7 +304,7 @@ class FlashService:
         self,
         profile: Optional["KeyboardProfile"],
         query: str,
-    ) -> list[FlashMethodConfig]:
+    ) -> list[USBFlashConfig]:
         """Get flash method configurations from profile or defaults.
 
         Args:
@@ -372,7 +365,7 @@ class FlashService:
         return "removable=true"
 
     def _select_flasher_with_fallback(
-        self, flash_configs: list[FlashMethodConfig]
+        self, flash_configs: list[USBFlashConfig]
     ) -> FlasherProtocol:
         """Select the first available flasher from configuration list.
 
@@ -389,7 +382,7 @@ class FlashService:
         for config in flash_configs:
             try:
                 flasher = flasher_registry.create_method(
-                    config.method_type, config, file_adapter=self.file_adapter
+                    "usb", config, file_adapter=self.file_adapter
                 )
                 # Check if flasher is available
                 if hasattr(flasher, "check_available") and flasher.check_available():
@@ -398,7 +391,7 @@ class FlashService:
                     # If no check_available method, assume it's available
                     return flasher
             except Exception as e:
-                logger.debug("Failed to create %s flasher: %s", config.method_type, e)
+                logger.debug("Failed to create usb flasher: %s", e)
                 continue
 
         # No flasher available

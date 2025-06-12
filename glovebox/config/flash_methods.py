@@ -1,53 +1,19 @@
-"""Method-specific configuration models for flash methods."""
+"""Unified flash configuration for USB firmware flashing."""
 
-from abc import ABC
-
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
-class FlashMethodConfig(BaseModel, ABC):
-    """Base configuration for flash methods."""
+class USBFlashConfig(BaseModel):
+    """USB mounting flash configuration.
 
-    method_type: str
-    fallback_methods: list[str] = Field(default_factory=list)
+    Simplified unified configuration for USB-based firmware flashing,
+    which is the primary method used by ZMK keyboards.
+    """
 
-
-class USBFlashConfig(FlashMethodConfig):
-    """USB mounting flash configuration."""
-
-    method_type: str = "usb"
     device_query: str
     mount_timeout: int = 30
     copy_timeout: int = 60
     sync_after_copy: bool = True
 
 
-class DFUFlashConfig(FlashMethodConfig):
-    """DFU-util flash configuration."""
-
-    method_type: str = "dfu"
-    vid: str
-    pid: str
-    interface: int = 0
-    alt_setting: int = 0
-    timeout: int = 30
-
-
-class BootloaderFlashConfig(FlashMethodConfig):
-    """Direct bootloader flash configuration."""
-
-    method_type: str = "bootloader"
-    protocol: str  # "uart", "spi", "i2c"
-    port: str | None = None  # "/dev/ttyUSB0" for UART
-    baud_rate: int = 115200
-    reset_sequence: list[str] = Field(default_factory=list)
-
-
-class WiFiFlashConfig(FlashMethodConfig):
-    """Wireless flash configuration."""
-
-    method_type: str = "wifi"
-    host: str
-    port: int = 8080
-    protocol: str = "http"  # "http", "mqtt", "websocket"
-    auth_token: str | None = None
+__all__ = ["USBFlashConfig"]

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from glovebox.protocols import FileAdapterProtocol, USBAdapterProtocol
 
-from glovebox.config.flash_methods import DFUFlashConfig, USBFlashConfig
+from glovebox.config.flash_methods import USBFlashConfig
 from glovebox.firmware.flash.models import BlockDevice, FlashResult
 
 
@@ -172,118 +172,6 @@ class USBFlasher:
             logger.warning("Failed to sync device filesystem: %s", e)
 
 
-class DFUFlasher:
-    """DFU-util based firmware flasher implementation.
-
-    Implements FlasherProtocol for type safety.
-    """
-
-    def __init__(self) -> None:
-        """Initialize DFU flasher."""
-        logger.debug("DFUFlasher initialized")
-
-    def flash_device(
-        self,
-        device: BlockDevice,
-        firmware_file: Path,
-        config: DFUFlashConfig,
-    ) -> FlashResult:
-        """Flash device using DFU method."""
-        logger.info("Starting DFU flash operation for device: %s", device.name)
-        result = FlashResult(success=True)
-
-        try:
-            # Validate configuration
-            if not self.validate_config(config):
-                result.success = False
-                result.add_error("Invalid DFU configuration")
-                return result
-
-            # Check DFU availability
-            if not self.check_available():
-                result.success = False
-                result.add_error("DFU-util is not available")
-                return result
-
-            # Build DFU command
-            dfu_command = self._build_dfu_command(firmware_file, config)
-            logger.debug("DFU command: %s", " ".join(dfu_command))
-
-            # Execute DFU command (placeholder for now)
-            # In a real implementation, this would use subprocess to run dfu-util
-            result.add_message("DFU flash not yet implemented")
-            logger.warning("DFU flash is not yet implemented")
-
-        except Exception as e:
-            logger.error("DFU flash failed: %s", e)
-            result.success = False
-            result.add_error(f"DFU flash failed: {str(e)}")
-
-        return result
-
-    def list_devices(self, config: DFUFlashConfig) -> list[BlockDevice]:
-        """List devices compatible with DFU flashing."""
-        try:
-            logger.debug(
-                "Listing DFU devices with VID:PID %s:%s", config.vid, config.pid
-            )
-
-            # In a real implementation, this would use dfu-util -l to list devices
-            # For now, return empty list
-            logger.warning("DFU device listing not yet implemented")
-            return []
-
-        except Exception as e:
-            logger.error("Failed to list DFU devices: %s", e)
-            return []
-
-    def check_available(self) -> bool:
-        """Check if DFU flasher is available."""
-        try:
-            # In a real implementation, this would check if dfu-util is installed
-            # For now, return False to indicate it's not available
-            return False
-        except Exception:
-            return False
-
-    def validate_config(self, config: DFUFlashConfig) -> bool:
-        """Validate DFU-specific configuration."""
-        if not config.vid:
-            logger.error("VID not specified")
-            return False
-        if not config.pid:
-            logger.error("PID not specified")
-            return False
-        if config.interface < 0:
-            logger.error("Interface must be non-negative")
-            return False
-        if config.alt_setting < 0:
-            logger.error("Alt setting must be non-negative")
-            return False
-        if config.timeout <= 0:
-            logger.error("Timeout must be positive")
-            return False
-        return True
-
-    def _build_dfu_command(
-        self, firmware_file: Path, config: DFUFlashConfig
-    ) -> list[str]:
-        """Build DFU-util command."""
-        command = [
-            "dfu-util",
-            "--device",
-            f"{config.vid}:{config.pid}",
-            "--interface",
-            str(config.interface),
-            "--alt",
-            str(config.alt_setting),
-            "--download",
-            str(firmware_file),
-            "--reset",
-        ]
-        return command
-
-
 def create_usb_flasher(
     usb_adapter: "USBAdapterProtocol | None" = None,
     file_adapter: "FileAdapterProtocol | None" = None,
@@ -293,8 +181,3 @@ def create_usb_flasher(
         usb_adapter=usb_adapter,
         file_adapter=file_adapter,
     )
-
-
-def create_dfu_flasher() -> DFUFlasher:
-    """Create a DFUFlasher instance."""
-    return DFUFlasher()
