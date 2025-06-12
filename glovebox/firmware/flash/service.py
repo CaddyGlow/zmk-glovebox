@@ -21,10 +21,10 @@ logger = logging.getLogger(__name__)
 
 
 class FlashService:
-    """Refactored flash service using multi-method architecture.
+    """USB firmware flash service for ZMK keyboards.
 
-    This service uses the method selection system to choose appropriate
-    flash methods with automatic fallbacks.
+    This service provides USB-based firmware flashing for ZMK keyboards
+    using mass storage device mounting.
     """
 
     def __init__(
@@ -122,7 +122,7 @@ class FlashService:
         poll_interval: float = 0.5,
         show_progress: bool = True,
     ) -> FlashResult:
-        """Flash firmware using method selection with fallbacks.
+        """Flash firmware to USB devices.
 
         Args:
             firmware_file: Path to the firmware file to flash
@@ -153,8 +153,8 @@ class FlashService:
             # Get flash method configs from profile or use defaults
             flash_configs = self._get_flash_method_configs(profile, query)
 
-            # Select the best available flasher with fallbacks
-            flasher = self._select_flasher_with_fallback(flash_configs)
+            # Create USB flasher
+            flasher = self._create_usb_flasher(flash_configs[0])
 
             logger.info("Selected flasher method: %s", type(flasher).__name__)
 
@@ -168,7 +168,7 @@ class FlashService:
                 if hasattr(flash_config, "device_query") and flash_config.device_query:
                     device_query_to_use = flash_config.device_query
                 elif not device_query_to_use:
-                    device_query_to_use = "removable=true"  # Default fallback
+                    device_query_to_use = "removable=true"  # Default query
 
                 # Use wait service with USB flash configs
                 devices = self.device_wait_service.wait_for_devices(
@@ -267,7 +267,7 @@ class FlashService:
             flash_configs = self._get_flash_method_configs(profile, query)
 
             # Select the best available flasher
-            flasher = self._select_flasher_with_fallback(flash_configs)
+            flasher = self._create_usb_flasher(flash_configs[0])
 
             logger.info("Using flasher method: %s", type(flasher).__name__)
 
@@ -309,7 +309,7 @@ class FlashService:
 
         Args:
             profile: KeyboardProfile with method configurations (optional)
-            query: Device query string for fallback configuration
+            query: Device query string for default configuration
 
         Returns:
             List of flash method configurations to try
@@ -330,7 +330,7 @@ class FlashService:
         if not device_query and profile:
             device_query = self._get_device_query_from_profile(profile)
         if not device_query:
-            device_query = "removable=true"  # Default fallback
+            device_query = "removable=true"  # Default query
 
         # Create default USB flash config
         default_config = USBFlashConfig(
@@ -361,52 +361,38 @@ class FlashService:
             if hasattr(method, "device_query") and method.device_query:
                 return method.device_query
 
-        # Default fallback
+        # Default query
         return "removable=true"
 
-    def _select_flasher_with_fallback(
-        self, flash_configs: list[USBFlashConfig]
-    ) -> FlasherProtocol:
-        """Select the first available flasher from configuration list.
+    def _create_usb_flasher(self, config: USBFlashConfig) -> FlasherProtocol:
+        """Create USB flasher instance.
 
         Args:
-            flash_configs: List of flash method configurations to try
+            config: USB flash configuration
 
         Returns:
-            Configured flasher instance
+            Configured USB flasher instance
 
         Raises:
-            RuntimeError: If no flasher is available
+            RuntimeError: If USB flasher cannot be created
         """
-
-        for config in flash_configs:
-            try:
-                flasher = flasher_registry.create_method(
-                    "usb", config, file_adapter=self.file_adapter
-                )
-                # Check if flasher is available
-                if hasattr(flasher, "check_available") and flasher.check_available():
-                    return flasher
-                elif not hasattr(flasher, "check_available"):
-                    # If no check_available method, assume it's available
-                    return flasher
-            except Exception as e:
-                logger.debug("Failed to create usb flasher: %s", e)
-                continue
-
-        # No flasher available
-        available_methods = flasher_registry.get_available_methods()
-        raise RuntimeError(
-            f"No available flashers from {len(flash_configs)} configurations. "
-            f"Available methods: {available_methods}"
-        )
+        try:
+            flasher = flasher_registry.create_method(
+                "usb", config, file_adapter=self.file_adapter
+            )
+            # Check if flasher is available
+            if hasattr(flasher, "check_available") and not flasher.check_available():
+                raise RuntimeError("USB flasher is not available")
+            return flasher
+        except Exception as e:
+            raise RuntimeError(f"Failed to create USB flasher: {e}") from e
 
 
 def create_flash_service(
     file_adapter: FileAdapterProtocol | None = None,
     loglevel: str = "INFO",
 ) -> FlashService:
-    """Create a FlashService instance with the multi-method architecture.
+    """Create a FlashService instance for USB firmware flashing.
 
     Args:
         file_adapter: Optional FileAdapterProtocol instance for file operations
