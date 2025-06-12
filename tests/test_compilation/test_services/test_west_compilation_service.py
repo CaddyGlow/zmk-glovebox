@@ -566,3 +566,50 @@ class TestWestCompilationServiceIntegration:
 
                     assert result.success is False
                     assert len(result.errors) > 0
+
+    def test_build_compilation_command_with_build_root(self):
+        """Test west build command generation with build_root specified."""
+        # Create a configuration with build_root
+        west_workspace = WestWorkspaceConfig(
+            workspace_path="/tmp/workspace", build_root="/custom/build/path"
+        )
+        config = CompilationConfig(
+            west_workspace=west_workspace, board_targets=["nice_nano_v2"]
+        )
+
+        workspace_path = Path("/tmp/workspace")
+
+        # Get the build command
+        command = self.service._build_compilation_command(workspace_path, config)
+
+        # Verify the command includes the build root directory
+        assert command == "west build -b nice_nano_v2 -d /custom/build/path"
+
+    def test_build_compilation_command_without_build_root(self):
+        """Test west build command generation without build_root."""
+        # Create a configuration without build_root
+        west_workspace = WestWorkspaceConfig(workspace_path="/tmp/workspace")
+        config = CompilationConfig(
+            west_workspace=west_workspace, board_targets=["nice_nano_v2"]
+        )
+
+        workspace_path = Path("/tmp/workspace")
+
+        # Get the build command
+        command = self.service._build_compilation_command(workspace_path, config)
+
+        # Verify the command does not include the -d flag
+        assert command == "west build -b nice_nano_v2"
+
+    def test_build_compilation_command_no_west_workspace(self):
+        """Test west build command generation with no west workspace config."""
+        # Create a configuration without west_workspace
+        config = CompilationConfig(board_targets=["nice_nano_v2"])
+
+        workspace_path = Path("/tmp/workspace")
+
+        # Get the build command
+        command = self.service._build_compilation_command(workspace_path, config)
+
+        # Verify the command works without west workspace config
+        assert command == "west build -b nice_nano_v2"

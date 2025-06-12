@@ -644,3 +644,105 @@ class TestZmkConfigServiceIntegration:
 
                     assert result.success is False
                     assert len(result.errors) > 0
+
+    def test_generate_build_commands_from_matrix_with_build_root(self):
+        """Test build command generation from matrix with custom build_root."""
+        # Create build matrix with test targets
+        targets = [
+            BuildTarget(
+                board="nice_nano_v2", shield="glove80_lh", artifact_name="glove80_left"
+            ),
+            BuildTarget(
+                board="nice_nano_v2", shield="glove80_rh", artifact_name="glove80_right"
+            ),
+        ]
+        build_matrix = BuildMatrix(targets=targets)
+
+        # Create config with custom build_root
+        zmk_config_repo = ZmkConfigRepoConfig(
+            config_repo_url="https://github.com/test/config",
+            build_root="/custom/build/path",
+        )
+        config = CompilationConfig(
+            strategy="zmk_config", zmk_config_repo=zmk_config_repo
+        )
+
+        # Generate build commands
+        commands = self.service._generate_build_commands_from_matrix(
+            build_matrix, config
+        )
+
+        # Verify commands use custom build root
+        assert len(commands) == 2
+        assert (
+            "west build -s zmk/app -b nice_nano_v2 -d /custom/build/path/glove80_lh-nice_nano_v2"
+            in commands[0]
+        )
+        assert (
+            "west build -s zmk/app -b nice_nano_v2 -d /custom/build/path/glove80_rh-nice_nano_v2"
+            in commands[1]
+        )
+
+    def test_generate_build_commands_from_matrix_default_build_root(self):
+        """Test build command generation from matrix with default build_root."""
+        # Create build matrix with test targets
+        targets = [BuildTarget(board="nice_nano_v2", artifact_name="firmware")]
+        build_matrix = BuildMatrix(targets=targets)
+
+        # Create config with default build_root
+        zmk_config_repo = ZmkConfigRepoConfig(
+            config_repo_url="https://github.com/test/config"
+        )
+        config = CompilationConfig(
+            strategy="zmk_config", zmk_config_repo=zmk_config_repo
+        )
+
+        # Generate build commands
+        commands = self.service._generate_build_commands_from_matrix(
+            build_matrix, config
+        )
+
+        # Verify commands use default build root
+        assert len(commands) == 1
+        assert "west build -s zmk/app -b nice_nano_v2 -d build/firmware" in commands[0]
+
+    def test_generate_fallback_build_commands_with_build_root(self):
+        """Test fallback build command generation with custom build_root."""
+        # Create config with custom build_root
+        zmk_config_repo = ZmkConfigRepoConfig(
+            config_repo_url="https://github.com/test/config",
+            build_root="/custom/build/path",
+        )
+        config = CompilationConfig(
+            strategy="zmk_config",
+            zmk_config_repo=zmk_config_repo,
+            board_targets=["nice_nano_v2"],
+        )
+
+        # Generate fallback build commands
+        commands = self.service._generate_fallback_build_commands(config)
+
+        # Verify commands use custom build root
+        assert len(commands) == 1
+        assert (
+            "west build -s zmk/app -b nice_nano_v2 -d /custom/build/path" in commands[0]
+        )
+
+    def test_generate_fallback_build_commands_default_build_root(self):
+        """Test fallback build command generation with default build_root."""
+        # Create config with default build_root
+        zmk_config_repo = ZmkConfigRepoConfig(
+            config_repo_url="https://github.com/test/config"
+        )
+        config = CompilationConfig(
+            strategy="zmk_config",
+            zmk_config_repo=zmk_config_repo,
+            board_targets=["nice_nano_v2"],
+        )
+
+        # Generate fallback build commands
+        commands = self.service._generate_fallback_build_commands(config)
+
+        # Verify commands use default build root
+        assert len(commands) == 1
+        assert "west build -s zmk/app -b nice_nano_v2 -d build" in commands[0]
