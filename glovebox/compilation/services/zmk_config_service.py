@@ -84,9 +84,8 @@ class ZmkConfigCompilationService(BaseCompilationService):
         """
         try:
             # Determine workspace initialization strategy
-            config.zmk_config_repo.workspace_path.host_path = Path(
-                tempfile.mkdtemp("zmk_config")
-            )
+            temp_workspace = Path(tempfile.mkdtemp(suffix="zmk_config"))
+            config.zmk_config_repo.workspace_path.host_path = temp_workspace
 
             if self._should_use_dynamic_generation(config, keyboard_profile):
                 if not keyboard_profile:
@@ -141,8 +140,9 @@ class ZmkConfigCompilationService(BaseCompilationService):
         build_root = zmk_workspace_config.build_root.container_path
 
         # Initialize commands with workspace setup
+        container_workspace_path = zmk_workspace_config.workspace_path.container_path
         commands = [
-            f"cd {workspace_path}",  # Ensure we're in the workspace
+            f"cd {container_workspace_path}",  # Ensure we're in the workspace
             f"rm -rf .west {build_root}",  # Remove existing west workspace and build dirs
             f"west init -l {config_path}",  # Initialize west workspace with config
             "west update",  # Download dependencies
@@ -370,7 +370,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         Returns:
             Path | None: Workspace path if successful
         """
-        workspace_path = zmk_workspace_config.workspace_path.host()
+        workspace_path = zmk_workspace_config.workspace_path.host_path
 
         # Initialize repository workspace
         if self.workspace_manager.initialize_workspace(
@@ -397,7 +397,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
             Path: Dynamic workspace path
         """
         if zmk_workspace_config:
-            return zmk_workspace_config.workspace_path.host()
+            return zmk_workspace_config.workspace_path.host_path
 
         # Fallback to user-configured workspace location
         return (
