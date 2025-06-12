@@ -166,8 +166,8 @@ class CompilationConfig(BaseModel):
     # Docker user configuration
     docker_user: DockerUserConfig = Field(default_factory=DockerUserConfig)
 
-    config_path: Path = Path("config")
-    build_root: Path = Path("build")
+    config_path_input: Path = Path("config")
+    build_root_input: Path = Path("build")
 
     # Workspace configuration
     workspace_root: Path | None = None
@@ -181,23 +181,23 @@ class CompilationConfig(BaseModel):
     )
     build_matrix_file: Path | None = None  # Path to build.yaml
 
-    @field_validator("config_path")
-    @classmethod
-    def expand_config_path(cls, v: str) -> Path: # v is effectively Path
-        """Expand environment variables and user home in config path."""
-        if cls.workspace_root is None:
-            return Path(expand_path_variables(v))  # type: ignore[arg-type]
+    @property
+    def config_path(self) -> Path:
+        """Get the fully expanded config path, relative to workspace_root if set."""
+        if self.workspace_root is None:
+            return expand_path_variables(self.config_path_input)
         else:
-            return Path(expand_path_variables(cls.workspace_root / v))  # type: ignore[arg-type]
+            # self.workspace_root is already expanded by its own validator
+            return expand_path_variables(self.workspace_root / self.config_path_input)
 
-    @field_validator("build_root")
-    @classmethod
-    def expand_build_root(cls, v: str) -> Path: # v is effectively Path
-        """Expand environment variables and user home in build root path."""
-        if cls.workspace_root is None:
-            return Path(expand_path_variables(v))  # type: ignore[arg-type]
+    @property
+    def build_root(self) -> Path:
+        """Get the fully expanded build root path, relative to workspace_root if set."""
+        if self.workspace_root is None:
+            return expand_path_variables(self.build_root_input)
         else:
-            return Path(expand_path_variables(cls.workspace_root / v))  # type: ignore[arg-type]
+            # self.workspace_root is already expanded by its own validator
+            return expand_path_variables(self.workspace_root / self.build_root_input)
 
     @field_validator("workspace_root")
     @classmethod
