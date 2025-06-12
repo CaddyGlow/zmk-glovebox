@@ -1,8 +1,9 @@
 """Firmware-related CLI commands."""
 
 import logging
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 
@@ -27,6 +28,169 @@ from glovebox.firmware.flash import create_flash_service
 
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class FirmwareCompileParams:
+    """Container for firmware compile parameters."""
+
+    keymap_file: Path
+    kconfig_file: Path
+    output_dir: Path
+    strategy: str
+    branch: str | None
+    repo: str | None
+    jobs: int | None
+    verbose: bool
+    no_cache: bool
+    clear_cache: bool
+    board_targets: str | None
+    # Docker overrides
+    docker_uid: int | None
+    docker_gid: int | None
+    docker_username: str | None
+    docker_home: str | None
+    docker_container_home: str | None
+    no_docker_user_mapping: bool
+    # Workspace options
+    workspace_dir: Path | None
+    preserve_workspace: bool
+    force_cleanup: bool
+    build_matrix: Path | None
+    output_format: str
+
+
+def _build_docker_user_config(params: FirmwareCompileParams) -> DockerUserConfig:
+    """Build Docker user configuration from CLI parameters."""
+    docker_user_config = DockerUserConfig()
+
+    if params.docker_uid is not None:
+        docker_user_config.manual_uid = params.docker_uid
+    if params.docker_gid is not None:
+        docker_user_config.manual_gid = params.docker_gid
+    if params.docker_username is not None:
+        docker_user_config.manual_username = params.docker_username
+    if params.docker_home is not None:
+        docker_user_config.host_home_dir = Path(params.docker_home)
+    if params.docker_container_home is not None:
+        docker_user_config.container_home_dir = params.docker_container_home
+    if params.no_docker_user_mapping:
+        docker_user_config.enable_user_mapping = False
+
+    return docker_user_config
+
+
+def _extract_docker_image(keyboard_profile: Any, strategy: str) -> str:
+    """Extract Docker image from keyboard profile configuration."""
+    image_value = "zmkfirmware/zmk-build-arm:stable"  # Default fallback
+
+    if keyboard_profile and keyboard_profile.keyboard_config:
+        for compile_method in keyboard_profile.keyboard_config.compile_methods:
+            method_identifier = getattr(
+                compile_method, "strategy", getattr(compile_method, "method_type", None)
+            )
+            if (
+                method_identifier == strategy
+                and hasattr(compile_method, "image")
+                and compile_method.image
+            ):
+                image_value = compile_method.image
+                break
+
+    return image_value
+
+
+def _build_compilation_config(
+    params: FirmwareCompileParams, keyboard_profile: Any
+) -> CompilationConfig:
+    """Build compilation configuration from parameters and profile."""
+    # Use provided values or defaults
+    branch_value = params.branch if params.branch is not None else "main"
+    repo_value = params.repo if params.repo is not None else "moergo-sc/zmk"
+
+    # Parse board targets
+    board_targets_list = []
+    if params.board_targets:
+        board_targets_list = [
+            target.strip() for target in params.board_targets.split(",")
+        ]
+
+    # Build Docker configuration
+    docker_user_config = _build_docker_user_config(params)
+
+    # Extract Docker image
+    image_value = _extract_docker_image(keyboard_profile, params.strategy)
+
+    # Create cache config
+    cache_config = CacheConfig(enabled=not params.no_cache)
+
+    return CompilationConfig(
+        strategy=params.strategy,  # type: ignore[arg-type]
+        image=image_value,
+        repository=repo_value,
+        branch=branch_value,
+        jobs=params.jobs,
+        board_targets=board_targets_list,
+        cache=cache_config,
+        docker_user=docker_user_config,
+        # Workspace configuration
+        workspace_root=params.workspace_dir,
+        cleanup_workspace=not params.preserve_workspace
+        if not params.force_cleanup
+        else True,
+        preserve_on_failure=params.preserve_workspace and not params.force_cleanup,
+        # Artifact configuration
+        artifact_naming="zmk_github_actions",
+        build_matrix_file=params.build_matrix,
+    )
+
+
+def _execute_compilation(
+    params: FirmwareCompileParams, config: CompilationConfig, keyboard_profile: Any
+) -> Any:
+    """Execute the compilation and return result."""
+    # Clear cache if requested
+    if params.clear_cache:
+        logger.info("Cache clearing requested (will be implemented in Phase 7)")
+
+    # Create compilation service
+    compilation_service = create_compilation_service(params.strategy)
+
+    return compilation_service.compile(
+        keymap_file=params.keymap_file,
+        config_file=params.kconfig_file,
+        output_dir=params.output_dir,
+        config=config,
+        keyboard_profile=keyboard_profile,
+    )
+
+
+def _format_compilation_output(
+    result: Any, output_format: str, output_dir: Path
+) -> None:
+    """Format and display compilation results."""
+    if result.success:
+        if output_format.lower() == "json":
+            result_data = {
+                "success": True,
+                "message": "Firmware compiled successfully",
+                "messages": result.messages,
+                "output_dir": str(output_dir),
+            }
+            from glovebox.cli.helpers.output_formatter import OutputFormatter
+
+            formatter = OutputFormatter()
+            print(formatter.format(result_data, "json"))
+        else:
+            print_success_message("Firmware compiled successfully")
+            for message in result.messages:
+                print_list_item(message)
+    else:
+        print_error_message("Firmware compilation failed")
+        for error in result.errors:
+            print_list_item(error)
+        raise typer.Exit(1)
+
 
 # Create a typer app for firmware commands
 firmware_app = typer.Typer(
@@ -194,143 +358,43 @@ def firmware_compile(
         # Verbose output with build details
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --verbose
     """
+    # Build parameter container
+    params = FirmwareCompileParams(
+        keymap_file=keymap_file,
+        kconfig_file=kconfig_file,
+        output_dir=output_dir,
+        strategy=strategy,
+        branch=branch,
+        repo=repo,
+        jobs=jobs,
+        verbose=verbose,
+        no_cache=no_cache,
+        clear_cache=clear_cache,
+        board_targets=board_targets,
+        docker_uid=docker_uid,
+        docker_gid=docker_gid,
+        docker_username=docker_username,
+        docker_home=docker_home,
+        docker_container_home=docker_container_home,
+        no_docker_user_mapping=no_docker_user_mapping,
+        workspace_dir=workspace_dir,
+        preserve_workspace=preserve_workspace,
+        force_cleanup=force_cleanup,
+        build_matrix=build_matrix,
+        output_format=output_format,
+    )
+
+    # Get profile and user config
     keyboard_profile = get_keyboard_profile_from_context(ctx)
     user_config = get_user_config_from_context(ctx)
 
-    # Use the branch and repo parameters if provided, otherwise use defaults
-    branch_value = branch if branch is not None else "main"
-    repo_value = repo if repo is not None else "moergo-sc/zmk"
+    # Build compilation configuration
+    config = _build_compilation_config(params, keyboard_profile)
 
-    # Parse board targets if provided
-    board_targets_list = None
-    if board_targets:
-        board_targets_list = [target.strip() for target in board_targets.split(",")]
-
-    # Collect Docker user context overrides from CLI
-    docker_overrides: dict[str, str | int | None] = {}
-    if docker_uid is not None:
-        docker_overrides["manual_uid"] = docker_uid
-    if docker_gid is not None:
-        docker_overrides["manual_gid"] = docker_gid
-    if docker_username is not None:
-        docker_overrides["manual_username"] = docker_username
-    if docker_home is not None:
-        docker_overrides["host_home_dir"] = docker_home
-    if docker_container_home is not None:
-        docker_overrides["container_home_dir"] = docker_container_home
-    if no_docker_user_mapping:
-        docker_overrides["enable_user_mapping"] = False
-
-    # Create unified compilation configuration
-    cache_config = CacheConfig(enabled=not no_cache)
-
-    # Create DockerUserConfig with proper field mapping
-    docker_user_config = DockerUserConfig()
-    if docker_overrides:
-        # Map CLI parameters to DockerUserConfig fields with type checking
-        if "manual_uid" in docker_overrides and isinstance(
-            docker_overrides["manual_uid"], int
-        ):
-            docker_user_config.manual_uid = docker_overrides["manual_uid"]
-        if "manual_gid" in docker_overrides and isinstance(
-            docker_overrides["manual_gid"], int
-        ):
-            docker_user_config.manual_gid = docker_overrides["manual_gid"]
-        if "manual_username" in docker_overrides and isinstance(
-            docker_overrides["manual_username"], str
-        ):
-            docker_user_config.manual_username = docker_overrides["manual_username"]
-        if "host_home_dir" in docker_overrides and isinstance(
-            docker_overrides["host_home_dir"], str
-        ):
-            docker_user_config.host_home_dir = Path(docker_overrides["host_home_dir"])
-        if "container_home_dir" in docker_overrides and isinstance(
-            docker_overrides["container_home_dir"], str
-        ):
-            docker_user_config.container_home_dir = docker_overrides[
-                "container_home_dir"
-            ]
-        if "enable_user_mapping" in docker_overrides and isinstance(
-            docker_overrides["enable_user_mapping"], bool
-        ):
-            docker_user_config.enable_user_mapping = docker_overrides[
-                "enable_user_mapping"
-            ]
-
-    # Extract Docker image from keyboard profile configuration
-    image_value = "zmkfirmware/zmk-build-arm:stable"  # Default fallback
-    if keyboard_profile and keyboard_profile.keyboard_config:
-        # Find the compile method that matches the strategy
-        for compile_method in keyboard_profile.keyboard_config.compile_methods:
-            method_identifier = getattr(
-                compile_method, "strategy", getattr(compile_method, "method_type", None)
-            )
-            if (
-                method_identifier == strategy
-                and hasattr(compile_method, "image")
-                and compile_method.image
-            ):
-                image_value = compile_method.image
-                break
-
-    config = CompilationConfig(
-        strategy=strategy,  # type: ignore[arg-type]
-        image=image_value,
-        repository=repo_value,
-        branch=branch_value,
-        jobs=jobs,
-        board_targets=board_targets_list or [],
-        cache=cache_config,
-        docker_user=docker_user_config,
-        # Workspace configuration
-        workspace_root=workspace_dir,
-        cleanup_workspace=not preserve_workspace if not force_cleanup else True,
-        preserve_on_failure=preserve_workspace and not force_cleanup,
-        # Artifact configuration
-        artifact_naming="zmk_github_actions",
-        build_matrix_file=build_matrix,
-    )
-
-    # Clear cache if requested
-    if clear_cache:
-        # TODO: Implement cache clearing in Phase 7
-        logger.info("Cache clearing requested (will be implemented in Phase 7)")
-
-    # Create compilation service for the specified strategy
-    compilation_service = create_compilation_service(strategy)
-
+    # Execute compilation
     try:
-        result = compilation_service.compile(
-            keymap_file=keymap_file,
-            config_file=kconfig_file,
-            output_dir=output_dir,
-            config=config,
-            keyboard_profile=keyboard_profile,
-        )
-
-        if result.success:
-            if output_format.lower() == "json":
-                # JSON output for automation
-                result_data = {
-                    "success": True,
-                    "message": "Firmware compiled successfully",
-                    "messages": result.messages,
-                    "output_dir": str(output_dir),
-                }
-                from glovebox.cli.helpers.output_formatter import OutputFormatter
-
-                formatter = OutputFormatter()
-                print(formatter.format(result_data, "json"))
-            else:
-                # Rich text output (default)
-                print_success_message("Firmware compiled successfully")
-                for message in result.messages:
-                    print_list_item(message)
-        else:
-            print_error_message("Firmware compilation failed")
-            for error in result.errors:
-                print_list_item(error)
-            raise typer.Exit(1)
+        result = _execute_compilation(params, config, keyboard_profile)
+        _format_compilation_output(result, params.output_format, params.output_dir)
     except Exception as e:
         print_error_message(f"Firmware compilation failed: {str(e)}")
         raise typer.Exit(1) from None

@@ -79,14 +79,25 @@ def setup_firmware_command_test(mock_keyboard_profile):
 
         # Set up compilation service mock
         mock_compilation_service = Mock()
+
+        # Create proper FirmwareOutputFiles for BuildResult
+        from glovebox.firmware.models import FirmwareOutputFiles
+
+        output_files = FirmwareOutputFiles(
+            main_uf2=Path("/tmp/output/glove80.uf2"), output_dir=Path("/tmp/output")
+        )
+
         mock_compilation_service.compile.return_value = BuildResult(
             success=True,
             messages=["Firmware built successfully"],
-            output_files=Mock(),
+            output_files=output_files,
         )
         mock_create_service.return_value = mock_compilation_service
 
-        # Set up profile mock
+        # Set up profile mock - ensure keyboard_config has compile_methods
+        mock_keyboard_profile.keyboard_config.compile_methods = [
+            Mock(method_type="docker", strategy="zmk_config", image="test-zmk-build")
+        ]
         mock_create_profile.return_value = mock_keyboard_profile
 
         yield {
@@ -240,7 +251,7 @@ def test_firmware_compile_commands(
     build_result.add_message("Firmware compiled successfully")
     setup_firmware_command_test[
         "mock_create_service"
-    ].return_value.compile_from_files.return_value = build_result
+    ].return_value.compile.return_value = build_result
 
     # Run the command
     result = cli_runner.invoke(
