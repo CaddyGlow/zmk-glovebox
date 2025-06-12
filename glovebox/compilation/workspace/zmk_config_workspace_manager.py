@@ -14,7 +14,6 @@ from glovebox.config.compile_methods import ZmkWorkspaceConfig
 
 if TYPE_CHECKING:
     from glovebox.compilation.cache.base_dependencies_cache import BaseDependenciesCache
-    from glovebox.compilation.cache.keyboard_config_cache import KeyboardConfigCache
     from glovebox.compilation.generation.zmk_config_generator import (
         ZmkConfigContentGenerator,
     )
@@ -40,7 +39,6 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
         workspace_root: Path | None = None,
         content_generator: "ZmkConfigContentGenerator | None" = None,
         base_dependencies_cache: "BaseDependenciesCache | None" = None,
-        keyboard_config_cache: "KeyboardConfigCache | None" = None,
     ) -> None:
         """Initialize ZMK config workspace manager.
 
@@ -48,12 +46,10 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
             workspace_root: Root directory for workspace operations
             content_generator: Content generator for dynamic workspace creation
             base_dependencies_cache: Base ZMK dependencies cache
-            keyboard_config_cache: Keyboard configuration cache
         """
         super().__init__(workspace_root)
         self.content_generator = content_generator
         self.base_dependencies_cache = base_dependencies_cache
-        self.keyboard_config_cache = keyboard_config_cache
 
     def initialize_workspace(self, **context: Any) -> bool:
         """Initialize ZMK config workspace for compilation.
@@ -232,12 +228,16 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
 
             # Add branch/tag if specified
             if config.config_repo_revision and config.config_repo_revision.strip():
-                cmd.extend(["--branch", config.config_repo_revision])
+                cmd.extend(["--branch", config.config_repo_revision.strip()])
 
             # Add depth limit for faster clones
             cmd.extend(["--depth", "1"])
 
             # Add repository URL and target directory
+            if not config.config_repo_url:
+                raise ZmkConfigWorkspaceManagerError(
+                    "config_repo_url is required for repository cloning"
+                )
             cmd.extend([config.config_repo_url, str(workspace_path)])
 
             # Execute git clone
@@ -380,9 +380,9 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
         Creates a complete ZMK config workspace dynamically using the content generator,
         enabling compilation without requiring an external zmk-config repository.
 
-        Uses tiered caching to improve performance:
-        1. Base ZMK dependencies cache (shared across all builds)
-        2. Keyboard configuration cache (shared for same keyboard/shield/board combo)
+        Uses base dependencies caching if available:
+        1. Clone base dependencies cache (if available) or create fresh workspace
+        2. Use content generator to create build.yaml, west.yml, and copy user files
 
         Args:
             workspace_path: Path to workspace directory
@@ -403,18 +403,14 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
                 "Initializing dynamic ZMK config workspace: %s", workspace_path
             )
 
-            # Try cached approach first if caching is available
-            if self.base_dependencies_cache and self.keyboard_config_cache:
-                return self._initialize_dynamic_workspace_cached(
-                    workspace_path,
-                    keymap_file,
-                    config_file,
-                    keyboard_profile,
-                    shield_name,
-                    board_name,
+            # Clone base dependencies cache (if available) or create fresh workspace
+            if (
+                self.base_dependencies_cache
+                and not self._initialize_workspace_from_base_cache(
+                    workspace_path, keyboard_profile
                 )
-            else:
-                # Fall back to non-cached approach
+            ):
+                # Fall back to direct approach if cache fails
                 return self._initialize_dynamic_workspace_direct(
                     workspace_path,
                     keymap_file,
@@ -424,140 +420,93 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
                     board_name,
                 )
 
+            # Use content generator to create workspace files
+            if not self.content_generator:
+                # Lazy load content generator if not provided
+                from glovebox.compilation.generation.zmk_config_generator import (
+                    create_zmk_config_content_generator,
+                )
+
+                self.content_generator = create_zmk_config_content_generator()
+
+            # Generate workspace content using content generator
+            workspace_generated = self.content_generator.generate_config_workspace(
+                workspace_path=workspace_path,
+                keymap_file=keymap_file,
+                config_file=config_file,
+                keyboard_profile=keyboard_profile,
+                shield_name=shield_name,
+                board_name=board_name,
+            )
+
+            if not workspace_generated:
+                raise ZmkConfigWorkspaceManagerError(
+                    "Content generator failed to create workspace"
+                )
+
+            self.logger.info("Dynamic ZMK config workspace initialized successfully")
+            return True
+
         except Exception as e:
             msg = f"Failed to initialize dynamic ZMK config workspace: {e}"
             self.logger.error(msg)
             raise ZmkConfigWorkspaceManagerError(msg) from e
 
-    def _initialize_dynamic_workspace_cached(
+    def _initialize_workspace_from_base_cache(
         self,
         workspace_path: Path,
-        keymap_file: Path,
-        config_file: Path,
         keyboard_profile: "KeyboardProfile",
-        shield_name: str | None = None,
-        board_name: str = "nice_nano_v2",
     ) -> bool:
-        """Initialize dynamic workspace using tiered caching system.
+        """Initialize workspace from base dependencies cache.
 
         Args:
             workspace_path: Path to workspace directory
-            keymap_file: Source keymap file
-            config_file: Source config file
             keyboard_profile: Keyboard profile for configuration
-            shield_name: Shield name (defaults to keyboard name)
-            board_name: Board name for builds
 
         Returns:
-            bool: True if workspace initialized successfully
+            bool: True if workspace initialized successfully from cache
         """
         try:
-            # Type assertions for mypy - these are guaranteed by the caller
+            # Type assertion for mypy - guaranteed by caller
             assert self.base_dependencies_cache is not None
-            assert self.keyboard_config_cache is not None
 
             # Determine ZMK repository details from keyboard profile
             zmk_repo_url, zmk_revision = self._get_zmk_repo_info(keyboard_profile)
 
-            # Generate cache keys
+            # Generate base cache key
             base_cache_key = self.base_dependencies_cache.get_cache_key(
                 zmk_repo_url, zmk_revision
             )
-            keyboard_cache_key = self.keyboard_config_cache.get_cache_key(
-                keyboard_profile, shield_name, board_name
+
+            self.logger.info("Using base dependencies cache: %s", base_cache_key)
+
+            # Get or create base dependencies cache
+            base_workspace = self.base_dependencies_cache.get_cached_workspace(
+                base_cache_key
             )
-
-            self.logger.info(
-                "Using cached approach - base: %s, keyboard: %s",
-                base_cache_key,
-                keyboard_cache_key,
-            )
-
-            # Try to get keyboard-specific cached workspace
-            cached_workspace = self.keyboard_config_cache.get_cached_workspace(
-                keyboard_cache_key, base_cache_key
-            )
-
-            if cached_workspace:
-                # Clone cached workspace to target location
-                self.logger.info(
-                    "Using cached keyboard workspace: %s", cached_workspace
-                )
-                if not self.keyboard_config_cache.clone_cached_workspace(
-                    cached_workspace, workspace_path
-                ):
-                    self.logger.warning(
-                        "Failed to clone cached workspace, falling back to direct creation"
-                    )
-                    return self._initialize_dynamic_workspace_direct(
-                        workspace_path,
-                        keymap_file,
-                        config_file,
-                        keyboard_profile,
-                        shield_name,
-                        board_name,
-                    )
-            else:
-                # Create new cached workspace
-                self.logger.info("Creating new cached workspace")
-
-                # Get or create base dependencies cache
-                base_workspace = self.base_dependencies_cache.get_cached_workspace(
-                    base_cache_key
-                )
-                if not base_workspace:
-                    self.logger.info(
-                        "Creating base dependencies cache: %s", base_cache_key
-                    )
-                    base_workspace = (
-                        self.base_dependencies_cache.create_cached_workspace(
-                            base_cache_key, zmk_repo_url, zmk_revision
-                        )
-                    )
-
-                # Create keyboard-specific cache from base
-                cached_workspace = self.keyboard_config_cache.create_cached_workspace(
-                    keyboard_cache_key,
-                    base_cache_key,
-                    base_workspace,
-                    keyboard_profile,
-                    shield_name,
-                    board_name,
+            if not base_workspace:
+                self.logger.info("Creating base dependencies cache: %s", base_cache_key)
+                base_workspace = self.base_dependencies_cache.create_cached_workspace(
+                    base_cache_key, zmk_repo_url, zmk_revision
                 )
 
-                # Clone to target location
-                if not self.keyboard_config_cache.clone_cached_workspace(
-                    cached_workspace, workspace_path
-                ):
-                    raise ZmkConfigWorkspaceManagerError(
-                        "Failed to clone newly created cached workspace"
-                    )
-
-            # Copy user keymap and config files to the workspace
-            if not self._copy_user_files_to_workspace(
-                workspace_path,
-                keymap_file,
-                config_file,
-                shield_name or keyboard_profile.keyboard_name,
+            # Clone base workspace to target location
+            if not self.base_dependencies_cache.clone_cached_workspace(
+                base_workspace, workspace_path
             ):
+                self.logger.warning(
+                    "Failed to clone base cached workspace, falling back to direct creation"
+                )
                 return False
 
             self.logger.info(
-                "Dynamic ZMK config workspace initialized successfully using cache"
+                "Workspace initialized successfully from base dependencies cache"
             )
             return True
 
         except Exception as e:
-            self.logger.error("Cached workspace initialization failed: %s", e)
-            # Fall back to direct approach
-            return self._initialize_dynamic_workspace_direct(
-                workspace_path,
-                keymap_file,
-                config_file,
-                keyboard_profile,
-                shield_name,
-                board_name,
-            )
+            self.logger.error("Base cache workspace initialization failed: %s", e)
+            return False
 
     def _initialize_dynamic_workspace_direct(
         self,
@@ -693,29 +642,23 @@ def create_zmk_config_workspace_manager(
     Args:
         workspace_root: Root directory for workspace operations
         content_generator: Content generator for dynamic workspace creation
-        enable_caching: Whether to enable tiered caching system
+        enable_caching: Whether to enable base dependencies caching
 
     Returns:
         ZmkConfigWorkspaceManager: New ZMK config workspace manager
     """
     base_dependencies_cache = None
-    keyboard_config_cache = None
 
     if enable_caching:
-        # Lazy load caching system
+        # Lazy load base dependencies cache
         from glovebox.compilation.cache.base_dependencies_cache import (
             create_base_dependencies_cache,
         )
-        from glovebox.compilation.cache.keyboard_config_cache import (
-            create_keyboard_config_cache,
-        )
 
         base_dependencies_cache = create_base_dependencies_cache()
-        keyboard_config_cache = create_keyboard_config_cache(base_dependencies_cache)
 
     return ZmkConfigWorkspaceManager(
         workspace_root=workspace_root,
         content_generator=content_generator,
         base_dependencies_cache=base_dependencies_cache,
-        keyboard_config_cache=keyboard_config_cache,
     )

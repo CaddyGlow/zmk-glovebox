@@ -277,11 +277,11 @@ class BaseDependenciesCache:
         if not cache_path.exists() or not cache_path.is_dir():
             return False
 
-        # Check for essential directories/files
+        # Check for essential directories/files (excluding .west)
         required_paths = [
-            cache_path / ".west",
             cache_path / "zephyr",
             cache_path / "zmk",
+            cache_path / "modules",
             cache_path / ".glovebox_cache_metadata.json",
         ]
 

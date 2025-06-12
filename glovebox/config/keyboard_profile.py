@@ -153,9 +153,7 @@ def load_keyboard_config(
         logger.debug("  ✓ YAML parsing successful")
         logger.debug(
             "  📋 Raw config keys: %s",
-            list(raw_config.keys())
-            if isinstance(raw_config, dict)
-            else "Not a dict",
+            list(raw_config.keys()) if isinstance(raw_config, dict) else "Not a dict",
         )
 
         # Basic validation
@@ -341,9 +339,7 @@ def create_keyboard_profile(
     logger.debug(
         "    - Firmware: %s", profile.firmware_version or "None (keyboard-only)"
     )
-    logger.debug(
-        "    - Has firmware config: %s", profile.firmware_config is not None
-    )
+    logger.debug("    - Has firmware config: %s", profile.firmware_config is not None)
 
     return profile
 
