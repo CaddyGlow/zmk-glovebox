@@ -20,6 +20,7 @@ from glovebox.config.models.workspace import UserWorkspaceConfig
 
 if TYPE_CHECKING:
     from glovebox.compilation.models.build_matrix import BuildMatrix
+    from glovebox.config.compile_methods import ZmkWorkspaceConfig
     from glovebox.config.profile import KeyboardProfile
 
 logger = logging.getLogger(__name__)
@@ -92,8 +93,13 @@ class ZmkConfigCompilationService(BaseCompilationService):
                     keymap_file, config_file, config, keyboard_profile
                 )
             else:
+                if not config.zmk_config_repo:
+                    self.logger.error(
+                        "ZMK config repository configuration is missing for repository-based build"
+                    )
+                    return None
                 return self._setup_repository_workspace(
-                    keymap_file, config_file, config
+                    keymap_file, config_file, config.zmk_config_repo
                 )
 
         except Exception as e:
@@ -120,10 +126,12 @@ class ZmkConfigCompilationService(BaseCompilationService):
             create_build_matrix_resolver,
         )
 
+        zmk_workspace_config = config.zmk_config_repo
+
         # Get configurable config path
         config_dir = (
-            config.zmk_config_repo.config_path
-            if config.zmk_config_repo
+            zmk_workspace_config.config_path
+            if zmk_workspace_config
             else Path("config")
         )
 
@@ -137,7 +145,12 @@ class ZmkConfigCompilationService(BaseCompilationService):
         ]
 
         # Check for build.yaml in workspace config directory
-        build_yaml_path = workspace_path / config.zmk_config_repo.build_yaml_path
+        build_yaml_path_in_repo = (
+            zmk_workspace_config.build_yaml_path
+            if zmk_workspace_config
+            else Path("build.yaml")
+        )
+        build_yaml_path = workspace_path / build_yaml_path_in_repo
         if build_yaml_path.exists():
             try:
                 # Parse build matrix from build.yaml
@@ -146,22 +159,28 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
                 # Generate west build commands for each target
                 build_commands = self._generate_build_commands_from_matrix(
-                    build_matrix, config
+                    build_matrix, zmk_workspace_config
                 )
                 commands.extend(build_commands)
 
             except Exception as e:
                 self.logger.warning("Failed to parse build.yaml, using fallback: %s", e)
-                commands.extend(self._generate_fallback_build_commands(config))
+                commands.extend(
+                    self._generate_fallback_build_commands(config, zmk_workspace_config)
+                )
         else:
             # No build.yaml found, use fallback approach
             self.logger.debug("No build.yaml found, using fallback build commands")
-            commands.extend(self._generate_fallback_build_commands(config))
+            commands.extend(
+                self._generate_fallback_build_commands(config, zmk_workspace_config)
+            )
 
         return " && ".join(commands)
 
     def _generate_build_commands_from_matrix(
-        self, build_matrix: "BuildMatrix", config: CompilationConfig | None = None
+        self,
+        build_matrix: "BuildMatrix",
+        zmk_workspace_config: "ZmkWorkspaceConfig | None" = None,
     ) -> list[str]:
         """Generate west build commands from build matrix.
 
@@ -170,7 +189,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
         Args:
             build_matrix: Resolved build matrix from build.yaml
-            config: Compilation configuration for build_root access
+            zmk_workspace_config: ZMK workspace configuration
 
         Returns:
             list[str]: West build commands for each target
@@ -180,9 +199,11 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
         for target in build_matrix.targets:
             # Generate build directory name with optional custom build root
-            base_build_dir = Path("build")
-            if config and config.zmk_config_repo:
-                base_build_dir = config.zmk_config_repo.build_root
+            base_build_dir = (
+                zmk_workspace_config.build_root
+                if zmk_workspace_config
+                else Path("build")
+            )
 
             build_dir = base_build_dir / f"{target.artifact_name or target.board}"
             if target.shield:
@@ -192,8 +213,8 @@ class ZmkConfigCompilationService(BaseCompilationService):
             west_cmd = f"west build -s zmk/app -b {target.board} -d {build_dir}"
 
             # Add CMake arguments with configurable config path
-            if config and config.zmk_config_repo:
-                absolute_config_path = config.zmk_config_repo.config_path_absolute
+            if zmk_workspace_config:
+                absolute_config_path = zmk_workspace_config.config_path_absolute
             else:
                 # Fallback for dynamic mode where zmk_config_repo might be None
                 absolute_config_path = (Path("/workspace") / "config").resolve()
@@ -223,13 +244,16 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
         return commands
 
-    def _generate_fallback_build_commands(self, config: CompilationConfig) -> list[str]:
+    def _generate_fallback_build_commands(
+        self, config: CompilationConfig, zmk_workspace_config: "ZmkWorkspaceConfig | None"
+    ) -> list[str]:
         """Generate fallback build commands when build.yaml is not available.
 
         Uses configuration to generate basic west build commands.
 
         Args:
             config: Compilation configuration
+            zmk_workspace_config: ZMK workspace configuration
 
         Returns:
             list[str]: Fallback west build commands
@@ -239,17 +263,15 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
         # Determine base build directory
         base_build_dir = (
-            config.zmk_config_repo.build_root
-            if config.zmk_config_repo
-            else Path("build")
+            zmk_workspace_config.build_root if zmk_workspace_config else Path("build")
         )
 
         # Generate basic build command
         west_cmd = f"west build -s zmk/app -b {board_name} -d {base_build_dir}"
 
         # Add CMake arguments with configurable config path
-        if config.zmk_config_repo:
-            absolute_config_path = config.zmk_config_repo.config_path_absolute
+        if zmk_workspace_config:
+            absolute_config_path = zmk_workspace_config.config_path_absolute
         else:
             # Fallback for dynamic mode where zmk_config_repo might be None
             absolute_config_path = (Path("/workspace") / "config").resolve()
@@ -313,7 +335,9 @@ class ZmkConfigCompilationService(BaseCompilationService):
             Path | None: Workspace path if successful
         """
         # Generate workspace path for dynamic mode
-        workspace_path = self._get_dynamic_workspace_path(config, keyboard_profile)
+        workspace_path = self._get_dynamic_workspace_path(
+            config.zmk_config_repo, keyboard_profile
+        )
 
         # Extract shield and board names for dynamic workspace
         shield_name = self._extract_shield_name(config, keyboard_profile)
@@ -333,27 +357,26 @@ class ZmkConfigCompilationService(BaseCompilationService):
         return None
 
     def _setup_repository_workspace(
-        self, keymap_file: Path, config_file: Path, config: CompilationConfig
+        self,
+        keymap_file: Path,
+        config_file: Path,
+        zmk_workspace_config: "ZmkWorkspaceConfig",
     ) -> Path | None:
         """Setup repository-based ZMK config workspace.
 
         Args:
             keymap_file: Path to keymap file
             config_file: Path to config file
-            config: Compilation configuration
+            zmk_workspace_config: ZMK workspace configuration
 
         Returns:
             Path | None: Workspace path if successful
         """
-        if not config.zmk_config_repo:
-            self.logger.error("ZMK config repository configuration is missing")
-            return None
-
-        workspace_path = config.zmk_config_repo.workspace_path
+        workspace_path = zmk_workspace_config.workspace_path
 
         # Initialize repository workspace
         if self.workspace_manager.initialize_workspace(
-            config_repo_config=config.zmk_config_repo,
+            config_repo_config=zmk_workspace_config,
             keymap_file=keymap_file,
             config_file=config_file,
         ):
@@ -362,19 +385,21 @@ class ZmkConfigCompilationService(BaseCompilationService):
         return None
 
     def _get_dynamic_workspace_path(
-        self, config: CompilationConfig, keyboard_profile: "KeyboardProfile"
+        self,
+        zmk_workspace_config: "ZmkWorkspaceConfig | None",
+        keyboard_profile: "KeyboardProfile",
     ) -> Path:
         """Get workspace path for dynamic generation.
 
         Args:
-            config: Compilation configuration
+            zmk_workspace_config: ZMK workspace configuration
             keyboard_profile: Keyboard profile
 
         Returns:
             Path: Dynamic workspace path
         """
-        if config.zmk_config_repo:
-            return config.zmk_config_repo.workspace_path
+        if zmk_workspace_config:
+            return zmk_workspace_config.workspace_path
 
         # Fallback to user-configured workspace location
         return (
