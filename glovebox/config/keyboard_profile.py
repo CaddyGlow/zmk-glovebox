@@ -82,43 +82,35 @@ def _find_keyboard_config_file(
     """
     search_paths = initialize_search_paths(user_config)
 
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug("Searching for keyboard '%s' configuration file", keyboard_name)
-        logger.debug("Search paths: %s", [str(p) for p in search_paths])
+    logger.debug("Searching for keyboard '%s' configuration file", keyboard_name)
+    logger.debug("Search paths: %s", [str(p) for p in search_paths])
 
     # Look for the configuration file in all search paths
     for i, path in enumerate(search_paths, 1):
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("  [%d/%d] Checking directory: %s", i, len(search_paths), path)
+        logger.debug("  [%d/%d] Checking directory: %s", i, len(search_paths), path)
 
         # Try .yaml extension first
         yaml_file = path / f"{keyboard_name}.yaml"
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("    Checking: %s", yaml_file)
+        logger.debug("    Checking: %s", yaml_file)
         if yaml_file.exists():
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug("    ✓ Found keyboard config: %s", yaml_file)
+            logger.debug("    ✓ Found keyboard config: %s", yaml_file)
             return yaml_file
 
         # Then try .yml extension
         yml_file = path / f"{keyboard_name}.yml"
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("    Checking: %s", yml_file)
+        logger.debug("    Checking: %s", yml_file)
         if yml_file.exists():
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug("    ✓ Found keyboard config: %s", yml_file)
+            logger.debug("    ✓ Found keyboard config: %s", yml_file)
             return yml_file
 
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("    ❌ No config files found in this directory")
+        logger.debug("    ❌ No config files found in this directory")
 
     logger.warning("Keyboard configuration not found: %s", keyboard_name)
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug(
-            "Searched %d directories, no config file found for '%s'",
-            len(search_paths),
-            keyboard_name,
-        )
+    logger.debug(
+        "Searched %d directories, no config file found for '%s'",
+        len(search_paths),
+        keyboard_name,
+    )
     return None
 
 
@@ -137,17 +129,14 @@ def load_keyboard_config(
     Raises:
         ConfigError: If the keyboard configuration cannot be found or loaded
     """
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug("Loading keyboard configuration: %s", keyboard_name)
+    logger.debug("Loading keyboard configuration: %s", keyboard_name)
 
     # Return cached typed configuration if available
     if keyboard_name in _keyboard_configs:
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("  ✓ Found cached configuration for '%s'", keyboard_name)
+        logger.debug("  ✓ Found cached configuration for '%s'", keyboard_name)
         return _keyboard_configs[keyboard_name]
 
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug("  ↻ Configuration not cached, loading from file...")
+    logger.debug("  ↻ Configuration not cached, loading from file...")
 
     # Find the configuration file
     config_file = _find_keyboard_config_file(keyboard_name, user_config)
@@ -156,20 +145,18 @@ def load_keyboard_config(
 
     # Load the configuration
     try:
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("  📄 Reading config file: %s", config_file)
+        logger.debug("  📄 Reading config file: %s", config_file)
 
         with config_file.open() as f:
             raw_config = yaml.safe_load(f)
 
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("  ✓ YAML parsing successful")
-            logger.debug(
-                "  📋 Raw config keys: %s",
-                list(raw_config.keys())
-                if isinstance(raw_config, dict)
-                else "Not a dict",
-            )
+        logger.debug("  ✓ YAML parsing successful")
+        logger.debug(
+            "  📋 Raw config keys: %s",
+            list(raw_config.keys())
+            if isinstance(raw_config, dict)
+            else "Not a dict",
+        )
 
         # Basic validation
         if not isinstance(raw_config, dict):
@@ -177,12 +164,11 @@ def load_keyboard_config(
 
         # Fix keyboard name mismatch if needed
         if raw_config.get("keyboard") != keyboard_name:
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(
-                    "  ⚠ Keyboard name mismatch: file has '%s', expected '%s' - fixing",
-                    raw_config.get("keyboard"),
-                    keyboard_name,
-                )
+            logger.debug(
+                "  ⚠ Keyboard name mismatch: file has '%s', expected '%s' - fixing",
+                raw_config.get("keyboard"),
+                keyboard_name,
+            )
             logger.warning(
                 "Keyboard name mismatch: %s != %s",
                 raw_config.get("keyboard"),
@@ -190,15 +176,13 @@ def load_keyboard_config(
             )
             raw_config["keyboard"] = keyboard_name
 
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("  🔍 Validating configuration with Pydantic...")
+        logger.debug("  🔍 Validating configuration with Pydantic...")
 
         # Convert to typed object using Pydantic validation
         typed_config = KeyboardConfig.model_validate(raw_config)
 
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("  ✓ Pydantic validation successful")
-            logger.debug("  💾 Caching configuration for future use")
+        logger.debug("  ✓ Pydantic validation successful")
+        logger.debug("  💾 Caching configuration for future use")
 
         # Cache the typed configuration
         _keyboard_configs[keyboard_name] = typed_config
@@ -333,36 +317,33 @@ def create_keyboard_profile(
         ConfigError: If the keyboard configuration cannot be found, or if firmware
                     version is specified but not found
     """
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug(
-            "Creating keyboard profile: keyboard='%s', firmware='%s'",
-            keyboard_name,
-            firmware_version,
-        )
+    logger.debug(
+        "Creating keyboard profile: keyboard='%s', firmware='%s'",
+        keyboard_name,
+        firmware_version,
+    )
 
     from glovebox.config.profile import KeyboardProfile
 
     keyboard_config = load_keyboard_config(keyboard_name, user_config)
 
-    if logger.isEnabledFor(logging.DEBUG):
-        if firmware_version:
-            logger.debug(
-                "  🔧 Creating profile with specific firmware: %s", firmware_version
-            )
-        else:
-            logger.debug("  📦 Creating keyboard-only profile (no firmware specified)")
+    if firmware_version:
+        logger.debug(
+            "  🔧 Creating profile with specific firmware: %s", firmware_version
+        )
+    else:
+        logger.debug("  📦 Creating keyboard-only profile (no firmware specified)")
 
     profile = KeyboardProfile(keyboard_config, firmware_version)
 
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug("  ✓ Profile created successfully")
-        logger.debug("    - Keyboard: %s", profile.keyboard_name)
-        logger.debug(
-            "    - Firmware: %s", profile.firmware_version or "None (keyboard-only)"
-        )
-        logger.debug(
-            "    - Has firmware config: %s", profile.firmware_config is not None
-        )
+    logger.debug("  ✓ Profile created successfully")
+    logger.debug("    - Keyboard: %s", profile.keyboard_name)
+    logger.debug(
+        "    - Firmware: %s", profile.firmware_version or "None (keyboard-only)"
+    )
+    logger.debug(
+        "    - Has firmware config: %s", profile.firmware_config is not None
+    )
 
     return profile
 
@@ -429,8 +410,7 @@ def load_keyboard_config_with_includes(
     """
     from glovebox.config.include_loader import create_include_loader
 
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug("Loading keyboard configuration with includes: %s", keyboard_name)
+    logger.debug("Loading keyboard configuration with includes: %s", keyboard_name)
 
     # Initialize search paths
     search_paths = initialize_search_paths(user_config)
@@ -464,23 +444,21 @@ def create_keyboard_profile_with_includes(
         ConfigError: If the keyboard configuration cannot be found, or if firmware
                     version is specified but not found
     """
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug(
-            "Creating keyboard profile with includes: keyboard='%s', firmware='%s'",
-            keyboard_name,
-            firmware_version,
-        )
+    logger.debug(
+        "Creating keyboard profile with includes: keyboard='%s', firmware='%s'",
+        keyboard_name,
+        firmware_version,
+    )
 
     from glovebox.config.profile import KeyboardProfile
 
     # Load keyboard configuration with include support
     keyboard_config = load_keyboard_config_with_includes(keyboard_name, user_config)
 
-    if logger.isEnabledFor(logging.DEBUG):
-        if firmware_version:
-            logger.debug("  → Profile will use firmware: %s", firmware_version)
-        else:
-            logger.debug("  → Profile will be keyboard-only (no firmware)")
+    if firmware_version:
+        logger.debug("  → Profile will use firmware: %s", firmware_version)
+    else:
+        logger.debug("  → Profile will be keyboard-only (no firmware)")
 
     return KeyboardProfile(
         keyboard_config=keyboard_config,
