@@ -28,13 +28,6 @@ flash_methods:
     copy_timeout: 60
     sync_after_copy: true
 
-  - method_type: dfu
-    vid: "0x1209"
-    pid: "0x0001"
-    interface: 0
-    alt_setting: 0
-    timeout: 30
-
 firmwares:
   main:
     version: "main"

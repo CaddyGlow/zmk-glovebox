@@ -31,14 +31,6 @@ flash_methods:
     mount_timeout: 30
     copy_timeout: 60
     sync_after_copy: true
-    fallback_methods: ["dfu"]
-  - method_type: dfu
-    vid: "0x1209"
-    pid: "0x0080"
-    interface: 0
-    alt_setting: 0
-    timeout: 30
-    fallback_methods: []
 
 firmwares:
   v25.05:
