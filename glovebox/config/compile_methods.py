@@ -8,11 +8,11 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
-def expand_path_variables(path_str: str) -> str:
+def expand_path_variables(path_str: Path) -> Path:
     """Expand environment variables and user home in path string."""
     # First expand environment variables, then user home
     expanded = os.path.expandvars(path_str)
-    return str(Path(expanded).expanduser())
+    return Path(expanded).expanduser()
 
 
 class CompileMethodConfig(BaseModel, ABC):
@@ -166,8 +166,12 @@ class CompilationConfig(BaseModel):
     # Docker user configuration
     docker_user: DockerUserConfig = Field(default_factory=DockerUserConfig)
 
+    config_path: Path = Path("config")
+    build_root: Path = Path("build")
+
     # Workspace configuration
-    workspace_root: Path | None = None
+    workspace_root: Path = Path("/workspace")
+
     cleanup_workspace: bool = True
     preserve_on_failure: bool = False
 
@@ -177,9 +181,27 @@ class CompilationConfig(BaseModel):
     )
     build_matrix_file: Path | None = None  # Path to build.yaml
 
+    @field_validator("config_path")
+    @classmethod
+    def expand_config_path(cls, v: str) -> Path:
+        """Expand environment variables and user home in config path."""
+        return Path(expand_path_variables(cls.workspace_root / v))
+
+    @field_validator("build_root")
+    @classmethod
+    def expand_build_root(cls, v: str) -> Path:
+        """Expand environment variables and user home in build root path."""
+        return Path(expand_path_variables(cls.workspace_root / v))
+
+    @field_validator("workspace_root")
+    @classmethod
+    def expand_workspace_root(cls, v: str) -> Path:
+        """Expand environment variables and user home in workspace root path."""
+        return Path(expand_path_variables(Path(v)))
+
     @field_validator("volume_templates")
     @classmethod
-    def expand_volume_templates(cls, v: list[str]) -> list[str]:
+    def expand_volume_templates(cls, v: list[Path]) -> list[Path]:
         """Expand environment variables and user home in volume templates."""
         return [expand_path_variables(template) for template in v]
 
@@ -187,7 +209,9 @@ class CompilationConfig(BaseModel):
     @classmethod
     def expand_environment_template(cls, v: dict[str, str]) -> dict[str, str]:
         """Expand environment variables and user home in environment template values."""
-        return {key: expand_path_variables(value) for key, value in v.items()}
+        return {
+            key: str(expand_path_variables(Path(value))) for key, value in v.items()
+        }
 
     def is_docker_based(self) -> bool:
         """Check if this configuration uses Docker."""
