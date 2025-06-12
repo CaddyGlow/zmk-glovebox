@@ -16,11 +16,12 @@ from glovebox.compilation.workspace.zmk_config_workspace_manager import (
 )
 from glovebox.config.compile_methods import CompilationConfig
 from glovebox.config.models.workspace import UserWorkspaceConfig
+from glovebox.core.errors import BuildError
 
 
 if TYPE_CHECKING:
     from glovebox.compilation.models.build_matrix import BuildMatrix
-    from glovebox.config.compile_methods import ZmkConfigRepoConfig
+    from glovebox.config.compile_methods import ZmkWorkspaceConfig
     from glovebox.config.profile import KeyboardProfile
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,10 @@ class ZmkConfigCompilationService(BaseCompilationService):
         """
         try:
             # Determine workspace initialization strategy
+            config.zmk_config_repo.workspace_path.host_path = Path(
+                tempfile.mkdtemp("zmk_config")
+            )
+
             if self._should_use_dynamic_generation(config, keyboard_profile):
                 if not keyboard_profile:
                     self.logger.error(
@@ -128,29 +133,25 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
         zmk_workspace_config = config.zmk_config_repo
 
+        if zmk_workspace_config is None:
+            raise BuildError("ZMK config repository configuration is missing")
+
         # Get configurable config path
-        config_dir = (
-            zmk_workspace_config.config_path.container_path
-            if zmk_workspace_config
-            else "config"
-        )
+        config_path = zmk_workspace_config.config_path.container_path
+        build_root = zmk_workspace_config.build_root.container_path
 
         # Initialize commands with workspace setup
         commands = [
-            "cd /workspace",  # Ensure we're in the workspace
-            "rm -rf .west build",  # Remove existing west workspace and build dirs
-            f"west init -l {config_dir}",  # Initialize west workspace with config
+            f"cd {workspace_path}",  # Ensure we're in the workspace
+            f"rm -rf .west {build_root}",  # Remove existing west workspace and build dirs
+            f"west init -l {config_path}",  # Initialize west workspace with config
             "west update",  # Download dependencies
             "west zephyr-export",  # Export Zephyr build environment
         ]
 
         # Check for build.yaml in workspace config directory
-        build_yaml_path_in_repo = (
-            zmk_workspace_config.build_yaml_path
-            if zmk_workspace_config
-            else "build.yaml"
-        )
-        build_yaml_path = workspace_path / build_yaml_path_in_repo
+        build_yaml_path = zmk_workspace_config.build_yaml_path
+        build_yaml_path = workspace_path / build_yaml_path
         if build_yaml_path.exists():
             try:
                 # Parse build matrix from build.yaml
@@ -180,7 +181,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
     def _generate_build_commands_from_matrix(
         self,
         build_matrix: "BuildMatrix",
-        zmk_workspace_config: "ZmkConfigRepoConfig | None" = None,
+        zmk_workspace_config: "ZmkWorkspaceConfig",
     ) -> list[str]:
         """Generate west build commands from build matrix.
 
@@ -199,15 +200,9 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
         for target in build_matrix.targets:
             # Generate build directory name with optional custom build root
-            base_build_dir = (
-                zmk_workspace_config.build_root.container_path
-                if zmk_workspace_config
-                else "build"
-            )
+            base_build_dir = zmk_workspace_config.build_root_absolute
 
-            build_dir = (
-                Path(base_build_dir) / f"{target.artifact_name or target.board}"
-            )
+            build_dir = Path(base_build_dir) / f"{target.artifact_name or target.board}"
             if target.shield:
                 build_dir = Path(base_build_dir) / f"{target.shield}-{target.board}"
 
@@ -215,11 +210,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
             west_cmd = f"west build -s zmk/app -b {target.board} -d {build_dir}"
 
             # Add CMake arguments with configurable config path
-            if zmk_workspace_config:
-                absolute_config_path = zmk_workspace_config.config_path_absolute
-            else:
-                # Fallback for dynamic mode where zmk_config_repo might be None
-                absolute_config_path = Path("/workspace/config")
+            absolute_config_path = zmk_workspace_config.config_path_absolute
 
             cmake_args = [f"-DZMK_CONFIG={absolute_config_path}"]
 
@@ -249,7 +240,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
     def _generate_fallback_build_commands(
         self,
         config: CompilationConfig,
-        zmk_workspace_config: "ZmkConfigRepoConfig | None",
+        zmk_workspace_config: "ZmkWorkspaceConfig | None",
     ) -> list[str]:
         """Generate fallback build commands when build.yaml is not available.
 
@@ -341,6 +332,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
             Path | None: Workspace path if successful
         """
         # Generate workspace path for dynamic mode
+        # TODO: fix me to get random path
         workspace_path = self._get_dynamic_workspace_path(
             config.zmk_config_repo, keyboard_profile
         )
@@ -366,7 +358,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         self,
         keymap_file: Path,
         config_file: Path,
-        zmk_workspace_config: "ZmkConfigRepoConfig",
+        zmk_workspace_config: "ZmkWorkspaceConfig",
     ) -> Path | None:
         """Setup repository-based ZMK config workspace.
 
@@ -392,7 +384,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
     def _get_dynamic_workspace_path(
         self,
-        zmk_workspace_config: "ZmkConfigRepoConfig | None",
+        zmk_workspace_config: "ZmkWorkspaceConfig | None",
         keyboard_profile: "KeyboardProfile",
     ) -> Path:
         """Get workspace path for dynamic generation.

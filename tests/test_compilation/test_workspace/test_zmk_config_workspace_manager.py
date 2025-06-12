@@ -11,7 +11,7 @@ from glovebox.compilation.workspace.zmk_config_workspace_manager import (
     ZmkConfigWorkspaceManagerError,
     create_zmk_config_workspace_manager,
 )
-from glovebox.config.compile_methods import ZmkConfigRepoConfig
+from glovebox.config.compile_methods import ZmkWorkspaceConfig
 
 
 class TestZmkConfigWorkspaceManager:
@@ -66,7 +66,7 @@ class TestZmkConfigWorkspaceManager:
             # Mock successful subprocess calls
             mock_run.return_value = Mock(returncode=0, stderr="", stdout="")
 
-            config = ZmkConfigRepoConfig(
+            config = ZmkWorkspaceConfig(
                 config_repo_url="https://github.com/example/zmk-config.git",
                 config_repo_revision="main",
             )
@@ -168,7 +168,7 @@ class TestZmkConfigWorkspaceManager:
             # Mock successful git clone
             mock_run.return_value = Mock(returncode=0, stderr="", stdout="")
 
-            config = ZmkConfigRepoConfig(
+            config = ZmkWorkspaceConfig(
                 config_repo_url="https://github.com/example/zmk-config.git",
                 config_repo_revision="main",
             )
@@ -196,7 +196,7 @@ class TestZmkConfigWorkspaceManager:
             # Mock successful git clone
             mock_run.return_value = Mock(returncode=0, stderr="", stdout="")
 
-            config = ZmkConfigRepoConfig(
+            config = ZmkWorkspaceConfig(
                 config_repo_url="https://github.com/example/zmk-config.git",
                 config_repo_revision="",
             )
@@ -217,7 +217,7 @@ class TestZmkConfigWorkspaceManager:
             # Mock failed git clone
             mock_run.return_value = Mock(returncode=1, stderr="Clone failed", stdout="")
 
-            config = ZmkConfigRepoConfig(
+            config = ZmkWorkspaceConfig(
                 config_repo_url="https://github.com/example/zmk-config.git"
             )
 
@@ -237,7 +237,7 @@ class TestZmkConfigWorkspaceManager:
             # Mock timeout
             mock_run.side_effect = subprocess.TimeoutExpired("git", 300)
 
-            config = ZmkConfigRepoConfig(
+            config = ZmkWorkspaceConfig(
                 config_repo_url="https://github.com/example/zmk-config.git"
             )
 
@@ -387,7 +387,7 @@ class TestZmkConfigWorkspaceManagerIntegration:
             # Mock successful subprocess calls
             mock_run.return_value = Mock(returncode=0, stderr="", stdout="")
 
-            config = ZmkConfigRepoConfig(
+            config = ZmkWorkspaceConfig(
                 config_repo_url="https://github.com/example/zmk-config.git",
                 config_repo_revision="main",
             )
@@ -514,7 +514,7 @@ CONFIG_BT_CTLR_TX_PWR_PLUS_8=y
             # Mock successful git and west operations
             mock_run.return_value = Mock(returncode=0, stderr="", stdout="")
 
-            config = ZmkConfigRepoConfig(
+            config = ZmkWorkspaceConfig(
                 config_repo_url="https://github.com/user/zmk-config.git",
                 config_repo_revision="corne-config",
             )

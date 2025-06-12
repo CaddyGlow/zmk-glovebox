@@ -11,7 +11,7 @@ from glovebox.compilation.services.zmk_config_service import (
 )
 from glovebox.config.compile_methods import (
     CompilationConfig,
-    ZmkConfigRepoConfig,
+    ZmkWorkspaceConfig,
 )
 from glovebox.firmware.models import FirmwareOutputFiles
 
@@ -72,7 +72,7 @@ class TestZmkConfigCompilationService:
     def test_validate_configuration_valid(self):
         """Test configuration validation with valid config."""
         config = Mock(spec=CompilationConfig)
-        config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
+        config.zmk_config_repo = Mock(spec=ZmkWorkspaceConfig)
         config.zmk_config_repo.config_repo_url = "https://github.com/user/zmk-config"
         config.zmk_config_repo.workspace_path = "/tmp/workspace"
 
@@ -90,7 +90,7 @@ class TestZmkConfigCompilationService:
     def test_validate_configuration_missing_url(self):
         """Test configuration validation with missing repo URL (dynamic mode)."""
         config = Mock(spec=CompilationConfig)
-        config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
+        config.zmk_config_repo = Mock(spec=ZmkWorkspaceConfig)
         config.zmk_config_repo.config_repo_url = ""
         config.zmk_config_repo.workspace_path = "/tmp/workspace"
 
@@ -101,7 +101,7 @@ class TestZmkConfigCompilationService:
     def test_validate_configuration_missing_workspace(self):
         """Test configuration validation with missing workspace path."""
         config = Mock(spec=CompilationConfig)
-        config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
+        config.zmk_config_repo = Mock(spec=ZmkWorkspaceConfig)
         config.zmk_config_repo.config_repo_url = "https://github.com/user/zmk-config"
         config.zmk_config_repo.workspace_path = ""
 
@@ -120,7 +120,7 @@ class TestZmkConfigCompilationService:
             output_dir.mkdir()
 
             # Mock configuration
-            zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
+            zmk_config_repo = Mock(spec=ZmkWorkspaceConfig)
             zmk_config_repo.config_repo_url = "https://github.com/user/zmk-config"
             zmk_config_repo.workspace_path = str(Path(temp_dir) / "workspace")
             zmk_config_repo.config_path = "config"
@@ -212,7 +212,7 @@ class TestZmkConfigCompilationService:
             output_dir = Path(temp_dir) / "output"
 
             config = Mock(spec=CompilationConfig)
-            config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
+            config.zmk_config_repo = Mock(spec=ZmkWorkspaceConfig)
             config.zmk_config_repo.config_repo_url = (
                 "https://github.com/user/zmk-config"
             )
@@ -236,7 +236,7 @@ class TestZmkConfigCompilationService:
             config_file = Path(temp_dir) / "config.conf"
             output_dir = Path(temp_dir) / "output"
 
-            zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
+            zmk_config_repo = Mock(spec=ZmkWorkspaceConfig)
             zmk_config_repo.config_repo_url = "https://github.com/user/zmk-config"
             zmk_config_repo.workspace_path = str(Path(temp_dir) / "workspace")
             zmk_config_repo.config_path = "config"
@@ -304,7 +304,7 @@ class TestZmkConfigCompilationService:
         )
 
         config = Mock(spec=CompilationConfig)
-        config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
+        config.zmk_config_repo = Mock(spec=ZmkWorkspaceConfig)
         config.zmk_config_repo.west_commands = ["west init -l config", "west update"]
         config.board_targets = []
         config.build_commands = []
@@ -436,7 +436,7 @@ class TestZmkConfigCompilationService:
             config_file = Path(temp_dir) / "config.conf"
             output_dir = Path(temp_dir) / "output"
 
-            zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
+            zmk_config_repo = Mock(spec=ZmkWorkspaceConfig)
             zmk_config_repo.config_repo_url = "https://github.com/user/zmk-config"
             zmk_config_repo.workspace_path = str(Path(temp_dir) / "workspace")
             zmk_config_repo.config_path = "config"
@@ -527,7 +527,7 @@ class TestZmkConfigServiceIntegration:
 
             # Test configuration
             config = Mock(spec=CompilationConfig)
-            config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
+            config.zmk_config_repo = Mock(spec=ZmkWorkspaceConfig)
             config.zmk_config_repo.config_repo_url = "https://github.com/test/config"
             config.zmk_config_repo.workspace_path = "/tmp/workspace"
             config.zmk_config_repo.build_yaml_path = "build.yaml"
@@ -627,7 +627,7 @@ class TestZmkConfigServiceIntegration:
                     ).collect_artifacts.side_effect = exception
 
                 config = Mock(spec=CompilationConfig)
-                config.zmk_config_repo = Mock(spec=ZmkConfigRepoConfig)
+                config.zmk_config_repo = Mock(spec=ZmkWorkspaceConfig)
                 config.zmk_config_repo.config_repo_url = (
                     "https://github.com/test/config"
                 )
@@ -659,7 +659,7 @@ class TestZmkConfigServiceIntegration:
         build_matrix = BuildMatrix(targets=targets)
 
         # Create config with custom build_root
-        zmk_config_repo = ZmkConfigRepoConfig(
+        zmk_config_repo = ZmkWorkspaceConfig(
             config_repo_url="https://github.com/test/config",
             build_root="/custom/build/path",
         )
@@ -690,7 +690,7 @@ class TestZmkConfigServiceIntegration:
         build_matrix = BuildMatrix(targets=targets)
 
         # Create config with default build_root
-        zmk_config_repo = ZmkConfigRepoConfig(
+        zmk_config_repo = ZmkWorkspaceConfig(
             config_repo_url="https://github.com/test/config"
         )
         config = CompilationConfig(
@@ -709,7 +709,7 @@ class TestZmkConfigServiceIntegration:
     def test_generate_fallback_build_commands_with_build_root(self):
         """Test fallback build command generation with custom build_root."""
         # Create config with custom build_root
-        zmk_config_repo = ZmkConfigRepoConfig(
+        zmk_config_repo = ZmkWorkspaceConfig(
             config_repo_url="https://github.com/test/config",
             build_root="/custom/build/path",
         )
@@ -731,7 +731,7 @@ class TestZmkConfigServiceIntegration:
     def test_generate_fallback_build_commands_default_build_root(self):
         """Test fallback build command generation with default build_root."""
         # Create config with default build_root
-        zmk_config_repo = ZmkConfigRepoConfig(
+        zmk_config_repo = ZmkWorkspaceConfig(
             config_repo_url="https://github.com/test/config"
         )
         config = CompilationConfig(
@@ -754,7 +754,7 @@ class TestZmkConfigServiceIntegration:
         build_matrix = BuildMatrix(targets=targets)
 
         # Create config with custom config_path
-        zmk_config_repo = ZmkConfigRepoConfig(
+        zmk_config_repo = ZmkWorkspaceConfig(
             config_repo_url="https://github.com/test/config",
             config_path="custom_config",
         )
@@ -774,7 +774,7 @@ class TestZmkConfigServiceIntegration:
     def test_generate_fallback_build_commands_with_custom_config_path(self):
         """Test fallback build command generation with custom config_path."""
         # Create config with custom config_path
-        zmk_config_repo = ZmkConfigRepoConfig(
+        zmk_config_repo = ZmkWorkspaceConfig(
             config_repo_url="https://github.com/test/config",
             config_path="my_config_dir",
         )
@@ -794,7 +794,7 @@ class TestZmkConfigServiceIntegration:
     def test_build_compilation_command_with_custom_config_path(self):
         """Test full compilation command generation with custom config_path."""
         # Create config with custom config_path
-        zmk_config_repo = ZmkConfigRepoConfig(
+        zmk_config_repo = ZmkWorkspaceConfig(
             config_repo_url="https://github.com/test/config",
             config_path="special_config",
         )
@@ -817,7 +817,7 @@ class TestZmkConfigServiceIntegration:
     def test_build_compilation_command_with_default_config_path(self):
         """Test full compilation command generation with default config_path."""
         # Create config with default config_path
-        zmk_config_repo = ZmkConfigRepoConfig(
+        zmk_config_repo = ZmkWorkspaceConfig(
             config_repo_url="https://github.com/test/config"
         )
         config = CompilationConfig(

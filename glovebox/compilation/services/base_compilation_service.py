@@ -122,6 +122,9 @@ class BaseCompilationService(BaseService):
             if not self._validate_common_config(config, result):
                 return result
 
+            if config.zmk_config_repo is None:
+                raise BuildError("ZMK config repository configuration is missing")
+
             # Step 2: Setup workspace (strategy-specific)
             workspace_path = self._setup_workspace(
                 keymap_file, config_file, config, keyboard_profile
