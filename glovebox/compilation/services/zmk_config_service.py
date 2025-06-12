@@ -141,22 +141,25 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
         # Initialize commands with workspace setup
         container_workspace_path = zmk_workspace_config.workspace_path.container_path
+        # Extract relative config path for west init
+        config_relative_path = (
+            Path(config_path).name if "/" in config_path else config_path
+        )
         commands = [
             f"cd {container_workspace_path}",  # Ensure we're in the workspace
-            f"rm -rf .west {build_root}",  # Remove existing west workspace and build dirs
-            f"west init -l {config_path}",  # Initialize west workspace with config
+            f"rm -rf {build_root}",  # Remove existing build dir (.west excluded for cached workspaces)
+            f"west init -l {config_relative_path}",  # Initialize west workspace with relative config path
             "west update",  # Download dependencies
             "west zephyr-export",  # Export Zephyr build environment
         ]
 
         # Check for build.yaml in workspace config directory
-        build_yaml_path = zmk_workspace_config.build_yaml_path
-        build_yaml_path = workspace_path / build_yaml_path
-        if build_yaml_path.exists():
+        build_yaml_file_path = workspace_path / zmk_workspace_config.build_yaml_path
+        if build_yaml_file_path.exists():
             try:
                 # Parse build matrix from build.yaml
                 resolver = create_build_matrix_resolver()
-                build_matrix = resolver.resolve_from_build_yaml(build_yaml_path)
+                build_matrix = resolver.resolve_from_build_yaml(build_yaml_file_path)
 
                 # Generate west build commands for each target
                 build_commands = self._generate_build_commands_from_matrix(
@@ -396,7 +399,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         Returns:
             Path: Dynamic workspace path
         """
-        if zmk_workspace_config:
+        if zmk_workspace_config and zmk_workspace_config.workspace_path.host_path:
             return zmk_workspace_config.workspace_path.host_path
 
         # Fallback to user-configured workspace location
