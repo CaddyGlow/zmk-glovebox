@@ -170,7 +170,7 @@ class CompilationConfig(BaseModel):
     build_root: Path = Path("build")
 
     # Workspace configuration
-    workspace_root: Path = Path("/workspace")
+    workspace_root: Path | None = None
 
     cleanup_workspace: bool = True
     preserve_on_failure: bool = False
@@ -183,21 +183,29 @@ class CompilationConfig(BaseModel):
 
     @field_validator("config_path")
     @classmethod
-    def expand_config_path(cls, v: str) -> Path:
+    def expand_config_path(cls, v: str) -> Path: # v is effectively Path
         """Expand environment variables and user home in config path."""
-        return Path(expand_path_variables(cls.workspace_root / v))
+        if cls.workspace_root is None:
+            return Path(expand_path_variables(v))  # type: ignore[arg-type]
+        else:
+            return Path(expand_path_variables(cls.workspace_root / v))  # type: ignore[arg-type]
 
     @field_validator("build_root")
     @classmethod
-    def expand_build_root(cls, v: str) -> Path:
+    def expand_build_root(cls, v: str) -> Path: # v is effectively Path
         """Expand environment variables and user home in build root path."""
-        return Path(expand_path_variables(cls.workspace_root / v))
+        if cls.workspace_root is None:
+            return Path(expand_path_variables(v))  # type: ignore[arg-type]
+        else:
+            return Path(expand_path_variables(cls.workspace_root / v))  # type: ignore[arg-type]
 
     @field_validator("workspace_root")
     @classmethod
-    def expand_workspace_root(cls, v: str) -> Path:
+    def expand_workspace_root(cls, v: Path | None) -> Path | None:
         """Expand environment variables and user home in workspace root path."""
-        return Path(expand_path_variables(Path(v)))
+        if v is None:
+            return None
+        return Path(expand_path_variables(v))
 
     @field_validator("volume_templates")
     @classmethod
