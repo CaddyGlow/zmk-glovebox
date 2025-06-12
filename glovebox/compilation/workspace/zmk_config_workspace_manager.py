@@ -9,7 +9,7 @@ from glovebox.compilation.workspace.workspace_manager import (
     WorkspaceManager,
     WorkspaceManagerError,
 )
-from glovebox.config.compile_methods import ZmkConfigRepoConfig
+from glovebox.config.compile_methods import ZmkWorkspaceConfig
 
 
 if TYPE_CHECKING:
@@ -69,7 +69,7 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
         """
         try:
             config_repo_config = context.get("config_repo_config")
-            if not isinstance(config_repo_config, ZmkConfigRepoConfig):
+            if not isinstance(config_repo_config, ZmkWorkspaceConfig):
                 raise ZmkConfigWorkspaceManagerError(
                     "config_repo_config is required for ZMK config workspace initialization"
                 )
@@ -206,7 +206,7 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
             raise ZmkConfigWorkspaceManagerError(msg) from e
 
     def clone_config_repository(
-        self, config: ZmkConfigRepoConfig, workspace_path: Path
+        self, config: ZmkWorkspaceConfig, workspace_path: Path
     ) -> bool:
         """Clone ZMK config repository.
 

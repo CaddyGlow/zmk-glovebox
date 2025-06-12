@@ -41,27 +41,35 @@ class BuildYamlConfig(BaseModel):
     include: list[BuildTargetConfig] = Field(default_factory=list)
 
 
-class ZmkConfigRepoConfig(BaseModel):
+class ZmkWorkspaceConfig(BaseModel):
     """ZMK config repository configuration for config-based manifests."""
 
-    config_repo_url: str
-    config_repo_revision: str = "main"
+    config_repo_url: str | None = None
+    config_repo_revision: str | None = None
 
     build_yaml_path: str = "build.yaml"
     workspace_path: DockerPath = Field(
-        default_factory=lambda: DockerPath(container_path="/workspace")
+        default_factory=lambda: DockerPath(
+            host_path=Path("/workspace"), container_path="/workspace"
+        )
     )
     build_root: DockerPath = Field(
-        default_factory=lambda: DockerPath(container_path="build")
+        default_factory=lambda: DockerPath(
+            host_path=Path("build"), container_path="build"
+        )
     )
     config_path: DockerPath = Field(
-        default_factory=lambda: DockerPath(container_path="config")
+        default_factory=lambda: DockerPath(
+            host_path=Path("config"), container_path="config"
+        )
     )
 
     @property
     def config_path_absolute(self) -> Path:
         """Get the fully expanded config path, relative to workspace_path if set."""
-        return Path(self.workspace_path.container_path) / self.config_path.container_path
+        return (
+            Path(self.workspace_path.container_path) / self.config_path.container_path
+        )
 
     @property
     def build_root_absolute(self) -> Path:
@@ -153,7 +161,7 @@ class CompilationConfig(BaseModel):
     board_targets: list[str] = Field(default_factory=list)
 
     # ZMK config repository configuration (strategy: zmk_config)
-    zmk_config_repo: ZmkConfigRepoConfig | None = None
+    zmk_config_repo: ZmkWorkspaceConfig = Field(default_factory=ZmkWorkspaceConfig)
 
     # West workspace configuration (strategy: west)
     west_workspace: WestWorkspaceConfig | None = None
@@ -210,7 +218,7 @@ __all__ = [
     "CompileMethodConfig",
     "BuildTargetConfig",
     "BuildYamlConfig",
-    "ZmkConfigRepoConfig",
+    "ZmkWorkspaceConfig",
     "WestWorkspaceConfig",
     "CacheConfig",
     "DockerUserConfig",

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from glovebox.config.compile_methods import (
     WestWorkspaceConfig,
-    ZmkConfigRepoConfig,
+    ZmkWorkspaceConfig,
 )
 
 
@@ -80,7 +80,7 @@ class ZmkConfigWorkspaceManagerProtocol(WorkspaceManagerProtocol, Protocol):
 
     def initialize_zmk_config_workspace(
         self,
-        config_repo_config: ZmkConfigRepoConfig,
+        config_repo_config: ZmkWorkspaceConfig,
         keymap_file: Path,
         config_file: Path,
     ) -> bool:
@@ -96,7 +96,7 @@ class ZmkConfigWorkspaceManagerProtocol(WorkspaceManagerProtocol, Protocol):
         """
         ...
 
-    def clone_config_repository(self, config: ZmkConfigRepoConfig) -> bool:
+    def clone_config_repository(self, config: ZmkWorkspaceConfig) -> bool:
         """Clone ZMK config repository.
 
         Args:
