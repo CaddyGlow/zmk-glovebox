@@ -126,13 +126,17 @@ class SimpleArtifactCollector:
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     def collect_from_workspace(
-        self, workspace_path: Path, build_matrix: BuildMatrix | None = None
+        self,
+        workspace_path: Path,
+        build_matrix: BuildMatrix | None = None,
+        build_root_path: Path | None = None,
     ) -> dict[str, Path]:
         """Collect artifacts using build matrix for naming and location.
 
         Args:
             workspace_path: Path to workspace directory
             build_matrix: Build matrix configuration (auto-detected if None)
+            build_root_path: Custom build root path (defaults to workspace_path/build)
 
         Returns:
             dict[str, Path]: Mapping of artifact names to file paths
@@ -147,7 +151,9 @@ class SimpleArtifactCollector:
             artifact_name = self._generate_zmk_artifact_name(entry)
 
             # Look for .uf2 file in expected build location
-            build_dir = self._get_build_directory(workspace_path, entry)
+            build_dir = self._get_build_directory(
+                workspace_path, entry, build_root_path
+            )
             uf2_file = build_dir / "zephyr" / "zmk.uf2"
 
             if uf2_file.exists():
@@ -178,19 +184,28 @@ class SimpleArtifactCollector:
         return f"{shield_prefix}{matrix_entry.board}-zmk.uf2"
 
     def _get_build_directory(
-        self, workspace_path: Path, entry: BuildMatrixEntry
+        self,
+        workspace_path: Path,
+        entry: BuildMatrixEntry,
+        build_root_path: Path | None = None,
     ) -> Path:
         """Get expected build directory for matrix entry.
 
         Args:
             workspace_path: Path to workspace directory
             entry: Build matrix entry
+            build_root_path: Custom build root path (defaults to workspace_path/build)
 
         Returns:
             Path: Expected build directory
         """
+        # Use custom build root path if provided, otherwise default to workspace/build
+        base_build_path = (
+            build_root_path if build_root_path else (workspace_path / "build")
+        )
+
         shield_prefix = f"{entry.shield}-" if entry.shield else ""
-        return workspace_path / "build" / f"{shield_prefix}{entry.board}"
+        return base_build_path / f"{shield_prefix}{entry.board}"
         # if entry.shield:
         #     # Split keyboard builds use separate directories
         #     return workspace_path / f"build_{entry.shield}"
@@ -226,6 +241,7 @@ class SimpleArtifactCollector:
         workspace_path: Path,
         output_dir: Path,
         build_matrix: BuildMatrix | None = None,
+        build_root_path: Path | None = None,
     ) -> FirmwareOutputFiles:
         """Collect artifacts from workspace and copy to output directory.
 
@@ -233,12 +249,15 @@ class SimpleArtifactCollector:
             workspace_path: Path to workspace directory
             output_dir: Output directory for artifacts
             build_matrix: Build matrix configuration (auto-detected if None)
+            build_root_path: Custom build root path (defaults to workspace_path/build)
 
         Returns:
             FirmwareOutputFiles: Structured output files
         """
         # Collect artifacts from workspace
-        artifacts = self.collect_from_workspace(workspace_path, build_matrix)
+        artifacts = self.collect_from_workspace(
+            workspace_path, build_matrix, build_root_path
+        )
 
         # Copy to output directory
         copied_artifacts = self.copy_to_output(artifacts, output_dir)

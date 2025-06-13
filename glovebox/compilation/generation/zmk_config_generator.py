@@ -57,6 +57,7 @@ class ZmkConfigContentGenerator:
         keyboard_profile: "KeyboardProfile",
         shield_name: str | None = None,
         board_name: str = "nice_nano_v2",
+        separate_config_path: Path | None = None,
     ) -> bool:
         """Generate complete ZMK config workspace from glovebox files.
 
@@ -67,6 +68,7 @@ class ZmkConfigContentGenerator:
             keyboard_profile: Keyboard profile for build configuration
             shield_name: Shield name (defaults to keyboard name)
             board_name: Board name for builds
+            separate_config_path: Optional separate directory for config files
 
         Returns:
             bool: True if workspace generated successfully
@@ -91,12 +93,18 @@ class ZmkConfigContentGenerator:
                 return False
 
             # Generate west.yml for workspace configuration
-            if not self._generate_west_yml(workspace_path, keyboard_profile):
+            if not self._generate_west_yml(
+                workspace_path, keyboard_profile, separate_config_path
+            ):
                 return False
 
             # Create config directory and copy keymap/config files
             if not self._setup_config_directory(
-                workspace_path, keymap_file, config_file, effective_shield
+                workspace_path,
+                keymap_file,
+                config_file,
+                effective_shield,
+                separate_config_path,
             ):
                 return False
 
@@ -251,23 +259,33 @@ class ZmkConfigContentGenerator:
         return f"{header_comment}\n{yaml_content}"
 
     def _generate_west_yml(
-        self, workspace_path: Path, keyboard_profile: "KeyboardProfile"
+        self,
+        workspace_path: Path,
+        keyboard_profile: "KeyboardProfile",
+        separate_config_path: Path | None = None,
     ) -> bool:
         """Generate west.yml for ZMK workspace configuration using WestManifestConfig.
 
         Args:
             workspace_path: Path to workspace
             keyboard_profile: Keyboard profile to determine ZMK repository
+            separate_config_path: Optional separate directory for config files
 
         Returns:
             bool: True if west.yml generated successfully
         """
         west_config = self._create_west_config(keyboard_profile)
-        west_yml_path = workspace_path / "config" / "west.yml"
+
+        # Determine where to place west.yml
+        config_dir = (
+            separate_config_path
+            if separate_config_path
+            else (workspace_path / "config")
+        )
+        west_yml_path = config_dir / "west.yml"
 
         try:
             # Ensure config directory exists
-            config_dir = workspace_path / "config"
             if self.file_adapter:
                 self.file_adapter.create_directory(config_dir)
             else:
@@ -375,6 +393,7 @@ class ZmkConfigContentGenerator:
         keymap_file: Path,
         config_file: Path,
         shield_name: str,
+        separate_config_path: Path | None = None,
     ) -> bool:
         """Setup config directory with keymap and config files.
 
@@ -383,18 +402,29 @@ class ZmkConfigContentGenerator:
             keymap_file: Source keymap file
             config_file: Source config file
             shield_name: Shield name for file naming
+            separate_config_path: Optional separate directory for config files
 
         Returns:
             bool: True if config directory setup successfully
         """
-        config_dir = workspace_path / "config"
+        # Always create workspace config directory for west.yml
+        workspace_config_dir = workspace_path / "config"
+
+        # Determine where to put the actual config files
+        config_dir = (
+            separate_config_path if separate_config_path else workspace_config_dir
+        )
 
         try:
-            # Ensure config directory exists
+            # Ensure both directories exist
             if self.file_adapter:
-                self.file_adapter.create_directory(config_dir)
+                self.file_adapter.create_directory(workspace_config_dir)
+                if separate_config_path:
+                    self.file_adapter.create_directory(separate_config_path)
             else:
-                config_dir.mkdir(parents=True, exist_ok=True)
+                workspace_config_dir.mkdir(parents=True, exist_ok=True)
+                if separate_config_path:
+                    separate_config_path.mkdir(parents=True, exist_ok=True)
 
             # Copy keymap file
             keymap_dest = config_dir / f"{shield_name}.keymap"

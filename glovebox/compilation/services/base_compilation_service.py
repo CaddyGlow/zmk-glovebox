@@ -142,7 +142,7 @@ class BaseCompilationService(BaseService):
 
             # Step 4: Collect artifacts (common logic)
             firmware_files = self._collect_firmware_artifacts(
-                workspace_path, output_dir
+                workspace_path, output_dir, config
             )
             if not self._validate_artifacts(firmware_files, result):
                 return result
@@ -401,9 +401,9 @@ class BaseCompilationService(BaseService):
         workspace_path: Path,
         config: CompilationConfig,
     ) -> list[tuple[str, str]]:
-        """Prepare Docker volumes for compilation using single workspace volume strategy.
+        """Prepare Docker volumes for compilation.
 
-        Simplified volume strategy: only mounts workspace volume to Docker container.
+        Mounts workspace volume and separate build directory if configured.
         Artifacts are extracted from workspace post-execution using build matrix.
 
         Args:
@@ -418,6 +418,36 @@ class BaseCompilationService(BaseService):
         # Single workspace volume only - mount at /workspace for consistent path
         volumes.append((str(workspace_path.resolve()), "/workspace"))
 
+        # Check if we have a separate build directory configured
+        if config.zmk_config_repo and config.zmk_config_repo.build_root.host_path:
+            build_host_path = config.zmk_config_repo.build_root.host_path
+            build_container_path = config.zmk_config_repo.build_root.container_path
+
+            # Only add separate volume if build directory is different from workspace
+            if build_host_path != workspace_path:
+                # Mount separate build directory using configured container path
+                volumes.append((str(build_host_path.resolve()), build_container_path))
+                self.logger.debug(
+                    "Added separate build volume: %s -> %s",
+                    build_host_path,
+                    build_container_path,
+                )
+
+        # Check if we have a separate config directory configured
+        if config.zmk_config_repo and config.zmk_config_repo.config_path.host_path:
+            config_host_path = config.zmk_config_repo.config_path.host_path
+            config_container_path = config.zmk_config_repo.config_path.container_path
+
+            # Only add separate volume if config directory is different from workspace
+            if config_host_path != workspace_path:
+                # Mount separate config directory using configured container path
+                volumes.append((str(config_host_path.resolve()), config_container_path))
+                self.logger.debug(
+                    "Added separate config volume: %s -> %s",
+                    config_host_path,
+                    config_container_path,
+                )
+
         # Add custom volume templates (if specified by user)
         for volume_template in config.volume_templates:
             # Parse volume template (format: host_path:container_path)
@@ -427,19 +457,18 @@ class BaseCompilationService(BaseService):
                 container_path = parts[1]
                 volumes.append((host_path, container_path))
 
-        self.logger.debug(
-            "Prepared %d Docker volumes (single workspace strategy)", len(volumes)
-        )
+        self.logger.debug("Prepared %d Docker volumes", len(volumes))
         return volumes
 
     def _collect_firmware_artifacts(
-        self, workspace_path: Path, output_dir: Path
+        self, workspace_path: Path, output_dir: Path, config: CompilationConfig
     ) -> Any:
         """Collect firmware artifacts from workspace and output directories.
 
         Args:
             workspace_path: Path to workspace directory
             output_dir: Output directory for artifacts
+            config: Compilation configuration
 
         Returns:
             Any: Firmware files collection (will be properly typed in Phase 2)
@@ -450,9 +479,21 @@ class BaseCompilationService(BaseService):
 
             collector = create_simple_artifact_collector()
 
+            # Determine build root path for artifact collection
+            build_root_path = None
+            if (
+                config.zmk_config_repo
+                and config.zmk_config_repo.build_root.host_path
+                and config.zmk_config_repo.build_root.host_path != workspace_path
+            ):
+                # Use separate build directory if configured
+                build_root_path = config.zmk_config_repo.build_root.host_path
+
             # Collect and copy artifacts using ZMK build matrix
             output_files = collector.collect_and_copy(
-                workspace_path=workspace_path, output_dir=output_dir
+                workspace_path=workspace_path,
+                output_dir=output_dir,
+                build_root_path=build_root_path,
             )
 
             return output_files
