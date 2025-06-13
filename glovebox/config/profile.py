@@ -111,3 +111,27 @@ class KeyboardProfile:
                 combined[key] = value
 
         return combined
+
+    def get_board_name(self, fallback_board_targets: list[str] | None = None) -> str:
+        """Extract board name from keyboard profile or fallback targets.
+
+        Args:
+            fallback_board_targets: Optional board targets from compilation config
+
+        Returns:
+            str: Board name for compilation
+        """
+        # Use fallback board targets if provided
+        if fallback_board_targets and len(fallback_board_targets) > 0:
+            return fallback_board_targets[0]
+
+        # Default board for most ZMK keyboards
+        return "nice_nano_v2"
+
+    def get_shield_name(self) -> str:
+        """Extract shield name from keyboard profile.
+
+        Returns:
+            str: Shield name (uses keyboard name)
+        """
+        return self.keyboard_name

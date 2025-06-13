@@ -22,7 +22,6 @@ from glovebox.compilation.models.west_config import (
     WestWorkspaceConfig,
 )
 from glovebox.core.errors import GloveboxError
-from glovebox.models.docker_path import create_zmk_docker_paths
 
 
 if TYPE_CHECKING:
@@ -84,7 +83,7 @@ class ZmkConfigContentGenerator:
                 workspace_path=params.workspace_path,
                 keyboard_profile=params.keyboard_profile,
                 shield_name=params.effective_shield_name,
-                docker_paths=params.docker_paths,
+                config_docker_path=params.config_docker_path,
                 board_name=params.board_name,
                 zephyr_base_path=params.zephyr_base_path,
             )
@@ -584,7 +583,7 @@ for dynamic ZMK firmware compilation.
                 workspace_path=params.workspace_path,
                 keyboard_profile=params.keyboard_profile,
                 shield_name=params.effective_shield_name,
-                docker_paths=params.docker_paths,
+                config_docker_path=params.config_docker_path,
                 board_name=params.board_name,
                 zephyr_base_path=params.zephyr_base_path,
             )

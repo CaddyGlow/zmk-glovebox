@@ -27,7 +27,7 @@ from glovebox.compilation.workspace.zmk_config_workspace_manager import (
 from glovebox.config.compile_methods import CompilationConfig
 from glovebox.config.models.workspace import UserWorkspaceConfig
 from glovebox.core.errors import BuildError
-from glovebox.models.docker_path import create_zmk_docker_paths
+from glovebox.models.docker_path import DockerPath
 
 
 if TYPE_CHECKING:
@@ -214,24 +214,30 @@ class ZmkConfigCompilationService(BaseCompilationService):
         Returns:
             Path | None: Workspace path if successful
         """
-        # Generate workspace path for dynamic mode
-        # TODO: fix me to get random path
+        # Generate host workspace path for dynamic mode
         workspace_path = self._get_dynamic_workspace_path(
             config.zmk_config_repo, keyboard_profile
         )
 
-        # Create Docker paths for workspace organization
-        docker_paths = create_zmk_docker_paths(workspace_path)
+        # Get ZMK workspace config with configured Docker paths
+        zmk_workspace_config = config.zmk_config_repo
+        if not zmk_workspace_config:
+            # Create default ZMK workspace config for dynamic mode
+            from glovebox.config.compile_methods import ZmkWorkspaceConfig
 
-        # Create consolidated generation parameters
+            zmk_workspace_config = ZmkWorkspaceConfig()
+
+        # Create consolidated generation parameters using existing DockerPath objects
         generation_params = ZmkConfigGenerationParams(
             workspace_path=workspace_path,
             keymap_file=keymap_file,
             config_file=config_file,
             keyboard_profile=keyboard_profile,
-            docker_paths=docker_paths,
-            shield_name=self._extract_shield_name(config, keyboard_profile),
-            board_name=self._extract_board_name(config),
+            workspace_docker_path=zmk_workspace_config.workspace_path,
+            config_docker_path=zmk_workspace_config.config_path,
+            build_docker_path=zmk_workspace_config.build_root,
+            shield_name=keyboard_profile.get_shield_name(),
+            board_name=keyboard_profile.get_board_name(config.board_targets),
         )
 
         # Initialize dynamic workspace with consolidated parameters
@@ -290,21 +296,6 @@ class ZmkConfigCompilationService(BaseCompilationService):
             self.user_workspace_config.root_directory
             / f"zmk_config_{keyboard_profile.keyboard_name}"
         )
-
-    def _extract_shield_name(
-        self, config: CompilationConfig, keyboard_profile: "KeyboardProfile"
-    ) -> str:
-        """Extract shield name from configuration or keyboard profile.
-
-        Args:
-            config: Compilation configuration
-            keyboard_profile: Keyboard profile
-
-        Returns:
-            str: Shield name
-        """
-        # Use keyboard name as shield name for dynamic generation
-        return keyboard_profile.keyboard_name
 
     def _validate_strategy_specific(self, config: CompilationConfig) -> bool:
         """Validate configuration for ZMK config compilation strategy.
