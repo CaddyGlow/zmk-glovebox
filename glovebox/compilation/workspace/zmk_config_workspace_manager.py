@@ -375,6 +375,7 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
         shield_name: str | None = None,
         board_name: str = "nice_nano_v2",
         separate_config_path: Path | None = None,
+        zephyr_base_path: str = "zephyr",
     ) -> bool:
         """Initialize dynamic ZMK config workspace without external repository.
 
@@ -392,6 +393,8 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
             keyboard_profile: Keyboard profile for configuration
             shield_name: Shield name (defaults to keyboard name)
             board_name: Board name for builds
+            separate_config_path: Optional separate directory for config files
+            zephyr_base_path: Path to zephyr directory relative to workspace
 
         Returns:
             bool: True if workspace initialized successfully
@@ -419,6 +422,7 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
                     keyboard_profile,
                     shield_name,
                     board_name,
+                    zephyr_base_path,
                 )
 
             # Use content generator to create workspace files
@@ -439,6 +443,7 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
                 shield_name=shield_name,
                 board_name=board_name,
                 separate_config_path=separate_config_path,
+                zephyr_base_path=zephyr_base_path,
             )
 
             if not workspace_generated:
@@ -518,6 +523,7 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
         keyboard_profile: "KeyboardProfile",
         shield_name: str | None = None,
         board_name: str = "nice_nano_v2",
+        zephyr_base_path: str = "zephyr",
     ) -> bool:
         """Initialize dynamic workspace directly without caching (fallback method).
 
@@ -528,6 +534,7 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
             keyboard_profile: Keyboard profile for configuration
             shield_name: Shield name (defaults to keyboard name)
             board_name: Board name for builds
+            zephyr_base_path: Path to zephyr directory relative to workspace
 
         Returns:
             bool: True if workspace initialized successfully
@@ -551,6 +558,7 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
                 keyboard_profile=keyboard_profile,
                 shield_name=shield_name,
                 board_name=board_name,
+                zephyr_base_path=zephyr_base_path,
             )
 
             if not workspace_generated:
