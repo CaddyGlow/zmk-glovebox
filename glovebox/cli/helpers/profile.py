@@ -67,6 +67,7 @@ def get_keyboard_profile_from_context(
         raise RuntimeError(
             "KeyboardProfile not available in context. Ensure @with_profile decorator is used."
         )
+
     return keyboard_profile
 
 

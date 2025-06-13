@@ -35,27 +35,33 @@ class BuildTargetConfig(BaseModel):
 
 
 class BuildYamlConfig(BaseModel):
-    """Configuration parsed from ZMK config repository build.yaml."""
+    """Configuration parsed from ZMQ config repository build.yaml."""
 
     board: list[str] = Field(default_factory=list)
     shield: list[str] = Field(default_factory=list)
     include: list[BuildTargetConfig] = Field(default_factory=list)
 
-    def get_board_name(self) -> str:
-        """Extract board name from keyboard profile or fallback targets.
-
-        Args:
-            fallback_board_targets: Optional board targets from compilation config
+    def get_board_name(self) -> str | None:
+        """Extract board name from Github Actions build matrix.
 
         Returns:
-            str: Board name for compilation
+            str | None: Board name for compilation, or None if no board found
         """
         if len(self.board):
             return self.board[0]
         if len(self.include):
             return self.include[0].board
+        return None
 
-        raise GloveboxError("Build.yaml is not defined")
+    def get_shields(self) -> list[str]:
+        """Extract board name from Github Actions build matrix.
+
+        Returns:
+            list[str]: List of shield names for compilation
+        """
+        if len(self.shield):
+            return self.shield
+        return [target.shield for target in self.include if target.shield is not None]
 
 
 class CacheConfig(BaseModel):
@@ -103,6 +109,7 @@ class DockerCompilationConfig(BaseModel):
     image: str = "zmkfirmware/zmk-build-arm:stable"
     jobs: int | None = None
     build_commands: list[str] = Field(default_factory=list)
+    entrypoint_command: str | None = None
 
     # TODO: Not used in the docker run command
     environment_template: dict[str, str] = Field(default_factory=dict)
@@ -185,6 +192,10 @@ class MoergoCompilationConfig(DockerCompilationConfig):
 
     # Docker configuration
     image: str = "glove80-zmk-config-docker"
+
+    # We need to override the entrypoint to be able to
+    # execute commands in the container
+    entrypoint_command: str | None = "/bin/sh"
 
     # Repository and firmware branch
     # only branch is used for Moergo

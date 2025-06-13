@@ -308,6 +308,139 @@ class TestBuildMatrixResolver:
         finally:
             build_yaml_path.unlink()
 
+    def test_resolve_from_config(self):
+        """Test resolving build matrix from BuildYamlConfig instance."""
+        from glovebox.compilation.models.build_matrix import BuildYamlConfig
+
+        config = BuildYamlConfig(
+            board=["nice_nano_v2"],
+            shield=["corne_left", "corne_right"],
+        )
+
+        result = self.resolver.resolve_from_config(config)
+
+        assert isinstance(result, BuildMatrix)
+        assert len(result.targets) == 2
+        assert len(result.board_defaults) == 1
+        assert len(result.shield_defaults) == 2
+
+        # Check targets
+        combinations = [(t.board, t.shield) for t in result.targets]
+        expected = [("nice_nano_v2", "corne_left"), ("nice_nano_v2", "corne_right")]
+
+        for expected_combo in expected:
+            assert expected_combo in combinations
+
+    def test_resolve_from_config_with_include(self):
+        """Test resolving build matrix from config with include entries."""
+        from glovebox.compilation.models.build_matrix import BuildYamlConfig
+
+        config = BuildYamlConfig(
+            include=[
+                {"board": "nice_nano_v2", "shield": "corne_left"},
+                {"board": "seeeduino_xiao_ble"},
+            ]
+        )
+
+        result = self.resolver.resolve_from_config(config)
+
+        assert len(result.targets) == 2
+        assert result.targets[0].board == "nice_nano_v2"
+        assert result.targets[0].shield == "corne_left"
+        assert result.targets[1].board == "seeeduino_xiao_ble"
+        assert result.targets[1].shield is None
+
+    def test_write_config_to_yaml(self):
+        """Test writing BuildYamlConfig to YAML file."""
+        from glovebox.compilation.models.build_matrix import BuildYamlConfig
+
+        config = BuildYamlConfig(
+            board=["nice_nano_v2", "seeeduino_xiao_ble"],
+            shield=["corne_left", "corne_right"],
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "test_build.yaml"
+
+            self.resolver.write_config_to_yaml(config, output_path)
+
+            # Verify file was created
+            assert output_path.exists()
+
+            # Verify contents
+            with output_path.open(encoding="utf-8") as f:
+                written_config = yaml.safe_load(f)
+
+            assert written_config["board"] == ["nice_nano_v2", "seeeduino_xiao_ble"]
+            assert written_config["shield"] == ["corne_left", "corne_right"]
+
+    def test_write_config_to_yaml_with_include(self):
+        """Test writing BuildYamlConfig with include entries to YAML file."""
+        from glovebox.compilation.models.build_matrix import BuildYamlConfig
+
+        config = BuildYamlConfig(
+            include=[
+                {"board": "nice_nano_v2", "shield": "corne_left"},
+                {"board": "seeeduino_xiao_ble"},
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "test_build.yaml"
+
+            self.resolver.write_config_to_yaml(config, output_path)
+
+            # Verify file was created
+            assert output_path.exists()
+
+            # Verify contents
+            with output_path.open(encoding="utf-8") as f:
+                written_config = yaml.safe_load(f)
+
+            assert len(written_config["include"]) == 2
+            assert written_config["include"][0]["board"] == "nice_nano_v2"
+            assert written_config["include"][0]["shield"] == "corne_left"
+            assert written_config["include"][1]["board"] == "seeeduino_xiao_ble"
+
+    def test_write_config_to_yaml_creates_directory(self):
+        """Test that write_config_to_yaml creates parent directories."""
+        from glovebox.compilation.models.build_matrix import BuildYamlConfig
+
+        config = BuildYamlConfig(board=["test_board"])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create nested path that doesn't exist
+            output_path = Path(temp_dir) / "nested" / "dirs" / "test_build.yaml"
+
+            self.resolver.write_config_to_yaml(config, output_path)
+
+            # Verify file and directories were created
+            assert output_path.exists()
+            assert output_path.parent.exists()
+
+    def test_write_config_to_yaml_excludes_none_values(self):
+        """Test that None values are excluded from written YAML."""
+        from glovebox.compilation.models.build_matrix import BuildYamlConfig
+
+        config = BuildYamlConfig(
+            board=["test_board"],
+            shield=None,  # This should be excluded
+            include=None,  # This should be excluded
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "test_build.yaml"
+
+            self.resolver.write_config_to_yaml(config, output_path)
+
+            # Verify contents exclude None values
+            with output_path.open(encoding="utf-8") as f:
+                written_config = yaml.safe_load(f)
+
+            assert "board" in written_config
+            assert "shield" not in written_config
+            assert "include" not in written_config
+
 
 class TestRealWorldScenarios:
     """Test with real-world ZMK build.yaml scenarios."""

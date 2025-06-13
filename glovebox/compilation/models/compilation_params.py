@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from glovebox.config.compile_methods import (
         ZmkCompilationConfig,
         ZmkWorkspaceConfig,
+        BuildYamlConfig,
     )
     from glovebox.config.profile import KeyboardProfile
     from glovebox.models.docker_path import DockerPath
@@ -73,14 +74,8 @@ class ZmkConfigGenerationParams:
     workspace_docker_path: "DockerPath"
     config_docker_path: "DockerPath"
     build_docker_path: "DockerPath"
-    shield_name: str | None = None
-    board_name: str = "nice_nano_v2"
+    build_config: "BuildYamlConfig"
     zephyr_base_path: str = "zephyr"
-
-    @property
-    def effective_shield_name(self) -> str:
-        """Get effective shield name, defaulting to keyboard name."""
-        return self.shield_name or self.keyboard_profile.keyboard_name
 
     @property
     def config_directory_host(self) -> Path:
@@ -99,9 +94,10 @@ class ZmkConfigFileParams:
 
     workspace_path: Path
     keyboard_profile: "KeyboardProfile"
-    shield_name: str
+    shield_name: str | None
     config_docker_path: "DockerPath"
-    board_name: str = "nice_nano_v2"
+    build_config: BuildYamlConfig
+    board_name: str | None = "nice_nano_v2"
     zephyr_base_path: str = "zephyr"
 
     @property

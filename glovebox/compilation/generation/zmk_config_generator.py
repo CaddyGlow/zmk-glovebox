@@ -78,13 +78,17 @@ class ZmkConfigContentGenerator:
             if not self._ensure_workspace_directory(params.workspace_path):
                 return False
 
-            # Create file-specific parameters for helper methods
+            # k Create file-specific parameters for helper methods
+            shield_names = params.board_config.get_shields()
+            shield_name = shield_names[0] if shield_names else None
+            board_name = params.board_config.get_board_name()
+
             file_params = ZmkConfigFileParams(
                 workspace_path=params.workspace_path,
                 keyboard_profile=params.keyboard_profile,
-                shield_name=params.effective_shield_name,
+                shield_name=shield_name,
                 config_docker_path=params.config_docker_path,
-                board_name=params.board_name,
+                board_name=board_name,
                 zephyr_base_path=params.zephyr_base_path,
             )
 
@@ -530,7 +534,9 @@ for dynamic ZMK firmware compilation.
             # Determine config path relative to workspace using Docker paths
             config_dir = params.config_directory_host
             try:
-                config_rel_path = str(config_dir.relative_to(params.workspace_path))
+                config_rel_path = str(
+                    config_dir.relative_to(params.workspace_path, walk_up=True)
+                )
             except ValueError:
                 # If config_dir is not relative to workspace, use absolute path
                 config_rel_path = str(config_dir)
@@ -578,13 +584,17 @@ for dynamic ZMK firmware compilation.
         try:
             self.logger.info("Updating ZMK config workspace for layout changes")
 
-            # Create file-specific parameters for helper methods
+            # k Create file-specific parameters for helper methods
+            shield_names = params.board_config.get_shields()
+            shield_name = shield_names[0] if shield_names else None
+            board_name = params.board_config.get_board_name()
+
             file_params = ZmkConfigFileParams(
                 workspace_path=params.workspace_path,
                 keyboard_profile=params.keyboard_profile,
-                shield_name=params.effective_shield_name,
+                shield_name=shield_name,
                 config_docker_path=params.config_docker_path,
-                board_name=params.board_name,
+                board_name=board_name,
                 zephyr_base_path=params.zephyr_base_path,
             )
 

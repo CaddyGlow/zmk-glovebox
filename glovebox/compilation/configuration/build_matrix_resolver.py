@@ -73,6 +73,69 @@ class BuildMatrixResolver:
             self.logger.error(msg)
             raise BuildMatrixResolverError(msg) from e
 
+    def resolve_from_config(self, config: BuildYamlConfig) -> BuildMatrix:
+        """Create build matrix from BuildYamlConfig instance.
+
+        Args:
+            config: Pre-validated build configuration
+
+        Returns:
+            BuildMatrix: Resolved build matrix
+
+        Raises:
+            BuildMatrixResolverError: If build matrix resolution fails
+        """
+        try:
+            self.logger.debug("Resolving build matrix from config")
+            targets = self._resolve_build_targets(config)
+
+            self.logger.info("Resolved %d build targets", len(targets))
+            return BuildMatrix(
+                targets=targets,
+                board_defaults=config.board or [],
+                shield_defaults=config.shield or [],
+            )
+
+        except Exception as e:
+            msg = f"Failed to resolve build matrix: {e}"
+            self.logger.error(msg)
+            raise BuildMatrixResolverError(msg) from e
+
+    def write_config_to_yaml(self, config: BuildYamlConfig, output_path: Path) -> None:
+        """Write BuildYamlConfig to YAML file.
+
+        Args:
+            config: Build configuration to write
+            output_path: Path to write YAML file
+
+        Raises:
+            BuildMatrixResolverError: If YAML writing fails
+        """
+        try:
+            self.logger.debug("Writing build config to %s", output_path)
+
+            # Convert Pydantic model to dict, excluding None values
+            config_dict = config.model_dump(exclude_none=True)
+
+            # Ensure parent directory exists
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            with output_path.open("w", encoding="utf-8") as f:
+                yaml.safe_dump(
+                    config_dict,
+                    f,
+                    default_flow_style=False,
+                    sort_keys=False,
+                    indent=2,
+                )
+
+            self.logger.info("Build config written to %s", output_path)
+
+        except (OSError, yaml.YAMLError) as e:
+            msg = f"Failed to write build config to YAML: {e}"
+            self.logger.error(msg)
+            raise BuildMatrixResolverError(msg) from e
+
     def _load_build_yaml(self, build_yaml_path: Path) -> dict[str, Any]:
         """Load and parse build.yaml file.
 

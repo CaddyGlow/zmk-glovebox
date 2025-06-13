@@ -98,6 +98,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
             if not isinstance(config, ZmkCompilationConfig):
                 raise BuildError("Invalid compilation configuration")
 
+            logger.debug("Preparing ZMK config workspace: %r", config)
             # Create consolidated parameters
             params = ZmkCompilationParams(
                 keymap_file=keymap_file,
@@ -318,6 +319,35 @@ class ZmkConfigCompilationService(BaseCompilationService):
             return False
 
         return True
+
+    def _prepare_build_volumes(
+        self,
+        workspace_path: Path,
+        config: CompileMethodConfigUnion,
+    ) -> list[tuple[str, str]]:
+        """Prepare Docker volumes for Moergo compilation.
+
+        Args:
+            workspace_path: Path to workspace directory
+            config: Compilation configuration
+
+        Returns:
+            list[tuple[str, str]]: Docker volumes for compilation
+        """
+        if not isinstance(config, ZmkCompilationConfig):
+            raise BuildError("Invalid compilation configuration")
+
+        volumes = []
+
+        if config.workspace.workspace_path.host_path:
+            volumes.append(config.workspace.workspace_path.vol())
+        if config.workspace.build_root.host_path:
+            volumes.append(config.workspace.build_root.vol())
+        if config.workspace.config_path.host_path:
+            volumes.append(config.workspace.config_path.vol())
+
+        self.logger.debug("Prepared %d Docker volumes for Moergo build", len(volumes))
+        return volumes
 
 
 def create_zmk_config_service(
