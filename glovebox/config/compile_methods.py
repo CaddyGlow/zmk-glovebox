@@ -58,30 +58,6 @@ class BuildYamlConfig(BaseModel):
         raise GloveboxError("Build.yaml is not defined")
 
 
-# class WestWorkspaceConfig(BaseModel):
-#     """ZMK West workspace configuration for traditional manifests."""
-#
-#     manifest_url: str = "https://github.com/zmkfirmware/zmk.git"
-#     manifest_revision: str = "main"
-#     modules: list[str] = Field(default_factory=list)
-#     west_commands: list[str] = Field(default_factory=list)
-#     workspace_path: Path = Path("/zmk-workspace")
-#     config_path: str = "config"
-#     build_root: str = "build"
-#
-#     @field_validator("workspace_path")
-#     @classmethod
-#     def expand_workspace_path(cls, v: Path) -> Path:
-#         """Expand environment variables and user home in workspace path."""
-#         return expand_path_variables(v)
-#
-#     @field_validator("build_root")
-#     @classmethod
-#     def expand_build_root(cls, v: Path) -> Path:
-#         """Expand environment variables and user home in build root path."""
-#         return expand_path_variables(v)
-
-
 class CacheConfig(BaseModel):
     """Configuration for cache management."""
 
@@ -230,7 +206,6 @@ __all__ = [
     "BuildTargetConfig",
     "BuildYamlConfig",
     "ZmkWorkspaceConfig",
-    "WestWorkspaceConfig",
     "CacheConfig",
     "DockerUserConfig",
     "DockerCompilationConfig",

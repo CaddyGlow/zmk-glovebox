@@ -24,20 +24,21 @@ def setup_zmk_workspace_paths(params: "ZmkCompilationParams") -> None:
     """
     config = params.compilation_config
 
-    if not config.zmk_config_repo:
-        raise ValueError("ZMK config repository configuration is missing")
+    workspace_config = config.workspace
+    if not workspace_config:
+        raise ValueError("ZMK workspace configuration is missing")
 
     # Create temp directories and update DockerPath objects
     temp_workspace = Path(tempfile.mkdtemp(prefix="zmk_config"))
-    config.zmk_config_repo.workspace_path.host_path = temp_workspace
+    workspace_config.workspace_path.host_path = temp_workspace
 
     temp_build = Path(tempfile.mkdtemp(prefix="zmk_build"))
-    config.zmk_config_repo.build_root.host_path = temp_build
-    config.zmk_config_repo.build_root.container_path = "/build"
+    workspace_config.build_root.host_path = temp_build
+    workspace_config.build_root.container_path = "/build"
 
     temp_config = Path(tempfile.mkdtemp(prefix="zmk_config_dir"))
-    config.zmk_config_repo.config_path.host_path = temp_config
-    config.zmk_config_repo.config_path.container_path = "/config"
+    workspace_config.config_path.host_path = temp_config
+    workspace_config.config_path.container_path = "/config"
 
 
 def build_zmk_init_commands(workspace_params: "ZmkWorkspaceParams") -> list[str]:
@@ -54,7 +55,7 @@ def build_zmk_init_commands(workspace_params: "ZmkWorkspaceParams") -> list[str]
     """
     config = workspace_params.zmk_config
     container_workspace = config.workspace_path.container_path
-    config_path = config.config_path_absolute
+    config_path = config.config_path.container_path
     build_root = config.build_root.container_path
 
     return [
@@ -84,7 +85,7 @@ def build_zmk_compilation_commands(
     config = workspace_params.zmk_config
 
     for target in build_matrix.targets:
-        base_build_dir = config.build_root_absolute
+        base_build_dir = config.build_root.container_path
         build_dir = Path(base_build_dir) / f"{target.artifact_name or target.board}"
 
         if target.shield:
@@ -93,7 +94,7 @@ def build_zmk_compilation_commands(
         west_cmd = f"west build -s zmk/app -b {target.board} -d {build_dir}"
 
         # Add CMake arguments
-        cmake_args = [f"-DZMK_CONFIG={config.config_path_absolute}"]
+        cmake_args = [f"-DZMK_CONFIG={config.config_path.container_path}"]
         if target.shield:
             cmake_args.append(f"-DSHIELD={target.shield}")
         if target.cmake_args:
@@ -128,7 +129,7 @@ def build_zmk_fallback_commands(
     config = workspace_params.zmk_config
 
     base_build_dir = config.build_root.container_path
-    cmake_args = [f"-DZMK_CONFIG={config.config_path_absolute}"]
+    cmake_args = [f"-DZMK_CONFIG={config.config_path.container_path}"]
 
     if len(board_targets) > 1:
         # Multiple board targets

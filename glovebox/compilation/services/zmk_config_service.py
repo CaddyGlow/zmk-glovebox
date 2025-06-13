@@ -298,6 +298,27 @@ class ZmkConfigCompilationService(BaseCompilationService):
             / f"zmk_config_{keyboard_profile.keyboard_name}"
         )
 
+    def _validate_strategy_specific(self, config: CompileMethodConfigUnion) -> bool:
+        """Validate ZMK config strategy-specific configuration requirements.
+
+        Args:
+            config: Compilation configuration to validate
+
+        Returns:
+            bool: True if strategy-specific requirements are met
+        """
+        if not isinstance(config, ZmkCompilationConfig):
+            self.logger.error("Invalid configuration type for ZMK config strategy")
+            return False
+
+        # ZMK config strategy specific validation
+        workspace_config = config.workspace
+        if not workspace_config:
+            self.logger.error("ZMK workspace configuration is required")
+            return False
+
+        return True
+
 
 def create_zmk_config_service(
     workspace_manager: ZmkConfigWorkspaceManagerProtocol | None = None,
