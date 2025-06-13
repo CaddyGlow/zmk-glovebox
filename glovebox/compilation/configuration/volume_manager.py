@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from glovebox.config.compile_methods import CompilationConfig
+from glovebox.config.compile_methods import DockerCompilationConfig
 from glovebox.core.errors import GloveboxError
 
 
@@ -28,7 +28,7 @@ class VolumeManager:
 
     def prepare_volumes(
         self,
-        config: CompilationConfig,
+        config: DockerCompilationConfig,
         keymap_file: Path,
         config_file: Path,
         output_dir: Path,

@@ -9,7 +9,7 @@ from glovebox.compilation.services.west_compilation_service import (
     create_west_service,
 )
 from glovebox.config.compile_methods import (
-    CompilationConfig,
+    DockerCompilationConfig,
     WestWorkspaceConfig,
 )
 from glovebox.firmware.models import FirmwareOutputFiles
@@ -35,7 +35,7 @@ class TestWestCompilationService:
 
     def _create_mock_config(self, **overrides):
         """Create a mock CompilationConfig with all required attributes."""
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
 
         # Set default values for all required attributes
         config.image = "zmkfirmware/zmk-build-arm:stable"
@@ -76,7 +76,7 @@ class TestWestCompilationService:
 
     def test_validate_configuration_valid_with_workspace(self):
         """Test configuration validation with valid workspace config."""
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
         config.west_workspace = Mock(spec=WestWorkspaceConfig)
         config.west_workspace.workspace_path = "/tmp/workspace"
         config.west_workspace.manifest_url = "https://github.com/zmkfirmware/zmk"
@@ -86,7 +86,7 @@ class TestWestCompilationService:
 
     def test_validate_configuration_missing_workspace_path(self):
         """Test configuration validation with missing workspace path."""
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
         config.west_workspace = Mock(spec=WestWorkspaceConfig)
         config.west_workspace.workspace_path = ""
         config.west_workspace.manifest_url = "https://github.com/zmkfirmware/zmk"
@@ -96,7 +96,7 @@ class TestWestCompilationService:
 
     def test_validate_configuration_missing_manifest_url(self):
         """Test configuration validation with missing manifest URL."""
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
         config.west_workspace = Mock(spec=WestWorkspaceConfig)
         config.west_workspace.workspace_path = "/tmp/workspace"
         config.west_workspace.manifest_url = ""
@@ -201,7 +201,7 @@ class TestWestCompilationService:
             config_file = Path(temp_dir) / "config.conf"
             output_dir = Path(temp_dir) / "output"
 
-            config = Mock(spec=CompilationConfig)
+            config = Mock(spec=DockerCompilationConfig)
             config.west_workspace = None
 
             # Remove Docker adapter
@@ -221,7 +221,7 @@ class TestWestCompilationService:
             config_file = Path(temp_dir) / "config.conf"
             output_dir = Path(temp_dir) / "output"
 
-            config = Mock(spec=CompilationConfig)
+            config = Mock(spec=DockerCompilationConfig)
             config.west_workspace = Mock(spec=WestWorkspaceConfig)
             config.west_workspace.workspace_path = str(Path(temp_dir) / "workspace")
 
@@ -377,7 +377,7 @@ class TestWestCompilationService:
             # Create workspace directory
             workspace_path.mkdir()
 
-            config = Mock(spec=CompilationConfig)
+            config = Mock(spec=DockerCompilationConfig)
             config.west_workspace = Mock(spec=WestWorkspaceConfig)
             config.west_workspace.workspace_path = str(workspace_path)
             config.west_workspace.config_path = "config"
@@ -400,7 +400,7 @@ class TestWestCompilationService:
             config_file = Path(temp_dir) / "config.conf"
             output_dir = Path(temp_dir) / "output"
 
-            config = Mock(spec=CompilationConfig)
+            config = Mock(spec=DockerCompilationConfig)
             config.west_workspace = None
             config.volume_templates = []
 
@@ -472,7 +472,7 @@ class TestWestCompilationServiceIntegration:
             self.service.set_docker_adapter(mock_docker)
 
             # Test configuration
-            config = Mock(spec=CompilationConfig)
+            config = Mock(spec=DockerCompilationConfig)
             config.west_workspace = Mock(spec=WestWorkspaceConfig)
             config.west_workspace.workspace_path = "/tmp/workspace"
             config.west_workspace.config_path = "config"
@@ -550,7 +550,7 @@ class TestWestCompilationServiceIntegration:
                         self.service, service_attr
                     ).collect_artifacts.side_effect = exception
 
-                config = Mock(spec=CompilationConfig)
+                config = Mock(spec=DockerCompilationConfig)
                 config.west_workspace = Mock(spec=WestWorkspaceConfig)
                 config.west_workspace.workspace_path = "/tmp/workspace"
                 config.volume_templates = []
@@ -573,7 +573,7 @@ class TestWestCompilationServiceIntegration:
         west_workspace = WestWorkspaceConfig(
             workspace_path="/tmp/workspace", build_root="/custom/build/path"
         )
-        config = CompilationConfig(
+        config = DockerCompilationConfig(
             west_workspace=west_workspace, board_targets=["nice_nano_v2"]
         )
 
@@ -589,7 +589,7 @@ class TestWestCompilationServiceIntegration:
         """Test west build command generation without build_root."""
         # Create a configuration without build_root
         west_workspace = WestWorkspaceConfig(workspace_path="/tmp/workspace")
-        config = CompilationConfig(
+        config = DockerCompilationConfig(
             west_workspace=west_workspace, board_targets=["nice_nano_v2"]
         )
 
@@ -604,7 +604,7 @@ class TestWestCompilationServiceIntegration:
     def test_build_compilation_command_no_west_workspace(self):
         """Test west build command generation with no west workspace config."""
         # Create a configuration without west_workspace
-        config = CompilationConfig(board_targets=["nice_nano_v2"])
+        config = DockerCompilationConfig(board_targets=["nice_nano_v2"])
 
         workspace_path = Path("/tmp/workspace")
 

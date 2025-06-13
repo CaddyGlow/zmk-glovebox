@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from glovebox.core.errors import GloveboxError
 from glovebox.models.docker_path import DockerPath
 
 
@@ -40,85 +41,45 @@ class BuildYamlConfig(BaseModel):
     shield: list[str] = Field(default_factory=list)
     include: list[BuildTargetConfig] = Field(default_factory=list)
 
+    def get_board_name(self) -> str:
+        """Extract board name from keyboard profile or fallback targets.
 
-class ZmkWorkspaceConfig(BaseModel):
-    """ZMK config repository configuration for config-based manifests."""
+        Args:
+            fallback_board_targets: Optional board targets from compilation config
 
-    config_repo_url: str | None = None
-    config_repo_revision: str | None = None
+        Returns:
+            str: Board name for compilation
+        """
+        if len(self.board):
+            return self.board[0]
+        if len(self.include):
+            return self.include[0].board
 
-    build_yaml_path: str = "build.yaml"
-    workspace_path: DockerPath = Field(
-        default_factory=lambda: DockerPath(
-            host_path=Path("/workspace"), container_path="/workspace"
-        )
-    )
-    build_root: DockerPath = Field(
-        default_factory=lambda: DockerPath(
-            host_path=Path("build"), container_path="build"
-        )
-    )
-    config_path: DockerPath = Field(
-        default_factory=lambda: DockerPath(
-            host_path=Path("config"), container_path="config"
-        )
-    )
-
-    @property
-    def config_path_absolute(self) -> Path:
-        """Get the fully expanded config path."""
-        # If we have a separate config directory (different host paths), use absolute container path
-        if (
-            self.config_path.host_path
-            and self.workspace_path.host_path
-            and self.config_path.host_path != self.workspace_path.host_path
-        ):
-            return Path(
-                self.config_path.container_path
-            )  # Use configured container path
-
-        # Otherwise use relative path within workspace
-        return (
-            Path(self.workspace_path.container_path) / self.config_path.container_path
-        )
-
-    @property
-    def build_root_absolute(self) -> Path:
-        """Get the fully expanded build root path."""
-        # If we have a separate build directory (different host paths), use the configured container path
-        if (
-            self.build_root.host_path
-            and self.workspace_path.host_path
-            and self.build_root.host_path != self.workspace_path.host_path
-        ):
-            return Path(self.build_root.container_path)  # Use configured container path
-
-        # Otherwise use relative path within workspace
-        return Path(self.workspace_path.container_path) / self.build_root.container_path
+        raise GloveboxError("Build.yaml is not defined")
 
 
-class WestWorkspaceConfig(BaseModel):
-    """ZMK West workspace configuration for traditional manifests."""
-
-    manifest_url: str = "https://github.com/zmkfirmware/zmk.git"
-    manifest_revision: str = "main"
-    modules: list[str] = Field(default_factory=list)
-    west_commands: list[str] = Field(default_factory=list)
-    workspace_path: Path = Path("/zmk-workspace")
-    config_path: str = "config"
-    build_root: str = "build"
-
-    @field_validator("workspace_path")
-    @classmethod
-    def expand_workspace_path(cls, v: Path) -> Path:
-        """Expand environment variables and user home in workspace path."""
-        return expand_path_variables(v)
-
-    @field_validator("build_root")
-    @classmethod
-    def expand_build_root(cls, v: Path) -> Path:
-        """Expand environment variables and user home in build root path."""
-        return expand_path_variables(v)
+# class WestWorkspaceConfig(BaseModel):
+#     """ZMK West workspace configuration for traditional manifests."""
+#
+#     manifest_url: str = "https://github.com/zmkfirmware/zmk.git"
+#     manifest_revision: str = "main"
+#     modules: list[str] = Field(default_factory=list)
+#     west_commands: list[str] = Field(default_factory=list)
+#     workspace_path: Path = Path("/zmk-workspace")
+#     config_path: str = "config"
+#     build_root: str = "build"
+#
+#     @field_validator("workspace_path")
+#     @classmethod
+#     def expand_workspace_path(cls, v: Path) -> Path:
+#         """Expand environment variables and user home in workspace path."""
+#         return expand_path_variables(v)
+#
+#     @field_validator("build_root")
+#     @classmethod
+#     def expand_build_root(cls, v: Path) -> Path:
+#         """Expand environment variables and user home in build root path."""
+#         return expand_path_variables(v)
 
 
 class CacheConfig(BaseModel):
@@ -155,62 +116,28 @@ class DockerUserConfig(BaseModel):
         return path.resolve() if path.exists() else path
 
 
-class CompilationConfig(BaseModel):
+class DockerCompilationConfig(BaseModel):
     """Unified compilation configuration for all build strategies.
 
     This replaces the multiple overlapping config classes with a single
     unified configuration that supports all compilation strategies.
     """
 
-    # Build strategy selection
-    strategy: Literal[
-        "zmk_config",
-        "west",
-    ] = "zmk_config"
-
     # Docker configuration (for docker-based strategies)
     image: str = "zmkfirmware/zmk-build-arm:stable"
-    repository: str = "zmkfirmware/zmk"
-    branch: str = "main"
     jobs: int | None = None
     build_commands: list[str] = Field(default_factory=list)
+
+    # TODO: Not used in the docker run command
     environment_template: dict[str, str] = Field(default_factory=dict)
     volume_templates: list[str] = Field(default_factory=list)
 
-    # Build targets
-    board_targets: list[str] = Field(default_factory=list)
-
-    # ZMK config repository configuration (strategy: zmk_config)
-    zmk_config_repo: ZmkWorkspaceConfig = Field(default_factory=ZmkWorkspaceConfig)
-
-    # West workspace configuration (strategy: west)
-    west_workspace: WestWorkspaceConfig | None = None
-
-    # Cache configuration
-    cache: CacheConfig = Field(default_factory=CacheConfig)
-
-    # Docker user configuration
-    docker_user: DockerUserConfig = Field(default_factory=DockerUserConfig)
-
-    # Workspace configuration
-    workspace_root: Path | None = None
-
+    # Workspace management configuration
     cleanup_workspace: bool = True
     preserve_on_failure: bool = False
 
-    # Artifact handling
-    artifact_naming: str = (
-        "zmk_github_actions"  # zmk_github_actions, descriptive, preserve
-    )
-    build_matrix_file: Path | None = None  # Path to build.yaml
-
-    @field_validator("workspace_root")
-    @classmethod
-    def expand_workspace_root(cls, v: Path | None) -> Path | None:
-        """Expand environment variables and user home in workspace root path."""
-        if v is None:
-            return None
-        return Path(expand_path_variables(v))
+    # Docker user configuration
+    docker_user: DockerUserConfig = Field(default_factory=DockerUserConfig)
 
     @field_validator("volume_templates")
     @classmethod
@@ -226,12 +153,76 @@ class CompilationConfig(BaseModel):
             key: str(expand_path_variables(Path(value))) for key, value in v.items()
         }
 
-    def is_docker_based(self) -> bool:
-        """Check if this configuration uses Docker."""
-        return self.strategy in [
-            "zmk_config",
-            "west",
-        ]
+
+class ZmkWorkspaceConfig(BaseModel):
+    """ZMK config repository configuration for config-based manifests."""
+
+    # Default firmware repository
+    repository: str = "zmkfirmware/zmk"
+    branch: str = "main"
+
+    # ZMK configuration repository to clone
+    config_repo_url: str | None = None
+    config_repo_revision: str | None = None
+
+    # Matrix filename
+    build_matrix_file: Path = Field(default=Path("build.yaml"))
+
+    # Host and container path mappings
+    # if the host path is not specified we don't
+    # set the volume.
+    workspace_path: DockerPath = Field(
+        default_factory=lambda: DockerPath(
+            host_path=Path("/workspace"), container_path="/workspace"
+        )
+    )
+
+    # Path are relative to the workspace path
+    build_root: DockerPath = Field(
+        default_factory=lambda: DockerPath(
+            host_path=Path("build"), container_path="build"
+        )
+    )
+    config_path: DockerPath = Field(
+        default_factory=lambda: DockerPath(
+            host_path=Path("config"), container_path="config"
+        )
+    )
+
+
+class ZmkCompilationConfig(DockerCompilationConfig):
+    """ZMK compilation configuration with GitHub Actions artifact naming."""
+
+    # Cache configuration
+    cache: CacheConfig = Field(default_factory=CacheConfig)
+
+    artifact_naming: str = "zmk_github_actions"
+
+    build_config: BuildYamlConfig = Field(default_factory=BuildYamlConfig)
+
+    # ZMK workspace configuration
+    workspace: ZmkWorkspaceConfig = Field(default_factory=ZmkWorkspaceConfig)
+
+
+class MoergoCompilationConfig(DockerCompilationConfig):
+    """Moergo compilation configuration using simple Docker volume to temp folder."""
+
+    # Docker configuration
+    image: str = "glove80-zmk-config-docker"
+
+    # Repository and firmware branch
+    # only branch is used for Moergo
+    repository: str = "moergo-sc/zmk"
+    branch: str = "v25.05"
+
+    build_root: DockerPath = Field(
+        default_factory=lambda: DockerPath(
+            host_path=Path("/build"), container_path="/config"
+        )
+    )
+
+    # Build configuration
+    build_commands: list[str] = Field(default_factory=list)
 
 
 __all__ = [
@@ -242,5 +233,7 @@ __all__ = [
     "WestWorkspaceConfig",
     "CacheConfig",
     "DockerUserConfig",
-    "CompilationConfig",
+    "DockerCompilationConfig",
+    "ZmkCompilationConfig",
+    "MoergoCompilationConfig",
 ]

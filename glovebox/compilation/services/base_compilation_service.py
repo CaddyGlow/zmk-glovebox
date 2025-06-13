@@ -5,10 +5,13 @@ from abc import abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from glovebox.config.models.keyboard import CompileMethodConfigUnion
+
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
 
+from glovebox.compilation.artifacts import SimpleArtifactCollector
 from glovebox.compilation.configuration.build_matrix_resolver import (
     BuildMatrixResolver,
     create_build_matrix_resolver,
@@ -27,7 +30,6 @@ from glovebox.compilation.configuration.volume_manager import (
 )
 
 # Artifact collection will be replaced with SimpleArtifactCollector in Phase 3
-from glovebox.config.compile_methods import CompilationConfig
 from glovebox.core.errors import BuildError
 from glovebox.firmware.models import BuildResult
 from glovebox.protocols import DockerAdapterProtocol
@@ -47,8 +49,7 @@ class BaseCompilationService(BaseService):
         name: str,
         version: str,
         build_matrix_resolver: BuildMatrixResolver | None = None,
-        artifact_collector: Any
-        | None = None,  # Will be SimpleArtifactCollector in Phase 3
+        artifact_collector: SimpleArtifactCollector | None = None,
         environment_manager: EnvironmentManager | None = None,
         volume_manager: VolumeManager | None = None,
         user_context_manager: UserContextManager | None = None,
@@ -93,8 +94,8 @@ class BaseCompilationService(BaseService):
         keymap_file: Path,
         config_file: Path,
         output_dir: Path,
-        config: CompilationConfig,
-        keyboard_profile: "KeyboardProfile | None" = None,
+        config: CompileMethodConfigUnion,
+        keyboard_profile: "KeyboardProfile",
     ) -> BuildResult:
         """Execute compilation using template method pattern.
 
@@ -122,9 +123,6 @@ class BaseCompilationService(BaseService):
             if not self._validate_common_config(config, result):
                 return result
 
-            if config.zmk_config_repo is None:
-                raise BuildError("ZMK config repository configuration is missing")
-
             # Step 2: Setup workspace (strategy-specific)
             workspace_path = self._setup_workspace(
                 keymap_file, config_file, config, keyboard_profile
@@ -140,16 +138,17 @@ class BaseCompilationService(BaseService):
             ):
                 return result
 
-            # Step 4: Collect artifacts (common logic)
-            firmware_files = self._collect_firmware_artifacts(
-                workspace_path, output_dir, config
-            )
-            if not self._validate_artifacts(firmware_files, result):
-                return result
-
-            # Step 5: Store results and prepare response
-            result.output_files = firmware_files
-            firmware_count = self._count_firmware_files(firmware_files)
+            firmware_count = 0
+            # # Step 4: Collect artifacts (common logic)
+            # firmware_files = self._collect_firmware_artifacts(
+            #     workspace_path, output_dir, config
+            # )
+            # if not self._validate_artifacts(firmware_files, result):
+            #     return result
+            #
+            # # Step 5: Store results and prepare response
+            # result.output_files = firmware_files
+            # firmware_count = self._count_firmware_files(firmware_files)
             result.add_message(
                 f"{self.service_name} compilation completed. "
                 f"Generated {firmware_count} firmware files."
@@ -169,8 +168,8 @@ class BaseCompilationService(BaseService):
         self,
         keymap_file: Path,
         config_file: Path,
-        config: CompilationConfig,
-        keyboard_profile: "KeyboardProfile | None" = None,
+        config: CompileMethodConfigUnion,
+        keyboard_profile: "KeyboardProfile",
     ) -> Path | None:
         """Setup workspace for compilation (strategy-specific).
 
@@ -187,7 +186,7 @@ class BaseCompilationService(BaseService):
 
     @abstractmethod
     def _build_compilation_command(
-        self, workspace_path: Path, config: CompilationConfig
+        self, workspace_path: Path, config: CompileMethodConfigUnion
     ) -> str:
         """Build compilation command for this strategy.
 
@@ -200,7 +199,7 @@ class BaseCompilationService(BaseService):
         """
         pass
 
-    def validate_config(self, config: CompilationConfig) -> bool:
+    def validate_config(self, config: CompileMethodConfigUnion) -> bool:
         """Validate compilation configuration.
 
         Calls both common validation and strategy-specific validation.
@@ -218,7 +217,7 @@ class BaseCompilationService(BaseService):
         # Strategy-specific validation
         return self._validate_strategy_specific(config)
 
-    def _validate_common_requirements(self, config: CompilationConfig) -> bool:
+    def _validate_common_requirements(self, config: CompileMethodConfigUnion) -> bool:
         """Validate common configuration requirements.
 
         Args:
@@ -234,7 +233,7 @@ class BaseCompilationService(BaseService):
         return True
 
     @abstractmethod
-    def _validate_strategy_specific(self, config: CompilationConfig) -> bool:
+    def _validate_strategy_specific(self, config: CompileMethodConfigUnion) -> bool:
         """Validate strategy-specific configuration requirements.
 
         Args:
@@ -267,7 +266,7 @@ class BaseCompilationService(BaseService):
         self._docker_adapter = docker_adapter
 
     def _validate_common_config(
-        self, config: CompilationConfig, result: BuildResult
+        self, config: CompileMethodConfigUnion, result: BuildResult
     ) -> bool:
         """Validate common configuration requirements.
 
@@ -294,7 +293,7 @@ class BaseCompilationService(BaseService):
         self,
         workspace_path: Path,
         output_dir: Path,
-        config: CompilationConfig,
+        config: CompileMethodConfigUnion,
         result: BuildResult,
     ) -> bool:
         """Execute Docker compilation using common patterns.
@@ -372,7 +371,9 @@ class BaseCompilationService(BaseService):
             result.add_error(f"Docker compilation execution failed: {e}")
             return False
 
-    def _prepare_build_environment(self, config: CompilationConfig) -> dict[str, str]:
+    def _prepare_build_environment(
+        self, config: CompileMethodConfigUnion
+    ) -> dict[str, str]:
         """Prepare build environment variables for compilation.
 
         Base environment preparation that all strategies can use.
@@ -399,7 +400,7 @@ class BaseCompilationService(BaseService):
     def _prepare_build_volumes(
         self,
         workspace_path: Path,
-        config: CompilationConfig,
+        config: CompileMethodConfigUnion,
     ) -> list[tuple[str, str]]:
         """Prepare Docker volumes for compilation.
 
@@ -416,38 +417,38 @@ class BaseCompilationService(BaseService):
         volumes = []
 
         # Single workspace volume only - mount at /workspace for consistent path
-        volumes.append((str(workspace_path.resolve()), "/workspace"))
-
-        # Check if we have a separate build directory configured
-        if config.zmk_config_repo and config.zmk_config_repo.build_root.host_path:
-            build_host_path = config.zmk_config_repo.build_root.host_path
-            build_container_path = config.zmk_config_repo.build_root.container_path
-
-            # Only add separate volume if build directory is different from workspace
-            if build_host_path != workspace_path:
-                # Mount separate build directory using configured container path
-                volumes.append((str(build_host_path.resolve()), build_container_path))
-                self.logger.debug(
-                    "Added separate build volume: %s -> %s",
-                    build_host_path,
-                    build_container_path,
-                )
-
-        # Check if we have a separate config directory configured
-        if config.zmk_config_repo and config.zmk_config_repo.config_path.host_path:
-            config_host_path = config.zmk_config_repo.config_path.host_path
-            config_container_path = config.zmk_config_repo.config_path.container_path
-
-            # Only add separate volume if config directory is different from workspace
-            if config_host_path != workspace_path:
-                # Mount separate config directory using configured container path
-                volumes.append((str(config_host_path.resolve()), config_container_path))
-                self.logger.debug(
-                    "Added separate config volume: %s -> %s",
-                    config_host_path,
-                    config_container_path,
-                )
-
+        # volumes.append((str(workspace_path.resolve()), "/workspace"))
+        #
+        # # Check if we have a separate build directory configured
+        # if config.zmk_config_repo and config.zmk_config_repo.build_root.host_path:
+        #     build_host_path = config.zmk_config_repo.build_root.host_path
+        #     build_container_path = config.zmk_config_repo.build_root.container_path
+        #
+        #     # Only add separate volume if build directory is different from workspace
+        #     if build_host_path != workspace_path:
+        #         # Mount separate build directory using configured container path
+        #         volumes.append((str(build_host_path.resolve()), build_container_path))
+        #         self.logger.debug(
+        #             "Added separate build volume: %s -> %s",
+        #             build_host_path,
+        #             build_container_path,
+        #         )
+        #
+        # # Check if we have a separate config directory configured
+        # if config.zmk_config_repo and config.zmk_config_repo.config_path.host_path:
+        #     config_host_path = config.zmk_config_repo.config_path.host_path
+        #     config_container_path = config.zmk_config_repo.config_path.container_path
+        #
+        #     # Only add separate volume if config directory is different from workspace
+        #     if config_host_path != workspace_path:
+        #         # Mount separate config directory using configured container path
+        #         volumes.append((str(config_host_path.resolve()), config_container_path))
+        #         self.logger.debug(
+        #             "Added separate config volume: %s -> %s",
+        #             config_host_path,
+        #             config_container_path,
+        #         )
+        #
         # Add custom volume templates (if specified by user)
         for volume_template in config.volume_templates:
             # Parse volume template (format: host_path:container_path)
@@ -461,7 +462,7 @@ class BaseCompilationService(BaseService):
         return volumes
 
     def _collect_firmware_artifacts(
-        self, workspace_path: Path, output_dir: Path, config: CompilationConfig
+        self, workspace_path: Path, output_dir: Path, config: CompileMethodConfigUnion
     ) -> Any:
         """Collect firmware artifacts from workspace and output directories.
 
@@ -474,100 +475,43 @@ class BaseCompilationService(BaseService):
             Any: Firmware files collection (will be properly typed in Phase 2)
         """
         # Use new SimpleArtifactCollector with ZMK GitHub Actions conventions
-        if not self.artifact_collector:
-            from glovebox.compilation.artifacts import create_simple_artifact_collector
-
-            collector = create_simple_artifact_collector()
-
-            # Determine build root path for artifact collection
-            build_root_path = None
-            if (
-                config.zmk_config_repo
-                and config.zmk_config_repo.build_root.host_path
-                and config.zmk_config_repo.build_root.host_path != workspace_path
-            ):
-                # Use separate build directory if configured
-                build_root_path = config.zmk_config_repo.build_root.host_path
-
-            # Collect and copy artifacts using ZMK build matrix
-            output_files = collector.collect_and_copy(
-                workspace_path=workspace_path,
-                output_dir=output_dir,
-                build_root_path=build_root_path,
-            )
-
-            return output_files
-
-        # Use the protocol method when artifact collector is implemented
-        firmware_files, output_files = self.artifact_collector.collect_artifacts(
-            output_dir
-        )
-
-        self.logger.debug(
-            "Collected firmware artifacts: main=%s, left=%s, right=%s",
-            output_files.main_uf2 if output_files else None,
-            output_files.left_uf2 if output_files else None,
-            output_files.right_uf2 if output_files else None,
-        )
-
-        return output_files
-
-    def _validate_artifacts(self, firmware_files: Any, result: BuildResult) -> bool:
-        """Validate collected artifacts.
-
-        Args:
-            firmware_files: Collected firmware files
-            result: Build result to store errors
-
-        Returns:
-            bool: True if artifacts are valid
-        """
-        if not firmware_files or not (
-            firmware_files.main_uf2
-            or firmware_files.left_uf2
-            or firmware_files.right_uf2
-        ):
-            result.success = False
-            result.add_error("No firmware files generated")
-            return False
-
-        return True
-
-    def _count_firmware_files(self, firmware_files: Any) -> int:
-        """Count the number of firmware files generated.
-
-        Args:
-            firmware_files: Collected firmware files
-
-        Returns:
-            int: Number of firmware files
-        """
-        count = 0
-        if firmware_files.main_uf2:
-            count += 1
-        if firmware_files.left_uf2:
-            count += 1
-        if firmware_files.right_uf2:
-            count += 1
-        return count
-
-    def _extract_board_name(self, config: CompilationConfig) -> str:
-        """Extract board name from compilation configuration.
-
-        Common logic for extracting board name from config.
-
-        Args:
-            config: Compilation configuration
-
-        Returns:
-            str: Board name for compilation
-        """
-        # Use board targets from config
-        if config.board_targets and len(config.board_targets) > 0:
-            return config.board_targets[0]
-
-        # Default board for most ZMK keyboards
-        return "nice_nano_v2"
+        # if not self.artifact_collector:
+        #     from glovebox.compilation.artifacts import create_simple_artifact_collector
+        #
+        #     collector = create_simple_artifact_collector()
+        #
+        #     # Determine build root path for artifact collection
+        #     build_root_path = None
+        #     if (
+        #         config.zmk_config_repo
+        #         and config.zmk_config_repo.build_root.host_path
+        #         and config.zmk_config_repo.build_root.host_path != workspace_path
+        #     ):
+        #         # Use separate build directory if configured
+        #         build_root_path = config.zmk_config_repo.build_root.host_path
+        #
+        #     # Collect and copy artifacts using ZMK build matrix
+        #     output_files = collector.collect_and_copy(
+        #         workspace_path=workspace_path,
+        #         output_dir=output_dir,
+        #         build_root_path=build_root_path,
+        #     )
+        #
+        #     return output_files
+        #
+        # # Use the protocol method when artifact collector is implemented
+        # firmware_files, output_files = self.artifact_collector.collect_artifacts(
+        #     output_dir
+        # )
+        #
+        # self.logger.debug(
+        #     "Collected firmware artifacts: main=%s, left=%s, right=%s",
+        #     output_files.main_uf2 if output_files else None,
+        #     output_files.left_uf2 if output_files else None,
+        #     output_files.right_uf2 if output_files else None,
+        # )
+        #
+        # return output_files
 
     def _handle_workspace_setup_error(self, operation: str, error: Exception) -> None:
         """Common error handling for workspace setup failures.

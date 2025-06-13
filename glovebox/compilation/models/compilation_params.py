@@ -6,7 +6,10 @@ from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
-    from glovebox.config.compile_methods import CompilationConfig, ZmkWorkspaceConfig
+    from glovebox.config.compile_methods import (
+        DockerCompilationConfig,
+        ZmkWorkspaceConfig,
+    )
     from glovebox.config.profile import KeyboardProfile
     from glovebox.models.docker_path import DockerPath
 
@@ -21,7 +24,7 @@ class ZmkCompilationParams:
 
     keymap_file: Path
     config_file: Path
-    compilation_config: "CompilationConfig"
+    compilation_config: "DockerCompilationConfig"
     keyboard_profile: "KeyboardProfile | None" = None
 
     @property

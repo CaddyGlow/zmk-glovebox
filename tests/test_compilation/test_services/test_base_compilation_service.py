@@ -7,7 +7,7 @@ import pytest
 from glovebox.compilation.services.base_compilation_service import (
     BaseCompilationService,
 )
-from glovebox.config.compile_methods import CompilationConfig
+from glovebox.config.compile_methods import DockerCompilationConfig
 from glovebox.firmware.models import BuildResult
 
 
@@ -26,7 +26,7 @@ class TestBaseCompilationService:
 
     def test_validate_configuration_valid(self):
         """Test configuration validation with valid config."""
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
         config.image = "zmkfirmware/zmk-build-arm:stable"
         config.build_strategy = "west"
 
@@ -36,7 +36,7 @@ class TestBaseCompilationService:
 
     def test_validate_configuration_missing_image(self):
         """Test configuration validation with missing image."""
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
         config.image = ""
         config.build_strategy = "west"
 
@@ -48,7 +48,7 @@ class TestBaseCompilationService:
 
     def test_validate_configuration_missing_strategy(self):
         """Test configuration validation with missing build strategy."""
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
         config.image = "zmkfirmware/zmk-build-arm:stable"
         config.build_strategy = ""
 
@@ -60,7 +60,7 @@ class TestBaseCompilationService:
 
     def test_validate_configuration_both_missing(self):
         """Test configuration validation with both image and strategy missing."""
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
         config.image = ""
         config.build_strategy = ""
 
@@ -74,7 +74,7 @@ class TestBaseCompilationService:
     @patch("multiprocessing.cpu_count", return_value=8)
     def test_prepare_build_environment_defaults(self, mock_cpu_count):
         """Test build environment preparation with defaults."""
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
         config.environment_template = {}
 
         with patch.object(self.service.logger, "debug") as mock_logger:
@@ -92,7 +92,7 @@ class TestBaseCompilationService:
     @patch("multiprocessing.cpu_count", return_value=4)
     def test_prepare_build_environment_custom_template(self, mock_cpu_count):
         """Test build environment preparation with custom template."""
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
         config.environment_template = {
             "CUSTOM_VAR": "custom_value",
             "BUILD_TYPE": "Debug",  # Should not be overridden
@@ -110,7 +110,7 @@ class TestBaseCompilationService:
     @patch("multiprocessing.cpu_count", return_value=2)
     def test_prepare_build_environment_partial_override(self, mock_cpu_count):
         """Test build environment with partial custom values."""
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
         config.environment_template = {
             "JOBS": "12",  # Custom job count
             "ZMK_CONFIG": "/workspace/config",
@@ -132,7 +132,7 @@ class TestBaseCompilationService:
         keymap_file = Path("/test/keymap.keymap")
         config_file = Path("/test/config.conf")
         output_dir = Path("/test/output")
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
 
         with pytest.raises(
             NotImplementedError, match="Subclasses must implement compile method"
@@ -153,7 +153,7 @@ class TestBaseCompilationService:
     def test_environment_template_mutation_protection(self):
         """Test that environment template is not mutated by service."""
         original_template = {"ORIGINAL": "value"}
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
         config.environment_template = original_template.copy()
 
         # Prepare environment multiple times
@@ -196,7 +196,7 @@ class TestConcreteService:
         keymap_file = Path("/test/keymap.keymap")
         config_file = Path("/test/config.conf")
         output_dir = Path("/test/output")
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
 
         result = self.service.compile(keymap_file, config_file, output_dir, config)
 
@@ -210,7 +210,7 @@ class TestConcreteService:
 
     def test_inherited_methods_work(self):
         """Test that inherited methods work correctly."""
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
         config.image = "test:latest"
         config.build_strategy = "test"
         config.environment_template = {}

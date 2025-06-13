@@ -5,7 +5,9 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..compile_methods import (
-    CompilationConfig,
+    DockerCompilationConfig,
+    MoergoCompilationConfig,
+    ZmkCompilationConfig,
 )
 from ..flash_methods import USBFlashConfig
 from ..models.workspace import UserWorkspaceConfig
@@ -56,7 +58,7 @@ class KeymapSection(BaseModel):
 
 
 # Union types for method configurations
-CompileMethodConfigUnion = CompilationConfig
+CompileMethodConfigUnion = MoergoCompilationConfig | ZmkCompilationConfig
 
 FlashMethodConfigUnion = USBFlashConfig
 

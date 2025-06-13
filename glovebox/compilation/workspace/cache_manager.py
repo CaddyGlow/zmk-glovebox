@@ -12,7 +12,7 @@ from glovebox.compilation.models.cache_metadata import (
     CacheMetadata,
     CacheValidationResult,
 )
-from glovebox.config.compile_methods import CompilationConfig
+from glovebox.config.compile_methods import DockerCompilationConfig
 
 
 logger = logging.getLogger(__name__)
@@ -85,7 +85,9 @@ class CacheManager:
             self.logger.error(msg)
             raise CacheManagerError(msg) from e
 
-    def is_cache_valid(self, workspace_path: Path, config: CompilationConfig) -> bool:
+    def is_cache_valid(
+        self, workspace_path: Path, config: DockerCompilationConfig
+    ) -> bool:
         """Check if cached workspace is valid and can be reused.
 
         Args:
@@ -103,7 +105,7 @@ class CacheManager:
             return False
 
     def validate_cache(
-        self, workspace_path: Path, config: CompilationConfig
+        self, workspace_path: Path, config: DockerCompilationConfig
     ) -> CacheValidationResult:
         """Validate cache with detailed results.
 

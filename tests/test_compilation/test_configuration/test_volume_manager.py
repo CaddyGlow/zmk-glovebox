@@ -11,7 +11,7 @@ from glovebox.compilation.configuration.volume_manager import (
     VolumeManagerError,
     create_volume_manager,
 )
-from glovebox.config.compile_methods import CompilationConfig
+from glovebox.config.compile_methods import DockerCompilationConfig
 
 
 class TestVolumeManager:
@@ -43,7 +43,7 @@ class TestVolumeManager:
             config_file.touch()
             output_dir.mkdir()
 
-            config = Mock(spec=CompilationConfig)
+            config = Mock(spec=DockerCompilationConfig)
             config.volume_templates = [
                 "{keymap_dir}:/workspace/keymap:ro",
                 "{output_dir}:/workspace/output",
@@ -69,7 +69,7 @@ class TestVolumeManager:
             config_file.touch()
             output_dir.mkdir()
 
-            config = Mock(spec=CompilationConfig)
+            config = Mock(spec=DockerCompilationConfig)
             config.volume_templates = [
                 "{custom_path}:/workspace/custom",
             ]
@@ -93,7 +93,7 @@ class TestVolumeManager:
             config_file.touch()
             # Don't create output_dir
 
-            config = Mock(spec=CompilationConfig)
+            config = Mock(spec=DockerCompilationConfig)
             config.volume_templates = [
                 "/nonexistent/path:/workspace/missing",
             ]
@@ -115,7 +115,7 @@ class TestVolumeManager:
             config_file.touch()
             output_dir.mkdir()
 
-            config = Mock(spec=CompilationConfig)
+            config = Mock(spec=DockerCompilationConfig)
             config.volume_templates = [
                 "zmk-cache:/workspace/cache",  # Docker volume name
             ]
@@ -274,7 +274,7 @@ class TestVolumeManagerIntegration:
             config_file.touch()
             output_dir.mkdir()
 
-            config = Mock(spec=CompilationConfig)
+            config = Mock(spec=DockerCompilationConfig)
             config.volume_templates = [
                 "{config_dir}:/workspace/config:ro",
                 "{output_dir}:/workspace/firmware",
@@ -304,7 +304,7 @@ class TestVolumeManagerIntegration:
             config_file.touch()
             output_dir.mkdir()
 
-            config = Mock(spec=CompilationConfig)
+            config = Mock(spec=DockerCompilationConfig)
             config.volume_templates = [
                 "{keymap_file}:/workspace/corne.keymap:ro",
                 "{config_file}:/workspace/corne.conf:ro",
@@ -339,7 +339,7 @@ class TestVolumeManagerIntegration:
             cache_dir.mkdir()
             zmk_dir.mkdir()
 
-            config = Mock(spec=CompilationConfig)
+            config = Mock(spec=DockerCompilationConfig)
             config.volume_templates = [
                 "{cache_dir}:/workspace/cache",
                 "{zmk_dir}:/workspace/user",

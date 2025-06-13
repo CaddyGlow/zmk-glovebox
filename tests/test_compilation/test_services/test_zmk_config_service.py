@@ -20,7 +20,7 @@ from glovebox.compilation.services.zmk_config_service import (
     create_zmk_config_service,
 )
 from glovebox.config.compile_methods import (
-    CompilationConfig,
+    DockerCompilationConfig,
     ZmkWorkspaceConfig,
 )
 from glovebox.firmware.models import FirmwareOutputFiles
@@ -46,7 +46,7 @@ class TestZmkConfigCompilationService:
 
     def _create_mock_config(self, **overrides):
         """Create a mock CompilationConfig with all required attributes."""
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
 
         # Set default values for all required attributes
         config.image = "zmkfirmware/zmk-build-arm:stable"
@@ -109,7 +109,7 @@ class TestZmkHelperFunctions:
     def test_setup_zmk_workspace_paths(self):
         """Test workspace path setup helper."""
         # Create test configuration
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
         zmk_config = Mock(spec=ZmkWorkspaceConfig)
         zmk_config.workspace_path = Mock()
         zmk_config.build_root = Mock()
@@ -248,7 +248,7 @@ class TestZmkCompilationParams:
 
     def test_should_use_dynamic_generation_no_profile(self):
         """Test dynamic generation decision without keyboard profile."""
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
         params = ZmkCompilationParams(
             keymap_file=Path("/test.keymap"),
             config_file=Path("/test.conf"),
@@ -262,7 +262,7 @@ class TestZmkCompilationParams:
         """Test dynamic generation decision without repo config."""
         from glovebox.config.profile import KeyboardProfile
 
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
         config.zmk_config_repo = None
 
         profile = Mock(spec=KeyboardProfile)
@@ -280,7 +280,7 @@ class TestZmkCompilationParams:
         """Test dynamic generation decision with empty repo URL."""
         from glovebox.config.profile import KeyboardProfile
 
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
         zmk_config = Mock(spec=ZmkWorkspaceConfig)
         zmk_config.config_repo_url = ""
         config.zmk_config_repo = zmk_config
@@ -300,7 +300,7 @@ class TestZmkCompilationParams:
         """Test dynamic generation decision with valid repo URL."""
         from glovebox.config.profile import KeyboardProfile
 
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
         zmk_config = Mock(spec=ZmkWorkspaceConfig)
         zmk_config.config_repo_url = "https://github.com/test/config"
         config.zmk_config_repo = zmk_config
@@ -332,7 +332,7 @@ class TestZmkConfigServiceIntegration:
         # This test ensures the service properly handles errors
         # without calling removed methods
 
-        config = Mock(spec=CompilationConfig)
+        config = Mock(spec=DockerCompilationConfig)
         config.image = "test-image"
         config.zmk_config_repo = None  # This should trigger an error
 

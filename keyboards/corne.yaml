@@ -5,14 +5,10 @@ key_count: 42
 
 compile_methods:
   # ZMK Config strategy - generates workspace dynamically
-  - strategy: zmk_config
-    image: "zmkfirmware/zmk-build-arm:stable"
-    repository: "zmkfirmware/zmk"
-    branch: "main"
-    board_targets: ["nice_nano_v2"]
-    environment_template:
-      ZEPHYR_TOOLCHAIN_VARIANT: "zephyr"
-      ZEPHYR_SDK_INSTALL_DIR: "/opt/zephyr-sdk"
+  - strategy: zmk
+    build_config:
+      board: ["nice_nano_v2"]
+      shield: ["corne_left", "corne_right"]
     cache:
       enabled: true
       max_age_hours: 24.0
