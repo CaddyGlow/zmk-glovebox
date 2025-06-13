@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from glovebox.config.compile_methods import CompilationConfig, ZmkWorkspaceConfig
     from glovebox.config.profile import KeyboardProfile
-    from glovebox.models.docker_path import DockerPath, DockerPathSet
+    from glovebox.models.docker_path import DockerPath
 
 
 @dataclass
@@ -69,7 +69,9 @@ class ZmkConfigGenerationParams:
     keymap_file: Path
     config_file: Path
     keyboard_profile: "KeyboardProfile"
-    docker_paths: "DockerPathSet"
+    workspace_docker_path: "DockerPath"
+    config_docker_path: "DockerPath"
+    build_docker_path: "DockerPath"
     shield_name: str | None = None
     board_name: str = "nice_nano_v2"
     zephyr_base_path: str = "zephyr"
@@ -78,21 +80,6 @@ class ZmkConfigGenerationParams:
     def effective_shield_name(self) -> str:
         """Get effective shield name, defaulting to keyboard name."""
         return self.shield_name or self.keyboard_profile.keyboard_name
-
-    @property
-    def workspace_docker_path(self) -> "DockerPath":
-        """Get workspace Docker path."""
-        return self.docker_paths.get("workspace")
-
-    @property
-    def config_docker_path(self) -> "DockerPath":
-        """Get config Docker path."""
-        return self.docker_paths.get("config")
-
-    @property
-    def build_docker_path(self) -> "DockerPath":
-        """Get build Docker path."""
-        return self.docker_paths.get("build")
 
     @property
     def config_directory_host(self) -> Path:
@@ -112,14 +99,9 @@ class ZmkConfigFileParams:
     workspace_path: Path
     keyboard_profile: "KeyboardProfile"
     shield_name: str
-    docker_paths: "DockerPathSet"
+    config_docker_path: "DockerPath"
     board_name: str = "nice_nano_v2"
     zephyr_base_path: str = "zephyr"
-
-    @property
-    def config_docker_path(self) -> "DockerPath":
-        """Get config Docker path."""
-        return self.docker_paths.get("config")
 
     @property
     def config_directory_host(self) -> Path:

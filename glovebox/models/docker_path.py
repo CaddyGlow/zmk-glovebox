@@ -201,22 +201,3 @@ class DockerPathSet:
             list[str]: List of logical path names
         """
         return list(self.paths.keys())
-
-
-def create_zmk_docker_paths(workspace_host_path: str | Path) -> DockerPathSet:
-    """Create standard ZMK Docker path set.
-
-    Args:
-        workspace_host_path: Host path for the workspace root
-
-    Returns:
-        DockerPathSet: Configured path set for ZMK builds
-    """
-    return (
-        DockerPathSet(workspace_host_path)
-        .add("workspace", "/workspace", "")
-        .add("config", "/workspace/config", "config")
-        .add("build", "/workspace/build", "build")
-        .add("output", "/workspace/output", "output")
-        .add("cache", "/workspace/cache", "cache")
-    )
