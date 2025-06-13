@@ -3,12 +3,15 @@
 import os
 from abc import ABC
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from glovebox.core.errors import GloveboxError
 from glovebox.models.docker_path import DockerPath
+
+if TYPE_CHECKING:
+    from glovebox.compilation.models.build_matrix import BuildYamlConfig
 
 
 def expand_path_variables(path_str: Path) -> Path:
@@ -24,44 +27,6 @@ class CompileMethodConfig(BaseModel, ABC):
     method_type: str
 
 
-class BuildTargetConfig(BaseModel):
-    """Individual build target configuration from build.yaml."""
-
-    board: str
-    shield: str | None = None
-    cmake_args: list[str] = Field(default_factory=list)
-    snippet: str | None = None
-    artifact_name: str | None = None
-
-
-class BuildYamlConfig(BaseModel):
-    """Configuration parsed from ZMQ config repository build.yaml."""
-
-    board: list[str] = Field(default_factory=list)
-    shield: list[str] = Field(default_factory=list)
-    include: list[BuildTargetConfig] = Field(default_factory=list)
-
-    def get_board_name(self) -> str | None:
-        """Extract board name from Github Actions build matrix.
-
-        Returns:
-            str | None: Board name for compilation, or None if no board found
-        """
-        if len(self.board):
-            return self.board[0]
-        if len(self.include):
-            return self.include[0].board
-        return None
-
-    def get_shields(self) -> list[str]:
-        """Extract board name from Github Actions build matrix.
-
-        Returns:
-            list[str]: List of shield names for compilation
-        """
-        if len(self.shield):
-            return self.shield
-        return [target.shield for target in self.include if target.shield is not None]
 
 
 class CacheConfig(BaseModel):
@@ -181,7 +146,7 @@ class ZmkCompilationConfig(DockerCompilationConfig):
 
     artifact_naming: str = "zmk_github_actions"
 
-    build_config: BuildYamlConfig = Field(default_factory=BuildYamlConfig)
+    build_config: "BuildYamlConfig" = Field(default_factory=lambda: __import__("glovebox.compilation.models.build_matrix", fromlist=["BuildYamlConfig"]).BuildYamlConfig())
 
     # ZMK workspace configuration
     workspace: ZmkWorkspaceConfig = Field(default_factory=ZmkWorkspaceConfig)

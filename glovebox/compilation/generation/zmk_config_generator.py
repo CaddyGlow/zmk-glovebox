@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING
 import yaml
 
 from glovebox.adapters import FileAdapter
+from glovebox.compilation.configuration import create_build_matrix_resolver
 from glovebox.compilation.models.build_matrix import BuildTargetConfig, BuildYamlConfig
 from glovebox.compilation.models.compilation_params import (
-    ZmkConfigFileParams,
     ZmkConfigGenerationParams,
 )
 from glovebox.compilation.models.west_config import (
@@ -52,6 +52,7 @@ class ZmkConfigContentGenerator:
             file_adapter: File operations adapter
         """
         self.file_adapter = file_adapter
+        self.build_matrix_resolver = create_build_matrix_resolver()
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     def generate_config_workspace(
@@ -78,34 +79,20 @@ class ZmkConfigContentGenerator:
             if not self._ensure_workspace_directory(params.workspace_path):
                 return False
 
-            # k Create file-specific parameters for helper methods
-            shield_names = params.board_config.get_shields()
-            shield_name = shield_names[0] if shield_names else None
-            board_name = params.board_config.get_board_name()
-
-            file_params = ZmkConfigFileParams(
-                workspace_path=params.workspace_path,
-                keyboard_profile=params.keyboard_profile,
-                shield_name=shield_name,
-                config_docker_path=params.config_docker_path,
-                board_name=board_name,
-                zephyr_base_path=params.zephyr_base_path,
-            )
-
-            # Generate build.yaml for GitHub Actions style builds
-            if not self._generate_build_yaml(file_params):
+            # Generate build.yaml using BuildMatrixResolver
+            if not self._generate_build_yaml(params):
                 return False
 
             # Generate west.yml for workspace configuration
-            if not self._generate_west_yml(file_params):
+            if not self._generate_west_yml(params):
                 return False
 
             # Create config directory and copy keymap/config files
-            if not self._setup_config_directory(params, file_params):
+            if not self._setup_config_directory(params):
                 return False
 
             # Generate additional files for compatibility
-            if not self._generate_additional_files(file_params):
+            if not self._generate_additional_files(params):
                 return False
 
             self.logger.info("ZMK config workspace generated successfully")
@@ -136,25 +123,22 @@ class ZmkConfigContentGenerator:
             self.logger.error("Failed to create workspace directory: %s", e)
             return False
 
-    def _generate_build_yaml(self, params: ZmkConfigFileParams) -> bool:
-        """Generate build.yaml file for GitHub Actions builds.
+    def _generate_build_yaml(self, params: ZmkConfigGenerationParams) -> bool:
+        """Generate build.yaml file using BuildMatrixResolver.
 
         Args:
-            params: File generation parameters
+            params: Generation parameters
 
         Returns:
             bool: True if build.yaml generated successfully
         """
-        build_yaml_content = self._create_build_yaml_content(
-            params.shield_name, params.board_name
-        )
         build_yaml_path = params.workspace_path / "build.yaml"
 
         try:
-            if self.file_adapter:
-                self.file_adapter.write_text(build_yaml_path, build_yaml_content)
-            else:
-                build_yaml_path.write_text(build_yaml_content)
+            # Use BuildMatrixResolver to write the build configuration
+            self.build_matrix_resolver.write_config_to_yaml(
+                params.build_config, build_yaml_path
+            )
 
             self.logger.debug("Generated build.yaml at %s", build_yaml_path)
             return True
@@ -162,101 +146,11 @@ class ZmkConfigContentGenerator:
             self.logger.error("Failed to generate build.yaml: %s", e)
             return False
 
-    def _create_build_yaml_content(self, shield_name: str, board_name: str) -> str:
-        """Create build.yaml content using BuildYamlConfig model.
-
-        Args:
-            shield_name: Shield name for builds
-            board_name: Board name for builds
-
-        Returns:
-            str: build.yaml content
-        """
-        # Detect if this is a split keyboard by shield name patterns
-        is_split = any(
-            indicator in shield_name.lower()
-            for indicator in ["corne", "crkbd", "lily58", "sofle", "kyria", "glove80"]
-        )
-
-        # Create BuildYamlConfig based on keyboard type
-        if is_split:
-            if "glove80" in shield_name.lower():
-                # Glove80 uses board array format (boards, not shields)
-                build_config = BuildYamlConfig(
-                    board=[f"{shield_name}_lh", f"{shield_name}_rh"],
-                    shield=[],
-                    include=[],
-                )
-            else:
-                # Standard ZMK split keyboards use include format with shields
-                left_suffix = "_left"
-                right_suffix = "_right"
-                build_config = BuildYamlConfig(
-                    board=[],
-                    shield=[],
-                    include=[
-                        BuildTargetConfig(
-                            board=board_name, shield=f"{shield_name}{left_suffix}"
-                        ).model_dump(exclude_none=True),
-                        BuildTargetConfig(
-                            board=board_name, shield=f"{shield_name}{right_suffix}"
-                        ).model_dump(exclude_none=True),
-                    ],
-                )
-        else:
-            # Generate single keyboard build target
-            build_config = BuildYamlConfig(
-                board=[],
-                shield=[],
-                include=[
-                    BuildTargetConfig(board=board_name, shield=shield_name).model_dump(
-                        exclude_none=True
-                    )
-                ],
-            )
-
-        # Convert to YAML with GitHub Actions matrix header comment
-        header_comment = """# This file generates the GitHub Actions matrix.
-# For simple board + shield combinations, add them to the top level board and
-# shield arrays, for more control, add individual board + shield combinations
-# to the `include` property. You can also use the `cmake-args` property to
-# pass flags to the build command, `snippet` to add a Zephyr snippet, and
-# `artifact-name` to assign a name to distinguish build outputs from each other:
-#
-# board: [ "nice_nano_v2" ]
-# shield: [ "corne_left", "corne_right" ]
-# include:
-#   - board: bdn9_rev2
-#   - board: nice_nano_v2
-#     shield: reviung41
-#   - board: nice_nano_v2
-#     shield: corne_left
-#     snippet: studio-rpc-usb-uart
-#     cmake-args: -DCONFIG_ZMK_STUDIO=y
-#     artifact-name: corne_left_with_studio
-#
----"""
-
-        # Serialize BuildYamlConfig to YAML, excluding empty arrays
-        config_dict = build_config.model_dump(exclude_none=True, exclude_unset=True)
-
-        # Remove empty arrays for cleaner output
-        if not config_dict.get("board"):
-            config_dict.pop("board", None)
-        if not config_dict.get("shield"):
-            config_dict.pop("shield", None)
-        if not config_dict.get("include"):
-            config_dict.pop("include", None)
-
-        yaml_content = yaml.dump(config_dict, default_flow_style=False, sort_keys=False)
-
-        return f"{header_comment}\n{yaml_content}"
-
-    def _generate_west_yml(self, params: ZmkConfigFileParams) -> bool:
+    def _generate_west_yml(self, params: ZmkConfigGenerationParams) -> bool:
         """Generate west.yml for ZMK workspace configuration using WestManifestConfig.
 
         Args:
-            params: File generation parameters
+            params: Generation parameters
 
         Returns:
             bool: True if west.yml generated successfully
@@ -372,23 +266,25 @@ class ZmkConfigContentGenerator:
 
     def _setup_config_directory(
         self,
-        generation_params: ZmkConfigGenerationParams,
-        file_params: ZmkConfigFileParams,
+        params: ZmkConfigGenerationParams,
     ) -> bool:
         """Setup config directory with keymap and config files.
 
         Args:
-            generation_params: Generation parameters with source files
-            file_params: File-specific parameters
+            params: Generation parameters with source files
 
         Returns:
             bool: True if config directory setup successfully
         """
         # Always create workspace config directory for west.yml
-        workspace_config_dir = generation_params.workspace_config_directory_host
+        workspace_config_dir = params.workspace_config_directory_host
 
         # Get config directory from Docker paths
-        config_dir = file_params.config_directory_host
+        config_dir = params.config_directory_host
+
+        # Get shield name from build config
+        shields = params.build_config.get_shields()
+        shield_name = shields[0] if shields else params.keyboard_profile.keyboard_name
 
         try:
             # Ensure both directories exist
@@ -402,25 +298,21 @@ class ZmkConfigContentGenerator:
                     config_dir.mkdir(parents=True, exist_ok=True)
 
             # Copy keymap file
-            keymap_dest = config_dir / f"{file_params.shield_name}.keymap"
+            keymap_dest = config_dir / f"{shield_name}.keymap"
             if self.file_adapter:
-                keymap_content = self.file_adapter.read_text(
-                    generation_params.keymap_file
-                )
+                keymap_content = self.file_adapter.read_text(params.keymap_file)
                 self.file_adapter.write_text(keymap_dest, keymap_content)
             else:
-                keymap_content = generation_params.keymap_file.read_text()
+                keymap_content = params.keymap_file.read_text()
                 keymap_dest.write_text(keymap_content)
 
             # Copy config file
-            config_dest = config_dir / f"{file_params.shield_name}.conf"
+            config_dest = config_dir / f"{shield_name}.conf"
             if self.file_adapter:
-                config_content = self.file_adapter.read_text(
-                    generation_params.config_file
-                )
+                config_content = self.file_adapter.read_text(params.config_file)
                 self.file_adapter.write_text(config_dest, config_content)
             else:
-                config_content = generation_params.config_file.read_text()
+                config_content = params.config_file.read_text()
                 config_dest.write_text(config_content)
 
             self.logger.debug("Copied keymap and config files to %s", config_dir)
@@ -430,11 +322,11 @@ class ZmkConfigContentGenerator:
             self.logger.error("Failed to setup config directory: %s", e)
             return False
 
-    def _generate_additional_files(self, params: ZmkConfigFileParams) -> bool:
+    def _generate_additional_files(self, params: ZmkConfigGenerationParams) -> bool:
         """Generate additional files for workspace compatibility.
 
         Args:
-            params: File generation parameters
+            params: Generation parameters
 
         Returns:
             bool: True if additional files generated successfully
@@ -521,11 +413,11 @@ This workspace was automatically generated by [Glovebox](https://github.com/your
 for dynamic ZMK firmware compilation.
 """
 
-    def _generate_west_config_file(self, params: ZmkConfigFileParams) -> bool:
+    def _generate_west_config_file(self, params: ZmkConfigGenerationParams) -> bool:
         """Generate .west/config file for west workspace configuration.
 
         Args:
-            params: File generation parameters
+            params: Generation parameters
 
         Returns:
             bool: True if .west/config generated successfully
@@ -534,9 +426,7 @@ for dynamic ZMK firmware compilation.
             # Determine config path relative to workspace using Docker paths
             config_dir = params.config_directory_host
             try:
-                config_rel_path = str(
-                    config_dir.relative_to(params.workspace_path, walk_up=True)
-                )
+                config_rel_path = str(config_dir.relative_to(params.workspace_path))
             except ValueError:
                 # If config_dir is not relative to workspace, use absolute path
                 config_rel_path = str(config_dir)
@@ -584,22 +474,8 @@ for dynamic ZMK firmware compilation.
         try:
             self.logger.info("Updating ZMK config workspace for layout changes")
 
-            # k Create file-specific parameters for helper methods
-            shield_names = params.board_config.get_shields()
-            shield_name = shield_names[0] if shield_names else None
-            board_name = params.board_config.get_board_name()
-
-            file_params = ZmkConfigFileParams(
-                workspace_path=params.workspace_path,
-                keyboard_profile=params.keyboard_profile,
-                shield_name=shield_name,
-                config_docker_path=params.config_docker_path,
-                board_name=board_name,
-                zephyr_base_path=params.zephyr_base_path,
-            )
-
             # Update keymap and config files in workspace
-            return self._setup_config_directory(params, file_params)
+            return self._setup_config_directory(params)
 
         except Exception as e:
             msg = f"Failed to update ZMK config workspace: {e}"

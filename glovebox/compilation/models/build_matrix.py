@@ -44,6 +44,41 @@ class BuildYamlConfig(BaseModel):
     shield: list[str] | None = Field(default_factory=list)
     include: list[dict[str, Any]] | None = Field(default_factory=list)
 
+    def get_board_name(self) -> str | None:
+        """Extract board name from Github Actions build matrix.
+
+        Returns:
+            str | None: Board name for compilation, or None if no board found
+        """
+        if self.board and len(self.board):
+            return self.board[0]
+        if self.include and len(self.include):
+            # Extract board from first include entry
+            first_include = self.include[0]
+            return first_include.get("board")
+        return None
+
+    def get_shields(self) -> list[str]:
+        """Extract shield names from Github Actions build matrix.
+
+        Returns:
+            list[str]: List of shield names for compilation
+        """
+        result = []
+
+        # Add shields from shield list
+        if self.shield:
+            result.extend(self.shield)
+
+        # Add shields from include entries
+        if self.include:
+            for target in self.include:
+                shield = target.get("shield")
+                if shield is not None:
+                    result.append(shield)
+
+        return result
+
 
 class BuildTargetConfig(BaseModel):
     """Individual build target configuration from build.yaml.

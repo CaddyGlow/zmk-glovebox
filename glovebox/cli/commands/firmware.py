@@ -28,6 +28,7 @@ from glovebox.config.compile_methods import (
 )
 from glovebox.firmware.flash import create_flash_service
 
+
 if TYPE_CHECKING:
     from glovebox.config.keyboard_profile import KeyboardProfile
 logger = logging.getLogger(__name__)
