@@ -15,7 +15,6 @@ workspace:
 # Compile method configurations
 compile_methods:
   - strategy: zmk_config
-    image: zmkfirmware/zmk-build-arm:stable
     repository: "moergo-sc/zmk"
     branch: "v25.05"
     # zmk_config_repo:

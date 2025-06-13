@@ -11,6 +11,7 @@ def test_compilation_domain_imports():
     from glovebox.compilation import (
         CompilationServiceProtocol,
         create_compilation_service,
+        create_moergo_service,
         create_zmk_config_service,
     )
 
@@ -20,6 +21,7 @@ def test_compilation_domain_imports():
     # Test factory function availability
     assert callable(create_compilation_service)
     assert callable(create_zmk_config_service)
+    assert callable(create_moergo_service)
 
 
 def test_protocol_imports():
@@ -45,12 +47,17 @@ def test_factory_functions_exist():
     """Test that factory functions exist and work correctly."""
     from glovebox.compilation import (
         create_compilation_service,
+        create_moergo_service,
         create_zmk_config_service,
     )
 
     # ZMK config service is implemented
     zmk_service = create_zmk_config_service()
     assert zmk_service is not None
+
+    # Moergo service is implemented
+    moergo_service = create_moergo_service()
+    assert moergo_service is not None
 
     # Test compilation service factory with different strategies
     zmk_service_via_factory = create_compilation_service("zmk_config")
@@ -61,6 +68,10 @@ def test_factory_functions_exist():
         ValueError, match="Unknown compilation strategy.*Supported strategies"
     ):
         create_compilation_service("unsupported_strategy")
+
+    # Test that moergo strategy works
+    moergo_service_via_factory = create_compilation_service("moergo")
+    assert moergo_service_via_factory is not None
 
 
 def test_subdomain_factory_functions():

@@ -22,6 +22,7 @@ from glovebox.compilation import create_compilation_service
 from glovebox.config.compile_methods import (
     CacheConfig,
     DockerUserConfig,
+    MoergoCompilationConfig,
     ZmkCompilationConfig,
 )
 from glovebox.firmware.flash import create_flash_service
@@ -88,11 +89,22 @@ def _extract_docker_image(keyboard_profile: Any, strategy: str) -> str:
 
     if keyboard_profile and keyboard_profile.keyboard_config:
         for compile_method in keyboard_profile.keyboard_config.compile_methods:
+            # Check by strategy attribute if available
             method_identifier = getattr(
                 compile_method, "strategy", getattr(compile_method, "method_type", None)
             )
+
+            # For MoergoCompilationConfig, check by type since it doesn't have strategy attribute
+            is_moergo_method = hasattr(compile_method, "repository") and hasattr(
+                compile_method, "branch"
+            )
+
+            method_matches = method_identifier == strategy or (
+                strategy == "moergo" and is_moergo_method
+            )
+
             if (
-                method_identifier == strategy
+                method_matches
                 and hasattr(compile_method, "image")
                 and compile_method.image
             ):
@@ -104,7 +116,7 @@ def _extract_docker_image(keyboard_profile: Any, strategy: str) -> str:
 
 def _build_compilation_config(
     params: FirmwareCompileParams, keyboard_profile: Any
-) -> ZmkCompilationConfig:
+) -> ZmkCompilationConfig | MoergoCompilationConfig:
     """Build compilation configuration from parameters and profile."""
     # Use provided values or defaults
     branch_value = params.branch if params.branch is not None else "main"
@@ -126,22 +138,37 @@ def _build_compilation_config(
     # Create cache config
     cache_config = CacheConfig(enabled=not params.no_cache)
 
-    return ZmkCompilationConfig(
-        image=image_value,
-        jobs=params.jobs,
-        cache=cache_config,
-        docker_user=docker_user_config,
-        cleanup_workspace=not params.preserve_workspace
-        if not params.force_cleanup
-        else True,
-        preserve_on_failure=params.preserve_workspace and not params.force_cleanup,
-        artifact_naming="zmk_github_actions",
-    )
+    # Create different configuration types based on strategy
+    if params.strategy == "moergo":
+        return MoergoCompilationConfig(
+            image=image_value,
+            repository=repo_value,
+            branch=branch_value,
+            jobs=params.jobs,
+            docker_user=docker_user_config,
+            cleanup_workspace=not params.preserve_workspace
+            if not params.force_cleanup
+            else True,
+            preserve_on_failure=params.preserve_workspace and not params.force_cleanup,
+        )
+    else:
+        # Default to ZMK config strategy
+        return ZmkCompilationConfig(
+            image=image_value,
+            jobs=params.jobs,
+            cache=cache_config,
+            docker_user=docker_user_config,
+            cleanup_workspace=not params.preserve_workspace
+            if not params.force_cleanup
+            else True,
+            preserve_on_failure=params.preserve_workspace and not params.force_cleanup,
+            artifact_naming="zmk_github_actions",
+        )
 
 
 def _execute_compilation(
     params: FirmwareCompileParams,
-    config: ZmkCompilationConfig,
+    config: ZmkCompilationConfig | MoergoCompilationConfig,
     keyboard_profile: Any,
 ) -> Any:
     """Execute the compilation and return result."""

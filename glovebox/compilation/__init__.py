@@ -24,9 +24,11 @@ def create_compilation_service(strategy: str) -> CompilationServiceProtocol:
     """
     if strategy == "zmk_config":
         return create_zmk_config_service()
+    elif strategy == "moergo":
+        return create_moergo_service()
     else:
         raise ValueError(
-            f"Unknown compilation strategy: {strategy}. Supported strategies: zmk_config"
+            f"Unknown compilation strategy: {strategy}. Supported strategies: zmk_config, moergo"
         )
 
 
@@ -54,10 +56,35 @@ def create_zmk_config_service() -> CompilationServiceProtocol:
     )
 
 
+def create_moergo_service() -> CompilationServiceProtocol:
+    """Create Moergo compilation service with generic cache.
+
+    Returns:
+        CompilationServiceProtocol: Moergo compilation service
+    """
+    from glovebox.adapters import create_docker_adapter
+    from glovebox.compilation.cache import create_compilation_cache
+    from glovebox.compilation.services.moergo_compilation_service import (
+        create_moergo_service as _create_service,
+    )
+
+    # Create compilation cache for service
+    compilation_cache = create_compilation_cache()
+
+    # Create Docker adapter for service
+    docker_adapter = create_docker_adapter()
+
+    return _create_service(
+        compilation_cache=compilation_cache,
+        docker_adapter=docker_adapter,
+    )
+
+
 __all__ = [
     # Protocols
     "CompilationServiceProtocol",
     # Factory functions
     "create_compilation_service",
     "create_zmk_config_service",
+    "create_moergo_service",
 ]
