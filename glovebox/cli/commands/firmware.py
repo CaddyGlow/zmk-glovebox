@@ -3,7 +3,7 @@
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 
@@ -20,6 +20,7 @@ from glovebox.cli.helpers.profile import (
 )
 from glovebox.compilation import create_compilation_service
 from glovebox.config.compile_methods import (
+    BuildYamlConfig,
     CacheConfig,
     DockerUserConfig,
     MoergoCompilationConfig,
@@ -27,7 +28,8 @@ from glovebox.config.compile_methods import (
 )
 from glovebox.firmware.flash import create_flash_service
 
-
+if TYPE_CHECKING:
+    from glovebox.config.keyboard_profile import KeyboardProfile
 logger = logging.getLogger(__name__)
 
 
@@ -63,23 +65,49 @@ class FirmwareCompileParams:
     output_format: str
 
 
-def _build_docker_user_config(params: FirmwareCompileParams) -> DockerUserConfig:
+def _build_docker_user_config(
+    params: FirmwareCompileParams, strategy: str
+) -> DockerUserConfig:
     """Build Docker user configuration from CLI parameters."""
-    docker_user_config = DockerUserConfig()
+    # Start with strategy-specific defaults
+    if strategy == "moergo":
+        # Use MoergoCompilationConfig defaults
+        docker_user_config = DockerUserConfig(enable_user_mapping=False)
+        logger.debug(
+            "Using MoergoCompilationConfig docker_user defaults: enable_user_mapping=False"
+        )
+    else:
+        # Use standard defaults for other strategies
+        docker_user_config = DockerUserConfig()
+        logger.debug(
+            "Using standard DockerUserConfig defaults: enable_user_mapping=True"
+        )
 
+    # Override with CLI parameters if provided
     if params.docker_uid is not None:
         docker_user_config.manual_uid = params.docker_uid
+        logger.debug("CLI override: manual_uid=%s", params.docker_uid)
     if params.docker_gid is not None:
         docker_user_config.manual_gid = params.docker_gid
+        logger.debug("CLI override: manual_gid=%s", params.docker_gid)
     if params.docker_username is not None:
         docker_user_config.manual_username = params.docker_username
+        logger.debug("CLI override: manual_username=%s", params.docker_username)
     if params.docker_home is not None:
         docker_user_config.host_home_dir = Path(params.docker_home)
+        logger.debug("CLI override: host_home_dir=%s", params.docker_home)
     if params.docker_container_home is not None:
         docker_user_config.container_home_dir = params.docker_container_home
+        logger.debug(
+            "CLI override: container_home_dir=%s", params.docker_container_home
+        )
     if params.no_docker_user_mapping:
         docker_user_config.enable_user_mapping = False
+        logger.debug(
+            "CLI override: enable_user_mapping=False (--no-docker-user-mapping)"
+        )
 
+    logger.debug("Final docker_user_config: %r", docker_user_config)
     return docker_user_config
 
 
@@ -115,55 +143,128 @@ def _extract_docker_image(keyboard_profile: Any, strategy: str) -> str:
 
 
 def _build_compilation_config(
-    params: FirmwareCompileParams, keyboard_profile: Any
+    params: FirmwareCompileParams, keyboard_profile: "KeyboardProfile"
 ) -> ZmkCompilationConfig | MoergoCompilationConfig:
     """Build compilation configuration from parameters and profile."""
-    # Use provided values or defaults
-    branch_value = params.branch if params.branch is not None else "main"
-    repo_value = params.repo if params.repo is not None else "moergo-sc/zmk"
+    # Find matching compile method from profile
+    profile_compile_method = None
+    if keyboard_profile and keyboard_profile.keyboard_config:
+        for compile_method in keyboard_profile.keyboard_config.compile_methods:
+            profile_compile_method = compile_method
+            logger.debug("Found matching compile method in profile: %r", compile_method)
+            break
 
-    # Parse board targets
-    board_targets_list = []
-    if params.board_targets:
-        board_targets_list = [
-            target.strip() for target in params.board_targets.split(",")
-        ]
+    # logger.debug("Compile method from profile: %r", keyboard_profile.keyboard_config)
+    logger.debug("Compile method from profile: %r", profile_compile_method)
+    # Start with profile config if found, otherwise use defaults
+    if profile_compile_method and params.strategy == "moergo":
+        # Start with the profile's MoergoCompilationConfig
+        if isinstance(profile_compile_method, MoergoCompilationConfig):
+            config = profile_compile_method.model_copy()
+            logger.debug("Using profile MoergoCompilationConfig as base")
+        else:
+            # Create from profile attributes, preserving all available fields
+            config_dict = {
+                "image": getattr(
+                    profile_compile_method, "image", "glove80-zmk-config-docker"
+                ),
+                "repository": getattr(
+                    profile_compile_method, "repository", "moergo-sc/zmk"
+                ),
+                "branch": getattr(profile_compile_method, "branch", "v25.05"),
+            }
 
-    # Build Docker configuration
-    docker_user_config = _build_docker_user_config(params)
+            # Copy all profile attributes that exist in MoergoCompilationConfig
+            for field in [
+                "jobs",
+                "build_commands",
+                "environment_template",
+                "volume_templates",
+                "workspace_path",
+                "entrypoint_command",
+            ]:
+                if hasattr(profile_compile_method, field):
+                    config_dict[field] = getattr(profile_compile_method, field)
+                    logger.debug(
+                        "Copied profile field: %s=%r", field, config_dict[field]
+                    )
 
-    # Extract Docker image
-    image_value = _extract_docker_image(keyboard_profile, params.strategy)
+            config = MoergoCompilationConfig(**config_dict)
+            logger.debug("Created MoergoCompilationConfig from profile attributes")
+    elif profile_compile_method and params.strategy != "moergo":
+        # Start with the profile's ZmkCompilationConfig
+        if isinstance(profile_compile_method, ZmkCompilationConfig):
+            config = profile_compile_method.model_copy()
+            logger.debug("Using profile ZmkCompilationConfig as base")
+        else:
+            # Create from profile attributes, preserving all available fields
+            config_dict = {
+                "image": getattr(
+                    profile_compile_method, "image", "zmkfirmware/zmk-build-arm:stable"
+                ),
+                "artifact_naming": "zmk_github_actions",
+            }
 
-    # Create cache config
-    cache_config = CacheConfig(enabled=not params.no_cache)
+            # Copy all profile attributes that exist in ZmkCompilationConfig
+            for field in [
+                "repository",
+                "branch",
+                "build_config",
+                "cache",
+                "workspace",
+                "jobs",
+                "build_commands",
+                "environment_template",
+                "volume_templates",
+            ]:
+                if hasattr(profile_compile_method, field):
+                    config_dict[field] = getattr(profile_compile_method, field)
+                    logger.debug(
+                        "Copied profile field: %s=%r", field, config_dict[field]
+                    )
 
-    # Create different configuration types based on strategy
-    if params.strategy == "moergo":
-        return MoergoCompilationConfig(
-            image=image_value,
-            repository=repo_value,
-            branch=branch_value,
-            jobs=params.jobs,
-            docker_user=docker_user_config,
-            cleanup_workspace=not params.preserve_workspace
-            if not params.force_cleanup
-            else True,
-            preserve_on_failure=params.preserve_workspace and not params.force_cleanup,
-        )
+            config = ZmkCompilationConfig(**config_dict)
+            logger.debug("Created ZmkCompilationConfig from profile attributes")
     else:
-        # Default to ZMK config strategy
-        return ZmkCompilationConfig(
-            image=image_value,
-            jobs=params.jobs,
-            cache=cache_config,
-            docker_user=docker_user_config,
-            cleanup_workspace=not params.preserve_workspace
-            if not params.force_cleanup
-            else True,
-            preserve_on_failure=params.preserve_workspace and not params.force_cleanup,
-            artifact_naming="zmk_github_actions",
-        )
+        # No profile config found, use defaults
+        if params.strategy == "moergo":
+            config = MoergoCompilationConfig()
+            logger.debug("Using default MoergoCompilationConfig")
+        else:
+            config = ZmkCompilationConfig(artifact_naming="zmk_github_actions")
+            logger.debug("Using default ZmkCompilationConfig")
+
+    # Apply CLI overrides
+    if params.branch is not None:
+        if hasattr(config, "branch"):
+            config.branch = params.branch
+            logger.debug("CLI override: branch=%s", params.branch)
+
+    if params.repo is not None:
+        if hasattr(config, "repository"):
+            config.repository = params.repo
+            logger.debug("CLI override: repository=%s", params.repo)
+
+    if params.jobs is not None:
+        config.jobs = params.jobs
+        logger.debug("CLI override: jobs=%s", params.jobs)
+
+    # Build Docker user configuration
+    docker_user_config = _build_docker_user_config(params, params.strategy)
+    config.docker_user = docker_user_config
+
+    # Apply workspace settings
+    config.cleanup_workspace = (
+        not params.preserve_workspace if not params.force_cleanup else True
+    )
+    config.preserve_on_failure = params.preserve_workspace and not params.force_cleanup
+
+    # Apply cache settings for ZMK configs
+    if isinstance(config, ZmkCompilationConfig):
+        config.cache = CacheConfig(enabled=not params.no_cache)
+
+    logger.debug("Final compilation config: %r", config)
+    return config
 
 
 def _execute_compilation(
@@ -411,6 +512,7 @@ def firmware_compile(
     keyboard_profile = get_keyboard_profile_from_context(ctx)
     user_config = get_user_config_from_context(ctx)
 
+    logger.info("KeyboardProfile available in context: %r", keyboard_profile)
     # Build compilation configuration
     config = _build_compilation_config(params, keyboard_profile)
 

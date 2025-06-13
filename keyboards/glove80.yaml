@@ -17,6 +17,9 @@ compile_methods:
   - strategy: zmk_config
     repository: "moergo-sc/zmk"
     branch: "v25.05"
+    build_config:
+      board: ["glove80_lh", "glove80_rh"]
+      shield: []
     # zmk_config_repo:
     #   config_repo_revision: "dynamic"
     # environment_template:

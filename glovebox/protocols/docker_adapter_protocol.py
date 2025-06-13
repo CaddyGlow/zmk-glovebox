@@ -34,6 +34,7 @@ class DockerAdapterProtocol(Protocol):
         command: list[str] | None = None,
         middleware: Any | None = None,
         user_context: DockerUserContext | None = None,
+        entrypoint: str | None = None,
     ) -> DockerResult:
         """Run a Docker container with specified configuration.
 
@@ -44,6 +45,7 @@ class DockerAdapterProtocol(Protocol):
             command: Optional command to run in the container
             middleware: Optional middleware for processing output
             user_context: Optional user context for Docker --user flag
+            entrypoint: Optional custom entrypoint to override the image's default
 
         Returns:
             Tuple containing (return_code, stdout_lines, stderr_lines)

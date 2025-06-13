@@ -37,8 +37,12 @@ def setup_zmk_workspace_paths(params: "ZmkCompilationParams") -> None:
     workspace_config.build_root.container_path = "/build"
 
     temp_config = Path(tempfile.mkdtemp(prefix="zmk_config_dir"))
-    workspace_config.config_path.host_path = temp_config
-    workspace_config.config_path.container_path = "/config"
+    workspace_config.config_path.host_path = (
+        workspace_config.workspace_path.host() / Path("config")
+    )
+    workspace_config.config_path.container_path = (
+        f"{workspace_config.workspace_path.container_path}/config"
+    )
 
 
 def build_zmk_init_commands(workspace_params: "ZmkWorkspaceParams") -> list[str]:
@@ -60,7 +64,7 @@ def build_zmk_init_commands(workspace_params: "ZmkWorkspaceParams") -> list[str]
 
     return [
         f"cd {container_workspace}",
-        f"west init -l {config_path} {build_root}",
+        # f"west init -l {config_path} {build_root}",
         "west update",
         "west zephyr-export",
     ]

@@ -11,6 +11,7 @@ from glovebox.adapters.docker_adapter import (
     create_docker_adapter,
 )
 from glovebox.core.errors import DockerError
+from glovebox.models.docker import DockerUserContext
 from glovebox.protocols.docker_adapter_protocol import DockerAdapterProtocol
 
 
@@ -149,6 +150,211 @@ class TestDockerAdapter:
 
         expected_cmd = ["docker", "run", "--rm", "ubuntu:latest"]
         mock_run_command.assert_called_once_with(expected_cmd, mock_middleware)
+
+    def test_run_container_with_entrypoint(self):
+        """Test container execution with custom entrypoint."""
+        adapter = DockerAdapter()
+
+        mock_run_command = Mock(return_value=(0, ["output"], []))
+
+        with patch("glovebox.utils.stream_process.run_command", mock_run_command):
+            adapter.run_container(
+                image="ubuntu:latest",
+                volumes=[],
+                environment={},
+                entrypoint="/bin/bash",
+            )
+
+        expected_cmd = [
+            "docker",
+            "run",
+            "--rm",
+            "--entrypoint",
+            "/bin/bash",
+            "ubuntu:latest",
+        ]
+        mock_run_command.assert_called_once_with(expected_cmd, None)
+
+    def test_run_container_with_entrypoint_and_command(self):
+        """Test container execution with custom entrypoint and command."""
+        adapter = DockerAdapter()
+
+        mock_run_command = Mock(return_value=(0, ["output"], []))
+
+        with patch("glovebox.utils.stream_process.run_command", mock_run_command):
+            adapter.run_container(
+                image="ubuntu:latest",
+                volumes=[("/host", "/container")],
+                environment={"TEST": "value"},
+                command=["-c", "echo hello"],
+                entrypoint="/bin/bash",
+            )
+
+        expected_cmd = [
+            "docker",
+            "run",
+            "--rm",
+            "--entrypoint",
+            "/bin/bash",
+            "-v",
+            "/host:/container",
+            "-e",
+            "TEST=value",
+            "ubuntu:latest",
+            "-c",
+            "echo hello",
+        ]
+        mock_run_command.assert_called_once_with(expected_cmd, None)
+
+    def test_run_container_no_entrypoint(self):
+        """Test container execution without entrypoint uses default behavior."""
+        adapter = DockerAdapter()
+
+        mock_run_command = Mock(return_value=(0, ["output"], []))
+
+        with patch("glovebox.utils.stream_process.run_command", mock_run_command):
+            adapter.run_container(
+                image="ubuntu:latest",
+                volumes=[],
+                environment={},
+                entrypoint=None,
+            )
+
+        expected_cmd = ["docker", "run", "--rm", "ubuntu:latest"]
+        mock_run_command.assert_called_once_with(expected_cmd, None)
+
+    def test_run_container_with_user_context(self):
+        """Test container execution with user context."""
+        adapter = DockerAdapter()
+
+        user_context = DockerUserContext.create_manual(
+            uid=1000, gid=1000, username="testuser", enable_user_mapping=True
+        )
+        mock_run_command = Mock(return_value=(0, ["output"], []))
+
+        with patch("glovebox.utils.stream_process.run_command", mock_run_command):
+            adapter.run_container(
+                image="ubuntu:latest",
+                volumes=[],
+                environment={},
+                user_context=user_context,
+            )
+
+        expected_cmd = [
+            "docker",
+            "run",
+            "--rm",
+            "--user",
+            "1000:1000",
+            "ubuntu:latest",
+        ]
+        mock_run_command.assert_called_once_with(expected_cmd, None)
+
+    def test_run_container_with_user_context_disabled(self):
+        """Test container execution with user context but mapping disabled."""
+        adapter = DockerAdapter()
+
+        user_context = DockerUserContext.create_manual(
+            uid=1000, gid=1000, username="testuser", enable_user_mapping=False
+        )
+        mock_run_command = Mock(return_value=(0, ["output"], []))
+
+        with patch("glovebox.utils.stream_process.run_command", mock_run_command):
+            adapter.run_container(
+                image="ubuntu:latest",
+                volumes=[],
+                environment={},
+                user_context=user_context,
+            )
+
+        expected_cmd = ["docker", "run", "--rm", "ubuntu:latest"]
+        mock_run_command.assert_called_once_with(expected_cmd, None)
+
+    def test_run_container_with_user_context_unsupported_platform(self):
+        """Test container execution with user context on unsupported platform."""
+        adapter = DockerAdapter()
+
+        user_context = DockerUserContext.create_manual(
+            uid=1000, gid=1000, username="testuser", enable_user_mapping=True
+        )
+        mock_run_command = Mock(return_value=(0, ["output"], []))
+
+        with (
+            patch("glovebox.utils.stream_process.run_command", mock_run_command),
+            patch.object(
+                DockerUserContext, "is_supported_platform", return_value=False
+            ),
+        ):
+            adapter.run_container(
+                image="ubuntu:latest",
+                volumes=[],
+                environment={},
+                user_context=user_context,
+            )
+
+        # Should not include --user flag when platform is unsupported
+        expected_cmd = ["docker", "run", "--rm", "ubuntu:latest"]
+        mock_run_command.assert_called_once_with(expected_cmd, None)
+
+    def test_run_container_with_all_parameters(self):
+        """Test container execution with all parameters including user context and entrypoint."""
+        adapter = DockerAdapter()
+
+        user_context = DockerUserContext.create_manual(
+            uid=1000, gid=1000, username="testuser", enable_user_mapping=True
+        )
+        mock_middleware = Mock()
+        mock_run_command = Mock(return_value=(0, ["output"], []))
+
+        with patch("glovebox.utils.stream_process.run_command", mock_run_command):
+            adapter.run_container(
+                image="ubuntu:latest",
+                volumes=[("/host1", "/container1"), ("/host2", "/container2")],
+                environment={"VAR1": "value1", "VAR2": "value2"},
+                command=["echo", "hello"],
+                middleware=mock_middleware,
+                user_context=user_context,
+                entrypoint="/bin/bash",
+            )
+
+        expected_cmd = [
+            "docker",
+            "run",
+            "--rm",
+            "--user",
+            "1000:1000",
+            "--entrypoint",
+            "/bin/bash",
+            "-v",
+            "/host1:/container1",
+            "-v",
+            "/host2:/container2",
+            "-e",
+            "VAR1=value1",
+            "-e",
+            "VAR2=value2",
+            "ubuntu:latest",
+            "echo",
+            "hello",
+        ]
+        mock_run_command.assert_called_once_with(expected_cmd, mock_middleware)
+
+    def test_run_container_no_user_context(self):
+        """Test container execution without user context."""
+        adapter = DockerAdapter()
+
+        mock_run_command = Mock(return_value=(0, ["output"], []))
+
+        with patch("glovebox.utils.stream_process.run_command", mock_run_command):
+            adapter.run_container(
+                image="ubuntu:latest",
+                volumes=[],
+                environment={},
+                user_context=None,
+            )
+
+        expected_cmd = ["docker", "run", "--rm", "ubuntu:latest"]
+        mock_run_command.assert_called_once_with(expected_cmd, None)
 
     def test_run_container_exception(self):
         """Test container execution handles exceptions."""

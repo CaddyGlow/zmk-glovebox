@@ -56,6 +56,7 @@ class DockerAdapter:
         command: list[str] | None = None,
         middleware: Any | None = None,
         user_context: DockerUserContext | None = None,
+        entrypoint: str | None = None,
     ) -> DockerResult:
         """Run a Docker container with specified configuration."""
         from glovebox.utils import stream_process
@@ -67,6 +68,11 @@ class DockerAdapter:
             docker_user_flag = user_context.get_docker_user_flag()
             docker_cmd.extend(["--user", docker_user_flag])
             logger.debug("Using Docker user mapping: %s", docker_user_flag)
+
+        # Add custom entrypoint if specified
+        if entrypoint:
+            docker_cmd.extend(["--entrypoint", entrypoint])
+            logger.debug("Using custom entrypoint: %s", entrypoint)
 
         # Add volume mounts
         for host_path, container_path in volumes:

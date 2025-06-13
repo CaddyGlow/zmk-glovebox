@@ -343,6 +343,7 @@ class BaseCompilationService(BaseService):
                 self._docker_adapter.run_container(
                     image=config.image,
                     command=["sh", "-c", compilation_command],
+                    entrypoint=config.entrypoint_command,
                     volumes=volumes,
                     environment=build_env,
                     user_context=user_context,
