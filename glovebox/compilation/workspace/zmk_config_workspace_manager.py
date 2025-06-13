@@ -374,6 +374,7 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
         keyboard_profile: "KeyboardProfile",
         shield_name: str | None = None,
         board_name: str = "nice_nano_v2",
+        separate_config_path: Path | None = None,
     ) -> bool:
         """Initialize dynamic ZMK config workspace without external repository.
 
@@ -437,6 +438,7 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
                 keyboard_profile=keyboard_profile,
                 shield_name=shield_name,
                 board_name=board_name,
+                separate_config_path=separate_config_path,
             )
 
             if not workspace_generated:

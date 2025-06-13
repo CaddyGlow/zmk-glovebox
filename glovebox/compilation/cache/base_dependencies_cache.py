@@ -187,9 +187,9 @@ class BaseDependenciesCache:
             else:
                 target_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Use cp -r or similar to efficiently copy the workspace
+            # Use cp -r to efficiently copy workspace contents (not the directory itself)
             result = subprocess.run(
-                ["cp", "-r", str(source_cache_path), str(target_path)],
+                ["cp", "-r", f"{source_cache_path}/.", str(target_path)],
                 capture_output=True,
                 text=True,
                 timeout=300,  # 5 minute timeout for large workspaces

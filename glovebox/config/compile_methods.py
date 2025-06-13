@@ -66,14 +66,34 @@ class ZmkWorkspaceConfig(BaseModel):
 
     @property
     def config_path_absolute(self) -> Path:
-        """Get the fully expanded config path, relative to workspace_path if set."""
+        """Get the fully expanded config path."""
+        # If we have a separate config directory (different host paths), use absolute container path
+        if (
+            self.config_path.host_path
+            and self.workspace_path.host_path
+            and self.config_path.host_path != self.workspace_path.host_path
+        ):
+            return Path(
+                self.config_path.container_path
+            )  # Use configured container path
+
+        # Otherwise use relative path within workspace
         return (
             Path(self.workspace_path.container_path) / self.config_path.container_path
         )
 
     @property
     def build_root_absolute(self) -> Path:
-        """Get the fully expanded build root path, relative to workspace_path if set."""
+        """Get the fully expanded build root path."""
+        # If we have a separate build directory (different host paths), use the configured container path
+        if (
+            self.build_root.host_path
+            and self.workspace_path.host_path
+            and self.build_root.host_path != self.workspace_path.host_path
+        ):
+            return Path(self.build_root.container_path)  # Use configured container path
+
+        # Otherwise use relative path within workspace
         return Path(self.workspace_path.container_path) / self.build_root.container_path
 
 
