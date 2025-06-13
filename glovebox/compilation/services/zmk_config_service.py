@@ -12,6 +12,7 @@ from glovebox.compilation.helpers.zmk_helpers import (
 )
 from glovebox.compilation.models.compilation_params import (
     ZmkCompilationParams,
+    ZmkConfigGenerationParams,
     ZmkWorkspaceParams,
 )
 from glovebox.compilation.protocols.workspace_protocols import (
@@ -26,6 +27,7 @@ from glovebox.compilation.workspace.zmk_config_workspace_manager import (
 from glovebox.config.compile_methods import CompilationConfig
 from glovebox.config.models.workspace import UserWorkspaceConfig
 from glovebox.core.errors import BuildError
+from glovebox.models.docker_path import create_zmk_docker_paths
 
 
 if TYPE_CHECKING:
@@ -218,19 +220,22 @@ class ZmkConfigCompilationService(BaseCompilationService):
             config.zmk_config_repo, keyboard_profile
         )
 
-        # Extract shield and board names for dynamic workspace
-        shield_name = self._extract_shield_name(config, keyboard_profile)
-        board_name = self._extract_board_name(config)
+        # Create Docker paths for workspace organization
+        docker_paths = create_zmk_docker_paths(workspace_path)
 
-        # Initialize dynamic workspace
-        if self.workspace_manager.initialize_dynamic_workspace(
+        # Create consolidated generation parameters
+        generation_params = ZmkConfigGenerationParams(
             workspace_path=workspace_path,
             keymap_file=keymap_file,
             config_file=config_file,
             keyboard_profile=keyboard_profile,
-            shield_name=shield_name,
-            board_name=board_name,
-        ):
+            docker_paths=docker_paths,
+            shield_name=self._extract_shield_name(config, keyboard_profile),
+            board_name=self._extract_board_name(config),
+        )
+
+        # Initialize dynamic workspace with consolidated parameters
+        if self.workspace_manager.initialize_dynamic_workspace(generation_params):
             return workspace_path
 
         return None

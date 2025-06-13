@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from glovebox.compilation.generation.zmk_config_generator import (
         ZmkConfigContentGenerator,
     )
+    from glovebox.compilation.models.compilation_params import ZmkConfigGenerationParams
     from glovebox.config.profile import KeyboardProfile
 
 
@@ -368,14 +369,7 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
 
     def initialize_dynamic_workspace(
         self,
-        workspace_path: Path,
-        keymap_file: Path,
-        config_file: Path,
-        keyboard_profile: "KeyboardProfile",
-        shield_name: str | None = None,
-        board_name: str = "nice_nano_v2",
-        separate_config_path: Path | None = None,
-        zephyr_base_path: str = "zephyr",
+        params: "ZmkConfigGenerationParams",
     ) -> bool:
         """Initialize dynamic ZMK config workspace without external repository.
 
@@ -387,14 +381,7 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
         2. Use content generator to create build.yaml, west.yml, and copy user files
 
         Args:
-            workspace_path: Path to workspace directory
-            keymap_file: Source keymap file
-            config_file: Source config file
-            keyboard_profile: Keyboard profile for configuration
-            shield_name: Shield name (defaults to keyboard name)
-            board_name: Board name for builds
-            separate_config_path: Optional separate directory for config files
-            zephyr_base_path: Path to zephyr directory relative to workspace
+            params: Consolidated generation parameters with Docker paths
 
         Returns:
             bool: True if workspace initialized successfully
@@ -404,26 +391,18 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
         """
         try:
             self.logger.info(
-                "Initializing dynamic ZMK config workspace: %s", workspace_path
+                "Initializing dynamic ZMK config workspace: %s", params.workspace_path
             )
 
             # Clone base dependencies cache (if available) or create fresh workspace
             if (
                 self.base_dependencies_cache
                 and not self._initialize_workspace_from_base_cache(
-                    workspace_path, keyboard_profile
+                    params.workspace_path, params.keyboard_profile
                 )
             ):
                 # Fall back to direct approach if cache fails
-                return self._initialize_dynamic_workspace_direct(
-                    workspace_path,
-                    keymap_file,
-                    config_file,
-                    keyboard_profile,
-                    shield_name,
-                    board_name,
-                    zephyr_base_path,
-                )
+                return self._initialize_dynamic_workspace_direct(params)
 
             # Use content generator to create workspace files
             if not self.content_generator:
@@ -434,16 +413,9 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
 
                 self.content_generator = create_zmk_config_content_generator()
 
-            # Generate workspace content using content generator
+            # Generate workspace content using content generator with consolidated parameters
             workspace_generated = self.content_generator.generate_config_workspace(
-                workspace_path=workspace_path,
-                keymap_file=keymap_file,
-                config_file=config_file,
-                keyboard_profile=keyboard_profile,
-                shield_name=shield_name,
-                board_name=board_name,
-                separate_config_path=separate_config_path,
-                zephyr_base_path=zephyr_base_path,
+                params
             )
 
             if not workspace_generated:
@@ -517,24 +489,12 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
 
     def _initialize_dynamic_workspace_direct(
         self,
-        workspace_path: Path,
-        keymap_file: Path,
-        config_file: Path,
-        keyboard_profile: "KeyboardProfile",
-        shield_name: str | None = None,
-        board_name: str = "nice_nano_v2",
-        zephyr_base_path: str = "zephyr",
+        params: "ZmkConfigGenerationParams",
     ) -> bool:
         """Initialize dynamic workspace directly without caching (fallback method).
 
         Args:
-            workspace_path: Path to workspace directory
-            keymap_file: Source keymap file
-            config_file: Source config file
-            keyboard_profile: Keyboard profile for configuration
-            shield_name: Shield name (defaults to keyboard name)
-            board_name: Board name for builds
-            zephyr_base_path: Path to zephyr directory relative to workspace
+            params: Consolidated generation parameters with Docker paths
 
         Returns:
             bool: True if workspace initialized successfully
@@ -550,15 +510,9 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
 
                 self.content_generator = create_zmk_config_content_generator()
 
-            # Generate workspace content using content generator
+            # Generate workspace content using content generator with consolidated parameters
             workspace_generated = self.content_generator.generate_config_workspace(
-                workspace_path=workspace_path,
-                keymap_file=keymap_file,
-                config_file=config_file,
-                keyboard_profile=keyboard_profile,
-                shield_name=shield_name,
-                board_name=board_name,
-                zephyr_base_path=zephyr_base_path,
+                params
             )
 
             if not workspace_generated:
