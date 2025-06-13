@@ -114,8 +114,28 @@ class MoergoCompilationService(BaseCompilationService):
         #     config.image,
         # ]
 
-        command_parts = []
+        command_parts: list[str] = []
         return " ".join(command_parts)
+
+    def _validate_strategy_specific(self, config: CompileMethodConfigUnion) -> bool:
+        """Validate Moergo strategy-specific configuration requirements.
+
+        Args:
+            config: Compilation configuration to validate
+
+        Returns:
+            bool: True if strategy-specific requirements are met
+        """
+        if not isinstance(config, MoergoCompilationConfig):
+            self.logger.error("Invalid configuration type for Moergo strategy")
+            return False
+
+        # Moergo strategy specific validation
+        if not config.branch:
+            self.logger.error("Branch is required for Moergo compilation")
+            return False
+
+        return True
 
     # def _cleanup_workspace(self, workspace_path: Path) -> None:
     #     """Clean up temporary workspace after compilation.

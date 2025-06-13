@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from glovebox.config.compile_methods import (
-        DockerCompilationConfig,
+        ZmkCompilationConfig,
         ZmkWorkspaceConfig,
     )
     from glovebox.config.profile import KeyboardProfile
@@ -24,7 +24,7 @@ class ZmkCompilationParams:
 
     keymap_file: Path
     config_file: Path
-    compilation_config: "DockerCompilationConfig"
+    compilation_config: "ZmkCompilationConfig"
     keyboard_profile: "KeyboardProfile | None" = None
 
     @property
@@ -37,14 +37,12 @@ class ZmkCompilationParams:
         if not self.keyboard_profile:
             return False
 
-        if (
-            not self.compilation_config.zmk_config_repo
-            or not self.compilation_config.zmk_config_repo.config_repo_url
-        ):
-            return True
-
-        repo_url = self.compilation_config.zmk_config_repo.config_repo_url.strip()
-        return not repo_url
+        # Use dynamic generation if no config repo URL is specified
+        workspace_config = self.compilation_config.workspace
+        return (
+            not workspace_config.config_repo_url
+            or not workspace_config.config_repo_url.strip()
+        )
 
 
 @dataclass

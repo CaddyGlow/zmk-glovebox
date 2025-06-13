@@ -21,8 +21,8 @@ from glovebox.cli.helpers.profile import (
 from glovebox.compilation import create_compilation_service
 from glovebox.config.compile_methods import (
     CacheConfig,
-    DockerCompilationConfig,
     DockerUserConfig,
+    ZmkCompilationConfig,
 )
 from glovebox.firmware.flash import create_flash_service
 
@@ -104,7 +104,7 @@ def _extract_docker_image(keyboard_profile: Any, strategy: str) -> str:
 
 def _build_compilation_config(
     params: FirmwareCompileParams, keyboard_profile: Any
-) -> DockerCompilationConfig:
+) -> ZmkCompilationConfig:
     """Build compilation configuration from parameters and profile."""
     # Use provided values or defaults
     branch_value = params.branch if params.branch is not None else "main"
@@ -126,30 +126,22 @@ def _build_compilation_config(
     # Create cache config
     cache_config = CacheConfig(enabled=not params.no_cache)
 
-    return DockerCompilationConfig(
-        strategy=params.strategy,  # type: ignore[arg-type]
+    return ZmkCompilationConfig(
         image=image_value,
-        repository=repo_value,
-        branch=branch_value,
         jobs=params.jobs,
-        board_targets=board_targets_list,
         cache=cache_config,
         docker_user=docker_user_config,
-        # Workspace configuration
-        workspace_root=params.workspace_dir,
         cleanup_workspace=not params.preserve_workspace
         if not params.force_cleanup
         else True,
         preserve_on_failure=params.preserve_workspace and not params.force_cleanup,
-        # Artifact configuration
         artifact_naming="zmk_github_actions",
-        build_matrix_file=params.build_matrix,
     )
 
 
 def _execute_compilation(
     params: FirmwareCompileParams,
-    config: DockerCompilationConfig,
+    config: ZmkCompilationConfig,
     keyboard_profile: Any,
 ) -> Any:
     """Execute the compilation and return result."""

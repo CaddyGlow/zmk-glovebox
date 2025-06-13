@@ -11,7 +11,6 @@ def test_compilation_domain_imports():
     from glovebox.compilation import (
         CompilationServiceProtocol,
         create_compilation_service,
-        create_west_service,
         create_zmk_config_service,
     )
 
@@ -21,14 +20,12 @@ def test_compilation_domain_imports():
     # Test factory function availability
     assert callable(create_compilation_service)
     assert callable(create_zmk_config_service)
-    assert callable(create_west_service)
 
 
 def test_protocol_imports():
     """Test that all protocol imports work correctly."""
     from glovebox.compilation.protocols import (
         CompilationServiceProtocol,
-        WestWorkspaceManagerProtocol,
         WorkspaceManagerProtocol,
         ZmkConfigWorkspaceManagerProtocol,
     )
@@ -37,7 +34,6 @@ def test_protocol_imports():
     protocols = [
         CompilationServiceProtocol,
         WorkspaceManagerProtocol,
-        WestWorkspaceManagerProtocol,
         ZmkConfigWorkspaceManagerProtocol,
     ]
 
@@ -49,7 +45,6 @@ def test_factory_functions_exist():
     """Test that factory functions exist and work correctly."""
     from glovebox.compilation import (
         create_compilation_service,
-        create_west_service,
         create_zmk_config_service,
     )
 
@@ -57,16 +52,9 @@ def test_factory_functions_exist():
     zmk_service = create_zmk_config_service()
     assert zmk_service is not None
 
-    # West service is implemented
-    west_service = create_west_service()
-    assert west_service is not None
-
     # Test compilation service factory with different strategies
     zmk_service_via_factory = create_compilation_service("zmk_config")
     assert zmk_service_via_factory is not None
-
-    west_service_via_factory = create_compilation_service("west")
-    assert west_service_via_factory is not None
 
     # Test that unsupported strategies raise ValueError
     with pytest.raises(
@@ -84,7 +72,6 @@ def test_subdomain_factory_functions():
     )
     from glovebox.compilation.workspace import (
         create_cache_manager,
-        create_west_workspace_manager,
         create_workspace_manager,
         create_zmk_config_workspace_manager,
     )
@@ -97,7 +84,6 @@ def test_subdomain_factory_functions():
         create_environment_manager,
         # Workspace
         create_workspace_manager,
-        create_west_workspace_manager,
         create_zmk_config_workspace_manager,
         create_cache_manager,
     ]
@@ -119,7 +105,6 @@ def test_subdomain_factory_functions():
     implemented_workspace_functions = [
         create_zmk_config_workspace_manager,
         create_cache_manager,
-        create_west_workspace_manager,
     ]
 
     for func in implemented_workspace_functions:

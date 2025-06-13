@@ -24,11 +24,9 @@ def create_compilation_service(strategy: str) -> CompilationServiceProtocol:
     """
     if strategy == "zmk_config":
         return create_zmk_config_service()
-    elif strategy == "west":
-        return create_west_service()
     else:
         raise ValueError(
-            f"Unknown compilation strategy: {strategy}. Supported strategies: zmk_config, west"
+            f"Unknown compilation strategy: {strategy}. Supported strategies: zmk_config"
         )
 
 
@@ -56,35 +54,10 @@ def create_zmk_config_service() -> CompilationServiceProtocol:
     )
 
 
-def create_west_service() -> CompilationServiceProtocol:
-    """Create west compilation service with generic cache.
-
-    Returns:
-        CompilationServiceProtocol: West compilation service
-    """
-    from glovebox.adapters import create_docker_adapter
-    from glovebox.compilation.cache import create_compilation_cache
-    from glovebox.compilation.services.west_compilation_service import (
-        create_west_service as _create_service,
-    )
-
-    # Create compilation cache for service
-    compilation_cache = create_compilation_cache()
-
-    # Create Docker adapter for service
-    docker_adapter = create_docker_adapter()
-
-    return _create_service(
-        compilation_cache=compilation_cache,
-        docker_adapter=docker_adapter,
-    )
-
-
 __all__ = [
     # Protocols
     "CompilationServiceProtocol",
     # Factory functions
     "create_compilation_service",
     "create_zmk_config_service",
-    "create_west_service",
 ]

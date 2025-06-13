@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from glovebox.config.compile_methods import (
-    WestWorkspaceConfig,
     ZmkWorkspaceConfig,
 )
 
@@ -48,29 +47,6 @@ class WorkspaceManagerProtocol(Protocol):
 
         Returns:
             bool: True if cleanup succeeded
-        """
-        ...
-
-
-@runtime_checkable
-class WestWorkspaceManagerProtocol(WorkspaceManagerProtocol, Protocol):
-    """Protocol for ZMK west workspace management."""
-
-    def initialize_west_workspace(
-        self,
-        workspace_config: WestWorkspaceConfig,
-        keymap_file: Path,
-        config_file: Path,
-    ) -> bool:
-        """Initialize ZMK west workspace.
-
-        Args:
-            workspace_config: West workspace configuration
-            keymap_file: Path to keymap file
-            config_file: Path to config file
-
-        Returns:
-            bool: True if initialization succeeded
         """
         ...
 
