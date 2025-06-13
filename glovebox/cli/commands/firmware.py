@@ -21,7 +21,7 @@ from glovebox.cli.helpers.profile import (
 from glovebox.compilation import create_compilation_service
 from glovebox.config.compile_methods import (
     CacheConfig,
-    CompilationConfig,
+    DockerCompilationConfig,
     DockerUserConfig,
 )
 from glovebox.firmware.flash import create_flash_service
@@ -104,7 +104,7 @@ def _extract_docker_image(keyboard_profile: Any, strategy: str) -> str:
 
 def _build_compilation_config(
     params: FirmwareCompileParams, keyboard_profile: Any
-) -> CompilationConfig:
+) -> DockerCompilationConfig:
     """Build compilation configuration from parameters and profile."""
     # Use provided values or defaults
     branch_value = params.branch if params.branch is not None else "main"
@@ -126,7 +126,7 @@ def _build_compilation_config(
     # Create cache config
     cache_config = CacheConfig(enabled=not params.no_cache)
 
-    return CompilationConfig(
+    return DockerCompilationConfig(
         strategy=params.strategy,  # type: ignore[arg-type]
         image=image_value,
         repository=repo_value,
@@ -148,7 +148,9 @@ def _build_compilation_config(
 
 
 def _execute_compilation(
-    params: FirmwareCompileParams, config: CompilationConfig, keyboard_profile: Any
+    params: FirmwareCompileParams,
+    config: DockerCompilationConfig,
+    keyboard_profile: Any,
 ) -> Any:
     """Execute the compilation and return result."""
     # Clear cache if requested
