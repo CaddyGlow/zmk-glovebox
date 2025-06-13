@@ -6,10 +6,10 @@ from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
+    from glovebox.compilation.models.build_matrix import BuildYamlConfig
     from glovebox.config.compile_methods import (
         ZmkCompilationConfig,
         ZmkWorkspaceConfig,
-        BuildYamlConfig,
     )
     from glovebox.config.profile import KeyboardProfile
     from glovebox.models.docker_path import DockerPath
@@ -86,21 +86,3 @@ class ZmkConfigGenerationParams:
     def workspace_config_directory_host(self) -> Path:
         """Get workspace config directory on host (always workspace/config)."""
         return self.workspace_path / "config"
-
-
-@dataclass
-class ZmkConfigFileParams:
-    """Consolidated parameters for individual file generation operations."""
-
-    workspace_path: Path
-    keyboard_profile: "KeyboardProfile"
-    shield_name: str | None
-    config_docker_path: "DockerPath"
-    build_config: BuildYamlConfig
-    board_name: str | None = "nice_nano_v2"
-    zephyr_base_path: str = "zephyr"
-
-    @property
-    def config_directory_host(self) -> Path:
-        """Get config directory on host."""
-        return self.config_docker_path.host()

@@ -188,14 +188,16 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
             except Exception as e:
                 self.logger.warning("Failed to parse build.yaml, using fallback: %s", e)
+                board_name = config.build_config.get_board_name() or "nice_nano_v2"
                 build_commands = build_zmk_fallback_commands(
-                    workspace_params, [config.build_config.get_board_name()]
+                    workspace_params, [board_name]
                 )
         else:
             # No build.yaml found, use fallback approach
             self.logger.debug("No build.yaml found, using fallback build commands")
+            board_name = config.build_config.get_board_name() or "nice_nano_v2"
             build_commands = build_zmk_fallback_commands(
-                workspace_params, [config.build_config.get_board_name()]
+                workspace_params, [board_name]
             )
 
         return " && ".join(init_commands + build_commands)
@@ -238,8 +240,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
             workspace_docker_path=zmk_workspace_config.workspace_path,
             config_docker_path=zmk_workspace_config.config_path,
             build_docker_path=zmk_workspace_config.build_root,
-            shield_name="placeholder",
-            board_name=config.build_config.get_board_name(),
+            build_config=config.build_config,
         )
 
         # Initialize dynamic workspace with consolidated parameters
