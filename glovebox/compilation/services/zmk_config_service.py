@@ -1,10 +1,19 @@
 """ZMK config compilation service implementation."""
 
 import logging
-import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from glovebox.compilation.helpers.zmk_helpers import (
+    build_zmk_compilation_commands,
+    build_zmk_fallback_commands,
+    build_zmk_init_commands,
+    setup_zmk_workspace_paths,
+)
+from glovebox.compilation.models.compilation_params import (
+    ZmkCompilationParams,
+    ZmkWorkspaceParams,
+)
 from glovebox.compilation.protocols.workspace_protocols import (
     ZmkConfigWorkspaceManagerProtocol,
 )
@@ -83,11 +92,27 @@ class ZmkConfigCompilationService(BaseCompilationService):
             Path | None: Workspace path if successful, None if failed
         """
         try:
-            # Determine workspace initialization strategy
-            temp_workspace = Path(tempfile.mkdtemp(suffix="zmk_config"))
-            config.zmk_config_repo.workspace_path.host_path = temp_workspace
+            # Create consolidated parameters
+            params = ZmkCompilationParams(
+                keymap_file=keymap_file,
+                config_file=config_file,
+                compilation_config=config,
+                keyboard_profile=keyboard_profile,
+            )
 
-            if self._should_use_dynamic_generation(config, keyboard_profile):
+            # Use helper function for path setup
+            setup_zmk_workspace_paths(params)
+
+            # Log the created directories
+            workspace_path = config.zmk_config_repo.workspace_path.host_path
+            build_path = config.zmk_config_repo.build_root.host_path
+            config_path = config.zmk_config_repo.config_path.host_path
+
+            self.logger.info("Using separate build directory: %s", build_path)
+            self.logger.info("Using separate config directory: %s", config_path)
+            self.logger.info("Workspace directory: %s", workspace_path)
+
+            if params.should_use_dynamic_generation:
                 if not keyboard_profile:
                     self.logger.error(
                         "Keyboard profile required for dynamic generation"
@@ -125,196 +150,49 @@ class ZmkConfigCompilationService(BaseCompilationService):
         Returns:
             str: Complete west command sequence
         """
-        # Import build matrix resolver
-        from glovebox.compilation.configuration.build_matrix_resolver import (
-            create_build_matrix_resolver,
-        )
-
         zmk_workspace_config = config.zmk_config_repo
 
         if zmk_workspace_config is None:
             raise BuildError("ZMK config repository configuration is missing")
 
-        # Get configurable config path
-        config_path = zmk_workspace_config.config_path.container_path
-        build_root = zmk_workspace_config.build_root.container_path
-
-        # Initialize commands with workspace setup
-        container_workspace_path = zmk_workspace_config.workspace_path.container_path
-        # Extract relative config path for west init
-        config_relative_path = (
-            Path(config_path).name if "/" in config_path else config_path
+        # Create workspace parameters
+        workspace_params = ZmkWorkspaceParams(
+            workspace_path=workspace_path, zmk_config=zmk_workspace_config
         )
-        commands = [
-            f"cd {container_workspace_path}",  # Ensure we're in the workspace
-            f"rm -rf {build_root}",  # Remove existing build dir (.west excluded for cached workspaces)
-            f"west init -l {config_relative_path}",  # Initialize west workspace with relative config path
-            "west update",  # Download dependencies
-            "west zephyr-export",  # Export Zephyr build environment
-        ]
+
+        # Use helper functions for command generation
+        init_commands = build_zmk_init_commands(workspace_params)
 
         # Check for build.yaml in workspace config directory
         build_yaml_file_path = workspace_path / zmk_workspace_config.build_yaml_path
         if build_yaml_file_path.exists():
             try:
                 # Parse build matrix from build.yaml
+                from glovebox.compilation.configuration.build_matrix_resolver import (
+                    create_build_matrix_resolver,
+                )
+
                 resolver = create_build_matrix_resolver()
                 build_matrix = resolver.resolve_from_build_yaml(build_yaml_file_path)
 
                 # Generate west build commands for each target
-                build_commands = self._generate_build_commands_from_matrix(
-                    build_matrix, zmk_workspace_config
+                build_commands = build_zmk_compilation_commands(
+                    build_matrix, workspace_params
                 )
-                commands.extend(build_commands)
 
             except Exception as e:
                 self.logger.warning("Failed to parse build.yaml, using fallback: %s", e)
-                commands.extend(
-                    self._generate_fallback_build_commands(config, zmk_workspace_config)
+                build_commands = build_zmk_fallback_commands(
+                    workspace_params, config.board_targets
                 )
         else:
             # No build.yaml found, use fallback approach
             self.logger.debug("No build.yaml found, using fallback build commands")
-            commands.extend(
-                self._generate_fallback_build_commands(config, zmk_workspace_config)
+            build_commands = build_zmk_fallback_commands(
+                workspace_params, config.board_targets
             )
 
-        return " && ".join(commands)
-
-    def _generate_build_commands_from_matrix(
-        self,
-        build_matrix: "BuildMatrix",
-        zmk_workspace_config: "ZmkWorkspaceConfig",
-    ) -> list[str]:
-        """Generate west build commands from build matrix.
-
-        Creates build commands following GitHub Actions workflow pattern
-        with proper build directories and CMake arguments.
-
-        Args:
-            build_matrix: Resolved build matrix from build.yaml
-            zmk_workspace_config: ZMK workspace configuration
-
-        Returns:
-            list[str]: West build commands for each target
-        """
-
-        commands = []
-
-        for target in build_matrix.targets:
-            # Generate build directory name with optional custom build root
-            base_build_dir = zmk_workspace_config.build_root_absolute
-
-            build_dir = Path(base_build_dir) / f"{target.artifact_name or target.board}"
-            if target.shield:
-                build_dir = Path(base_build_dir) / f"{target.shield}-{target.board}"
-
-            # Build west command with GitHub Actions workflow parameters
-            west_cmd = f"west build -s zmk/app -b {target.board} -d {build_dir}"
-
-            # Add CMake arguments with configurable config path
-            absolute_config_path = zmk_workspace_config.config_path_absolute
-
-            cmake_args = [f"-DZMK_CONFIG={absolute_config_path}"]
-
-            # Add shield if specified
-            if target.shield:
-                cmake_args.append(f"-DSHIELD={target.shield}")
-
-            # Add target-specific cmake args
-            if target.cmake_args:
-                cmake_args.extend(target.cmake_args)
-
-            # Add snippet if specified
-            if target.snippet:
-                cmake_args.append(f"-DZMK_EXTRA_MODULES={target.snippet}")
-
-            # Combine command with cmake args
-            if cmake_args:
-                west_cmd += f" -- {' '.join(cmake_args)}"
-
-            commands.append(west_cmd)
-            self.logger.debug(
-                "Generated build command for %s: %s", target.artifact_name, west_cmd
-            )
-
-        return commands
-
-    def _generate_fallback_build_commands(
-        self,
-        config: CompilationConfig,
-        zmk_workspace_config: "ZmkWorkspaceConfig | None",
-    ) -> list[str]:
-        """Generate fallback build commands when build.yaml is not available.
-
-        Uses configuration to generate basic west build commands.
-
-        Args:
-            config: Compilation configuration
-            zmk_workspace_config: ZMK workspace configuration
-
-        Returns:
-            list[str]: Fallback west build commands
-        """
-        commands = []
-        board_name = self._extract_board_name(config)
-
-        # Determine base build directory
-        base_build_dir = (
-            zmk_workspace_config.build_root.container_path
-            if zmk_workspace_config
-            else "build"
-        )
-
-        # Generate basic build command
-        west_cmd = f"west build -s zmk/app -b {board_name} -d {base_build_dir}"
-
-        # Add CMake arguments with configurable config path
-        if zmk_workspace_config:
-            absolute_config_path = zmk_workspace_config.config_path_absolute
-        else:
-            # Fallback for dynamic mode where zmk_config_repo might be None
-            absolute_config_path = Path("/workspace/config")
-        cmake_args = [f"-DZMK_CONFIG={absolute_config_path}"]
-
-        # Add board targets as shields if available
-        if config.board_targets and len(config.board_targets) > 1:
-            # Multiple board targets - generate commands for each
-            for board_target in config.board_targets:
-                build_dir = f"{base_build_dir}_{board_target}"
-                target_cmd = f"west build -s zmk/app -b {board_target} -d {build_dir}"
-                target_cmd += f" -- {' '.join(cmake_args)}"
-                commands.append(target_cmd)
-        else:
-            # Single board target
-            west_cmd += f" -- {' '.join(cmake_args)}"
-            commands.append(west_cmd)
-
-        return commands
-
-    def _should_use_dynamic_generation(
-        self,
-        config: CompilationConfig,
-        keyboard_profile: "KeyboardProfile | None",
-    ) -> bool:
-        """Determine if dynamic workspace generation should be used.
-
-        Args:
-            config: Compilation configuration
-            keyboard_profile: Keyboard profile
-
-        Returns:
-            bool: True if dynamic generation should be used
-        """
-        if not keyboard_profile:
-            return False
-
-        # Use dynamic generation if no repository URL is configured
-        if not config.zmk_config_repo or not config.zmk_config_repo.config_repo_url:
-            return True
-
-        repo_url = config.zmk_config_repo.config_repo_url.strip()
-        return not repo_url
+        return " && ".join(init_commands + build_commands)
 
     def _setup_dynamic_workspace(
         self,
