@@ -63,17 +63,42 @@ class MoergoCompilationService(BaseCompilationService):
 
             # Create temporary directory for build files
             temp_dir = Path(tempfile.mkdtemp(prefix="moergo-build-"))
-            config.build_root.host_path = temp_dir
             self.logger.debug("Created temporary workspace: %s", temp_dir)
 
+            # Create nested config directory structure as expected by Moergo container
+            # Container expects: /config/config/ (where our files go)
             config_path = temp_dir / "config"
+            actual_config_path = config_path / "config"
+            actual_config_path.mkdir(parents=True, exist_ok=True)
 
-            # Copy keymap and config files to temp directory
-            temp_keymap = config_path / f"{keyboard_profile.keyboard_name}.keymap"
-            temp_config = config_path / f"{keyboard_profile.keyboard_name}.conf"
+            # Copy keymap and config files to the nested config directory
+            temp_keymap = actual_config_path / "glove80.keymap"
+            temp_config = actual_config_path / "glove80.conf"
 
             temp_keymap.write_text(keymap_file.read_text())
             temp_config.write_text(config_file.read_text())
+
+            # Create the required default.nix file for Nix build in the nested config directory
+            default_nix_content = """{ firmware, ... }:
+
+firmware.combine_uf2 {
+  glove80_left = firmware.build {
+    board = "glove80_lh";
+    keymap = "glove80.keymap";
+    kconfig = "glove80.conf";
+  };
+  glove80_right = firmware.build {
+    board = "glove80_rh";
+    keymap = "glove80.keymap";
+    kconfig = "glove80.conf";
+  };
+}
+"""
+            default_nix_file = actual_config_path / "default.nix"
+            default_nix_file.write_text(default_nix_content)
+
+            # Update the build_root in config to point to our temp directory
+            config.workspace_path.host_path = temp_dir
 
             self.logger.debug(
                 "Copied files to temp workspace: %s, %s", temp_keymap, temp_config
@@ -88,34 +113,24 @@ class MoergoCompilationService(BaseCompilationService):
     def _build_compilation_command(
         self, workspace_path: Path, config: CompileMethodConfigUnion
     ) -> str:
-        """Build Docker compilation command for Moergo strategy.
+        """Build compilation command for Moergo strategy.
+
+        The Moergo Docker container runs the build automatically when started.
+        We just need to wait for it to complete and show the results.
 
         Args:
             workspace_path: Path to temporary workspace directory
             config: Moergo compilation configuration
 
         Returns:
-            str: Docker build command
+            str: Command to wait for build completion and show results
         """
         if not isinstance(config, MoergoCompilationConfig):
             raise BuildError("Invalid compilation configuration")
 
-        # # Build docker command with volume mount to temp folder
-        # container_path = config.build_root.container_path
-        # workspace_path = config.build_root.host_path
-        # command_parts = [
-        #     "docker",
-        #     "run",
-        #     "--rm",
-        #     "-v",
-        #     "-e",
-        #     f"BRANCH={config.branch}",
-        #     f"{workspace_path}:{container_path}",
-        #     config.image,
-        # ]
-
-        command_parts: list[str] = []
-        return " ".join(command_parts)
+        # The Moergo container runs build automatically on startup
+        # First create git config to fix ownership issue, then run the entrypoint
+        return 'echo "[safe]" > /tmp/gitconfig && echo "    directory = /src" >> /tmp/gitconfig && /bin/entrypoint.sh && echo "Directory structure:" && ls -la /config/ && echo "Build files:" && ls -la /config/config/ '
 
     def _validate_strategy_specific(self, config: CompileMethodConfigUnion) -> bool:
         """Validate Moergo strategy-specific configuration requirements.
@@ -136,6 +151,67 @@ class MoergoCompilationService(BaseCompilationService):
             return False
 
         return True
+
+    def _prepare_build_volumes(
+        self,
+        workspace_path: Path,
+        config: CompileMethodConfigUnion,
+    ) -> list[tuple[str, str]]:
+        """Prepare Docker volumes for Moergo compilation.
+
+        Args:
+            workspace_path: Path to workspace directory
+            config: Compilation configuration
+
+        Returns:
+            list[tuple[str, str]]: Docker volumes for compilation
+        """
+        if not isinstance(config, MoergoCompilationConfig):
+            raise BuildError("Invalid compilation configuration")
+
+        volumes = []
+
+        if config.workspace_path.host_path:
+            volumes.append(config.workspace_path.vol())
+
+        self.logger.debug("Prepared %d Docker volumes for Moergo build", len(volumes))
+        return volumes
+
+    def _prepare_build_environment(
+        self, config: CompileMethodConfigUnion
+    ) -> dict[str, str]:
+        """Prepare build environment variables for Moergo compilation.
+
+        Args:
+            config: Moergo compilation configuration
+
+        Returns:
+            dict[str, str]: Environment variables for build
+        """
+        if not isinstance(config, MoergoCompilationConfig):
+            raise BuildError("Invalid compilation configuration")
+
+        # Start with base environment
+        build_env = super()._prepare_build_environment(config)
+
+        # Add Moergo-specific environment variables
+        if config.branch:
+            build_env["BRANCH"] = config.branch
+        if config.repository:
+            build_env["REPO"] = config.repository
+
+        # Set user context for file ownership (Moergo container expects UID/GID)
+        # Note: The container needs to run as root to access git repos, but uses UID/GID for output file ownership
+        import os
+
+        build_env["UID"] = str(os.getuid())
+        build_env["GID"] = str(os.getgid())
+
+        # Fix git ownership issue by setting git config
+        build_env["GIT_CONFIG_GLOBAL"] = "/tmp/gitconfig"
+
+        self.logger.debug("Prepared Moergo build environment: %s", build_env)
+        return build_env
 
     # def _cleanup_workspace(self, workspace_path: Path) -> None:
     #     """Clean up temporary workspace after compilation.

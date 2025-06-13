@@ -191,7 +191,7 @@ class MoergoCompilationConfig(DockerCompilationConfig):
     repository: str = "moergo-sc/zmk"
     branch: str = "v25.05"
 
-    build_root: DockerPath = Field(
+    workspace_path: DockerPath = Field(
         default_factory=lambda: DockerPath(
             host_path=Path("/build"), container_path="/config"
         )
@@ -199,6 +199,7 @@ class MoergoCompilationConfig(DockerCompilationConfig):
 
     # Build configuration
     build_commands: list[str] = Field(default_factory=list)
+    docker_user: DockerUserConfig = DockerUserConfig(enable_user_mapping=False)
 
 
 __all__ = [

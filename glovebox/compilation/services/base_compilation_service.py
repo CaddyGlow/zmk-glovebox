@@ -320,19 +320,20 @@ class BaseCompilationService(BaseService):
             )
 
             # Get user context for Docker volume permissions
+            self.logger.debug("Preparing Docker user context %r", config.docker_user)
             user_context = self.user_context_manager.get_user_context(
                 enable_user_mapping=config.docker_user.enable_user_mapping,
                 detect_automatically=config.docker_user.detect_user_automatically,
             )
 
             # Update environment for Docker user mapping if enabled
-            if user_context and user_context.should_use_user_mapping():
-                build_env = self.environment_manager.prepare_docker_environment(
-                    config,
-                    user_context=user_context,
-                    user_mapping_enabled=True,
-                    workspace_path=str(workspace_path),
-                )
+            # if user_context and user_context.should_use_user_mapping():
+            #     build_env = self.environment_manager.prepare_docker_environment(
+            #         config,
+            #         user_context=user_context,
+            #         user_mapping_enabled=True,
+            #         workspace_path=str(workspace_path),
+            #     )
 
             # Execute Docker container
             if not self._docker_adapter:
