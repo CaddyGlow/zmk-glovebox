@@ -25,18 +25,98 @@ EOF
 
 COPY --chmod=755 <<EOF /bin/entrypoint.sh
 #!/usr/bin/env bash
-    set -euo pipefail
-    : "\${BRANCH:=main}"
+set -euo pipefail
 
-    echo "Checking out \$BRANCH from moergo-sc/zmk" >&2
-    cd /src
-    git fetch origin
-    git checkout -q --detach "\$BRANCH"
+# Default parameters
+: "\${BRANCH:=v25.05}"
+: "\${REPO:=https://github.com/moergo-sc/zmk}"
+: "\${ARTIFACTS_DIR:=/tmp/artifacts}"
+: "\${TMPDIR:=/tmp}"
 
-    echo 'Building Glove80 firmware' >&2
-    cd /config
-    nix-build ./config --arg firmware 'import /src/default.nix {}' -j2 -o /tmp/combined --show-trace
-    install -o "\$UID" -g "\$GID" /tmp/combined/glove80.uf2 ./glove80.uf2
+# Simple logging
+log() {
+  echo "[\$(date '+%Y-%m-%d %H:%M:%S')] \$*" >&2
+}
+
+# Collect generated artifacts from the build
+collect_generated_artifacts() {
+  log "Collecting generated artifacts..."
+  
+  # Create directories for each hand
+  mkdir -p "\${ARTIFACTS_DIR}/rh"
+  mkdir -p "\${ARTIFACTS_DIR}/lh"
+  
+  # Right hand artifacts
+  if [ -f "\${TMPDIR}/nix-build-zmk_glove80_rh.drv-0/source/app/build/zephyr/zephyr.dts" ]; then
+    cp "\${TMPDIR}/nix-build-zmk_glove80_rh.drv-0/source/app/build/zephyr/zephyr.dts" "\${ARTIFACTS_DIR}/rh/"
+    log "Copied RH DTS"
+  fi
+  
+  if [ -f "\${TMPDIR}/nix-build-zmk_glove80_rh.drv-0/source/app/build/zephyr/include/generated/devicetree_generated.h" ]; then
+    cp "\${TMPDIR}/nix-build-zmk_glove80_rh.drv-0/source/app/build/zephyr/include/generated/devicetree_generated.h" "\${ARTIFACTS_DIR}/rh/"
+    log "Copied RH devicetree header"
+  fi
+  
+  # Left hand artifacts
+  if [ -f "\${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/zephyr.dts" ]; then
+    cp "\${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/zephyr.dts" "\${ARTIFACTS_DIR}/lh/"
+    log "Copied LH DTS"
+  fi
+  
+  if [ -f "\${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/include/generated/devicetree_generated.h" ]; then
+    cp "\${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/include/generated/devicetree_generated.h" "\${ARTIFACTS_DIR}/lh/"
+    log "Copied LH devicetree header"
+  fi
+  
+  log "Artifact collection completed"
+}
+
+# Main function
+main() {
+  log "Starting Glove80 firmware build"
+  log "Branch: \$BRANCH"
+  log "Repository: \$REPO"
+  
+  # Setup repository
+  cd /src
+  git fetch origin
+  git checkout -q --detach "\$BRANCH"
+  
+  GIT_COMMIT=\$(git rev-parse HEAD)
+  log "Git commit: \$GIT_COMMIT"
+  
+  # Build firmware
+  log "Building Glove80 firmware..."
+  cd /config
+  
+  # Run the build with artifact preservation
+  if nix-build ./config --arg firmware 'import /src/default.nix {}' -j2 -o /tmp/combined --keep-failed; then
+    # Copy the main firmware file with permissions if UID/GID are set
+    if [ -n "\${UID:-}" ] && [ -n "\${GID:-}" ]; then
+      install -o "\$UID" -g "\$GID" /tmp/combined/glove80.uf2 ./glove80.uf2
+    else
+      cp /tmp/combined/glove80.uf2 ./glove80.uf2
+    fi
+    log "Firmware built successfully: ./glove80.uf2"
+    
+    # Collect build artifacts
+    collect_generated_artifacts
+    
+    # Set permissions on artifacts only if UID and GID are set
+    if [ -n "\${UID:-}" ] && [ -n "\${GID:-}" ] && [ -d "\${ARTIFACTS_DIR}" ]; then
+      chown -R "\$UID:\$GID" "\${ARTIFACTS_DIR}" 2>/dev/null || true
+      log "Set ownership to \$UID:\$GID on artifacts"
+    fi
+  else
+    log "Build failed, attempting to collect artifacts anyway..."
+    collect_generated_artifacts
+    exit 1
+  fi
+}
+
+# Run main
+main "\$@"
 EOF
 
+ENV NIX_PATH=moergo-zmk=/src
 ENTRYPOINT ["/bin/entrypoint.sh"]

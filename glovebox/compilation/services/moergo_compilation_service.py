@@ -79,17 +79,84 @@ class MoergoCompilationService(BaseCompilationService):
             temp_config.write_text(config_file.read_text())
 
             # Create the required default.nix file for Nix build in the nested config directory
-            default_nix_content = """{ pkgs ?  import <nixpkgs> {}
-, firmware ? import ../src {}
+            default_nix_content = """{
+  pkgs ? (import <moergo-zmk/nix/pinned-nixpkgs.nix> { }),
+  moergo ? (import <moergo-zmk> { }),
+  zmk ? moergo.zmk,
+  keymap ? "glove80.keymap",
+  kconfig ? "glove80.conf",
+  outputName ? "glove80",
+  buildId ? "dev-build",
 }:
-
 let
-  config = ./.;
+  customZmk = zmk.overrideAttrs (oldAttrs: {
+    installPhase = ''
+      ${oldAttrs.installPhase}
 
-  glove80_left  = firmware.zmk.override { board = "glove80_lh"; keymap = "${config}/glove80.keymap"; kconfig = "${config}/glove80.conf"; };
-  glove80_right = firmware.zmk.override { board = "glove80_rh"; keymap = "${config}/glove80.keymap"; kconfig = "${config}/glove80.conf"; };
+      cp  zephyr/include/generated/devicetree_generated.h "$out/";
+    '';
+  });
 
-in firmware.combine_uf2 glove80_left glove80_right
+  combine =
+    a: b: name:
+    pkgs.runCommandNoCC "combined_firmware" { } ''
+      mkdir -p $out
+        echo "cat ${a}/zmk.uf2 ${b}/zmk.uf2 > $out/${name}.uf2"
+        cat ${a}/zmk.uf2 ${b}/zmk.uf2 > $out/${name}.uf2
+    '';
+
+  collect_build_artifact =
+    board_type: artifact:
+    let
+      result = pkgs.runCommandNoCC "collect_build_artifact_${board_type}" { } ''
+        # Copy build files
+        echo "Copying build files from ${artifact} to $out"
+        cp -rT ${artifact} $out
+      '';
+    in
+    result;
+
+  glove80_left = customZmk.override {
+    board = "glove80_lh";
+    keymap = "${keymap}";
+    kconfig = "${kconfig}";
+  };
+  left_processed = collect_build_artifact "lh" glove80_left;
+  glove80_right = customZmk.override {
+    board = "glove80_rh";
+    keymap = "${keymap}";
+    kconfig = "${kconfig}";
+  };
+  right_processed = collect_build_artifact "rh" glove80_right;
+
+  # combined = moergo.combine_uf2 glove80_left glove80_right ${outputName};
+  combined = combine left_processed right_processed "${outputName}";
+
+in
+pkgs.runCommand "${outputName}-firmware" { } ''
+      set +x
+    echo "finishing $out"
+    mkdir -p $out
+
+    # Copy firmware directories
+    cp -r ${left_processed} $out/lf
+    cp -r ${right_processed} $out/rh
+
+    cp ${combined}/${outputName}.uf2 $out/${outputName}.uf2
+    
+    # mkdir -p $artifactDir
+    # cp -rT $out $artifactDir
+    # Add build metadata
+  cat > $out/build-info.json <<EOF
+      {
+        "buildId": "${buildId}",
+        "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+        "keymap": "${keymap}",
+        "kconfig": "${kconfig}",
+        "outputFile": "${outputName}.uf2"
+      }
+  EOF
+''
 """
             default_nix_file = actual_config_path / "default.nix"
             default_nix_file.write_text(default_nix_content)
