@@ -207,9 +207,6 @@ firmware.combine_uf2 {
         build_env["UID"] = str(os.getuid())
         build_env["GID"] = str(os.getgid())
 
-        # Fix git ownership issue by setting git config
-        build_env["GIT_CONFIG_GLOBAL"] = "/tmp/gitconfig"
-
         self.logger.debug("Prepared Moergo build environment: %s", build_env)
         return build_env
 
