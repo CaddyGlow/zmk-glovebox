@@ -163,7 +163,7 @@ class MoergoCompilationConfig(DockerCompilationConfig):
 
     # We need to override the entrypoint to be able to
     # execute commands in the container
-    entrypoint_command: str | None = "/bin/sh"
+    # entrypoint_command: str | None = "/bin/sh"
 
     # Repository and firmware branch
     # only branch is used for Moergo

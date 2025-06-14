@@ -216,12 +216,12 @@ class MoergoCompilationService(BaseCompilationService):
         # First create git config to fix ownership issue, then run the entrypoint
         # Return as list for proper argument handling with entrypoint
         return [
-            "-c",
+            # "-c",
             # "chown -R 0:0 /workspace && /bin/entrypoint.shl",
             # "chowm -R $UID:$GID /workspace",
-            """chown -R 0:0 /workspace
-/bin/entrypoint.sh
-chown -R $UID:$GID /workspace""",
+            #             """chown -R 0:0 /workspace
+            # /bin/entrypoint.sh
+            # chown -R $UID:$GID \${WORKSPACE_DIR}""",
         ]
 
     def _validate_strategy_specific(self, config: CompileMethodConfigUnion) -> bool:
