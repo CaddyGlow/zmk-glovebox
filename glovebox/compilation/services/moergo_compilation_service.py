@@ -110,7 +110,7 @@ let
     let
       result = pkgs.runCommandNoCC "collect_build_artifact_${board_type}" { } ''
         # Copy build files
-        echo "Copying build files from ${artifact} to $out"
+        echo "Copying build files from ${artifn<F20>uuuu<F20>n<F20>uuuu<F20>n<F20>uuuu<F20>n<F20>uuuu<F20>act} to $out"
         cp -rT ${artifact} $out
       '';
     in
