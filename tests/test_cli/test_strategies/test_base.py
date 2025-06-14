@@ -53,6 +53,8 @@ class TestCompilationParams:
             docker_container_home=None,
             no_docker_user_mapping=False,
             board_targets=None,
+            preserve_workspace=False,
+            force_cleanup=False,
         )
 
         assert params.keymap_file == keymap_file
@@ -105,6 +107,8 @@ class TestBaseCompilationStrategy:
             docker_container_home=None,
             no_docker_user_mapping=False,
             board_targets=None,
+            preserve_workspace=False,
+            force_cleanup=False,
         )
 
         # Should not raise
@@ -137,6 +141,8 @@ class TestBaseCompilationStrategy:
             docker_container_home=None,
             no_docker_user_mapping=False,
             board_targets=None,
+            preserve_workspace=False,
+            force_cleanup=False,
         )
 
         with pytest.raises(ValueError, match="Keymap file not found"):
