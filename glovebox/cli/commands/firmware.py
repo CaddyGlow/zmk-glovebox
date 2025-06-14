@@ -19,8 +19,8 @@ from glovebox.cli.helpers.profile import (
     get_user_config_from_context,
 )
 from glovebox.compilation import create_compilation_service
+from glovebox.compilation.models.build_matrix import BuildYamlConfig
 from glovebox.config.compile_methods import (
-    BuildYamlConfig,
     CacheConfig,
     DockerUserConfig,
     MoergoCompilationConfig,
@@ -236,15 +236,13 @@ def _build_compilation_config(
             logger.debug("Using default ZmkCompilationConfig")
 
     # Apply CLI overrides
-    if params.branch is not None:
-        if hasattr(config, "branch"):
-            config.branch = params.branch
-            logger.debug("CLI override: branch=%s", params.branch)
+    if params.branch is not None and hasattr(config, "branch"):
+        config.branch = params.branch
+        logger.debug("CLI override: branch=%s", params.branch)
 
-    if params.repo is not None:
-        if hasattr(config, "repository"):
-            config.repository = params.repo
-            logger.debug("CLI override: repository=%s", params.repo)
+    if params.repo is not None and hasattr(config, "repository"):
+        config.repository = params.repo
+        logger.debug("CLI override: repository=%s", params.repo)
 
     if params.jobs is not None:
         config.jobs = params.jobs

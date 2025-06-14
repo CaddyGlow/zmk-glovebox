@@ -14,12 +14,6 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from glovebox.config.user_config import UserConfig
 
-from glovebox.config.keyboard_profile import (
-    get_available_keyboards,
-    load_keyboard_config,
-)
-from glovebox.config.user_config import create_user_config
-
 
 logger = logging.getLogger(__name__)
 
@@ -308,6 +302,8 @@ def collect_config_diagnostics(
     # User config loading
     try:
         if user_config is None:
+            from glovebox.config.user_config import create_user_config
+
             user_config = create_user_config()
         diagnostics["user_config"]["validation_status"] = "valid"
         diagnostics["user_config"]["found_config"] = (
@@ -329,11 +325,15 @@ def collect_config_diagnostics(
 
     # Keyboard discovery paths
     try:
+        from glovebox.config.keyboard_profile import get_available_keyboards
+
         keyboards = get_available_keyboards(user_config)
         diagnostics["keyboard_discovery"]["found_keyboards"] = len(keyboards)
 
         # Test loading each keyboard
         keyboard_status = []
+        from glovebox.config.keyboard_profile import load_keyboard_config
+
         for keyboard in keyboards:
             try:
                 config = load_keyboard_config(keyboard, user_config)
