@@ -99,6 +99,9 @@ class TestMoergoStrategy:
             docker_container_home="/home/builder",
             no_docker_user_mapping=False,
             board_targets="glove80",
+            preserve_workspace=False,
+            force_cleanup=False,
+            clear_cache=False,
         )
 
         profile = Mock(spec=KeyboardProfile)
@@ -143,6 +146,9 @@ class TestMoergoStrategy:
             docker_container_home=None,
             no_docker_user_mapping=True,
             board_targets=None,
+            preserve_workspace=False,
+            force_cleanup=False,
+            clear_cache=False,
         )
 
         profile = Mock(spec=KeyboardProfile)
@@ -181,6 +187,9 @@ class TestMoergoStrategy:
             docker_container_home=None,
             no_docker_user_mapping=True,
             board_targets=None,
+            preserve_workspace=False,
+            force_cleanup=False,
+            clear_cache=False,
         )
 
         profile = Mock(spec=KeyboardProfile)
@@ -217,6 +226,9 @@ class TestMoergoStrategy:
             docker_container_home=None,
             no_docker_user_mapping=True,
             board_targets=None,
+            preserve_workspace=False,
+            force_cleanup=False,
+            clear_cache=False,
         )
 
         # Mock profile with firmware version
@@ -258,6 +270,9 @@ class TestMoergoStrategy:
             docker_container_home=None,
             no_docker_user_mapping=True,
             board_targets=None,
+            preserve_workspace=False,
+            force_cleanup=False,
+            clear_cache=False,
         )
 
         commands = strategy._build_moergo_commands(params)

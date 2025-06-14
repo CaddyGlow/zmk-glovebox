@@ -94,6 +94,9 @@ class TestZmkConfigStrategy:
             docker_container_home="/home/builder",
             no_docker_user_mapping=False,
             board_targets="nice_nano_v2",
+            preserve_workspace=False,
+            force_cleanup=False,
+            clear_cache=False,
         )
 
         profile = Mock(spec=KeyboardProfile)
@@ -137,6 +140,9 @@ class TestZmkConfigStrategy:
             docker_container_home=None,
             no_docker_user_mapping=True,
             board_targets=None,
+            preserve_workspace=False,
+            force_cleanup=False,
+            clear_cache=False,
         )
 
         profile = Mock(spec=KeyboardProfile)
@@ -195,6 +201,9 @@ class TestZmkConfigStrategy:
             docker_container_home=None,
             no_docker_user_mapping=False,
             board_targets=None,
+            preserve_workspace=False,
+            force_cleanup=False,
+            clear_cache=False,
         )
 
         profile = Mock(spec=KeyboardProfile)

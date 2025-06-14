@@ -55,6 +55,7 @@ class TestCompilationParams:
             board_targets=None,
             preserve_workspace=False,
             force_cleanup=False,
+            clear_cache=False,
         )
 
         assert params.keymap_file == keymap_file
@@ -109,6 +110,7 @@ class TestBaseCompilationStrategy:
             board_targets=None,
             preserve_workspace=False,
             force_cleanup=False,
+            clear_cache=False,
         )
 
         # Should not raise
@@ -143,6 +145,7 @@ class TestBaseCompilationStrategy:
             board_targets=None,
             preserve_workspace=False,
             force_cleanup=False,
+            clear_cache=False,
         )
 
         with pytest.raises(ValueError, match="Keymap file not found"):

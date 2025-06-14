@@ -48,6 +48,7 @@ def create_test_params(tmp_path=None, **kwargs) -> CompilationParams:
         "board_targets": None,
         "preserve_workspace": False,
         "force_cleanup": False,
+        "clear_cache": False,
     }
     defaults.update(kwargs)
     return CompilationParams(**defaults)
