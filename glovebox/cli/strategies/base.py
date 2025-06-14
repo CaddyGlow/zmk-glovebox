@@ -30,6 +30,7 @@ class CompilationParams:
     board_targets: str | None
     preserve_workspace: bool
     force_cleanup: bool
+    clear_cache: bool
 
 
 class CompilationStrategyProtocol(Protocol):
