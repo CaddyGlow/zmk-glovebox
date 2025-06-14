@@ -1,0 +1,17 @@
+/* Simple test keymap for Glove80 */
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/keys.h>
+
+/ {
+    keymap {
+        compatible = "zmk,keymap";
+
+        default_layer {
+            bindings = <
+                &kp Q &kp W &kp E
+                &kp A &kp S &kp D
+                &kp Z &kp X &kp C
+            >;
+        };
+    };
+};
