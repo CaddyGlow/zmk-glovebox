@@ -9,6 +9,7 @@ from glovebox.config.compile_methods import (
     DockerCompilationConfig,
     DockerUserConfig,
     MoergoCompilationConfig,
+    ZmkCompilationConfig,
 )
 from glovebox.models.docker_path import DockerPath
 
@@ -44,31 +45,37 @@ class MoergoStrategy(BaseCompilationStrategy):
         keyboard_name = getattr(profile, "keyboard_name", "").lower()
         return "moergo" in keyboard_name or "glove80" in keyboard_name
 
-    def extract_docker_image(self, profile: "KeyboardProfile") -> str:
-        """Extract Docker image from profile.
-
-        Args:
-            profile: Keyboard profile
-
-        Returns:
-            str: Docker image for Moergo compilation
-        """
-        # Try to get Docker image from profile firmware config
-        if (
-            hasattr(profile, "firmware_version")
-            and profile.firmware_version
-            and hasattr(profile.firmware_version, "docker_config")
-        ):
-            firmware_config = profile.firmware_version.docker_config
-            if (
-                firmware_config
-                and hasattr(firmware_config, "image")
-                and firmware_config.image
-            ):
-                return str(firmware_config.image)
-
-        # Return Moergo-specific image
-        return "glove80-zmk-config-docker"
+    # def extract_docker_image(
+    #     self, config: MoergoCompilationConfig, profile: "KeyboardProfile"
+    # ) -> str:
+    #     """Extract Docker image from profile.
+    #
+    #     Args:
+    #         profile: Keyboard profile
+    #
+    #     Returns:
+    #         str: Docker image for Moergo compilation
+    #     """
+    #     # Try to get Docker image from profile firmware config
+    #     if (
+    #         hasattr(profile, "firmware_version")
+    #         and profile.firmware_version
+    #         and hasattr(profile.firmware_version, "docker_config")
+    #     ):
+    #         pass
+    #         # TODO:we have to loop over the compile_methods
+    #         # to find the right one should be the first normally
+    #
+    #         # firmware_config = profile.keyboard_config.compile_methods.
+    #         # if (
+    #         #     firmware_config
+    #         #     and hasattr(firmware_config, "image")
+    #         #     and firmware_config.image
+    #         # ):
+    #         #     return str(firmware_config.image)
+    #
+    #     # Return Moergo-specific image
+    #     return config.image
 
     def build_config(
         self, params: CompilationParams, profile: "KeyboardProfile"
@@ -84,22 +91,18 @@ class MoergoStrategy(BaseCompilationStrategy):
         """
         self._validate_params(params)
 
+        config = MoergoCompilationConfig()
+
         # Build Docker user configuration (Moergo disables user mapping by default)
-        docker_user_config = self._build_docker_user_config(params)
+        config = self._build_docker_user_config(config, params)
 
         # Build workspace path configuration
-        workspace_path = self._build_workspace_path(params, profile)
+        config = self._build_workspace_path(config, params)
 
         # Get repository branch from parameters or profile
-        branch = self._get_repository_branch(params, profile)
+        config.branch = self._get_repository_branch(config, params, profile)
 
-        return MoergoCompilationConfig(
-            jobs=params.jobs,
-            docker_user=docker_user_config,
-            workspace_path=workspace_path,
-            branch=branch,
-            build_commands=self._build_moergo_commands(params),
-        )
+        return config
 
     def get_service_name(self) -> str:
         """Get the compilation service name.
@@ -109,7 +112,9 @@ class MoergoStrategy(BaseCompilationStrategy):
         """
         return "moergo_compilation"
 
-    def _build_docker_user_config(self, params: CompilationParams) -> DockerUserConfig:
+    def _build_docker_user_config(
+        self, config: MoergoCompilationConfig, params: CompilationParams
+    ) -> MoergoCompilationConfig:
         """Build Docker user configuration for Moergo.
 
         Moergo compilation disables user mapping by default.
@@ -120,25 +125,29 @@ class MoergoStrategy(BaseCompilationStrategy):
         Returns:
             DockerUserConfig: Docker user configuration
         """
-        # Use Moergo-specific defaults when values are None
-        enable_user_mapping = (
-            not params.no_docker_user_mapping
-            if params.no_docker_user_mapping is not None
-            else False  # Moergo default: disable user mapping
-        )
+        if params.no_docker_user_mapping is not None:
+            config.docker_user.enable_user_mapping = not params.no_docker_user_mapping
 
-        return DockerUserConfig(
-            enable_user_mapping=enable_user_mapping,
-            manual_uid=params.docker_uid,
-            manual_gid=params.docker_gid,
-            manual_username=params.docker_username,
-            host_home_dir=Path(params.docker_home) if params.docker_home else None,
-            container_home_dir=params.docker_container_home or "/tmp",
-        )
+        if params.docker_uid is not None:
+            config.docker_user.manual_uid = params.docker_uid
+
+        if params.docker_gid is not None:
+            config.docker_user.manual_gid = params.docker_gid
+
+        if params.docker_username is not None:
+            config.docker_user.manual_username = params.docker_username
+
+        if params.docker_home is not None:
+            config.docker_user.host_home_dir = Path(params.docker_home)
+
+        if params.docker_container_home is not None:
+            config.docker_user.container_home_dir = params.docker_container_home
+
+        return config
 
     def _build_workspace_path(
-        self, params: CompilationParams, profile: "KeyboardProfile"
-    ) -> DockerPath:
+        self, config: "MoergoCompilationConfig", params: CompilationParams
+    ) -> "MoergoCompilationConfig":
         """Build workspace path configuration for Moergo.
 
         Args:
@@ -148,11 +157,16 @@ class MoergoStrategy(BaseCompilationStrategy):
         Returns:
             DockerPath: Workspace path configuration
         """
-        # Use output directory as the host path, map to /config in container
-        return DockerPath(host_path=params.output_dir, container_path="/config")
+        # Use output directory as the host path, map to /workspace in container
+        # if params.workspace_dir:
+        #     config.workspace_path.host_path = params.workspace_dir
+        return config
 
     def _get_repository_branch(
-        self, params: CompilationParams, profile: "KeyboardProfile"
+        self,
+        config: "MoergoCompilationConfig",
+        params: CompilationParams,
+        profile: "KeyboardProfile",
     ) -> str:
         """Get repository branch for Moergo compilation.
 
@@ -178,37 +192,7 @@ class MoergoStrategy(BaseCompilationStrategy):
                 return str(build_options.branch)
 
         # Default to stable Moergo branch
-        return "v25.05"
-
-    def _build_moergo_commands(self, params: CompilationParams) -> list[str]:
-        """Build Moergo-specific build commands.
-
-        Args:
-            params: Compilation parameters
-
-        Returns:
-            list[str]: Build commands for Moergo compilation
-        """
-        commands = []
-
-        # Set working directory to /config
-        commands.append("cd /config")
-
-        # Set environment variables for the build
-        commands.append("export UID=$(id -u)")
-        commands.append("export GID=$(id -g)")
-
-        # Run the Nix build
-        commands.append(
-            "nix-build ./config --arg firmware 'import /src/default.nix {}' -j2 -o /tmp/combined --show-trace"
-        )
-
-        # Install the firmware file with proper ownership
-        commands.append(
-            'install -o "$UID" -g "$GID" /tmp/combined/glove80.uf2 ./glove80.uf2'
-        )
-
-        return commands
+        return config.branch
 
 
 def create_moergo_strategy() -> MoergoStrategy:

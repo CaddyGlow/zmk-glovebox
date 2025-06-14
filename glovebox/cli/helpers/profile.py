@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.table import Table
 
 from glovebox.config.keyboard_profile import (
-    create_keyboard_profile,
+    create_keyboard_profile_with_includes,
     get_available_keyboards,
 )
 
@@ -182,7 +182,7 @@ def create_profile_from_option(
     try:
         logger.debug("Creating KeyboardProfile...")
 
-        keyboard_profile = create_keyboard_profile(
+        keyboard_profile = create_keyboard_profile_with_includes(
             keyboard_name, firmware_name, user_config
         )
 

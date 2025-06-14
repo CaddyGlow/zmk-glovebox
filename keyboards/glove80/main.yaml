@@ -1,6 +1,12 @@
 # Glove80 Main Configuration
 # This is the primary config that includes all components
 
+# Required keyboard identification
+keyboard: "glove80"
+description: "MoErgo Glove80 split ergonomic keyboard"
+vendor: "MoErgo"
+key_count: 80
+
 # Include all component configurations
 includes:
   - "hardware.yaml"

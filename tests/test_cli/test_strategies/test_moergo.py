@@ -115,7 +115,7 @@ class TestMoergoStrategy:
         assert config.docker_user.enable_user_mapping is True
         assert config.docker_user.manual_uid == 1000
         assert config.workspace_path.host_path == output_dir
-        assert config.workspace_path.container_path == "/config"
+        assert config.workspace_path.container_path == "/workspace"
 
     def test_build_config_disabled_user_mapping(self, tmp_path):
         """Test building configuration with disabled user mapping."""
