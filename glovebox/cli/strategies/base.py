@@ -28,6 +28,8 @@ class CompilationParams:
     docker_container_home: str | None
     no_docker_user_mapping: bool
     board_targets: str | None
+    preserve_workspace: bool
+    force_cleanup: bool
 
 
 class CompilationStrategyProtocol(Protocol):
