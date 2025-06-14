@@ -196,9 +196,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
             # No build.yaml found, use fallback approach
             self.logger.debug("No build.yaml found, using fallback build commands")
             board_name = config.build_config.get_board_name() or "nice_nano_v2"
-            build_commands = build_zmk_fallback_commands(
-                workspace_params, [board_name]
-            )
+            build_commands = build_zmk_fallback_commands(workspace_params, [board_name])
 
         return " && ".join(init_commands + build_commands)
 

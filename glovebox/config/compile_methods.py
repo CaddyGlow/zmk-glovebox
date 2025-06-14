@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from glovebox.core.errors import GloveboxError
 from glovebox.models.docker_path import DockerPath
 
+
 if TYPE_CHECKING:
     from glovebox.compilation.models.build_matrix import BuildYamlConfig
 
@@ -25,8 +26,6 @@ class CompileMethodConfig(BaseModel, ABC):
     """Base configuration for compilation methods."""
 
     method_type: str
-
-
 
 
 class CacheConfig(BaseModel):
@@ -146,7 +145,11 @@ class ZmkCompilationConfig(DockerCompilationConfig):
 
     artifact_naming: str = "zmk_github_actions"
 
-    build_config: "BuildYamlConfig" = Field(default_factory=lambda: __import__("glovebox.compilation.models.build_matrix", fromlist=["BuildYamlConfig"]).BuildYamlConfig())
+    build_config: "BuildYamlConfig" = Field(
+        default_factory=lambda: __import__(
+            "glovebox.compilation.models.build_matrix", fromlist=["BuildYamlConfig"]
+        ).BuildYamlConfig()
+    )
 
     # ZMK workspace configuration
     workspace: ZmkWorkspaceConfig = Field(default_factory=ZmkWorkspaceConfig)
@@ -180,8 +183,6 @@ class MoergoCompilationConfig(DockerCompilationConfig):
 
 __all__ = [
     "CompileMethodConfig",
-    "BuildTargetConfig",
-    "BuildYamlConfig",
     "ZmkWorkspaceConfig",
     "CacheConfig",
     "DockerUserConfig",
@@ -189,3 +190,15 @@ __all__ = [
     "ZmkCompilationConfig",
     "MoergoCompilationConfig",
 ]
+
+
+# Rebuild models that use forward references after all classes are defined
+def _rebuild_models() -> None:
+    """Rebuild models with forward references."""
+    from glovebox.compilation.models.build_matrix import BuildYamlConfig
+
+    ZmkCompilationConfig.model_rebuild()
+    MoergoCompilationConfig.model_rebuild()
+
+
+_rebuild_models()

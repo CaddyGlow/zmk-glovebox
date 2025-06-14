@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from glovebox.config.flash_methods import USBFlashConfig
 
-from glovebox.cli.helpers.output import print_info_message, print_warning_message
 from glovebox.firmware.flash.models import BlockDevice
 from glovebox.firmware.flash.usb_monitor import create_usb_monitor
 from glovebox.firmware.flash.wait_state import DeviceWaitState
@@ -63,17 +62,22 @@ class DeviceWaitService:
 
         if show_progress:
             if initial_count >= target_count:
-                print_info_message(
-                    f"Found {initial_count} device(s), target reached immediately"
+                logger.info(
+                    "Found %d device(s), target reached immediately", initial_count
                 )
                 return initial_devices[:target_count]
             elif initial_count > 0:
-                print_info_message(
-                    f"Found {initial_count} device(s), waiting for {target_count - initial_count} more... (timeout: {timeout:.0f}s)"
+                logger.info(
+                    "Found %d device(s), waiting for %d more... (timeout: %.0fs)",
+                    initial_count,
+                    target_count - initial_count,
+                    timeout,
                 )
             else:
-                print_info_message(
-                    f"Waiting for {target_count} device(s)... (timeout: {timeout:.0f}s)"
+                logger.info(
+                    "Waiting for %d device(s)... (timeout: %.0fs)",
+                    target_count,
+                    timeout,
                 )
 
         # Create wait state
@@ -95,8 +99,11 @@ class DeviceWaitService:
             if action == "add" and self._matches_query(device, query):
                 state.add_device(device)
                 if show_progress:
-                    print_info_message(
-                        f"Found device: {device.serial or device.name} [{len(state.found_devices)}/{target_count}]"
+                    logger.info(
+                        "Found device: %s [%d/%d]",
+                        device.serial or device.name,
+                        len(state.found_devices),
+                        target_count,
                     )
 
                 if state.is_target_reached:
@@ -106,8 +113,10 @@ class DeviceWaitService:
                 old_count = len(state.found_devices)
                 state.remove_device(device)
                 if show_progress and len(state.found_devices) < old_count:
-                    print_warning_message(
-                        f"Device removed. Remaining: [{len(state.found_devices)}/{target_count}]"
+                    logger.warning(
+                        "Device removed. Remaining: [%d/%d]",
+                        len(state.found_devices),
+                        target_count,
                     )
 
         try:
@@ -120,8 +129,10 @@ class DeviceWaitService:
                 time.sleep(poll_interval)
 
             if state.is_timeout and show_progress:
-                print_warning_message(
-                    f"Timeout reached. Found {len(state.found_devices)} of {target_count} devices."
+                logger.warning(
+                    "Timeout reached. Found %d of %d devices.",
+                    len(state.found_devices),
+                    target_count,
                 )
 
             return state.found_devices[:target_count] if state.found_devices else []
