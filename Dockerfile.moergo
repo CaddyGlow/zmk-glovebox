@@ -23,7 +23,49 @@ RUN <<EOF
     done
 EOF
 
-COPY --chmod=755 <<EOF /bin/entrypoint.sh
+RUN mkdir -p /workspace /app/bin
+ENV PATH=/app/bin:$PATH
+
+COPY --chmod=755 <<EOF /app/bin/entrypoint.sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Set desired umask
+: "\${UMASK:=0022}"
+umask "\$UMASK"
+
+# Handle UID/GID mapping without setpriv
+if [ -n "\$UID" ] && [ -n "\$GID" ]; then
+  echo "Received UID:GID \$UID:\$GID"
+
+  # Since we can't easily use setpriv in this container,
+  # we'll set permissions on the workspace directories to match
+  # the requested UID/GID at the end of the build process
+fi
+
+# Cleanup function
+cleanup() {
+  echo "Running cleanup..."
+  if [ -n "\$UID" ] && [ -n "\$GID" ]; then
+    echo "Setting permissions for UID \$UID GID \$GID"
+    chown -R "\$UID:\$GID" /workspace
+  fi
+}
+
+# Set up signal traps to run cleanup on exit/interruption
+trap cleanup EXIT      # Always run on script exit
+trap cleanup INT       # Run on Ctrl+C (SIGINT)
+trap cleanup TERM      # Run on SIGTERM
+
+# Execute the command
+# exec "\$@"
+"\$@"
+exit_code=\$?
+
+exit \$exit_code
+EOF
+
+COPY --chmod=755 <<EOF /app/bin/build.sh
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -163,4 +205,5 @@ main "\$@"
 EOF
 
 ENV NIX_PATH=moergo-zmk=/src
-ENTRYPOINT ["/bin/entrypoint.sh"]
+ENTRYPOINT ["entrypoint.sh"]
+CMD ["build.sh"]
