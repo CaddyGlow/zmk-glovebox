@@ -418,40 +418,6 @@ class BaseCompilationService(BaseService):
         """
         volumes = []
 
-        # Single workspace volume only - mount at /workspace for consistent path
-        # volumes.append((str(workspace_path.resolve()), "/workspace"))
-        #
-        # # Check if we have a separate build directory configured
-        # if config.zmk_config_repo and config.zmk_config_repo.build_root.host_path:
-        #     build_host_path = config.zmk_config_repo.build_root.host_path
-        #     build_container_path = config.zmk_config_repo.build_root.container_path
-        #
-        #     # Only add separate volume if build directory is different from workspace
-        #     if build_host_path != workspace_path:
-        #         # Mount separate build directory using configured container path
-        #         volumes.append((str(build_host_path.resolve()), build_container_path))
-        #         self.logger.debug(
-        #             "Added separate build volume: %s -> %s",
-        #             build_host_path,
-        #             build_container_path,
-        #         )
-        #
-        # # Check if we have a separate config directory configured
-        # if config.zmk_config_repo and config.zmk_config_repo.config_path.host_path:
-        #     config_host_path = config.zmk_config_repo.config_path.host_path
-        #     config_container_path = config.zmk_config_repo.config_path.container_path
-        #
-        #     # Only add separate volume if config directory is different from workspace
-        #     if config_host_path != workspace_path:
-        #         # Mount separate config directory using configured container path
-        #         volumes.append((str(config_host_path.resolve()), config_container_path))
-        #         self.logger.debug(
-        #             "Added separate config volume: %s -> %s",
-        #             config_host_path,
-        #             config_container_path,
-        #         )
-        #
-        # Add custom volume templates (if specified by user)
         for volume_template in config.volume_templates:
             # Parse volume template (format: host_path:container_path)
             parts = volume_template.split(":")
