@@ -68,7 +68,7 @@ class MoergoCompilationService(BaseCompilationService):
             # Create nested config directory structure as expected by Moergo container
             # Container expects: /config/config/ (where our files go)
             config_path = temp_dir / "config"
-            actual_config_path = config_path / "config"
+            actual_config_path = config_path
             actual_config_path.mkdir(parents=True, exist_ok=True)
 
             # Copy keymap and config files to the nested config directory
@@ -79,20 +79,17 @@ class MoergoCompilationService(BaseCompilationService):
             temp_config.write_text(config_file.read_text())
 
             # Create the required default.nix file for Nix build in the nested config directory
-            default_nix_content = """{ firmware, ... }:
+            default_nix_content = """{ pkgs ?  import <nixpkgs> {}
+, firmware ? import ../src {}
+}:
 
-firmware.combine_uf2 {
-  glove80_left = firmware.build {
-    board = "glove80_lh";
-    keymap = "glove80.keymap";
-    kconfig = "glove80.conf";
-  };
-  glove80_right = firmware.build {
-    board = "glove80_rh";
-    keymap = "glove80.keymap";
-    kconfig = "glove80.conf";
-  };
-}
+let
+  config = ./.;
+
+  glove80_left  = firmware.zmk.override { board = "glove80_lh"; keymap = "${config}/glove80.keymap"; kconfig = "${config}/glove80.conf"; };
+  glove80_right = firmware.zmk.override { board = "glove80_rh"; keymap = "${config}/glove80.keymap"; kconfig = "${config}/glove80.conf"; };
+
+in firmware.combine_uf2 glove80_left glove80_right
 """
             default_nix_file = actual_config_path / "default.nix"
             default_nix_file.write_text(default_nix_content)
@@ -112,7 +109,7 @@ firmware.combine_uf2 {
 
     def _build_compilation_command(
         self, workspace_path: Path, config: CompileMethodConfigUnion
-    ) -> str:
+    ) -> list[str]:
         """Build compilation command for Moergo strategy.
 
         The Moergo Docker container runs the build automatically when started.
@@ -123,14 +120,18 @@ firmware.combine_uf2 {
             config: Moergo compilation configuration
 
         Returns:
-            str: Command to wait for build completion and show results
+            list[str]: Command array to wait for build completion and show results
         """
         if not isinstance(config, MoergoCompilationConfig):
             raise BuildError("Invalid compilation configuration")
 
         # The Moergo container runs build automatically on startup
         # First create git config to fix ownership issue, then run the entrypoint
-        return 'echo "[safe]" > /tmp/gitconfig && echo "    directory = /src" >> /tmp/gitconfig && /bin/entrypoint.sh && echo "Directory structure:" && ls -la /config/ && echo "Build files:" && ls -la /config/config/ '
+        # Return as list for proper argument handling with entrypoint
+        return [
+            "-c",
+            'echo "[safe]" > /tmp/gitconfig && echo "    directory = /src" >> /tmp/gitconfig && /bin/entrypoint.sh && echo "Directory structure:" && ls -la /config/ && echo "Build files:" && ls -la /config/config/ ',
+        ]
 
     def _validate_strategy_specific(self, config: CompileMethodConfigUnion) -> bool:
         """Validate Moergo strategy-specific configuration requirements.
