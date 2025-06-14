@@ -1,0 +1,26 @@
+# Glove80 Main Configuration
+# This is the primary config that includes all components
+
+# Include all component configurations
+includes:
+  - "hardware.yaml"
+  - "firmwares.yaml" 
+  - "strategies.yaml"
+  - "kconfig.yaml"
+  - "behaviors.yaml"
+
+# Workspace configuration for compilation
+workspace:
+  root_directory: null  # Uses default system temp directory
+  cleanup_after_build: true
+  preserve_on_failure: false
+  max_preserved_workspaces: 3
+
+# Default keymap includes
+keymap:
+  includes:
+    - "#include <behaviors.dtsi>"
+    - "#include <dt-bindings/zmk/outputs.h>"
+    - "#include <dt-bindings/zmk/keys.h>"
+    - "#include <dt-bindings/zmk/bt.h>"
+    - "#include <dt-bindings/zmk/rgb.h>"
