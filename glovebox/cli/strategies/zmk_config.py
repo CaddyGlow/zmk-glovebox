@@ -60,10 +60,18 @@ class ZmkConfigStrategy(BaseCompilationStrategy):
             str: Docker image for ZMK compilation
         """
         # Try to get Docker image from profile firmware config
-        if hasattr(profile, "firmware_version") and profile.firmware_version:
+        if (
+            hasattr(profile, "firmware_version")
+            and profile.firmware_version
+            and hasattr(profile.firmware_version, "docker_config")
+        ):
             firmware_config = profile.firmware_version.docker_config
-            if firmware_config and firmware_config.image:
-                return firmware_config.image
+            if (
+                firmware_config
+                and hasattr(firmware_config, "image")
+                and firmware_config.image
+            ):
+                return str(firmware_config.image)
 
         # Return default ZMK image
         return self._get_default_docker_image(profile)
@@ -199,10 +207,17 @@ class ZmkConfigStrategy(BaseCompilationStrategy):
             return params.repo
 
         # Try to get from profile
-        if hasattr(profile, "firmware_version") and profile.firmware_version:
+        if (
+            hasattr(profile, "firmware_version")
+            and profile.firmware_version
+            and hasattr(profile.firmware_version, "repository_url")
+        ):
             firmware_config = profile.firmware_version
-            if hasattr(firmware_config, "repository_url"):
-                return firmware_config.repository_url
+            if (
+                hasattr(firmware_config, "repository_url")
+                and firmware_config.repository_url
+            ):
+                return str(firmware_config.repository_url)
 
         return None
 
