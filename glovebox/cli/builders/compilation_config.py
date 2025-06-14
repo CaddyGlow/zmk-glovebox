@@ -3,7 +3,6 @@
 import logging
 from typing import TYPE_CHECKING
 
-from glovebox.cli.helpers.docker_config import DockerConfigBuilder
 from glovebox.cli.strategies.base import CompilationParams
 from glovebox.cli.strategies.factory import create_strategy_for_profile
 from glovebox.config.compile_methods import DockerCompilationConfig
@@ -44,22 +43,8 @@ class CompilationConfigBuilder:
 
         logger.debug("Using compilation strategy: %s", strategy.name)
 
-        # Build base config from strategy
+        # Build config from strategy (includes Docker config with strategy-specific defaults)
         config = strategy.build_config(params, keyboard_profile)
-
-        # Build Docker user configuration
-        docker_config = DockerConfigBuilder.build_from_params(
-            strategy=strategy.name,
-            docker_uid=params.docker_uid,
-            docker_gid=params.docker_gid,
-            docker_username=params.docker_username,
-            docker_home=params.docker_home,
-            docker_container_home=params.docker_container_home,
-            no_docker_user_mapping=params.no_docker_user_mapping,
-        )
-
-        # Apply Docker config (override whatever the strategy set)
-        config.docker_user = docker_config
 
         # Apply workspace settings if supported
         self._apply_workspace_settings(config, params)
@@ -79,12 +64,20 @@ class CompilationConfigBuilder:
             params: Compilation parameters
         """
         # Apply workspace preservation settings if config supports them
+        # Use defaults when params are None
+        preserve_workspace = (
+            params.preserve_workspace
+            if params.preserve_workspace is not None
+            else False
+        )
+        force_cleanup = (
+            params.force_cleanup if params.force_cleanup is not None else False
+        )
+
         if hasattr(config, "cleanup_workspace"):
-            config.cleanup_workspace = not params.preserve_workspace
+            config.cleanup_workspace = not preserve_workspace or force_cleanup
             logger.debug("Set cleanup_workspace=%s", config.cleanup_workspace)
 
         if hasattr(config, "preserve_on_failure"):
-            config.preserve_on_failure = (
-                params.preserve_workspace and not params.force_cleanup
-            )
+            config.preserve_on_failure = preserve_workspace and not force_cleanup
             logger.debug("Set preserve_on_failure=%s", config.preserve_on_failure)

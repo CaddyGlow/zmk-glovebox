@@ -77,8 +77,8 @@ def firmware_compile(
     keymap_file: Annotated[Path, typer.Argument(help="Path to keymap (.keymap) file")],
     kconfig_file: Annotated[Path, typer.Argument(help="Path to kconfig (.conf) file")],
     output_dir: Annotated[
-        Path, typer.Option("--output-dir", "-d", help="Build output directory")
-    ] = Path("build"),
+        Path | None, typer.Option("--output-dir", "-d", help="Build output directory")
+    ] = None,
     profile: ProfileOption = None,
     branch: Annotated[
         str | None,
@@ -92,29 +92,29 @@ def firmware_compile(
         int | None, typer.Option("--jobs", "-j", help="Number of parallel jobs")
     ] = None,
     verbose: Annotated[
-        bool, typer.Option("--verbose", "-v", help="Enable verbose build output")
-    ] = False,
+        bool | None, typer.Option("--verbose", "-v", help="Enable verbose build output")
+    ] = None,
     strategy: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--strategy",
-            help="Compilation strategy: zmk_config (default), west",
+            help="Compilation strategy: auto-detect by profile if not specified",
         ),
-    ] = "zmk_config",
+    ] = None,
     no_cache: Annotated[
-        bool,
+        bool | None,
         typer.Option(
             "--no-cache",
             help="Disable workspace caching for this build",
         ),
-    ] = False,
+    ] = None,
     clear_cache: Annotated[
-        bool,
+        bool | None,
         typer.Option(
             "--clear-cache",
             help="Clear cache before starting build",
         ),
-    ] = False,
+    ] = None,
     board_targets: Annotated[
         str | None,
         typer.Option(
@@ -161,25 +161,25 @@ def firmware_compile(
         ),
     ] = None,
     no_docker_user_mapping: Annotated[
-        bool,
+        bool | None,
         typer.Option(
             "--no-docker-user-mapping",
             help="Disable Docker user mapping entirely (overrides all user context settings)",
         ),
-    ] = False,
+    ] = None,
     # Workspace configuration options
     workspace_dir: Annotated[
         Path | None,
         typer.Option("--workspace-dir", help="Custom workspace root directory"),
     ] = None,
     preserve_workspace: Annotated[
-        bool,
+        bool | None,
         typer.Option("--preserve-workspace", help="Don't delete workspace after build"),
-    ] = False,
+    ] = None,
     force_cleanup: Annotated[
-        bool,
+        bool | None,
         typer.Option("--force-cleanup", help="Force workspace cleanup even on failure"),
-    ] = False,
+    ] = None,
     build_matrix: Annotated[
         Path | None,
         typer.Option(
@@ -222,10 +222,13 @@ def firmware_compile(
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --verbose
     """
     # Build parameter container using new CompilationParams
+    # Set default output_dir if not specified
+    effective_output_dir = output_dir if output_dir is not None else Path("build")
+
     params = CompilationParams(
         keymap_file=keymap_file,
         kconfig_file=kconfig_file,
-        output_dir=output_dir,
+        output_dir=effective_output_dir,
         branch=branch,
         repo=repo,
         jobs=jobs,
@@ -253,7 +256,7 @@ def firmware_compile(
     try:
         executor = FirmwareExecutor()
         result = executor.compile(params, keyboard_profile, strategy)
-        _format_compilation_output(result, output_format, output_dir)
+        _format_compilation_output(result, output_format, effective_output_dir)
     except Exception as e:
         print_error_message(f"Firmware compilation failed: {str(e)}")
         raise typer.Exit(1) from None
