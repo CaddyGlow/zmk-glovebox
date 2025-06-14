@@ -167,15 +167,15 @@ class MoergoStrategy(BaseCompilationStrategy):
         if params.branch:
             return params.branch
 
-        # Try to get from profile firmware version
+        # Try to get from profile firmware config
         if (
-            hasattr(profile, "firmware_version")
-            and profile.firmware_version
-            and hasattr(profile.firmware_version, "version")
+            hasattr(profile, "firmware_config")
+            and profile.firmware_config
+            and hasattr(profile.firmware_config, "build_options")
         ):
-            firmware_config = profile.firmware_version
-            if hasattr(firmware_config, "version") and firmware_config.version:
-                return str(firmware_config.version)
+            build_options = profile.firmware_config.build_options
+            if hasattr(build_options, "branch") and build_options.branch:
+                return str(build_options.branch)
 
         # Default to stable Moergo branch
         return "v25.05"

@@ -231,13 +231,16 @@ class TestMoergoStrategy:
             clear_cache=False,
         )
 
-        # Mock profile with firmware version
-        firmware_version = Mock()
-        firmware_version.version = "v26.01"
+        # Mock profile with firmware config
+        build_options = Mock()
+        build_options.branch = "v26.01"
+
+        firmware_config = Mock()
+        firmware_config.build_options = build_options
 
         profile = Mock(spec=KeyboardProfile)
         profile.keyboard_name = "glove80"
-        profile.firmware_version = firmware_version
+        profile.firmware_config = firmware_config
 
         branch = strategy._get_repository_branch(params, profile)
         assert branch == "v26.01"
