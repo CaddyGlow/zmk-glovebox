@@ -187,7 +187,7 @@ class BaseCompilationService(BaseService):
     @abstractmethod
     def _build_compilation_command(
         self, workspace_path: Path, config: CompileMethodConfigUnion
-    ) -> str:
+    ) -> str | list[str]:
         """Build compilation command for this strategy.
 
         Args:
@@ -195,7 +195,9 @@ class BaseCompilationService(BaseService):
             config: Compilation configuration
 
         Returns:
-            str: Complete compilation command to execute
+            str | list[str]: Complete compilation command to execute.
+                - str: Will be wrapped in ["sh", "-c", command] for shell execution
+                - list[str]: Will be passed directly as command array
         """
         pass
 
@@ -339,10 +341,18 @@ class BaseCompilationService(BaseService):
             if not self._docker_adapter:
                 raise BuildError("Docker adapter not available")
 
+            # Handle command format - let strategies decide between shell vs direct execution
+            if isinstance(compilation_command, str):
+                # String command - wrap in shell execution
+                command = ["sh", "-c", compilation_command]
+            else:
+                # List command - pass directly for proper argument handling
+                command = compilation_command
+
             return_code, stdout_lines, stderr_lines = (
                 self._docker_adapter.run_container(
                     image=config.image,
-                    command=["sh", "-c", compilation_command],
+                    command=command,
                     entrypoint=config.entrypoint_command,
                     volumes=volumes,
                     environment=build_env,
