@@ -88,17 +88,17 @@ class BaseCompilationStrategy(ABC):
         """
         ...
 
-    @abstractmethod
-    def extract_docker_image(self, profile: KeyboardProfile) -> str:
-        """Extract Docker image from profile.
-
-        Args:
-            profile: Keyboard profile
-
-        Returns:
-            str: Docker image name
-        """
-        ...
+    # @abstractmethod
+    # def extract_docker_image(self, profile: KeyboardProfile) -> str:
+    #     """Extract Docker image from profile.
+    #
+    #     Args:
+    #         profile: Keyboard profile
+    #
+    #     Returns:
+    #         str: Docker image name
+    #     """
+    #     ...
 
     @abstractmethod
     def build_config(

@@ -66,99 +66,112 @@ class MoergoCompilationService(BaseCompilationService):
             self.logger.debug("Created temporary workspace: %s", temp_dir)
 
             # Create nested config directory structure as expected by Moergo container
-            # Container expects: /config/config/ (where our files go)
-            config_path = temp_dir / "config"
-            actual_config_path = config_path
-            actual_config_path.mkdir(parents=True, exist_ok=True)
+            # Container expects: /workspace/config/ (where our files go)
+            workspace_path = temp_dir / "config"
+            config_path = workspace_path
+            config_path.mkdir(parents=True, exist_ok=True)
 
             # Copy keymap and config files to the nested config directory
-            temp_keymap = actual_config_path / "glove80.keymap"
-            temp_config = actual_config_path / "glove80.conf"
+            temp_keymap = config_path / "glove80.keymap"
+            temp_config = config_path / "glove80.conf"
 
             temp_keymap.write_text(keymap_file.read_text())
             temp_config.write_text(config_file.read_text())
 
             # Create the required default.nix file for Nix build in the nested config directory
+            #             default_nix_content = """{ pkgs ?  import <nixpkgs> {}
+            # , firmware ? import /src {}
+            # }:
+            #
+            # let
+            #   config = ./.;
+            #
+            #   glove80_left  = firmware.zmk.override { board = "glove80_lh"; keymap = "${config}/glove80.keymap"; kconfig = "${config}/glove80.conf"; };
+            #   glove80_right = firmware.zmk.override { board = "glove80_rh"; keymap = "${config}/glove80.keymap"; kconfig = "${config}/glove80.conf"; };
+            #
+            # in firmware.combine_uf2 glove80_left glove80_right"""
+
             default_nix_content = """{
-  pkgs ? (import <moergo-zmk/nix/pinned-nixpkgs.nix> { }),
-  moergo ? (import <moergo-zmk> { }),
-  zmk ? moergo.zmk,
-  keymap ? "glove80.keymap",
-  kconfig ? "glove80.conf",
-  outputName ? "glove80",
-  buildId ? "dev-build",
-}:
-let
-  customZmk = zmk.overrideAttrs (oldAttrs: {
-    installPhase = ''
-      ${oldAttrs.installPhase}
+              pkgs ? (import <moergo-zmk/nix/pinned-nixpkgs.nix> { }),
+              moergo ? (import <moergo-zmk> { }),
+              zmk ? moergo.zmk,
+            }:
+            let
+              config = ./.;
+              keymap = "${config}/glove80.keymap";
+              kconfig = "${config}/glove80.conf";
+              outputName = "glove80";
 
-      cp  zephyr/include/generated/devicetree_generated.h "$out/";
-    '';
-  });
+              customZmk = zmk.overrideAttrs (oldAttrs: {
+                installPhase = ''
+                  ${oldAttrs.installPhase}
 
-  combine =
-    a: b: name:
-    pkgs.runCommandNoCC "combined_firmware" { } ''
-      mkdir -p $out
-        echo "cat ${a}/zmk.uf2 ${b}/zmk.uf2 > $out/${name}.uf2"
-        cat ${a}/zmk.uf2 ${b}/zmk.uf2 > $out/${name}.uf2
-    '';
+                  cp  zephyr/include/generated/devicetree_generated.h "$out/";
+                '';
+              });
 
-  collect_build_artifact =
-    board_type: artifact:
-    let
-      result = pkgs.runCommandNoCC "collect_build_artifact_${board_type}" { } ''
-        # Copy build files
-        echo "Copying build files from ${artifn<F20>uuuu<F20>n<F20>uuuu<F20>n<F20>uuuu<F20>n<F20>uuuu<F20>act} to $out"
-        cp -rT ${artifact} $out
-      '';
-    in
-    result;
+              combine =
+                a: b: name:
+                pkgs.runCommandNoCC "combined_firmware" { } ''
+                  mkdir -p $out
+                    echo "cat ${a}/zmk.uf2 ${b}/zmk.uf2 > $out/${name}.uf2"
+                    cat ${a}/zmk.uf2 ${b}/zmk.uf2 > $out/${name}.uf2
+                '';
 
-  glove80_left = customZmk.override {
-    board = "glove80_lh";
-    keymap = "${keymap}";
-    kconfig = "${kconfig}";
-  };
-  left_processed = collect_build_artifact "lh" glove80_left;
-  glove80_right = customZmk.override {
-    board = "glove80_rh";
-    keymap = "${keymap}";
-    kconfig = "${kconfig}";
-  };
-  right_processed = collect_build_artifact "rh" glove80_right;
+              collect_build_artifact =
+                board_type: artifact:
+                let
+                  result = pkgs.runCommandNoCC "collect_build_artifact_${board_type}" { } ''
+                    # Copy build files
+                    echo "Copying build files from ${artifact} to $out"
+                    cp -rT ${artifact} $out
+                  '';
+                in
+                result;
 
-  # combined = moergo.combine_uf2 glove80_left glove80_right ${outputName};
-  combined = combine left_processed right_processed "${outputName}";
+              glove80_left = customZmk.override {
+                board = "glove80_lh";
+                keymap = "${keymap}";
+                kconfig = "${kconfig}";
+              };
+              left_processed = collect_build_artifact "lh" glove80_left;
+              glove80_right = customZmk.override {
+                board = "glove80_rh";
+                keymap = "${keymap}";
+                kconfig = "${kconfig}";
+              };
+              right_processed = collect_build_artifact "rh" glove80_right;
 
-in
-pkgs.runCommand "${outputName}-firmware" { } ''
-      set +x
-    echo "finishing $out"
-    mkdir -p $out
+              # combined = moergo.combine_uf2 glove80_left glove80_right ${outputName};
+              combined = combine left_processed right_processed "${outputName}";
 
-    # Copy firmware directories
-    cp -r ${left_processed} $out/lf
-    cp -r ${right_processed} $out/rh
+            in
+            pkgs.runCommand "${outputName}-firmware" { } ''
+                  set +x
+                echo "finishing $out"
+                mkdir -p $out
 
-    cp ${combined}/${outputName}.uf2 $out/${outputName}.uf2
-    
-    # mkdir -p $artifactDir
-    # cp -rT $out $artifactDir
-    # Add build metadata
-  cat > $out/build-info.json <<EOF
-      {
-        "buildId": "${buildId}",
-        "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-        "keymap": "${keymap}",
-        "kconfig": "${kconfig}",
-        "outputFile": "${outputName}.uf2"
-      }
-  EOF
-''
-"""
-            default_nix_file = actual_config_path / "default.nix"
+                # Copy firmware directories
+                cp -r ${left_processed} $out/lf
+                cp -r ${right_processed} $out/rh
+
+                cp ${combined}/${outputName}.uf2 $out/${outputName}.uf2
+
+                # mkdir -p $artifactDir
+                # cp -rT $out $artifactDir
+                # Add build metadata
+                # "buildId": "{buildId}",
+              cat > $out/build-info.json <<EOF
+                  {
+                    "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+                    "keymap": "${keymap}",
+                    "kconfig": "${kconfig}",
+                    "outputFile": "${outputName}.uf2"
+                  }
+              EOF
+            ''
+            """
+            default_nix_file = config_path / "default.nix"
             default_nix_file.write_text(default_nix_content)
 
             # Update the build_root in config to point to our temp directory
@@ -192,12 +205,23 @@ pkgs.runCommand "${outputName}-firmware" { } ''
         if not isinstance(config, MoergoCompilationConfig):
             raise BuildError("Invalid compilation configuration")
 
+        # nix_build = f'nix-build "//default.nix" \
+        # --argstr keymap "${config.c}/$KEYMAP" \
+        # --argstr kconfig "${BUILD_DIR}/$KCONFIG" \
+        # --argstr outputName "$OUTPUT_NAME" \
+        # --argstr buildId "$BUILD_ID" \
+        # "$NIX_ARGS" -j"$NPROC" -o result 2>&1 | tee -a "$BUILD_LOG"i'
+
         # The Moergo container runs build automatically on startup
         # First create git config to fix ownership issue, then run the entrypoint
         # Return as list for proper argument handling with entrypoint
         return [
             "-c",
-            'echo "[safe]" > /tmp/gitconfig && echo "    directory = /src" >> /tmp/gitconfig && /bin/entrypoint.sh && echo "Directory structure:" && ls -la /config/ && echo "Build files:" && ls -la /config/config/ ',
+            # "chown -R 0:0 /workspace && /bin/entrypoint.shl",
+            # "chowm -R $UID:$GID /workspace",
+            """chown -R 0:0 /workspace
+/bin/entrypoint.sh
+chown -R $UID:$GID /workspace""",
         ]
 
     def _validate_strategy_specific(self, config: CompileMethodConfigUnion) -> bool:

@@ -172,7 +172,7 @@ class MoergoCompilationConfig(DockerCompilationConfig):
 
     workspace_path: DockerPath = Field(
         default_factory=lambda: DockerPath(
-            host_path=Path("/build"), container_path="/config"
+            host_path=Path("/workspace"), container_path="/workspace"
         )
     )
 

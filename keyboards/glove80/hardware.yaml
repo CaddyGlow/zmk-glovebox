@@ -1,11 +1,6 @@
 # Glove80 Hardware Configuration
 # Physical keyboard properties that don't change between firmware versions
 
-keyboard: "glove80"
-description: "MoErgo Glove80 split ergonomic keyboard"
-vendor: "MoErgo"
-key_count: 80
-
 # Physical layout and key positioning
 keymap:
   formatting:

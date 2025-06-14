@@ -187,8 +187,8 @@ class IncludeConfigLoader:
 
             raw_config: dict[str, Any] = raw_config_data
 
-            # Process includes if present
-            if "include" in raw_config:
+            # Process includes if present (support both "include" and "includes")
+            if "include" in raw_config or "includes" in raw_config:
                 raw_config = self._process_includes(raw_config, config_file, base_path)
 
             # Cache the processed configuration
@@ -228,7 +228,10 @@ class IncludeConfigLoader:
         Returns:
             Configuration with includes resolved and merged
         """
+        # Support both "include" and "includes"
         includes = config.pop("include", [])
+        if not includes:
+            includes = config.pop("includes", [])
         if not includes:
             return config
 
