@@ -20,7 +20,7 @@ class StrategyNotFoundError(GloveboxError):
 
     def __init__(self, profile_name: str, available_strategies: list[str]) -> None:
         """Initialize strategy not found error.
-        
+
         Args:
             profile_name: Name of the profile that couldn't be matched
             available_strategies: List of available strategy names
@@ -53,30 +53,30 @@ class CompilationStrategyFactory:
 
         logger.debug("Registered %d compilation strategies", len(self._strategies))
 
-    def get_strategy_for_profile(self, profile: "KeyboardProfile") -> CompilationStrategyProtocol:
+    def get_strategy_for_profile(
+        self, profile: "KeyboardProfile"
+    ) -> CompilationStrategyProtocol:
         """Get the best compilation strategy for a keyboard profile.
-        
+
         Args:
             profile: Keyboard profile to match
-            
+
         Returns:
             CompilationStrategyProtocol: Matching compilation strategy
-            
+
         Raises:
             StrategyNotFoundError: If no strategy supports the profile
         """
         # Find strategies that support this profile
         supporting_strategies = [
-            strategy for strategy in self._strategies.values()
+            strategy
+            for strategy in self._strategies.values()
             if strategy.supports_profile(profile)
         ]
 
         if not supporting_strategies:
-            profile_name = getattr(profile, 'keyboard_name', 'unknown')
-            raise StrategyNotFoundError(
-                profile_name,
-                list(self._strategies.keys())
-            )
+            profile_name = getattr(profile, "keyboard_name", "unknown")
+            raise StrategyNotFoundError(profile_name, list(self._strategies.keys()))
 
         # For now, return the first supporting strategy
         # In the future, we could add priority-based selection
@@ -84,20 +84,20 @@ class CompilationStrategyFactory:
         logger.debug(
             "Selected strategy '%s' for profile '%s'",
             strategy.name,
-            getattr(profile, 'keyboard_name', 'unknown')
+            getattr(profile, "keyboard_name", "unknown"),
         )
 
         return strategy
 
     def get_strategy_by_name(self, name: str) -> CompilationStrategyProtocol:
         """Get a compilation strategy by name.
-        
+
         Args:
             name: Strategy name
-            
+
         Returns:
             CompilationStrategyProtocol: Named compilation strategy
-            
+
         Raises:
             StrategyNotFoundError: If strategy name is not found
         """
@@ -108,7 +108,7 @@ class CompilationStrategyFactory:
 
     def list_strategies(self) -> list[str]:
         """List all available strategy names.
-        
+
         Returns:
             list[str]: Available strategy names
         """
@@ -116,7 +116,7 @@ class CompilationStrategyFactory:
 
     def register_strategy(self, strategy: CompilationStrategyProtocol) -> None:
         """Register a custom compilation strategy.
-        
+
         Args:
             strategy: Strategy to register
         """
@@ -130,7 +130,7 @@ _strategy_factory: CompilationStrategyFactory | None = None
 
 def get_strategy_factory() -> CompilationStrategyFactory:
     """Get the global strategy factory instance.
-    
+
     Returns:
         CompilationStrategyFactory: Global factory instance
     """
@@ -140,12 +140,14 @@ def get_strategy_factory() -> CompilationStrategyFactory:
     return _strategy_factory
 
 
-def create_strategy_for_profile(profile: "KeyboardProfile") -> CompilationStrategyProtocol:
+def create_strategy_for_profile(
+    profile: "KeyboardProfile",
+) -> CompilationStrategyProtocol:
     """Create compilation strategy for a keyboard profile.
-    
+
     Args:
         profile: Keyboard profile
-        
+
     Returns:
         CompilationStrategyProtocol: Matching compilation strategy
     """
@@ -155,10 +157,10 @@ def create_strategy_for_profile(profile: "KeyboardProfile") -> CompilationStrate
 
 def create_strategy_by_name(name: str) -> CompilationStrategyProtocol:
     """Create compilation strategy by name.
-    
+
     Args:
         name: Strategy name
-        
+
     Returns:
         CompilationStrategyProtocol: Named compilation strategy
     """
@@ -168,7 +170,7 @@ def create_strategy_by_name(name: str) -> CompilationStrategyProtocol:
 
 def list_available_strategies() -> list[str]:
     """List all available compilation strategies.
-    
+
     Returns:
         list[str]: Available strategy names
     """

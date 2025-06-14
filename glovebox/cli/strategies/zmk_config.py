@@ -96,10 +96,9 @@ class ZmkConfigStrategy(BaseCompilationStrategy):
         # Build workspace configuration
         workspace_config = self._build_workspace_config(params, profile)
 
-        # Build cache configuration
-        cache_config = CacheConfig(
-            enabled=not params.no_cache,
-        )
+        # Build cache configuration with default when None
+        cache_enabled = not params.no_cache if params.no_cache is not None else True
+        cache_config = CacheConfig(enabled=cache_enabled)
 
         # Build YAML configuration
         build_yaml_config = BuildYamlConfig()
@@ -142,8 +141,15 @@ class ZmkConfigStrategy(BaseCompilationStrategy):
         Returns:
             DockerUserConfig: Docker user configuration
         """
+        # Use defaults when values are None
+        enable_user_mapping = (
+            not params.no_docker_user_mapping
+            if params.no_docker_user_mapping is not None
+            else True  # Default: enable user mapping
+        )
+
         return DockerUserConfig(
-            enable_user_mapping=not params.no_docker_user_mapping,
+            enable_user_mapping=enable_user_mapping,
             manual_uid=params.docker_uid,
             manual_gid=params.docker_gid,
             manual_username=params.docker_username,

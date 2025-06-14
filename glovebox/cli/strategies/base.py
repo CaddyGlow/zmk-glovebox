@@ -15,22 +15,22 @@ class CompilationParams:
 
     keymap_file: Path
     kconfig_file: Path
-    output_dir: Path
+    output_dir: Path  # Always resolved to a default by CLI before reaching strategies
     branch: str | None
     repo: str | None
     jobs: int | None
-    verbose: bool
-    no_cache: bool
+    verbose: bool | None
+    no_cache: bool | None
     docker_uid: int | None
     docker_gid: int | None
     docker_username: str | None
     docker_home: str | None
     docker_container_home: str | None
-    no_docker_user_mapping: bool
+    no_docker_user_mapping: bool | None
     board_targets: str | None
-    preserve_workspace: bool
-    force_cleanup: bool
-    clear_cache: bool
+    preserve_workspace: bool | None
+    force_cleanup: bool | None
+    clear_cache: bool | None
 
 
 class CompilationStrategyProtocol(Protocol):

@@ -46,18 +46,18 @@ def create_test_params(tmp_path, **kwargs) -> CompilationParams:
         "branch": None,
         "repo": None,
         "jobs": None,
-        "verbose": False,
-        "no_cache": False,
+        "verbose": None,
+        "no_cache": None,
         "docker_uid": None,
         "docker_gid": None,
         "docker_username": None,
         "docker_home": None,
         "docker_container_home": None,
-        "no_docker_user_mapping": False,
+        "no_docker_user_mapping": None,
         "board_targets": None,
-        "preserve_workspace": False,
-        "force_cleanup": False,
-        "clear_cache": False,
+        "preserve_workspace": None,
+        "force_cleanup": None,
+        "clear_cache": None,
     }
     defaults.update(kwargs)
     return CompilationParams(**defaults)
@@ -424,7 +424,7 @@ class TestErrorHandlingIntegration:
         profile.keyboard_name = "planck"
 
         # Should raise exception for missing files
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(ValueError):
             builder.build(params, profile, "zmk_config")
 
 

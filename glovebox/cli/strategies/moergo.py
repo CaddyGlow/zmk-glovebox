@@ -120,8 +120,15 @@ class MoergoStrategy(BaseCompilationStrategy):
         Returns:
             DockerUserConfig: Docker user configuration
         """
+        # Use Moergo-specific defaults when values are None
+        enable_user_mapping = (
+            not params.no_docker_user_mapping
+            if params.no_docker_user_mapping is not None
+            else False  # Moergo default: disable user mapping
+        )
+
         return DockerUserConfig(
-            enable_user_mapping=not params.no_docker_user_mapping,
+            enable_user_mapping=enable_user_mapping,
             manual_uid=params.docker_uid,
             manual_gid=params.docker_gid,
             manual_username=params.docker_username,

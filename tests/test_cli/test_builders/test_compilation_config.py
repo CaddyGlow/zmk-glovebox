@@ -37,21 +37,53 @@ def create_test_params(tmp_path=None, **kwargs) -> CompilationParams:
         "branch": None,
         "repo": None,
         "jobs": None,
-        "verbose": False,
-        "no_cache": False,
+        "verbose": None,
+        "no_cache": None,
         "docker_uid": None,
         "docker_gid": None,
         "docker_username": None,
         "docker_home": None,
         "docker_container_home": None,
-        "no_docker_user_mapping": False,
+        "no_docker_user_mapping": None,
         "board_targets": None,
-        "preserve_workspace": False,
-        "force_cleanup": False,
-        "clear_cache": False,
+        "preserve_workspace": None,
+        "force_cleanup": None,
+        "clear_cache": None,
     }
+
+    # Override output_dir if explicitly provided in kwargs
+    if "output_dir" in kwargs and kwargs["output_dir"] is None:
+        kwargs["output_dir"] = Path("build")  # Provide a default
+
     defaults.update(kwargs)
-    return CompilationParams(**defaults)
+
+    # Ensure output_dir is always a Path
+    if not isinstance(defaults["output_dir"], Path):
+        defaults["output_dir"] = Path(str(defaults["output_dir"]))
+
+    # Extract values with proper typing - cast from dict values
+    from typing import cast
+
+    return CompilationParams(
+        keymap_file=cast(Path, defaults["keymap_file"]),
+        kconfig_file=cast(Path, defaults["kconfig_file"]),
+        output_dir=cast(Path, defaults["output_dir"]),
+        branch=cast("str | None", defaults["branch"]),
+        repo=cast("str | None", defaults["repo"]),
+        jobs=cast("int | None", defaults["jobs"]),
+        verbose=cast("bool | None", defaults["verbose"]),
+        no_cache=cast("bool | None", defaults["no_cache"]),
+        docker_uid=cast("int | None", defaults["docker_uid"]),
+        docker_gid=cast("int | None", defaults["docker_gid"]),
+        docker_username=cast("str | None", defaults["docker_username"]),
+        docker_home=cast("str | None", defaults["docker_home"]),
+        docker_container_home=cast("str | None", defaults["docker_container_home"]),
+        no_docker_user_mapping=cast("bool | None", defaults["no_docker_user_mapping"]),
+        board_targets=cast("str | None", defaults["board_targets"]),
+        preserve_workspace=cast("bool | None", defaults["preserve_workspace"]),
+        force_cleanup=cast("bool | None", defaults["force_cleanup"]),
+        clear_cache=cast("bool | None", defaults["clear_cache"]),
+    )
 
 
 def test_build_with_explicit_strategy(tmp_path):
