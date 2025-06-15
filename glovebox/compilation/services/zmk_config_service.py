@@ -145,7 +145,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
     def _build_compilation_command(
         self, workspace_path: Path, config: CompileMethodConfigUnion
-    ) -> str:
+    ) -> list[str]:
         """Build west compilation command for ZMK config strategy.
 
         Uses build.yaml from workspace to generate west build commands
@@ -167,7 +167,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
         )
 
         # Use helper functions for command generation
-        init_commands = build_zmk_init_commands(workspace_params)
+        commands = build_zmk_init_commands(workspace_params)
 
         # Check for build.yaml in workspace config directory
         build_yaml_file_path = workspace_path / config.workspace.build_matrix_file
@@ -197,8 +197,9 @@ class ZmkConfigCompilationService(BaseCompilationService):
             self.logger.debug("No build.yaml found, using fallback build commands")
             board_name = config.build_config.get_board_name() or "nice_nano_v2"
             build_commands = build_zmk_fallback_commands(workspace_params, [board_name])
+        commands.extend(build_commands)
 
-        return " && ".join(init_commands + build_commands)
+        return commands
 
     def _setup_dynamic_workspace(
         self,
