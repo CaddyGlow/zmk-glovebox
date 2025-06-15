@@ -63,7 +63,6 @@ keymap:
     - "#include <dt-bindings/zmk/bt.h>"
   
   formatting:
-    default_key_width: 8
     key_gap: "  "
     base_indent: "    "
   

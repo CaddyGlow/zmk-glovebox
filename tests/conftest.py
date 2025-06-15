@@ -141,7 +141,7 @@ def mock_keyboard_config_dict() -> dict[str, Any]:
             "keymap_dtsi": "#include <behaviors.dtsi>",
             "system_behaviors_dts": "test behaviors",
             "key_position_header": "test header",
-            "formatting": {"default_key_width": 8, "key_gap": "  ", "base_indent": ""},
+            "formatting": {"key_gap": "  ", "base_indent": ""},
         },
     }
 
@@ -269,7 +269,7 @@ def keyboard_config_dir(tmp_path):
             // ... more keys
             """,
         },
-        "formatting": {"default_key_width": 8, "key_gap": "  ", "base_indent": "    "},
+        "formatting": {"key_gap": "  ", "base_indent": "    "},
     }
 
     # Create glove80 configuration
@@ -347,7 +347,7 @@ def keyboard_config_dir(tmp_path):
             },
             "keymap_dtsi": "// Glove80 keymap template",
         },
-        "formatting": {"default_key_width": 8, "key_gap": "  ", "base_indent": "    "},
+        "formatting": {"key_gap": "  ", "base_indent": "    "},
     }
 
     # Write config files
@@ -428,7 +428,6 @@ def mock_keyboard_config() -> Mock:
 
     # Create mock formatting
     mock_config.keymap.formatting = Mock(spec=FormattingConfig)
-    mock_config.keymap.formatting.default_key_width = 8
     mock_config.keymap.formatting.key_gap = "  "
     mock_config.keymap.formatting.base_indent = ""
 

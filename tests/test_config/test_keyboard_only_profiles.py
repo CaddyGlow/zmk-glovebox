@@ -114,7 +114,6 @@ class TestKeyboardConfigDefaults:
         assert config.keymap.includes == []
         assert config.keymap.system_behaviors == []
         assert config.keymap.kconfig_options == {}
-        assert config.keymap.formatting.default_key_width == 4
         assert config.keymap.formatting.key_gap == " "
 
     def test_keyboard_config_with_partial_sections(self):

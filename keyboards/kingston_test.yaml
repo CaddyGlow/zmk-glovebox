@@ -5,16 +5,8 @@ key_count: 80
 
 # Compile method configurations
 compile_methods:
-  - method_type: generic_docker
+  - strategy: zmk_config
     image: moergo-zmk-build:latest
-    strategy: zmk_config
-    cache:
-      enabled: true
-      max_age_hours: 24.0
-      max_cache_size_gb: 5.0
-    zmk_config_repo:
-      workspace_path: "~/.glovebox/dynamic-zmk-config/kingston_test"
-    fallback_methods: ["local"]
 
 # Flash method configurations  
 flash_methods:

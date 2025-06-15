@@ -10,7 +10,7 @@ from .firmware import (
     KConfigOption,
     UserFirmwareConfig,
 )
-from .keyboard import FormattingConfig, KeyboardConfig, KeymapSection, VisualLayout
+from .keyboard import FormattingConfig, KeyboardConfig, KeymapSection
 from .user import UserConfigData
 from .workspace import UserArtifactConfig, UserCompilationConfig, UserWorkspaceConfig
 from .zmk import (
@@ -43,7 +43,6 @@ __all__ = [
     "UserFirmwareConfig",
     "UserWorkspaceConfig",
     "ValidationLimits",
-    "VisualLayout",
     "ZmkCompatibleStrings",
     "ZmkConfig",
     "ZmkPatterns",

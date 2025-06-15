@@ -18,15 +18,6 @@ compile_methods:
     image: glove80-zmk-config-docker
     repository: "moergo-sc/zmk"
     branch: "v25.05"
-    # Moergo-specific configuration
-    cleanup_workspace: true
-    preserve_on_failure: false
-
-    # Docker user configuration for file permissions
-    # Moergo container needs root access for git operations
-    docker_user:
-      enable_user_mapping: false
-      detect_user_automatically: false
 
 # flash method configurations
 flash_methods:
@@ -81,7 +72,6 @@ keymap:
 
   # Common kconfig options for all firmwares
   formatting:
-    default_key_width: 8
     key_gap: "  "
     base_indent: ""
     rows:

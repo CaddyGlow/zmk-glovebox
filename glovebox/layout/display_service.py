@@ -155,7 +155,6 @@ class LayoutDisplayService:
                 rows=all_rows,
                 metadata=layout_metadata,
                 formatting={
-                    "default_key_width": display_formatting.key_width,
                     "key_gap": keymap_formatting.key_gap,
                     "base_indent": keymap_formatting.base_indent,
                 },

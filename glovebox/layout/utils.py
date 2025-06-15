@@ -435,13 +435,12 @@ def convert_keymap_section_from_dict(keymap_dict: dict[str, Any]) -> Any:
     formatting_data = keymap_dict.get("formatting", {})
     if isinstance(formatting_data, dict):
         formatting = FormattingConfig(
-            default_key_width=formatting_data.get("default_key_width", 8),
             key_gap=formatting_data.get("key_gap", "  "),
             base_indent=formatting_data.get("base_indent", ""),
             rows=formatting_data.get("rows", []),
         )
     else:
-        formatting = FormattingConfig(default_key_width=8, key_gap="  ")
+        formatting = FormattingConfig(key_gap="  ")
 
     # Create and return keymap section
     return KeymapSection(
