@@ -2,8 +2,12 @@
 
 from glovebox.cli.strategies.base import (
     BaseCompilationStrategy,
-    CompilationParams,
     CompilationStrategyProtocol,
+)
+from glovebox.cli.strategies.config_builder import (
+    CLIOverrides,
+    CompilationConfigBuilder,
+    create_config_builder,
 )
 from glovebox.cli.strategies.factory import (
     CompilationStrategyFactory,
@@ -22,8 +26,10 @@ from glovebox.cli.strategies.zmk_config import (
 
 __all__ = [
     "BaseCompilationStrategy",
-    "CompilationParams",
     "CompilationStrategyProtocol",
+    "CLIOverrides",
+    "CompilationConfigBuilder",
+    "create_config_builder",
     "CompilationStrategyFactory",
     "StrategyNotFoundError",
     "create_strategy_by_name",

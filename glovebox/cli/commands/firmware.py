@@ -18,7 +18,7 @@ from glovebox.cli.helpers.profile import (
     get_keyboard_profile_from_context,
     get_user_config_from_context,
 )
-from glovebox.cli.strategies.base import CompilationParams
+from glovebox.cli.strategies import CLIOverrides
 from glovebox.firmware.flash import create_flash_service
 
 
@@ -225,7 +225,7 @@ def firmware_compile(
     # Set default output_dir if not specified
     effective_output_dir = output_dir if output_dir is not None else Path("build")
 
-    params = CompilationParams(
+    cli_overrides = CLIOverrides(
         keymap_file=keymap_file,
         kconfig_file=kconfig_file,
         output_dir=effective_output_dir,
@@ -255,7 +255,7 @@ def firmware_compile(
     # Execute compilation using new FirmwareExecutor
     try:
         executor = FirmwareExecutor()
-        result = executor.compile(params, keyboard_profile, strategy)
+        result = executor.compile(cli_overrides, keyboard_profile, strategy)
         _format_compilation_output(result, output_format, effective_output_dir)
     except Exception as e:
         print_error_message(f"Firmware compilation failed: {str(e)}")

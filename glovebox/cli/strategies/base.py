@@ -1,36 +1,12 @@
 """Base strategy classes and protocols for firmware compilation."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Protocol
 
+from glovebox.cli.strategies.config_builder import CLIOverrides
 from glovebox.config.compile_methods import DockerCompilationConfig
 from glovebox.config.profile import KeyboardProfile
-
-
-@dataclass
-class CompilationParams:
-    """Compilation parameters from CLI."""
-
-    keymap_file: Path
-    kconfig_file: Path
-    output_dir: Path  # Always resolved to a default by CLI before reaching strategies
-    branch: str | None
-    repo: str | None
-    jobs: int | None
-    verbose: bool | None
-    no_cache: bool | None
-    docker_uid: int | None
-    docker_gid: int | None
-    docker_username: str | None
-    docker_home: str | None
-    docker_container_home: str | None
-    no_docker_user_mapping: bool | None
-    board_targets: str | None
-    preserve_workspace: bool | None
-    force_cleanup: bool | None
-    clear_cache: bool | None
 
 
 class CompilationStrategyProtocol(Protocol):
@@ -45,14 +21,10 @@ class CompilationStrategyProtocol(Protocol):
         """Check if strategy supports the given profile."""
         ...
 
-    def extract_docker_image(self, profile: KeyboardProfile) -> str:
-        """Extract Docker image from profile."""
-        ...
-
     def build_config(
-        self, params: CompilationParams, profile: KeyboardProfile
+        self, cli_overrides: CLIOverrides, profile: KeyboardProfile
     ) -> DockerCompilationConfig:
-        """Build compilation configuration."""
+        """Build compilation configuration using YAML config + CLI overrides."""
         ...
 
     def get_service_name(self) -> str:
@@ -61,7 +33,11 @@ class CompilationStrategyProtocol(Protocol):
 
 
 class BaseCompilationStrategy(ABC):
-    """Base implementation for compilation strategies."""
+    """Base implementation for compilation strategies.
+
+    This base class now uses the new configuration-first approach where
+    YAML configuration is loaded first, then CLI overrides are applied.
+    """
 
     def __init__(self, name: str) -> None:
         """Initialize base strategy.
@@ -69,7 +45,10 @@ class BaseCompilationStrategy(ABC):
         Args:
             name: Strategy name
         """
+        from glovebox.cli.strategies.config_builder import create_config_builder
+
         self._name = name
+        self._config_builder = create_config_builder()
 
     @property
     def name(self) -> str:
@@ -88,32 +67,28 @@ class BaseCompilationStrategy(ABC):
         """
         ...
 
-    # @abstractmethod
-    # def extract_docker_image(self, profile: KeyboardProfile) -> str:
-    #     """Extract Docker image from profile.
-    #
-    #     Args:
-    #         profile: Keyboard profile
-    #
-    #     Returns:
-    #         str: Docker image name
-    #     """
-    #     ...
-
-    @abstractmethod
     def build_config(
-        self, params: CompilationParams, profile: KeyboardProfile
+        self, cli_overrides: CLIOverrides, profile: KeyboardProfile
     ) -> DockerCompilationConfig:
-        """Build compilation configuration.
+        """Build compilation configuration using YAML config + CLI overrides.
+
+        This method uses the new configuration builder to:
+        1. Load YAML configuration from the keyboard profile
+        2. Apply CLI overrides
+        3. Return unified configuration object
 
         Args:
-            params: Compilation parameters from CLI
-            profile: Keyboard profile
+            cli_overrides: CLI argument overrides
+            profile: Keyboard profile with YAML configuration
 
         Returns:
-            DockerCompilationConfig: Configuration for compilation
+            DockerCompilationConfig: Unified configuration for compilation
         """
-        ...
+        return self._config_builder.build_config(
+            profile=profile,
+            cli_overrides=cli_overrides,
+            strategy_name=self.name,
+        )
 
     @abstractmethod
     def get_service_name(self) -> str:
@@ -123,35 +98,3 @@ class BaseCompilationStrategy(ABC):
             str: Service name for this strategy
         """
         ...
-
-    def _get_default_docker_image(self, profile: KeyboardProfile) -> str:
-        """Get default Docker image for a profile.
-
-        Args:
-            profile: Keyboard profile
-
-        Returns:
-            str: Default Docker image
-        """
-        # Standard ZMK image as fallback
-        return "zmkfirmware/zmk-build-arm:stable"
-
-    def _validate_params(self, params: CompilationParams) -> None:
-        """Validate compilation parameters.
-
-        Args:
-            params: Parameters to validate
-
-        Raises:
-            ValueError: If parameters are invalid
-        """
-        if not params.keymap_file.exists():
-            raise ValueError(f"Keymap file not found: {params.keymap_file}")
-
-        if not params.kconfig_file.exists():
-            raise ValueError(f"Kconfig file not found: {params.kconfig_file}")
-
-        if not params.output_dir.parent.exists():
-            raise ValueError(
-                f"Output directory parent not found: {params.output_dir.parent}"
-            )
