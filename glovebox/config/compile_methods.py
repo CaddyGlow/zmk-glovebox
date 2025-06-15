@@ -75,30 +75,12 @@ class DockerCompilationConfig(BaseModel):
     build_commands: list[str] = Field(default_factory=list)
     entrypoint_command: str | None = None
 
-    # TODO: Not used in the docker run command
-    environment_template: dict[str, str] = Field(default_factory=dict)
-    volume_templates: list[str] = Field(default_factory=list)
-
     # Workspace management configuration
     cleanup_workspace: bool = True
     preserve_on_failure: bool = False
 
     # Docker user configuration
     docker_user: DockerUserConfig = Field(default_factory=DockerUserConfig)
-
-    @field_validator("volume_templates")
-    @classmethod
-    def expand_volume_templates(cls, v: list[Path]) -> list[Path]:
-        """Expand environment variables and user home in volume templates."""
-        return [expand_path_variables(template) for template in v]
-
-    @field_validator("environment_template")
-    @classmethod
-    def expand_environment_template(cls, v: dict[str, str]) -> dict[str, str]:
-        """Expand environment variables and user home in environment template values."""
-        return {
-            key: str(expand_path_variables(Path(value))) for key, value in v.items()
-        }
 
 
 class ZmkWorkspaceConfig(BaseModel):

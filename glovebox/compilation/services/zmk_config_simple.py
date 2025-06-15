@@ -22,9 +22,9 @@ from glovebox.compilation.models.west_config import (
 from glovebox.compilation.protocols.compilation_protocols import (
     CompilationServiceProtocol,
 )
-from glovebox.config.minimal_compile_config import (
-    MinimalCompileConfigUnion,
-    MinimalZmkConfig,
+from glovebox.config.service_compile_config import (
+    ServiceCompileConfigUnion,
+    ServiceZmkConfig,
 )
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.models.docker import DockerUserContext
@@ -48,14 +48,14 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
         keymap_file: Path,
         config_file: Path,
         output_dir: Path,
-        config: MinimalCompileConfigUnion,
+        config: ServiceCompileConfigUnion,
         keyboard_profile: "KeyboardProfile",
     ) -> BuildResult:
         """Execute ZMK compilation."""
         self.logger.info("Starting ZMK config compilation")
 
         try:
-            if not isinstance(config, MinimalZmkConfig):
+            if not isinstance(config, ServiceZmkConfig):
                 return BuildResult(success=False, errors=["Invalid config type"])
 
             # Try to use cached workspace first
@@ -92,15 +92,15 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
             self.logger.error("Compilation failed: %s", e)
             return BuildResult(success=False, errors=[str(e)])
 
-    def validate_config(self, config: MinimalCompileConfigUnion) -> bool:
+    def validate_config(self, config: ServiceCompileConfigUnion) -> bool:
         """Validate configuration."""
-        return isinstance(config, MinimalZmkConfig) and bool(config.image)
+        return isinstance(config, ServiceZmkConfig) and bool(config.image)
 
     def check_available(self) -> bool:
         """Check availability."""
         return self.docker_adapter is not None
 
-    def _get_cached_workspace(self, config: MinimalZmkConfig) -> Path | None:
+    def _get_cached_workspace(self, config: ServiceZmkConfig) -> Path | None:
         """Get cached workspace if available."""
         if not config.use_cache:
             return None
@@ -114,7 +114,7 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
             return cache_dir
         return None
 
-    def _cache_workspace(self, workspace_path: Path, config: MinimalZmkConfig) -> None:
+    def _cache_workspace(self, workspace_path: Path, config: ServiceZmkConfig) -> None:
         """Cache workspace for future use."""
         if not config.use_cache:
             return
@@ -138,7 +138,7 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
             self.logger.warning("Failed to cache workspace: %s", e)
 
     def _get_or_create_workspace(
-        self, keymap_file: Path, config_file: Path, config: MinimalZmkConfig
+        self, keymap_file: Path, config_file: Path, config: ServiceZmkConfig
     ) -> Path | None:
         """Get cached workspace or create new one."""
         # Try to use cached workspace
@@ -168,7 +168,7 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
         return self._setup_workspace(keymap_file, config_file, config)
 
     def _setup_workspace(
-        self, keymap_file: Path, config_file: Path, config: MinimalZmkConfig
+        self, keymap_file: Path, config_file: Path, config: ServiceZmkConfig
     ) -> Path | None:
         """Setup temporary workspace."""
         try:
@@ -194,7 +194,7 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
         workspace_path: Path,
         keymap_file: Path,
         config_file: Path,
-        config: MinimalZmkConfig,
+        config: ServiceZmkConfig,
     ) -> None:
         """Setup config directory with files."""
         config_dir = workspace_path / "config"
@@ -208,7 +208,7 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
         self._create_build_yaml(config_dir, config)
         self._create_west_yml(config_dir, config)
 
-    def _create_build_yaml(self, config_dir: Path, config: MinimalZmkConfig) -> None:
+    def _create_build_yaml(self, config_dir: Path, config: ServiceZmkConfig) -> None:
         """Create build.yaml using proper build matrix models."""
         # Create build matrix configuration
         if config.shields:
@@ -227,7 +227,7 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
         resolver = create_build_matrix_resolver()
         resolver.write_config_to_yaml(build_config, config_dir / "build.yaml")
 
-    def _create_west_yml(self, config_dir: Path, config: MinimalZmkConfig) -> None:
+    def _create_west_yml(self, config_dir: Path, config: ServiceZmkConfig) -> None:
         """Create west.yml using proper west config models."""
         # Parse repository to get remote info
         if "/" in config.repository:
@@ -270,7 +270,7 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
                 sort_keys=False,
             )
 
-    def _run_compilation(self, workspace_path: Path, config: MinimalZmkConfig) -> bool:
+    def _run_compilation(self, workspace_path: Path, config: ServiceZmkConfig) -> bool:
         """Run Docker compilation."""
         try:
             # Generate proper build commands using build matrix
@@ -315,7 +315,7 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
             return False
 
     def _generate_build_commands(
-        self, workspace_path: Path, config: MinimalZmkConfig
+        self, workspace_path: Path, config: ServiceZmkConfig
     ) -> list[str]:
         """Generate west build commands from build matrix."""
         try:

@@ -21,10 +21,10 @@ from glovebox.config.compile_methods import (
     MoergoCompilationConfig,
     ZmkCompilationConfig,
 )
-from glovebox.config.minimal_compile_config import (
-    MinimalCompileConfigUnion,
-    MinimalMoergoConfig,
-    MinimalZmkConfig,
+from glovebox.config.service_compile_config import (
+    ServiceCompileConfigUnion,
+    ServiceMoergoConfig,
+    ServiceZmkConfig,
 )
 from glovebox.firmware.flash import create_flash_service
 
@@ -92,10 +92,13 @@ def _resolve_compilation_strategy(
         logger.info("Docker image: %s", compile_config.image)
         logger.info("Repository: %s", getattr(compile_config, "repository", "N/A"))
         logger.info("Branch: %s", getattr(compile_config, "branch", "N/A"))
-        if isinstance(compile_config, MoergoCompilationConfig):
+        if isinstance(compile_config, ZmkCompilationConfig):
             build_config = compile_config.build_config
             logger.info("Boards: %s", getattr(build_config, "board", []))
             logger.info("Shields: %s", getattr(build_config, "shield", []))
+        elif isinstance(compile_config, MoergoCompilationConfig):
+            logger.info("Repository: %s", compile_config.repository)
+            logger.info("Branch: %s", compile_config.branch)
     else:
         logger.info("Using compilation strategy: %r", type(compile_config).__name__)
 
@@ -124,14 +127,14 @@ def _update_config_from_profile(
             )
 
 
-def _create_minimal_config(
+def _create_service_config(
     compile_config: MoergoCompilationConfig | ZmkCompilationConfig,
     keyboard_profile: "KeyboardProfile",
-) -> MinimalCompileConfigUnion:
-    """Convert complex config to minimal config for simplified services."""
+) -> ServiceCompileConfigUnion:
+    """Convert complex config to service config for simplified services."""
     # Extract build matrix from the specific compile method config
-    boards = ["nice_nano_v2"]  # default
-    shields = []  # default
+    boards: list[str] = ["nice_nano_v2"]  # default
+    shields: list[str] = []  # default
 
     # Get build_config from the compile method itself
     if hasattr(compile_config, "build_config") and compile_config.build_config:
@@ -161,7 +164,7 @@ def _create_minimal_config(
         branch = branch or keyboard_profile.firmware_config.build_options.branch
 
     if isinstance(compile_config, MoergoCompilationConfig):
-        return MinimalMoergoConfig(
+        return ServiceMoergoConfig(
             strategy="moergo",
             image=compile_config.image,
             repository=repository or "moergo-sc/zmk",
@@ -170,7 +173,7 @@ def _create_minimal_config(
             shields=shields,
         )
     elif isinstance(compile_config, ZmkCompilationConfig):
-        return MinimalZmkConfig(
+        return ServiceZmkConfig(
             strategy="zmk_config",
             image=compile_config.image,
             repository=repository or "zmkfirmware/zmk",
@@ -195,14 +198,14 @@ def _execute_compilation_service(
 
     compilation_service = create_compilation_service(compilation_strategy)
 
-    # Convert to minimal config for simplified services
-    minimal_config = _create_minimal_config(compile_config, keyboard_profile)
+    # Convert to service config for simplified services
+    service_config = _create_service_config(compile_config, keyboard_profile)
 
     return compilation_service.compile(
         keymap_file=keymap_file,
         config_file=kconfig_file,
         output_dir=build_output_dir,
-        config=minimal_config,
+        config=service_config,
         keyboard_profile=keyboard_profile,
     )
 
