@@ -9,8 +9,10 @@ from typing import TYPE_CHECKING
 from glovebox.compilation.protocols.compilation_protocols import (
     CompilationServiceProtocol,
 )
-from glovebox.config.compile_methods import MoergoCompilationConfig
-from glovebox.config.models.keyboard import CompileMethodConfigUnion
+from glovebox.config.minimal_compile_config import (
+    MinimalCompileConfigUnion,
+    MinimalMoergoConfig,
+)
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.protocols import DockerAdapterProtocol
 
@@ -32,14 +34,14 @@ class MoergoSimpleService(CompilationServiceProtocol):
         keymap_file: Path,
         config_file: Path,
         output_dir: Path,
-        config: CompileMethodConfigUnion,
+        config: MinimalCompileConfigUnion,
         keyboard_profile: "KeyboardProfile",
     ) -> BuildResult:
         """Execute Moergo compilation."""
         self.logger.info("Starting Moergo compilation")
 
         try:
-            if not isinstance(config, MoergoCompilationConfig):
+            if not isinstance(config, MinimalMoergoConfig):
                 return BuildResult(success=False, errors=["Invalid config type"])
 
             workspace_path = self._setup_workspace(keymap_file, config_file)
@@ -62,9 +64,9 @@ class MoergoSimpleService(CompilationServiceProtocol):
             self.logger.error("Compilation failed: %s", e)
             return BuildResult(success=False, errors=[str(e)])
 
-    def validate_config(self, config: CompileMethodConfigUnion) -> bool:
+    def validate_config(self, config: MinimalCompileConfigUnion) -> bool:
         """Validate configuration."""
-        return isinstance(config, MoergoCompilationConfig) and bool(config.image)
+        return isinstance(config, MinimalMoergoConfig) and bool(config.image)
 
     def check_available(self) -> bool:
         """Check availability."""
@@ -101,7 +103,7 @@ in
             return None
 
     def _run_compilation(
-        self, workspace_path: Path, config: MoergoCompilationConfig
+        self, workspace_path: Path, config: MinimalMoergoConfig
     ) -> bool:
         """Run Docker compilation."""
         try:
