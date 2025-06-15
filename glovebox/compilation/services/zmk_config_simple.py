@@ -378,8 +378,12 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
             # Use build matrix resolver to determine expected build directories
             build_yaml = workspace_path / "config" / "build.yaml"
             if not build_yaml.exists():
-                self.logger.error("build.yaml not found, cannot determine build directories")
-                return FirmwareOutputFiles(output_dir=output_dir, main_uf2=None, artifacts_dir=None)
+                self.logger.error(
+                    "build.yaml not found, cannot determine build directories"
+                )
+                return FirmwareOutputFiles(
+                    output_dir=output_dir, main_uf2=None, artifacts_dir=None
+                )
 
             resolver = create_build_matrix_resolver()
             build_matrix = resolver.resolve_from_build_yaml(build_yaml)
@@ -392,7 +396,9 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
 
                 build_path = workspace_path / build_dir_name
                 if not build_path.is_dir():
-                    self.logger.warning("Expected build directory not found: %s", build_path)
+                    self.logger.warning(
+                        "Expected build directory not found: %s", build_path
+                    )
                     continue
 
                 try:
@@ -403,7 +409,9 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
                         artifacts_dir = output_dir
 
                     # Copy firmware files and other artifacts
-                    build_collected = self._copy_build_artifacts(build_path, cur_build_out, build_dir_name)
+                    build_collected = self._copy_build_artifacts(
+                        build_path, cur_build_out, build_dir_name
+                    )
                     collected_items.extend(build_collected)
 
                     # Set main_uf2 to the first .uf2 file found
@@ -412,13 +420,21 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
                         main_uf2 = uf2_file
 
                 except Exception as e:
-                    self.logger.warning("Failed to copy build directory %s: %s", build_path, e)
+                    self.logger.warning(
+                        "Failed to copy build directory %s: %s", build_path, e
+                    )
 
         except Exception as e:
-            self.logger.error("Failed to resolve build matrix for artifact collection: %s", e)
+            self.logger.error(
+                "Failed to resolve build matrix for artifact collection: %s", e
+            )
 
         if collected_items:
-            self.logger.info("Collected %d ZMK artifacts: %s", len(collected_items), ", ".join(collected_items))
+            self.logger.info(
+                "Collected %d ZMK artifacts: %s",
+                len(collected_items),
+                ", ".join(collected_items),
+            )
         else:
             self.logger.warning("No build artifacts found in workspace")
 
@@ -428,15 +444,17 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
             artifacts_dir=artifacts_dir,
         )
 
-    def _copy_build_artifacts(self, build_path: Path, cur_build_out: Path, build_dir_name: str) -> list[str]:
+    def _copy_build_artifacts(
+        self, build_path: Path, cur_build_out: Path, build_dir_name: str
+    ) -> list[str]:
         """Copy artifacts from a single build directory."""
         collected_items = []
-        
+
         # Define file mappings: [source_path_from_zephyr, destination_filename]
         file_mappings = [
             # Firmware files
             ["zmk.uf2", "zmk.uf2"],
-            ["zmk.hex", "zmk.hex"], 
+            ["zmk.hex", "zmk.hex"],
             ["zmk.bin", "zmk.bin"],
             ["zmk.elf", "zmk.elf"],
             # Configuration and debug files
@@ -448,13 +466,15 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
         for src_path, dst_filename in file_mappings:
             src_file = build_path / "zephyr" / src_path
             dst_file = cur_build_out / dst_filename
-            
+
             if src_file.exists():
                 try:
                     shutil.copy2(src_file, dst_file)
                     collected_items.append(f"{build_dir_name}/{dst_filename}")
                 except Exception as e:
-                    self.logger.warning("Failed to copy %s to %s: %s", src_file, dst_file, e)
+                    self.logger.warning(
+                        "Failed to copy %s to %s: %s", src_file, dst_file, e
+                    )
 
         # Copy UF2 to base output directory with build directory name
         uf2_source = build_path / "zephyr" / "zmk.uf2"
