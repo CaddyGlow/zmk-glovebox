@@ -30,38 +30,44 @@ COPY --chmod=755 <<EOF /app/bin/entrypoint.sh
 #!/usr/bin/env bash
 set -euo pipefail
 
+echo "Script starting with PID: \$\$"
+
 # Set desired umask
 : "\${UMASK:=0022}"
 umask "\$UMASK"
 
-# Handle UID/GID mapping without setpriv
-if [ -n "\$UID" ] && [ -n "\$GID" ]; then
-  echo "Received UID:GID \$UID:\$GID"
-
-  # Since we can't easily use setpriv in this container,
-  # we'll set permissions on the workspace directories to match
-  # the requested UID/GID at the end of the build process
-fi
-
 # Cleanup function
 cleanup() {
-  echo "Running cleanup..."
-  if [ -n "\$UID" ] && [ -n "\$GID" ]; then
-    echo "Setting permissions for UID \$UID GID \$GID"
-    chown -R "\$UID:\$GID" /workspace
+  echo "CLEANUP: Running cleanup function..."
+  if [ -n "\${UID:-}" ] && [ -n "\${GID:-}" ]; then
+    echo "CLEANUP: Attempting chown \$UID:\$GID /workspace"
+    chown -R "\$UID:\$GID" /workspace || echo "CLEANUP: chown failed"
+  else
+    echo "CLEANUP: No UID/GID set"
   fi
+  echo "CLEANUP: Cleanup function complete"
 }
 
-# Set up signal traps to run cleanup on exit/interruption
-trap cleanup EXIT      # Always run on script exit
-trap cleanup INT       # Run on Ctrl+C (SIGINT)
-trap cleanup TERM      # Run on SIGTERM
+# Handle Docker signals properly
+trap 'echo "TRAP: EXIT"; cleanup' EXIT
+trap 'echo "TRAP: INT (Ctrl+C)"; cleanup; exit 130' INT
+trap 'echo "TRAP: TERM (Docker stop)"; cleanup; exit 143' TERM
 
-# Execute the command
-# exec "\$@"
-"\$@"
+# Handle UID/GID mapping
+if [ -n "\${UID:-}" ] && [ -n "\${GID:-}" ]; then
+  echo "Received UID:GID \$UID:\$GID"
+fi
+
+echo "Setting up signal traps..."
+echo "Running command: \$*"
+
+# Execute the command and wait for it
+"\$@" &
+child_pid=\$!
+wait \$child_pid
 exit_code=\$?
 
+echo "Command completed with exit code: \$exit_code"
 exit \$exit_code
 EOF
 
