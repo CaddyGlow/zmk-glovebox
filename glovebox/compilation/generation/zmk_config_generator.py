@@ -184,7 +184,8 @@ class ZmkConfigContentGenerator:
             return False
 
     def _create_west_config(
-        self, params: ZmkConfigGenerationParams
+        self,
+        keyboard_profile: "KeyboardProfile",
     ) -> WestManifestConfig:
         """Create WestManifestConfig from keyboard profile.
 
