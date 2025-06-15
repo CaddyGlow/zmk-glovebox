@@ -145,7 +145,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
 
     def _build_compilation_command(
         self, workspace_path: Path, config: CompileMethodConfigUnion
-    ) -> list[str]:
+    ) -> list[str] | str:
         """Build west compilation command for ZMK config strategy.
 
         Uses build.yaml from workspace to generate west build commands
@@ -199,7 +199,7 @@ class ZmkConfigCompilationService(BaseCompilationService):
             build_commands = build_zmk_fallback_commands(workspace_params, [board_name])
         commands.extend(build_commands)
 
-        return commands
+        return " && ".join(commands)
 
     def _setup_dynamic_workspace(
         self,

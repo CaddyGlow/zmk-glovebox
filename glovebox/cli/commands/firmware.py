@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Annotated, Any
 import typer
 
 from glovebox.cli.decorators import handle_errors, with_profile
-from glovebox.cli.executors.firmware import FirmwareExecutor
 from glovebox.cli.helpers import (
     print_error_message,
     print_list_item,
@@ -18,7 +17,6 @@ from glovebox.cli.helpers.profile import (
     get_keyboard_profile_from_context,
     get_user_config_from_context,
 )
-from glovebox.cli.strategies import CLIOverrides
 from glovebox.firmware.flash import create_flash_service
 
 
@@ -221,44 +219,75 @@ def firmware_compile(
         # Verbose output with build details
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --verbose
     """
-    # Build parameter container using new CompilationParams
-    # Set default output_dir if not specified
-    effective_output_dir = output_dir if output_dir is not None else Path("build")
-
-    cli_overrides = CLIOverrides(
-        keymap_file=keymap_file,
-        kconfig_file=kconfig_file,
-        output_dir=effective_output_dir,
-        branch=branch,
-        repo=repo,
-        jobs=jobs,
-        verbose=verbose,
-        no_cache=no_cache,
-        clear_cache=clear_cache,
-        board_targets=board_targets,
-        docker_uid=docker_uid,
-        docker_gid=docker_gid,
-        docker_username=docker_username,
-        docker_home=docker_home,
-        docker_container_home=docker_container_home,
-        no_docker_user_mapping=no_docker_user_mapping,
-        preserve_workspace=preserve_workspace,
-        force_cleanup=force_cleanup,
-    )
-
     # Get profile and user config
     keyboard_profile = get_keyboard_profile_from_context(ctx)
     user_config = get_user_config_from_context(ctx)
 
     logger.info("KeyboardProfile available in context: %r", keyboard_profile)
 
-    # Execute compilation using new FirmwareExecutor
+    # Set default output directory to 'build'
+    build_output_dir = Path("build")
+    build_output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Determine compilation strategy
+    if strategy:
+        compilation_strategy = strategy
+    # else:
+    # Auto-detect strategy based on keyboard name
+    # if keyboard_profile.keyboard_name == "glove80":
+    #     compilation_strategy = "moergo"
+    # else:
+    compilation_strategy = "zmk_config"
+
+    logger.info("Using compilation strategy: %s", compilation_strategy)
+
+    # Get the appropriate compile method config from the keyboard profile
+    if not keyboard_profile.keyboard_config.compile_methods:
+        print_error_message(
+            f"No compile methods configured for keyboard '{keyboard_profile.keyboard_name}'"
+        )
+        raise typer.Exit(1)
+
+    # Find the matching compile method config for our strategy
+    compile_config = None
+    for method_config in keyboard_profile.keyboard_config.compile_methods:
+        if (
+            compilation_strategy == "moergo"
+            and hasattr(method_config, "docker_image")
+            and "moergo" in str(method_config.docker_image).lower()
+        ) or (
+            compilation_strategy == "zmk_config"
+            and hasattr(method_config, "docker_image")
+            and "zmk" in str(method_config.docker_image).lower()
+        ):
+            compile_config = method_config
+            break
+
+    # Fallback to first available config if no specific match found
+    if compile_config is None:
+        compile_config = keyboard_profile.keyboard_config.compile_methods[0]
+        logger.info("Using fallback compile config: %r", type(compile_config).__name__)
+
     try:
-        executor = FirmwareExecutor()
-        result = executor.compile(cli_overrides, keyboard_profile, strategy)
-        _format_compilation_output(result, output_format, effective_output_dir)
+        # Import and create compilation service
+        from glovebox.compilation import create_compilation_service
+
+        compilation_service = create_compilation_service(compilation_strategy)
+
+        # Execute compilation
+        result = compilation_service.compile(
+            keymap_file=keymap_file,
+            config_file=kconfig_file,
+            output_dir=build_output_dir,
+            config=compile_config,
+            keyboard_profile=keyboard_profile,
+        )
+
+        _format_compilation_output(result, output_format, build_output_dir)
+
     except Exception as e:
         print_error_message(f"Firmware compilation failed: {str(e)}")
+        logger.exception("Compilation error details")
         raise typer.Exit(1) from None
 
 
