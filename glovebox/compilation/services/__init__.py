@@ -1,16 +1,18 @@
-"""Compilation services for different build strategies."""
+"""Simplified compilation services for different build strategies."""
 
-from glovebox.compilation.services.base_compilation_service import (
-    BaseCompilationService,
+from glovebox.compilation.services.moergo_simple import (
+    MoergoSimpleService,
+    create_moergo_simple_service,
 )
-from glovebox.compilation.services.zmk_config_service import (
-    ZmkConfigCompilationService,
-    create_zmk_config_service,
+from glovebox.compilation.services.zmk_config_simple import (
+    ZmkConfigSimpleService,
+    create_zmk_config_simple_service,
 )
 
 
 __all__: list[str] = [
-    "BaseCompilationService",
-    "ZmkConfigCompilationService",
-    "create_zmk_config_service",
+    "ZmkConfigSimpleService",
+    "create_zmk_config_simple_service",
+    "MoergoSimpleService",
+    "create_moergo_simple_service",
 ]
