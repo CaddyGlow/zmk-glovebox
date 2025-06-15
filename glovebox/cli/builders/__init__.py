@@ -1,6 +1,6 @@
 """CLI builder modules for configuration construction."""
 
-from glovebox.cli.builders.compilation_config import CompilationConfigBuilder
+# This module is deprecated. Configuration building is now handled by
+# glovebox.cli.strategies.config_builder.CompilationConfigBuilder
 
-
-__all__ = ["CompilationConfigBuilder"]
+__all__: list[str] = []

@@ -186,6 +186,7 @@ def load_keyboard_config(
         _keyboard_configs[keyboard_name] = typed_config
         logger.info("Loaded keyboard configuration: %s", keyboard_name)
 
+        logger.debug("%r", typed_config)
         return typed_config
     except yaml.YAMLError as e:
         raise ConfigError(f"Error parsing keyboard configuration: {e}") from e

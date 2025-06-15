@@ -3,8 +3,8 @@
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
-from glovebox.cli.builders.compilation_config import CompilationConfigBuilder
-from glovebox.cli.strategies.base import CompilationParams
+from glovebox.cli.strategies import CLIOverrides
+from glovebox.cli.strategies.factory import create_strategy_for_profile
 from glovebox.compilation import create_compilation_service
 
 
@@ -20,18 +20,18 @@ class FirmwareExecutor:
 
     def __init__(self) -> None:
         """Initialize executor."""
-        self.config_builder = CompilationConfigBuilder()
+        pass
 
     def compile(
         self,
-        params: CompilationParams,
+        cli_overrides: CLIOverrides,
         keyboard_profile: "KeyboardProfile",
         strategy: str | None = None,
     ) -> Any:
         """Execute firmware compilation.
 
         Args:
-            params: Compilation parameters
+            cli_overrides: CLI argument overrides
             keyboard_profile: Keyboard profile
             strategy: Compilation strategy name (optional, auto-detect if None)
 
@@ -46,24 +46,27 @@ class FirmwareExecutor:
         )
 
         # Handle cache clearing if requested
-        if hasattr(params, "clear_cache") and params.clear_cache:
+        if hasattr(cli_overrides, "clear_cache") and cli_overrides.clear_cache:
             logger.info("Cache clearing requested but not yet implemented")
             # TODO: Implement cache clearing in future phase
 
-        # Build configuration using the builder
-        config = self.config_builder.build(params, keyboard_profile, strategy)
+        # Determine strategy to use
+        if strategy is None:
+            # Auto-detect strategy from profile
+            strategy_instance = create_strategy_for_profile(keyboard_profile)
+            final_strategy = strategy_instance.name
+        else:
+            from glovebox.cli.strategies.factory import create_strategy_by_name
+
+            strategy_instance = create_strategy_by_name(strategy)
+            final_strategy = strategy
+
+        logger.debug("Using compilation strategy: %s", final_strategy)
+
+        # Build configuration using the strategy
+        config = strategy_instance.build_config(cli_overrides, keyboard_profile)
 
         logger.debug("Built compilation config: %s", type(config).__name__)
-
-        # Determine final strategy name for service creation
-        if strategy is None:
-            # If no explicit strategy, get the strategy that was used by the builder
-            from glovebox.cli.strategies.factory import create_strategy_for_profile
-
-            used_strategy = create_strategy_for_profile(keyboard_profile)
-            final_strategy = used_strategy.name
-        else:
-            final_strategy = strategy
 
         # Create compilation service
         compilation_service = create_compilation_service(final_strategy)
@@ -71,9 +74,9 @@ class FirmwareExecutor:
         # Execute compilation using the service
         logger.info("Executing compilation via service")
         result = compilation_service.compile(
-            keymap_file=params.keymap_file,
-            config_file=params.kconfig_file,
-            output_dir=params.output_dir,
+            keymap_file=cli_overrides.keymap_file,
+            config_file=cli_overrides.kconfig_file,
+            output_dir=cli_overrides.output_dir,
             config=cast("CompileMethodConfigUnion", config),
             keyboard_profile=keyboard_profile,
         )
