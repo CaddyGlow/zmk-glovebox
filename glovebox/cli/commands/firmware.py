@@ -280,9 +280,15 @@ def firmware_compile(
             compile_config.branch = (
                 keyboard_profile.firmware_config.build_options.branch
             )
+            compile_config.repository = (
+                keyboard_profile.firmware_config.build_options.repository
+            )
         if isinstance(compile_config, ZmkCompilationConfig):
             compile_config.workspace.branch = (
                 keyboard_profile.firmware_config.build_options.branch
+            )
+            compile_config.workspace.repository = (
+                keyboard_profile.firmware_config.build_options.repository
             )
 
     try:

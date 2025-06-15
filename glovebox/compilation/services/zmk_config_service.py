@@ -240,6 +240,8 @@ class ZmkConfigCompilationService(BaseCompilationService):
             config_docker_path=zmk_workspace_config.config_path,
             build_docker_path=zmk_workspace_config.build_root,
             build_config=config.build_config,
+            repo=config.workspace.repository,
+            branch=config.workspace.branch,
         )
 
         # Initialize dynamic workspace with consolidated parameters
