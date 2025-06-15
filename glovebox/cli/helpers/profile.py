@@ -141,6 +141,84 @@ def get_effective_profile(
     return DEFAULT_PROFILE
 
 
+def _handle_firmware_not_found_error(
+    keyboard_name: str, firmware_name: str, user_config: "UserConfig | None"
+) -> None:
+    """Handle firmware not found error with helpful feedback."""
+    console = Console()
+    console.print(
+        f"[red]❌ Error: Firmware '{firmware_name}' not found for keyboard: {keyboard_name}[/red]"
+    )
+    try:
+        from glovebox.config.keyboard_profile import load_keyboard_config
+
+        config = load_keyboard_config(keyboard_name, user_config)
+        firmwares = config.firmwares
+        if firmwares:
+            table = Table(
+                title=f"📦 Available Firmwares for {keyboard_name}",
+                show_header=True,
+                header_style="bold green",
+            )
+            table.add_column("Firmware", style="cyan", no_wrap=True)
+            table.add_column("Description", style="white")
+
+            for fw_name, fw_config in firmwares.items():
+                table.add_row(fw_name, fw_config.description)
+
+            console.print(table)
+        else:
+            console.print("[yellow]No firmwares available for this keyboard[/yellow]")
+    except Exception:
+        pass
+
+
+def _handle_keyboard_not_found_error(
+    keyboard_name: str, user_config: "UserConfig | None"
+) -> None:
+    """Handle keyboard not found error with helpful feedback."""
+    console = Console()
+    console.print(
+        f"[red]❌ Error: Keyboard configuration not found: {keyboard_name}[/red]"
+    )
+    keyboards = get_available_keyboards(user_config)
+    if keyboards:
+        table = Table(
+            title="⌨️ Available Keyboards",
+            show_header=True,
+            header_style="bold green",
+        )
+        table.add_column("Keyboard", style="cyan")
+
+        for kb in keyboards:
+            table.add_row(kb)
+
+        console.print(table)
+
+
+def _handle_general_config_error(
+    error_message: str, user_config: "UserConfig | None"
+) -> None:
+    """Handle general configuration error with helpful feedback."""
+    console = Console()
+    console.print(
+        f"[red]❌ Error: Failed to load keyboard configuration: {error_message}[/red]"
+    )
+    keyboards = get_available_keyboards(user_config)
+    if keyboards:
+        table = Table(
+            title="⌨️ Available Keyboards",
+            show_header=True,
+            header_style="bold green",
+        )
+        table.add_column("Keyboard", style="cyan")
+
+        for kb in keyboards:
+            table.add_row(kb)
+
+        console.print(table)
+
+
 def create_profile_from_option(
     profile_option: str | None, user_config: "UserConfig | None" = None
 ) -> "KeyboardProfile":
@@ -197,75 +275,14 @@ def create_profile_from_option(
         return keyboard_profile
     except Exception as e:
         # Handle profile creation errors with helpful feedback
-        console = Console()
-
         if (
             "not found for keyboard" in str(e) or "not found in keyboard" in str(e)
         ) and firmware_name:
-            # Show available firmwares if the firmware wasn't found
-            console.print(
-                f"[red]❌ Error: Firmware '{firmware_name}' not found for keyboard: {keyboard_name}[/red]"
-            )
-            try:
-                from glovebox.config.keyboard_profile import load_keyboard_config
-
-                config = load_keyboard_config(keyboard_name, user_config)
-                firmwares = config.firmwares
-                if firmwares:
-                    table = Table(
-                        title=f"📦 Available Firmwares for {keyboard_name}",
-                        show_header=True,
-                        header_style="bold green",
-                    )
-                    table.add_column("Firmware", style="cyan", no_wrap=True)
-                    table.add_column("Description", style="white")
-
-                    for fw_name, fw_config in firmwares.items():
-                        table.add_row(fw_name, fw_config.description)
-
-                    console.print(table)
-                else:
-                    console.print(
-                        "[yellow]No firmwares available for this keyboard[/yellow]"
-                    )
-            except Exception:
-                pass
+            _handle_firmware_not_found_error(keyboard_name, firmware_name, user_config)
         elif "Keyboard configuration not found" in str(e):
-            # Keyboard not found error
-            console.print(
-                f"[red]❌ Error: Keyboard configuration not found: {keyboard_name}[/red]"
-            )
-            keyboards = get_available_keyboards(user_config)
-            if keyboards:
-                table = Table(
-                    title="⌨️ Available Keyboards",
-                    show_header=True,
-                    header_style="bold green",
-                )
-                table.add_column("Keyboard", style="cyan")
-
-                for kb in keyboards:
-                    table.add_row(kb)
-
-                console.print(table)
+            _handle_keyboard_not_found_error(keyboard_name, user_config)
         else:
-            # General configuration error
-            console.print(
-                f"[red]❌ Error: Failed to load keyboard configuration: {e}[/red]"
-            )
-            keyboards = get_available_keyboards(user_config)
-            if keyboards:
-                table = Table(
-                    title="⌨️ Available Keyboards",
-                    show_header=True,
-                    header_style="bold green",
-                )
-                table.add_column("Keyboard", style="cyan")
-
-                for kb in keyboards:
-                    table.add_row(kb)
-
-                console.print(table)
+            _handle_general_config_error(str(e), user_config)
         raise typer.Exit(1) from e
 
 
