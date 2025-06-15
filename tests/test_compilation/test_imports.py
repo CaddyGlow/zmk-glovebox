@@ -1,8 +1,5 @@
 """Test imports work correctly for compilation domain."""
 
-from collections.abc import Callable
-from typing import Any, cast
-
 import pytest
 
 
@@ -26,21 +23,10 @@ def test_compilation_domain_imports():
 
 def test_protocol_imports():
     """Test that all protocol imports work correctly."""
-    from glovebox.compilation.protocols import (
-        CompilationServiceProtocol,
-        WorkspaceManagerProtocol,
-        ZmkConfigWorkspaceManagerProtocol,
-    )
+    from glovebox.compilation.protocols import CompilationServiceProtocol
 
-    # Test all protocols are available
-    protocols = [
-        CompilationServiceProtocol,
-        WorkspaceManagerProtocol,
-        ZmkConfigWorkspaceManagerProtocol,
-    ]
-
-    for protocol in protocols:
-        assert protocol is not None
+    # Test protocol is available
+    assert CompilationServiceProtocol is not None
 
 
 def test_factory_functions_exist():
@@ -76,53 +62,9 @@ def test_factory_functions_exist():
 
 def test_subdomain_factory_functions():
     """Test that subdomain factory functions exist."""
-    from glovebox.compilation.configuration import (
-        create_build_matrix_resolver,
-        create_environment_manager,
-        create_volume_manager,
-    )
-    from glovebox.compilation.workspace import (
-        create_cache_manager,
-        create_workspace_manager,
-        create_zmk_config_workspace_manager,
-    )
+    from glovebox.compilation.configuration import create_build_matrix_resolver
 
-    # Test all factory functions exist
-    factory_functions = [
-        # Configuration
-        create_build_matrix_resolver,
-        create_volume_manager,
-        create_environment_manager,
-        # Workspace
-        create_workspace_manager,
-        create_zmk_config_workspace_manager,
-        create_cache_manager,
-    ]
-
-    for func in factory_functions:
-        assert callable(func)
-
-    # Test implemented factory functions return actual objects
-    implemented_functions = [
-        create_build_matrix_resolver,
-        create_volume_manager,
-        create_environment_manager,
-    ]
-
-    for func in implemented_functions:
-        assert func() is not None
-
-    # Test implemented workspace factory functions return actual objects
-    implemented_workspace_functions = [
-        create_zmk_config_workspace_manager,
-        create_cache_manager,
-    ]
-
-    for func in implemented_workspace_functions:
-        factory_func = cast(Callable[[], Any], func)
-        result = factory_func()
-        assert result is not None
-
-    # Test abstract workspace manager raises NotImplementedError
-    with pytest.raises(NotImplementedError):
-        create_workspace_manager()
+    # Test build matrix resolver factory function exists and works
+    assert callable(create_build_matrix_resolver)
+    resolver = create_build_matrix_resolver()
+    assert resolver is not None

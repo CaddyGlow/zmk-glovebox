@@ -92,7 +92,7 @@ def _resolve_compilation_strategy(
         logger.info("Docker image: %s", compile_config.image)
         logger.info("Repository: %s", getattr(compile_config, "repository", "N/A"))
         logger.info("Branch: %s", getattr(compile_config, "branch", "N/A"))
-        if hasattr(compile_config, "build_config") and compile_config.build_config:
+        if isinstance(compile_config, MoergoCompilationConfig):
             build_config = compile_config.build_config
             logger.info("Boards: %s", getattr(build_config, "board", []))
             logger.info("Shields: %s", getattr(build_config, "shield", []))

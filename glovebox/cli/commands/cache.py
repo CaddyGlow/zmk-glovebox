@@ -23,7 +23,7 @@ def _get_workspace_cache_dir() -> Path:
     return Path.home() / ".cache" / "glovebox" / "workspaces"
 
 
-def _format_size(size_bytes: int) -> str:
+def _format_size(size_bytes: float) -> str:
     """Format size in human readable format."""
     for unit in ["B", "KB", "MB", "GB"]:
         if size_bytes < 1024.0:
@@ -306,8 +306,8 @@ def cache_info() -> None:
             size = _get_directory_size(workspace_dir)
             console.print(f"  • {repo_name}: {_format_size(size)}")
 
-    console.print(f"\n[dim]To clear cache: glovebox cache clear-workspaces[/dim]")
-    console.print(f"[dim]To list details: glovebox cache list-workspaces[/dim]")
+    console.print("\n[dim]To clear cache: glovebox cache clear-workspaces[/dim]")
+    console.print("[dim]To list details: glovebox cache list-workspaces[/dim]")
 
 
 @cache_app.command(name="import-workspace")
