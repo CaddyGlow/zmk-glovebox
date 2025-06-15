@@ -25,7 +25,7 @@ def expand_path_variables(path_str: Path) -> Path:
 class CompileMethodConfig(BaseModel, ABC):
     """Base configuration for compilation methods."""
 
-    method_type: str
+    strategy: str
 
 
 class CacheConfig(BaseModel):
@@ -140,6 +140,8 @@ class ZmkWorkspaceConfig(BaseModel):
 class ZmkCompilationConfig(DockerCompilationConfig):
     """ZMK compilation configuration with GitHub Actions artifact naming."""
 
+    strategy: str = "zmk_config"
+
     # Cache configuration
     cache: CacheConfig = Field(default_factory=CacheConfig)
 
@@ -157,6 +159,8 @@ class ZmkCompilationConfig(DockerCompilationConfig):
 
 class MoergoCompilationConfig(DockerCompilationConfig):
     """Moergo compilation configuration using simple Docker volume to temp folder."""
+
+    strategy: str = "moergo"
 
     # Docker configuration
     image: str = "glove80-zmk-config-docker"

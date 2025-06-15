@@ -70,6 +70,8 @@ class ZmkConfigGenerationParams:
     workspace_path: Path
     keymap_file: Path
     config_file: Path
+    repo: str
+    branch: str
     keyboard_profile: "KeyboardProfile"
     workspace_docker_path: "DockerPath"
     config_docker_path: "DockerPath"

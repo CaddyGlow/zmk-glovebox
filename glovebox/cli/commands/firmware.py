@@ -17,6 +17,10 @@ from glovebox.cli.helpers.profile import (
     get_keyboard_profile_from_context,
     get_user_config_from_context,
 )
+from glovebox.config.compile_methods import (
+    MoergoCompilationConfig,
+    ZmkCompilationConfig,
+)
 from glovebox.firmware.flash import create_flash_service
 
 
@@ -229,18 +233,6 @@ def firmware_compile(
     build_output_dir = Path("build")
     build_output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Determine compilation strategy
-    if strategy:
-        compilation_strategy = strategy
-    # else:
-    # Auto-detect strategy based on keyboard name
-    # if keyboard_profile.keyboard_name == "glove80":
-    #     compilation_strategy = "moergo"
-    # else:
-    compilation_strategy = "zmk_config"
-
-    logger.info("Using compilation strategy: %s", compilation_strategy)
-
     # Get the appropriate compile method config from the keyboard profile
     if not keyboard_profile.keyboard_config.compile_methods:
         print_error_message(
@@ -248,25 +240,50 @@ def firmware_compile(
         )
         raise typer.Exit(1)
 
-    # Find the matching compile method config for our strategy
+    # Determine compilation strategy
     compile_config = None
-    for method_config in keyboard_profile.keyboard_config.compile_methods:
-        if (
-            compilation_strategy == "moergo"
-            and hasattr(method_config, "docker_image")
-            and "moergo" in str(method_config.docker_image).lower()
-        ) or (
-            compilation_strategy == "zmk_config"
-            and hasattr(method_config, "docker_image")
-            and "zmk" in str(method_config.docker_image).lower()
-        ):
-            compile_config = method_config
-            break
-
-    # Fallback to first available config if no specific match found
-    if compile_config is None:
+    if strategy:
+        compilation_strategy = strategy
+        # Find the matching compile method config for our strategy
+        for method_config in keyboard_profile.keyboard_config.compile_methods:
+            if (
+                isinstance(method_config, MoergoCompilationConfig)
+                and compilation_strategy == "moergo"
+            ):
+                compile_config = method_config
+                break
+            if (
+                isinstance(method_config, ZmkCompilationConfig)
+                and compilation_strategy == "zmk_config"
+            ):
+                compile_config = method_config
+                break
+    else:
+        # to first available config if no specific match found
         compile_config = keyboard_profile.keyboard_config.compile_methods[0]
         logger.info("Using fallback compile config: %r", type(compile_config).__name__)
+
+    if not compile_config:
+        print_error_message(
+            f"No compile methods configured for keyboard '{keyboard_profile.keyboard_name}'"
+        )
+        raise typer.Exit(1)
+
+    compilation_strategy = compile_config.strategy
+
+    logger.info("Using compilation strategy: %r", type(compile_config).__name__)
+
+    # we need to setup the branch from the firmware config in profile
+    # in compile config
+    if keyboard_profile.firmware_config is not None:
+        if isinstance(compile_config, MoergoCompilationConfig):
+            compile_config.branch = (
+                keyboard_profile.firmware_config.build_options.branch
+            )
+        if isinstance(compile_config, ZmkCompilationConfig):
+            compile_config.workspace.branch = (
+                keyboard_profile.firmware_config.build_options.branch
+            )
 
     try:
         # Import and create compilation service
