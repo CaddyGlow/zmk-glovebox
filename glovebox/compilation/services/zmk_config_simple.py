@@ -377,75 +377,48 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
         try:
             # Use build matrix resolver to determine expected build directories
             build_yaml = workspace_path / "config" / "build.yaml"
-            if build_yaml.exists():
-                resolver = create_build_matrix_resolver()
-                build_matrix = resolver.resolve_from_build_yaml(build_yaml)
+            if not build_yaml.exists():
+                self.logger.error("build.yaml not found, cannot determine build directories")
+                return FirmwareOutputFiles(output_dir=output_dir, main_uf2=None, artifacts_dir=None)
 
-                # Look for build directories based on build matrix targets
-                for target in build_matrix.targets:
-                    build_dir_name = f"{target.artifact_name or target.board}"
-                    if target.shield:
-                        build_dir_name = f"{target.shield}-{target.board}"
+            resolver = create_build_matrix_resolver()
+            build_matrix = resolver.resolve_from_build_yaml(build_yaml)
 
-                    build_path = workspace_path / build_dir_name
-                    if build_path.is_dir():
-                        try:
-                            # cp zephyr/zmk.{uf2,hex,bin,elf} $out
-                            # cp zephyr/.config $out/zmk.kconfig
-                            # cp zephyr/zephyr.dts $out/zmk.dts
-                            # cp zephyr/include/generated/devicetree_generated.h $out/devicetree_generated.h
-                            targets = ["uf2", "hex", "bin", "elf"]
+            # Look for build directories based on build matrix targets
+            for target in build_matrix.targets:
+                build_dir_name = f"{target.artifact_name or target.board}"
+                if target.shield:
+                    build_dir_name = f"{target.shield}-{target.board}"
 
-                            cur_build_out = output_dir / build_dir_name
-                            for ext in targets:
-                                fn = build_path / "zephyr" / f"zmk.{ext}"
-                                if fn.exists():
-                                    shutil.copy2(fn, cur_build_out / f"zmk.{ext}")
-                                    collected_items.append(f"{fn}")
+                build_path = workspace_path / build_dir_name
+                if not build_path.is_dir():
+                    self.logger.warning("Expected build directory not found: %s", build_path)
+                    continue
 
-                            other_files = [
-                                [
-                                    ".config",
-                                    "zmk.config",
-                                ],
-                                [
-                                    "zephyr.dts",
-                                    "zmk.dts",
-                                ],
-                                [
-                                    "include/generated/devicetree_generated.h",
-                                    "devicetree_generated.h",
-                                ],
-                            ]
-                            for src, dst in other_files:
-                                fn = build_path / "zephyr" / src
-                                if fn.exists():
-                                    shutil.copy2(fn, cur_build_out / dst)
+                try:
+                    cur_build_out = output_dir / build_dir_name
+                    cur_build_out.mkdir(parents=True, exist_ok=True)
 
-                        except Exception as e:
-                            self.logger.warning(
-                                "Failed to copy build directory %s: %s", build_path, e
-                            )
-                    else:
-                        self.logger.warning(
-                            "Expected build directory not found: %s", build_path
-                        )
-            else:
-                self.logger.error(
-                    "build.yaml not found, cannot determine build directories"
-                )
+                    if artifacts_dir is None:
+                        artifacts_dir = output_dir
+
+                    # Copy firmware files and other artifacts
+                    build_collected = self._copy_build_artifacts(build_path, cur_build_out, build_dir_name)
+                    collected_items.extend(build_collected)
+
+                    # Set main_uf2 to the first .uf2 file found
+                    uf2_file = cur_build_out / "zmk.uf2"
+                    if uf2_file.exists() and main_uf2 is None:
+                        main_uf2 = uf2_file
+
+                except Exception as e:
+                    self.logger.warning("Failed to copy build directory %s: %s", build_path, e)
 
         except Exception as e:
-            self.logger.error(
-                "Failed to resolve build matrix for artifact collection: %s", e
-            )
+            self.logger.error("Failed to resolve build matrix for artifact collection: %s", e)
 
         if collected_items:
-            self.logger.info(
-                "Collected %d ZMK artifacts: %s",
-                len(collected_items),
-                ", ".join(collected_items),
-            )
+            self.logger.info("Collected %d ZMK artifacts: %s", len(collected_items), ", ".join(collected_items))
         else:
             self.logger.warning("No build artifacts found in workspace")
 
@@ -454,6 +427,46 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
             main_uf2=main_uf2,
             artifacts_dir=artifacts_dir,
         )
+
+    def _copy_build_artifacts(self, build_path: Path, cur_build_out: Path, build_dir_name: str) -> list[str]:
+        """Copy artifacts from a single build directory."""
+        collected_items = []
+        
+        # Define file mappings: [source_path_from_zephyr, destination_filename]
+        file_mappings = [
+            # Firmware files
+            ["zmk.uf2", "zmk.uf2"],
+            ["zmk.hex", "zmk.hex"], 
+            ["zmk.bin", "zmk.bin"],
+            ["zmk.elf", "zmk.elf"],
+            # Configuration and debug files
+            [".config", "zmk.kconfig"],
+            ["zephyr.dts", "zmk.dts"],
+            ["include/generated/devicetree_generated.h", "devicetree_generated.h"],
+        ]
+
+        for src_path, dst_filename in file_mappings:
+            src_file = build_path / "zephyr" / src_path
+            dst_file = cur_build_out / dst_filename
+            
+            if src_file.exists():
+                try:
+                    shutil.copy2(src_file, dst_file)
+                    collected_items.append(f"{build_dir_name}/{dst_filename}")
+                except Exception as e:
+                    self.logger.warning("Failed to copy %s to %s: %s", src_file, dst_file, e)
+
+        # Copy UF2 to base output directory with build directory name
+        uf2_source = build_path / "zephyr" / "zmk.uf2"
+        if uf2_source.exists():
+            base_uf2 = cur_build_out.parent / f"{build_dir_name}.uf2"
+            try:
+                shutil.copy2(uf2_source, base_uf2)
+                collected_items.append(f"{build_dir_name}.uf2")
+            except Exception as e:
+                self.logger.warning("Failed to copy UF2 to base: %s", e)
+
+        return collected_items
 
 
 def create_zmk_config_simple_service(
