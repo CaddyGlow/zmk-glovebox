@@ -36,12 +36,19 @@ generate_build_id() {
 mkdir -p "${ARTIFACTS_DIR}"
 
 # Collect generated artifacts from the build
+# Used in case of failure to collect the
+# generated DTS and devicetree header needed to
+# understand errors
 collect_generated_artifacts() {
   log_info "Collecting generated artifacts..."
 
+  # Copy the keymap and kconfig to the artifacts directory
+  cp $KEYMAP "${ARTIFACTS_DIR}/"
+  cp $KCONFIG "${ARTIFACTS_DIR}/"
+
   # Create directories for each hand
   mkdir -p "${ARTIFACTS_DIR}/rh"
-  mkdir -p "${ARTIFACTS_DIR}/lh"
+  mkdir -p "${ARTIFACTS_DIR}/lf"
 
   # Right hand artifacts
   if [ -f "${TMPDIR}/nix-build-zmk_glove80_rh.drv-0/source/app/build/zephyr/zephyr.dts" ]; then
@@ -56,13 +63,13 @@ collect_generated_artifacts() {
 
   # Left hand artifacts
   if [ -f "${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/zephyr.dts" ]; then
-    cp "${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/zephyr.dts" "${ARTIFACTS_DIR}/lh/"
-    log_info "Copied LH DTS"
+    cp "${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/zephyr.dts" "${ARTIFACTS_DIR}/lf/"
+    log_info "Copied LF DTS"
   fi
 
   if [ -f "${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/include/generated/devicetree_generated.h" ]; then
-    cp "${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/include/generated/devicetree_generated.h" "${ARTIFACTS_DIR}/lh/"
-    log_info "Copied LH devicetree header"
+    cp "${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/include/generated/devicetree_generated.h" "${ARTIFACTS_DIR}/lf/"
+    log_info "Copied LF devicetree header"
   fi
 
   log_info "Artifact collection completed"
@@ -88,7 +95,9 @@ main() {
 
   (
     log_info "Running nix-build with args: keymap=$KEYMAP, kconfig=$KCONFIG, buildId=$BUILD_ID"
-    env
+    log_info "Environment:"
+    log_info "$(env)"
+
     nix-build "${WORKSPACE_DIR}/config/default.nix" --argstr keymap "$KEYMAP" --argstr kconfig "$KCONFIG" --argstr buildId "$BUILD_ID" "$NIX_ARGS" -o result 2>&1 | tee -a "$BUILD_LOG"
   ) || {
     log_error "Build failed, see log at $BUILD_LOG"
@@ -101,8 +110,8 @@ main() {
   collect_generated_artifacts
 
   cp -Rf result/* "${ARTIFACTS_DIR}/"
-  cp $KEYMAP "${ARTIFACTS_DIR}/"
-  cp $KCONFIG "${ARTIFACTS_DIR}/"
+  cp ${ARTIFACTS_DIR}/lf/zmk.uf2 ${ARTIFACTS_DIR}/${BOARD_NAME}_lf.uf2
+  cp ${ARTIFACTS_DIR}/rh/zmk.uf2 ${ARTIFACTS_DIR}/${BOARD_NAME}_rh.uf2
 
   log_info "Build artifacts saved to $ARTIFACTS_DIR/"
   log_info "Firmware available at ${ARTIFACTS_DIR}/${BOARD_NAME}.uf2"
