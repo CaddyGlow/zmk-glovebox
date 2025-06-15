@@ -77,6 +77,7 @@ class IncludeConfigLoader:
             logger.info(
                 "Loaded keyboard configuration with includes: %s", keyboard_name
             )
+            logger.debug("%r", typed_config)
             return typed_config
         except ValidationError as e:
             raise ConfigError(f"Invalid keyboard configuration format: {e}") from e
