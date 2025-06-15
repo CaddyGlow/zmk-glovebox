@@ -205,24 +205,10 @@ class MoergoCompilationService(BaseCompilationService):
         if not isinstance(config, MoergoCompilationConfig):
             raise BuildError("Invalid compilation configuration")
 
-        # nix_build = f'nix-build "//default.nix" \
-        # --argstr keymap "${config.c}/$KEYMAP" \
-        # --argstr kconfig "${BUILD_DIR}/$KCONFIG" \
-        # --argstr outputName "$OUTPUT_NAME" \
-        # --argstr buildId "$BUILD_ID" \
-        # "$NIX_ARGS" -j"$NPROC" -o result 2>&1 | tee -a "$BUILD_LOG"i'
-
         # The Moergo container runs build automatically on startup
         # First create git config to fix ownership issue, then run the entrypoint
         # Return as list for proper argument handling with entrypoint
-        return [
-            # "-c",
-            # "chown -R 0:0 /workspace && /bin/entrypoint.shl",
-            # "chowm -R $UID:$GID /workspace",
-            #             """chown -R 0:0 /workspace
-            # /bin/entrypoint.sh
-            # chown -R $UID:$GID \${WORKSPACE_DIR}""",
-        ]
+        return []
 
     def _validate_strategy_specific(self, config: CompileMethodConfigUnion) -> bool:
         """Validate Moergo strategy-specific configuration requirements.

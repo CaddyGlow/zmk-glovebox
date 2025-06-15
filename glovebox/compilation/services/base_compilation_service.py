@@ -138,17 +138,16 @@ class BaseCompilationService(BaseService):
             ):
                 return result
 
-            firmware_count = 0
-            # # Step 4: Collect artifacts (common logic)
-            # firmware_files = self._collect_firmware_artifacts(
-            #     workspace_path, output_dir, config
-            # )
-            # if not self._validate_artifacts(firmware_files, result):
-            #     return result
-            #
-            # # Step 5: Store results and prepare response
-            # result.output_files = firmware_files
-            # firmware_count = self._count_firmware_files(firmware_files)
+            # Step 4: Collect artifacts (common logic)
+            firmware_files = self._collect_firmware_artifacts(
+                workspace_path, output_dir, config
+            )
+            if not self._validate_artifacts(firmware_files, result):
+                return result
+
+            # Step 5: Store results and prepare response
+            result.output_files = firmware_files
+            firmware_count = self._count_firmware_files(firmware_files)
             result.add_message(
                 f"{self.service_name} compilation completed. "
                 f"Generated {firmware_count} firmware files."
@@ -441,8 +440,10 @@ class BaseCompilationService(BaseService):
 
     def _collect_firmware_artifacts(
         self, workspace_path: Path, output_dir: Path, config: CompileMethodConfigUnion
-    ) -> Any:
+    ) -> list[Path]:
         """Collect firmware artifacts from workspace and output directories.
+
+        This method delegates to strategy-specific artifact collection.
 
         Args:
             workspace_path: Path to workspace directory
@@ -450,46 +451,67 @@ class BaseCompilationService(BaseService):
             config: Compilation configuration
 
         Returns:
-            Any: Firmware files collection (will be properly typed in Phase 2)
+            list[Path]: List of collected firmware files
         """
-        # Use new SimpleArtifactCollector with ZMK GitHub Actions conventions
-        # if not self.artifact_collector:
-        #     from glovebox.compilation.artifacts import create_simple_artifact_collector
-        #
-        #     collector = create_simple_artifact_collector()
-        #
-        #     # Determine build root path for artifact collection
-        #     build_root_path = None
-        #     if (
-        #         config.zmk_config_repo
-        #         and config.zmk_config_repo.build_root.host_path
-        #         and config.zmk_config_repo.build_root.host_path != workspace_path
-        #     ):
-        #         # Use separate build directory if configured
-        #         build_root_path = config.zmk_config_repo.build_root.host_path
-        #
-        #     # Collect and copy artifacts using ZMK build matrix
-        #     output_files = collector.collect_and_copy(
-        #         workspace_path=workspace_path,
-        #         output_dir=output_dir,
-        #         build_root_path=build_root_path,
-        #     )
-        #
-        #     return output_files
-        #
-        # # Use the protocol method when artifact collector is implemented
-        # firmware_files, output_files = self.artifact_collector.collect_artifacts(
-        #     output_dir
-        # )
-        #
-        # self.logger.debug(
-        #     "Collected firmware artifacts: main=%s, left=%s, right=%s",
-        #     output_files.main_uf2 if output_files else None,
-        #     output_files.left_uf2 if output_files else None,
-        #     output_files.right_uf2 if output_files else None,
-        # )
-        #
-        # return output_files
+        return self._collect_strategy_artifacts(workspace_path, output_dir, config)
+
+    @abstractmethod
+    def _collect_strategy_artifacts(
+        self, workspace_path: Path, output_dir: Path, config: CompileMethodConfigUnion
+    ) -> list[Path]:
+        """Collect artifacts specific to this compilation strategy.
+
+        Args:
+            workspace_path: Path to workspace directory
+            output_dir: Output directory for artifacts
+            config: Compilation configuration
+
+        Returns:
+            list[Path]: List of collected firmware files
+        """
+        pass
+
+    def _validate_artifacts(
+        self, firmware_files: list[Path], result: BuildResult
+    ) -> bool:
+        """Validate collected artifacts.
+
+        Args:
+            firmware_files: List of firmware files
+            result: Build result to store errors
+
+        Returns:
+            bool: True if artifacts are valid
+        """
+        if not firmware_files:
+            result.success = False
+            result.add_error("No firmware artifacts were generated")
+            return False
+
+        # Validate each firmware file exists and is readable
+        for firmware_file in firmware_files:
+            if not firmware_file.exists():
+                result.success = False
+                result.add_error(f"Expected firmware file not found: {firmware_file}")
+                return False
+
+            if firmware_file.stat().st_size == 0:
+                result.success = False
+                result.add_error(f"Firmware file is empty: {firmware_file}")
+                return False
+
+        return True
+
+    def _count_firmware_files(self, firmware_files: list[Path]) -> int:
+        """Count firmware files.
+
+        Args:
+            firmware_files: List of firmware files
+
+        Returns:
+            int: Number of firmware files
+        """
+        return len(firmware_files)
 
     def _handle_workspace_setup_error(self, operation: str, error: Exception) -> None:
         """Common error handling for workspace setup failures.
