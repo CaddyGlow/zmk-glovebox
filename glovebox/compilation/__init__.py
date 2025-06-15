@@ -33,51 +33,33 @@ def create_compilation_service(strategy: str) -> CompilationServiceProtocol:
 
 
 def create_zmk_config_service() -> CompilationServiceProtocol:
-    """Create ZMK config compilation service with generic cache.
+    """Create simplified ZMK config compilation service.
 
     Returns:
         CompilationServiceProtocol: ZMK config compilation service
     """
     from glovebox.adapters import create_docker_adapter
-    from glovebox.compilation.cache import create_compilation_cache
-    from glovebox.compilation.services.zmk_config_service import (
-        create_zmk_config_service as _create_service,
+    from glovebox.compilation.services.zmk_config_simple import (
+        create_zmk_config_simple_service,
     )
 
-    # Create compilation cache for service
-    compilation_cache = create_compilation_cache()
-
-    # Create Docker adapter for service
     docker_adapter = create_docker_adapter()
-
-    return _create_service(
-        compilation_cache=compilation_cache,
-        docker_adapter=docker_adapter,
-    )
+    return create_zmk_config_simple_service(docker_adapter)
 
 
 def create_moergo_service() -> CompilationServiceProtocol:
-    """Create Moergo compilation service with generic cache.
+    """Create simplified Moergo compilation service.
 
     Returns:
         CompilationServiceProtocol: Moergo compilation service
     """
     from glovebox.adapters import create_docker_adapter
-    from glovebox.compilation.cache import create_compilation_cache
-    from glovebox.compilation.services.moergo_compilation_service import (
-        create_moergo_service as _create_service,
+    from glovebox.compilation.services.moergo_simple import (
+        create_moergo_simple_service,
     )
 
-    # Create compilation cache for service
-    compilation_cache = create_compilation_cache()
-
-    # Create Docker adapter for service
     docker_adapter = create_docker_adapter()
-
-    return _create_service(
-        compilation_cache=compilation_cache,
-        docker_adapter=docker_adapter,
-    )
+    return create_moergo_simple_service(docker_adapter)
 
 
 __all__ = [
