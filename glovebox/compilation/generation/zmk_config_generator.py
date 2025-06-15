@@ -155,7 +155,7 @@ class ZmkConfigContentGenerator:
         Returns:
             bool: True if west.yml generated successfully
         """
-        west_config = self._create_west_config(params)
+        west_config = self._create_west_config(params.repo, params.branch)
 
         # Use config directory from Docker paths
         config_dir = params.config_directory_host
@@ -185,44 +185,29 @@ class ZmkConfigContentGenerator:
 
     def _create_west_config(
         self,
-        keyboard_profile: "KeyboardProfile",
+        repository: str,
+        branch: str,
     ) -> WestManifestConfig:
-        """Create WestManifestConfig from keyboard profile.
+        """Create WestManifestConfig from repository and branch.
 
         Args:
-            keyboard_profile: Keyboard profile to determine ZMK repository
+            repository: ZMK repository (org/repo format or full URL)
+            branch: Git branch to use
 
         Returns:
             WestManifestConfig: West manifest configuration
         """
-        # Determine the correct ZMK repository and branch based on firmware config
-        if keyboard_profile.firmware_config is not None:
-            # Use firmware configuration's repository and branch
-            build_options = keyboard_profile.firmware_config.build_options
-            repository_url = build_options.repository
-            branch = build_options.branch
-
-            # Extract repository name and organization from URL or org/repo format
-            if repository_url.startswith("https://github.com/"):
-                repo_path = repository_url.replace("https://github.com/", "")
-                org_name, repo_name = repo_path.split("/")
-            elif "/" in repository_url:
-                # Handle org/repo format (e.g., "moergo-sc/zmk")
-                org_name, repo_name = repository_url.split("/")
-            else:
-                # Fallback for unknown formats
-                org_name = "zmkfirmware"
-                repo_name = "zmk"
-        elif "glove80" in keyboard_profile.keyboard_name.lower():
-            # Fallback: Glove80 uses MoErgo's ZMK fork
-            org_name = "moergo-sc"
-            repo_name = "zmk"
-            branch = "main"
+        # Extract repository name and organization from URL or org/repo format
+        if repository.startswith("https://github.com/"):
+            repo_path = repository.replace("https://github.com/", "")
+            org_name, repo_name = repo_path.split("/")
+        elif "/" in repository:
+            # Handle org/repo format (e.g., "moergo-sc/zmk")
+            org_name, repo_name = repository.split("/")
         else:
-            # Fallback: Standard ZMK repository for other keyboards
+            # Fallback for unknown formats
             org_name = "zmkfirmware"
             repo_name = "zmk"
-            branch = "main"
 
         # Create west manifest configuration
         return WestManifestConfig(
