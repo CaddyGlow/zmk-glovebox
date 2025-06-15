@@ -13,21 +13,21 @@ umask "$UMASK"
 
 # Cleanup function
 cleanup() {
-  log_info "CLEANUP: Running cleanup ..."
-  if [ -n "${UID:-}" ] && [ -n "${GID:-}" ]; then
-    log_info "CLEANUP: Attempting chown $UID:$GID ${WORKSPACE_DIR}"
-    chown -R "$UID:$GID" ${WORKSPACE_DIR} || log_warn "CLEANUP: chown failed"
+  log_debug "CLEANUP: Running cleanup ..."
+  if [ -n "${PUID:-}" ] && [ -n "${PGID:-}" ]; then
+    log_info "CLEANUP: Attempting chown $PUID:$PGID ${WORKSPACE_DIR}"
+    chown -R "$PUID:$PGID" ${WORKSPACE_DIR} || log_warn "CLEANUP: chown failed"
   fi
 }
 
 # Handle Docker signals properly
-trap 'log_info "TRAP: EXIT"; cleanup' EXIT
+trap 'log_debug "TRAP: EXIT"; cleanup' EXIT
 trap 'log_warn "TRAP: INT (Ctrl+C)"; cleanup; exit 130' INT
 trap 'log_warn "TRAP: TERM (Docker stop)"; cleanup; exit 143' TERM
 
-# Handle UID/GID mapping
-if [ -n "${UID:-}" ] && [ -n "${GID:-}" ]; then
-  log_info "Using UID:GID $UID:$GID"
+# Handle PUID/PGID mapping
+if [ -n "${PUID:-}" ] && [ -n "${PGID:-}" ]; then
+  log_info "Using PUID:PGID $PUID:$PGID"
 fi
 
 log_debug "Setting up signal traps..."

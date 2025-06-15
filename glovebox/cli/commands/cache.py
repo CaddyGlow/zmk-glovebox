@@ -1,17 +1,47 @@
 """Cache management CLI commands."""
 
 import logging
+import shutil
 from pathlib import Path
 from typing import Annotated
 
 import typer
+from rich.console import Console
+from rich.table import Table
 
 from glovebox.compilation.cache import inject_base_dependencies_cache_from_workspace
 
 
 logger = logging.getLogger(__name__)
+console = Console()
 
 cache_app = typer.Typer(help="Cache management commands")
+
+
+def _get_workspace_cache_dir() -> Path:
+    """Get workspace cache directory."""
+    return Path.home() / ".cache" / "glovebox" / "workspaces"
+
+
+def _format_size(size_bytes: int) -> str:
+    """Format size in human readable format."""
+    for unit in ["B", "KB", "MB", "GB"]:
+        if size_bytes < 1024.0:
+            return f"{size_bytes:.1f} {unit}"
+        size_bytes /= 1024.0
+    return f"{size_bytes:.1f} TB"
+
+
+def _get_directory_size(path: Path) -> int:
+    """Get total size of directory in bytes."""
+    total = 0
+    try:
+        for file_path in path.rglob("*"):
+            if file_path.is_file():
+                total += file_path.stat().st_size
+    except (OSError, PermissionError):
+        pass
+    return total
 
 
 @cache_app.command(name="inject-base-deps")
@@ -126,6 +156,284 @@ def list_base_deps_command(
         logger.error("Failed to list base dependencies cache: %s", e)
         typer.echo(f"❌ Error: {e}", err=True)
         raise typer.Exit(1) from e
+
+
+@cache_app.command(name="list-workspaces")
+def list_workspaces() -> None:
+    """List all cached workspaces."""
+    cache_dir = _get_workspace_cache_dir()
+
+    if not cache_dir.exists():
+        console.print("[yellow]No workspace cache directory found[/yellow]")
+        return
+
+    cached_workspaces = list(cache_dir.iterdir())
+
+    if not cached_workspaces:
+        console.print("[yellow]No cached workspaces found[/yellow]")
+        return
+
+    table = Table(
+        title="📦 Cached ZMK Workspaces",
+        show_header=True,
+        header_style="bold green",
+    )
+    table.add_column("Repository", style="cyan")
+    table.add_column("Size", style="white")
+    table.add_column("Components", style="yellow")
+
+    total_size = 0
+
+    for workspace_dir in sorted(cached_workspaces):
+        if workspace_dir.is_dir():
+            repo_name = workspace_dir.name.replace("_", "/")
+            size = _get_directory_size(workspace_dir)
+            total_size += size
+
+            # Check what components are cached
+            components = []
+            for component in ["zmk", "zephyr", "modules"]:
+                if (workspace_dir / component).exists():
+                    components.append(component)
+
+            table.add_row(
+                repo_name,
+                _format_size(size),
+                ", ".join(components) if components else "empty",
+            )
+
+    console.print(table)
+    console.print(f"\n[bold]Total cache size:[/bold] {_format_size(total_size)}")
+
+
+@cache_app.command(name="clear-workspaces")
+def clear_workspace(
+    repository: Annotated[
+        str | None,
+        typer.Argument(
+            help="Repository to clear (e.g., 'zmkfirmware/zmk'). Leave empty to clear all."
+        ),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option("--force", "-f", help="Force deletion without confirmation"),
+    ] = False,
+) -> None:
+    """Clear cached workspace(s)."""
+    cache_dir = _get_workspace_cache_dir()
+
+    if not cache_dir.exists():
+        console.print("[yellow]No workspace cache directory found[/yellow]")
+        return
+
+    if repository:
+        # Clear specific repository
+        repo_cache_name = repository.replace("/", "_").replace("-", "_")
+        workspace_dir = cache_dir / repo_cache_name
+
+        if not workspace_dir.exists():
+            console.print(
+                f"[yellow]No cached workspace found for {repository}[/yellow]"
+            )
+            return
+
+        if not force:
+            size = _get_directory_size(workspace_dir)
+            confirm = typer.confirm(
+                f"Clear cached workspace for {repository} ({_format_size(size)})?"
+            )
+            if not confirm:
+                console.print("[yellow]Cancelled[/yellow]")
+                return
+
+        try:
+            shutil.rmtree(workspace_dir)
+            console.print(f"[green]✓ Cleared cached workspace for {repository}[/green]")
+        except Exception as e:
+            console.print(f"[red]Failed to clear cache: {e}[/red]")
+            raise typer.Exit(1)
+    else:
+        # Clear all workspaces
+        cached_workspaces = list(cache_dir.iterdir())
+
+        if not cached_workspaces:
+            console.print("[yellow]No cached workspaces found[/yellow]")
+            return
+
+        total_size = sum(
+            _get_directory_size(d) for d in cached_workspaces if d.is_dir()
+        )
+
+        if not force:
+            confirm = typer.confirm(
+                f"Clear ALL cached workspaces ({len(cached_workspaces)} workspaces, {_format_size(total_size)})?"
+            )
+            if not confirm:
+                console.print("[yellow]Cancelled[/yellow]")
+                return
+
+        try:
+            shutil.rmtree(cache_dir)
+            console.print(
+                f"[green]✓ Cleared all cached workspaces ({_format_size(total_size)})[/green]"
+            )
+        except Exception as e:
+            console.print(f"[red]Failed to clear cache: {e}[/red]")
+            raise typer.Exit(1)
+
+
+@cache_app.command(name="info")
+def cache_info() -> None:
+    """Show cache information and statistics."""
+    cache_dir = _get_workspace_cache_dir()
+
+    if not cache_dir.exists():
+        console.print("[yellow]No workspace cache directory found[/yellow]")
+        console.print(f"[dim]Cache directory would be: {cache_dir}[/dim]")
+        return
+
+    cached_workspaces = [d for d in cache_dir.iterdir() if d.is_dir()]
+    total_size = sum(_get_directory_size(d) for d in cached_workspaces)
+
+    console.print(f"[bold]Cache Directory:[/bold] {cache_dir}")
+    console.print(f"[bold]Cached Workspaces:[/bold] {len(cached_workspaces)}")
+    console.print(f"[bold]Total Size:[/bold] {_format_size(total_size)}")
+
+    if cached_workspaces:
+        console.print("\n[bold]Cached Repositories:[/bold]")
+        for workspace_dir in sorted(cached_workspaces):
+            repo_name = workspace_dir.name.replace("_", "/")
+            size = _get_directory_size(workspace_dir)
+            console.print(f"  • {repo_name}: {_format_size(size)}")
+
+    console.print(f"\n[dim]To clear cache: glovebox cache clear-workspaces[/dim]")
+    console.print(f"[dim]To list details: glovebox cache list-workspaces[/dim]")
+
+
+@cache_app.command(name="import-workspace")
+def import_workspace(
+    workspace_path: Annotated[
+        Path,
+        typer.Argument(help="Path to existing ZMK workspace directory"),
+    ],
+    repository: Annotated[
+        str,
+        typer.Option(
+            "--repository", "-r", help="Repository name (e.g., 'zmkfirmware/zmk')"
+        ),
+    ] = "zmkfirmware/zmk",
+    force: Annotated[
+        bool,
+        typer.Option("--force", "-f", help="Overwrite existing cache"),
+    ] = False,
+) -> None:
+    """Import an existing ZMK workspace into the cache.
+
+    This allows you to cache a workspace you've already built locally,
+    so future compilations can use it instead of downloading everything again.
+
+    Your workspace should contain directories like: zmk/, zephyr/, modules/
+    """
+    workspace_path = workspace_path.resolve()
+
+    if not workspace_path.exists():
+        console.print(
+            f"[red]Error: Workspace directory does not exist: {workspace_path}[/red]"
+        )
+        raise typer.Exit(1)
+
+    if not workspace_path.is_dir():
+        console.print(f"[red]Error: Path is not a directory: {workspace_path}[/red]")
+        raise typer.Exit(1)
+
+    # Check for required ZMK workspace components
+    required_dirs = ["zmk", "zephyr", "modules"]
+    missing_dirs = []
+    existing_dirs = []
+
+    for dir_name in required_dirs:
+        dir_path = workspace_path / dir_name
+        if dir_path.exists() and dir_path.is_dir():
+            existing_dirs.append(dir_name)
+        else:
+            missing_dirs.append(dir_name)
+
+    if not existing_dirs:
+        console.print(
+            f"[red]Error: No ZMK workspace components found in {workspace_path}[/red]"
+        )
+        console.print(
+            f"[yellow]Expected directories: {', '.join(required_dirs)}[/yellow]"
+        )
+        raise typer.Exit(1)
+
+    if missing_dirs:
+        console.print(
+            f"[yellow]Warning: Missing components: {', '.join(missing_dirs)}[/yellow]"
+        )
+        console.print(f"[green]Found components: {', '.join(existing_dirs)}[/green]")
+
+        if not typer.confirm("Continue with partial workspace?"):
+            console.print("[yellow]Cancelled[/yellow]")
+            return
+
+    # Set up cache directory
+    cache_dir = _get_workspace_cache_dir()
+    repo_cache_name = repository.replace("/", "_").replace("-", "_")
+    target_cache_dir = cache_dir / repo_cache_name
+
+    if target_cache_dir.exists() and not force:
+        console.print(f"[yellow]Cache already exists for {repository}[/yellow]")
+        if not typer.confirm("Overwrite existing cache?"):
+            console.print("[yellow]Cancelled[/yellow]")
+            return
+
+    try:
+        # Create cache directory
+        target_cache_dir.mkdir(parents=True, exist_ok=True)
+
+        # Copy workspace components
+        console.print(f"[blue]Importing workspace from {workspace_path}...[/blue]")
+
+        total_size = 0
+        for dir_name in existing_dirs:
+            src_dir = workspace_path / dir_name
+            dest_dir = target_cache_dir / dir_name
+
+            console.print(f"  • Copying {dir_name}...")
+
+            # Remove existing if it exists
+            if dest_dir.exists():
+                shutil.rmtree(dest_dir)
+
+            # Copy directory
+            shutil.copytree(src_dir, dest_dir)
+
+            # Calculate size
+            dir_size = _get_directory_size(dest_dir)
+            total_size += dir_size
+            console.print(f"    ✓ {dir_name}: {_format_size(dir_size)}")
+
+        console.print(
+            f"\n[green]✅ Successfully imported workspace cache for {repository}[/green]"
+        )
+        console.print(f"[bold]Cache location:[/bold] {target_cache_dir}")
+        console.print(f"[bold]Total size:[/bold] {_format_size(total_size)}")
+        console.print(f"[bold]Components cached:[/bold] {', '.join(existing_dirs)}")
+
+        console.print(
+            f"\n[dim]Future builds using '{repository}' will now use this cache![/dim]"
+        )
+
+    except Exception as e:
+        console.print(f"[red]Failed to import workspace: {e}[/red]")
+        # Clean up partial cache on failure
+        if target_cache_dir.exists():
+            try:
+                shutil.rmtree(target_cache_dir)
+            except Exception:
+                pass
+        raise typer.Exit(1)
 
 
 @cache_app.command(name="cleanup")

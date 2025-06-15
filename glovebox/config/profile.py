@@ -5,6 +5,8 @@ This module provides a class that encapsulates keyboard configuration and
 provides convenient methods for accessing and manipulating that configuration.
 """
 
+from pathlib import Path
+
 from glovebox.config.models import (
     FirmwareConfig,
     KConfigOption,
@@ -111,3 +113,59 @@ class KeyboardProfile:
                 combined[key] = value
 
         return combined
+
+    def get_keyboard_directory(self) -> Path | None:
+        """Get the keyboard's profile directory path.
+
+        Returns:
+            Path to the keyboard's directory, or None if not found
+        """
+        from glovebox.config.keyboard_profile import _find_keyboard_config_file
+
+        config_file = _find_keyboard_config_file(self.keyboard_name)
+        if config_file:
+            # Check if there's a directory with the same name as the keyboard
+            keyboard_dir = config_file.parent / self.keyboard_name
+            if keyboard_dir.exists() and keyboard_dir.is_dir():
+                return keyboard_dir
+            # Fall back to config file's parent directory
+            return config_file.parent
+        return None
+
+    def load_file(self, relative_path: str) -> str | None:
+        """Load a file from the keyboard's profile directory.
+
+        Args:
+            relative_path: Path relative to the keyboard's directory (e.g., "toolchain/default.nix")
+
+        Returns:
+            File content as string, or None if file not found
+        """
+        keyboard_dir = self.get_keyboard_directory()
+        if not keyboard_dir:
+            logger.warning(
+                "Could not find keyboard directory for %s", self.keyboard_name
+            )
+            return None
+
+        file_path = keyboard_dir / relative_path
+        if not file_path.exists():
+            logger.warning("File not found: %s", file_path)
+            return None
+
+        try:
+            return file_path.read_text(encoding="utf-8")
+        except Exception as e:
+            logger.error("Failed to read file %s: %s", file_path, e)
+            return None
+
+    def load_toolchain_file(self, filename: str) -> str | None:
+        """Load a file from the keyboard's toolchain directory.
+
+        Args:
+            filename: Name of the file in the toolchain directory (e.g., "default.nix")
+
+        Returns:
+            File content as string, or None if file not found
+        """
+        return self.load_file(f"toolchain/{filename}")

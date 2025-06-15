@@ -90,9 +90,12 @@ def _resolve_compilation_strategy(
         logger.info("Compilation strategy: %s", compilation_strategy)
         logger.info("Compile config type: %s", type(compile_config).__name__)
         logger.info("Docker image: %s", compile_config.image)
-        if hasattr(compile_config, "workspace"):
-            logger.info("Repository: %s", compile_config.workspace.repository)
-            logger.info("Branch: %s", compile_config.workspace.branch)
+        logger.info("Repository: %s", getattr(compile_config, "repository", "N/A"))
+        logger.info("Branch: %s", getattr(compile_config, "branch", "N/A"))
+        if hasattr(compile_config, "build_config") and compile_config.build_config:
+            build_config = compile_config.build_config
+            logger.info("Boards: %s", getattr(build_config, "board", []))
+            logger.info("Shields: %s", getattr(build_config, "shield", []))
     else:
         logger.info("Using compilation strategy: %r", type(compile_config).__name__)
 
@@ -123,17 +126,57 @@ def _update_config_from_profile(
 
 def _create_minimal_config(
     compile_config: MoergoCompilationConfig | ZmkCompilationConfig,
+    keyboard_profile: "KeyboardProfile",
 ) -> MinimalCompileConfigUnion:
     """Convert complex config to minimal config for simplified services."""
+    # Extract build matrix from the specific compile method config
+    boards = ["nice_nano_v2"]  # default
+    shields = []  # default
+
+    # Get build_config from the compile method itself
+    if hasattr(compile_config, "build_config") and compile_config.build_config:
+        build_config = compile_config.build_config
+        if hasattr(build_config, "board") and build_config.board:
+            boards = (
+                build_config.board
+                if isinstance(build_config.board, list)
+                else [build_config.board]
+            )
+        if hasattr(build_config, "shield") and build_config.shield:
+            shields = (
+                build_config.shield
+                if isinstance(build_config.shield, list)
+                else [build_config.shield]
+            )
+
+    # Get repository and branch from compile config
+    repository = getattr(compile_config, "repository", None)
+    branch = getattr(compile_config, "branch", None)
+
+    # Override with firmware config if available
+    if keyboard_profile.firmware_config:
+        repository = (
+            repository or keyboard_profile.firmware_config.build_options.repository
+        )
+        branch = branch or keyboard_profile.firmware_config.build_options.branch
+
     if isinstance(compile_config, MoergoCompilationConfig):
         return MinimalMoergoConfig(
             strategy="moergo",
             image=compile_config.image,
+            repository=repository or "moergo-sc/zmk",
+            branch=branch or "v25.05",
+            boards=boards,
+            shields=shields,
         )
     elif isinstance(compile_config, ZmkCompilationConfig):
         return MinimalZmkConfig(
             strategy="zmk_config",
             image=compile_config.image,
+            repository=repository or "zmkfirmware/zmk",
+            branch=branch or "main",
+            boards=boards,
+            shields=shields,
         )
     else:
         raise ValueError(f"Unsupported config type: {type(compile_config)}")
@@ -153,7 +196,7 @@ def _execute_compilation_service(
     compilation_service = create_compilation_service(compilation_strategy)
 
     # Convert to minimal config for simplified services
-    minimal_config = _create_minimal_config(compile_config)
+    minimal_config = _create_minimal_config(compile_config, keyboard_profile)
 
     return compilation_service.compile(
         keymap_file=keymap_file,
