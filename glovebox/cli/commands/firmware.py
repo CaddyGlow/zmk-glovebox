@@ -30,6 +30,114 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _setup_verbose_logging(verbose: bool) -> None:
+    """Setup verbose logging if requested."""
+    if verbose:
+        logging.getLogger("glovebox.compilation").setLevel(logging.DEBUG)
+        logging.getLogger("glovebox.adapters.docker").setLevel(logging.DEBUG)
+        logger.info("Verbose mode enabled - detailed logging activated")
+
+
+def _resolve_compilation_strategy(
+    keyboard_profile: "KeyboardProfile", strategy: str | None, verbose: bool
+) -> tuple[str, MoergoCompilationConfig | ZmkCompilationConfig]:
+    """Resolve compilation strategy and config from profile."""
+    # Get the appropriate compile method config from the keyboard profile
+    if not keyboard_profile.keyboard_config.compile_methods:
+        print_error_message(
+            f"No compile methods configured for keyboard '{keyboard_profile.keyboard_name}'"
+        )
+        raise typer.Exit(1)
+
+    # Determine compilation strategy
+    compile_config: MoergoCompilationConfig | ZmkCompilationConfig | None = None
+    if strategy:
+        compilation_strategy = strategy
+        # Find the matching compile method config for our strategy
+        for method_config in keyboard_profile.keyboard_config.compile_methods:
+            if (
+                isinstance(method_config, MoergoCompilationConfig)
+                and compilation_strategy == "moergo"
+            ):
+                compile_config = method_config
+                break
+            if (
+                isinstance(method_config, ZmkCompilationConfig)
+                and compilation_strategy == "zmk_config"
+            ):
+                compile_config = method_config
+                break
+    else:
+        # Use first available config if no specific match found
+        compile_config = keyboard_profile.keyboard_config.compile_methods[0]
+        logger.info("Using fallback compile config: %r", type(compile_config).__name__)
+
+    if not compile_config:
+        print_error_message(
+            f"No compile methods configured for keyboard '{keyboard_profile.keyboard_name}'"
+        )
+        raise typer.Exit(1)
+
+    # At this point, compile_config is guaranteed to be not None
+    compilation_strategy = compile_config.strategy
+
+    if verbose:
+        logger.info("Compilation strategy: %s", compilation_strategy)
+        logger.info("Compile config type: %s", type(compile_config).__name__)
+        logger.info("Docker image: %s", compile_config.image)
+        if hasattr(compile_config, "workspace"):
+            logger.info("Repository: %s", compile_config.workspace.repository)
+            logger.info("Branch: %s", compile_config.workspace.branch)
+    else:
+        logger.info("Using compilation strategy: %r", type(compile_config).__name__)
+
+    return compilation_strategy, compile_config
+
+
+def _update_config_from_profile(
+    compile_config: MoergoCompilationConfig | ZmkCompilationConfig,
+    keyboard_profile: "KeyboardProfile",
+) -> None:
+    """Update compile config with firmware settings from profile."""
+    if keyboard_profile.firmware_config is not None:
+        if isinstance(compile_config, MoergoCompilationConfig):
+            compile_config.branch = (
+                keyboard_profile.firmware_config.build_options.branch
+            )
+            compile_config.repository = (
+                keyboard_profile.firmware_config.build_options.repository
+            )
+        if isinstance(compile_config, ZmkCompilationConfig):
+            compile_config.workspace.branch = (
+                keyboard_profile.firmware_config.build_options.branch
+            )
+            compile_config.workspace.repository = (
+                keyboard_profile.firmware_config.build_options.repository
+            )
+
+
+def _execute_compilation_service(
+    compilation_strategy: str,
+    keymap_file: Path,
+    kconfig_file: Path,
+    build_output_dir: Path,
+    compile_config: MoergoCompilationConfig | ZmkCompilationConfig,
+    keyboard_profile: "KeyboardProfile",
+) -> Any:
+    """Execute the compilation service."""
+    from glovebox.compilation import create_compilation_service
+
+    compilation_service = create_compilation_service(compilation_strategy)
+
+    return compilation_service.compile(
+        keymap_file=keymap_file,
+        config_file=kconfig_file,
+        output_dir=build_output_dir,
+        config=compile_config,
+        keyboard_profile=keyboard_profile,
+    )
+
+
 def _format_compilation_output(
     result: Any, output_format: str, output_dir: Path
 ) -> None:
@@ -78,24 +186,7 @@ def firmware_compile(
     ctx: typer.Context,
     keymap_file: Annotated[Path, typer.Argument(help="Path to keymap (.keymap) file")],
     kconfig_file: Annotated[Path, typer.Argument(help="Path to kconfig (.conf) file")],
-    output_dir: Annotated[
-        Path | None, typer.Option("--output-dir", "-d", help="Build output directory")
-    ] = None,
     profile: ProfileOption = None,
-    branch: Annotated[
-        str | None,
-        typer.Option("--branch", help="Git branch to use (overrides profile branch)"),
-    ] = None,
-    repo: Annotated[
-        str | None,
-        typer.Option("--repo", help="Git repository (overrides profile repo)"),
-    ] = None,
-    jobs: Annotated[
-        int | None, typer.Option("--jobs", "-j", help="Number of parallel jobs")
-    ] = None,
-    verbose: Annotated[
-        bool | None, typer.Option("--verbose", "-v", help="Enable verbose build output")
-    ] = None,
     strategy: Annotated[
         str | None,
         typer.Option(
@@ -103,93 +194,10 @@ def firmware_compile(
             help="Compilation strategy: auto-detect by profile if not specified",
         ),
     ] = None,
-    no_cache: Annotated[
-        bool | None,
-        typer.Option(
-            "--no-cache",
-            help="Disable workspace caching for this build",
-        ),
-    ] = None,
-    clear_cache: Annotated[
-        bool | None,
-        typer.Option(
-            "--clear-cache",
-            help="Clear cache before starting build",
-        ),
-    ] = None,
-    board_targets: Annotated[
-        str | None,
-        typer.Option(
-            "--board-targets",
-            help="Comma-separated board targets for split keyboards (e.g., 'glove80_lh,glove80_rh')",
-        ),
-    ] = None,
-    # Docker user context override options
-    docker_uid: Annotated[
-        int | None,
-        typer.Option(
-            "--docker-uid",
-            help="Manual Docker UID override (takes precedence over auto-detection and config)",
-            min=0,
-        ),
-    ] = None,
-    docker_gid: Annotated[
-        int | None,
-        typer.Option(
-            "--docker-gid",
-            help="Manual Docker GID override (takes precedence over auto-detection and config)",
-            min=0,
-        ),
-    ] = None,
-    docker_username: Annotated[
-        str | None,
-        typer.Option(
-            "--docker-username",
-            help="Manual Docker username override (takes precedence over auto-detection and config)",
-        ),
-    ] = None,
-    docker_home: Annotated[
-        str | None,
-        typer.Option(
-            "--docker-home",
-            help="Custom Docker home directory override (host path to map as container home)",
-        ),
-    ] = None,
-    docker_container_home: Annotated[
-        str | None,
-        typer.Option(
-            "--docker-container-home",
-            help="Custom container home directory path (default: /tmp)",
-        ),
-    ] = None,
-    no_docker_user_mapping: Annotated[
-        bool | None,
-        typer.Option(
-            "--no-docker-user-mapping",
-            help="Disable Docker user mapping entirely (overrides all user context settings)",
-        ),
-    ] = None,
-    # Workspace configuration options
-    workspace_dir: Annotated[
-        Path | None,
-        typer.Option("--workspace-dir", help="Custom workspace root directory"),
-    ] = None,
-    preserve_workspace: Annotated[
-        bool | None,
-        typer.Option("--preserve-workspace", help="Don't delete workspace after build"),
-    ] = None,
-    force_cleanup: Annotated[
-        bool | None,
-        typer.Option("--force-cleanup", help="Force workspace cleanup even on failure"),
-    ] = None,
-    build_matrix: Annotated[
-        Path | None,
-        typer.Option(
-            "--build-matrix",
-            help="Path to build.yaml file (auto-detected if not specified)",
-        ),
-    ] = None,
     output_format: OutputFormatOption = "text",
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Enable verbose build output")
+    ] = False,
 ) -> None:
     """Build ZMK firmware from keymap and config files.
 
@@ -198,114 +206,61 @@ def firmware_compile(
 
     Supports multiple compilation strategies:
     - zmk_config: ZMK config repository builds (default, recommended)
-    - west: Traditional ZMK west workspace builds
+    - moergo: Moergo-specific compilation strategy
+
+    Configuration options like Docker settings, workspace management, and build
+    parameters are managed through profile configurations and user config files.
 
     Examples:
-        # Basic ZMK config build (default strategy)
+        # Basic compilation using profile configuration
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
 
-        # West workspace build strategy
-        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --strategy west
+        # Specify compilation strategy explicitly
+        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --strategy zmk_config
 
-        # Build without caching for clean build
-        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --no-cache
-
-        # Clear cache before building
-        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --clear-cache
-
-        # Split keyboard build with specific board targets
-        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --board-targets glove80_lh,glove80_rh
-
-        # Manual Docker user context (solves permission issues)
-        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --docker-uid 1000 --docker-gid 1000
-
-
-        # Verbose output with build details
+        # Enable verbose output for debugging
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --verbose
+
+        # JSON output for automation
+        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --output-format json
     """
+    # Setup verbose logging
+    _setup_verbose_logging(verbose)
+
     # Get profile and user config
     keyboard_profile = get_keyboard_profile_from_context(ctx)
     user_config = get_user_config_from_context(ctx)
 
-    logger.info("KeyboardProfile available in context: %r", keyboard_profile)
+    if verbose:
+        logger.info("KeyboardProfile: %s", keyboard_profile.keyboard_name)
+        logger.info("Profile path: %s", keyboard_profile)
+    else:
+        logger.info("KeyboardProfile available in context: %r", keyboard_profile)
 
     # Set default output directory to 'build'
     build_output_dir = Path("build")
     build_output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Get the appropriate compile method config from the keyboard profile
-    if not keyboard_profile.keyboard_config.compile_methods:
-        print_error_message(
-            f"No compile methods configured for keyboard '{keyboard_profile.keyboard_name}'"
-        )
-        raise typer.Exit(1)
-
-    # Determine compilation strategy
-    compile_config = None
-    if strategy:
-        compilation_strategy = strategy
-        # Find the matching compile method config for our strategy
-        for method_config in keyboard_profile.keyboard_config.compile_methods:
-            if (
-                isinstance(method_config, MoergoCompilationConfig)
-                and compilation_strategy == "moergo"
-            ):
-                compile_config = method_config
-                break
-            if (
-                isinstance(method_config, ZmkCompilationConfig)
-                and compilation_strategy == "zmk_config"
-            ):
-                compile_config = method_config
-                break
-    else:
-        # to first available config if no specific match found
-        compile_config = keyboard_profile.keyboard_config.compile_methods[0]
-        logger.info("Using fallback compile config: %r", type(compile_config).__name__)
-
-    if not compile_config:
-        print_error_message(
-            f"No compile methods configured for keyboard '{keyboard_profile.keyboard_name}'"
-        )
-        raise typer.Exit(1)
-
-    compilation_strategy = compile_config.strategy
-
-    logger.info("Using compilation strategy: %r", type(compile_config).__name__)
-
-    # we need to setup the branch from the firmware config in profile
-    # in compile config
-    if keyboard_profile.firmware_config is not None:
-        if isinstance(compile_config, MoergoCompilationConfig):
-            compile_config.branch = (
-                keyboard_profile.firmware_config.build_options.branch
-            )
-            compile_config.repository = (
-                keyboard_profile.firmware_config.build_options.repository
-            )
-        if isinstance(compile_config, ZmkCompilationConfig):
-            compile_config.workspace.branch = (
-                keyboard_profile.firmware_config.build_options.branch
-            )
-            compile_config.workspace.repository = (
-                keyboard_profile.firmware_config.build_options.repository
-            )
-
     try:
-        # Import and create compilation service
-        from glovebox.compilation import create_compilation_service
+        # Resolve compilation strategy and configuration
+        compilation_strategy, compile_config = _resolve_compilation_strategy(
+            keyboard_profile, strategy, verbose
+        )
 
-        compilation_service = create_compilation_service(compilation_strategy)
+        # Update config with profile firmware settings
+        _update_config_from_profile(compile_config, keyboard_profile)
 
         # Execute compilation
-        result = compilation_service.compile(
-            keymap_file=keymap_file,
-            config_file=kconfig_file,
-            output_dir=build_output_dir,
-            config=compile_config,
-            keyboard_profile=keyboard_profile,
+        result = _execute_compilation_service(
+            compilation_strategy,
+            keymap_file,
+            kconfig_file,
+            build_output_dir,
+            compile_config,
+            keyboard_profile,
         )
 
+        # Format and display results
         _format_compilation_output(result, output_format, build_output_dir)
 
     except Exception as e:
