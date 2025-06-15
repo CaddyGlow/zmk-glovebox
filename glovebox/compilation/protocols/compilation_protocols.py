@@ -7,7 +7,7 @@ from glovebox.firmware.models import BuildResult
 
 
 if TYPE_CHECKING:
-    from glovebox.config.models.keyboard import CompileMethodConfigUnion
+    from glovebox.config.minimal_compile_config import MinimalCompileConfigUnion
     from glovebox.config.profile import KeyboardProfile
 
 
@@ -20,7 +20,7 @@ class CompilationServiceProtocol(Protocol):
         keymap_file: Path,
         config_file: Path,
         output_dir: Path,
-        config: "CompileMethodConfigUnion",
+        config: "MinimalCompileConfigUnion",
         keyboard_profile: "KeyboardProfile",
     ) -> BuildResult:
         """Execute compilation using this strategy.
@@ -37,7 +37,7 @@ class CompilationServiceProtocol(Protocol):
         """
         ...
 
-    def validate_config(self, config: "CompileMethodConfigUnion") -> bool:
+    def validate_config(self, config: "MinimalCompileConfigUnion") -> bool:
         """Validate configuration for this compilation strategy.
 
         Args:

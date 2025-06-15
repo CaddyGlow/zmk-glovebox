@@ -21,6 +21,11 @@ from glovebox.config.compile_methods import (
     MoergoCompilationConfig,
     ZmkCompilationConfig,
 )
+from glovebox.config.minimal_compile_config import (
+    MinimalCompileConfigUnion,
+    MinimalMoergoConfig,
+    MinimalZmkConfig,
+)
 from glovebox.firmware.flash import create_flash_service
 
 
@@ -116,6 +121,24 @@ def _update_config_from_profile(
             )
 
 
+def _create_minimal_config(
+    compile_config: MoergoCompilationConfig | ZmkCompilationConfig,
+) -> MinimalCompileConfigUnion:
+    """Convert complex config to minimal config for simplified services."""
+    if isinstance(compile_config, MoergoCompilationConfig):
+        return MinimalMoergoConfig(
+            strategy="moergo",
+            image=compile_config.image,
+        )
+    elif isinstance(compile_config, ZmkCompilationConfig):
+        return MinimalZmkConfig(
+            strategy="zmk_config",
+            image=compile_config.image,
+        )
+    else:
+        raise ValueError(f"Unsupported config type: {type(compile_config)}")
+
+
 def _execute_compilation_service(
     compilation_strategy: str,
     keymap_file: Path,
@@ -129,11 +152,14 @@ def _execute_compilation_service(
 
     compilation_service = create_compilation_service(compilation_strategy)
 
+    # Convert to minimal config for simplified services
+    minimal_config = _create_minimal_config(compile_config)
+
     return compilation_service.compile(
         keymap_file=keymap_file,
         config_file=kconfig_file,
         output_dir=build_output_dir,
-        config=compile_config,
+        config=minimal_config,
         keyboard_profile=keyboard_profile,
     )
 

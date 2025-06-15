@@ -17,6 +17,12 @@ from .keyboard_profile import (
     load_keyboard_config,
     load_keyboard_config_with_includes,
 )
+from .minimal_compile_config import (
+    MinimalCompileConfig,
+    MinimalCompileConfigUnion,
+    MinimalMoergoConfig,
+    MinimalZmkConfig,
+)
 from .profile import KeyboardProfile
 from .user_config import UserConfig, create_user_config
 
@@ -35,4 +41,9 @@ __all__ = [
     "KeyboardProfile",
     "UserConfig",
     "create_user_config",
+    # Minimal compilation configurations
+    "MinimalCompileConfig",
+    "MinimalCompileConfigUnion",
+    "MinimalMoergoConfig",
+    "MinimalZmkConfig",
 ]

@@ -11,8 +11,10 @@ import yaml
 from glovebox.compilation.protocols.compilation_protocols import (
     CompilationServiceProtocol,
 )
-from glovebox.config.compile_methods import ZmkCompilationConfig
-from glovebox.config.models.keyboard import CompileMethodConfigUnion
+from glovebox.config.minimal_compile_config import (
+    MinimalCompileConfigUnion,
+    MinimalZmkConfig,
+)
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.protocols import DockerAdapterProtocol
 
@@ -34,14 +36,14 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
         keymap_file: Path,
         config_file: Path,
         output_dir: Path,
-        config: CompileMethodConfigUnion,
+        config: MinimalCompileConfigUnion,
         keyboard_profile: "KeyboardProfile",
     ) -> BuildResult:
         """Execute ZMK compilation."""
         self.logger.info("Starting ZMK config compilation")
 
         try:
-            if not isinstance(config, ZmkCompilationConfig):
+            if not isinstance(config, MinimalZmkConfig):
                 return BuildResult(success=False, errors=["Invalid config type"])
 
             workspace_path = self._setup_workspace(keymap_file, config_file)
@@ -64,13 +66,9 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
             self.logger.error("Compilation failed: %s", e)
             return BuildResult(success=False, errors=[str(e)])
 
-    def validate_config(self, config: CompileMethodConfigUnion) -> bool:
+    def validate_config(self, config: MinimalCompileConfigUnion) -> bool:
         """Validate configuration."""
-        return (
-            isinstance(config, ZmkCompilationConfig)
-            and bool(config.image)
-            and bool(config.workspace)
-        )
+        return isinstance(config, MinimalZmkConfig) and bool(config.image)
 
     def check_available(self) -> bool:
         """Check availability."""
@@ -97,9 +95,7 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
             self.logger.error("Workspace setup failed: %s", e)
             return None
 
-    def _run_compilation(
-        self, workspace_path: Path, config: ZmkCompilationConfig
-    ) -> bool:
+    def _run_compilation(self, workspace_path: Path, config: MinimalZmkConfig) -> bool:
         """Run Docker compilation."""
         try:
             commands = [
