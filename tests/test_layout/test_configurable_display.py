@@ -177,7 +177,6 @@ class TestConfigurableDisplay:
         keymap_section = KeymapSection(
             includes=[],
             formatting=FormattingConfig(
-                default_key_width=6,
                 key_gap="  ",
                 base_indent="  ",  # Profile indent
                 rows=[[0, 1]],  # Simple row structure for 2 bindings
@@ -241,7 +240,6 @@ class TestConfigurableDisplay:
         keymap_section = KeymapSection(
             includes=[],
             formatting=FormattingConfig(
-                default_key_width=6,
                 key_gap="--",
                 base_indent="",
                 rows=[[0, 1, 2]],  # Simple row structure for 3 bindings

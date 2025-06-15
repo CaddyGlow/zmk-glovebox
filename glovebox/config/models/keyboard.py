@@ -17,20 +17,10 @@ from .firmware import FirmwareConfig, KConfigOption
 from .zmk import ZmkConfig
 
 
-# Visual layout configuration
-class VisualLayout(BaseModel):
-    """Visual layout for a keyboard."""
-
-    rows: list[list[int]]
-
-
 # Formatting configuration
 class FormattingConfig(BaseModel):
     """Formatting configuration for a keyboard."""
 
-    default_key_width: int = Field(
-        gt=0, description="Default key width must be positive"
-    )
     key_gap: str
     base_indent: str = ""
     rows: list[list[int]] | None = None
@@ -81,7 +71,7 @@ class KeyboardConfig(BaseModel):
     keymap: KeymapSection = Field(
         default_factory=lambda: KeymapSection(
             includes=[],
-            formatting=FormattingConfig(default_key_width=4, key_gap=" "),
+            formatting=FormattingConfig(key_gap=" "),
             system_behaviors=[],
             kconfig_options={},
         )

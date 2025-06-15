@@ -9,7 +9,6 @@ key_count: 80
 # Physical layout and key positioning
 keymap:
   formatting:
-    default_key_width: 8
     key_gap: "  "
     base_indent: ""
     # Glove80 physical key layout (80 keys in 6 rows)

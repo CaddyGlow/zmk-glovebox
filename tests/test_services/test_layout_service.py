@@ -471,7 +471,6 @@ class TestLayoutServiceWithMockedConfig:
 
         # Create mock formatting
         mock_profile.keyboard_config.keymap.formatting = Mock()
-        mock_profile.keyboard_config.keymap.formatting.default_key_width = 10
         mock_profile.keyboard_config.keymap.formatting.key_gap = "  "
         mock_profile.keyboard_config.keymap.formatting.base_indent = ""
         mock_profile.keyboard_config.keymap.formatting.rows = [[0, 1, 2, 3, 4]]

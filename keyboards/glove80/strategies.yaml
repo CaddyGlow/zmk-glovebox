@@ -1,6 +1,6 @@
 # Glove80 Compilation Strategies
 
-# ZMK Config Strategy
+# ZMK Config Strategy  
 compile_methods:
   - strategy: zmk_config
     repository: "moergo-sc/zmk"
@@ -8,25 +8,8 @@ compile_methods:
     build_config:
       board: ["glove80_lh", "glove80_rh"]
       shield: []
-    workspace:
-      root_directory: null
-      cleanup_after_build: true
-      preserve_on_failure: false
-      max_preserved_workspaces: 4
 
   - strategy: moergo
     image: glove80-zmk-config-docker
     repository: "moergo-sc/zmk"
     branch: "v25.05"
-
-    # Moergo-specific configuration
-    cleanup_workspace: true
-    preserve_on_failure: false
-
-    # Docker user configuration for file permissions
-    # Moergo container needs root access for git operations
-    # solution would be to replace /src with a volume
-    # that we will be caching
-    docker_user:
-      enable_user_mapping: false
-      detect_user_automatically: false

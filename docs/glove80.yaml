@@ -75,7 +75,6 @@ keymap:
   #
 
   formatting:
-    default_key_width: 8
     key_gap: "  "
     base_indent: ""
     rows:

@@ -5,16 +5,10 @@ key_count: 42
 
 compile_methods:
   # ZMK Config strategy - generates workspace dynamically
-  - strategy: zmk
+  - strategy: zmk_config
     build_config:
       board: ["nice_nano_v2"]
       shield: ["corne_left", "corne_right"]
-    cache:
-      enabled: true
-      max_age_hours: 24.0
-    docker_user:
-      enable_user_mapping: true
-      detect_user_automatically: true
 
 # Flash method configurations
 flash_methods:
@@ -47,7 +41,6 @@ keymap:
     - "#include <dt-bindings/zmk/bt.h>"
 
   formatting:
-    default_key_width: 8
     key_gap: "  "
     base_indent: ""
     rows:
