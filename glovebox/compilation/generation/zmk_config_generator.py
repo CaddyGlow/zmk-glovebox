@@ -155,7 +155,7 @@ class ZmkConfigContentGenerator:
         Returns:
             bool: True if west.yml generated successfully
         """
-        west_config = self._create_west_config(params.keyboard_profile)
+        west_config = self._create_west_config(params)
 
         # Use config directory from Docker paths
         config_dir = params.config_directory_host
@@ -184,7 +184,7 @@ class ZmkConfigContentGenerator:
             return False
 
     def _create_west_config(
-        self, keyboard_profile: "KeyboardProfile"
+        self, params: ZmkConfigGenerationParams
     ) -> WestManifestConfig:
         """Create WestManifestConfig from keyboard profile.
 

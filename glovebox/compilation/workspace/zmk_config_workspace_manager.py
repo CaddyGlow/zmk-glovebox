@@ -546,6 +546,9 @@ class ZmkConfigWorkspaceManager(WorkspaceManager):
         Returns:
             tuple[str, str]: (repository_url, revision)
         """
+        # TODO: We should only use the value from ZmkWorkspaceConfig.branch and repo
+        # we don't want business logic in
+
         if keyboard_profile.firmware_config:
             build_options = keyboard_profile.firmware_config.build_options
             return build_options.repository, build_options.branch
