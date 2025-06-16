@@ -366,8 +366,12 @@ class UserConfig:
             key: The configuration key to set
             value: The value to assign to the key
         """
-        # Only allow setting known config keys
-        if key in UserConfigData.model_fields:
+        # Handle both top-level and nested keys
+        if "." in key:
+            # Handle nested keys like "firmware.flash.timeout"
+            self._set_nested_key(key, value)
+        elif key in UserConfigData.model_fields:
+            # Handle top-level keys
             try:
                 setattr(self._config, key, value)
                 self._config_sources[key] = "runtime"
@@ -377,6 +381,32 @@ class UserConfig:
         else:
             logger.warning("Ignoring unknown configuration key: %s", key)
             raise ValueError(f"Unknown configuration key: {key}")
+
+    def _set_nested_key(self, key: str, value: Any) -> None:
+        """Set a nested configuration key using dot notation."""
+        keys = key.split(".")
+        current = self._config
+
+        # Navigate to the parent object
+        for k in keys[:-1]:
+            if hasattr(current, k):
+                current = getattr(current, k)
+            else:
+                logger.warning("Invalid configuration path: %s", key)
+                raise ValueError(f"Invalid configuration path: {key}")
+
+        # Set the final value
+        final_key = keys[-1]
+        if hasattr(current, final_key):
+            try:
+                setattr(current, final_key, value)
+                self._config_sources[key] = "runtime"
+            except Exception as e:
+                logger.warning("Invalid value for %s: %s", key, e)
+                raise ValueError(f"Invalid value for {key}: {e}") from e
+        else:
+            logger.warning("Invalid configuration key: %s", key)
+            raise ValueError(f"Invalid configuration key: {key}")
 
     def get_log_level_int(self) -> int:
         """

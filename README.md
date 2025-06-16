@@ -4,14 +4,16 @@ A comprehensive tool for ZMK keyboard firmware management, supporting multiple k
 
 ## Features
 
-- **Multi-Keyboard Support**: Extensible architecture supporting different keyboard types
+- **Multi-Keyboard Support**: Extensible modular architecture with YAML-based configuration system
 - **Keymap Building**: Convert JSON layouts to ZMK keymap and configuration files
-- **Firmware Building**: Docker-based ZMK build chain with extensible architecture
+- **Advanced Compilation Strategies**: Multiple compilation methods (zmk_config, west, cmake, make, ninja, custom)
 - **Dynamic ZMK Config Generation**: Create complete ZMK config workspaces on-the-fly without external repositories
-- **Device Flashing**: USB device detection and firmware flashing with retry logic
-- **Configuration Management**: Profile-based configuration system with inheritance
+- **Intelligent Caching System**: Domain-agnostic caching with filesystem and memory backends
+- **Device Flashing**: Cross-platform USB device detection and firmware flashing with retry logic
+- **Modular Configuration System**: YAML-based configuration with includes and inheritance
 - **Keyboard-Only Profiles**: Minimal configurations for flashing operations without keymap generation
-- **Layout Visualization**: Display keyboard layouts in terminal
+- **Layout Visualization**: Display keyboard layouts in terminal with customizable formatting
+- **Build Matrix Support**: GitHub Actions style build matrices with automatic split keyboard detection
 - **Debug Tracing**: Comprehensive debug logging with stack traces and multiple verbosity levels
 
 ## How It Works
@@ -97,9 +99,28 @@ glovebox firmware flash firmware.uf2 --profile glove80/v25.05 --count 2
 
 ## Supported Keyboards
 
-- **Glove80**: Full support with MoErgo Docker build chain
-- **Corne**: Standard ZMK build chain with split keyboard support
-- **Extensible**: Architecture designed for easy addition of new keyboards
+- **Glove80**: Full support with MoErgo Nix toolchain and modular configuration
+- **Corne**: Standard ZMK build chain with split keyboard support and dynamic generation
+- **Extensible**: Modular YAML-based architecture designed for easy addition of new keyboards
+
+### Configuration System
+
+Keyboards are now configured using a modular YAML system:
+
+```yaml
+# keyboards/my_keyboard.yaml
+includes:
+  - "my_keyboard/main.yaml"
+
+# keyboards/my_keyboard/main.yaml
+keyboard: "my_keyboard"
+description: "My Custom Keyboard"
+includes:
+  - "hardware.yaml"     # Hardware specifications
+  - "firmwares.yaml"    # Firmware variants
+  - "strategies.yaml"   # Compilation strategies
+  - "behaviors.yaml"    # Behavior definitions
+```
 
 ## Advanced Features
 
@@ -123,12 +144,30 @@ glovebox config list --profile glove80
 - **Status Checks**: Query keyboard information and USB device detection
 - **Minimal Setups**: Simple configurations with only essential keyboard details
 
-### Dynamic ZMK Config Generation
+### Advanced Compilation System
 
-Glovebox can automatically generate complete ZMK config workspaces on-the-fly, eliminating the need for separate ZMK config repositories:
+Glovebox provides multiple compilation strategies with intelligent caching:
+
+#### Direct Strategy Selection
 
 ```bash
-# Enable dynamic generation by leaving config_repo_url empty in keyboard configuration
+# Use specific compilation strategy via CLI
+glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --strategy zmk_config
+glovebox firmware compile keymap.keymap config.conf --profile corne/main --strategy west
+```
+
+**Available Strategies:**
+- **zmk_config**: GitHub Actions style builds with dynamic workspace generation
+- **west**: Traditional west workspace builds
+- **cmake**: Direct CMake builds
+- **make**: Makefile-based builds
+- **ninja**: Ninja build system
+- **custom**: User-defined build commands
+
+#### Dynamic ZMK Config Generation
+
+```bash
+# Enable dynamic generation by using zmk_config strategy
 # This automatically creates a complete ZMK workspace from your glovebox layout files
 
 # The system automatically:
@@ -138,9 +177,9 @@ Glovebox can automatically generate complete ZMK config workspaces on-the-fly, e
 # - Creates README.md and .gitignore for workspace documentation
 
 # Build firmware using dynamic generation
-glovebox firmware compile my_layout.keymap my_config.conf --profile corne/main
+glovebox firmware compile my_layout.keymap my_config.conf --profile corne/main --strategy zmk_config
 
-# The workspace is created at ~/.glovebox/dynamic-zmk-config/corne/ by default
+# The workspace is created at ~/.glovebox/cache/workspaces/corne/ by default
 ```
 
 **Benefits:**
@@ -148,7 +187,8 @@ glovebox firmware compile my_layout.keymap my_config.conf --profile corne/main
 - **Automatic split keyboard detection**: Generates left/right targets for Corne, Lily58, Sofle, Kyria
 - **Shield naming conventions**: Automatically renames files to match ZMK expectations
 - **Full ZMK compatibility**: Generated workspaces work with all standard ZMK workflows
-- **Intelligent Caching**: 2-tier caching system dramatically reduces compilation times by reusing shared ZMK dependencies
+- **Intelligent Caching**: Multi-tier caching system dramatically reduces compilation times by reusing shared ZMK dependencies
+- **Build Matrix Support**: GitHub Actions style build matrices with parallel compilation
 
 ### Docker Volume Permission Handling
 
@@ -347,41 +387,66 @@ Glovebox uses a comprehensive type-safe configuration system:
 
 ### Example Keyboard Configuration
 
+#### Modular Configuration Structure
+
 ```yaml
-# keyboards/glove80.yaml
-keyboard: glove80
-description: MoErgo Glove80 split ergonomic keyboard
-vendor: MoErgo
+# keyboards/glove80.yaml (main entry point)
+includes:
+  - "glove80/main.yaml"
 
-# Flash configuration
-flash:
-  method: mass_storage
-  query: vendor=Adafruit and serial~=GLV80-.* and removable=true
-  usb_vid: 0x1209
-  usb_pid: 0x0080
+# keyboards/glove80/main.yaml
+keyboard: "glove80"
+description: "MoErgo Glove80 split ergonomic keyboard"
+vendor: "MoErgo"
+key_count: 80
 
-# Build configuration
-build:
-  method: docker
-  docker_image: moergo-zmk-build
-  repository: moergo-sc/zmk
-  branch: v25.05
+includes:
+  - "hardware.yaml"     # Hardware specifications
+  - "firmwares.yaml"    # Firmware variants
+  - "strategies.yaml"   # Compilation strategies
+  - "kconfig.yaml"      # Kconfig options
+  - "behaviors.yaml"    # Behavior definitions
 
-# Available firmware variants
+# keyboards/glove80/strategies.yaml
+compile_methods:
+  - type: "moergo"
+    image: "glove80-zmk-config-docker"
+    repository: "moergo-sc/zmk"
+    branch: "v25.05"
+    build_matrix:
+      board: ["glove80_lh", "glove80_rh"]
+    docker_user:
+      enable_user_mapping: false
+
+# keyboards/glove80/firmwares.yaml
 firmwares:
   v25.05:
-    description: Stable MoErgo firmware v25.05
-    version: v25.05
-    branch: v25.05
+    description: "Stable MoErgo firmware v25.05"
+    version: "v25.05"
+    branch: "v25.05"
 ```
 
 ### Adding New Keyboards
 
 To add support for a new keyboard:
 
-1. Create a keyboard configuration YAML file in `keyboards/`
-2. Define flash configuration, build settings, and firmware variants
-3. Test configuration discovery with `glovebox config list`
+1. **Create modular configuration structure:**
+   ```bash
+   keyboards/
+   ├── my_keyboard.yaml        # Main entry point
+   └── my_keyboard/
+       ├── main.yaml           # Core configuration
+       ├── hardware.yaml       # Hardware specs
+       ├── firmwares.yaml      # Firmware variants
+       ├── strategies.yaml     # Compilation methods
+       ├── kconfig.yaml        # Kconfig options
+       └── behaviors.yaml      # Behavior definitions
+   ```
+
+2. **Define compilation strategies and flash configuration**
+3. **Add firmware variants for different builds**
+4. **Test configuration discovery with `glovebox config list`**
+5. **Test compilation with `glovebox firmware compile --profile my_keyboard/firmware_version`**
 
 ## Troubleshooting
 
@@ -442,6 +507,12 @@ glovebox --debug --log-file debug.log firmware compile keymap.keymap config.conf
 ```bash
 git clone https://github.com/your-org/glovebox.git
 cd glovebox
+
+# Using uv (recommended)
+uv sync
+pre-commit install
+
+# Or using pip
 pip install -e ".[dev]"
 pre-commit install
 ```
@@ -463,12 +534,16 @@ pytest -m integration
 ### Code Quality
 
 ```bash
-# Lint and format
-ruff check .
-ruff format .
+# Using make (recommended)
+make lint          # Run linting checks
+make format        # Format code and fix issues
+make test          # Run all tests
+make coverage      # Run tests with coverage
 
-# Type checking
-mypy glovebox/
+# Manual commands
+ruff check . --fix  # Lint and fix
+ruff format .       # Format code
+mypy glovebox/      # Type checking
 
 # Pre-commit hooks (recommended)
 pre-commit install
