@@ -1,86 +1,14 @@
-"""Build matrix models for ZMK compilation."""
+"""Gihub Actions build matrix models for ZMK compilation.
+https://github.com/zmkfirmware/unified-zmk-config-template/blob/main/build.yaml
+"""
 
-from dataclasses import dataclass, field
-from typing import Any
+from pathlib import Path
 
+import yaml
 from pydantic import BaseModel, Field
 
 
-@dataclass
-class BuildTarget:
-    """Individual build target from build.yaml.
-
-    Represents a single compilation target with board, shield,
-    and configuration options following GitHub Actions pattern.
-    """
-
-    board: str
-    shield: str | None = None
-    cmake_args: list[str] = field(default_factory=list)
-    snippet: str | None = None
-    artifact_name: str | None = None
-
-
-@dataclass
-class BuildMatrix:
-    """Complete build matrix resolved from build.yaml.
-
-    Contains all build targets and default configurations
-    for ZMK compilation matrix builds.
-    """
-
-    targets: list[BuildTarget] = field(default_factory=list)
-    board_defaults: list[str] = field(default_factory=list)
-    shield_defaults: list[str] = field(default_factory=list)
-
-
-class BuildYamlConfig(BaseModel):
-    """Configuration parsed from ZMK config repository build.yaml.
-
-    Compatible with GitHub Actions workflow build matrix format.
-    """
-
-    board: list[str] | None = Field(default_factory=list)
-    shield: list[str] | None = Field(default_factory=list)
-    include: list[dict[str, Any]] | None = Field(default_factory=list)
-
-    def get_board_name(self) -> str | None:
-        """Extract board name from Github Actions build matrix.
-
-        Returns:
-            str | None: Board name for compilation, or None if no board found
-        """
-        if self.board and len(self.board):
-            return self.board[0]
-        if self.include and len(self.include):
-            # Extract board from first include entry
-            first_include = self.include[0]
-            return first_include.get("board")
-        return None
-
-    def get_shields(self) -> list[str]:
-        """Extract shield names from Github Actions build matrix.
-
-        Returns:
-            list[str]: List of shield names for compilation
-        """
-        result = []
-
-        # Add shields from shield list
-        if self.shield:
-            result.extend(self.shield)
-
-        # Add shields from include entries
-        if self.include:
-            for target in self.include:
-                shield = target.get("shield")
-                if shield is not None:
-                    result.append(shield)
-
-        return result
-
-
-class BuildTargetConfig(BaseModel):
+class BuildTarget(BaseModel):
     """Individual build target configuration from build.yaml.
 
     Pydantic model version for validation and serialization.
@@ -90,4 +18,98 @@ class BuildTargetConfig(BaseModel):
     shield: str | None = None
     cmake_args: list[str] = Field(default_factory=list)
     snippet: str | None = None
-    artifact_name: str | None = None
+    artifact_name_: str | None = Field(default=None, alias="artifact_name")
+
+    @property
+    def artifact_name(self) -> str:
+        """Get artifact name, computing if not explicitly set.
+
+        Returns computed name following GitHub Actions pattern:
+        <board>-<shield>-zmk or just <board>-zmk if no shield
+
+        Returns:
+            str: Artifact name (explicit or computed)
+        """
+        if self.artifact_name_ is not None:
+            return self.artifact_name_
+
+        return f"{self.name}-zmk"
+
+    @artifact_name.setter
+    def artifact_name(self, value: str | None) -> None:
+        """Set explicit artifact name."""
+        self.artifact_name_ = value
+
+    @property
+    def name(self) -> str:
+        """Get target name."""
+        if self.shield:
+            return f"{self.board}-{self.shield}"
+        return self.board
+
+
+class BuildMatrix(BaseModel):
+    """Configuration parsed from ZMK config repository build.yaml.
+
+    Compatible with GitHub Actions workflow build matrix format.
+    """
+
+    board: list[str] | None = Field(default_factory=list)
+    shield: list[str] | None = Field(default_factory=list)
+    include: list[BuildTarget] | None = Field(default_factory=list)
+
+    @property
+    def targets(self) -> list[BuildTarget]:
+        targets: list[BuildTarget] = []
+        targets.extend(self.include if self.include else [])
+        if len(targets) == 0:
+            targets.extend(self._default_combinations())
+        return targets
+
+    def _default_combinations(
+        self,
+    ) -> list[BuildTarget]:
+        """Generate board/shield combinations.
+
+        Args:
+            config: Build configuration with defaults
+
+        Returns:
+            list[BuildTarget]: Generated build targets
+        """
+        targets: list[BuildTarget] = []
+        boards = self.board or []
+        shields = self.shield or []
+
+        # If shields specified, create board+shield combinations
+        for board in boards:
+            for shield in shields:
+                targets.append(BuildTarget(board=board, shield=shield))
+        else:
+            # No shields, just boards
+            for board in boards:
+                targets.append(BuildTarget(board=board))
+
+        return targets
+
+    @classmethod
+    def from_yaml(cls, yaml_path: Path) -> "BuildMatrix":
+        """Load BuildMatrix from YAML file."""
+        import yaml
+
+        with yaml_path.open("r") as f:
+            data = yaml.safe_load(f)
+        return cls(**data)
+
+    def to_yaml(self, yaml_path: Path) -> None:
+        """Save BuildMatrix to YAML file, explicitly including None fields."""
+
+        data = self.model_dump()
+
+        # # Explicitly exclude None fields in YAML output
+        for k, _ in data.items():
+            if k is None:
+                data.pop(k)
+
+        with yaml_path.open("w") as f:
+            yaml.safe_dump(data, f, default_flow_style=False, allow_unicode=True)

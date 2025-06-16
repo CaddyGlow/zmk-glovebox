@@ -1,4 +1,4 @@
-"""Ultra-simplified ZMK config compilation service."""
+"""ZMK config with west compilation service."""
 
 import logging
 import shutil
@@ -8,16 +8,9 @@ from typing import TYPE_CHECKING
 
 import yaml
 
-from glovebox.compilation.configuration.build_matrix_resolver import (
-    create_build_matrix_resolver,
-)
-from glovebox.compilation.models.build_matrix import BuildYamlConfig
+from glovebox.compilation.models.build_matrix import BuildMatrix
 from glovebox.compilation.models.west_config import (
     WestManifest,
-    WestManifestConfig,
-    WestProject,
-    WestRemote,
-    WestSelf,
 )
 from glovebox.compilation.protocols.compilation_protocols import (
     CompilationServiceProtocol,
@@ -35,7 +28,7 @@ if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
 
 
-class ZmkConfigSimpleService(CompilationServiceProtocol):
+class ZmkWestService(CompilationServiceProtocol):
     """Ultra-simplified ZMK config compilation service (<200 lines)."""
 
     def __init__(self, docker_adapter: DockerAdapterProtocol) -> None:
@@ -155,7 +148,8 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
                         )
 
                 # Set up config directory with fresh files
-                self._setup_config_dir(workspace_path, keymap_file, config_file, config)
+                config_dir = workspace_path / "config"
+                self._setup_config_dir(config_dir, keymap_file, config_file, config)
                 self.logger.info(
                     "Using cached workspace (will still run west update for branch changes)"
                 )
@@ -174,15 +168,7 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
         try:
             workspace_path = Path(tempfile.mkdtemp(prefix="zmk_"))
             config_dir = workspace_path / "config"
-            config_dir.mkdir()
-
-            # Copy files
-            shutil.copy2(keymap_file, config_dir / keymap_file.name)
-            shutil.copy2(config_file, config_dir / config_file.name)
-
-            # Create build configuration files using proper models
-            self._create_build_yaml(config_dir, config)
-            self._create_west_yml(config_dir, config)
+            self._setup_config_dir(config_dir, keymap_file, config_file, config)
 
             return workspace_path
         except Exception as e:
@@ -191,13 +177,12 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
 
     def _setup_config_dir(
         self,
-        workspace_path: Path,
+        config_dir: Path,
         keymap_file: Path,
         config_file: Path,
         config: ServiceZmkConfig,
     ) -> None:
         """Setup config directory with files."""
-        config_dir = workspace_path / "config"
         config_dir.mkdir(exist_ok=True)
 
         # Copy files
@@ -210,65 +195,20 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
 
     def _create_build_yaml(self, config_dir: Path, config: ServiceZmkConfig) -> None:
         """Create build.yaml using proper build matrix models."""
-        # Create build matrix configuration
-        if config.shields:
-            # Board + shield combinations
-            include_entries = []
-            for board in config.boards:
-                for shield in config.shields:
-                    include_entries.append({"board": board, "shield": shield})
-            build_config = BuildYamlConfig(include=include_entries)
-        else:
-            # Board-only builds
-            include_entries = [{"board": board} for board in config.boards]
-            build_config = BuildYamlConfig(include=include_entries)
-
-        # Write using the build matrix resolver
-        resolver = create_build_matrix_resolver()
-        resolver.write_config_to_yaml(build_config, config_dir / "build.yaml")
+        config.build_matrix.to_yaml(config_dir / "build.yaml")
 
     def _create_west_yml(self, config_dir: Path, config: ServiceZmkConfig) -> None:
         """Create west.yml using proper west config models."""
-        # Parse repository to get remote info
-        if "/" in config.repository:
-            if config.repository.startswith("https://github.com/"):
-                repo_parts = config.repository.replace("https://github.com/", "").split(
-                    "/"
-                )
-            else:
-                repo_parts = config.repository.split("/")
-            remote_name = repo_parts[0]
-            repo_name = repo_parts[1]
-            url_base = f"https://github.com/{remote_name}"
-        else:
-            remote_name = "zmkfirmware"
-            repo_name = config.repository
-            url_base = "https://github.com/zmkfirmware"
-
-        # Create west manifest using proper models
-        west_config = WestManifestConfig(
-            manifest=WestManifest(
-                remotes=[WestRemote(name=remote_name, url_base=url_base)],
-                projects=[
-                    WestProject(
-                        name=repo_name,
-                        remote=remote_name,
-                        revision=config.branch,
-                        import_="app/west.yml",
-                    )
-                ],
-                self=WestSelf(path="config"),
-            )
+        manifest = WestManifest.from_repository_config(
+            repository=config.repository,
+            branch=config.branch,
+            config_path="config",
+            import_file="app/west.yml",
         )
 
-        # Write to YAML file
+        # Create west manifest
         with (config_dir / "west.yml").open("w") as f:
-            yaml.safe_dump(
-                west_config.model_dump(by_alias=True, exclude_none=True),
-                f,
-                default_flow_style=False,
-                sort_keys=False,
-            )
+            f.write(manifest.to_yaml())
 
     def _run_compilation(self, workspace_path: Path, config: ServiceZmkConfig) -> bool:
         """Run Docker compilation."""
@@ -325,15 +265,12 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
                 return []
 
             # Load and parse build matrix
-            resolver = create_build_matrix_resolver()
-            build_matrix = resolver.resolve_from_build_yaml(build_yaml)
+            build_matrix = BuildMatrix.from_yaml(build_yaml)
 
             build_commands: list[str] = []
 
-            for _i, target in enumerate(build_matrix.targets):
-                build_dir = f"{target.artifact_name or target.board}"
-                if target.shield:
-                    build_dir = f"{target.shield}-{target.board}"
+            for target in build_matrix.targets:
+                build_dir = f"{target.artifact_name}"
 
                 # Build west command
                 cmd_parts = [
@@ -385,15 +322,11 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
                     output_dir=output_dir, main_uf2=None, artifacts_dir=None
                 )
 
-            resolver = create_build_matrix_resolver()
-            build_matrix = resolver.resolve_from_build_yaml(build_yaml)
+            build_matrix = BuildMatrix.from_yaml(build_yaml)
 
             # Look for build directories based on build matrix targets
             for target in build_matrix.targets:
-                build_dir_name = f"{target.artifact_name or target.board}"
-                if target.shield:
-                    build_dir_name = f"{target.shield}-{target.board}"
-
+                build_dir_name = target.artifact_name
                 build_path = workspace_path / build_dir_name
                 if not build_path.is_dir():
                     self.logger.warning(
@@ -460,6 +393,7 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
             # Configuration and debug files
             [".config", "zmk.kconfig"],
             ["zephyr.dts", "zmk.dts"],
+            ["zephyr.dts.pre", "zmk.dts.pre"],
             ["include/generated/devicetree_generated.h", "devicetree_generated.h"],
         ]
 
@@ -491,6 +425,6 @@ class ZmkConfigSimpleService(CompilationServiceProtocol):
 
 def create_zmk_config_simple_service(
     docker_adapter: DockerAdapterProtocol,
-) -> ZmkConfigSimpleService:
+) -> ZmkWestService:
     """Create simplified ZMK config service."""
-    return ZmkConfigSimpleService(docker_adapter)
+    return ZmkWestService(docker_adapter)

@@ -4,19 +4,59 @@ import logging
 import shlex
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from glovebox.models.docker import DockerUserContext
 from glovebox.protocols.docker_adapter_protocol import (
     DockerAdapterProtocol,
     DockerEnv,
-    DockerResult,
     DockerVolume,
+    ProcessResult,
+    T,
+    OutputMiddleware,
 )
 from glovebox.utils.error_utils import create_docker_error
+from glovebox.utils.stream_process import DefaultOutputMiddleware
 
 
 logger = logging.getLogger(__name__)
+
+
+class LoggerOutputMiddleware(OutputMiddleware[str]):
+    """Simple middleware that prints output with optional prefixes.
+
+    This middleware prints each line to the console with configurable
+    prefixes for stdout and stderr streams.
+    """
+
+    def __init__(
+        self, logger: logging.Logger, stdout_prefix: str = "", stderr_prefix: str = ""
+    ):
+        """Initialize middleware with custom prefixes.
+
+        Args:
+            stdout_prefix: Prefix for stdout lines (default: "")
+            stderr_prefix: Prefix for stderr lines (default: "")
+        """
+        self.logger = logger
+        self.stderr_prefix = stderr_prefix
+        self.stdout_prefix = stdout_prefix
+
+    def process(self, line: str, stream_type: str) -> str:
+        """Process and print a line with the appropriate prefix.
+
+        Args:
+            line: Output line to process
+            stream_type: Either "stdout" or "stderr"
+
+        Returns:
+            The original line (unmodified)
+        """
+        if stream_type == "stdout":
+            logger.debug(f"{self.stdout_prefix}{line}")
+        else:
+            logger.warning(f"{self.stderr_prefix}{line}")
+        return line
 
 
 class DockerAdapter:
@@ -54,10 +94,10 @@ class DockerAdapter:
         volumes: list[DockerVolume],
         environment: DockerEnv,
         command: list[str] | None = None,
-        middleware: Any | None = None,
+        middleware: OutputMiddleware[T] | None = None,
         user_context: DockerUserContext | None = None,
         entrypoint: str | None = None,
-    ) -> DockerResult:
+    ) -> ProcessResult[T]:
         """Run a Docker container with specified configuration."""
         from glovebox.utils import stream_process
 
@@ -93,24 +133,25 @@ class DockerAdapter:
         logger.debug("Docker command: %s", cmd_str)
 
         try:
-            result: tuple[int, list[str], list[str]] = stream_process.run_command(
-                docker_cmd, middleware
-            )
-            return_code: int = result[0]
-            stdout_lines_raw: list[str] = result[1]
-            stderr_lines_raw: list[str] = result[2]
-            stdout_lines: list[str] = stdout_lines_raw
-            stderr_lines: list[str] = stderr_lines_raw
+            if middleware is None:
+                # Cast is needed because T is unbound at this point
+                middleware = cast(OutputMiddleware[T], LoggerOutputMiddleware(logger))
+            result = stream_process.run_command(docker_cmd, middleware)
+            # return_code: int = result[0]
+            # stdout_lines_raw: list[str] = result[1]
+            # stderr_lines_raw: list[str] = result[2]
+            # stdout_lines: list[str] = stdout_lines_raw
+            # stderr_lines: list[str] = stderr_lines_raw
+            #
+            # if return_code != 0 and stderr_lines:
+            #     error_msg = "\n".join(stderr_lines)
+            #     logger.warning(
+            #         "Docker container exited with non-zero code %d: %s",
+            #         return_code,
+            #         error_msg[:200] + ("..." if len(error_msg) > 200 else ""),
+            #     )
 
-            if return_code != 0 and stderr_lines:
-                error_msg = "\n".join(stderr_lines)
-                logger.warning(
-                    "Docker container exited with non-zero code %d: %s",
-                    return_code,
-                    error_msg[:200] + ("..." if len(error_msg) > 200 else ""),
-                )
-
-            return return_code, stdout_lines, stderr_lines
+            return result  # return_code, stdout_lines, stderr_lines
 
         except FileNotFoundError as e:
             error = create_docker_error(f"Docker executable not found: {e}", cmd_str, e)

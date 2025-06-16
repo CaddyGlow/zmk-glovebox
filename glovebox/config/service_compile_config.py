@@ -10,21 +10,21 @@ Architecture Overview:
 - Service models contain only fields actually used by the compilation services
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from glovebox.compilation.models.build_matrix import BuildMatrix
 
 
 class ServiceCompileConfig(BaseModel):
     """Base service configuration for compilation methods."""
 
-    strategy: str
+    type: str
     image: str
     repository: str = "zmkfirmware/zmk"
     branch: str = "main"
-    # Build matrix configuration
-    boards: list[str] = ["nice_nano_v2"]
-    shields: list[str] = []  # Empty for non-shield keyboards
-    # Simple caching
-    use_cache: bool = True
+    build_matrix: BuildMatrix = Field(
+        default_factory=lambda: BuildMatrix(board=["nice_nano_v2"])
+    )
 
 
 class ServiceZmkConfig(ServiceCompileConfig):
@@ -39,12 +39,14 @@ class ServiceZmkConfig(ServiceCompileConfig):
     - shields: list of shield targets (empty for non-shield keyboards)
     """
 
-    strategy: str = "zmk_config"
+    type: str = "zmk_config"
     image: str = "zmkfirmware/zmk-build-arm:stable"
     repository: str = "zmkfirmware/zmk"
     branch: str = "main"
-    boards: list[str] = ["nice_nano_v2"]
-    shields: list[str] = []
+    build_matrix: BuildMatrix = Field(
+        default_factory=lambda: BuildMatrix(board=["nice_nano_v2"])
+    )
+    use_cache: bool = True
 
 
 class ServiceMoergoConfig(ServiceCompileConfig):
@@ -59,12 +61,13 @@ class ServiceMoergoConfig(ServiceCompileConfig):
     - shields: list of shield targets (empty for Glove80)
     """
 
-    strategy: str = "moergo"
+    type: str = "moergo"
     image: str = "glove80-zmk-config-docker"
     repository: str = "https://github.com/moergo-sc/zmk"
     branch: str = "v25.05"
-    boards: list[str] = ["glove80_lh", "glove80_rh"]
-    shields: list[str] = []  # Glove80 doesn't use shields
+    build_matrix: BuildMatrix = Field(
+        default_factory=lambda: BuildMatrix(board=["glove80_lh", "glove80_rh"])
+    )
 
 
 # Type union for service configurations

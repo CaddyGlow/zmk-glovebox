@@ -4,7 +4,6 @@ vendor: "foostan"
 key_count: 42
 
 compile_methods:
-  # ZMK Config strategy - generates workspace dynamically
   - strategy: zmk_config
     build_config:
       board: ["nice_nano_v2"]

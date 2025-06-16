@@ -1,18 +1,18 @@
 """Simplified compilation services for different build strategies."""
 
 from glovebox.compilation.services.moergo_simple import (
-    MoergoSimpleService,
+    MoergoNixService,
     create_moergo_simple_service,
 )
 from glovebox.compilation.services.zmk_config_simple import (
-    ZmkConfigSimpleService,
+    ZmkWestService,
     create_zmk_config_simple_service,
 )
 
 
 __all__: list[str] = [
-    "ZmkConfigSimpleService",
+    "ZmkWestService",
     "create_zmk_config_simple_service",
-    "MoergoSimpleService",
+    "MoergoNixService",
     "create_moergo_simple_service",
 ]

@@ -3,8 +3,6 @@
 from glovebox.compilation.models.build_matrix import (
     BuildMatrix,
     BuildTarget,
-    BuildTargetConfig,
-    BuildYamlConfig,
 )
 
 
@@ -38,36 +36,19 @@ def test_build_matrix_creation():
     target2 = BuildTarget(board="nice_nano_v2", shield="corne_right")
 
     matrix = BuildMatrix(
-        targets=[target1, target2],
-        board_defaults=["nice_nano_v2"],
-        shield_defaults=["corne_left", "corne_right"],
-    )
-
-    assert len(matrix.targets) == 2
-    assert matrix.board_defaults == ["nice_nano_v2"]
-    assert matrix.shield_defaults == ["corne_left", "corne_right"]
-
-
-def test_build_yaml_config_validation():
-    """Test BuildYamlConfig Pydantic model validation."""
-    config = BuildYamlConfig(
+        include=[target1, target2],
         board=["nice_nano_v2"],
         shield=["corne_left", "corne_right"],
-        include=[
-            {"board": "nice_nano_v2", "shield": "corne_left"},
-            {"board": "nice_nano_v2", "shield": "corne_right"},
-        ],
     )
 
-    assert config.board == ["nice_nano_v2"]
-    assert config.shield == ["corne_left", "corne_right"]
-    assert config.include is not None
-    assert len(config.include) == 2
+    assert len(matrix.include if matrix.include else []) == 2
+    assert matrix.board == ["nice_nano_v2"]
+    assert matrix.shield == ["corne_left", "corne_right"]
 
 
 def test_build_target_config_validation():
-    """Test BuildTargetConfig Pydantic model validation."""
-    config = BuildTargetConfig.model_validate(
+    """Test BuildTarget Pydantic model validation."""
+    config = BuildTarget.model_validate(
         {
             "board": "nice_nano_v2",
             "shield": "corne_left",
@@ -84,7 +65,7 @@ def test_build_target_config_validation():
 
 def test_build_yaml_config_empty():
     """Test BuildYamlConfig with empty defaults."""
-    config = BuildYamlConfig()
+    config = BuildMatrix()
 
     assert config.board == []
     assert config.shield == []
