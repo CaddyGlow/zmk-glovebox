@@ -3,7 +3,7 @@
 import logging
 from pathlib import Path
 
-from glovebox.config.compile_methods import DockerUserConfig
+from glovebox.compilation.models import DockerUserConfig
 
 
 logger = logging.getLogger(__name__)

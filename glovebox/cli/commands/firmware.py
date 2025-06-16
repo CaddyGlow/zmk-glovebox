@@ -17,14 +17,10 @@ from glovebox.cli.helpers.profile import (
     get_keyboard_profile_from_context,
     get_user_config_from_context,
 )
-from glovebox.config.compile_methods import (
+from glovebox.compilation.models import (
+    CompilationConfigUnion,
     MoergoCompilationConfig,
     ZmkCompilationConfig,
-)
-from glovebox.config.service_compile_config import (
-    ServiceCompileConfigUnion,
-    ServiceMoergoConfig,
-    ServiceZmkConfig,
 )
 from glovebox.firmware.flash import create_flash_service
 
@@ -45,7 +41,7 @@ def _setup_verbose_logging(verbose: bool) -> None:
 
 def _resolve_compilation_type(
     keyboard_profile: "KeyboardProfile", strategy: str | None, verbose: bool
-) -> tuple[str, MoergoCompilationConfig | ZmkCompilationConfig]:
+) -> tuple[str, CompilationConfigUnion]:
     """Resolve compilation type and config from profile."""
     # Get the appropriate compile method config from the keyboard profile
     if not keyboard_profile.keyboard_config.compile_methods:
@@ -92,9 +88,9 @@ def _resolve_compilation_type(
         logger.info("Repository: %s", getattr(compile_config, "repository", "N/A"))
         logger.info("Branch: %s", getattr(compile_config, "branch", "N/A"))
         if isinstance(compile_config, ZmkCompilationConfig):
-            build_config = compile_config.build_config
-            logger.info("Boards: %s", getattr(build_config, "board", []))
-            logger.info("Shields: %s", getattr(build_config, "shield", []))
+            build_matrix = compile_config.build_matrix
+            logger.info("Boards: %s", getattr(build_matrix, "board", []))
+            logger.info("Shields: %s", getattr(build_matrix, "shield", []))
         elif isinstance(compile_config, MoergoCompilationConfig):
             logger.info("Repository: %s", compile_config.repository)
             logger.info("Branch: %s", compile_config.branch)
@@ -105,83 +101,21 @@ def _resolve_compilation_type(
 
 
 def _update_config_from_profile(
-    compile_config: MoergoCompilationConfig | ZmkCompilationConfig,
+    compile_config: CompilationConfigUnion,
     keyboard_profile: "KeyboardProfile",
 ) -> None:
     """Update compile config with firmware settings from profile."""
     if keyboard_profile.firmware_config is not None:
-        if isinstance(compile_config, MoergoCompilationConfig):
-            compile_config.branch = (
-                keyboard_profile.firmware_config.build_options.branch
-            )
-            compile_config.repository = (
-                keyboard_profile.firmware_config.build_options.repository
-            )
+        # Update repository and branch - unified models have these directly
+        compile_config.branch = keyboard_profile.firmware_config.build_options.branch
+        compile_config.repository = (
+            keyboard_profile.firmware_config.build_options.repository
+        )
+
+        # For ZMK configs, also update workspace settings
         if isinstance(compile_config, ZmkCompilationConfig):
-            compile_config.workspace.branch = (
-                keyboard_profile.firmware_config.build_options.branch
-            )
-            compile_config.workspace.repository = (
-                keyboard_profile.firmware_config.build_options.repository
-            )
-
-
-def _create_service_config(
-    compile_config: MoergoCompilationConfig | ZmkCompilationConfig,
-    keyboard_profile: "KeyboardProfile",
-) -> ServiceCompileConfigUnion:
-    """Convert complex config to service config for simplified services."""
-    # Extract build matrix from the specific compile method config
-    boards: list[str] = ["nice_nano_v2"]  # default
-    shields: list[str] = []  # default
-
-    # Get build_config from the compile method itself
-    if hasattr(compile_config, "build_config") and compile_config.build_config:
-        build_config = compile_config.build_config
-        if hasattr(build_config, "board") and build_config.board:
-            boards = (
-                build_config.board
-                if isinstance(build_config.board, list)
-                else [build_config.board]
-            )
-        if hasattr(build_config, "shield") and build_config.shield:
-            shields = (
-                build_config.shield
-                if isinstance(build_config.shield, list)
-                else [build_config.shield]
-            )
-
-    # Get repository and branch from compile config
-    repository = getattr(compile_config, "repository", None)
-    branch = getattr(compile_config, "branch", None)
-
-    # Override with firmware config if available
-    if keyboard_profile.firmware_config:
-        repository = (
-            repository or keyboard_profile.firmware_config.build_options.repository
-        )
-        branch = branch or keyboard_profile.firmware_config.build_options.branch
-
-    if isinstance(compile_config, MoergoCompilationConfig):
-        return ServiceMoergoConfig(
-            type="moergo",
-            image=compile_config.image,
-            repository=repository or "moergo-sc/zmk",
-            branch=branch or "v25.05",
-            boards=boards,
-            shields=shields,
-        )
-    elif isinstance(compile_config, ZmkCompilationConfig):
-        return ServiceZmkConfig(
-            type="zmk_config",
-            image=compile_config.image,
-            repository=repository or "zmkfirmware/zmk",
-            branch=branch or "main",
-            boards=boards,
-            shields=shields,
-        )
-    else:
-        raise ValueError(f"Unsupported config type: {type(compile_config)}")
+            compile_config.workspace.branch = compile_config.branch
+            compile_config.workspace.repository = compile_config.repository
 
 
 def _execute_compilation_service(
@@ -189,7 +123,7 @@ def _execute_compilation_service(
     keymap_file: Path,
     kconfig_file: Path,
     build_output_dir: Path,
-    compile_config: MoergoCompilationConfig | ZmkCompilationConfig,
+    compile_config: CompilationConfigUnion,
     keyboard_profile: "KeyboardProfile",
 ) -> Any:
     """Execute the compilation service."""
@@ -197,14 +131,12 @@ def _execute_compilation_service(
 
     compilation_service = create_compilation_service(compilation_strategy)
 
-    # Convert to service config for simplified services
-    service_config = _create_service_config(compile_config, keyboard_profile)
-
+    # Use unified config directly - no conversion needed
     return compilation_service.compile(
         keymap_file=keymap_file,
         config_file=kconfig_file,
         output_dir=build_output_dir,
-        config=service_config,
+        config=compile_config,
         keyboard_profile=keyboard_profile,
     )
 

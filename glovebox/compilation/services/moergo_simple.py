@@ -8,12 +8,12 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from glovebox.compilation.models import (
+    CompilationConfigUnion,
+    MoergoCompilationConfig,
+)
 from glovebox.compilation.protocols.compilation_protocols import (
     CompilationServiceProtocol,
-)
-from glovebox.config.service_compile_config import (
-    ServiceCompileConfigUnion,
-    ServiceMoergoConfig,
 )
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.models.docker import DockerUserContext
@@ -39,15 +39,17 @@ class MoergoNixService(CompilationServiceProtocol):
         keymap_file: Path,
         config_file: Path,
         output_dir: Path,
-        config: ServiceCompileConfigUnion,
+        config: CompilationConfigUnion,
         keyboard_profile: "KeyboardProfile",
     ) -> BuildResult:
         """Execute Moergo compilation."""
         self.logger.info("Starting Moergo compilation")
 
         try:
-            if not isinstance(config, ServiceMoergoConfig):
-                return BuildResult(success=False, errors=["Invalid config type"])
+            if not isinstance(config, MoergoCompilationConfig):
+                return BuildResult(
+                    success=False, errors=["Invalid config type for Moergo compilation"]
+                )
 
             workspace_path = self._setup_workspace(
                 keymap_file, config_file, keyboard_profile
@@ -78,9 +80,9 @@ class MoergoNixService(CompilationServiceProtocol):
             self.logger.error("Compilation failed: %s", e)
             return BuildResult(success=False, errors=[str(e)])
 
-    def validate_config(self, config: ServiceCompileConfigUnion) -> bool:
+    def validate_config(self, config: CompilationConfigUnion) -> bool:
         """Validate configuration."""
-        return isinstance(config, ServiceMoergoConfig) and bool(config.image)
+        return isinstance(config, MoergoCompilationConfig) and bool(config.image)
 
     def check_available(self) -> bool:
         """Check availability."""
@@ -117,7 +119,7 @@ class MoergoNixService(CompilationServiceProtocol):
             return None
 
     def _run_compilation(
-        self, workspace_path: DockerPath, config: ServiceMoergoConfig
+        self, workspace_path: DockerPath, config: MoergoCompilationConfig
     ) -> bool:
         """Run Docker compilation."""
         try:

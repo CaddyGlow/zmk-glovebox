@@ -106,10 +106,8 @@ class BuildMatrix(BaseModel):
 
         data = self.model_dump()
 
-        # # Explicitly exclude None fields in YAML output
-        for k, _ in data.items():
-            if k is None:
-                data.pop(k)
+        # Filter out None values in YAML output
+        data = {k: v for k, v in data.items() if v is not None}
 
         with yaml_path.open("w") as f:
             yaml.safe_dump(data, f, default_flow_style=False, allow_unicode=True)

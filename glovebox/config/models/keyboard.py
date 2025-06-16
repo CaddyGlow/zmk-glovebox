@@ -4,10 +4,11 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from ..compile_methods import (
+from glovebox.compilation.models import (
     MoergoCompilationConfig,
     ZmkCompilationConfig,
 )
+
 from ..flash_methods import USBFlashConfig
 from ..models.workspace import UserWorkspaceConfig
 from .behavior import BehaviorConfig

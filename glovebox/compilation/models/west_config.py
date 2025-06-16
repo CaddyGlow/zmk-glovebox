@@ -6,12 +6,12 @@ Models based on:
 """
 
 import configparser
-import yaml
 from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
 from typing import Any
 
+import yaml
 from pydantic import BaseModel, Field
 
 
