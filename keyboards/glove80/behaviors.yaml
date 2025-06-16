@@ -126,7 +126,7 @@ system_behaviors:
     params:
       - "code"
     includes:
-      - "#include <dt-bindings/zmk/keys.h>"
+      - "dt-bindings/zmk/keys.h"
 
   - code: "&caps_word"
     name: "Caps Word"
@@ -237,7 +237,7 @@ system_behaviors:
     params:
       - "command"
     includes:
-      - "#include <dt-bindings/zmk/bt.h>"
+      - "dt-bindings/zmk/bt.h"
     commands:
       - code: "BT_CLR"
         description: "Clear bond information between the keyboard and host for the selected profile."
@@ -282,7 +282,7 @@ system_behaviors:
     params:
       - "command"
     includes:
-      - "#include <dt-bindings/zmk/outputs.h>"
+      - "dt-bindings/zmk/outputs.h"
     commands:
       - code: "OUT_BLE"
         description: "Prefer sending to the current bluetooth profile"
@@ -301,7 +301,7 @@ system_behaviors:
     params:
       - "command"
     includes:
-      - "#include <dt-bindings/zmk/rgb.h>"
+      - "dt-bindings/zmk/rgb.h"
     commands:
       - code: "RGB_TOG"
         description: "Toggles the RGB feature on and off"
@@ -354,7 +354,7 @@ system_behaviors:
     params:
       - "command"
     includes:
-      - "#include <dt-bindings/zmk/pointing.h>"
+      - "dt-bindings/zmk/pointing.h"
     commands:
       - code: "MB1"
         name: "Mouse button 1"
@@ -391,7 +391,7 @@ system_behaviors:
     params:
       - "command"
     includes:
-      - "#include <dt-bindings/zmk/pointing.h>"
+      - "dt-bindings/zmk/pointing.h"
     commands:
       - code: "MOVE_X"
         name: "Mouse horizontal movement"
@@ -426,7 +426,7 @@ system_behaviors:
     params:
       - "command"
     includes:
-      - "#include <dt-bindings/zmk/pointing.h>"
+      - "dt-bindings/zmk/pointing.h"
     commands:
       - code: "MOVE_X"
         name: "Mouse horizontal scroll"

@@ -29,7 +29,7 @@ behaviors:
       params:
         - "code"
       includes:
-        - "#include <dt-bindings/zmk/keys.h>"
+        - "dt-bindings/zmk/keys.h"
 
     - code: "&caps_word"
       name: "Caps Word"

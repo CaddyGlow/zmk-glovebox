@@ -206,13 +206,17 @@ def build_template_context(
     macros_data = keymap_data.macros
     input_listeners_data = getattr(keymap_data, "input_listeners", [])
 
-    # Get resolved includes from the profile
+    # Get resolved includes from the profile and format them as #include <>
     resolved_includes = []
     if (
         hasattr(profile.keyboard_config.keymap, "includes")
         and profile.keyboard_config.keymap.includes is not None
     ):
-        resolved_includes = profile.keyboard_config.keymap.includes
+        # Format bare header names as #include <header_name>
+        resolved_includes = [
+            f"#include <{include}>"
+            for include in profile.keyboard_config.keymap.includes
+        ]
 
     # Generate DTSI components
     layer_defines = dtsi_generator.generate_layer_defines(profile, layer_names)
