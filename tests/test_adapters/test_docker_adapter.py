@@ -8,11 +8,29 @@ import pytest
 
 from glovebox.adapters.docker_adapter import (
     DockerAdapter,
+    LoggerOutputMiddleware,
     create_docker_adapter,
 )
 from glovebox.core.errors import DockerError
 from glovebox.models.docker import DockerUserContext
 from glovebox.protocols.docker_adapter_protocol import DockerAdapterProtocol
+
+
+def _assert_docker_command_called(mock_run_command, expected_cmd):
+    """Helper to assert Docker command was called with expected arguments and default middleware."""
+    mock_run_command.assert_called_once()
+    call_args = mock_run_command.call_args
+    assert call_args[0][0] == expected_cmd  # First argument should be the command
+    assert isinstance(
+        call_args[0][1], LoggerOutputMiddleware
+    )  # Second should be middleware
+
+
+def _assert_docker_command_called_with_middleware(
+    mock_run_command, expected_cmd, expected_middleware
+):
+    """Helper to assert Docker command was called with expected arguments and custom middleware."""
+    mock_run_command.assert_called_once_with(expected_cmd, expected_middleware)
 
 
 class TestDockerAdapter:
@@ -90,7 +108,7 @@ class TestDockerAdapter:
             "echo",
             "hello",
         ]
-        mock_run_command.assert_called_once_with(expected_cmd, None)
+        _assert_docker_command_called(mock_run_command, expected_cmd)
 
     def test_run_container_no_command(self):
         """Test container execution without explicit command."""
@@ -102,7 +120,7 @@ class TestDockerAdapter:
             adapter.run_container(image="ubuntu:latest", volumes=[], environment={})
 
         expected_cmd = ["docker", "run", "--rm", "ubuntu:latest"]
-        mock_run_command.assert_called_once_with(expected_cmd, None)
+        _assert_docker_command_called(mock_run_command, expected_cmd)
 
     def test_run_container_multiple_volumes_and_env(self):
         """Test container execution with multiple volumes and environment variables."""
@@ -131,7 +149,7 @@ class TestDockerAdapter:
             "VAR2=value2",
             "ubuntu:latest",
         ]
-        mock_run_command.assert_called_once_with(expected_cmd, None)
+        _assert_docker_command_called(mock_run_command, expected_cmd)
 
     def test_run_container_with_middleware(self):
         """Test container execution with middleware."""
@@ -149,7 +167,9 @@ class TestDockerAdapter:
             )
 
         expected_cmd = ["docker", "run", "--rm", "ubuntu:latest"]
-        mock_run_command.assert_called_once_with(expected_cmd, mock_middleware)
+        _assert_docker_command_called_with_middleware(
+            mock_run_command, expected_cmd, mock_middleware
+        )
 
     def test_run_container_with_entrypoint(self):
         """Test container execution with custom entrypoint."""
@@ -173,7 +193,7 @@ class TestDockerAdapter:
             "/bin/bash",
             "ubuntu:latest",
         ]
-        mock_run_command.assert_called_once_with(expected_cmd, None)
+        _assert_docker_command_called(mock_run_command, expected_cmd)
 
     def test_run_container_with_entrypoint_and_command(self):
         """Test container execution with custom entrypoint and command."""
@@ -204,7 +224,7 @@ class TestDockerAdapter:
             "-c",
             "echo hello",
         ]
-        mock_run_command.assert_called_once_with(expected_cmd, None)
+        _assert_docker_command_called(mock_run_command, expected_cmd)
 
     def test_run_container_no_entrypoint(self):
         """Test container execution without entrypoint uses default behavior."""
@@ -221,7 +241,7 @@ class TestDockerAdapter:
             )
 
         expected_cmd = ["docker", "run", "--rm", "ubuntu:latest"]
-        mock_run_command.assert_called_once_with(expected_cmd, None)
+        _assert_docker_command_called(mock_run_command, expected_cmd)
 
     def test_run_container_with_user_context(self):
         """Test container execution with user context."""
@@ -248,7 +268,7 @@ class TestDockerAdapter:
             "1000:1000",
             "ubuntu:latest",
         ]
-        mock_run_command.assert_called_once_with(expected_cmd, None)
+        _assert_docker_command_called(mock_run_command, expected_cmd)
 
     def test_run_container_with_user_context_disabled(self):
         """Test container execution with user context but mapping disabled."""
@@ -268,7 +288,7 @@ class TestDockerAdapter:
             )
 
         expected_cmd = ["docker", "run", "--rm", "ubuntu:latest"]
-        mock_run_command.assert_called_once_with(expected_cmd, None)
+        _assert_docker_command_called(mock_run_command, expected_cmd)
 
     def test_run_container_with_user_context_unsupported_platform(self):
         """Test container execution with user context on unsupported platform."""
@@ -294,7 +314,7 @@ class TestDockerAdapter:
 
         # Should not include --user flag when platform is unsupported
         expected_cmd = ["docker", "run", "--rm", "ubuntu:latest"]
-        mock_run_command.assert_called_once_with(expected_cmd, None)
+        _assert_docker_command_called(mock_run_command, expected_cmd)
 
     def test_run_container_with_all_parameters(self):
         """Test container execution with all parameters including user context and entrypoint."""
@@ -337,7 +357,9 @@ class TestDockerAdapter:
             "echo",
             "hello",
         ]
-        mock_run_command.assert_called_once_with(expected_cmd, mock_middleware)
+        _assert_docker_command_called_with_middleware(
+            mock_run_command, expected_cmd, mock_middleware
+        )
 
     def test_run_container_no_user_context(self):
         """Test container execution without user context."""
@@ -354,7 +376,7 @@ class TestDockerAdapter:
             )
 
         expected_cmd = ["docker", "run", "--rm", "ubuntu:latest"]
-        mock_run_command.assert_called_once_with(expected_cmd, None)
+        _assert_docker_command_called(mock_run_command, expected_cmd)
 
     def test_run_container_exception(self):
         """Test container execution handles exceptions."""
