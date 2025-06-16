@@ -95,6 +95,7 @@ def mock_keyboard_config_dict() -> dict[str, Any]:
             },
             {
                 "method_type": "dfu",
+                "device_query": "DFU",
                 "vid": "0x1234",
                 "pid": "0x5678",
                 "interface": 0,
@@ -190,6 +191,7 @@ def keyboard_config_dir(tmp_path):
             },
             {
                 "method_type": "dfu",
+                "device_query": "DFU",
                 "vid": "0x1234",
                 "pid": "0x5678",
                 "interface": 0,
@@ -299,6 +301,7 @@ def keyboard_config_dir(tmp_path):
             },
             {
                 "method_type": "dfu",
+                "device_query": "DFU",
                 "vid": "0x1209",
                 "pid": "0x0080",
                 "interface": 0,

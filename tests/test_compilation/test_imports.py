@@ -62,9 +62,10 @@ def test_factory_functions_exist():
 
 def test_subdomain_factory_functions():
     """Test that subdomain factory functions exist."""
-    from glovebox.compilation.configuration import create_build_matrix_resolver
+    # The configuration subdomain has been removed in the refactoring
+    # Test that models are still available
+    from glovebox.compilation.models.build_matrix import BuildMatrix, BuildTarget
 
-    # Test build matrix resolver factory function exists and works
-    assert callable(create_build_matrix_resolver)
-    resolver = create_build_matrix_resolver()
-    assert resolver is not None
+    # Test model classes exist
+    assert BuildMatrix is not None
+    assert BuildTarget is not None

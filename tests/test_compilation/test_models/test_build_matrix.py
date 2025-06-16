@@ -13,7 +13,8 @@ def test_build_target_creation():
     assert target.shield is None
     assert target.cmake_args == []
     assert target.snippet is None
-    assert target.artifact_name is None
+    # artifact_name is computed from board when not explicitly set
+    assert target.artifact_name == "nice_nano_v2-zmk"
 
 
 def test_build_target_with_shield():
