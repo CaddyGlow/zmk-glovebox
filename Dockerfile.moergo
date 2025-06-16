@@ -1,4 +1,4 @@
-FROM nixpkgs/nix:nixos-23.11
+FROM nixpkgs/nix:nixos-23.11 as base
 
 ENV PATH=/root/.nix-profile/bin:/usr/bin:/bin
 

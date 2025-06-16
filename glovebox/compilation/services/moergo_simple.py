@@ -1,4 +1,6 @@
-"""Ultra-simplified Moergo compilation service."""
+"""Compilation service for the glove80 using docker image form Moergo
+with the nix toolchain
+"""
 
 import logging
 import shutil
@@ -17,13 +19,14 @@ from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.models.docker import DockerUserContext
 from glovebox.models.docker_path import DockerPath
 from glovebox.protocols import DockerAdapterProtocol
+from glovebox.utils.stream_process import DefaultOutputMiddleware
 
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
 
 
-class MoergoSimpleService(CompilationServiceProtocol):
+class MoergoNixService(CompilationServiceProtocol):
     """Ultra-simplified Moergo compilation service (<200 lines)."""
 
     def __init__(self, docker_adapter: DockerAdapterProtocol) -> None:
@@ -223,6 +226,6 @@ class MoergoSimpleService(CompilationServiceProtocol):
 
 def create_moergo_simple_service(
     docker_adapter: DockerAdapterProtocol,
-) -> MoergoSimpleService:
+) -> MoergoNixService:
     """Create simplified Moergo service."""
-    return MoergoSimpleService(docker_adapter)
+    return MoergoNixService(docker_adapter)

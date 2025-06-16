@@ -43,10 +43,10 @@ def _setup_verbose_logging(verbose: bool) -> None:
         logger.info("Verbose mode enabled - detailed logging activated")
 
 
-def _resolve_compilation_strategy(
+def _resolve_compilation_type(
     keyboard_profile: "KeyboardProfile", strategy: str | None, verbose: bool
 ) -> tuple[str, MoergoCompilationConfig | ZmkCompilationConfig]:
-    """Resolve compilation strategy and config from profile."""
+    """Resolve compilation type and config from profile."""
     # Get the appropriate compile method config from the keyboard profile
     if not keyboard_profile.keyboard_config.compile_methods:
         print_error_message(
@@ -84,10 +84,9 @@ def _resolve_compilation_strategy(
         raise typer.Exit(1)
 
     # At this point, compile_config is guaranteed to be not None
-    compilation_strategy = compile_config.strategy
+    compilation_strategy = compile_config.type
 
     if verbose:
-        logger.info("Compilation strategy: %s", compilation_strategy)
         logger.info("Compile config type: %s", type(compile_config).__name__)
         logger.info("Docker image: %s", compile_config.image)
         logger.info("Repository: %s", getattr(compile_config, "repository", "N/A"))
@@ -165,7 +164,7 @@ def _create_service_config(
 
     if isinstance(compile_config, MoergoCompilationConfig):
         return ServiceMoergoConfig(
-            strategy="moergo",
+            type="moergo",
             image=compile_config.image,
             repository=repository or "moergo-sc/zmk",
             branch=branch or "v25.05",
@@ -174,7 +173,7 @@ def _create_service_config(
         )
     elif isinstance(compile_config, ZmkCompilationConfig):
         return ServiceZmkConfig(
-            strategy="zmk_config",
+            type="zmk_config",
             image=compile_config.image,
             repository=repository or "zmkfirmware/zmk",
             branch=branch or "main",
@@ -315,7 +314,7 @@ def firmware_compile(
 
     try:
         # Resolve compilation strategy and configuration
-        compilation_strategy, compile_config = _resolve_compilation_strategy(
+        compilation_type, compile_config = _resolve_compilation_type(
             keyboard_profile, strategy, verbose
         )
 
@@ -324,7 +323,7 @@ def firmware_compile(
 
         # Execute compilation
         result = _execute_compilation_service(
-            compilation_strategy,
+            compilation_type,
             keymap_file,
             kconfig_file,
             build_output_dir,

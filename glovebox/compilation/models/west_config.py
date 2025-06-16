@@ -6,6 +6,7 @@ Models based on:
 """
 
 import configparser
+import yaml
 from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
@@ -92,6 +93,175 @@ class WestManifest(BaseModel):
     model_config = {
         "populate_by_name": True,
     }
+
+    def to_yaml(self) -> str:
+        """Serialize manifest to YAML string.
+
+        Returns:
+            str: YAML representation of the manifest
+        """
+        return yaml.safe_dump(
+            self.model_dump(by_alias=True, exclude_none=True),
+            default_flow_style=False,
+            sort_keys=False,
+        )
+
+    @classmethod
+    def from_yaml(cls, yaml_content: str) -> "WestManifest":
+        """Create WestManifest from YAML string.
+
+        Args:
+            yaml_content: YAML string content
+
+        Returns:
+            WestManifest: Parsed manifest
+        """
+        data = yaml.safe_load(yaml_content)
+        return cls(**data)
+
+    @classmethod
+    def from_repository_config(
+        cls,
+        repository: str,
+        branch: str = "main",
+        config_path: str = "config",
+        import_file: str = "app/west.yml",
+    ) -> "WestManifest":
+        """Create west manifest from repository and branch information.
+
+        Args:
+            repository: Repository specification (e.g., 'zmkfirmware/zmk-config' or full URL)
+            branch: Git branch/revision to use
+
+        Returns:
+            WestManifest: Configured manifest
+        """
+        # Parse repository to get remote info
+        # TODO: algo to be confirmed
+        # TODO: should use the repository setter
+        if "/" in repository:
+            if repository.startswith("https://github.com/"):
+                repo_parts = repository.replace("https://github.com/", "").split("/")
+            else:
+                repo_parts = repository.split("/")
+            remote_name = repo_parts[0]
+            repo_name = repo_parts[1]
+            url_base = f"https://github.com/{remote_name}"
+        else:
+            remote_name = "zmkfirmware"
+            repo_name = repository
+            url_base = "https://github.com/zmkfirmware"
+
+        return cls(
+            remotes=[WestRemote(name=remote_name, url_base=url_base)],
+            projects=[
+                WestProject(
+                    name=repo_name,
+                    remote=remote_name,
+                    revision=branch,
+                    import_=import_file,
+                )
+            ],
+            self=WestSelf(path=config_path),
+        )
+
+    @property
+    def repository(self) -> str | None:
+        """Get repository specification from first project.
+
+        Returns:
+            str | None: Repository specification or None if no projects
+        """
+        if not self.projects or not self.projects[0].remote:
+            return None
+
+        project = self.projects[0]
+        remote = next(
+            (r for r in (self.remotes or []) if r.name == project.remote), None
+        )
+
+        if not remote:
+            return None
+
+        # Extract owner from URL base
+        if remote.url_base.startswith("https://github.com/"):
+            owner = remote.url_base.replace("https://github.com/", "")
+            return f"{owner}/{project.name}"
+
+        return project.name
+
+    @repository.setter
+    def repository(self, value: str) -> None:
+        """Set repository specification, updating remotes and projects.
+
+        Args:
+            value: Repository specification (e.g., 'zmkfirmware/zmk-config')
+        """
+        # Parse repository to get remote info
+        if "/" in value:
+            if value.startswith("https://github.com/"):
+                repo_parts = value.replace("https://github.com/", "").split("/")
+            else:
+                repo_parts = value.split("/")
+            remote_name = repo_parts[0]
+            repo_name = repo_parts[1]
+            url_base = f"https://github.com/{remote_name}"
+        else:
+            remote_name = "zmkfirmware"
+            repo_name = value
+            url_base = "https://github.com/zmkfirmware"
+
+        # Update remotes
+        if not self.remotes:
+            self.remotes = []
+
+        # Find or create remote
+        remote = next((r for r in self.remotes if r.name == remote_name), None)
+        if remote:
+            remote.url_base = url_base
+        else:
+            self.remotes.append(WestRemote(name=remote_name, url_base=url_base))
+
+        # Update projects
+        if not self.projects:
+            self.projects = []
+
+        if self.projects:
+            # Update first project
+            self.projects[0].name = repo_name
+            self.projects[0].remote = remote_name
+        else:
+            # Create new project
+            self.projects.append(
+                WestProject(
+                    name=repo_name,
+                    remote=remote_name,
+                    import_="app/west.yml",
+                )
+            )
+
+    @property
+    def branch(self) -> str:
+        """Get branch/revision from first project.
+
+        Returns:
+            str: Branch/revision, defaults to 'main'
+        """
+        if self.projects and self.projects[0].revision:
+            return self.projects[0].revision
+        return "main"
+
+    @branch.setter
+    def branch(self, value: str) -> None:
+        """Set branch/revision for first project.
+
+        Args:
+            value: Branch/revision to set
+        """
+        if not self.projects:
+            self.projects = [WestProject(name="", revision=value)]
+        else:
+            self.projects[0].revision = value
 
 
 class WestManifestConfig(BaseModel):

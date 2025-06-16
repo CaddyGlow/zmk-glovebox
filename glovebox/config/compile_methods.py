@@ -12,7 +12,7 @@ from glovebox.models.docker_path import DockerPath
 
 
 if TYPE_CHECKING:
-    from glovebox.compilation.models.build_matrix import BuildYamlConfig
+    from glovebox.compilation.models.build_matrix import BuildMatrix
 
 
 def expand_path_variables(path_str: Path) -> Path:
@@ -90,13 +90,6 @@ class ZmkWorkspaceConfig(BaseModel):
     repository: str = "zmkfirmware/zmk"
     branch: str = "main"
 
-    # ZMK configuration repository to clone
-    config_repo_url: str | None = None
-    config_repo_revision: str | None = None
-
-    # Matrix filename
-    build_matrix_file: Path = Field(default=Path("build.yaml"))
-
     # Host and container path mappings
     # if the host path is not specified we don't
     # set the volume.
@@ -122,18 +115,17 @@ class ZmkWorkspaceConfig(BaseModel):
 class ZmkCompilationConfig(DockerCompilationConfig):
     """ZMK compilation configuration with GitHub Actions artifact naming."""
 
-    strategy: str = "zmk_config"
+    type: str = "zmk_config"
 
     # Cache configuration
     cache: CacheConfig = Field(default_factory=CacheConfig)
 
     artifact_naming: str = "zmk_github_actions"
 
-    build_config: "BuildYamlConfig" = Field(
-        default_factory=lambda: __import__(
-            "glovebox.compilation.models.build_matrix", fromlist=["BuildYamlConfig"]
-        ).BuildYamlConfig()
-    )
+    build_config: "BuildMatrix" = Field()
+    # default_factory=lambda: __import__(
+    #     "glovebox.compilation.models.build_matrix", fromlist=["BuildYamlConfig"]
+    # ).BuildYamlConfig()
 
     # ZMK workspace configuration
     workspace: ZmkWorkspaceConfig = Field(default_factory=ZmkWorkspaceConfig)
@@ -142,14 +134,10 @@ class ZmkCompilationConfig(DockerCompilationConfig):
 class MoergoCompilationConfig(DockerCompilationConfig):
     """Moergo compilation configuration using simple Docker volume to temp folder."""
 
-    strategy: str = "moergo"
+    type: str = "moergo"
 
     # Docker configuration
-    image: str = "glove80-zmk-config-docker"
-
-    # We need to override the entrypoint to be able to
-    # execute commands in the container
-    # entrypoint_command: str | None = "/bin/sh"
+    image: str = "glovebox-zmk-config"
 
     # Repository and firmware branch
     # only branch is used for Moergo
@@ -162,8 +150,6 @@ class MoergoCompilationConfig(DockerCompilationConfig):
         )
     )
 
-    # Build configuration
-    build_commands: list[str] = Field(default_factory=list)
     docker_user: DockerUserConfig = DockerUserConfig(enable_user_mapping=False)
 
 
@@ -172,7 +158,6 @@ __all__ = [
     "ZmkWorkspaceConfig",
     "CacheConfig",
     "DockerUserConfig",
-    "DockerCompilationConfig",
     "ZmkCompilationConfig",
     "MoergoCompilationConfig",
 ]
@@ -181,7 +166,7 @@ __all__ = [
 # Rebuild models that use forward references after all classes are defined
 def _rebuild_models() -> None:
     """Rebuild models with forward references."""
-    from glovebox.compilation.models.build_matrix import BuildYamlConfig
+    from glovebox.compilation.models.build_matrix import BuildMatrix
 
     ZmkCompilationConfig.model_rebuild()
     MoergoCompilationConfig.model_rebuild()

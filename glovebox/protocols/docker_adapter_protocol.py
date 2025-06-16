@@ -1,10 +1,10 @@
 """Protocol definition for Docker operations."""
 
 from pathlib import Path
-from typing import Any, Protocol, TypeAlias, runtime_checkable
+from typing import Any, Protocol, TypeAlias, TypeVar, runtime_checkable
 
 from glovebox.models.docker import DockerUserContext
-
+from glovebox.utils.stream_process import OutputMiddleware, T, ProcessResult
 
 # Type aliases for Docker operations
 DockerVolume: TypeAlias = tuple[str, str]  # (host_path, container_path)
@@ -32,10 +32,10 @@ class DockerAdapterProtocol(Protocol):
         volumes: list[DockerVolume],
         environment: DockerEnv,
         command: list[str] | None = None,
-        middleware: Any | None = None,
+        middleware: OutputMiddleware[T] | None = None,
         user_context: DockerUserContext | None = None,
         entrypoint: str | None = None,
-    ) -> DockerResult:
+    ) -> ProcessResult[T]:
         """Run a Docker container with specified configuration.
 
         Args:
