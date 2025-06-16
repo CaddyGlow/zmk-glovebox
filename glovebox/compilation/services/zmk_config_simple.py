@@ -8,16 +8,16 @@ from typing import TYPE_CHECKING
 
 import yaml
 
+from glovebox.compilation.models import (
+    CompilationConfigUnion,
+    ZmkCompilationConfig,
+)
 from glovebox.compilation.models.build_matrix import BuildMatrix
 from glovebox.compilation.models.west_config import (
     WestManifest,
 )
 from glovebox.compilation.protocols.compilation_protocols import (
     CompilationServiceProtocol,
-)
-from glovebox.config.service_compile_config import (
-    ServiceCompileConfigUnion,
-    ServiceZmkConfig,
 )
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.models.docker import DockerUserContext
@@ -41,15 +41,17 @@ class ZmkWestService(CompilationServiceProtocol):
         keymap_file: Path,
         config_file: Path,
         output_dir: Path,
-        config: ServiceCompileConfigUnion,
+        config: CompilationConfigUnion,
         keyboard_profile: "KeyboardProfile",
     ) -> BuildResult:
         """Execute ZMK compilation."""
         self.logger.info("Starting ZMK config compilation")
 
         try:
-            if not isinstance(config, ServiceZmkConfig):
-                return BuildResult(success=False, errors=["Invalid config type"])
+            if not isinstance(config, ZmkCompilationConfig):
+                return BuildResult(
+                    success=False, errors=["Invalid config type for ZMK compilation"]
+                )
 
             # Try to use cached workspace first
             workspace_path = self._get_or_create_workspace(
@@ -85,15 +87,15 @@ class ZmkWestService(CompilationServiceProtocol):
             self.logger.error("Compilation failed: %s", e)
             return BuildResult(success=False, errors=[str(e)])
 
-    def validate_config(self, config: ServiceCompileConfigUnion) -> bool:
+    def validate_config(self, config: CompilationConfigUnion) -> bool:
         """Validate configuration."""
-        return isinstance(config, ServiceZmkConfig) and bool(config.image)
+        return isinstance(config, ZmkCompilationConfig) and bool(config.image)
 
     def check_available(self) -> bool:
         """Check availability."""
         return self.docker_adapter is not None
 
-    def _get_cached_workspace(self, config: ServiceZmkConfig) -> Path | None:
+    def _get_cached_workspace(self, config: ZmkCompilationConfig) -> Path | None:
         """Get cached workspace if available."""
         if not config.use_cache:
             return None
@@ -107,7 +109,9 @@ class ZmkWestService(CompilationServiceProtocol):
             return cache_dir
         return None
 
-    def _cache_workspace(self, workspace_path: Path, config: ServiceZmkConfig) -> None:
+    def _cache_workspace(
+        self, workspace_path: Path, config: ZmkCompilationConfig
+    ) -> None:
         """Cache workspace for future use."""
         if not config.use_cache:
             return
@@ -131,7 +135,7 @@ class ZmkWestService(CompilationServiceProtocol):
             self.logger.warning("Failed to cache workspace: %s", e)
 
     def _get_or_create_workspace(
-        self, keymap_file: Path, config_file: Path, config: ServiceZmkConfig
+        self, keymap_file: Path, config_file: Path, config: ZmkCompilationConfig
     ) -> Path | None:
         """Get cached workspace or create new one."""
         # Try to use cached workspace
@@ -162,7 +166,7 @@ class ZmkWestService(CompilationServiceProtocol):
         return self._setup_workspace(keymap_file, config_file, config)
 
     def _setup_workspace(
-        self, keymap_file: Path, config_file: Path, config: ServiceZmkConfig
+        self, keymap_file: Path, config_file: Path, config: ZmkCompilationConfig
     ) -> Path | None:
         """Setup temporary workspace."""
         try:
@@ -180,7 +184,7 @@ class ZmkWestService(CompilationServiceProtocol):
         config_dir: Path,
         keymap_file: Path,
         config_file: Path,
-        config: ServiceZmkConfig,
+        config: ZmkCompilationConfig,
     ) -> None:
         """Setup config directory with files."""
         config_dir.mkdir(exist_ok=True)
@@ -193,11 +197,13 @@ class ZmkWestService(CompilationServiceProtocol):
         self._create_build_yaml(config_dir, config)
         self._create_west_yml(config_dir, config)
 
-    def _create_build_yaml(self, config_dir: Path, config: ServiceZmkConfig) -> None:
+    def _create_build_yaml(
+        self, config_dir: Path, config: ZmkCompilationConfig
+    ) -> None:
         """Create build.yaml using proper build matrix models."""
         config.build_matrix.to_yaml(config_dir / "build.yaml")
 
-    def _create_west_yml(self, config_dir: Path, config: ServiceZmkConfig) -> None:
+    def _create_west_yml(self, config_dir: Path, config: ZmkCompilationConfig) -> None:
         """Create west.yml using proper west config models."""
         manifest = WestManifest.from_repository_config(
             repository=config.repository,
@@ -210,7 +216,9 @@ class ZmkWestService(CompilationServiceProtocol):
         with (config_dir / "west.yml").open("w") as f:
             f.write(manifest.to_yaml())
 
-    def _run_compilation(self, workspace_path: Path, config: ServiceZmkConfig) -> bool:
+    def _run_compilation(
+        self, workspace_path: Path, config: ZmkCompilationConfig
+    ) -> bool:
         """Run Docker compilation."""
         try:
             # Generate proper build commands using build matrix
@@ -232,13 +240,16 @@ class ZmkWestService(CompilationServiceProtocol):
 
             self.logger.info("Running Docker command: %s", " && ".join(all_commands))
 
-            return_code, stdout, stderr = self.docker_adapter.run_container(
-                image=config.image,
-                command=["sh", "-c", " && ".join(all_commands)],
-                volumes=[(str(workspace_path), "/workspace")],
-                environment={"JOBS": "4"},
-                user_context=user_context,
+            result: tuple[int, list[str], list[str]] = (
+                self.docker_adapter.run_container(
+                    image=config.image,
+                    command=["sh", "-c", " && ".join(all_commands)],
+                    volumes=[(str(workspace_path), "/workspace")],
+                    environment={"JOBS": "4"},
+                    user_context=user_context,
+                )
             )
+            return_code, stdout, stderr = result
 
             if return_code != 0:
                 self.logger.error("Build failed with exit code %d", return_code)
@@ -255,7 +266,7 @@ class ZmkWestService(CompilationServiceProtocol):
             return False
 
     def _generate_build_commands(
-        self, workspace_path: Path, config: ServiceZmkConfig
+        self, workspace_path: Path, config: ZmkCompilationConfig
     ) -> list[str]:
         """Generate west build commands from build matrix."""
         try:

@@ -1,5 +1,6 @@
 """Cache management CLI commands."""
 
+import contextlib
 import logging
 import shutil
 from pathlib import Path
@@ -251,7 +252,7 @@ def clear_workspace(
             console.print(f"[green]✓ Cleared cached workspace for {repository}[/green]")
         except Exception as e:
             console.print(f"[red]Failed to clear cache: {e}[/red]")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
     else:
         # Clear all workspaces
         cached_workspaces = list(cache_dir.iterdir())
@@ -279,7 +280,7 @@ def clear_workspace(
             )
         except Exception as e:
             console.print(f"[red]Failed to clear cache: {e}[/red]")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
 
 
 @cache_app.command(name="info")
@@ -429,11 +430,9 @@ def import_workspace(
         console.print(f"[red]Failed to import workspace: {e}[/red]")
         # Clean up partial cache on failure
         if target_cache_dir.exists():
-            try:
+            with contextlib.suppress(Exception):
                 shutil.rmtree(target_cache_dir)
-            except Exception:
-                pass
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 @cache_app.command(name="cleanup")

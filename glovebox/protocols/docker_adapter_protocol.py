@@ -4,7 +4,8 @@ from pathlib import Path
 from typing import Any, Protocol, TypeAlias, TypeVar, runtime_checkable
 
 from glovebox.models.docker import DockerUserContext
-from glovebox.utils.stream_process import OutputMiddleware, T, ProcessResult
+from glovebox.utils.stream_process import OutputMiddleware, ProcessResult, T
+
 
 # Type aliases for Docker operations
 DockerVolume: TypeAlias = tuple[str, str]  # (host_path, container_path)

@@ -11,12 +11,13 @@ from glovebox.protocols.docker_adapter_protocol import (
     DockerAdapterProtocol,
     DockerEnv,
     DockerVolume,
-    ProcessResult,
-    T,
-    OutputMiddleware,
 )
 from glovebox.utils.error_utils import create_docker_error
-from glovebox.utils.stream_process import DefaultOutputMiddleware
+from glovebox.utils.stream_process import (
+    OutputMiddleware,
+    ProcessResult,
+    T,
+)
 
 
 logger = logging.getLogger(__name__)
