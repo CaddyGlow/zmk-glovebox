@@ -64,9 +64,7 @@ def setup_layout_command_test(mock_layout_service, mock_keyboard_profile):
 def setup_firmware_command_test(mock_keyboard_profile):
     """Set up common mocks for firmware command tests."""
     with (
-        patch(
-            "glovebox.cli.commands.firmware.create_compilation_service"
-        ) as mock_create_service,
+        patch("glovebox.compilation.create_compilation_service") as mock_create_service,
         patch("glovebox.cli.commands.firmware.Path") as mock_path_cls,
         patch(
             "glovebox.cli.helpers.profile.create_profile_from_context"
@@ -96,8 +94,18 @@ def setup_firmware_command_test(mock_keyboard_profile):
 
         # Set up profile mock - ensure keyboard_config has compile_methods
         mock_keyboard_profile.keyboard_config.compile_methods = [
-            Mock(method_type="docker", strategy="zmk_config", image="test-zmk-build")
+            Mock(type="moergo", image="test-zmk-build")
         ]
+
+        # Set up firmware_config with build_options
+        mock_build_options = Mock()
+        mock_build_options.repository = "test-repo"
+        mock_build_options.branch = "test-branch"
+
+        mock_firmware_config = Mock()
+        mock_firmware_config.build_options = mock_build_options
+
+        mock_keyboard_profile.firmware_config = mock_firmware_config
         mock_create_profile.return_value = mock_keyboard_profile
 
         yield {
@@ -210,8 +218,6 @@ def test_layout_commands(
             [
                 "keymap.keymap",
                 "config.conf",
-                "--output-dir",
-                "output",
                 "--profile",
                 "glove80/v25.05",
             ],

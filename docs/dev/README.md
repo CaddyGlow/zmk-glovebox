@@ -15,8 +15,11 @@ Welcome to the Glovebox developer documentation. This guide will help you unders
 git clone https://github.com/your-org/glovebox.git
 cd glovebox
 
-# Install with development dependencies
+# Install with development dependencies (recommended)
 uv sync
+
+# Or using pip
+pip install -e ".[dev]"
 
 # Set up pre-commit hooks
 pre-commit install
@@ -105,22 +108,25 @@ result = flash_service.flash_device(device, firmware_file)
   - `FlashOperations`: Low-level mount/unmount operations
 
 ### Compilation Domain (`glovebox/compilation/`)
-**Purpose**: Advanced compilation strategies and workspace management
+**Purpose**: Direct compilation strategies with intelligent caching and workspace management
 
 ```python
-from glovebox.compilation import create_compilation_coordinator
+from glovebox.compilation import create_compilation_service
 
-coordinator = create_compilation_coordinator()
-result = coordinator.compile(profile, strategy, keymap_file, config_file)
+# Direct strategy selection - user chooses via CLI
+service = create_compilation_service(strategy="zmk_config")
+result = service.compile(profile, keymap_file, config_file, options)
 ```
 
 **Key Features**:
+- **Direct Strategy Selection**: Users choose compilation strategy via CLI (no coordination layer)
 - **Dynamic ZMK Config Generation**: Creates complete ZMK workspaces on-the-fly
-- **Multi-Strategy Compilation**: Supports zmk_config, west, cmake build strategies
-- **Intelligent Caching**: Workspace-aware caching with cleanup
+- **Multi-Strategy Compilation**: Supports zmk_config, west, cmake, make, ninja, custom strategies
+- **Generic Cache Integration**: Uses domain-agnostic cache system for workspace and dependency caching
+- **Build Matrix Support**: GitHub Actions style build matrices with automatic split keyboard detection
 
 ### Configuration System (`glovebox/config/`)
-**Purpose**: Type-safe configuration management
+**Purpose**: Type-safe modular configuration management
 
 ```python
 from glovebox.config import create_keyboard_profile
@@ -133,9 +139,11 @@ profile = create_keyboard_profile("glove80")
 ```
 
 **Key Features**:
+- **Modular YAML Structure**: Configuration files with includes and inheritance
 - **Keyboard-Only Profile Support**: Minimal configurations for flashing
 - **Multi-source Configuration**: Environment, global, local precedence
 - **Type Safety**: Pydantic models with validation
+- **Compilation Configuration**: Unified models for all compilation strategies
 
 ## Development Workflow
 
@@ -149,9 +157,21 @@ profile = create_keyboard_profile("glove80")
 ### Adding New Features
 
 #### Adding a New Keyboard
-1. Create keyboard configuration in `keyboards/my_keyboard.yaml`
-2. Define flash configuration, build settings, firmware variants
-3. Test with `glovebox config list`
+1. **Create modular configuration structure:**
+   ```bash
+   keyboards/
+   ├── my_keyboard.yaml        # Main entry point with includes
+   └── my_keyboard/
+       ├── main.yaml           # Core keyboard definition
+       ├── hardware.yaml       # Hardware specifications
+       ├── firmwares.yaml      # Firmware variants
+       ├── strategies.yaml     # Compilation methods
+       ├── kconfig.yaml        # Kconfig options
+       └── behaviors.yaml      # Behavior definitions
+   ```
+2. **Define compilation strategies, flash configuration, firmware variants**
+3. **Test configuration loading:** `glovebox config list`
+4. **Test compilation:** `glovebox firmware compile --profile my_keyboard/firmware_version`
 
 #### Adding a New Service
 1. Create service class following `*Service` naming convention
@@ -212,9 +232,13 @@ from glovebox.models.results import BuildResult
 # Domain services from their domains
 from glovebox.layout import create_layout_service
 from glovebox.firmware import create_build_service
+from glovebox.compilation import create_compilation_service
 
 # Configuration from config package
 from glovebox.config import create_keyboard_profile
+
+# Generic cache system
+from glovebox.core.cache import create_default_cache
 ```
 
 ## Debugging and Troubleshooting
@@ -228,6 +252,11 @@ glovebox -v [command]          # INFO + stack traces
 
 # Log to file
 glovebox --debug --log-file debug.log [command]
+
+# Debug specific domains
+glovebox --debug layout compile input.json output/     # Layout domain
+glovebox --debug firmware compile keymap.keymap config.conf  # Firmware domain
+glovebox --debug config list                          # Configuration domain
 ```
 
 ### Common Issues

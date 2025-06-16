@@ -123,39 +123,32 @@ Firmware Domain
 
 ### Compilation Domain (`glovebox/compilation/`)
 
-**Responsibility**: Direct compilation strategies with generic caching
+**Responsibility**: Direct compilation strategies with intelligent caching and workspace management
 
 ```
 Compilation Domain
 ├── Services
-│   ├── BaseCompilationService  # Common Docker compilation logic
-│   ├── ZmkConfigService       # ZMK config builds (GitHub Actions style)
-│   └── WestService            # Traditional west builds
+│   ├── moergo_simple.py       # MoErgo Nix toolchain strategy
+│   └── zmk_config_simple.py   # ZMK config builds (GitHub Actions style)
 ├── Cache System
-│   └── CompilationCache       # Domain-specific cache using generic system
-├── Generation
-│   └── ZmkConfigGenerator     # Dynamic workspace creation
-├── Configuration
-│   ├── BuildMatrixResolver    # GitHub Actions matrix support
-│   ├── EnvironmentManager     # Environment variables
-│   └── VolumeManager          # Docker volume mapping
-├── Workspace
-│   ├── WorkspaceManager       # Base workspace coordination
-│   ├── ZmkConfigWorkspace     # ZMK config workspaces
-│   └── WestWorkspace          # West workspaces
-└── Models
-    ├── BuildMatrix            # Compilation matrix
-    ├── WorkspaceConfig        # Workspace configuration
-    └── CompilationResult      # Compilation results
+│   ├── base_dependencies_cache.py  # Base dependency caching
+│   └── cache_injector.py      # Cache dependency injection
+├── Models
+│   ├── build_matrix.py        # GitHub Actions build matrix
+│   ├── compilation_config.py  # Unified compilation configuration
+│   └── west_config.py         # West workspace configuration
+└── Protocols
+    └── compilation_protocols.py  # Type-safe interfaces
 ```
 
 **Key Responsibilities**:
 - Provide direct strategy selection via CLI (no coordination layer)
 - Generate complete ZMK workspaces dynamically
 - Manage intelligent caching using generic cache system
-- Resolve GitHub Actions build matrices
-- Handle environment variable templating
-- Execute Docker-based compilation with common patterns
+- Resolve GitHub Actions build matrices with automatic split keyboard detection
+- Handle Docker user context and volume mapping
+- Execute Docker-based compilation with unified configuration models
+- Support multiple compilation strategies: zmk_config, west, cmake, make, ninja, custom
 
 ### Configuration Domain (`glovebox/config/`)
 
@@ -329,18 +322,19 @@ def load_keyboard_config(keyboard_name: str) -> KeyboardConfig:
 
 ### Strategy Pattern
 
-Compilation uses direct strategy selection with factory functions:
+Compilation uses direct strategy selection with unified configuration:
 
 ```python
 from glovebox.compilation import create_compilation_service
+from glovebox.compilation.models import ZmkCompilationConfig, MoergoCompilationConfig
 
 # Direct strategy selection - user chooses via CLI
-def compile_firmware(strategy: str, ...) -> CompilationResult:
+def compile_firmware(strategy: str, config: CompilationConfig, ...) -> CompilationResult:
     service = create_compilation_service(strategy)
-    return service.compile(...)
+    return service.compile(config, ...)
 
-# Available strategies: "zmk_config", "west", "cmake", "make", "ninja", "custom"
-# Each strategy implemented as separate service extending BaseCompilationService
+# Available strategies: "zmk_config", "moergo", "west", "cmake", "make", "ninja", "custom"
+# Each strategy configured through unified CompilationConfig models
 ```
 
 ## Data Flow

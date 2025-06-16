@@ -123,9 +123,10 @@ make coverage       # Run tests with coverage reporting
 
 # Using scripts or uv
 ./scripts/test.sh
-uv run pytest
-uv run ruff check . --fix
-uv run mypy glovebox/
+uv sync             # Install dependencies
+uv run pytest      # Run tests
+uv run ruff check . --fix  # Fix linting issues
+uv run mypy glovebox/      # Type checking
 ```
 
 ### Build and Run
@@ -164,11 +165,14 @@ The codebase is organized into self-contained domains:
   - Models: `FlashResult`, `BlockDevice`
 
 #### Compilation Domain (`glovebox/compilation/`)
-- **Purpose**: Advanced firmware compilation strategies, workspace management
-- **Factory Functions**: `create_compilation_coordinator()`, `create_zmk_config_service()`, `create_west_service()`
+- **Purpose**: Direct compilation strategies with intelligent caching and workspace management
+- **Factory Functions**: `create_compilation_service()`, `create_zmk_config_service()`, `create_west_service()`
 - **Key Features**:
+  - **Direct Strategy Selection**: Users choose compilation strategy via CLI (no coordination layer)
   - **Dynamic ZMK Config Generation**: Creates complete ZMK workspaces without external repositories
-  - **Multi-Strategy Compilation**: Supports zmk_config, west, cmake build strategies
+  - **Multi-Strategy Compilation**: Supports zmk_config, west, cmake, make, ninja, custom strategies
+  - **Generic Cache Integration**: Uses domain-agnostic cache system for workspace and dependency caching
+  - **Build Matrix Support**: GitHub Actions style build matrices with automatic split keyboard detection
 
 #### Configuration System (`glovebox/config/`)
 - **Purpose**: Type-safe configuration management, keyboard profiles, user settings
@@ -206,6 +210,26 @@ Examples:
 - `glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05`
 - `glovebox firmware flash firmware.uf2 --profile glove80/v25.05`
 
+### Modular Configuration System
+
+The configuration system now uses a modular YAML structure with includes:
+
+```yaml
+# keyboards/glove80.yaml (main config)
+includes:
+  - "glove80/main.yaml"
+
+# keyboards/glove80/main.yaml
+keyboard: "glove80"
+description: "MoErgo Glove80 split ergonomic keyboard"
+includes:
+  - "hardware.yaml"     # Hardware specifications
+  - "firmwares.yaml"    # Firmware variants
+  - "strategies.yaml"   # Compilation strategies
+  - "kconfig.yaml"      # Kconfig options
+  - "behaviors.yaml"    # Behavior definitions
+```
+
 ### KeyboardProfile Pattern
 
 The KeyboardProfile pattern is central to the architecture:
@@ -228,6 +252,31 @@ glovebox layout compile input.json output/ --profile glove80/v25.05
 # Using keyboard-only profile (NEW: no firmware part)
 glovebox status --profile glove80
 glovebox firmware flash firmware.uf2 --profile glove80
+```
+
+### Compilation Configuration
+
+Compilation strategies are now configured through unified models:
+
+```python
+from glovebox.compilation.models import ZmkCompilationConfig, MoergoCompilationConfig
+
+# ZMK compilation with west workspace
+zmk_config = ZmkCompilationConfig(
+    type="zmk_config",
+    repository="zmkfirmware/zmk",
+    branch="main",
+    build_matrix=BuildMatrix(board=["nice_nano_v2"]),
+    use_cache=True
+)
+
+# MoErgo compilation with Nix toolchain
+moergo_config = MoergoCompilationConfig(
+    type="moergo",
+    repository="moergo-sc/zmk",
+    branch="v25.05",
+    build_matrix=BuildMatrix(board=["glove80_lh", "glove80_rh"])
+)
 ```
 
 ## Maintainability Guidelines
@@ -267,6 +316,7 @@ For detailed information, refer to:
 # Domain-specific models from their domains
 from glovebox.layout.models import LayoutData, LayoutBinding
 from glovebox.firmware.flash.models import FlashResult, BlockDevice
+from glovebox.compilation.models import CompilationConfig, BuildMatrix
 
 # Core models from models package
 from glovebox.models.results import BuildResult, LayoutResult
@@ -275,9 +325,13 @@ from glovebox.models.results import BuildResult, LayoutResult
 from glovebox.layout import create_layout_service, create_layout_component_service
 from glovebox.firmware import create_build_service
 from glovebox.firmware.flash import create_flash_service
+from glovebox.compilation import create_compilation_service
 
 # Configuration from config package
 from glovebox.config import create_keyboard_profile, KeyboardProfile
+
+# Generic cache system
+from glovebox.core.cache import create_default_cache, create_filesystem_cache
 ```
 
 **IMPORTANT**: The codebase uses clean domain boundaries with no backward compatibility layers.
