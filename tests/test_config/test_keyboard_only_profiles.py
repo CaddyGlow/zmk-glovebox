@@ -77,31 +77,19 @@ class TestKeyboardConfigDefaults:
             "key_count": 10,
             "compile_methods": [
                 {
-                    "method_type": "docker",
+                    "type": "moergo",
                     "image": "test_image",
                     "repository": "test/repo",
                     "branch": "main",
-                    "fallback_methods": ["local"],
                 }
             ],
             "flash_methods": [
                 {
-                    "method_type": "usb",
                     "device_query": "test_query",
                     "mount_timeout": 30,
                     "copy_timeout": 60,
                     "sync_after_copy": True,
-                    "fallback_methods": ["dfu"],
-                },
-                {
-                    "method_type": "dfu",
-                    "vid": "1234",
-                    "pid": "5678",
-                    "interface": 0,
-                    "alt_setting": 0,
-                    "timeout": 30,
-                    "fallback_methods": [],
-                },
+                }
             ],
             # Note: No firmwares or keymap sections
         }
@@ -125,31 +113,19 @@ class TestKeyboardConfigDefaults:
             "key_count": 10,
             "compile_methods": [
                 {
-                    "method_type": "docker",
+                    "type": "moergo",
                     "image": "test_image",
                     "repository": "test/repo",
                     "branch": "main",
-                    "fallback_methods": ["local"],
                 }
             ],
             "flash_methods": [
                 {
-                    "method_type": "usb",
                     "device_query": "test_query",
                     "mount_timeout": 30,
                     "copy_timeout": 60,
                     "sync_after_copy": True,
-                    "fallback_methods": ["dfu"],
-                },
-                {
-                    "method_type": "dfu",
-                    "vid": "1234",
-                    "pid": "5678",
-                    "interface": 0,
-                    "alt_setting": 0,
-                    "timeout": 30,
-                    "fallback_methods": [],
-                },
+                }
             ],
             "firmwares": {
                 "v1.0": {
@@ -187,21 +163,18 @@ class TestKeyboardOnlyProfileCreation:
                 "key_count": 10,
                 "compile_methods": [
                     {
-                        "method_type": "docker",
+                        "type": "moergo",
                         "image": "test_image",
                         "repository": "test/repo",
                         "branch": "main",
-                        "fallback_methods": [],
                     }
                 ],
                 "flash_methods": [
                     {
-                        "method_type": "usb",
                         "device_query": "test_query",
                         "mount_timeout": 30,
                         "copy_timeout": 60,
                         "sync_after_copy": True,
-                        "fallback_methods": [],
                     }
                 ],
             }
@@ -245,18 +218,22 @@ class TestKeyboardOnlyProfileCreation:
                 "description": "Test keyboard with firmware",
                 "vendor": "Test Vendor",
                 "key_count": 10,
-                "flash": {
-                    "method": "usb_mount",
-                    "query": "test_query",
-                    "usb_vid": "1234",
-                    "usb_pid": "5678",
-                },
-                "build": {
-                    "method": "docker",
-                    "docker_image": "test_image",
-                    "repository": "test/repo",
-                    "branch": "main",
-                },
+                "compile_methods": [
+                    {
+                        "type": "moergo",
+                        "image": "test_image",
+                        "repository": "test/repo",
+                        "branch": "main",
+                    }
+                ],
+                "flash_methods": [
+                    {
+                        "device_query": "test_query",
+                        "mount_timeout": 30,
+                        "copy_timeout": 60,
+                        "sync_after_copy": True,
+                    }
+                ],
                 "firmwares": {
                     "v1.0": {
                         "version": "v1.0",
@@ -342,18 +319,22 @@ class TestProfileHelperFunctions:
                 "description": "Test keyboard for option parsing",
                 "vendor": "Test Vendor",
                 "key_count": 10,
-                "flash": {
-                    "method": "usb_mount",
-                    "query": "test_query",
-                    "usb_vid": "1234",
-                    "usb_pid": "5678",
-                },
-                "build": {
-                    "method": "docker",
-                    "docker_image": "test_image",
-                    "repository": "test/repo",
-                    "branch": "main",
-                },
+                "compile_methods": [
+                    {
+                        "type": "moergo",
+                        "image": "test_image",
+                        "repository": "test/repo",
+                        "branch": "main",
+                    }
+                ],
+                "flash_methods": [
+                    {
+                        "device_query": "test_query",
+                        "mount_timeout": 30,
+                        "copy_timeout": 60,
+                        "sync_after_copy": True,
+                    }
+                ],
             }
 
             config_file = keyboards_dir / "test_option.yaml"
@@ -402,18 +383,22 @@ class TestKeyboardOnlyProfileErrorHandling:
                 "description": "Test keyboard without firmwares",
                 "vendor": "Test Vendor",
                 "key_count": 10,
-                "flash": {
-                    "method": "usb_mount",
-                    "query": "test_query",
-                    "usb_vid": "1234",
-                    "usb_pid": "5678",
-                },
-                "build": {
-                    "method": "docker",
-                    "docker_image": "test_image",
-                    "repository": "test/repo",
-                    "branch": "main",
-                },
+                "compile_methods": [
+                    {
+                        "type": "moergo",
+                        "image": "test_image",
+                        "repository": "test/repo",
+                        "branch": "main",
+                    }
+                ],
+                "flash_methods": [
+                    {
+                        "device_query": "test_query",
+                        "mount_timeout": 30,
+                        "copy_timeout": 60,
+                        "sync_after_copy": True,
+                    }
+                ],
                 # No firmwares section
             }
 
@@ -462,31 +447,19 @@ class TestKeyboardOnlyProfileIntegration:
                 "key_count": 80,
                 "compile_methods": [
                     {
-                        "method_type": "docker",
+                        "type": "zmk",
                         "image": "zmkfirmware/zmk-build-arm:stable",
                         "repository": "zmkfirmware/zmk",
                         "branch": "main",
-                        "fallback_methods": ["local"],
                     }
                 ],
                 "flash_methods": [
                     {
-                        "method_type": "usb",
                         "device_query": "vendor=Test and removable=true",
                         "mount_timeout": 30,
                         "copy_timeout": 60,
                         "sync_after_copy": True,
-                        "fallback_methods": ["dfu"],
-                    },
-                    {
-                        "method_type": "dfu",
-                        "vid": "0x1234",
-                        "pid": "0x5678",
-                        "interface": 0,
-                        "alt_setting": 0,
-                        "timeout": 30,
-                        "fallback_methods": [],
-                    },
+                    }
                 ],
             }
 
@@ -534,18 +507,22 @@ class TestKeyboardOnlyProfileIntegration:
                 "description": "Test filename priority",
                 "vendor": "Test Vendor",
                 "key_count": 10,
-                "flash": {
-                    "method": "usb_mount",
-                    "query": "test_query",
-                    "usb_vid": "1234",
-                    "usb_pid": "5678",
-                },
-                "build": {
-                    "method": "docker",
-                    "docker_image": "test_image",
-                    "repository": "test/repo",
-                    "branch": "main",
-                },
+                "compile_methods": [
+                    {
+                        "type": "moergo",
+                        "image": "test_image",
+                        "repository": "test/repo",
+                        "branch": "main",
+                    }
+                ],
+                "flash_methods": [
+                    {
+                        "device_query": "test_query",
+                        "mount_timeout": 30,
+                        "copy_timeout": 60,
+                        "sync_after_copy": True,
+                    }
+                ],
             }
 
             # Save with filename different from keyboard field

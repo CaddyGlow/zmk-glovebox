@@ -18,7 +18,7 @@ class TestDockerPath:
     def test_basic_creation(self):
         """Test basic DockerPath creation."""
         docker_path = DockerPath(
-            host_path="/host/path", container_path="/container/path"
+            host_path=Path("/host/path"), container_path="/container/path"
         )
 
         assert docker_path.host() == Path("/host/path").resolve()
@@ -27,7 +27,7 @@ class TestDockerPath:
     def test_vol_mapping(self):
         """Test volume mapping generation."""
         docker_path = DockerPath(
-            host_path="/host/workspace", container_path="/workspace"
+            host_path=Path("/host/workspace"), container_path="/workspace"
         )
 
         vol_mapping = docker_path.vol()
@@ -45,7 +45,9 @@ class TestDockerPath:
 
     def test_join_subpaths(self):
         """Test joining subpaths to create new DockerPath."""
-        base_path = DockerPath(host_path="/host/workspace", container_path="/workspace")
+        base_path = DockerPath(
+            host_path=Path("/host/workspace"), container_path="/workspace"
+        )
 
         config_path = base_path.join("config")
         assert config_path.host() == Path("/host/workspace/config").resolve()
@@ -63,7 +65,7 @@ class TestDockerPath:
         """Test that join handles double slashes in container paths."""
         # Container path with trailing slash
         base_path = DockerPath(
-            host_path="/host/workspace", container_path="/workspace/"
+            host_path=Path("/host/workspace"), container_path="/workspace/"
         )
         config_path = base_path.join("config")
 
@@ -72,7 +74,7 @@ class TestDockerPath:
     def test_string_representations(self):
         """Test string and repr representations."""
         docker_path = DockerPath(
-            host_path="/host/path", container_path="/container/path"
+            host_path=Path("/host/path"), container_path="/container/path"
         )
 
         str_repr = str(docker_path)
@@ -148,7 +150,7 @@ class TestDockerPathSet:
         """Test adding pre-created DockerPath instances."""
         path_set = DockerPathSet()
         docker_path = DockerPath(
-            host_path="/custom/host", container_path="/custom/container"
+            host_path=Path("/custom/host"), container_path="/custom/container"
         )
 
         path_set.add_path("custom", docker_path)
@@ -254,7 +256,8 @@ class TestDockerPathIntegration:
         """Test typical usage workflow."""
         # Create workspace path
         workspace = DockerPath(
-            host_path="/home/user/zmk-builds/build123", container_path="/workspace"
+            host_path=Path("/home/user/zmk-builds/build123"),
+            container_path="/workspace",
         )
 
         # Get volume mapping for Docker
