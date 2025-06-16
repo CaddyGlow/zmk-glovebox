@@ -190,25 +190,23 @@ firmware:
 
     def test_wait_config_serialization(self, tmp_path):
         """Test wait config can be serialized and deserialized."""
-        # Create config with wait settings
-        original_config = UserConfigData.model_validate(
-            {
-                "firmware": {
-                    "flash": {
-                        "wait": True,
-                        "poll_interval": 2.0,
-                        "show_progress": False,
-                    }
+        # Create raw YAML config data (not Pydantic model)
+        config_data = {
+            "firmware": {
+                "flash": {
+                    "wait": True,
+                    "poll_interval": 2.0,
+                    "show_progress": False,
                 }
             }
-        )
+        }
 
         # Serialize to YAML
         config_file = tmp_path / "serialized_config.yaml"
         import yaml
 
         with config_file.open("w") as f:
-            yaml.dump(original_config.model_dump(), f)
+            yaml.dump(config_data, f)
 
         # Load back and verify
         user_config = create_user_config(cli_config_path=config_file)

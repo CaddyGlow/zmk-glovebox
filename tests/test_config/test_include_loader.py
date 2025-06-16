@@ -350,7 +350,12 @@ class TestIncludeConfigLoader:
         # Create base configuration with a list
         base_config = {
             "compile_methods": [
-                {"method_type": "docker", "image": "base_image"},
+                {
+                    "type": "moergo",
+                    "image": "base_image",
+                    "repository": "test/repo",
+                    "branch": "main",
+                },
             ]
         }
 
@@ -362,7 +367,12 @@ class TestIncludeConfigLoader:
             "vendor": "Test Vendor",
             "key_count": 42,
             "compile_methods": [
-                {"method_type": "local", "toolchain": "local_toolchain"},
+                {
+                    "type": "zmk",
+                    "image": "local_image",
+                    "repository": "test/local",
+                    "branch": "main",
+                },
             ],
         }
 
@@ -373,9 +383,9 @@ class TestIncludeConfigLoader:
 
         # Lists should be merged (base + main)
         assert len(result.compile_methods) == 2
-        methods = [method.method_type for method in result.compile_methods]
-        assert "docker" in methods
-        assert "local" in methods
+        methods = [method.type for method in result.compile_methods]
+        assert "moergo" in methods
+        assert "zmk" in methods
 
     def test_dictionary_merging(self):
         """Test that dictionaries are properly merged during include processing."""
@@ -554,16 +564,16 @@ class TestIncludeLoaderIntegration:
                 horizontal_spacer: " │ "
 
             compile_methods:
-              - method_type: "docker"
+              - type: "zmk"
                 image: "zmkfirmware/zmk-build-arm:stable"
-                jobs: 4
+                repository: "zmkfirmware/zmk"
+                branch: "main"
 
             flash_methods:
-              - method_type: "usb"
-                vid: "16c0"
-                pid: "0478"
-                timeout: 30
-                track_flashed: true
+              - device_query: "vendor=ZSA and removable=true"
+                mount_timeout: 30
+                copy_timeout: 60
+                sync_after_copy: true
         """)
 
         # Create subdirectory for shared files
@@ -605,6 +615,6 @@ class TestIncludeLoaderIntegration:
 
         # Verify method configurations from main file
         assert len(result.compile_methods) == 1
-        assert result.compile_methods[0].method_type == "docker"
+        assert result.compile_methods[0].type == "zmk"
         assert len(result.flash_methods) == 1
-        assert result.flash_methods[0].method_type == "usb"
+        assert result.flash_methods[0].device_query == "vendor=ZSA and removable=true"

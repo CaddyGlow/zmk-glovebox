@@ -85,12 +85,13 @@ class TestDockerAdapter:
         )
 
         with patch("glovebox.utils.stream_process.run_command", mock_run_command):
-            return_code, stdout, stderr = adapter.run_container(
+            result: tuple[int, list[str], list[str]] = adapter.run_container(
                 image="ubuntu:latest",
                 volumes=[("/host/path", "/container/path")],
                 environment={"ENV_VAR": "value"},
                 command=["echo", "hello"],
             )
+            return_code, stdout, stderr = result
 
         assert return_code == 0
         assert stdout == ["output line 1", "output line 2"]

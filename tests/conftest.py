@@ -76,32 +76,18 @@ def mock_keyboard_config_dict() -> dict[str, Any]:
         "key_count": 80,
         "compile_methods": [
             {
-                "method_type": "docker",
+                "type": "moergo",
                 "image": "test-zmk-build",
                 "repository": "test/zmk",
                 "branch": "main",
-                "jobs": 4,
-                "fallback_methods": ["local"],
             }
         ],
         "flash_methods": [
             {
-                "method_type": "usb",
                 "device_query": "vendor=Test and removable=true",
                 "mount_timeout": 30,
                 "copy_timeout": 60,
                 "sync_after_copy": True,
-                "fallback_methods": ["dfu"],
-            },
-            {
-                "method_type": "dfu",
-                "device_query": "DFU",
-                "vid": "0x1234",
-                "pid": "0x5678",
-                "interface": 0,
-                "alt_setting": 0,
-                "timeout": 30,
-                "fallback_methods": [],
             },
         ],
         "firmwares": {
@@ -172,32 +158,18 @@ def keyboard_config_dir(tmp_path):
         "key_count": 80,
         "compile_methods": [
             {
-                "method_type": "docker",
+                "type": "moergo",
                 "image": "test-zmk-build",
                 "repository": "test/zmk",
                 "branch": "main",
-                "jobs": 4,
-                "fallback_methods": ["local"],
             }
         ],
         "flash_methods": [
             {
-                "method_type": "usb",
                 "device_query": "vendor=Test and removable=true",
                 "mount_timeout": 30,
                 "copy_timeout": 60,
                 "sync_after_copy": True,
-                "fallback_methods": ["dfu"],
-            },
-            {
-                "method_type": "dfu",
-                "device_query": "DFU",
-                "vid": "0x1234",
-                "pid": "0x5678",
-                "interface": 0,
-                "alt_setting": 0,
-                "timeout": 30,
-                "fallback_methods": [],
             },
         ],
         "firmwares": {
@@ -282,7 +254,7 @@ def keyboard_config_dir(tmp_path):
         "key_count": 80,
         "compile_methods": [
             {
-                "method_type": "docker",
+                "type": "moergo",
                 "image": "moergo-zmk-build",
                 "repository": "moergo-sc/zmk",
                 "branch": "v25.05",
