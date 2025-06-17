@@ -272,6 +272,7 @@
                       (old.src + "/README.md") # Include if it exists/is needed
                       (old.src + "/glovebox") # Main source directory
                       (old.src + "/tests") # Include tests directory if needed in shell
+                      (old.src + "/keyboards") # Include tests directory if needed in shell
                     ];
                   };
                   # Add build system dependencies needed for editable installs
