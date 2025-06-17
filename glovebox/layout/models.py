@@ -290,6 +290,21 @@ class LayoutMetadata(BaseModel):
         default_factory=list, alias="config_parameters"
     )
 
+    # Version tracking (new)
+    version: str = Field(default="1.0.0")
+    base_version: str = Field(default="")  # Master version this is based on
+    base_layout: str = Field(default="")  # e.g., "glorious-engrammer"
+
+    # Firmware tracking (new)
+    last_firmware_build: dict[str, Any] = Field(default_factory=dict)
+    # Structure: {
+    #     "date": "2024-01-15T10:30:00Z",
+    #     "profile": "glove80/v25.05",
+    #     "firmware_path": "firmware/my-layout-v42.uf2",
+    #     "firmware_hash": "sha256:abc123...",
+    #     "build_id": "8984a4e0-v25.05-598b0350"
+    # }
+
 
 class LayoutData(LayoutMetadata):
     """Complete layout data model with Pydantic v2."""

@@ -28,6 +28,7 @@ Welcome to the Glovebox user documentation. These guides will help you get start
 - **[Device Detection](device-detection.md)** - USB device queries and troubleshooting
 
 ### Advanced Features
+- **[Keymap Version Management](keymap-version-management.md)** - Upgrade layouts while preserving customizations
 - **[Component Workflow](layout-components.md)** - Extract and merge layout components
 - **[Dynamic Generation](dynamic-generation.md)** - On-the-fly ZMK workspace creation
 - **[Docker Configuration](docker-configuration.md)** - Advanced Docker build settings
@@ -55,6 +56,11 @@ glovebox firmware compile layout.keymap config.conf --profile glove80/v25.05
 
 # Flash firmware
 glovebox firmware flash firmware.uf2 --profile glove80/v25.05
+
+# Version management (NEW)
+glovebox layout import-master ~/Downloads/glorious-v42.json v42
+glovebox layout upgrade my-custom-v41.json --to-master v42
+glovebox layout diff layout-v41.json layout-v42.json
 
 # List configurations
 glovebox config list

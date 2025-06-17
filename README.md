@@ -6,6 +6,7 @@ A comprehensive tool for ZMK keyboard firmware management, supporting multiple k
 
 - **Multi-Keyboard Support**: Extensible modular architecture with YAML-based configuration system
 - **Keymap Building**: Convert JSON layouts to ZMK keymap and configuration files
+- **Keymap Version Management**: Upgrade custom layouts while preserving customizations when new master versions are released
 - **Advanced Compilation Strategies**: Multiple compilation methods (zmk_config, west, cmake, make, ninja, custom)
 - **Dynamic ZMK Config Generation**: Create complete ZMK config workspaces on-the-fly without external repositories
 - **Intelligent Caching System**: Domain-agnostic caching with filesystem and memory backends
@@ -96,6 +97,27 @@ glovebox firmware flash firmware.uf2 --profile glove80/v25.05 --query "vendor=Ad
 # Flash multiple devices
 glovebox firmware flash firmware.uf2 --profile glove80/v25.05 --count 2
 ```
+
+#### Keymap Version Management (NEW)
+```bash
+# Import master layout versions for upgrades
+glovebox layout import-master ~/Downloads/glorious-v42.json v42
+
+# Upgrade your custom layout preserving all customizations  
+glovebox layout upgrade my-custom-v41.json --to-master v42
+
+# Compare layouts to see what changed
+glovebox layout diff layout-v41.json layout-v42.json
+
+# List available master versions
+glovebox layout list-masters glove80
+```
+
+**Perfect for:**
+- Keeping custom layouts updated with new master releases
+- Preserving your personal customizations (layers, behaviors, config)
+- Zero-downtime upgrades with automatic rollback capability
+- Tracking firmware builds and maintaining version history
 
 ## Supported Keyboards
 
