@@ -112,6 +112,14 @@ class KeyboardConfig(BaseModel):
         if not isinstance(data, dict):
             return data
 
+        # Handle top-level system_behaviors - move them to keymap section
+        if "system_behaviors" in data:
+            if "keymap" not in data or not isinstance(data["keymap"], dict):
+                data["keymap"] = {}
+
+            # Move top-level system_behaviors to keymap.system_behaviors
+            data["keymap"]["system_behaviors"] = data.pop("system_behaviors")
+
         # Convert keymap section using layout domain utility (if present)
         if data.get("keymap") and isinstance(data["keymap"], dict):
             try:
