@@ -1,0 +1,14 @@
+firmwares:
+  main:
+    version: "main"
+    description: "Latest ZMK firmware main branch"
+    build_options:
+      repository: "zmkfirmware/zmk"
+      branch: "main"
+
+  v3.5:
+    version: "v3.5"
+    description: "Stable ZMK firmware v3.5"
+    build_options:
+      repository: "zmkfirmware/zmk"
+      branch: "v3.5"
