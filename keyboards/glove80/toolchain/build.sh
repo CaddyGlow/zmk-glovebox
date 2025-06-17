@@ -17,6 +17,19 @@ generate_build_id() {
 
   echo "${BOARD_NAME}-${config_sum}${git_hash}-${branch_tag}-${timestamp}"
 }
+# Helper function to copy file if it exists
+copy_if_exists() {
+  local src="$1"
+  local dest="$2"
+  local description="$3"
+
+  if [ -f "$src" ]; then
+    cp -Rf "$src" "$dest"
+    # fix permissions due to nix setting read only
+    chmod 644 "$dest"
+    log_info "Copied $description"
+  fi
+}
 
 # Default parameters
 : "${WORKSPACE_DIR:=/workspace}"
@@ -39,8 +52,8 @@ dest_lh_dir="${ARTIFACTS_DIR}/${BOARD_NAME}_lh-zmk/"
 dest_rh_dir="${ARTIFACTS_DIR}/${BOARD_NAME}_rh-zmk/"
 
 # Create directories for each hand
-mkdir -p dest_lh_dir
-mkdir -p dest_rh_dir
+mkdir -p $dest_lh_dir
+mkdir -p $dest_rh_dir
 
 # Collect generated artifacts from the build
 # Used in case of failure to collect the
@@ -49,21 +62,9 @@ mkdir -p dest_rh_dir
 collect_generated_artifacts() {
   log_info "Collecting generated artifacts..."
 
-  # Helper function to copy file if it exists
-  copy_if_exists() {
-    local src="$1"
-    local dest="$2"
-    local description="$3"
-
-    if [ -f "$src" ]; then
-      cp -f "$src" "$dest"
-      log_info "Copied $description"
-    fi
-  }
-
   # Copy common artifacts
-  cp "$KEYMAP" "${ARTIFACTS_DIR}/"
-  cp "$KCONFIG" "${ARTIFACTS_DIR}/"
+  copy_if_exists "$KEYMAP" "${ARTIFACTS_DIR}/" "keymap"
+  copy_if_exists "$KCONFIG" "${ARTIFACTS_DIR}/" "kconfig"
 
   # Define side-specific configuration
   local sides=("rh" "lh")
@@ -77,12 +78,17 @@ collect_generated_artifacts() {
     local dest_dir="${dest_dirs[$i]}"
     local base_path="${TMPDIR}/nix-build-zmk_glove80_${side}.drv-0/source/app/build/zephyr"
 
-    # Copy artifacts for this side
     copy_if_exists "${base_path}/zephyr.dts" "$dest_dir" "${desc} DTS"
     copy_if_exists "${base_path}/zephyr.dts.pre" "$dest_dir" "${desc} DTS"
     copy_if_exists "${base_path}/include/generated/devicetree_generated.h" "$dest_dir" "${desc} devicetree header"
+    copy_if_exists "${base_path}/${side}/zmk.uf2" "" "${desc} firmware"
   done
 
+  2 # Copy artifacts for this side
+  copy_if_exists result/* "${ARTIFACTS_DIR}/" "copy result"
+  # The Nix build creates glove80_lh and glove80_rh directories, not lf and rh
+  copy_if_exists ${ARTIFACTS_DIR}/glove80_lh/zmk.uf2 ${ARTIFACTS_DIR}/${BOARD_NAME}_lf.uf2 "Firmware left"
+  copy_if_exists ${ARTIFACTS_DIR}/glove80_rh/zmk.uf2 ${ARTIFACTS_DIR}/${BOARD_NAME}_rh.uf2 "Firmware right"
   log_info "Artifact collection completed"
 }
 
@@ -119,11 +125,6 @@ main() {
   }
 
   collect_generated_artifacts
-
-  cp -Rf result/* "${ARTIFACTS_DIR}/"
-  # The Nix build creates glove80_lh and glove80_rh directories, not lf and rh
-  cp ${ARTIFACTS_DIR}/glove80_lh/zmk.uf2 ${ARTIFACTS_DIR}/${BOARD_NAME}_lf.uf2
-  cp ${ARTIFACTS_DIR}/glove80_rh/zmk.uf2 ${ARTIFACTS_DIR}/${BOARD_NAME}_rh.uf2
 
   log_info "Build artifacts saved to $ARTIFACTS_DIR/"
   log_info "Firmware available at ${ARTIFACTS_DIR}/${BOARD_NAME}.uf2"
