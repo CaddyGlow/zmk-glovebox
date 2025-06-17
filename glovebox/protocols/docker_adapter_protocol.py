@@ -62,7 +62,8 @@ class DockerAdapterProtocol(Protocol):
         image_name: str,
         image_tag: str = "latest",
         no_cache: bool = False,
-    ) -> bool:
+        middleware: OutputMiddleware[T] | None = None,
+    ) -> ProcessResult[T]:
         """Build a Docker image from a Dockerfile.
 
         Args:
@@ -70,11 +71,45 @@ class DockerAdapterProtocol(Protocol):
             image_name: Name to tag the built image with
             image_tag: Tag to use for the image
             no_cache: Whether to use Docker's cache during build
+            middleware: Optional middleware for processing output
 
         Returns:
-            True if the image was built successfully
+            ProcessResult containing (return_code, stdout_lines, stderr_lines)
 
         Raises:
             DockerError: If the image fails to build
+        """
+        ...
+
+    def image_exists(self, image_name: str, image_tag: str = "latest") -> bool:
+        """Check if a Docker image exists locally.
+
+        Args:
+            image_name: Name of the image to check
+            image_tag: Tag of the image to check
+
+        Returns:
+            True if the image exists locally, False otherwise
+        """
+        ...
+
+    def pull_image(
+        self,
+        image_name: str,
+        image_tag: str = "latest",
+        middleware: OutputMiddleware[T] | None = None,
+    ) -> ProcessResult[T]:
+        """Pull a Docker image from registry.
+
+        Args:
+            image_name: Name of the image to pull
+            image_tag: Tag of the image to pull
+            middleware: Optional middleware for processing output
+
+        Returns:
+            ProcessResult containing (return_code, stdout_lines, stderr_lines)
+
+        Raises:
+            DockerError: If the image fails to pull
         """
         ...
