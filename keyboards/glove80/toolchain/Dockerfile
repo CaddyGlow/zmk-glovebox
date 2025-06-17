@@ -2,7 +2,7 @@
 # docker buildx build -t glove80-zmk-config-nix:latest -f keyboards/glove80/toolchain/Dockerfile keyboards/glove80/toolchain/
 FROM nixpkgs/nix:nixos-23.11
 
-ENV PATH=/root/.nix-profile/bin:/usr/bin:/bin
+ENV PATH=/root/.nix-profile/bin:/usr/local/bin:/usr/bin:/bin
 
 SHELL ["/usr/bin/bash", "-c"]
 #, "-o", "pipefail", "-c"]
@@ -10,7 +10,6 @@ RUN <<EOF
     set -euo pipefail
     nix-env -iA cachix -f https://cachix.org/api/v1/install
     cachix use moergo-glove80-zmk-dev
-    mkdir /config
     # Mirror ZMK repository to make it easier to reference both branches and
     # tags without remote namespacing
     git clone --mirror https://github.com/moergo-sc/zmk /zmk
@@ -27,6 +26,7 @@ RUN <<EOF
       nix-shell --run true -A zmk ./default.nix
     done
 EOF
+
 
 RUN mkdir -p /workspace /app/bin
 ENV PATH=/app/bin:$PATH
