@@ -46,29 +46,32 @@ collect_generated_artifacts() {
   cp $KEYMAP "${ARTIFACTS_DIR}/"
   cp $KCONFIG "${ARTIFACTS_DIR}/"
 
+  local dest_lh_dir="${ARTIFACTS_DIR}/${BOARD_NAME}_lh-zmk/"
+  local dest_rh_dir="${ARTIFACTS_DIR}/${BOARD_NAME}_rh-zmk/"
+
   # Create directories for each hand
-  mkdir -p "${ARTIFACTS_DIR}/rh"
-  mkdir -p "${ARTIFACTS_DIR}/lf"
+  mkdir -p dest_lh_dir
+  mkdir -p dest_rh_dir
 
   # Right hand artifacts
   if [ -f "${TMPDIR}/nix-build-zmk_glove80_rh.drv-0/source/app/build/zephyr/zephyr.dts" ]; then
-    cp "${TMPDIR}/nix-build-zmk_glove80_rh.drv-0/source/app/build/zephyr/zephyr.dts" "${ARTIFACTS_DIR}/rh/"
+    cp "${TMPDIR}/nix-build-zmk_glove80_rh.drv-0/source/app/build/zephyr/zephyr.dts" $dest_rh_dir
     log_info "Copied RH DTS"
   fi
 
   if [ -f "${TMPDIR}/nix-build-zmk_glove80_rh.drv-0/source/app/build/zephyr/include/generated/devicetree_generated.h" ]; then
-    cp "${TMPDIR}/nix-build-zmk_glove80_rh.drv-0/source/app/build/zephyr/include/generated/devicetree_generated.h" "${ARTIFACTS_DIR}/rh/"
+    cp "${TMPDIR}/nix-build-zmk_glove80_rh.drv-0/source/app/build/zephyr/include/generated/devicetree_generated.h" "$dest_rh_dir"
     log_info "Copied RH devicetree header"
   fi
 
   # Left hand artifacts
   if [ -f "${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/zephyr.dts" ]; then
-    cp "${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/zephyr.dts" "${ARTIFACTS_DIR}/lf/"
+    cp "${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/zephyr.dts" "$dest_lh_dir"
     log_info "Copied LF DTS"
   fi
 
   if [ -f "${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/include/generated/devicetree_generated.h" ]; then
-    cp "${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/include/generated/devicetree_generated.h" "${ARTIFACTS_DIR}/lf/"
+    cp "${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/include/generated/devicetree_generated.h" "$dest_lh_dir"
     log_info "Copied LF devicetree header"
   fi
 
