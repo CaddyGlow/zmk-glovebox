@@ -216,7 +216,7 @@ class VersionManager:
         logger.debug("Custom layers: %s", custom.layer_names)
 
         # Start with new master as base
-        merged = LayoutData.model_validate(new_master.to_dict())
+        merged = new_master.model_copy(deep=True)
         logger.debug("Base merged layers (from new master): %s", merged.layer_names)
 
         # Preserve custom metadata
@@ -242,8 +242,11 @@ class VersionManager:
             len(custom.macros),
         )
 
-        # Preserve custom config parameters
-        merged.config_parameters = custom.config_parameters.copy()
+        # Preserve custom config parameters (ensure proper copying)
+        merged.config_parameters = [
+            param.model_copy() if hasattr(param, "model_copy") else param
+            for param in custom.config_parameters
+        ]
         logger.debug(
             "Preserved config parameters: %d items", len(custom.config_parameters)
         )
@@ -329,23 +332,17 @@ class VersionManager:
         # This preserves customizations within existing layers
         common_layers = custom_layer_set & new_master_layer_set
         logger.debug(
-            "Layers common to both custom and new master (need content replacement): %s",
-            list(common_layers),
+            "Layers common to both custom and new master: %s", list(common_layers)
         )
 
         for layer_name in common_layers:
             try:
-                # Find indices in all three layouts
+                # Find indices in both layouts
                 custom_idx = custom.layer_names.index(layer_name)
                 merged_idx = merged.layer_names.index(layer_name)
-                old_master_idx = (
-                    old_master.layer_names.index(layer_name)
-                    if layer_name in old_master.layer_names
-                    else -1
-                )
 
                 if custom_idx < len(custom.layers) and merged_idx < len(merged.layers):
-                    # Get layer contents
+                    # Simple comparison - check if they're different
                     custom_layer = (
                         custom.layers[custom_idx]
                         if isinstance(custom.layers[custom_idx], list)
@@ -356,77 +353,163 @@ class VersionManager:
                         if isinstance(merged.layers[merged_idx], list)
                         else []
                     )
-                    old_master_layer = (
-                        old_master.layers[old_master_idx]
-                        if old_master_idx >= 0
-                        and old_master_idx < len(old_master.layers)
-                        and isinstance(old_master.layers[old_master_idx], list)
-                        else []
-                    )
 
-                    # Check if custom differs from old master (indicating user customizations)
-                    custom_vs_old_master = (
-                        custom_layer != old_master_layer if old_master_layer else True
-                    )
-
-                    # Check if custom differs from new master (indicating we need to preserve)
-                    custom_vs_new_master = custom_layer != merged_layer
-
-                    if custom_vs_new_master:
-                        # Find specific key differences
-                        differences = []
-                        for i, (custom_key, new_master_key) in enumerate(
-                            zip(custom_layer, merged_layer, strict=False)
-                        ):
-                            if custom_key != new_master_key:
-                                old_master_key = (
-                                    old_master_layer[i]
-                                    if i < len(old_master_layer)
-                                    else "N/A"
-                                )
-                                differences.append(
-                                    f"Key {i:2d}: Custom='{custom_key}' NewMaster='{new_master_key}' OldMaster='{old_master_key}'"
-                                )
-
-                        # Log the differences
-                        logger.info(
-                            "Layer '%s': Found %d customized keys that differ from new master",
-                            layer_name,
-                            len(differences),
+                    if custom_layer != merged_layer:
+                        # Get old master layer for analysis
+                        old_master_idx = (
+                            old_master.layer_names.index(layer_name)
+                            if layer_name in old_master.layer_names
+                            else -1
                         )
-                        if differences:
-                            logger.info("Layer '%s' key differences:", layer_name)
-                            for diff in differences[:10]:  # Show first 10 differences
-                                logger.info("  %s", diff)
-                            if len(differences) > 10:
-                                logger.info(
-                                    "  ... and %d more differences",
-                                    len(differences) - 10,
-                                )
+                        old_master_layer = (
+                            old_master.layers[old_master_idx]
+                            if old_master_idx >= 0
+                            and old_master_idx < len(old_master.layers)
+                            and isinstance(old_master.layers[old_master_idx], list)
+                            else []
+                        )
 
-                        # Replace with custom version to preserve customizations
+                        # Use helper function to analyze the differences (for logging only)
+                        analysis = self._analyze_layer_differences(
+                            layer_name, custom_layer, merged_layer, old_master_layer
+                        )
+
+                        # Log summary
+                        logger.info(
+                            "Layer '%s': %d user customizations, %d master improvements - preserving custom version",
+                            layer_name,
+                            len(analysis.get("user_customizations", [])),
+                            len(analysis.get("master_improvements", [])),
+                        )
+
+                        # Simple replacement
                         merged.layers[merged_idx] = custom.layers[custom_idx]
-                        logger.info(
-                            "✓ Preserved customizations in layer '%s'", layer_name
-                        )
-
-                    elif custom_vs_old_master:
-                        logger.debug(
-                            "Layer '%s': Custom differs from old master but matches new master (no conflict)",
-                            layer_name,
-                        )
                     else:
                         logger.debug(
-                            "Layer '%s': No customizations detected (matches old master)",
+                            "Layer '%s' content unchanged (same key mappings)",
                             layer_name,
                         )
 
             except (ValueError, IndexError) as e:
-                logger.warning("Failed to process layer '%s': %s", layer_name, e)
+                logger.warning(
+                    "Failed to replace content for layer '%s': %s", layer_name, e
+                )
 
         logger.debug("Final merged layers: %s", merged.layer_names)
         logger.debug("Layer merge completed")
         return merged
+
+    def _analyze_layer_differences(
+        self,
+        layer_name: str,
+        custom_layer: list[Any],
+        new_master_layer: list[Any],
+        old_master_layer: list[Any],
+    ) -> dict[str, Any]:
+        """Analyze differences between layer versions to identify customizations vs improvements.
+
+        Args:
+            layer_name: Name of the layer being analyzed
+            custom_layer: Layer data from custom layout
+            new_master_layer: Layer data from new master
+            old_master_layer: Layer data from old master
+
+        Returns:
+            Dict with analysis results including user customizations and master improvements
+        """
+        try:
+            user_customizations = []
+            new_master_improvements = []
+
+            # Compare each key position
+            max_keys = max(
+                len(custom_layer), len(new_master_layer), len(old_master_layer)
+            )
+
+            for i in range(max_keys):
+                custom_key = custom_layer[i] if i < len(custom_layer) else None
+                new_master_key = (
+                    new_master_layer[i] if i < len(new_master_layer) else None
+                )
+                old_master_key = (
+                    old_master_layer[i] if i < len(old_master_layer) else None
+                )
+
+                # Skip if custom and new master are the same
+                if custom_key == new_master_key:
+                    continue
+
+                # Convert to strings for safe comparison and display
+                custom_str = str(custom_key) if custom_key is not None else "None"
+                new_master_str = (
+                    str(new_master_key) if new_master_key is not None else "None"
+                )
+                old_master_str = (
+                    str(old_master_key) if old_master_key is not None else "None"
+                )
+
+                # Truncate long strings for readability
+                custom_str = (
+                    custom_str[:50] + "..." if len(custom_str) > 50 else custom_str
+                )
+                new_master_str = (
+                    new_master_str[:50] + "..."
+                    if len(new_master_str) > 50
+                    else new_master_str
+                )
+                old_master_str = (
+                    old_master_str[:50] + "..."
+                    if len(old_master_str) > 50
+                    else old_master_str
+                )
+
+                # Determine if this is a user customization or master improvement
+                if old_master_key is not None:
+                    if custom_key != old_master_key:
+                        # User made a change from old master -> this is a customization
+                        user_customizations.append(
+                            {
+                                "key_index": i,
+                                "type": "user_customization",
+                                "description": f"Key {i:2d}: User customized '{old_master_str}' → '{custom_str}' (NewMaster has '{new_master_str}')",
+                            }
+                        )
+                    elif new_master_key != old_master_key:
+                        # User kept old master, but new master changed -> this is an improvement
+                        new_master_improvements.append(
+                            {
+                                "key_index": i,
+                                "type": "master_improvement",
+                                "description": f"Key {i:2d}: NewMaster improved '{old_master_str}' → '{new_master_str}' (User kept old)",
+                            }
+                        )
+                else:
+                    # No old master reference, treat as customization
+                    user_customizations.append(
+                        {
+                            "key_index": i,
+                            "type": "user_customization",
+                            "description": f"Key {i:2d}: Custom='{custom_str}' vs NewMaster='{new_master_str}' (no old master ref)",
+                        }
+                    )
+
+            return {
+                "layer_name": layer_name,
+                "user_customizations": user_customizations,
+                "master_improvements": new_master_improvements,
+                "total_differences": len(user_customizations)
+                + len(new_master_improvements),
+            }
+
+        except Exception as e:
+            logger.warning("Failed to analyze layer '%s': %s", layer_name, e)
+            return {
+                "layer_name": layer_name,
+                "user_customizations": [],
+                "master_improvements": [],
+                "total_differences": 0,
+                "error": str(e),
+            }
 
     def _get_preserved_items(
         self, custom: LayoutData, old_master: LayoutData
