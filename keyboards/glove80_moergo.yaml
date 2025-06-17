@@ -262,7 +262,7 @@ keymap:
       type: "bool"
       default: false
       description: "To save battery, turn off the RGB when the keyboard is not used for 30s."
-
+gv
   # System behaviors (same as original)
   system_behaviors:
     - code: "&macro_tap"

@@ -4,7 +4,6 @@ import logging
 
 from ...protocols.behavior_protocols import BehaviorRegistryProtocol
 from .models import (
-    RegistryBehavior,
     SystemBehavior,
 )
 
@@ -32,7 +31,7 @@ class BehaviorRegistryImpl:
 
         self._behaviors[behavior.code] = behavior
 
-    def get_behavior_info(self, name: str) -> RegistryBehavior | None:
+    def get_behavior_info(self, name: str) -> SystemBehavior | None:
         """
         Get information about a registered behavior.
 
@@ -42,20 +41,7 @@ class BehaviorRegistryImpl:
         Returns:
             Behavior info or None if not found
         """
-        behavior = self._behaviors.get(name)
-        if behavior is None:
-            return None
-
-        # Convert SystemBehavior to RegistryBehavior
-        return RegistryBehavior(
-            expected_params=behavior.expected_params,
-            origin=behavior.origin,
-            description=behavior.description or "",
-            params=behavior.params,
-            url=behavior.url,
-            commands=behavior.commands,
-            includes=behavior.includes,
-        )
+        return self._behaviors.get(name)
 
     def list_behaviors(self) -> dict[str, SystemBehavior]:
         """

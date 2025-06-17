@@ -36,6 +36,19 @@ firmwares:
         default: false
         description: "Enables per-layer RGB settings"
 
+  pr38:
+    version: "pr38.per-key-rgb"
+    description: "PR38 with per-key RGB support"
+    build_options:
+      repository: "moergo-sc/zmk"
+      branch: "pull/38/head"
+    kconfig:
+      EXPERIMENTAL_RGB_LAYER:
+        name: "CONFIG_EXPERIMENTAL_RGB_LAYER"
+        type: "bool"
+        default: false
+        description: "Enables per-layer RGB settings"
+
   darknao-v25.04:
     version: "darknao.v25.04.per-key-rgb"
     description: "Darknao version of v25.04 with per-key RGB support"

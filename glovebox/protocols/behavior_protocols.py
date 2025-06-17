@@ -4,14 +4,14 @@ from typing import TYPE_CHECKING, Any, Optional, Protocol, runtime_checkable
 
 
 if TYPE_CHECKING:
-    from glovebox.layout.behavior.models import RegistryBehavior
+    from glovebox.layout.behavior.models import SystemBehavior
 
 
 @runtime_checkable
 class BehaviorRegistryProtocol(Protocol):
     """Protocol for behavior registry."""
 
-    def get_behavior_info(self, name: str) -> Optional["RegistryBehavior"]:
+    def get_behavior_info(self, name: str) -> Optional["SystemBehavior"]:
         """Get information about a registered behavior."""
         ...
 

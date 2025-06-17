@@ -60,22 +60,6 @@ class BehaviorCommand:
 
 
 @dataclass
-class RegistryBehavior:
-    """Definition for a behavior in the registry.
-    These are behaviors that are registered in the system and can be referenced
-    by keymap bindings.
-    """
-
-    expected_params: int
-    origin: str
-    description: str
-    params: ParamList
-    url: str | None = None
-    commands: CommandList | None = None
-    includes: StringList | None = None
-
-
-@dataclass
 class SystemBehaviorParam:
     """Definition for system behavior parameter.
     These are parameters used within keymap behavior references.

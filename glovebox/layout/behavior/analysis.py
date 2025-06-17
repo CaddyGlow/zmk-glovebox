@@ -29,6 +29,7 @@ def extract_behavior_codes_from_layout(
 
     # Get structured layers with properly converted LayoutBinding objects
     structured_layers = layout_data.get_structured_layers()
+    logger.debug("Structured layers: %s", structured_layers)
 
     # Extract behavior codes from structured layers
     for layer in structured_layers:
@@ -76,14 +77,18 @@ def get_required_includes_for_layout(
         List of include statements needed for the behaviors
     """
     behavior_codes = extract_behavior_codes_from_layout(profile, layout_data)
-    base_includes: set[str] = set(profile.keyboard_config.keymap.includes)
-
+    # base_includes: set[str] = set(profile.keyboard_config.keymap.header_includes)
+    includes: set[str] = set()
+    sb = {b.code: b for b in profile.system_behaviors}
     # Add includes for each behavior
-    for behavior in profile.system_behaviors:
-        if behavior.code in behavior_codes and behavior.includes:
-            base_includes.update(behavior.includes)
-
-    return sorted(base_includes)
+    for behavior in behavior_codes:
+        if behavior in sb:
+            behavior_includes = sb[behavior].includes
+            if behavior_includes is not None:
+                for include in behavior_includes:
+                    includes.add(include)
+    logger.debug("Includes from behavior: %s", includes)
+    return sorted(includes)
 
 
 def register_layout_behaviors(

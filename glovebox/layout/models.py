@@ -19,7 +19,6 @@ from glovebox.layout.behavior.models import (
     KeymapBehavior,
     ParameterType,
     ParamValue,
-    RegistryBehavior,
     SystemBehavior,
     SystemBehaviorParam,
     SystemParamList,
@@ -109,6 +108,29 @@ class HoldTapBehavior(BaseModel):
     retro_tap: bool | None = Field(default=None, alias="retroTap")
     tap_behavior: str | None = Field(default=None, alias="tapBehavior")
     hold_behavior: str | None = Field(default=None, alias="holdBehavior")
+
+    @field_validator("bindings", mode="before")
+    @classmethod
+    def convert_string_bindings(cls, v: Any) -> list[LayoutBinding]:
+        """Convert string bindings to LayoutBinding objects.
+        
+        For hold-tap behaviors, bindings can be simple behavior references
+        like "&kp" without parameters, which is valid ZMK syntax.
+        """
+        if isinstance(v, list):
+            result = []
+            for item in v:
+                if isinstance(item, str):
+                    # Convert string to LayoutBinding object
+                    # For hold-tap bindings, empty params is valid
+                    result.append(LayoutBinding(value=item, params=[]))
+                elif isinstance(item, dict):
+                    # Already a dict, let Pydantic handle conversion
+                    result.append(item)
+                else:
+                    result.append(item)
+            return result
+        return v
 
     @field_validator("flavor")
     @classmethod
@@ -462,7 +484,6 @@ __all__ = [
     "KeymapBehavior",
     "ParameterType",
     "ParamValue",
-    "RegistryBehavior",
     "SystemBehavior",
     "SystemBehaviorParam",
     "SystemParamList",
