@@ -43,6 +43,12 @@ class LayoutError(GloveboxError):
     pass
 
 
+class CompilationError(GloveboxError):
+    """Exception raised for errors in compilation operations."""
+
+    pass
+
+
 class BuildError(GloveboxError):
     """Exception raised for errors in firmware building."""
 

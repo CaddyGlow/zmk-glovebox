@@ -110,8 +110,9 @@ main() {
   collect_generated_artifacts
 
   cp -Rf result/* "${ARTIFACTS_DIR}/"
-  cp ${ARTIFACTS_DIR}/lf/zmk.uf2 ${ARTIFACTS_DIR}/${BOARD_NAME}_lf.uf2
-  cp ${ARTIFACTS_DIR}/rh/zmk.uf2 ${ARTIFACTS_DIR}/${BOARD_NAME}_rh.uf2
+  # The Nix build creates glove80_lh and glove80_rh directories, not lf and rh
+  cp ${ARTIFACTS_DIR}/glove80_lh/zmk.uf2 ${ARTIFACTS_DIR}/${BOARD_NAME}_lf.uf2
+  cp ${ARTIFACTS_DIR}/glove80_rh/zmk.uf2 ${ARTIFACTS_DIR}/${BOARD_NAME}_rh.uf2
 
   log_info "Build artifacts saved to $ARTIFACTS_DIR/"
   log_info "Firmware available at ${ARTIFACTS_DIR}/${BOARD_NAME}.uf2"

@@ -227,7 +227,7 @@ class ZmkFileContentGenerator:
             compatible_strings = profile.keyboard_config.zmk.compatible_strings
             compatible = compatible_strings.macro
             binding_cells = "0"
-            
+
             # NOTE: Previous logic attempted to set binding-cells based on macro params,
             # but ZMK binding spec (zmk,behavior-macro.yaml) includes zero_param.yaml
             # which enforces #binding-cells = <0> regardless of conceptual parameters.
@@ -237,7 +237,7 @@ class ZmkFileContentGenerator:
             #     compatible = compatible_strings.macro
             #     binding_cells = "0"
             # elif len(params) == 1:
-            #     compatible = compatible_strings.macro  
+            #     compatible = compatible_strings.macro
             #     binding_cells = "1"
             # elif len(params) == 2:
             #     compatible = compatible_strings.macro
@@ -317,8 +317,7 @@ class ZmkFileContentGenerator:
         sanitize_pattern = profile.keyboard_config.zmk.patterns.node_name_sanitize
         layer_defines = {
             i: layer_define_pattern.format(
-                layer_name=re.sub(sanitize_pattern, "_", name.upper()),
-                layer_index=i
+                layer_name=re.sub(sanitize_pattern, "_", name.upper()), layer_index=i
             )
             for i, name in enumerate(layer_names)
         }
@@ -487,15 +486,15 @@ class ZmkFileContentGenerator:
         dtsi_parts = ["keymap {", f'    compatible = "{keymap_compatible}";']
 
         # Process each layer
-        for i, (layer_name, layer_bindings) in enumerate(
+        for _i, (layer_name, layer_bindings) in enumerate(
             zip(layer_names, layers_data, strict=False)
         ):
             # Format layer comment and opening
             define_name = re.sub(r"\W|^(?=\d)", "_", layer_name)
             dtsi_parts.append("")
-            dtsi_parts.append(f"    // Layer {i}: {layer_name}")
-            dtsi_parts.append(f"    {define_name.lower()}_layer {{")
-            dtsi_parts.append(f'        label = "{layer_name}";')
+            # dtsi_parts.append(f"    // Layer {i}: {layer_name}")
+            dtsi_parts.append(f"    layer_{define_name} {{")
+            # dtsi_parts.append(f'        label = "{layer_name}";')
             dtsi_parts.append("        bindings = <")
 
             # Format layer bindings

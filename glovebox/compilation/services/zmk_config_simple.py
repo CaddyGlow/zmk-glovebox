@@ -15,10 +15,12 @@ from glovebox.compilation.models import (
 from glovebox.compilation.models.build_matrix import BuildMatrix
 from glovebox.compilation.models.west_config import (
     WestManifest,
+    WestManifestConfig,
 )
 from glovebox.compilation.protocols.compilation_protocols import (
     CompilationServiceProtocol,
 )
+from glovebox.core.errors import CompilationError
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.models.docker import DockerUserContext
 from glovebox.protocols import DockerAdapterProtocol
@@ -201,9 +203,10 @@ class ZmkWestService(CompilationServiceProtocol):
         """Get cached workspace or create new one."""
         # Try to use cached workspace
         cached_workspace = self._get_cached_workspace(config)
+        workspace_path = Path(tempfile.mkdtemp(prefix="zmk_"))
+        self.logger.info("workspace %s", workspace_path)
         if cached_workspace:
             # Create temporary workspace and copy from cache
-            workspace_path = Path(tempfile.mkdtemp(prefix="zmk_"))
             try:
                 # Copy cached workspace
                 for subdir in ["modules", "zephyr", "zmk"]:
@@ -213,8 +216,7 @@ class ZmkWestService(CompilationServiceProtocol):
                         )
 
                 # Set up config directory with fresh files
-                config_dir = workspace_path / "config"
-                self._setup_config_dir(config_dir, keymap_file, config_file, config)
+                self._setup_workspace(keymap_file, config_file, config, workspace_path)
                 self.logger.info(
                     "Using cached workspace (will still run west update for branch changes)"
                 )
@@ -224,21 +226,25 @@ class ZmkWestService(CompilationServiceProtocol):
                 shutil.rmtree(workspace_path, ignore_errors=True)
 
         # Create fresh workspace
-        return self._setup_workspace(keymap_file, config_file, config)
+        self._setup_workspace(keymap_file, config_file, config, workspace_path)
+        return workspace_path
 
     def _setup_workspace(
-        self, keymap_file: Path, config_file: Path, config: ZmkCompilationConfig
-    ) -> Path | None:
+        self,
+        keymap_file: Path,
+        config_file: Path,
+        config: ZmkCompilationConfig,
+        workspace_path: Path,
+    ) -> None:
         """Setup temporary workspace."""
         try:
-            workspace_path = Path(tempfile.mkdtemp(prefix="zmk_"))
             config_dir = workspace_path / "config"
             self._setup_config_dir(config_dir, keymap_file, config_file, config)
 
-            return workspace_path
+            self._create_build_yaml(workspace_path, config)
+
         except Exception as e:
-            self.logger.error("Workspace setup failed: %s", e)
-            return None
+            raise CompilationError(f"Workspace setup failed: {e}") from e
 
     def _setup_config_dir(
         self,
@@ -255,22 +261,23 @@ class ZmkWestService(CompilationServiceProtocol):
         shutil.copy2(config_file, config_dir / config_file.name)
 
         # Create build configuration files using proper models
-        self._create_build_yaml(config_dir, config)
         self._create_west_yml(config_dir, config)
 
     def _create_build_yaml(
-        self, config_dir: Path, config: ZmkCompilationConfig
+        self, workspace_path: Path, config: ZmkCompilationConfig
     ) -> None:
         """Create build.yaml using proper build matrix models."""
-        config.build_matrix.to_yaml(config_dir / "build.yaml")
+        config.build_matrix.to_yaml(workspace_path / "build.yaml")
 
     def _create_west_yml(self, config_dir: Path, config: ZmkCompilationConfig) -> None:
         """Create west.yml using proper west config models."""
-        manifest = WestManifest.from_repository_config(
-            repository=config.repository,
-            branch=config.branch,
-            config_path="config",
-            import_file="app/west.yml",
+        manifest = WestManifestConfig(
+            manifest=WestManifest.from_repository_config(
+                repository=config.repository,
+                branch=config.branch,
+                config_path="config",
+                import_file="app/west.yml",
+            )
         )
 
         # Create west manifest
@@ -331,7 +338,7 @@ class ZmkWestService(CompilationServiceProtocol):
     ) -> list[str]:
         """Generate west build commands from build matrix."""
         try:
-            build_yaml = workspace_path / "config" / "build.yaml"
+            build_yaml = workspace_path / "build.yaml"
             if not build_yaml.exists():
                 self.logger.error("build.yaml not found")
                 return []
@@ -354,7 +361,7 @@ class ZmkWestService(CompilationServiceProtocol):
                 ]
 
                 # Add CMake arguments
-                cmake_args = [f"-DZMK_CONFIG={workspace_path}/config"]
+                cmake_args = ["-DZMK_CONFIG=/workspace/config"]
                 if target.shield:
                     cmake_args.append(f"-DSHIELD={target.shield}")
                 if target.cmake_args:
@@ -385,7 +392,7 @@ class ZmkWestService(CompilationServiceProtocol):
 
         try:
             # Use build matrix resolver to determine expected build directories
-            build_yaml = workspace_path / "config" / "build.yaml"
+            build_yaml = workspace_path / "build.yaml"
             if not build_yaml.exists():
                 self.logger.error(
                     "build.yaml not found, cannot determine build directories"
