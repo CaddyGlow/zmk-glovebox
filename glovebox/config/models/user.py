@@ -82,6 +82,12 @@ class UserConfigData(BaseSettings):
     # Logging
     log_level: str = "INFO"
 
+    # Version check settings
+    disable_version_checks: bool = Field(
+        default=False,
+        description="Disable automatic version checks for ZMK firmware updates",
+    )
+
     # Firmware settings
     firmware: UserFirmwareConfig = Field(default_factory=UserFirmwareConfig)
 

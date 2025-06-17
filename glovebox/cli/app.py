@@ -139,6 +139,22 @@ def main_callback(
 
     setup_logging(level=log_level, log_file=log_file)
 
+    # Run startup checks (version updates, etc.)
+    _run_startup_checks(app_context)
+
+
+def _run_startup_checks(app_context: AppContext) -> None:
+    """Run application startup checks using the startup service."""
+    try:
+        from glovebox.core.startup_service import create_startup_service
+
+        startup_service = create_startup_service(app_context.user_config)
+        startup_service.run_startup_checks()
+
+    except Exception as e:
+        # Silently fail for startup checks - don't interrupt user workflow
+        logger.debug("Failed to run startup checks: %s", e)
+
 
 def main() -> int:
     """Main CLI entry point."""

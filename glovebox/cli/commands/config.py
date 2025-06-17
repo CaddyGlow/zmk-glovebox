@@ -572,6 +572,67 @@ def show_firmware(
                 print(f"    Description: {description}")
 
 
+@config_app.command(name="check-updates")
+@handle_errors
+def check_updates(
+    ctx: typer.Context,
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Force check even if recently checked"
+    ),
+    include_prereleases: bool = typer.Option(
+        False, "--include-prereleases", help="Include pre-release versions"
+    ),
+) -> None:
+    """Check for ZMK firmware updates."""
+    from glovebox.core.version_check import create_zmk_version_checker
+
+    version_checker = create_zmk_version_checker()
+    result = version_checker.check_for_updates(
+        force=force, include_prereleases=include_prereleases
+    )
+
+    if result.check_disabled and not force:
+        print("⚠️  Version checks are disabled")
+        print("   To enable: glovebox config set disable_version_checks false")
+        return
+
+    if result.has_update and result.latest_version:
+        print("🔄 ZMK Firmware Update Available!")
+        print(f"   Current: {result.current_version or 'unknown'}")
+        print(f"   Latest:  {result.latest_version}")
+        if result.is_prerelease:
+            print("   Type:    Pre-release")
+        if result.latest_url:
+            print(f"   Details: {result.latest_url}")
+    else:
+        print("✅ ZMK firmware is up to date")
+
+    if result.last_check:
+        print(f"   Last checked: {result.last_check.strftime('%Y-%m-%d %H:%M:%S')}")
+
+
+@config_app.command(name="disable-updates")
+@handle_errors
+def disable_updates(ctx: typer.Context) -> None:
+    """Disable automatic ZMK version checks."""
+    from glovebox.core.version_check import create_zmk_version_checker
+
+    version_checker = create_zmk_version_checker()
+    version_checker.disable_version_checks()
+    print_success_message("ZMK version checks disabled")
+
+
+@config_app.command(name="enable-updates")
+@handle_errors
+def enable_updates(ctx: typer.Context) -> None:
+    """Enable automatic ZMK version checks."""
+    from glovebox.core.version_check import create_zmk_version_checker
+
+    version_checker = create_zmk_version_checker()
+    version_checker.enable_version_checks()
+    print_success_message("ZMK version checks enabled")
+
+
 def register_commands(app: typer.Typer) -> None:
     """Register config commands with the main app.
 
