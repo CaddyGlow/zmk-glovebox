@@ -1,6 +1,6 @@
 # Glove80 Compilation Strategies
 
-# ZMK Config Strategy  
+# ZMK Config Strategy
 compile_methods:
   - strategy: zmk_config
     image: "zmkfirmware/zmk-build-arm:stable"

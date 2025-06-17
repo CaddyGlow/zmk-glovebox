@@ -35,6 +35,13 @@ generate_build_id() {
 
 mkdir -p "${ARTIFACTS_DIR}"
 
+dest_lh_dir="${ARTIFACTS_DIR}/${BOARD_NAME}_lh-zmk/"
+dest_rh_dir="${ARTIFACTS_DIR}/${BOARD_NAME}_rh-zmk/"
+
+# Create directories for each hand
+mkdir -p dest_lh_dir
+mkdir -p dest_rh_dir
+
 # Collect generated artifacts from the build
 # Used in case of failure to collect the
 # generated DTS and devicetree header needed to
@@ -42,38 +49,39 @@ mkdir -p "${ARTIFACTS_DIR}"
 collect_generated_artifacts() {
   log_info "Collecting generated artifacts..."
 
-  # Copy the keymap and kconfig to the artifacts directory
-  cp $KEYMAP "${ARTIFACTS_DIR}/"
-  cp $KCONFIG "${ARTIFACTS_DIR}/"
+  # Helper function to copy file if it exists
+  copy_if_exists() {
+    local src="$1"
+    local dest="$2"
+    local description="$3"
 
-  local dest_lh_dir="${ARTIFACTS_DIR}/${BOARD_NAME}_lh-zmk/"
-  local dest_rh_dir="${ARTIFACTS_DIR}/${BOARD_NAME}_rh-zmk/"
+    if [ -f "$src" ]; then
+      cp -f "$src" "$dest"
+      log_info "Copied $description"
+    fi
+  }
 
-  # Create directories for each hand
-  mkdir -p dest_lh_dir
-  mkdir -p dest_rh_dir
+  # Copy common artifacts
+  cp "$KEYMAP" "${ARTIFACTS_DIR}/"
+  cp "$KCONFIG" "${ARTIFACTS_DIR}/"
 
-  # Right hand artifacts
-  if [ -f "${TMPDIR}/nix-build-zmk_glove80_rh.drv-0/source/app/build/zephyr/zephyr.dts" ]; then
-    cp "${TMPDIR}/nix-build-zmk_glove80_rh.drv-0/source/app/build/zephyr/zephyr.dts" $dest_rh_dir
-    log_info "Copied RH DTS"
-  fi
+  # Define side-specific configuration
+  local sides=("rh" "lh")
+  local descriptions=("RH" "LF") # Note: keeping original LF for left hand
+  local dest_dirs=("$dest_rh_dir" "$dest_lh_dir")
 
-  if [ -f "${TMPDIR}/nix-build-zmk_glove80_rh.drv-0/source/app/build/zephyr/include/generated/devicetree_generated.h" ]; then
-    cp "${TMPDIR}/nix-build-zmk_glove80_rh.drv-0/source/app/build/zephyr/include/generated/devicetree_generated.h" "$dest_rh_dir"
-    log_info "Copied RH devicetree header"
-  fi
+  # Process each side
+  for i in "${!sides[@]}"; do
+    local side="${sides[$i]}"
+    local desc="${descriptions[$i]}"
+    local dest_dir="${dest_dirs[$i]}"
+    local base_path="${TMPDIR}/nix-build-zmk_glove80_${side}.drv-0/source/app/build/zephyr"
 
-  # Left hand artifacts
-  if [ -f "${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/zephyr.dts" ]; then
-    cp "${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/zephyr.dts" "$dest_lh_dir"
-    log_info "Copied LF DTS"
-  fi
-
-  if [ -f "${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/include/generated/devicetree_generated.h" ]; then
-    cp "${TMPDIR}/nix-build-zmk_glove80_lh.drv-0/source/app/build/zephyr/include/generated/devicetree_generated.h" "$dest_lh_dir"
-    log_info "Copied LF devicetree header"
-  fi
+    # Copy artifacts for this side
+    copy_if_exists "${base_path}/zephyr.dts" "$dest_dir" "${desc} DTS"
+    copy_if_exists "${base_path}/zephyr.dts.pre" "$dest_dir" "${desc} DTS"
+    copy_if_exists "${base_path}/include/generated/devicetree_generated.h" "$dest_dir" "${desc} devicetree header"
+  done
 
   log_info "Artifact collection completed"
 }

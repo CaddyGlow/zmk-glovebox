@@ -8,7 +8,7 @@ source "$SCRIPT_DIR/libutils.sh"
 : "${WORKSPACE_DIR:=/workspace}"
 
 # Set desired umask
-: "${UMASK:=0022}"
+: "${UMASK:=022}"
 umask "$UMASK"
 
 # Cleanup function
