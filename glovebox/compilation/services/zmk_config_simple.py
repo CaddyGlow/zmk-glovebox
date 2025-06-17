@@ -24,6 +24,7 @@ from glovebox.core.errors import CompilationError
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.models.docker import DockerUserContext
 from glovebox.protocols import DockerAdapterProtocol
+from glovebox.utils.stream_process import DefaultOutputMiddleware
 
 
 if TYPE_CHECKING:
@@ -289,6 +290,11 @@ class ZmkWestService(CompilationServiceProtocol):
     ) -> bool:
         """Run Docker compilation."""
         try:
+            # Check if Docker image exists, build if not
+            if not self._ensure_docker_image(config):
+                self.logger.error("Failed to ensure Docker image is available")
+                return False
+
             # Generate proper build commands using build matrix
             build_commands = self._generate_build_commands(workspace_path, config)
             if not build_commands:
@@ -500,6 +506,44 @@ class ZmkWestService(CompilationServiceProtocol):
                 self.logger.warning("Failed to copy UF2 to base: %s", e)
 
         return collected_items
+
+    def _ensure_docker_image(self, config: ZmkCompilationConfig) -> bool:
+        """Ensure Docker image exists, pull if not found."""
+        try:
+            # Parse image name and tag
+            image_parts = config.image.split(":")
+            image_name = image_parts[0]
+            image_tag = image_parts[1] if len(image_parts) > 1 else "latest"
+
+            # Check if image exists
+            if self.docker_adapter.image_exists(image_name, image_tag):
+                self.logger.debug("Docker image already exists: %s", config.image)
+                return True
+
+            self.logger.info("Docker image not found, pulling: %s", config.image)
+
+            # Pull the image using the new pull_image method with middleware to show progress
+            middleware = DefaultOutputMiddleware()
+            result: tuple[int, list[str], list[str]] = self.docker_adapter.pull_image(
+                image_name=image_name,
+                image_tag=image_tag,
+                middleware=middleware,
+            )
+
+            if result[0] == 0:
+                self.logger.info("Successfully pulled Docker image: %s", config.image)
+                return True
+            else:
+                self.logger.error(
+                    "Failed to pull Docker image: %s (exit code: %d)",
+                    config.image,
+                    result[0],
+                )
+                return False
+
+        except Exception as e:
+            self.logger.error("Error ensuring Docker image: %s", e)
+            return False
 
 
 def create_zmk_config_simple_service(

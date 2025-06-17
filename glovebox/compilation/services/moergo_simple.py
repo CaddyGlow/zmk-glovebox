@@ -184,6 +184,11 @@ class MoergoNixService(CompilationServiceProtocol):
     ) -> bool:
         """Run Docker compilation."""
         try:
+            # Check if Docker image exists, build if not
+            if not self._ensure_docker_image(config):
+                self.logger.error("Failed to ensure Docker image is available")
+                return False
+
             # For Moergo, disable user mapping and pass user info via environment
             user_context = DockerUserContext.detect_current_user()
             user_context.enable_user_mapping = False
@@ -292,6 +297,111 @@ class MoergoNixService(CompilationServiceProtocol):
             main_uf2=main_uf2,
             artifacts_dir=artifacts_dir,
         )
+
+    def _ensure_docker_image(self, config: MoergoCompilationConfig) -> bool:
+        """Ensure Docker image exists, build if not found."""
+        try:
+            # Generate version-based image tag using glovebox version
+            versioned_image_name, versioned_tag = self._get_versioned_image_name(config)
+
+            # Check if versioned image exists
+            if self.docker_adapter.image_exists(versioned_image_name, versioned_tag):
+                self.logger.debug(
+                    "Versioned Docker image already exists: %s:%s",
+                    versioned_image_name,
+                    versioned_tag,
+                )
+                # Update config to use the versioned image
+                config.image = f"{versioned_image_name}:{versioned_tag}"
+                return True
+
+            self.logger.info(
+                "Docker image not found, building versioned image: %s:%s",
+                versioned_image_name,
+                versioned_tag,
+            )
+
+            # Get Dockerfile directory from keyboard profile
+            keyboard_profile = self._get_keyboard_profile_for_dockerfile()
+            if not keyboard_profile:
+                self.logger.error(
+                    "Cannot determine keyboard profile for Dockerfile location"
+                )
+                return False
+
+            dockerfile_dir = keyboard_profile.get_keyboard_directory()
+            if not dockerfile_dir:
+                self.logger.error("Cannot find keyboard directory for Dockerfile")
+                return False
+
+            dockerfile_dir = dockerfile_dir / "toolchain"
+            if not dockerfile_dir.exists():
+                self.logger.error("Toolchain directory not found: %s", dockerfile_dir)
+                return False
+
+            # Build the image with versioned tag using middleware to show progress
+            middleware = DefaultOutputMiddleware()
+            result: tuple[int, list[str], list[str]] = self.docker_adapter.build_image(
+                dockerfile_dir=dockerfile_dir,
+                image_name=versioned_image_name,
+                image_tag=versioned_tag,
+                middleware=middleware,
+            )
+
+            if result[0] == 0:
+                self.logger.info(
+                    "Successfully built versioned Docker image: %s:%s",
+                    versioned_image_name,
+                    versioned_tag,
+                )
+                # Update config to use the versioned image
+                config.image = f"{versioned_image_name}:{versioned_tag}"
+                return True
+            else:
+                self.logger.error(
+                    "Failed to build Docker image: %s:%s",
+                    versioned_image_name,
+                    versioned_tag,
+                )
+                return False
+
+        except Exception as e:
+            self.logger.error("Error ensuring Docker image: %s", e)
+            return False
+
+    def _get_versioned_image_name(
+        self, config: MoergoCompilationConfig
+    ) -> tuple[str, str]:
+        """Generate versioned image name and tag based on glovebox version."""
+        # Get base image name (remove any existing tag)
+        base_image_name = config.image.split(":")[0]
+
+        # Get glovebox version for tagging
+        try:
+            from glovebox._version import __version__
+
+            # Convert version to valid Docker tag (replace + with -, remove invalid chars)
+            docker_tag = __version__.replace("+", "-").replace("/", "-")
+            return base_image_name, docker_tag
+        except ImportError:
+            # Fallback if version module not available
+            self.logger.warning("Could not import glovebox version, using 'latest' tag")
+            return base_image_name, "latest"
+
+    def _get_keyboard_profile_for_dockerfile(self) -> "KeyboardProfile | None":
+        """Get keyboard profile for accessing Dockerfile location."""
+        try:
+            # For Moergo compilation, we know it's typically glove80
+            from glovebox.config.keyboard_profile import (
+                create_keyboard_profile_with_includes,
+            )
+
+            # Create a keyboard-only profile (no firmware needed for Dockerfile access)
+            # Use the include-aware loader to handle glove80.yaml's includes directive
+            return create_keyboard_profile_with_includes("glove80")
+        except Exception as e:
+            self.logger.error("Failed to create keyboard profile: %s", e)
+            return None
 
 
 def create_moergo_simple_service(

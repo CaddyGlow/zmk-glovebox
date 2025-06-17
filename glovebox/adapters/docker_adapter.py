@@ -1,5 +1,7 @@
 """Docker adapter for container operations."""
 
+import datetime
+import hashlib
 import logging
 import shlex
 import subprocess
@@ -184,8 +186,11 @@ class DockerAdapter:
         image_name: str,
         image_tag: str = "latest",
         no_cache: bool = False,
-    ) -> bool:
+        middleware: OutputMiddleware[T] | None = None,
+    ) -> ProcessResult[T]:
         """Build a Docker image from a Dockerfile."""
+        from glovebox.utils import stream_process
+
         image_full_name = f"{image_name}:{image_tag}"
 
         # Check Docker availability
@@ -244,47 +249,21 @@ class DockerAdapter:
         logger.debug("Docker command: %s", cmd_str)
 
         try:
-            # Run Docker build command
-            result = subprocess.run(
-                docker_cmd, check=True, capture_output=True, text=True
-            )
+            if middleware is None:
+                # Cast is needed because T is unbound at this point
+                middleware = cast(OutputMiddleware[T], LoggerOutputMiddleware(logger))
 
-            # Log stdout on debug level if available
-            if hasattr(result, "stdout") and result.stdout:
-                stdout_preview = result.stdout[:500] + (
-                    "..." if len(result.stdout) > 500 else ""
-                )
-                logger.debug("Docker build output: %s", stdout_preview)
-
-            logger.info("Docker image built successfully: %s", image_full_name)
-            return True
+            result = stream_process.run_command(docker_cmd, middleware)
+            return result
 
         except FileNotFoundError as e:
             error = create_docker_error(f"Docker executable not found: {e}", cmd_str, e)
             logger.error("Docker executable not found during image build: %s", e)
             raise error from e
 
-        except subprocess.CalledProcessError as e:
-            # Get detailed error message from stderr if available
-            stderr = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
-            error_preview = stderr[:500] + ("..." if len(stderr) > 500 else "")
-
-            error = create_docker_error(
-                f"Docker image build failed: {error_preview}",
-                cmd_str,
-                e,
-                {
-                    "image": image_full_name,
-                    "exit_code": e.returncode
-                    if hasattr(e, "returncode")
-                    else "unknown",
-                    "dockerfile_dir": str(dockerfile_dir),
-                },
-            )
-
-            logger.error(
-                "Docker image build failed for %s: %s", image_full_name, error_preview
-            )
+        except subprocess.SubprocessError as e:
+            error = create_docker_error(f"Docker subprocess error: {e}", cmd_str, e)
+            logger.error("Docker subprocess error: %s", e)
             raise error from e
 
         except Exception as e:
@@ -296,6 +275,103 @@ class DockerAdapter:
             )
 
             logger.error("Unexpected Docker build error for %s: %s", image_full_name, e)
+            raise error from e
+
+    def image_exists(self, image_name: str, image_tag: str = "latest") -> bool:
+        """Check if a Docker image exists locally."""
+        image_full_name = f"{image_name}:{image_tag}"
+
+        # Check Docker availability
+        if not self.is_available():
+            logger.warning(
+                "Docker not available, cannot check image existence: %s",
+                image_full_name,
+            )
+            return False
+
+        # Build the Docker command to check image existence
+        docker_cmd = ["docker", "inspect", image_full_name]
+        cmd_str = " ".join(shlex.quote(arg) for arg in docker_cmd)
+
+        try:
+            # Run Docker inspect command
+            result = subprocess.run(
+                docker_cmd, check=True, capture_output=True, text=True
+            )
+
+            logger.debug("Docker image exists: %s", image_full_name)
+            return True
+
+        except subprocess.CalledProcessError:
+            # Image doesn't exist (inspect returns non-zero exit code)
+            logger.debug("Docker image does not exist: %s", image_full_name)
+            return False
+
+        except FileNotFoundError:
+            logger.warning("Docker executable not found during image check")
+            return False
+
+        except Exception as e:
+            logger.warning("Unexpected error checking Docker image existence: %s", e)
+            return False
+
+    def pull_image(
+        self,
+        image_name: str,
+        image_tag: str = "latest",
+        middleware: OutputMiddleware[T] | None = None,
+    ) -> ProcessResult[T]:
+        """Pull a Docker image from registry."""
+        from glovebox.utils import stream_process
+
+        image_full_name = f"{image_name}:{image_tag}"
+
+        # Check Docker availability
+        if not self.is_available():
+            error = create_docker_error(
+                "Docker is not available or not properly installed",
+                None,
+                None,
+                {"image": image_full_name},
+            )
+            logger.error("Docker not available for image pull: %s", image_full_name)
+            raise error
+
+        # Build the Docker command
+        docker_cmd = ["docker", "pull", image_full_name]
+
+        # Format command for logging
+        cmd_str = " ".join(shlex.quote(arg) for arg in docker_cmd)
+        logger.info("Pulling Docker image: %s", image_full_name)
+        logger.debug("Docker command: %s", cmd_str)
+
+        try:
+            if middleware is None:
+                # Cast is needed because T is unbound at this point
+                middleware = cast(OutputMiddleware[T], LoggerOutputMiddleware(logger))
+
+            result = stream_process.run_command(docker_cmd, middleware)
+            return result
+
+        except FileNotFoundError as e:
+            error = create_docker_error(f"Docker executable not found: {e}", cmd_str, e)
+            logger.error("Docker executable not found during image pull: %s", e)
+            raise error from e
+
+        except subprocess.SubprocessError as e:
+            error = create_docker_error(f"Docker subprocess error: {e}", cmd_str, e)
+            logger.error("Docker subprocess error: %s", e)
+            raise error from e
+
+        except Exception as e:
+            error = create_docker_error(
+                f"Unexpected error pulling Docker image: {e}",
+                cmd_str,
+                e,
+                {"image": image_full_name},
+            )
+
+            logger.error("Unexpected Docker pull error for %s: %s", image_full_name, e)
             raise error from e
 
 
