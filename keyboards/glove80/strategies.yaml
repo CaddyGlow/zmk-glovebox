@@ -3,6 +3,7 @@
 # ZMK Config Strategy  
 compile_methods:
   - strategy: zmk_config
+    image: "zmkfirmware/zmk-build-arm:stable"
     repository: "moergo-sc/zmk"
     branch: "v25.05" # Default, overridden by firmware config
     build_config:

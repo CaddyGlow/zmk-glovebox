@@ -29,7 +29,7 @@ def extract_behavior_codes_from_layout(
 
     # Get structured layers with properly converted LayoutBinding objects
     structured_layers = layout_data.get_structured_layers()
-    logger.debug("Structured layers: %s", structured_layers)
+    # logger.debug("Structured layers: %s", structured_layers)
 
     # Extract behavior codes from structured layers
     for layer in structured_layers:

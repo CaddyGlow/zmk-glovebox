@@ -111,9 +111,9 @@ class HoldTapBehavior(BaseModel):
 
     @field_validator("bindings", mode="before")
     @classmethod
-    def convert_string_bindings(cls, v: Any) -> list[LayoutBinding]:
+    def convert_string_bindings(cls, v: Any) -> Any:
         """Convert string bindings to LayoutBinding objects.
-        
+
         For hold-tap behaviors, bindings can be simple behavior references
         like "&kp" without parameters, which is valid ZMK syntax.
         """
@@ -125,9 +125,10 @@ class HoldTapBehavior(BaseModel):
                     # For hold-tap bindings, empty params is valid
                     result.append(LayoutBinding(value=item, params=[]))
                 elif isinstance(item, dict):
-                    # Already a dict, let Pydantic handle conversion
-                    result.append(item)
+                    # Convert dict to LayoutBinding object
+                    result.append(LayoutBinding.model_validate(item))
                 else:
+                    # Assume it's already a LayoutBinding
                     result.append(item)
             return result
         return v
@@ -273,17 +274,10 @@ class LayoutMetadata(BaseModel):
     notes: str = Field(default="")
     tags: list[str] = Field(default_factory=list)
 
-
-class LayoutData(LayoutMetadata):
-    """Complete layout data model with Pydantic v2."""
-
-    model_config = ConfigDict(extra="allow", str_strip_whitespace=True)
-
-    # Essential structure fields
-    layers: list[LayerBindings] = Field(default_factory=list)
+    # layers order and name
     layer_names: list[str] = Field(default_factory=list, alias="layer_names")
 
-    # Behavior definitions
+    # User behavior definitions
     hold_taps: list[HoldTapBehavior] = Field(default_factory=list, alias="holdTaps")
     combos: list[ComboBehavior] = Field(default_factory=list)
     macros: list[MacroBehavior] = Field(default_factory=list)
@@ -295,6 +289,15 @@ class LayoutData(LayoutMetadata):
     config_parameters: ConfigParamList = Field(
         default_factory=list, alias="config_parameters"
     )
+
+
+class LayoutData(LayoutMetadata):
+    """Complete layout data model with Pydantic v2."""
+
+    model_config = ConfigDict(extra="allow", str_strip_whitespace=True)
+
+    # Essential structure fields
+    layers: list[LayerBindings] = Field(default_factory=list)
 
     # Custom code
     custom_defined_behaviors: str = Field(default="", alias="custom_defined_behaviors")
@@ -324,15 +327,16 @@ class LayoutData(LayoutMetadata):
 
         return v
 
-    @model_validator(mode="after")
-    def validate_layer_consistency(self) -> "LayoutData":
-        """Validate consistency between layer names and layer data."""
-        if len(self.layers) != len(self.layer_names):
-            raise ValueError(
-                f"Number of layers ({len(self.layers)}) must match "
-                f"number of layer names ({len(self.layer_names)})"
-            ) from None
-        return self
+    # We should check that layer_name have a matching layer in the folder=
+    # @model_validator(mode="after")
+    # def validate_layer_consistency(self) -> "LayoutData":
+    #     """Validate consistency between layer names and layer data."""
+    #     if len(self.layers) != len(self.layer_names):
+    #         raise ValueError(
+    #             f"Number of layers ({len(self.layers)}) must match "
+    #             f"number of layer names ({len(self.layer_names)})"
+    #         ) from None
+    #     return self
 
     def get_structured_layers(self) -> list[LayoutLayer]:
         """Create LayoutLayer objects from typed layer data."""

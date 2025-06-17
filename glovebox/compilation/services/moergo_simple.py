@@ -229,11 +229,18 @@ class MoergoNixService(CompilationServiceProtocol):
                 # Copy all contents of artifacts directory directly to output directory
                 for item in build_artifacts_dir.iterdir():
                     try:
+                        dest_path = output_dir / item.name
                         if item.is_file():
-                            shutil.copy2(item, output_dir / item.name)
+                            # Handle existing files by removing them first
+                            if dest_path.exists():
+                                dest_path.unlink()
+                            shutil.copy2(item, dest_path)
                             collected_items.append(f"file: {item.name}")
                         elif item.is_dir():
-                            shutil.copytree(item, output_dir / item.name)
+                            # Handle existing directories by removing them first
+                            if dest_path.exists():
+                                shutil.rmtree(dest_path)
+                            shutil.copytree(item, dest_path)
                             collected_items.append(f"directory: {item.name}")
                     except Exception as e:
                         self.logger.warning("Failed to copy artifact %s: %s", item, e)

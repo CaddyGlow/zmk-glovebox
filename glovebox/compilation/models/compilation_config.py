@@ -87,7 +87,7 @@ class CompilationConfig(BaseModel):
     """Base compilation configuration for all strategies."""
 
     # Core identification
-    type: str  # Strategy type: "zmk_config", "moergo", etc.
+    strategy: str  # Strategy type: "zmk_config", "moergo", etc.
 
     # Docker configuration
     image: str = "zmkfirmware/zmk-build-arm:stable"
@@ -111,19 +111,19 @@ class CompilationConfig(BaseModel):
     # Docker user configuration
     docker_user: DockerUserConfig = Field(default_factory=DockerUserConfig)
 
-    @field_validator("type")
+    @field_validator("strategy")
     @classmethod
-    def validate_type(cls, v: str) -> str:
+    def validate_strategy(cls, v: str) -> str:
         """Validate compilation type."""
         if not v or not v.strip():
-            raise ValueError("Compilation type cannot be empty")
+            raise ValueError("Compilation strategy cannot be empty")
         return v.strip()
 
 
 class ZmkCompilationConfig(CompilationConfig):
     """ZMK compilation configuration with west workspace support."""
 
-    type: str = "zmk_config"
+    strategy: str = "zmk_config"
     image: str = "zmkfirmware/zmk-build-arm:stable"
     repository: str = "zmkfirmware/zmk"
     branch: str = "main"
@@ -139,19 +139,11 @@ class ZmkCompilationConfig(CompilationConfig):
         default_factory=lambda: BuildMatrix(board=["nice_nano_v2"])
     )
 
-    @field_validator("build_matrix", mode="before")
-    @classmethod
-    def convert_build_config(cls, v: Any) -> BuildMatrix:
-        """Convert legacy build_config to build_matrix."""
-        if isinstance(v, dict):
-            return BuildMatrix(**v)
-        return v if v is not None else BuildMatrix(board=["nice_nano_v2"])
-
 
 class MoergoCompilationConfig(CompilationConfig):
     """Moergo compilation configuration using Nix toolchain."""
 
-    type: str = "moergo"
+    strategy: str = "moergo"
     image: str = "glove80-zmk-config-docker"
     repository: str = "moergo-sc/zmk"
     branch: str = "v25.05"
@@ -175,7 +167,7 @@ class MoergoCompilationConfig(CompilationConfig):
 
 
 # Type union for all compilation configurations
-CompilationConfigUnion = ZmkCompilationConfig | MoergoCompilationConfig
+CompilationConfigUnion = MoergoCompilationConfig | ZmkCompilationConfig
 
 
 __all__ = [

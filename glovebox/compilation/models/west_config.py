@@ -94,31 +94,6 @@ class WestManifest(BaseModel):
         "populate_by_name": True,
     }
 
-    def to_yaml(self) -> str:
-        """Serialize manifest to YAML string.
-
-        Returns:
-            str: YAML representation of the manifest
-        """
-        return yaml.safe_dump(
-            self.model_dump(by_alias=True, exclude_none=True),
-            default_flow_style=False,
-            sort_keys=False,
-        )
-
-    @classmethod
-    def from_yaml(cls, yaml_content: str) -> "WestManifest":
-        """Create WestManifest from YAML string.
-
-        Args:
-            yaml_content: YAML string content
-
-        Returns:
-            WestManifest: Parsed manifest
-        """
-        data = yaml.safe_load(yaml_content)
-        return cls(**data)
-
     @classmethod
     def from_repository_config(
         cls,
@@ -269,6 +244,31 @@ class WestManifestConfig(BaseModel):
 
     version: str | None = None
     manifest: WestManifest
+
+    def to_yaml(self) -> str:
+        """Serialize manifest to YAML string.
+
+        Returns:
+            str: YAML representation of the manifest
+        """
+        return yaml.safe_dump(
+            self.model_dump(by_alias=True, exclude_none=True),
+            default_flow_style=False,
+            sort_keys=False,
+        )
+
+    @classmethod
+    def from_yaml(cls, yaml_content: str) -> "WestManifestConfig":
+        """Create WestManifest from YAML string.
+
+        Args:
+            yaml_content: YAML string content
+
+        Returns:
+            WestManifest: Parsed manifest
+        """
+        data = yaml.safe_load(yaml_content)
+        return cls(**data)
 
 
 @dataclass

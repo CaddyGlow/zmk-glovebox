@@ -80,7 +80,7 @@ def _resolve_compilation_type(
         raise typer.Exit(1)
 
     # At this point, compile_config is guaranteed to be not None
-    compilation_strategy = compile_config.type
+    compilation_strategy = compile_config.strategy
 
     if verbose:
         logger.info("Compile config type: %s", type(compile_config).__name__)

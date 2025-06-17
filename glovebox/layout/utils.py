@@ -291,32 +291,50 @@ def generate_kconfig_conf(
     user_options: dict[str, str] = {}
 
     lines = []
+    lines.append("# Generated ZMK configuration")
+    lines.append("")
 
     # Extract user config_parameters (kconfig) options from LayoutData
     for opt in keymap_data.config_parameters:
         line = ""
+        comment_prefix = ""
+
         if opt.param_name in kconfig_options:
-            # get the real option name
+            # Supported option - get the real option name
             name = kconfig_options[opt.param_name].name
             if opt.value == kconfig_options[opt.param_name].default:
-                # TODO: rewrite this comment
-                # check if the user is setting same value as default
-                # in that case, we set it but in comment
-                # that allows the user to switch more easily firmware
-                # without changing the kconfig
-                line = "# "
+                # User is setting same value as default
+                # Comment it out to allow easier firmware switching
+                comment_prefix = "# "
+
+            logger.debug("Using supported kconfig option: %s", opt.param_name)
+
         else:
+            # Unsupported option - add warning and comment out
+            logger.warning(
+                "Unsupported kconfig option '%s' found. This option is not registered "
+                "in the keyboard or firmware configuration. Adding as commented line.",
+                opt.param_name,
+            )
+
             name = opt.param_name
             kconfig_prefix = profile.keyboard_config.zmk.patterns.kconfig_prefix
             if not name.startswith(kconfig_prefix):
                 name = kconfig_prefix + name
 
-        line += f"{name}={opt.value}"
-        lines.append(line)
+            # Comment out unsupported options with explanation
+            comment_prefix = "# "
+            lines.append(
+                f"# Warning: '{opt.param_name}' is not a supported kconfig option"
+            )
 
-    # Generate formatted kconfig content
-    lines.append("# Generated ZMK configuration")
-    lines.append("")
+        line = f"{comment_prefix}{name}={opt.value}"
+        lines.append(line)
+        lines.append("")  # Add blank line after each option for readability
+
+    # Remove the last blank line if present
+    if lines and lines[-1] == "":
+        lines.pop()
 
     kconfig_content = "\n".join(lines)
     return kconfig_content, user_options
