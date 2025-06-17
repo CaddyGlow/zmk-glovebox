@@ -1,5 +1,4 @@
 # Default Includes - Common includes for ZMK keymaps
 keymap:
-  includes:
+  header_includes:
     - "behaviors.dtsi"
-    - "dt-bindings/zmk/keys.h"

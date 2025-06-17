@@ -222,27 +222,30 @@ class ZmkFileContentGenerator:
             wait_ms = macro.wait_ms
             tap_ms = macro.tap_ms
 
-            # Determine compatible and binding-cells based on params
+            # ZMK macro binding specification only supports #binding-cells = <0>
+            # Parameters are handled at keymap invocation level, not macro definition level
             compatible_strings = profile.keyboard_config.zmk.compatible_strings
-            if not params:
-                compatible = compatible_strings.macro
-                binding_cells = "0"
-            elif len(params) == 1:
-                # Use macro for one-param case as well, since the config may not have separate ones
-                compatible = compatible_strings.macro
-                binding_cells = "1"
-            elif len(params) == 2:
-                # Use macro for two-param case as well, since the config may not have separate ones
-                compatible = compatible_strings.macro
-                binding_cells = "2"
-            else:
-                max_params = (
-                    profile.keyboard_config.zmk.validation_limits.max_macro_params
-                )
-                logger.warning(
-                    f"Macro '{name}' has {len(params)} params, which is not supported. Maximum is {max_params}."
-                )
-                continue
+            compatible = compatible_strings.macro
+            binding_cells = "0"
+            
+            # NOTE: Previous logic attempted to set binding-cells based on macro params,
+            # but ZMK binding spec (zmk,behavior-macro.yaml) includes zero_param.yaml
+            # which enforces #binding-cells = <0> regardless of conceptual parameters.
+            # Keeping old logic commented for reference in case binding spec changes:
+            #
+            # if not params:
+            #     compatible = compatible_strings.macro
+            #     binding_cells = "0"
+            # elif len(params) == 1:
+            #     compatible = compatible_strings.macro  
+            #     binding_cells = "1"
+            # elif len(params) == 2:
+            #     compatible = compatible_strings.macro
+            #     binding_cells = "2"
+            # else:
+            #     max_params = profile.keyboard_config.zmk.validation_limits.max_macro_params
+            #     logger.warning(f"Macro '{name}' has {len(params)} params, not supported. Max: {max_params}.")
+            #     continue
 
             # Register the macro behavior
             self._behavior_registry.register_behavior(
@@ -313,7 +316,10 @@ class ZmkFileContentGenerator:
         layer_define_pattern = profile.keyboard_config.zmk.patterns.layer_define
         sanitize_pattern = profile.keyboard_config.zmk.patterns.node_name_sanitize
         layer_defines = {
-            i: layer_define_pattern.format(re.sub(sanitize_pattern, "_", name.upper()))
+            i: layer_define_pattern.format(
+                layer_name=re.sub(sanitize_pattern, "_", name.upper()),
+                layer_index=i
+            )
             for i, name in enumerate(layer_names)
         }
 

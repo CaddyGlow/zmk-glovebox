@@ -10,6 +10,7 @@ class USBFlashConfig(BaseModel):
     which is the primary method used by ZMK keyboards.
     """
 
+    method_type: str = "usb"
     device_query: str
     mount_timeout: int = 30
     copy_timeout: int = 60

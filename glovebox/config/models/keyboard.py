@@ -8,6 +8,7 @@ from glovebox.compilation.models import (
     MoergoCompilationConfig,
     ZmkCompilationConfig,
 )
+from glovebox.layout.behavior.models import SystemBehavior
 
 from ..flash_methods import USBFlashConfig
 from ..models.workspace import UserWorkspaceConfig
@@ -38,9 +39,9 @@ class FormattingConfig(BaseModel):
 class KeymapSection(BaseModel):
     """Keymap section of a keyboard configuration."""
 
-    includes: list[str]
+    header_includes: list[str]
     formatting: FormattingConfig
-    system_behaviors: list[Any]
+    system_behaviors: list[SystemBehavior]
     kconfig_options: dict[str, KConfigOption]
     keymap_dtsi: str | None = None
     keymap_dtsi_file: str | None = None
@@ -85,7 +86,7 @@ class KeyboardConfig(BaseModel):
     firmwares: dict[str, FirmwareConfig] = Field(default_factory=dict)
     keymap: KeymapSection = Field(
         default_factory=lambda: KeymapSection(
-            includes=[],
+            header_includes=[],
             formatting=FormattingConfig(key_gap=" "),
             system_behaviors=[],
             kconfig_options={},

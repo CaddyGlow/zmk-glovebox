@@ -18,12 +18,7 @@ includes:
 
 # Default keymap includes
 keymap:
-  includes:
-    - "behaviors.dtsi"
-    - "dt-bindings/zmk/outputs.h"
-    - "dt-bindings/zmk/keys.h"
-    - "dt-bindings/zmk/bt.h"
-    - "dt-bindings/zmk/rgb.h"
+  header_includes: []
 
   # Using external template file from shared config
   keymap_dtsi_file: "../config/templates/keymap.dtsi.j2"

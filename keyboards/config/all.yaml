@@ -14,15 +14,13 @@ includes:
   - "zmk/validation_limits.yaml"
 
   # Behavior definitions
-  - "behaviors/zmk_core.yaml"
-  - "behaviors/zmk_bluetooth.yaml"
-  - "behaviors/zmk_macros.yaml"
+  - "behaviors/zmk.yaml"
 
   # Display configuration
   - "display/defaults.yaml"
 
   # Firmware definitions
-  - "firmware/zmk_firmwares.yaml"
+  - "firmware/zmk.yaml"
 # Note: Templates are not included here as they are referenced by path
 # Hardware configs are keyboard-specific and included separately
 

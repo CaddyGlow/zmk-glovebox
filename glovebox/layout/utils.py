@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from glovebox.layout.behavior.analysis import get_required_includes_for_layout
+
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
@@ -209,14 +211,19 @@ def build_template_context(
     # Get resolved includes from the profile and format them as #include <>
     resolved_includes = []
     if (
-        hasattr(profile.keyboard_config.keymap, "includes")
-        and profile.keyboard_config.keymap.includes is not None
+        hasattr(profile.keyboard_config.keymap, "header_includes")
+        and profile.keyboard_config.keymap.header_includes is not None
     ):
         # Format bare header names as #include <header_name>
         resolved_includes = [
             f"#include <{include}>"
-            for include in profile.keyboard_config.keymap.includes
+            for include in profile.keyboard_config.keymap.header_includes
         ]
+
+    additional_includes = get_required_includes_for_layout(profile, keymap_data)
+    resolved_includes.extend(
+        [f"#include <{include}>" for include in additional_includes]
+    )
 
     # Generate DTSI components
     layer_defines = dtsi_generator.generate_layer_defines(profile, layer_names)
@@ -503,7 +510,9 @@ def convert_keymap_section_from_dict(keymap_dict: dict[str, Any]) -> Any:
 
     # Create and return keymap section
     return KeymapSection(
-        includes=keymap_dict.get("includes", []),
+        header_includes=keymap_dict.get(
+            "header_includes", keymap_dict.get("includes", [])
+        ),
         formatting=formatting,
         system_behaviors=system_behaviors,
         kconfig_options=kconfig_options,

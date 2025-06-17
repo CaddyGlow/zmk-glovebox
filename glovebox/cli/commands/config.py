@@ -83,7 +83,7 @@ def _build_keyboard_config_data(
         for i, method in enumerate(keyboard_config.compile_methods):
             method_data = {
                 "priority": i + 1,
-                "method_type": method.method_type,
+                "method_type": method.type,
             }
 
             # Add method-specific fields
@@ -103,7 +103,7 @@ def _build_keyboard_config_data(
         # Keep primary build for backward compatibility
         primary_compile = keyboard_config.compile_methods[0]
         config_data["build"] = {
-            "primary_method": primary_compile.method_type,
+            "primary_method": primary_compile.type,
             "total_methods": len(keyboard_config.compile_methods),
         }
 

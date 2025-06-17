@@ -7,7 +7,6 @@ from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
 from glovebox.layout.models import (
     LayoutBinding,
     LayoutParam,
-    RegistryBehavior,
     SystemBehavior,
 )
 from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
@@ -26,20 +25,7 @@ class MockBehaviorRegistry:
 
     def get_behavior_info(self, name):
         """Get information about a registered behavior."""
-        behavior = self.behaviors.get(name)
-        if behavior is None:
-            return None
-
-        # Convert SystemBehavior to RegistryBehavior for protocol compliance
-        return RegistryBehavior(
-            expected_params=behavior.expected_params,
-            origin=behavior.origin,
-            description=behavior.description or "",
-            params=behavior.params,
-            url=behavior.url,
-            commands=behavior.commands,
-            includes=behavior.includes,
-        )
+        return self.behaviors.get(name)
 
     def list_behaviors(self):
         """List all registered behaviors."""

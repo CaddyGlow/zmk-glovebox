@@ -278,15 +278,13 @@ class KPBehavior(Behavior):
     """Handles &kp key presses, including modifiers."""
 
     def _validate_params(self) -> None:
-        if not self.params:
-            raise ValueError(
-                f"{self.behavior_name} requires at least one parameter."
-            ) from None
+        # Allow empty params for hold-tap bindings where &kp is just a reference
+        pass
 
     def format_dtsi(self) -> str:
         if not self.params:
-            logger.error(f"Behavior {self.behavior_name} missing raw parameters.")
-            return f"&error /* {self.behavior_name} missing params */"
+            # For hold-tap bindings, &kp without params is valid ZMK syntax
+            return "&kp"
 
         # Get the first parameter and handle it based on its type
         param = self.params[0]
