@@ -21,7 +21,6 @@ OutputFormatOption = Annotated[
     str,
     typer.Option(
         "--output-format",
-        "-o",
         help="Output format: text|json|markdown|table (default: text)",
     ),
 ]
