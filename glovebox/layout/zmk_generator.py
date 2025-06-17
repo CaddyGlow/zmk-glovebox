@@ -55,7 +55,10 @@ class ZmkFileContentGenerator:
         layer_define_pattern = profile.keyboard_config.zmk.patterns.layer_define
         for i, name in enumerate(layer_names):
             define_name = re.sub(r"\W|^(?=\d)", "_", name)
-            defines.append(f"#define {layer_define_pattern.format(define_name)} {i}")
+            define_line = layer_define_pattern.format(
+                layer_name=define_name, layer_index=i
+            )
+            defines.append(define_line)
         return "\n".join(defines)
 
     def generate_behaviors_dtsi(

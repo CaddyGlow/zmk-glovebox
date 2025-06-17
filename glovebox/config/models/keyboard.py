@@ -43,8 +43,23 @@ class KeymapSection(BaseModel):
     system_behaviors: list[Any]
     kconfig_options: dict[str, KConfigOption]
     keymap_dtsi: str | None = None
+    keymap_dtsi_file: str | None = None
     system_behaviors_dts: str | None = None
     key_position_header: str | None = None
+
+    @model_validator(mode="after")
+    def validate_keymap_template_source(self) -> "KeymapSection":
+        """Validate that only one keymap template source is specified."""
+        has_inline = self.keymap_dtsi is not None
+        has_file = self.keymap_dtsi_file is not None
+
+        if has_inline and has_file:
+            raise ValueError(
+                "Cannot specify both keymap_dtsi and keymap_dtsi_file. "
+                "Choose either inline template or template file."
+            )
+
+        return self
 
 
 # Union types for method configurations
