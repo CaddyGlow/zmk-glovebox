@@ -141,6 +141,27 @@ def _execute_compilation_service(
     )
 
 
+def _execute_compilation_from_json(
+    compilation_strategy: str,
+    json_file: Path,
+    build_output_dir: Path,
+    compile_config: CompilationConfigUnion,
+    keyboard_profile: "KeyboardProfile",
+) -> Any:
+    """Execute compilation from JSON layout file."""
+    from glovebox.compilation import create_compilation_service
+
+    compilation_service = create_compilation_service(compilation_strategy)
+
+    # Use the new compile_from_json method
+    return compilation_service.compile_from_json(
+        json_file=json_file,
+        output_dir=build_output_dir,
+        config=compile_config,
+        keyboard_profile=keyboard_profile,
+    )
+
+
 def _format_compilation_output(
     result: Any, output_format: str, output_dir: Path
 ) -> None:
@@ -187,8 +208,13 @@ cmake, make, and ninja build systems for custom keyboards.""",
 @with_profile()
 def firmware_compile(
     ctx: typer.Context,
-    keymap_file: Annotated[Path, typer.Argument(help="Path to keymap (.keymap) file")],
-    kconfig_file: Annotated[Path, typer.Argument(help="Path to kconfig (.conf) file")],
+    input_file: Annotated[
+        Path, typer.Argument(help="Path to keymap (.keymap) or layout (.json) file")
+    ],
+    config_file: Annotated[
+        Path | None,
+        typer.Argument(help="Path to kconfig (.conf) file (optional for JSON input)"),
+    ] = None,
     profile: ProfileOption = None,
     strategy: Annotated[
         str | None,
@@ -202,30 +228,38 @@ def firmware_compile(
         bool, typer.Option("--verbose", "-v", help="Enable verbose build output")
     ] = False,
 ) -> None:
-    """Build ZMK firmware from keymap and config files.
+    """Build ZMK firmware from keymap/config files or JSON layout.
 
-    Compiles .keymap and .conf files into a flashable .uf2 firmware file
-    using Docker and the ZMK build system. Requires Docker to be running.
+    Compiles .keymap and .conf files, or a .json layout file, into a flashable
+    .uf2 firmware file using Docker and the ZMK build system. Requires Docker to be running.
 
+    \b
+    For JSON input, the layout is automatically converted to .keymap and .conf files
+    before compilation. The config_file argument is optional for JSON input.
+
+    \b
     Supports multiple compilation strategies:
     - zmk_config: ZMK config repository builds (default, recommended)
     - moergo: Moergo-specific compilation strategy
-
+    \b
     Configuration options like Docker settings, workspace management, and build
     parameters are managed through profile configurations and user config files.
-
+    \b
     Examples:
-        # Basic compilation using profile configuration
+        # Compile from keymap and config files
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
 
+        # Compile directly from JSON layout (NEW)
+        glovebox firmware compile layout.json --profile glove80/v25.05
+
         # Specify compilation strategy explicitly
-        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --strategy zmk_config
+        glovebox firmware compile layout.json --profile glove80/v25.05 --strategy zmk_config
 
         # Enable verbose output for debugging
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --verbose
 
         # JSON output for automation
-        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --output-format json
+        glovebox firmware compile layout.json --profile glove80/v25.05 --output-format json
     """
     # Setup verbose logging
     _setup_verbose_logging(verbose)
@@ -240,6 +274,18 @@ def firmware_compile(
     else:
         logger.info("KeyboardProfile available in context: %r", keyboard_profile)
 
+    # Detect input file type and validate arguments
+    is_json_input = input_file.suffix.lower() == ".json"
+
+    if not is_json_input and config_file is None:
+        print_error_message("Config file is required when input is a .keymap file")
+        raise typer.Exit(1)
+
+    if is_json_input and config_file is not None:
+        logger.info(
+            "Config file provided for JSON input will be ignored (generated automatically)"
+        )
+
     # Set default output directory to 'build'
     build_output_dir = Path("build")
     build_output_dir.mkdir(parents=True, exist_ok=True)
@@ -253,15 +299,25 @@ def firmware_compile(
         # Update config with profile firmware settings
         _update_config_from_profile(compile_config, keyboard_profile)
 
-        # Execute compilation
-        result = _execute_compilation_service(
-            compilation_type,
-            keymap_file,
-            kconfig_file,
-            build_output_dir,
-            compile_config,
-            keyboard_profile,
-        )
+        # Execute compilation based on input type
+        if is_json_input:
+            result = _execute_compilation_from_json(
+                compilation_type,
+                input_file,
+                build_output_dir,
+                compile_config,
+                keyboard_profile,
+            )
+        else:
+            assert config_file is not None  # Already validated above
+            result = _execute_compilation_service(
+                compilation_type,
+                input_file,  # keymap_file
+                config_file,  # kconfig_file
+                build_output_dir,
+                compile_config,
+                keyboard_profile,
+            )
 
         # Format and display results
         _format_compilation_output(result, output_format, build_output_dir)

@@ -37,6 +37,26 @@ class CompilationServiceProtocol(Protocol):
         """
         ...
 
+    def compile_from_json(
+        self,
+        json_file: Path,
+        output_dir: Path,
+        config: "CompilationConfigUnion",
+        keyboard_profile: "KeyboardProfile",
+    ) -> BuildResult:
+        """Execute compilation from JSON layout file.
+
+        Args:
+            json_file: Path to JSON layout file
+            output_dir: Output directory for build artifacts
+            config: Compilation configuration
+            keyboard_profile: Keyboard profile for dynamic generation
+
+        Returns:
+            BuildResult: Results of compilation
+        """
+        ...
+
     def validate_config(self, config: "CompilationConfigUnion") -> bool:
         """Validate configuration for this compilation strategy.
 

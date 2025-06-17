@@ -9,18 +9,12 @@ key_count: 80
 
 # Include all component configurations
 includes:
+  - "../config/all.yaml" # All shared config files
   - "hardware.yaml"
-  - "firmwares.yaml" 
+  - "firmwares.yaml"
   - "strategies.yaml"
-  - "kconfig.yaml"
   - "behaviors.yaml"
-
-# Workspace configuration for compilation
-workspace:
-  root_directory: null  # Uses default system temp directory
-  cleanup_after_build: true
-  preserve_on_failure: false
-  max_preserved_workspaces: 3
+  - "keymap.yaml"
 
 # Default keymap includes
 keymap:
@@ -30,3 +24,20 @@ keymap:
     - "dt-bindings/zmk/keys.h"
     - "dt-bindings/zmk/bt.h"
     - "dt-bindings/zmk/rgb.h"
+
+  # Using external template file from shared config
+  keymap_dtsi_file: "../config/templates/keymap.dtsi.j2"
+
+  # Template configuration options:
+  # Option 1: Inline template (as a multi-line string)
+  # keymap_dtsi: |
+  #   #include <behaviors.dtsi>
+  #   {{ resolved_includes }}
+  #   / {
+  #     {{ keymap_node }}
+  #   };
+
+  # Option 2: External template file (relative to keyboard directory)
+  # keymap_dtsi_file: "templates/keymap.dtsi.j2"
+
+  # Note: Only specify ONE of keymap_dtsi or keymap_dtsi_file, not both

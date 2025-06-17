@@ -87,6 +87,67 @@ class ZmkWestService(CompilationServiceProtocol):
             self.logger.error("Compilation failed: %s", e)
             return BuildResult(success=False, errors=[str(e)])
 
+    def compile_from_json(
+        self,
+        json_file: Path,
+        output_dir: Path,
+        config: CompilationConfigUnion,
+        keyboard_profile: "KeyboardProfile",
+    ) -> BuildResult:
+        """Execute compilation from JSON layout file."""
+        self.logger.info("Starting JSON to firmware compilation")
+
+        try:
+            # Convert JSON to keymap/config files first
+            from glovebox.layout import create_layout_service
+
+            layout_service = create_layout_service()
+
+            # Create temporary directory for intermediate files
+            with tempfile.TemporaryDirectory(prefix="json_to_keymap_") as temp_dir:
+                temp_path = Path(temp_dir)
+                output_prefix = temp_path / "layout"
+
+                # Generate keymap and config files from JSON
+                layout_result = layout_service.generate_from_file(
+                    profile=keyboard_profile,
+                    json_file_path=json_file,
+                    output_file_prefix=str(output_prefix),
+                    force=True,
+                )
+
+                if not layout_result.success:
+                    return BuildResult(
+                        success=False,
+                        errors=[
+                            f"JSON to keymap conversion failed: {', '.join(layout_result.errors)}"
+                        ],
+                    )
+
+                # Get the generated files
+                output_files = layout_result.get_output_files()
+                keymap_file = output_files.get("keymap")
+                config_file = output_files.get("conf")
+
+                if not keymap_file or not config_file:
+                    return BuildResult(
+                        success=False,
+                        errors=["Failed to generate keymap or config files from JSON"],
+                    )
+
+                # Now compile using the generated files
+                return self.compile(
+                    keymap_file=Path(keymap_file),
+                    config_file=Path(config_file),
+                    output_dir=output_dir,
+                    config=config,
+                    keyboard_profile=keyboard_profile,
+                )
+
+        except Exception as e:
+            self.logger.error("JSON compilation failed: %s", e)
+            return BuildResult(success=False, errors=[str(e)])
+
     def validate_config(self, config: CompilationConfigUnion) -> bool:
         """Validate configuration."""
         return isinstance(config, ZmkCompilationConfig) and bool(config.image)

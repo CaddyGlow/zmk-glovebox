@@ -229,16 +229,13 @@ def build_template_context(
     )
 
     # Get template elements from the keyboard profile
-    key_position_header = (
-        profile.keyboard_config.keymap.key_position_header
-        if hasattr(profile.keyboard_config.keymap, "key_position_header")
-        else ""
-    )
-    system_behaviors_dts = (
-        profile.keyboard_config.keymap.system_behaviors_dts
-        if hasattr(profile.keyboard_config.keymap, "system_behaviors_dts")
-        else ""
-    )
+    key_position_header = ""
+    if hasattr(profile.keyboard_config.keymap, "key_position_header"):
+        key_position_header = profile.keyboard_config.keymap.key_position_header or ""
+
+    system_behaviors_dts = ""
+    if hasattr(profile.keyboard_config.keymap, "system_behaviors_dts"):
+        system_behaviors_dts = profile.keyboard_config.keymap.system_behaviors_dts or ""
 
     # Profile identifiers
     profile_name = f"{profile.keyboard_name}/{profile.firmware_version}"
@@ -318,6 +315,52 @@ def generate_kconfig_conf(
     return kconfig_content, user_options
 
 
+def resolve_template_file_path(keyboard_name: str, template_file: str) -> Path:
+    """Resolve a template file path relative to keyboard configuration directories.
+
+    Args:
+        keyboard_name: Name of the keyboard configuration
+        template_file: Relative path to the template file
+
+    Returns:
+        Resolved absolute path to the template file
+
+    Raises:
+        LayoutError: If the template file cannot be found
+    """
+    from glovebox.config.keyboard_profile import initialize_search_paths
+
+    # Get the standard search paths for keyboard configurations
+    search_paths = initialize_search_paths()
+    template_path_obj = Path(template_file)
+
+    # If absolute path, validate and use as-is
+    if template_path_obj.is_absolute():
+        if template_path_obj.exists():
+            return template_path_obj.resolve()
+        raise LayoutError(f"Template file not found: {template_file}")
+
+    # Try to resolve relative to keyboard configuration directories
+    for search_path in search_paths:
+        # Try relative to keyboard directory (for modular configs)
+        keyboard_dir = search_path / keyboard_name
+        if keyboard_dir.exists() and keyboard_dir.is_dir():
+            keyboard_relative = keyboard_dir / template_path_obj
+            if keyboard_relative.exists():
+                return keyboard_relative.resolve()
+
+        # Try relative to search path root
+        search_relative = search_path / template_path_obj
+        if search_relative.exists():
+            return search_relative.resolve()
+
+    raise LayoutError(
+        f"Template file not found: {template_file}. "
+        f"Searched relative to keyboard '{keyboard_name}' directories in: "
+        f"{[str(p) for p in search_paths]}"
+    )
+
+
 def generate_keymap_file(
     file_adapter: FileAdapterProtocol,
     template_adapter: Any,
@@ -348,14 +391,26 @@ def generate_keymap_file(
     # Build template context using the function
     context = build_template_context(keymap_data, profile, dtsi_generator)
 
-    # Get template content from keymap configuration
-    template_content = profile.keyboard_config.keymap.keymap_dtsi
+    # Get template content from keymap configuration - support both inline and file templates
+    keymap_section = profile.keyboard_config.keymap
+    inline_template = keymap_section.keymap_dtsi
+    template_file = keymap_section.keymap_dtsi_file
 
-    # Render template
-    if template_content:
-        keymap_content = template_adapter.render_string(template_content, context)
+    # Render template based on source type
+    if inline_template:
+        logger.debug("Using inline keymap template")
+        keymap_content = template_adapter.render_string(inline_template, context)
+    elif template_file:
+        logger.debug("Using template file: %s", template_file)
+        # Resolve template file path
+        template_path = resolve_template_file_path(profile.keyboard_name, template_file)
+        logger.debug("Resolved template path: %s", template_path)
+        keymap_content = template_adapter.render_template(template_path, context)
     else:
-        raise LayoutError("No keymap_dtsi template available in keyboard configuration")
+        raise LayoutError(
+            "No keymap template available in keyboard configuration. "
+            "Specify either keymap_dtsi (inline) or keymap_dtsi_file (template file)."
+        )
 
     file_adapter.write_text(output_path, keymap_content)
     logger.info("Successfully built keymap and saved to %s", output_path)
@@ -453,6 +508,7 @@ def convert_keymap_section_from_dict(keymap_dict: dict[str, Any]) -> Any:
         system_behaviors=system_behaviors,
         kconfig_options=kconfig_options,
         keymap_dtsi=keymap_dict.get("keymap_dtsi"),
+        keymap_dtsi_file=keymap_dict.get("keymap_dtsi_file"),
         system_behaviors_dts=keymap_dict.get("system_behaviors_dts"),
         key_position_header=keymap_dict.get("key_position_header"),
     )
