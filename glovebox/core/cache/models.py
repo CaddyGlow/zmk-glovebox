@@ -89,6 +89,8 @@ class CacheConfig:
     cleanup_interval_seconds: int = 300  # 5 minutes
     enable_statistics: bool = True
     cache_root: Path | None = None
+    use_file_locking: bool = True
+    cache_strategy: str = "process_isolated"
 
 
 class CacheKey:

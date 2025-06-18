@@ -2,6 +2,7 @@
 
 import json
 import tempfile
+import zlib
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
@@ -12,10 +13,14 @@ from glovebox.moergo.client import (
     APIError,
     AuthenticationError,
     AuthTokens,
+    CompilationError,
     CredentialManager,
+    FirmwareCompileRequest,
+    FirmwareCompileResponse,
     MoErgoClient,
     MoErgoLayout,
     NetworkError,
+    TimeoutError,
     UserCredentials,
 )
 
@@ -424,3 +429,211 @@ class TestMoErgoClient:
         assert info["expires_at"] is None
         assert info["expires_in_minutes"] is None
         assert info["needs_renewal"] is True
+
+
+class TestFirmwareCompilation:
+    """Test firmware compilation and download functionality."""
+
+    @pytest.fixture
+    def temp_config_dir(self):
+        """Create temporary config directory."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield Path(tmpdir)
+
+    @pytest.fixture
+    def credential_manager(self, temp_config_dir):
+        """Create credential manager with temp directory."""
+        return CredentialManager(config_dir=temp_config_dir)
+
+    @pytest.fixture
+    def client(self, credential_manager):
+        """Create MoErgo client with mocked credential manager."""
+        return MoErgoClient(credential_manager=credential_manager)
+
+    @pytest.fixture
+    def mock_auth_response(self):
+        """Mock successful authentication response."""
+        return {
+            "AuthenticationResult": {
+                "AccessToken": "access_token_123",
+                "RefreshToken": "refresh_token_123",
+                "IdToken": "id_token_123",
+                "TokenType": "Bearer",
+                "ExpiresIn": 3600,
+            }
+        }
+
+    @pytest.fixture
+    def authenticated_client(self, client, mock_auth_response):
+        """Create authenticated client."""
+        with patch.object(
+            client.auth_client, "simple_login_attempt", return_value=mock_auth_response
+        ):
+            client.login("test@example.com", "testpass123")
+        return client
+
+    def test_compile_firmware_success(self, authenticated_client):
+        """Test successful firmware compilation."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"location": "/firmware/test.uf2.gz"}
+        mock_response.raise_for_status = Mock()
+
+        with patch.object(
+            authenticated_client.session, "post", return_value=mock_response
+        ):
+            result = authenticated_client.compile_firmware(
+                layout_uuid="test-uuid",
+                keymap="test keymap content",
+                kconfig="CONFIG_ZMK_SLEEP=y",
+                board="glove80",
+            )
+
+            assert isinstance(result, FirmwareCompileResponse)
+            assert result.location == "/firmware/test.uf2.gz"
+
+    def test_compile_firmware_timeout(self, authenticated_client):
+        """Test firmware compilation timeout."""
+        with patch.object(authenticated_client.session, "post") as mock_post:
+            mock_post.side_effect = requests.exceptions.Timeout("Request timed out")
+
+            with pytest.raises(TimeoutError):
+                authenticated_client.compile_firmware(
+                    layout_uuid="test-uuid",
+                    keymap="test keymap",
+                    timeout=1,
+                    max_retries=1,
+                )
+
+    def test_compile_firmware_compilation_error(self, authenticated_client):
+        """Test firmware compilation error handling."""
+        mock_response = Mock()
+        mock_response.status_code = 400
+        mock_response.json.return_value = {
+            "message": "Compilation failed",
+            "detail": ["Error on line 1", "Syntax error"],
+        }
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError()
+
+        with patch.object(
+            authenticated_client.session, "post", return_value=mock_response
+        ):
+            with pytest.raises(CompilationError) as exc_info:
+                authenticated_client.compile_firmware(
+                    layout_uuid="test-uuid",
+                    keymap="invalid keymap",
+                )
+
+            assert "Compilation failed" in str(exc_info.value)
+            assert exc_info.value.detail == ["Error on line 1", "Syntax error"]
+
+    def test_compile_firmware_retry_logic(self, authenticated_client):
+        """Test retry logic on timeout."""
+        # First two calls timeout, third succeeds
+        timeout_response = requests.exceptions.Timeout("Request timed out")
+        success_response = Mock()
+        success_response.status_code = 200
+        success_response.json.return_value = {"location": "/firmware/test.uf2.gz"}
+        success_response.raise_for_status = Mock()
+
+        with patch.object(authenticated_client.session, "post") as mock_post:
+            mock_post.side_effect = [
+                timeout_response,
+                timeout_response,
+                success_response,
+            ]
+
+            with patch("time.sleep"):  # Speed up test by mocking sleep
+                result = authenticated_client.compile_firmware(
+                    layout_uuid="test-uuid",
+                    keymap="test keymap",
+                    max_retries=3,
+                    initial_retry_delay=0.1,
+                )
+
+                assert result.location == "/firmware/test.uf2.gz"
+                assert mock_post.call_count == 3
+
+    def test_download_firmware_compressed(self, authenticated_client):
+        """Test downloading compressed firmware (.gz file)."""
+        # Create test firmware data and compress it
+        test_firmware = b"test firmware content"
+        compressed_firmware = zlib.compress(test_firmware)
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = compressed_firmware
+        mock_response.raise_for_status = Mock()
+
+        with patch.object(
+            authenticated_client.session, "get", return_value=mock_response
+        ):
+            result = authenticated_client.download_firmware("/firmware/test.uf2.gz")
+
+            assert result == test_firmware
+
+    def test_download_firmware_uncompressed(self, authenticated_client):
+        """Test downloading uncompressed firmware (non-.gz file)."""
+        test_firmware = b"test firmware content"
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = test_firmware
+        mock_response.raise_for_status = Mock()
+
+        with patch.object(
+            authenticated_client.session, "get", return_value=mock_response
+        ):
+            result = authenticated_client.download_firmware("/firmware/test.uf2")
+
+            assert result == test_firmware
+
+    def test_download_firmware_decompression_error(self, authenticated_client):
+        """Test handling decompression error for .gz files."""
+        # Invalid compressed data
+        invalid_compressed_data = b"invalid compressed data"
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = invalid_compressed_data
+        mock_response.raise_for_status = Mock()
+
+        with patch.object(
+            authenticated_client.session, "get", return_value=mock_response
+        ):
+            with pytest.raises(APIError) as exc_info:
+                authenticated_client.download_firmware("/firmware/test.uf2.gz")
+
+            assert "Failed to decompress firmware data" in str(exc_info.value)
+
+    def test_download_firmware_with_output_path(
+        self, authenticated_client, temp_config_dir
+    ):
+        """Test downloading firmware and saving to file."""
+        test_firmware = b"test firmware content"
+        compressed_firmware = zlib.compress(test_firmware)
+        output_path = temp_config_dir / "downloaded_firmware.uf2"
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = compressed_firmware
+        mock_response.raise_for_status = Mock()
+
+        with patch.object(
+            authenticated_client.session, "get", return_value=mock_response
+        ):
+            result = authenticated_client.download_firmware(
+                "/firmware/test.uf2.gz", str(output_path)
+            )
+
+            assert result == test_firmware
+            assert output_path.exists()
+            assert output_path.read_bytes() == test_firmware
+
+    def test_download_firmware_network_error(self, authenticated_client):
+        """Test download firmware with network error."""
+        with patch.object(authenticated_client.session, "get") as mock_get:
+            mock_get.side_effect = requests.exceptions.ConnectionError("Network error")
+
+            with pytest.raises(NetworkError):
+                authenticated_client.download_firmware("/firmware/test.uf2.gz")

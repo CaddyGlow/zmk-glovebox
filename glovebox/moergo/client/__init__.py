@@ -6,9 +6,13 @@ from .models import (
     APIError,
     AuthenticationError,
     AuthTokens,
+    CompilationError,
+    FirmwareCompileRequest,
+    FirmwareCompileResponse,
     LayoutMeta,
     MoErgoLayout,
     NetworkError,
+    TimeoutError,
     UserCredentials,
     ValidationError,
 )
@@ -26,4 +30,8 @@ __all__ = [
     "AuthenticationError",
     "NetworkError",
     "ValidationError",
+    "TimeoutError",
+    "CompilationError",
+    "FirmwareCompileRequest",
+    "FirmwareCompileResponse",
 ]

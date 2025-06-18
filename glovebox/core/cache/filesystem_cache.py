@@ -41,10 +41,8 @@ class FilesystemCache(BaseCacheManager):
             # Default cache location with process isolation
             cache_base = Path(tempfile.gettempdir()) / "glovebox_cache"
 
-            # Check environment variable for cache strategy
-            cache_strategy = os.environ.get(
-                "GLOVEBOX_CACHE_STRATEGY", "process_isolated"
-            )
+            # Use config strategy (required parameter)
+            cache_strategy = self.config.cache_strategy or "process_isolated"
 
             if cache_strategy == "shared":
                 # Shared cache (original behavior) - may have race conditions
@@ -69,10 +67,8 @@ class FilesystemCache(BaseCacheManager):
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.metadata_dir.mkdir(parents=True, exist_ok=True)
 
-        # Check if file locking is enabled
-        self.use_file_locking = (
-            os.environ.get("GLOVEBOX_CACHE_FILE_LOCKING", "true").lower() == "true"
-        )
+        # Use config file locking setting
+        self.use_file_locking = self.config.use_file_locking
 
         logger.debug("Initialized filesystem cache at: %s", self.cache_root)
         logger.debug("File locking enabled: %s", self.use_file_locking)

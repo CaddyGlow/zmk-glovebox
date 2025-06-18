@@ -94,6 +94,16 @@ class UserConfigData(BaseSettings):
         description="Serializer for DeepDiff delta objects: 'json' (default) or 'pickle'",
     )
 
+    # Cache settings
+    cache_strategy: str = Field(
+        default="process_isolated",
+        description="Cache strategy: 'process_isolated' (default), 'shared', or 'disabled'",
+    )
+    cache_file_locking: bool = Field(
+        default=True,
+        description="Enable file locking for cache operations to prevent race conditions",
+    )
+
     # Firmware settings
     firmware: UserFirmwareConfig = Field(default_factory=UserFirmwareConfig)
 
@@ -146,4 +156,15 @@ class UserConfigData(BaseSettings):
             raise ValueError(
                 f"DeepDiff delta serializer must be one of {valid_serializers}"
             )
+        return lower_v  # Always normalize to lowercase
+
+    @field_validator("cache_strategy")
+    @classmethod
+    def validate_cache_strategy(cls, v: str) -> str:
+        """Validate cache strategy is a recognized value."""
+        valid_strategies = ["process_isolated", "shared", "disabled"]
+        # Strip whitespace and convert to lowercase
+        lower_v = v.strip().lower()
+        if lower_v not in valid_strategies:
+            raise ValueError(f"Cache strategy must be one of {valid_strategies}")
         return lower_v  # Always normalize to lowercase

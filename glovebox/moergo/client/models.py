@@ -89,3 +89,37 @@ class ValidationError(APIError):
     """Request validation errors."""
 
     pass
+
+
+class TimeoutError(APIError):
+    """Request timeout errors."""
+
+    pass
+
+
+class CompilationError(APIError):
+    """Firmware compilation errors."""
+
+    def __init__(
+        self,
+        message: str,
+        detail: list[str] | None = None,
+        status_code: int | None = None,
+        response_data: dict[str, Any] | None = None,
+    ):
+        super().__init__(message, status_code, response_data)
+        self.detail = detail or []
+
+
+class FirmwareCompileRequest(BaseModel):
+    """Request payload for firmware compilation."""
+
+    keymap: str
+    kconfig: str = ""
+    board: str = "glove80"
+
+
+class FirmwareCompileResponse(BaseModel):
+    """Response from firmware compilation endpoint."""
+
+    location: str
