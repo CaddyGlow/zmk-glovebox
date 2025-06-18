@@ -366,7 +366,7 @@ class TestCacheStrategies:
     """Test different cache strategies."""
 
     def test_cache_strategy_process_isolated(self):
-        """Test process isolated cache strategy (default)."""
+        """Test process isolated cache strategy."""
         cache = create_default_cache(cache_strategy="process_isolated")
         assert (
             f"proc_{os.getpid()}" in str(cache.cache_root)
@@ -556,7 +556,11 @@ class TestCacheIntegration:
             assert metadata.ttl_seconds == 3600
 
             # Update data
-            if isinstance(complex_data, dict) and "settings" in complex_data and isinstance(complex_data["settings"], dict):
+            if (
+                isinstance(complex_data, dict)
+                and "settings" in complex_data
+                and isinstance(complex_data["settings"], dict)
+            ):
                 complex_data["settings"]["theme"] = "light"
                 filesystem_cache.set(cache_key, complex_data)
 

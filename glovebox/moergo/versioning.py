@@ -1,7 +1,7 @@
 """Layout versioning using parent_uuid relationships in MoErgo API."""
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from .client.client import MoErgoClient
 from .client.models import MoErgoLayout
@@ -118,8 +118,10 @@ class LayoutVersionTree:
                 try:
                     meta_response = self.client.get_layout_meta(uuid)
                     layout_meta = meta_response.get("layout_meta", meta_response)
-                except Exception:
-                    raise ValueError(f"Cannot fetch metadata for layout {uuid}")
+                except Exception as err:
+                    raise ValueError(
+                        f"Cannot fetch metadata for layout {uuid}"
+                    ) from err
 
             # Create version node
             version = LayoutVersion(layout_meta)
@@ -138,7 +140,7 @@ class LayoutVersionTree:
     def get_version_lineage(self, layout_uuid: str) -> list[LayoutVersion]:
         """Get the linear lineage from root to specified version."""
         # This is a simplified synchronous version for immediate use
-        lineage = []
+        lineage: list[LayoutVersion] = []
         current_uuid = layout_uuid
         visited: set[str] = set()
 

@@ -4,19 +4,100 @@
   "locale": "en-US",
   "uuid": "",
   "parent_uuid": "d8881d0c-6543-4ee1-a48a-13e453ace2e6",
-  "date": 1669974415,
+  "date": "2022-12-02T09:46:55Z",
   "creator": "rick3",
   "title": "Factory With bindings",
   "notes": "",
   "tags": [],
-  "custom_defined_behaviors": "",
-  "custom_devicetree": "",
-  "config_parameters": [],
+  "last_firmware_build": {
+    "date": "2025-06-19T01:09:43.085749",
+    "profile": "glove80/v25.01",
+    "firmware_path": "/home/rick/projects/glovebox/build/glove80_rh-zmk.uf2",
+    "firmware_hash": "sha256:15b32a1df58b06ba48819c44e3b6dec448a246c171c5dfc9971bb432954b7e82",
+    "build_id": ""
+  },
   "layer_names": [
     "Base",
     "Lower",
     "Magic"
   ],
+  "config_parameters": [],
+  "holdTaps": [
+    {
+      "name": "&hold_test",
+      "description": "hold test desc",
+      "bindings": [
+        {
+          "value": "&kp",
+          "params": []
+        },
+        {
+          "value": "&kp",
+          "params": []
+        }
+      ],
+      "tappingTermMs": 200,
+      "quickTapMs": 10,
+      "requirePriorIdleMs": 23,
+      "holdTriggerKeyPositions": [
+        0,
+        9
+      ],
+      "retroTap": true,
+      "holdWhileUndecided": true,
+      "holdWhileUndecidedLinger": true
+    }
+  ],
+  "combos": [
+    {
+      "name": "test_combo",
+      "description": "desc",
+      "timeoutMs": 2323,
+      "keyPositions": [
+        1,
+        8
+      ],
+      "layers": [
+        -1
+      ],
+      "binding": {
+        "value": "&kp",
+        "params": [
+          {
+            "value": "A",
+            "params": []
+          }
+        ]
+      }
+    }
+  ],
+  "macros": [
+    {
+      "name": "&macro_test",
+      "description": "soome desc",
+      "waitMs": 15,
+      "tapMs": 30,
+      "bindings": [
+        {
+          "value": "&macro_tap",
+          "params": []
+        },
+        {
+          "value": "&kp",
+          "params": [
+            {
+              "value": "C",
+              "params": []
+            }
+          ]
+        }
+      ],
+      "params": [
+        "code"
+      ]
+    }
+  ],
+  "inputListeners": [],
   "layers": [
     [
       {
@@ -1695,74 +1776,6 @@
       }
     ]
   ],
-  "macros": [
-    {
-      "name": "&macro_test",
-      "description": "soome desc",
-      "waitMs": 15,
-      "tapMs": 30,
-      "bindings": [
-        {
-          "value": "&macro_tap",
-          "params": []
-        },
-        {
-          "value": "&kp",
-          "params": [
-            {
-              "value": "C",
-              "params": []
-            }
-          ]
-        }
-      ],
-      "params": [
-        "code"
-      ]
-    }
-  ],
-  "inputListeners": [],
-  "holdTaps": [
-    {
-      "name": "&hold_test",
-      "description": "hold test desc",
-      "bindings": [
-        "&kp",
-        "&kp"
-      ],
-      "tappingTermMs": 200,
-      "quickTapMs": 10,
-      "requirePriorIdleMs": 23,
-      "retroTap": true,
-      "holdWhileUndecided": true,
-      "holdWhileUndecidedLinger": true,
-      "holdTriggerKeyPositions": [
-        0,
-        9
-      ]
-    }
-  ],
-  "combos": [
-    {
-      "name": "test_combo",
-      "description": "desc",
-      "binding": {
-        "value": "&kp",
-        "params": [
-          {
-            "value": "A",
-            "params": []
-          }
-        ]
-      },
-      "keyPositions": [
-        1,
-        8
-      ],
-      "timeoutMs": 2323,
-      "layers": [
-        -1
-      ]
-    }
-  ]
+  "custom_defined_behaviors": "",
+  "custom_devicetree": ""
 }
