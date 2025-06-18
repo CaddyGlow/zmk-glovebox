@@ -405,14 +405,14 @@ class TestDockerAdapter:
             patch("pathlib.Path.exists", return_value=True),
             patch("pathlib.Path.is_dir", return_value=True),
         ):
-            result = adapter.build_image(
+            result: tuple[int, list[str], list[str]] = adapter.build_image(
                 dockerfile_dir=dockerfile_dir,
                 image_name="test-image",
                 image_tag="v1.0",
                 no_cache=True,
             )
 
-        assert result is True
+        assert result[0] == 0  # Check return code is 0 (success)
         expected_cmd = [
             "docker",
             "build",
