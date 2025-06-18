@@ -12,6 +12,8 @@ dependencies = [
   "PyYAML>=6.0",
   "rich>=13.3.0",
   "typer-slim>=0.16.0",
+  "deepdiff>=8.5.0",
+  "jsonpatch>=1.33",
 ]
 
 [project.scripts]

@@ -99,7 +99,7 @@ class TestKeyboardConfigDefaults:
         # Verify defaults are applied
         assert config.firmwares == {}
         assert config.keymap is not None
-        assert config.keymap.includes == []
+        assert config.keymap.header_includes == []
         assert config.keymap.system_behaviors == []
         assert config.keymap.kconfig_options == {}
         assert config.keymap.formatting.key_gap == " "
@@ -143,7 +143,7 @@ class TestKeyboardConfigDefaults:
         assert len(config.firmwares) == 1
         assert "v1.0" in config.firmwares
         assert config.keymap is not None
-        assert config.keymap.includes == []
+        assert config.keymap.header_includes == []
 
 
 class TestKeyboardOnlyProfileCreation:

@@ -19,7 +19,7 @@ def diff(
         str,
         typer.Option(
             "--output-format",
-            help="Output format: summary (default), detailed, dtsi, or json",
+            help="Output format: summary (default), detailed, dtsi, pretty, or json",
         ),
     ] = "summary",
     compare_dtsi: Annotated[
@@ -38,6 +38,7 @@ def diff(
         summary  - Basic difference counts (default)
         detailed - Individual key differences within layers
         dtsi     - Detailed DTSI code differences with unified diff
+        pretty   - Human-readable DeepDiff output
         json     - Structured data with exact key changes for automation
 
     The --compare-dtsi flag enables detailed custom DTSI code comparison
@@ -55,6 +56,9 @@ def diff(
 
         # DTSI-focused output with unified diff format
         glovebox layout diff layout1.json layout2.json --output-format dtsi
+
+        # Pretty human-readable output using DeepDiff
+        glovebox layout diff layout1.json layout2.json --output-format pretty
 
         # JSON output with structured key change data
         glovebox layout diff layout1.json layout2.json --output-format json
@@ -86,6 +90,14 @@ def diff(
 
         if output_format.lower() == "json":
             command.format_output(result, "json")
+        elif output_format.lower() == "pretty":
+            # Use DeepDiff's pretty output
+            if "deepdiff_pretty" in result:
+                print(result["deepdiff_pretty"])
+            else:
+                from glovebox.cli.helpers import print_success_message
+
+                print_success_message("No significant differences found")
         else:
             # Generate text output from comparison result
             differences = _format_comparison_text(result, output_format, compare_dtsi)
@@ -258,9 +270,30 @@ def _format_comparison_text(
     # Add metadata changes
     for field, change in result.get("metadata", {}).items():
         if isinstance(change, dict) and "from" in change and "to" in change:
-            differences.append(
-                f"{field.title()}: '{change['from']}' → '{change['to']}'"
-            )
+            # Handle long content fields differently based on output format
+            if field in ["custom_defined_behaviors", "custom_devicetree"]:
+                # Only show DTSI fields when compare_dtsi flag is set
+                if compare_dtsi:
+                    if output_format.lower() == "detailed":
+                        # Show full content in detailed mode
+                        differences.append(
+                            f"{field.title()}: '{change['from']}' → '{change['to']}'"
+                        )
+                    else:
+                        # Show summary in other modes
+                        differences.append(f"{field.title()}: Content differs")
+            else:
+                # Normal metadata fields - show full content
+                # Handle list modifications differently
+                if (
+                    change["from"] == "list_modified"
+                    and change["to"] == "list_modified"
+                ):
+                    differences.append(f"{field.title()}: List modified")
+                else:
+                    differences.append(
+                        f"{field.title()}: '{change['from']}' → '{change['to']}'"
+                    )
 
     # Add layer changes
     layers = result.get("layers", {})
@@ -269,35 +302,147 @@ def _format_comparison_text(
     if layers.get("removed"):
         differences.append(f"Removed layers: {', '.join(sorted(layers['removed']))}")
 
-    # Add layer key changes for detailed output
-    if output_format.lower() == "detailed":
-        for layer_name, layer_changes in layers.get("changed", {}).items():
-            key_count = layer_changes.get("total_key_differences", 0)
-            differences.append(f"Layer '{layer_name}': {key_count} key differences")
+    # Add layer overview for summary format or detailed key changes for detailed format
+    changed_layers = layers.get("changed", {})
+    if changed_layers:
+        if output_format.lower() == "detailed":
+            # Show detailed key changes for each layer
+            for layer_name, layer_changes in changed_layers.items():
+                key_count = layer_changes.get("total_key_differences", 0)
+                differences.append(f"Layer '{layer_name}': {key_count} key differences")
 
-            # Show individual key changes (limited)
-            for key_change in layer_changes.get("key_changes", [])[:5]:
-                key_idx = key_change.get("key_index")
-                from_val = key_change.get("from", "None")
-                to_val = key_change.get("to", "None")
-                # Truncate long values
-                from_str = (
-                    from_val[:40] + "..." if len(str(from_val)) > 40 else str(from_val)
-                )
-                to_str = to_val[:40] + "..." if len(str(to_val)) > 40 else str(to_val)
-                differences.append(f"  Key {key_idx:2d}: '{from_str}' → '{to_str}'")
+                # Show individual key changes (limited)
+                key_changes = layer_changes.get("key_changes", [])
+                if key_changes:
+                    for key_change in key_changes[:5]:
+                        key_idx = key_change.get("key_index")
+                        from_val = key_change.get("from", "None")
+                        to_val = key_change.get("to", "None")
+                        # Truncate long values
+                        from_str = (
+                            from_val[:40] + "..."
+                            if len(str(from_val)) > 40
+                            else str(from_val)
+                        )
+                        to_str = (
+                            to_val[:40] + "..."
+                            if len(str(to_val)) > 40
+                            else str(to_val)
+                        )
+                        differences.append(
+                            f"  Key {key_idx:2d}: '{from_str}' → '{to_str}'"
+                        )
 
-            # Show truncation if needed
-            total_changes = len(layer_changes.get("key_changes", []))
-            if total_changes > 5:
-                differences.append(f"  ... and {total_changes - 5} more changes")
+                    # Show truncation if needed
+                    total_changes = len(key_changes)
+                    if total_changes > 5:
+                        differences.append(
+                            f"  ... and {total_changes - 5} more changes"
+                        )
+                else:
+                    # Fallback when key_changes is empty but differences exist
+                    if key_count > 0:
+                        differences.append(
+                            f"  • {key_count} key differences (detailed changes available in JSON format)"
+                        )
+        else:
+            # Show summary of layer changes with breakdown
+            total_key_changes = sum(
+                layer_data.get("total_key_differences", 0)
+                for layer_data in changed_layers.values()
+            )
+            layer_count = len(changed_layers)
+            differences.append(
+                f"Layers: {layer_count} changed ({total_key_changes} total key differences)"
+            )
+
+            # Show per-layer breakdown
+            for layer_name, layer_data in sorted(changed_layers.items()):
+                key_count = layer_data.get("total_key_differences", 0)
+                differences.append(f"  - {layer_name}: {key_count} changes")
 
     # Add behavior changes
     behaviors = result.get("behaviors", {})
     if behaviors.get("changed"):
         count1 = behaviors.get("layout1_count", 0)
         count2 = behaviors.get("layout2_count", 0)
-        differences.append(f"Behaviors: {count1} → {count2}")
+        if count1 == count2:
+            differences.append(f"Behaviors: {count1} modified")
+        else:
+            differences.append(f"Behaviors: {count1} → {count2}")
+
+        # Add detailed behavior breakdown for detailed format
+        if output_format.lower() == "detailed":
+            detailed_changes = behaviors.get("detailed_changes", {})
+            for behavior_type, changes in detailed_changes.items():
+                added = changes.get("added", [])
+                removed = changes.get("removed", [])
+                changed = changes.get("changed", [])
+
+                if added or removed or changed:
+                    differences.append(f"  {behavior_type.title()}:")
+
+                    for behavior in added:
+                        differences.append(
+                            f"    + Added: {behavior['name']} ({behavior['type']})"
+                        )
+
+                    for behavior in removed:
+                        differences.append(
+                            f"    - Removed: {behavior['name']} ({behavior['type']})"
+                        )
+
+                    for behavior in changed:
+                        field_changes = behavior.get("field_changes", {})
+                        field_count = len(field_changes)
+                        differences.append(
+                            f"    ~ Changed: {behavior['name']} ({field_count} fields modified)"
+                        )
+
+                        # Show specific field changes
+                        for field_name, change in field_changes.items():
+                            if (
+                                isinstance(change, dict)
+                                and "from" in change
+                                and "to" in change
+                            ):
+                                from_val = change["from"]
+                                to_val = change["to"]
+                                # Truncate long values for readability
+                                from_str = (
+                                    str(from_val)[:30] + "..."
+                                    if len(str(from_val)) > 30
+                                    else str(from_val)
+                                )
+                                to_str = (
+                                    str(to_val)[:30] + "..."
+                                    if len(str(to_val)) > 30
+                                    else str(to_val)
+                                )
+                                differences.append(
+                                    f"      • {field_name}: '{from_str}' → '{to_str}'"
+                                )
+        else:
+            # Show summary of behavior types changed
+            detailed_changes = behaviors.get("detailed_changes", {})
+            total_changes = []
+            for behavior_type, changes in detailed_changes.items():
+                added_count = len(changes.get("added", []))
+                removed_count = len(changes.get("removed", []))
+                changed_count = len(changes.get("changed", []))
+
+                if added_count or removed_count or changed_count:
+                    type_summary = []
+                    if added_count:
+                        type_summary.append(f"+{added_count}")
+                    if removed_count:
+                        type_summary.append(f"-{removed_count}")
+                    if changed_count:
+                        type_summary.append(f"~{changed_count}")
+                    total_changes.append(f"{behavior_type}: {'/'.join(type_summary)}")
+
+            if total_changes:
+                differences.append(f"  - {', '.join(total_changes)}")
 
     # Add config changes
     config = result.get("config", {})
@@ -306,11 +451,37 @@ def _format_comparison_text(
         count2 = config.get("layout2_count", 0)
         differences.append(f"Config parameters: {count1} → {count2}")
 
-    # Add DTSI changes
-    dtsi = result.get("custom_dtsi", {})
-    if dtsi.get("custom_defined_behaviors", {}).get("changed"):
-        differences.append("custom_defined_behaviors: Content differs")
-    if dtsi.get("custom_devicetree", {}).get("changed"):
-        differences.append("custom_devicetree: Content differs")
+        # Show detailed config changes in detailed mode
+        if output_format.lower() == "detailed":
+            # Look for config parameter changes in metadata
+            config_changes = []
+            for field, change in result.get("metadata", {}).items():
+                # Config parameters are stored as metadata fields
+                if (
+                    (field.startswith("config_") or field in ["config_parameters"])
+                    and isinstance(change, dict)
+                    and "from" in change
+                    and "to" in change
+                ):
+                    config_changes.append(
+                        f"    {field}: '{change['from']}' → '{change['to']}'"
+                    )
+
+            # If no specific config changes found, check if we can extract from the comparison data
+            if not config_changes and count1 != count2:
+                differences.append(
+                    f"  • Added {count2 - count1} config parameters (details in JSON format)"
+                )
+
+            for config_change in config_changes:
+                differences.append(config_change)
+
+    # Add DTSI changes (only when compare_dtsi flag is set)
+    if compare_dtsi and output_format.lower() == "detailed":
+        dtsi = result.get("custom_dtsi", {})
+        if dtsi.get("custom_defined_behaviors", {}).get("changed"):
+            differences.append("custom_defined_behaviors: Content differs")
+        if dtsi.get("custom_devicetree", {}).get("changed"):
+            differences.append("custom_devicetree: Content differs")
 
     return differences

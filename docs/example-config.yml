@@ -13,6 +13,12 @@ profile: "glove80/v25.05"
 # Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 log_level: "INFO"
 
+# DeepDiff delta serializer for layout comparison patches
+# Options: "json" (default, pure JSON without base64) or "pickle" (binary format with base64 encoding)
+# JSON format: faster, human-readable, but may fallback to pickle for complex objects
+# Pickle format: more reliable for complex objects but requires explicit user configuration
+deepdiff_delta_serializer: "json"
+
 # Additional paths to search for keyboard configurations
 # Supports environment variable expansion (e.g., $HOME, ${USER})
 keyboard_paths:
@@ -75,6 +81,8 @@ flash_skip_existing: false
 # Configuration precedence (highest to lowest):
 # 1. Environment variables (using Pydantic Settings with double underscore for nesting):
 #    - GLOVEBOX_PROFILE="glove80/v25.05"
+#    - GLOVEBOX_LOG_LEVEL="DEBUG"
+#    - GLOVEBOX_DEEPDIFF_DELTA_SERIALIZER="pickle"
 #    - GLOVEBOX_FIRMWARE__FLASH__TIMEOUT=120
 #    - GLOVEBOX_FIRMWARE__FLASH__COUNT=5
 #    - GLOVEBOX_FIRMWARE__FLASH__TRACK_FLASHED=false

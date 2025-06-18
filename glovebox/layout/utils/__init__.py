@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from . import field_parser, json_operations, validation
 
+
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
     from glovebox.firmware.models import OutputPaths
