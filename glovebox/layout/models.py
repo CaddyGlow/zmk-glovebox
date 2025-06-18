@@ -9,6 +9,7 @@ from pydantic import (
     ConfigDict,
     Field,
     field_validator,
+    model_serializer,
     model_validator,
 )
 
@@ -317,6 +318,39 @@ class LayoutData(LayoutMetadata):
     # Custom code
     custom_defined_behaviors: str = Field(default="", alias="custom_defined_behaviors")
     custom_devicetree: str = Field(default="", alias="custom_devicetree")
+
+    @model_serializer(when_used="json")
+    def sort_model(self) -> dict[str, Any]:
+        order = [
+            "keyboard",
+            "firmware_api_version",
+            "locale",
+            "uuid",
+            "parent_uuid",
+            "date",
+            "creator",
+            "title",
+            "notes",
+            "tags",
+            # Added fields for the layout master feature
+            "version",
+            "base_version",
+            "base_layout",
+            "last_firmware_build",
+            # Normal
+            "layer_names",
+            "custom_defined_behaviors",
+            "custom_devicetree",
+            "config_parameters",
+            "holdTaps",
+            "combos",
+            "macros",
+            "inputListeners",
+            "layers",
+            "custom_defined_behaviors",
+            "custom_devicetree",
+        ]
+        return dict(sorted(self.model_dump().items()))
 
     @field_validator("layers")
     @classmethod
