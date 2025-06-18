@@ -8,6 +8,7 @@ from glovebox.cli.commands.firmware import (
     register_commands as register_firmware_commands,
 )
 from glovebox.cli.commands.layout import register_commands as register_layout_commands
+from glovebox.cli.commands.moergo import register_commands as register_moergo_commands
 from glovebox.cli.commands.status import register_commands as register_status_commands
 
 
@@ -21,4 +22,5 @@ def register_all_commands(app: typer.Typer) -> None:
     register_firmware_commands(app)
     register_config_commands(app)
     register_status_commands(app)
+    register_moergo_commands(app)
     app.add_typer(cache_app, name="cache")

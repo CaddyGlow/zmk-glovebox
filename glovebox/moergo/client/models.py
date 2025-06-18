@@ -1,0 +1,91 @@
+"""Models for MoErgo API client."""
+
+from datetime import datetime
+from typing import Any, Optional
+
+from pydantic import BaseModel, Field
+
+from glovebox.layout.models import LayoutData
+
+
+class LayoutMeta(BaseModel):
+    """Layout metadata from MoErgo API response."""
+
+    uuid: str
+    date: int
+    creator: str
+    parent_uuid: str | None = None
+    firmware_api_version: str
+    title: str
+    notes: str = ""
+    tags: list[str] = Field(default_factory=list)
+    unlisted: bool = False
+    deleted: bool = False
+    compiled: bool = False
+    searchable: bool = True
+
+    @property
+    def created_datetime(self) -> datetime:
+        """Convert timestamp to datetime."""
+        return datetime.fromtimestamp(self.date)
+
+
+class MoErgoLayout(BaseModel):
+    """Complete layout response from MoErgo API."""
+
+    layout_meta: LayoutMeta
+    config: LayoutData
+
+
+class AuthTokens(BaseModel):
+    """Authentication tokens from Cognito."""
+
+    access_token: str
+    refresh_token: str
+    id_token: str
+    token_type: str = "Bearer"
+    expires_in: int
+
+    @property
+    def expires_at(self) -> float:
+        """Calculate token expiration time as timestamp."""
+        return datetime.now().timestamp() + self.expires_in
+
+
+class UserCredentials(BaseModel):
+    """User login credentials."""
+
+    username: str
+    password: str
+
+
+class APIError(Exception):
+    """Base exception for MoErgo API errors."""
+
+    def __init__(
+        self,
+        message: str,
+        status_code: int | None = None,
+        response_data: dict[str, Any] | None = None,
+    ):
+        super().__init__(message)
+        self.status_code = status_code
+        self.response_data = response_data
+
+
+class AuthenticationError(APIError):
+    """Authentication-related errors."""
+
+    pass
+
+
+class NetworkError(APIError):
+    """Network-related errors."""
+
+    pass
+
+
+class ValidationError(APIError):
+    """Request validation errors."""
+
+    pass
