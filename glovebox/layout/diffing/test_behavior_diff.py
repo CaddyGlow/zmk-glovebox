@@ -63,75 +63,96 @@ class TestBehaviorDiff:
 
         # Convert behavior dictionaries to proper models
         hold_taps = []
-        for ht_dict in enhanced_model.hold_taps:
-            # Convert binding dictionaries to LayoutBinding objects
+        for ht_model in enhanced_model.hold_taps:
+            # Convert binding objects to proper LayoutBinding objects if needed
             bindings = []
-            for binding_dict in ht_dict["bindings"]:
-                params = [
-                    LayoutParam(value=p["value"])
-                    for p in binding_dict.get("params", [])
-                ]
-                bindings.append(
-                    LayoutBinding(value=binding_dict["value"], params=params)
-                )
+            for binding in ht_model.bindings:
+                if hasattr(binding, "params"):
+                    # Already a LayoutBinding
+                    bindings.append(binding)
+                else:
+                    # Convert from dict-like
+                    params = []
+                    for p in binding.params:
+                        if hasattr(p, "value"):
+                            # Already a LayoutParam
+                            params.append(p)
+                        else:
+                            # Convert from dict
+                            params.append(LayoutParam(value=p["value"]))  # type: ignore  # type: ignore
+                    bindings.append(LayoutBinding(value=binding.value, params=params))
 
             hold_tap = HoldTapBehavior(
-                name=ht_dict["name"],
-                description=ht_dict.get("description", ""),
-                tappingTermMs=ht_dict["tapping_term_ms"],
-                quickTapMs=ht_dict.get("quick_tap_ms"),
-                flavor=ht_dict["flavor"],
+                name=ht_model.name,
+                description=ht_model.description or "",
+                tappingTermMs=ht_model.tapping_term_ms,
+                quickTapMs=ht_model.quick_tap_ms,
+                flavor=ht_model.flavor,
                 bindings=bindings,
             )
             hold_taps.append(hold_tap)
 
         combos = []
-        for combo_dict in enhanced_model.combos:
-            # Convert binding dictionary to LayoutBinding object
-            binding_dict = combo_dict["binding"]
-            params = [
-                LayoutParam(value=p["value"]) for p in binding_dict.get("params", [])
-            ]
-            binding = LayoutBinding(value=binding_dict["value"], params=params)
+        for combo_model in enhanced_model.combos:
+            # Convert binding object to proper LayoutBinding if needed
+            binding = combo_model.binding
+            if not hasattr(binding, "params"):
+                # Convert from dict-like
+                params = []
+                for p in binding.params:
+                    if hasattr(p, "value"):
+                        # Already a LayoutParam
+                        params.append(p)
+                    else:
+                        # Convert from dict
+                        params.append(LayoutParam(value=p["value"]))  # type: ignore
+                binding = LayoutBinding(value=binding.value, params=params)
 
             combo = ComboBehavior(
-                name=combo_dict["name"],
-                description=combo_dict.get("description", ""),
-                timeoutMs=combo_dict.get("timeout_ms"),
-                keyPositions=combo_dict["key_positions"],
+                name=combo_model.name,
+                description=combo_model.description or "",
+                timeoutMs=combo_model.timeout_ms,
+                keyPositions=combo_model.key_positions,
                 binding=binding,
             )
             combos.append(combo)
 
         macros = []
-        for macro_dict in enhanced_model.macros:
-            # Convert binding dictionaries to LayoutBinding objects
+        for macro_model in enhanced_model.macros:
+            # Convert binding objects to proper LayoutBinding objects if needed
             bindings = []
-            for binding_dict in macro_dict["bindings"]:
-                params = [
-                    LayoutParam(value=p["value"])
-                    for p in binding_dict.get("params", [])
-                ]
-                bindings.append(
-                    LayoutBinding(value=binding_dict["value"], params=params)
-                )
+            for binding in macro_model.bindings:
+                if hasattr(binding, "params"):
+                    # Already a LayoutBinding
+                    bindings.append(binding)
+                else:
+                    # Convert from dict-like
+                    params = []
+                    for p in binding.params:
+                        if hasattr(p, "value"):
+                            # Already a LayoutParam
+                            params.append(p)
+                        else:
+                            # Convert from dict
+                            params.append(LayoutParam(value=p["value"]))  # type: ignore  # type: ignore
+                    bindings.append(LayoutBinding(value=binding.value, params=params))
 
             macro = MacroBehavior(
-                name=macro_dict["name"],
-                description=macro_dict.get("description", ""),
-                waitMs=macro_dict.get("wait_ms"),
-                tapMs=macro_dict.get("tap_ms"),
+                name=macro_model.name,
+                description=macro_model.description or "",
+                waitMs=macro_model.wait_ms,
+                tapMs=macro_model.tap_ms,
                 bindings=bindings,
             )
             macros.append(macro)
 
         input_listeners = []
-        for listener_dict in enhanced_model.input_listeners:
+        for listener_model in enhanced_model.input_listeners:
             # Convert to InputListener if needed
             listener = InputListener(
-                code=listener_dict["code"],
-                input_processors=listener_dict.get("input_processors", []),
-                nodes=listener_dict.get("nodes", []),
+                code=listener_model.code,
+                inputProcessors=listener_model.input_processors,
+                nodes=listener_model.nodes,
             )
             input_listeners.append(listener)
 
@@ -148,7 +169,9 @@ class TestBehaviorDiff:
             inputListeners=input_listeners,
         )
 
-    def test_behavior_parameter_modifications(self, diff_system) -> None:
+    def test_behavior_parameter_modifications(
+        self, diff_system: LayoutDiffSystem
+    ) -> None:
         """Test detecting modifications to behavior parameters."""
         base = self.create_enhanced_layout_data(BASE_WITH_BEHAVIORS)
         modified = self.create_enhanced_layout_data(MODIFIED_BEHAVIORS)
@@ -173,7 +196,7 @@ class TestBehaviorDiff:
         assert len(behavior_changes["combos"]["removed"]) == 0
         assert len(behavior_changes["macros"]["removed"]) == 0
 
-    def test_behavior_replacement(self, diff_system) -> None:
+    def test_behavior_replacement(self, diff_system: LayoutDiffSystem) -> None:
         """Test detecting complete behavior replacement."""
         base = self.create_enhanced_layout_data(BASE_WITH_BEHAVIORS)
         modified = self.create_enhanced_layout_data(BEHAVIOR_CHANGES)
@@ -199,7 +222,7 @@ class TestBehaviorDiff:
         assert len(behavior_changes["combos"]["modified"]) == 0
         assert len(behavior_changes["macros"]["modified"]) == 0
 
-    def test_behavior_diff_statistics(self, diff_system) -> None:
+    def test_behavior_diff_statistics(self, diff_system: LayoutDiffSystem) -> None:
         """Test that behavior changes are reflected in diff statistics."""
         base = self.create_enhanced_layout_data(BASE_WITH_BEHAVIORS)
         modified = self.create_enhanced_layout_data(MODIFIED_BEHAVIORS)
@@ -222,7 +245,7 @@ class TestBehaviorDiff:
         ]
         assert len(behavior_paths) > 0, "Should have behavior-related patch operations"
 
-    def test_behavior_name_tracking(self, diff_system) -> None:
+    def test_behavior_name_tracking(self, diff_system: LayoutDiffSystem) -> None:
         """Test that behavior changes are tracked by name correctly."""
         base = self.create_enhanced_layout_data(BASE_WITH_BEHAVIORS)
         modified = self.create_enhanced_layout_data(MODIFIED_BEHAVIORS)
@@ -240,7 +263,9 @@ class TestBehaviorDiff:
         assert "ht_new" in behavior_changes["hold_taps"]["added"]
         assert "combo_new" in behavior_changes["combos"]["added"]
 
-    def test_behavior_patch_application(self, diff_system, patch_system) -> None:
+    def test_behavior_patch_application(
+        self, diff_system: LayoutDiffSystem, patch_system: LayoutPatchSystem
+    ) -> None:
         """Test applying behavior-related patches."""
         base = self.create_enhanced_layout_data(BASE_WITH_BEHAVIORS)
         modified = self.create_enhanced_layout_data(MODIFIED_BEHAVIORS)
@@ -267,7 +292,9 @@ class TestBehaviorDiff:
         assert "combo_new" in combo_names
         assert "macro_hello" in macro_names
 
-    def test_behavior_round_trip(self, diff_system, patch_system) -> None:
+    def test_behavior_round_trip(
+        self, diff_system: LayoutDiffSystem, patch_system: LayoutPatchSystem
+    ) -> None:
         """Test round-trip behavior diff and patch operations."""
         for test_name, test_layout in BEHAVIOR_TEST_CASES.items():
             if test_name == "base_with_behaviors":
@@ -289,11 +316,11 @@ class TestBehaviorDiff:
             assert len(patched.combos) == len(modified.combos)
             assert len(patched.macros) == len(modified.macros)
 
-    def test_scenario_execution(self, diff_system) -> None:
+    def test_scenario_execution(self, diff_system: LayoutDiffSystem) -> None:
         """Execute behavior test scenarios and verify expected changes."""
         for scenario in BEHAVIOR_SCENARIOS:
-            base_name = scenario["from"]
-            modified_name = scenario["to"]
+            base_name: str = scenario["from"]  # type: ignore
+            modified_name: str = scenario["to"]  # type: ignore
 
             base = self.create_enhanced_layout_data(BEHAVIOR_TEST_CASES[base_name])
             modified = self.create_enhanced_layout_data(
