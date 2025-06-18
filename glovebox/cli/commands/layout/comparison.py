@@ -439,7 +439,9 @@ def _format_comparison_text(
                         type_summary.append(f"-{removed_count}")
                     if changed_count:
                         type_summary.append(f"~{changed_count}")
-                    behavior_changes_summary.append(f"{behavior_type}: {'/'.join(type_summary)}")
+                    behavior_changes_summary.append(
+                        f"{behavior_type}: {'/'.join(type_summary)}"
+                    )
 
             if behavior_changes_summary:
                 differences.append(f"  - {', '.join(behavior_changes_summary)}")
