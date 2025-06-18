@@ -233,19 +233,23 @@ class ZmkFileContentGenerator:
             # which enforces #binding-cells = <0> regardless of conceptual parameters.
             # Keeping old logic commented for reference in case binding spec changes:
             #
-            # if not params:
-            #     compatible = compatible_strings.macro
-            #     binding_cells = "0"
-            # elif len(params) == 1:
-            #     compatible = compatible_strings.macro
-            #     binding_cells = "1"
-            # elif len(params) == 2:
-            #     compatible = compatible_strings.macro
-            #     binding_cells = "2"
-            # else:
-            #     max_params = profile.keyboard_config.zmk.validation_limits.max_macro_params
-            #     logger.warning(f"Macro '{name}' has {len(params)} params, not supported. Max: {max_params}.")
-            #     continue
+            if not params:
+                compatible = compatible_strings.macro
+                binding_cells = "0"
+            elif len(params) == 1:
+                compatible = compatible_strings.macro
+                binding_cells = "1"
+            elif len(params) == 2:
+                compatible = compatible_strings.macro
+                binding_cells = "2"
+            else:
+                max_params = (
+                    profile.keyboard_config.zmk.validation_limits.max_macro_params
+                )
+                logger.warning(
+                    f"Macro '{name}' has {len(params)} params, not supported. Max: {max_params}."
+                )
+                continue
 
             # Register the macro behavior
             self._behavior_registry.register_behavior(

@@ -20,7 +20,7 @@ class TestCacheUserConfigIntegration:
         """Test default cache configuration from user config."""
         config = UserConfigData()
 
-        assert config.cache_strategy == "process_isolated"
+        assert config.cache_strategy == "shared"
         assert config.cache_file_locking is True
 
         cache = create_cache_from_user_config(config)
@@ -179,7 +179,7 @@ log_level: INFO
 
         finally:
             # Clean up
-            os.unlink(config_file)
+            Path(config_file).unlink()
 
     def test_moergo_client_integration(self):
         """Test MoErgo client integration with user configuration."""
@@ -196,10 +196,14 @@ log_level: INFO
         assert hasattr(client, "_cache")
         assert isinstance(client._cache, FilesystemCache)
 
-        # Test cache functionality
-        stats = client.get_cache_stats()
-        assert isinstance(stats, dict)
-        assert "total_entries" in stats
+        # Test cache functionality - verify cache is accessible
+        assert client._cache is not None
+        # Test cache basic operations
+        test_key = "test_key"
+        test_value = {"test": "data"}
+        client._cache.set(test_key, test_value)
+        retrieved_value = client._cache.get(test_key)
+        assert retrieved_value == test_value
 
     def test_cache_configuration_precedence(self):
         """Test configuration direct specification (no environment variables)."""

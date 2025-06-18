@@ -7,6 +7,7 @@ import logging
 import os
 import tempfile
 import time
+import typing
 from pathlib import Path
 from typing import Any
 
@@ -38,17 +39,17 @@ class FilesystemCache(BaseCacheManager):
         super().__init__(config)
 
         if not self.config.cache_root:
-            # Default cache location with process isolation
+            # Default cache location
             cache_base = Path(tempfile.gettempdir()) / "glovebox_cache"
 
             # Use config strategy (required parameter)
-            cache_strategy = self.config.cache_strategy or "process_isolated"
+            cache_strategy = self.config.cache_strategy or "shared"
 
             if cache_strategy == "shared":
                 # Shared cache (original behavior) - may have race conditions
                 self.config.cache_root = cache_base
             elif cache_strategy == "process_isolated":
-                # Process-specific cache directories (default)
+                # Process-specific cache directories
                 self.config.cache_root = cache_base / f"proc_{os.getpid()}"
             elif cache_strategy == "disabled":
                 # Use memory cache instead
@@ -70,11 +71,16 @@ class FilesystemCache(BaseCacheManager):
         # Use config file locking setting
         self.use_file_locking = self.config.use_file_locking
 
+        # Load persistent statistics
+        self._load_persistent_stats()
+
         logger.debug("Initialized filesystem cache at: %s", self.cache_root)
         logger.debug("File locking enabled: %s", self.use_file_locking)
 
     @contextlib.contextmanager
-    def _file_lock(self, key: str, operation: str = "read", timeout: float = 5.0):
+    def _file_lock(
+        self, key: str, operation: str = "read", timeout: float = 5.0
+    ) -> typing.Generator[None, None, None]:
         """Context manager for file locking to prevent race conditions.
 
         Args:
@@ -433,6 +439,9 @@ class FilesystemCache(BaseCacheManager):
             self.stats.total_entries = len(remaining_entries)
             self.stats.total_size_bytes = sum(m.size_bytes for m in remaining_entries)
 
+            # Save persistent stats after cleanup
+            self._save_persistent_stats()
+
             logger.debug("Cache cleanup removed %d entries", removed_count)
 
         except Exception as e:
@@ -532,3 +541,98 @@ class FilesystemCache(BaseCacheManager):
                     self.stats.eviction_count += 1
 
         return removed_count
+
+    def _get_stats_path(self) -> Path:
+        """Get file path for persistent cache statistics."""
+        return self.cache_root / ".cache_stats.json"
+
+    def _load_persistent_stats(self) -> None:
+        """Load persistent statistics from disk."""
+        stats_path = self._get_stats_path()
+
+        if not stats_path.exists():
+            return
+
+        try:
+            with stats_path.open("r") as f:
+                stats_data = json.load(f)
+
+            # Restore persistent stats while preserving session-only data
+            self.stats.hit_count = stats_data.get("hit_count", 0)
+            self.stats.miss_count = stats_data.get("miss_count", 0)
+            self.stats.eviction_count = stats_data.get("eviction_count", 0)
+            self.stats.error_count = stats_data.get("error_count", 0)
+
+            # Note: total_entries and total_size_bytes are recalculated during cleanup
+            # to ensure accuracy with the actual cache state
+
+            logger.debug(
+                "Loaded persistent cache stats: hits=%d, misses=%d, evictions=%d, errors=%d",
+                self.stats.hit_count,
+                self.stats.miss_count,
+                self.stats.eviction_count,
+                self.stats.error_count,
+            )
+
+        except (json.JSONDecodeError, OSError, KeyError) as e:
+            logger.warning("Failed to load persistent cache stats: %s", e)
+            # Continue with default stats
+
+    def _save_persistent_stats(self) -> None:
+        """Save current statistics to disk for persistence."""
+        if not self.config.enable_statistics:
+            return
+
+        stats_path = self._get_stats_path()
+
+        try:
+            stats_data = {
+                "hit_count": self.stats.hit_count,
+                "miss_count": self.stats.miss_count,
+                "eviction_count": self.stats.eviction_count,
+                "error_count": self.stats.error_count,
+                "last_updated": time.time(),
+                "total_entries": self.stats.total_entries,
+                "total_size_bytes": self.stats.total_size_bytes,
+            }
+
+            # Atomic write using temporary file
+            temp_path = stats_path.with_suffix(".tmp")
+            with temp_path.open("w") as f:
+                json.dump(stats_data, f, separators=(",", ":"))
+
+            # Atomic rename
+            temp_path.replace(stats_path)
+
+            logger.debug("Saved persistent cache stats")
+
+        except (OSError, TypeError, ValueError) as e:
+            logger.warning("Failed to save persistent cache stats: %s", e)
+
+    def get(self, key: str, default: typing.Any = None) -> typing.Any:
+        """Retrieve value from cache with persistent statistics tracking."""
+        result = super().get(key, default)
+
+        # Periodically save stats (every 100 operations)
+        if (self.stats.hit_count + self.stats.miss_count) % 100 == 0:
+            self._save_persistent_stats()
+
+        return result
+
+    def set(self, key: str, value: typing.Any, ttl: int | None = None) -> None:
+        """Store value in cache with persistent statistics tracking."""
+        super().set(key, value, ttl)
+
+        # Save stats periodically
+        if (self.stats.hit_count + self.stats.miss_count) % 100 == 0:
+            self._save_persistent_stats()
+
+    def clear(self) -> None:
+        """Clear all entries from cache and save stats."""
+        super().clear()
+        self._save_persistent_stats()
+
+    def __del__(self) -> None:
+        """Save persistent stats when cache object is destroyed."""
+        with contextlib.suppress(Exception):
+            self._save_persistent_stats()

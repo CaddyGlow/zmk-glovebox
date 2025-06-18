@@ -90,7 +90,7 @@ class CacheConfig:
     enable_statistics: bool = True
     cache_root: Path | None = None
     use_file_locking: bool = True
-    cache_strategy: str = "process_isolated"
+    cache_strategy: str = "disabled"
 
 
 class CacheKey:

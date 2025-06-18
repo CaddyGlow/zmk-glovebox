@@ -10,7 +10,7 @@ from pathlib import Path
 import psutil
 
 
-def cleanup_orphaned_process_caches():
+def cleanup_orphaned_process_caches() -> None:
     """Remove cache directories for processes that no longer exist."""
     cache_base = Path(tempfile.gettempdir()) / "glovebox_cache"
 
@@ -56,7 +56,7 @@ def cleanup_orphaned_process_caches():
     )
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Cleanup glovebox cache directories")
     parser.add_argument(
         "--all", action="store_true", help="Remove all cache directories"

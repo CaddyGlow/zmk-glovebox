@@ -58,13 +58,13 @@ cache = create_cache_from_user_config(config)
 
 ## Cache Strategies
 
-### Process Isolated (Default)
+### Process Isolated 
 - **Strategy**: `"process_isolated"`
 - **Description**: Each process gets its own cache directory
 - **Use Case**: Multi-process environments, development
 - **Directory**: `/tmp/glovebox_cache/proc_{PID}`
 
-### Shared Cache
+### Shared Cache (Default)
 - **Strategy**: `"shared"`  
 - **Description**: All processes share the same cache directory
 - **Use Case**: Production environments with coordination
@@ -191,6 +191,71 @@ with self._file_lock(key, "delete"):  # Exclusive lock
 - Default timeout: 5 seconds
 - Graceful degradation on timeout
 - Automatic lock cleanup on completion
+
+## Persistent Statistics
+
+The filesystem cache automatically persists statistics across application restarts and cache instances.
+
+### How It Works
+
+- **Automatic Loading**: Statistics are loaded from disk when a cache instance is created
+- **Periodic Saving**: Stats are saved every 100 cache operations (gets/sets)
+- **Cleanup Saving**: Stats are saved after each cleanup operation
+- **Graceful Shutdown**: Stats are saved when the cache object is destroyed
+- **Atomic Writes**: Stats file is written atomically to prevent corruption
+
+### Stats File Location
+
+Statistics are stored in a hidden file within the cache directory:
+```
+{cache_root}/.cache_stats.json
+```
+
+### What's Persisted
+
+- **Hit Count**: Total number of cache hits across all sessions
+- **Miss Count**: Total number of cache misses across all sessions  
+- **Eviction Count**: Total number of entries evicted due to limits
+- **Error Count**: Total number of cache operation errors
+- **Last Updated**: Timestamp of when stats were last saved
+- **Current Size**: Current total size and entry count (recalculated on load)
+
+### Configuration
+
+```python
+# Enable/disable statistics persistence
+config = CacheConfig(
+    enable_statistics=True,  # Default: True
+    cache_root=Path("/path/to/cache")
+)
+cache = FilesystemCache(config)
+
+# Stats are automatically loaded and saved
+stats = cache.get_stats()
+print(f"Total hits across all sessions: {stats.hit_count}")
+```
+
+### Cross-Process Sharing
+
+When using shared cache strategy, statistics are shared across processes:
+
+```python
+# Process 1
+cache1 = create_default_cache(cache_strategy="shared")
+cache1.set("key", "value")
+cache1.get("key")  # Hit count: 1
+
+# Process 2 (later)
+cache2 = create_default_cache(cache_strategy="shared")
+cache2.get("key")  # Hit count: 2 (accumulated)
+```
+
+### Error Handling
+
+- **Corrupted Stats**: If the stats file is corrupted, the cache starts with fresh statistics
+- **Missing File**: New cache instances start with zero stats if no file exists
+- **Write Failures**: Warnings are logged but don't affect cache operation
+- **Race Conditions**: Atomic writes prevent corruption during concurrent access
 
 ## Cache Operations
 

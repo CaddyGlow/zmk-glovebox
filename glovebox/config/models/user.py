@@ -106,7 +106,7 @@ class UserConfigData(BaseSettings):
     )
     cache_strategy: str = Field(
         default="shared",
-        description="Cache strategy: 'process_isolated' (default), 'shared', or 'disabled'",
+        description="Cache strategy: 'shared' (default), 'process_isolated', or 'disabled'",
     )
     cache_file_locking: bool = Field(
         default=True,

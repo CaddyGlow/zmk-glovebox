@@ -19,7 +19,7 @@ def create_filesystem_cache(
     max_entries: int | None = None,
     default_ttl_hours: int | None = None,
     use_file_locking: bool = True,
-    cache_strategy: str = "process_isolated",
+    cache_strategy: str = "shared",
 ) -> CacheManager:
     """Create a filesystem-based cache manager.
 
@@ -84,7 +84,7 @@ def create_cache_from_user_config(user_config: Any) -> CacheManager:
 
 
 def create_default_cache(
-    cache_strategy: str = "process_isolated",
+    cache_strategy: str = "shared",
     cache_file_locking: bool = True,
 ) -> CacheManager:
     """Create a default cache manager for general use.
@@ -93,10 +93,10 @@ def create_default_cache(
     - 500MB max size
     - 24 hour default TTL
     - LRU eviction policy
-    - Process isolation to avoid conflicts
+    - Shared cache by default with optional file locking
 
     Args:
-        cache_strategy: Cache strategy ("process_isolated", "shared", "disabled")
+        cache_strategy: Cache strategy ("shared", "process_isolated", "disabled")
         cache_file_locking: Enable file locking for concurrent access protection
 
     Returns:
