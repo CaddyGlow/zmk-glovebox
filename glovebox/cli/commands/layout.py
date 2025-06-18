@@ -3,7 +3,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any, cast
 
 import typer
 
@@ -925,7 +925,7 @@ def diff(
             )
 
             # Filter out the header lines and format for display
-            meaningful_diffs = []
+            meaningful_diffs: list[str] = []
             change_count = 0
 
             for line in diff_lines[2:]:  # Skip file headers
@@ -991,7 +991,7 @@ def diff(
                 differences.append("custom_devicetree: Content differs")
 
         # Helper function to convert key objects to DTSI format
-        def key_to_dtsi(key_obj):
+        def key_to_dtsi(key_obj: Any) -> str | None:
             if key_obj is None:
                 return None
             if hasattr(key_obj, "value"):
@@ -1003,7 +1003,7 @@ def diff(
                     )
                     return f"{key_obj.value} {params_str}"
                 else:
-                    return key_obj.value
+                    return str(key_obj.value)
             elif isinstance(key_obj, dict):
                 # Dictionary format
                 value = key_obj.get("value", "")
@@ -1015,7 +1015,7 @@ def diff(
                     )
                     return f"{value} {params_str}"
                 else:
-                    return value
+                    return str(value)
             else:
                 return str(key_obj)
 
@@ -1126,18 +1126,20 @@ def diff(
             }
 
             # Add metadata changes
+            metadata_dict = json_result["metadata"]
+            assert isinstance(metadata_dict, dict)
             if layout1_data.title != layout2_data.title:
-                json_result["metadata"]["title"] = {
+                metadata_dict["title"] = {
                     "from": layout1_data.title,
                     "to": layout2_data.title,
                 }
             if layout1_data.version != layout2_data.version:
-                json_result["metadata"]["version"] = {
+                metadata_dict["version"] = {
                     "from": layout1_data.version,
                     "to": layout2_data.version,
                 }
             if layout1_data.creator != layout2_data.creator:
-                json_result["metadata"]["creator"] = {
+                metadata_dict["creator"] = {
                     "from": layout1_data.creator,
                     "to": layout2_data.creator,
                 }
@@ -1180,7 +1182,11 @@ def diff(
                                     )
 
                             if key_changes:
-                                json_result["layers"]["changed"][layer_name] = {
+                                layers_dict = json_result["layers"]
+                                assert isinstance(layers_dict, dict)
+                                changed_layers = layers_dict["changed"]
+                                assert isinstance(changed_layers, dict)
+                                changed_layers[layer_name] = {
                                     "total_key_differences": len(key_changes),
                                     "key_changes": key_changes,  # No truncation for JSON output
                                 }
@@ -1217,7 +1223,11 @@ def diff(
                     # Create single-line patch format for merge tools
                     patch_string = "\\n".join(unified_diff) if unified_diff else ""
 
-                    json_result["custom_dtsi"]["custom_defined_behaviors"].update(
+                    custom_dtsi_dict = json_result["custom_dtsi"]
+                    assert isinstance(custom_dtsi_dict, dict)
+                    behaviors_dtsi_dict = custom_dtsi_dict["custom_defined_behaviors"]
+                    assert isinstance(behaviors_dtsi_dict, dict)
+                    behaviors_dtsi_dict.update(
                         {
                             "from_content": behaviors1,
                             "to_content": behaviors2,
@@ -1252,7 +1262,11 @@ def diff(
                     # Create single-line patch format for merge tools
                     patch_string = "\\n".join(unified_diff) if unified_diff else ""
 
-                    json_result["custom_dtsi"]["custom_devicetree"].update(
+                    custom_dtsi_dict = json_result["custom_dtsi"]
+                    assert isinstance(custom_dtsi_dict, dict)
+                    devicetree_dtsi_dict = custom_dtsi_dict["custom_devicetree"]
+                    assert isinstance(devicetree_dtsi_dict, dict)
+                    devicetree_dtsi_dict.update(
                         {
                             "from_content": devicetree1,
                             "to_content": devicetree2,
@@ -1263,23 +1277,25 @@ def diff(
                     )
 
             # Calculate total differences
+            metadata_dict = json_result["metadata"]
+            layers_dict = json_result["layers"]
+            behaviors_dict = json_result["behaviors"]
+            config_dict = json_result["config"]
+            custom_dtsi_dict = json_result["custom_dtsi"]
+            assert isinstance(metadata_dict, dict)
+            assert isinstance(layers_dict, dict)
+            assert isinstance(behaviors_dict, dict)
+            assert isinstance(config_dict, dict)
+            assert isinstance(custom_dtsi_dict, dict)
             json_result["total_differences"] = (
-                len(json_result["metadata"])
-                + len(json_result["layers"]["added"])
-                + len(json_result["layers"]["removed"])
-                + len(json_result["layers"]["changed"])
-                + (1 if json_result["behaviors"]["changed"] else 0)
-                + (1 if json_result["config"]["changed"] else 0)
-                + (
-                    1
-                    if json_result["custom_dtsi"]["custom_defined_behaviors"]["changed"]
-                    else 0
-                )
-                + (
-                    1
-                    if json_result["custom_dtsi"]["custom_devicetree"]["changed"]
-                    else 0
-                )
+                len(metadata_dict)
+                + len(layers_dict["added"])
+                + len(layers_dict["removed"])
+                + len(layers_dict["changed"])
+                + (1 if behaviors_dict["changed"] else 0)
+                + (1 if config_dict["changed"] else 0)
+                + (1 if custom_dtsi_dict["custom_defined_behaviors"]["changed"] else 0)
+                + (1 if custom_dtsi_dict["custom_devicetree"]["changed"] else 0)
             )
 
             from glovebox.cli.helpers.output_formatter import OutputFormatter
@@ -1476,7 +1492,7 @@ def set_field(
         raise typer.Exit(1) from None
 
 
-def _extract_field_value(data: dict, field_path: str):
+def _extract_field_value(data: dict[str, Any], field_path: str) -> Any:
     """Extract a field value using dot notation and array indexing."""
     import re
 
@@ -1523,11 +1539,8 @@ def _extract_field_value(data: dict, field_path: str):
             index_str = part[1:-1]
             try:
                 index = int(index_str)
-                if isinstance(current, list):
-                    current = current[index]
-                else:
-                    raise ValueError(f"Cannot index non-list value with [{index_str}]")
-            except ValueError as e:
+                current = current[index]  # type: ignore
+            except (ValueError, IndexError, TypeError) as e:
                 raise ValueError(f"Invalid array index: {index_str}") from e
         else:
             # Dictionary key access
@@ -1542,7 +1555,7 @@ def _extract_field_value(data: dict, field_path: str):
     return current
 
 
-def _set_field_value(data: dict, field_path: str, value):
+def _set_field_value(data: dict[str, Any], field_path: str, value: Any) -> None:
     """Set a field value using dot notation and array indexing."""
     # Split field path into parts, handling array indices
     parts = []
@@ -1587,11 +1600,8 @@ def _set_field_value(data: dict, field_path: str, value):
             index_str = part[1:-1]
             try:
                 index = int(index_str)
-                if isinstance(current, list):
-                    current = current[index]
-                else:
-                    raise ValueError(f"Cannot index non-list value with [{index_str}]")
-            except ValueError as e:
+                current = current[index]  # type: ignore
+            except (ValueError, IndexError, TypeError) as e:
                 raise ValueError(f"Invalid array index: {index_str}") from e
         else:
             # Dictionary key access
@@ -1610,11 +1620,8 @@ def _set_field_value(data: dict, field_path: str, value):
         index_str = final_part[1:-1]
         try:
             index = int(index_str)
-            if isinstance(current, list):
-                current[index] = value
-            else:
-                raise ValueError(f"Cannot index non-list value with [{index_str}]")
-        except ValueError as e:
+            current[index] = value  # type: ignore
+        except (ValueError, IndexError, TypeError) as e:
             raise ValueError(f"Invalid array index: {index_str}") from e
     else:
         # Dictionary key access
@@ -1624,7 +1631,7 @@ def _set_field_value(data: dict, field_path: str, value):
             raise ValueError(f"Cannot set field '{final_part}' on non-dict value")
 
 
-def _parse_field_value(value_str: str, value_type: str):
+def _parse_field_value(value_str: str, value_type: str) -> Any:
     """Parse a string value based on the specified type."""
     import json
 
@@ -1676,7 +1683,7 @@ def _parse_field_value(value_str: str, value_type: str):
         return value_str
 
 
-def _parse_field_path(field_path: str):
+def _parse_field_path(field_path: str) -> list[str]:
     """Parse field path into parts, handling array indices."""
     parts = []
     current_part = ""
@@ -1715,7 +1722,7 @@ def _parse_field_path(field_path: str):
     return parts
 
 
-def _extract_field_value_from_model(model, field_path: str):
+def _extract_field_value_from_model(model: Any, field_path: str) -> Any:
     """Extract a field value directly from a Pydantic model."""
     parts = _parse_field_path(field_path)
     current = model
@@ -1744,7 +1751,7 @@ def _extract_field_value_from_model(model, field_path: str):
     return current
 
 
-def _set_field_value_on_model(model, field_path: str, value):
+def _set_field_value_on_model(model: Any, field_path: str, value: Any) -> None:
     """Set a field value directly on a Pydantic model."""
     parts = _parse_field_path(field_path)
     current = model
@@ -2362,6 +2369,7 @@ def export_layer(
             raise typer.Exit(1)
 
         # Generate export data based on format
+        export_data: list[dict[str, Any]] | dict[str, Any]
         if format == "bindings":
             # Simple array of bindings
             export_data = [
