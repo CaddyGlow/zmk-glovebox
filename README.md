@@ -106,8 +106,22 @@ glovebox layout import-master ~/Downloads/glorious-v42.json v42
 # Upgrade your custom layout preserving all customizations  
 glovebox layout upgrade my-custom-v41.json --to-master v42
 
-# Compare layouts to see what changed
-glovebox layout diff layout-v41.json layout-v42.json
+# Compare layouts with enhanced DTSI comparison and JSON output
+glovebox layout diff layout-v41.json layout-v42.json --include-dtsi --json
+
+# Field manipulation for precise layout editing
+glovebox layout get-field my-layout.json "layers[0]"
+glovebox layout set-field my-layout.json "title" "My New Layout Title"
+
+# Advanced layer management with import/export
+glovebox layout add-layer my-layout.json "CustomLayer" --import-from layer.json
+glovebox layout remove-layer my-layout.json "UnwantedLayer"
+glovebox layout move-layer my-layout.json "SymbolLayer" --position 3
+glovebox layout export-layer my-layout.json "SymbolLayer" --format bindings
+
+# Create and apply patches for automated layout transformations
+glovebox layout create-patch old-layout.json new-layout.json --output changes.patch
+glovebox layout patch my-layout.json changes.json --output upgraded-layout.json
 
 # List available master versions
 glovebox layout list-masters glove80
@@ -118,6 +132,9 @@ glovebox layout list-masters glove80
 - Preserving your personal customizations (layers, behaviors, config)
 - Zero-downtime upgrades with automatic rollback capability
 - Tracking firmware builds and maintaining version history
+- Automated layout manipulation and batch operations
+- Detailed comparison including custom DTSI behaviors and device tree code
+- Merge-tool compatible patches for version control workflows
 
 ## Supported Keyboards
 
@@ -262,6 +279,140 @@ glovebox layout compile [OPTIONS] JSON_FILE OUTPUT_FILE_PREFIX
 **Options:**
 - `--profile, -p`: Profile to use (e.g., 'glove80/v25.05')
 - `--force`: Overwrite existing files
+
+#### `glovebox layout import-master` (NEW)
+Import a master layout version for future upgrades.
+
+```bash
+glovebox layout import-master [OPTIONS] JSON_FILE VERSION_NAME
+```
+
+**Arguments:**
+- `JSON_FILE`: Path to master layout JSON file
+- `VERSION_NAME`: Version identifier (e.g., 'v42', 'v42-pre')
+
+**Options:**
+- `--force`: Overwrite existing version
+
+#### `glovebox layout upgrade` (NEW)
+Upgrade custom layout to new master version preserving customizations.
+
+```bash
+glovebox layout upgrade [OPTIONS] CUSTOM_LAYOUT --to-master VERSION
+```
+
+**Arguments:**
+- `CUSTOM_LAYOUT`: Path to custom layout to upgrade
+
+**Options:**
+- `--to-master`: Target master version (required)
+- `--from-master`: Source master version (auto-detected if not specified)
+- `--output`: Output path (default: auto-generated)
+
+#### `glovebox layout list-masters` (NEW)
+List available master versions for a keyboard.
+
+```bash
+glovebox layout list-masters KEYBOARD
+```
+
+#### `glovebox layout diff` (ENHANCED)
+Compare two layouts showing differences with enhanced DTSI support.
+
+```bash
+glovebox layout diff [OPTIONS] LAYOUT1 LAYOUT2
+```
+
+**Options:**
+- `--include-dtsi`: Include custom behaviors and device tree comparison
+- `--json`: Output structured JSON diff data
+- `--output-format`: Format for output (summary or detailed)
+
+#### Field Manipulation Commands (NEW)
+
+##### `glovebox layout get-field`
+Retrieve field value from layout using dot notation.
+
+```bash
+glovebox layout get-field LAYOUT_FILE FIELD_PATH
+```
+
+**Examples:**
+- `glovebox layout get-field layout.json "title"`
+- `glovebox layout get-field layout.json "layers[0]"`
+- `glovebox layout get-field layout.json "config_parameters[0].paramName"`
+
+##### `glovebox layout set-field`
+Set field value in layout using dot notation.
+
+```bash
+glovebox layout set-field [OPTIONS] LAYOUT_FILE FIELD_PATH VALUE
+```
+
+**Options:**
+- `--output`: Output path (default: overwrites input)
+
+#### Layer Management Commands (NEW)
+
+##### `glovebox layout add-layer`
+Add a new layer to a layout.
+
+```bash
+glovebox layout add-layer [OPTIONS] LAYOUT_FILE LAYER_NAME
+```
+
+**Options:**
+- `--position`: Position to insert layer (default: append)
+- `--import-from`: Import layer data from JSON file
+- `--import-layer`: Specify layer name when importing from full layout
+- `--output`: Output path (default: overwrites input)
+
+##### `glovebox layout remove-layer`
+Remove a layer from a layout.
+
+```bash
+glovebox layout remove-layer [OPTIONS] LAYOUT_FILE LAYER_NAME
+```
+
+##### `glovebox layout move-layer`
+Move a layer to a different position.
+
+```bash
+glovebox layout move-layer [OPTIONS] LAYOUT_FILE LAYER_NAME --position POSITION
+```
+
+**Note:** Use `--position -1` for last position. Use `--` separator: `move-layer layout.json "Layer" -- -1`
+
+##### `glovebox layout export-layer`
+Export a layer to JSON file.
+
+```bash
+glovebox layout export-layer [OPTIONS] LAYOUT_FILE LAYER_NAME
+```
+
+**Options:**
+- `--format`: Export format (bindings, layer, full)
+- `--output`: Output file path
+
+#### Patch Operations (NEW)
+
+##### `glovebox layout patch`
+Apply JSON diff patch to transform a layout.
+
+```bash
+glovebox layout patch [OPTIONS] LAYOUT_FILE PATCH_FILE
+```
+
+##### `glovebox layout create-patch`
+Generate merge-tool compatible patch between two layouts.
+
+```bash
+glovebox layout create-patch [OPTIONS] OLD_LAYOUT NEW_LAYOUT
+```
+
+**Options:**
+- `--output`: Output patch file path
+- `--include-dtsi`: Include DTSI code differences
 
 #### `glovebox layout decompose`
 Extract layers from a keymap file into individual layer files.
