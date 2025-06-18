@@ -175,7 +175,7 @@ class TestConfigurableDisplay:
         from glovebox.config.models import FormattingConfig, KeymapSection
 
         keymap_section = KeymapSection(
-            includes=[],
+            header_includes=[],
             formatting=FormattingConfig(
                 key_gap="  ",
                 base_indent="  ",  # Profile indent
@@ -238,7 +238,7 @@ class TestConfigurableDisplay:
 
         # Create profile with custom key gap
         keymap_section = KeymapSection(
-            includes=[],
+            header_includes=[],
             formatting=FormattingConfig(
                 key_gap="--",
                 base_indent="",

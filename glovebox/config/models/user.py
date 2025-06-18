@@ -88,6 +88,12 @@ class UserConfigData(BaseSettings):
         description="Disable automatic version checks for ZMK firmware updates",
     )
 
+    # DeepDiff settings
+    deepdiff_delta_serializer: str = Field(
+        default="json",
+        description="Serializer for DeepDiff delta objects: 'json' (default) or 'pickle'",
+    )
+
     # Firmware settings
     firmware: UserFirmwareConfig = Field(default_factory=UserFirmwareConfig)
 
@@ -128,3 +134,16 @@ class UserConfigData(BaseSettings):
         if upper_v not in valid_levels:
             raise ValueError(f"Log level must be one of {valid_levels}")
         return upper_v  # Always normalize to uppercase
+
+    @field_validator("deepdiff_delta_serializer")
+    @classmethod
+    def validate_deepdiff_delta_serializer(cls, v: str) -> str:
+        """Validate DeepDiff delta serializer is a recognized value."""
+        valid_serializers = ["json", "pickle"]
+        # Strip whitespace and convert to lowercase
+        lower_v = v.strip().lower()
+        if lower_v not in valid_serializers:
+            raise ValueError(
+                f"DeepDiff delta serializer must be one of {valid_serializers}"
+            )
+        return lower_v  # Always normalize to lowercase
