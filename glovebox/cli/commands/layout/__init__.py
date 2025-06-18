@@ -5,6 +5,7 @@ import typer
 from .comparison import create_patch, diff, patch
 from .core import compile_layout, compose, decompose, show, validate
 from .editing import get_field, set_field
+from .glove80_sync import glove80_group
 from .layers import add_layer, export_layer, list_layers, move_layer, remove_layer
 from .version import import_master, list_masters, upgrade
 
@@ -47,6 +48,9 @@ layout_app.command(name="remove-layer")(remove_layer)
 layout_app.command(name="move-layer")(move_layer)
 layout_app.command(name="list-layers")(list_layers)
 layout_app.command(name="export-layer")(export_layer)
+
+# Register Glove80 cloud sync commands
+layout_app.add_typer(glove80_group, name="glove80")
 
 
 def register_commands(app: typer.Typer) -> None:
