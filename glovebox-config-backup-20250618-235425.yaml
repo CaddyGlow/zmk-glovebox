@@ -1,0 +1,33 @@
+keyboard_paths:
+- /home/rick/keyboards
+profile: glove80/v26.0
+log_level: WARNING
+disable_version_checks: false
+deepdiff_delta_serializer: json
+cache_path: /tmp/my-custom-cache
+cache_strategy: shared
+cache_file_locking: true
+firmware:
+  flash:
+    timeout: 90
+    count: 2
+    track_flashed: true
+    skip_existing: false
+    wait: false
+    poll_interval: 0.5
+    show_progress: true
+  docker:
+    enable_user_mapping: true
+    detect_automatically: true
+    manual_uid: null
+    manual_gid: null
+    manual_username: null
+    host_home_dir: null
+    container_home_dir: /tmp
+    force_manual: false
+    debug_user_mapping: false
+_metadata:
+  generated_at: '2025-06-18T23:54:25.020204'
+  glovebox_version: unknown
+  export_format: yaml
+  include_defaults: true

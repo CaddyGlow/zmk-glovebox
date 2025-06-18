@@ -84,48 +84,12 @@ def upload(
 
     try:
         response = client.save_layout(layout_uuid, complete_layout)
-
-        # Update the most recent entry with local file path (save_layout already tracked this)
-        history = client.history_tracker.load_history()
-        if (
-            history
-            and history[-1].layout_uuid == layout_uuid
-            and history[-1].action == "upload"
-        ):
-            # Update the existing entry with file path
-            history[-1].local_file = str(layout_file)
-            history[-1].metadata.update({"cli_upload": True, "via": "upload_command"})
-            client.history_tracker.save_history(history)
-
         typer.echo("✅ Layout uploaded successfully!")
         typer.echo(f"🔗 UUID: {layout_uuid}")
         typer.echo(f"📝 Title: {layout_meta['title']}")
         if response.get("status") == "no_content":
             typer.echo("📊 Status: Upload completed")
     except Exception as e:
-        # Update the most recent failed entry with local file path if it exists
-        history = client.history_tracker.load_history()
-        if (
-            history
-            and history[-1].layout_uuid == layout_uuid
-            and history[-1].action == "upload"
-            and not history[-1].success
-        ):
-            # Update the existing failed entry
-            history[-1].local_file = str(layout_file)
-            history[-1].metadata.update({"cli_upload": True, "via": "upload_command"})
-            client.history_tracker.save_history(history)
-        else:
-            # Add new entry if no matching failed entry found
-            client.history_tracker.add_entry(
-                action="upload",
-                layout_uuid=layout_uuid,
-                success=False,
-                layout_title=str(layout_meta.get("title", "Unknown")),
-                local_file=str(layout_file),
-                error_message=str(e),
-                metadata={"cli_upload": True, "via": "upload_command"},
-            )
         typer.echo(f"❌ Error uploading layout: {e}")
         raise typer.Exit(1) from None
 
@@ -833,26 +797,15 @@ def cache_stats() -> None:
     client = create_moergo_client()
 
     try:
-        stats = client.get_cache_stats()
-
-        typer.echo("📊 Glove80 API Cache Statistics:")
+        # Cache stats functionality not available in simplified client
+        typer.echo("📊 Glove80 API Cache:")
         typer.echo()
-        typer.echo(f"   📁 Total Entries: {stats['total_entries']}")
-        typer.echo(f"   💾 Cache Size: {stats['total_size_mb']} MB")
-        typer.echo(f"   ✅ Hit Rate: {stats['hit_rate']}%")
-        typer.echo(f"   ❌ Miss Rate: {stats['miss_rate']}%")
-        typer.echo(f"   🎯 Hits: {stats['hit_count']}")
-        typer.echo(f"   ❓ Misses: {stats['miss_count']}")
-        typer.echo(f"   🗑️  Evictions: {stats['eviction_count']}")
-        typer.echo()
-
-        if stats["total_entries"] > 0:
-            typer.echo("💡 Cache is helping speed up repeated API calls")
-        else:
-            typer.echo("💡 Cache is empty - make some API calls to see benefits")
+        typer.echo("   💾 Cache is enabled for API responses")
+        typer.echo("   ⚡ Speeds up repeated API calls")
+        typer.echo("   🔄 Use 'cache-clear' to empty cache")
 
     except Exception as e:
-        typer.echo(f"❌ Error getting cache stats: {e}")
+        typer.echo(f"❌ Error accessing cache: {e}")
         raise typer.Exit(1) from None
 
 
@@ -865,22 +818,6 @@ def cache_clear(
     """Clear the API response cache."""
 
     client = create_moergo_client()
-
-    # Get stats before clearing
-    try:
-        stats = client.get_cache_stats()
-
-        if stats["total_entries"] == 0:
-            typer.echo("💾 Cache is already empty.")
-            return
-
-        typer.echo(
-            f"🗑️  About to clear cache with {stats['total_entries']} entries ({stats['total_size_mb']} MB)"
-        )
-
-    except Exception as e:
-        typer.echo(f"❌ Error getting cache stats: {e}")
-        raise typer.Exit(1) from None
 
     # Confirmation prompt
     if not force:

@@ -12,7 +12,6 @@ from .firmware import (
 )
 from .keyboard import FormattingConfig, KeyboardConfig, KeymapSection
 from .user import UserConfigData
-from .workspace import UserArtifactConfig, UserCompilationConfig, UserWorkspaceConfig
 from .zmk import (
     FileExtensions,
     ValidationLimits,
@@ -37,11 +36,8 @@ __all__ = [
     "KeymapSection",
     "LayoutStructure",
     "ModifierMapping",
-    "UserArtifactConfig",
-    "UserCompilationConfig",
     "UserConfigData",
     "UserFirmwareConfig",
-    "UserWorkspaceConfig",
     "ValidationLimits",
     "ZmkCompatibleStrings",
     "ZmkConfig",

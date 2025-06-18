@@ -10,6 +10,7 @@ import os
 import tempfile
 import threading
 import time
+import typing
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -76,7 +77,7 @@ class TestRaceConditions:
         for key in initial_keys:
             cache.set(key, f"initial_value_{key}")
 
-        def reader_worker(worker_id: int) -> dict:
+        def reader_worker(worker_id: int) -> dict[str, int]:
             """Worker that reads from cache."""
             reader_cache = FilesystemCache(shared_cache_config)
             results = {"reads": 0, "hits": 0, "misses": 0}
@@ -93,7 +94,7 @@ class TestRaceConditions:
 
             return results
 
-        def writer_worker(worker_id: int) -> dict:
+        def writer_worker(worker_id: int) -> dict[str, int]:
             """Worker that writes to cache."""
             writer_cache = FilesystemCache(shared_cache_config)
             results = {"writes": 0, "updates": 0}
@@ -279,7 +280,7 @@ class TestMultiProcessConcurrency:
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_root = Path(temp_dir)
 
-            def process_worker(worker_id: int) -> dict:
+            def process_worker(worker_id: int) -> dict[str, typing.Any]:
                 """Worker function to run in separate process."""
                 config = CacheConfig(cache_root=cache_root)
                 cache = FilesystemCache(config)
@@ -335,8 +336,12 @@ class TestMultiProcessConcurrency:
             cache = create_default_cache()
             return {
                 "pid": os.getpid(),
-                "cache_root": str(cache.cache_root),
-                "has_proc_in_path": f"proc_{os.getpid()}" in str(cache.cache_root),
+                "cache_root": str(cache.cache_root)
+                if hasattr(cache, "cache_root")
+                else "unknown",
+                "has_proc_in_path": f"proc_{os.getpid()}" in str(cache.cache_root)
+                if hasattr(cache, "cache_root")
+                else False,
             }
 
         with ProcessPoolExecutor(max_workers=3) as executor:
@@ -358,7 +363,7 @@ class TestFileLockingMechanisms:
     """Test file locking mechanisms in detail."""
 
     @pytest.fixture
-    def cache_with_locking(self) -> FilesystemCache:
+    def cache_with_locking(self) -> typing.Generator[FilesystemCache, None, None]:
         """Create cache with file locking enabled."""
         with tempfile.TemporaryDirectory() as temp_dir:
             config = CacheConfig(cache_root=Path(temp_dir))
@@ -480,7 +485,7 @@ class TestStressTests:
                 max_entries=10000,
             )
 
-            def stress_worker(worker_id: int) -> dict:
+            def stress_worker(worker_id: int) -> dict[str, int]:
                 """Worker that performs many cache operations."""
                 cache = FilesystemCache(config)
                 results = {"sets": 0, "gets": 0, "deletes": 0, "errors": 0}

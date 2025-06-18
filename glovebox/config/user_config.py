@@ -28,29 +28,6 @@ logger = get_logger(__name__)
 # Environment variable prefixes
 ENV_PREFIX = "GLOVEBOX_"
 
-# Default configuration values for backward compatibility with CLI commands
-DEFAULT_CONFIG = {
-    # Paths for user-defined keyboards and layouts
-    "keyboard_paths": [],
-    # Default profile
-    "profile": "glove80/v25.05",
-    # Logging
-    "log_level": "INFO",
-    # Firmware configuration
-    "firmware": {
-        "flash": {
-            "timeout": 60,
-            "count": 2,
-            "track_flashed": True,
-            "skip_existing": False,
-            # NEW wait settings
-            "wait": False,
-            "poll_interval": 0.5,
-            "show_progress": True,
-        }
-    },
-}
-
 
 class UserConfig:
     """
@@ -100,7 +77,7 @@ class UserConfig:
 
         # 2. Current directory config files
         current_dir_yaml = Path.cwd() / "glovebox.yaml"
-        current_dir_yml = Path.cwd() / "glovebox.yml"
+        current_dir_yml = Path.cwd() / ".glovebox.yml"
         config_paths.extend([current_dir_yaml, current_dir_yml])
 
         # 3. XDG config directory

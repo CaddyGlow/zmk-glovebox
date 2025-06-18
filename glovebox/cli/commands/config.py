@@ -2,6 +2,8 @@
 
 import json
 import logging
+from datetime import datetime
+from pathlib import Path
 from typing import Annotated, Any
 
 import typer
@@ -19,7 +21,6 @@ from glovebox.config.keyboard_profile import (
     get_available_keyboards,
     load_keyboard_config_with_includes,
 )
-from glovebox.config.user_config import DEFAULT_CONFIG
 
 
 logger = logging.getLogger(__name__)
@@ -201,16 +202,35 @@ def set_config(
     # Get app context with user config
     app_ctx: AppContext = ctx.obj
 
-    # Define a flattened list of valid keys for both top-level and nested config
-    valid_keys = list(DEFAULT_CONFIG.keys())
-    valid_keys.extend(
-        [
-            "firmware.flash.timeout",
-            "firmware.flash.count",
-            "firmware.flash.track_flashed",
-            "firmware.flash.skip_existing",
-        ]
+    # Get all valid keys from the configuration models
+    from glovebox.config.models.firmware import (
+        FirmwareDockerConfig,
+        FirmwareFlashConfig,
     )
+    from glovebox.config.models.user import UserConfigData
+
+    def get_all_config_keys() -> list[str]:
+        """Get all valid configuration keys from the models."""
+        keys = []
+
+        # Add core keys
+        for field_name in UserConfigData.model_fields:
+            if field_name not in [
+                "firmware",
+                "compilation",
+            ]:  # These are handled separately
+                keys.append(field_name)
+
+        # Add firmware keys
+        for field_name in FirmwareFlashConfig.model_fields:
+            keys.append(f"firmware.flash.{field_name}")
+
+        for field_name in FirmwareDockerConfig.model_fields:
+            keys.append(f"firmware.docker.{field_name}")
+
+        return keys
+
+    valid_keys = get_all_config_keys()
 
     # Check if key is valid
     if key not in valid_keys:
@@ -218,30 +238,57 @@ def set_config(
         print_error_message(f"Valid keys: {', '.join(sorted(valid_keys))}")
         raise typer.Exit(1)
 
-    # Convert value to appropriate type based on default value
-    default_value = DEFAULT_CONFIG[key]
+    # Get field info for type conversion
+    def get_field_type_for_key(config_key: str) -> type:
+        """Get the expected type for a configuration key."""
+        from glovebox.config.models.firmware import (
+            FirmwareDockerConfig,
+            FirmwareFlashConfig,
+        )
+        from glovebox.config.models.user import UserConfigData
 
-    # Variable to hold the converted value with appropriate type
+        if "." in config_key:
+            parts = config_key.split(".")
+            if len(parts) == 3 and parts[0] == "firmware":
+                if parts[1] == "flash":
+                    field_info = FirmwareFlashConfig.model_fields.get(parts[2])
+                elif parts[1] == "docker":
+                    field_info = FirmwareDockerConfig.model_fields.get(parts[2])
+                else:
+                    return str
+            else:
+                return str
+        else:
+            field_info = UserConfigData.model_fields.get(config_key)
+
+        if field_info and hasattr(field_info, "annotation") and field_info.annotation:
+            annotation = field_info.annotation
+            # Handle basic types
+            if annotation is int:
+                return int
+            elif annotation is bool:
+                return bool
+            elif hasattr(annotation, "__origin__") and annotation.__origin__ is list:
+                return list
+            else:
+                return str
+        return str
+
+    field_type = get_field_type_for_key(key)
+
+    # Convert value to appropriate type
     typed_value: Any = None
-
-    # Use a dictionary to map types to conversion functions
-    # Define the conversion function type
-    from collections.abc import Callable
-
-    conversion_map: dict[type, Callable[[str], Any]] = {
-        bool: lambda v: v.lower() in ("true", "yes", "1", "y"),
-        int: lambda v: int(v),
-        list: lambda v: [item.strip() for item in v.split(",")],
-    }
-
-    # Get the conversion function or use default string conversion
-    converter: Callable[[str], Any] = conversion_map.get(
-        type(default_value), lambda v: v
-    )
     try:
-        typed_value = converter(value)
+        if field_type is bool:
+            typed_value = value.lower() in ("true", "yes", "1", "y")
+        elif field_type is int:
+            typed_value = int(value)
+        elif field_type is list:
+            typed_value = [item.strip() for item in value.split(",")]
+        else:
+            typed_value = value
     except ValueError as err:
-        if isinstance(default_value, int):
+        if field_type is int:
             print_error_message(f"Invalid integer value: {value}")
             raise typer.Exit(1) from err
         raise
@@ -279,8 +326,35 @@ def show_config(
     if show_sources:
         table.add_column("Source", style="yellow")
 
+    # Get all configuration keys from models
+    def get_all_display_keys() -> list[str]:
+        """Get all configuration keys for display."""
+        from glovebox.config.models.firmware import (
+            FirmwareDockerConfig,
+            FirmwareFlashConfig,
+        )
+        from glovebox.config.models.user import UserConfigData
+
+        keys = []
+
+        # Add core keys
+        for field_name in UserConfigData.model_fields:
+            if field_name not in ["firmware"]:  # Handle firmware separately
+                keys.append(field_name)
+
+        # Add firmware keys
+        for field_name in FirmwareFlashConfig.model_fields:
+            keys.append(f"firmware.flash.{field_name}")
+
+        for field_name in FirmwareDockerConfig.model_fields:
+            keys.append(f"firmware.docker.{field_name}")
+
+        return keys
+
+    display_keys = get_all_display_keys()
+
     # Add rows for each configuration setting
-    for key in sorted(DEFAULT_CONFIG.keys()):
+    for key in sorted(display_keys):
         value = app_ctx.user_config.get(key)
 
         # Format list values for display
@@ -300,6 +374,149 @@ def show_config(
 
     # Print the table
     console.print(table)
+
+
+@config_app.command(name="options")
+@handle_errors
+def show_all_options(
+    ctx: typer.Context,
+    format: str = typer.Option(
+        "table", "--format", "-f", help="Output format (table, json, markdown)"
+    ),
+    category: str = typer.Option(
+        "all",
+        "--category",
+        "-c",
+        help="Show specific category (all, core, firmware, cache)",
+    ),
+) -> None:
+    """Show all available configuration options with descriptions and defaults."""
+    from glovebox.config.models.firmware import (
+        FirmwareDockerConfig,
+        FirmwareFlashConfig,
+        UserFirmwareConfig,
+    )
+    from glovebox.config.models.user import UserConfigData
+
+    console = Console()
+
+    def format_default_value(default_val: Any) -> str:
+        """Format default value for display."""
+        if isinstance(default_val, list):
+            if not default_val:
+                return "[]"
+            return f"[{', '.join(str(v) for v in default_val)}]"
+        elif isinstance(default_val, bool):
+            return str(default_val).lower()
+        elif isinstance(default_val, Path):
+            return str(default_val)
+        elif default_val is None:
+            return "null"
+        else:
+            return str(default_val)
+
+    def get_field_info(model_class: Any, prefix: str = "") -> list[dict[str, Any]]:
+        """Extract field information from a Pydantic model."""
+        fields = []
+        for field_name, field_info in model_class.model_fields.items():
+            full_name = f"{prefix}.{field_name}" if prefix else field_name
+
+            # Get default value
+            default_val = field_info.default
+            if hasattr(field_info, "default_factory") and field_info.default_factory:
+                try:
+                    default_val = field_info.default_factory()
+                except Exception:
+                    default_val = f"<factory: {field_info.default_factory}>"
+
+            # Get description
+            description = field_info.description or "No description available"
+
+            # Get type hint
+            type_hint = str(field_info.annotation).replace("typing.", "")
+
+            fields.append(
+                {
+                    "name": full_name,
+                    "type": type_hint,
+                    "default": format_default_value(default_val),
+                    "description": description,
+                    "category": prefix.split(".")[0] if "." in prefix else "core",
+                }
+            )
+
+        return fields
+
+    # Collect all configuration options
+    all_options = []
+
+    # Core options from UserConfigData
+    all_options.extend(get_field_info(UserConfigData))
+
+    # Firmware options
+    all_options.extend(get_field_info(FirmwareFlashConfig, "firmware.flash"))
+    all_options.extend(get_field_info(FirmwareDockerConfig, "firmware.docker"))
+
+    # Filter by category if specified
+    if category != "all":
+        all_options = [
+            opt
+            for opt in all_options
+            if opt["category"] == category or opt["name"].startswith(category)
+        ]
+
+    if format == "json":
+        import json
+
+        output = {
+            "total_options": len(all_options),
+            "categories": list({opt["category"] for opt in all_options}),
+            "options": all_options,
+        }
+        print(json.dumps(output, indent=2))
+        return
+
+    elif format == "markdown":
+        print("# Glovebox Configuration Options\n")
+
+        # Group by category
+        categories: dict[str, list[dict[str, Any]]] = {}
+        for opt in all_options:
+            cat = opt["category"]
+            if cat not in categories:
+                categories[cat] = []
+            categories[cat].append(opt)
+
+        for cat_name, options in sorted(categories.items()):
+            print(f"## {cat_name.title()} Options\n")
+            for opt in sorted(options, key=lambda x: x["name"]):
+                print(f"### `{opt['name']}`")
+                print(f"- **Type**: `{opt['type']}`")
+                print(f"- **Default**: `{opt['default']}`")
+                print(f"- **Description**: {opt['description']}\n")
+        return
+
+    # Table format (default)
+    table = Table(title=f"Available Configuration Options ({len(all_options)} total)")
+    table.add_column("Setting", style="cyan", width=30)
+    table.add_column("Type", style="yellow", width=20)
+    table.add_column("Default", style="green", width=15)
+    table.add_column("Description", style="white", width=40)
+
+    # Sort options by name
+    for opt in sorted(all_options, key=lambda x: x["name"]):
+        # Truncate long descriptions
+        desc = opt["description"]
+        if len(desc) > 80:
+            desc = desc[:77] + "..."
+
+        table.add_row(opt["name"], opt["type"], opt["default"], desc)
+
+    console.print(table)
+    console.print(
+        "\n[dim]Use 'glovebox config set <setting> <value>' to change settings[/dim]"
+    )
+    console.print("[dim]Use --category to filter by: core, firmware, cache[/dim]")
 
 
 @config_app.command(name="list")
@@ -631,6 +848,366 @@ def enable_updates(ctx: typer.Context) -> None:
     version_checker = create_zmk_version_checker()
     version_checker.enable_version_checks()
     print_success_message("ZMK version checks enabled")
+
+
+@config_app.command(name="export")
+@handle_errors
+def export_config(
+    ctx: typer.Context,
+    output_file: str = typer.Option(
+        "glovebox-config.yaml", "--output", "-o", help="Output file path"
+    ),
+    format: str = typer.Option(
+        "yaml", "--format", "-f", help="Output format (yaml, json, toml)"
+    ),
+    include_defaults: bool = typer.Option(
+        True, "--include-defaults/--no-defaults", help="Include default values"
+    ),
+    include_descriptions: bool = typer.Option(
+        True,
+        "--include-descriptions/--no-descriptions",
+        help="Include field descriptions as comments",
+    ),
+) -> None:
+    """Export all configuration options to a file with current values."""
+    from pathlib import Path
+
+    from glovebox.config.models.firmware import (
+        FirmwareDockerConfig,
+        FirmwareFlashConfig,
+    )
+    from glovebox.config.models.user import UserConfigData
+
+    # Get app context with user config
+    app_ctx: AppContext = ctx.obj
+    output_path = Path(output_file)
+
+    def get_current_value(key: str) -> Any:
+        """Get current configuration value, handling nested keys."""
+        try:
+            if "." in key:
+                # Handle nested keys like firmware.flash.timeout
+                parts = key.split(".")
+                if len(parts) == 3 and parts[0] in ["firmware", "compilation"]:
+                    # Get the nested object
+                    parent_obj = app_ctx.user_config.get(parts[0])
+                    if hasattr(parent_obj, parts[1]):
+                        nested_obj = getattr(parent_obj, parts[1])
+                        if hasattr(nested_obj, parts[2]):
+                            return getattr(nested_obj, parts[2])
+                return None
+            else:
+                return app_ctx.user_config.get(key)
+        except Exception:
+            return None
+
+    def get_field_info_with_values(
+        model_class: Any, prefix: str = ""
+    ) -> dict[str, Any]:
+        """Extract field information with current values from a Pydantic model."""
+        config_data = {}
+
+        for field_name, field_info in model_class.model_fields.items():
+            full_name = f"{prefix}.{field_name}" if prefix else field_name
+
+            # Get current value
+            current_value = get_current_value(full_name)
+
+            # Get default value for comparison
+            default_val = field_info.default
+            if hasattr(field_info, "default_factory") and field_info.default_factory:
+                try:
+                    default_val = field_info.default_factory()
+                except Exception:
+                    default_val = None
+
+            # Decide whether to include this field
+            if include_defaults or current_value != default_val:
+                # Convert Path objects to strings for serialization
+                if isinstance(current_value, Path):
+                    current_value = str(current_value)
+                elif isinstance(current_value, list):
+                    current_value = [
+                        str(item) if isinstance(item, Path) else item
+                        for item in current_value
+                    ]
+
+                config_data[field_name] = current_value
+
+        return config_data
+
+    # Build complete configuration structure
+    config_export = {}
+
+    # Add core configuration
+    core_fields = get_field_info_with_values(UserConfigData)
+    for key, value in core_fields.items():
+        if key not in ["firmware"]:  # Handle firmware separately
+            config_export[key] = value
+
+    # Add firmware configuration
+    firmware_config = {}
+    firmware_config["flash"] = get_field_info_with_values(
+        FirmwareFlashConfig, "firmware.flash"
+    )
+    firmware_config["docker"] = get_field_info_with_values(
+        FirmwareDockerConfig, "firmware.docker"
+    )
+    config_export["firmware"] = firmware_config
+
+    # Add metadata
+    metadata = {
+        "generated_at": datetime.now().isoformat(),
+        "glovebox_version": "unknown",  # Could be enhanced to get actual version
+        "export_format": format,
+        "include_defaults": include_defaults,
+    }
+    config_export["_metadata"] = metadata
+
+    try:
+        # Write the configuration file
+        if format.lower() == "yaml":
+            import yaml
+
+            yaml_content = ""
+            if include_descriptions:
+                yaml_content += "# Glovebox Configuration Export\n"
+                yaml_content += f"# Generated at: {metadata['generated_at']}\n"
+                yaml_content += f"# Include defaults: {include_defaults}\n\n"
+
+            yaml_content += yaml.dump(
+                config_export,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+                indent=2,
+            )
+
+            output_path.write_text(yaml_content, encoding="utf-8")
+
+        elif format.lower() == "json":
+            import json
+
+            output_path.write_text(
+                json.dumps(config_export, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+        elif format.lower() == "toml":
+            import tomlkit
+
+            def filter_none_values(data: Any) -> Any:
+                """Recursively filter out None values for TOML compatibility."""
+                if isinstance(data, dict):
+                    return {
+                        k: filter_none_values(v)
+                        for k, v in data.items()
+                        if v is not None
+                    }
+                elif isinstance(data, list):
+                    return [
+                        filter_none_values(item) for item in data if item is not None
+                    ]
+                else:
+                    return data
+
+            # Filter None values from config_export for TOML compatibility
+            filtered_config = filter_none_values(config_export)
+            toml_content = tomlkit.dumps(filtered_config)
+            output_path.write_text(toml_content, encoding="utf-8")
+
+        else:
+            print_error_message(
+                f"Unsupported format: {format}. Use yaml, json, or toml."
+            )
+            raise typer.Exit(1)
+
+        # Success message
+        total_options = sum(
+            len(section) if isinstance(section, dict) else 1
+            for key, section in config_export.items()
+            if not key.startswith("_")
+        )
+
+        print_success_message(f"Configuration exported to {output_path}")
+        print(f"📁 Format: {format.upper()}")
+        print(f"⚙️  Options exported: {total_options}")
+        print(f"📊 Include defaults: {include_defaults}")
+
+        if include_descriptions and format.lower() == "yaml":
+            print("💬 Descriptions included as comments")
+        elif format.lower() == "toml":
+            print("📋 TOML format exported")
+
+    except Exception as e:
+        print_error_message(f"Failed to export configuration: {e}")
+        raise typer.Exit(1) from e
+
+
+@config_app.command(name="import")
+@handle_errors
+def import_config(
+    ctx: typer.Context,
+    config_file: str = typer.Argument(..., help="Configuration file to import"),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show what would be imported without making changes"
+    ),
+    backup: bool = typer.Option(
+        True,
+        "--backup/--no-backup",
+        help="Create backup of current config before importing",
+    ),
+    force: bool = typer.Option(
+        False, "--force", help="Import without confirmation prompts"
+    ),
+) -> None:
+    """Import configuration from a YAML, JSON, or TOML file."""
+    from pathlib import Path
+
+    # Get app context with user config
+    app_ctx: AppContext = ctx.obj
+    config_path = Path(config_file)
+
+    if not config_path.exists():
+        print_error_message(f"Configuration file not found: {config_path}")
+        raise typer.Exit(1)
+
+    # Determine format from file extension
+    suffix = config_path.suffix.lower()
+    if suffix in [".yaml", ".yml"]:
+        file_format = "yaml"
+    elif suffix == ".json":
+        file_format = "json"
+    elif suffix == ".toml":
+        file_format = "toml"
+    else:
+        print_error_message(
+            f"Unsupported file format: {suffix}. Use .yaml, .json, or .toml"
+        )
+        raise typer.Exit(1)
+
+    try:
+        # Load configuration file
+        config_content = config_path.read_text(encoding="utf-8")
+
+        if file_format == "yaml":
+            import yaml
+
+            config_data = yaml.safe_load(config_content)
+        elif file_format == "json":
+            import json
+
+            config_data = json.loads(config_content)
+        elif file_format == "toml":
+            import tomlkit
+
+            config_data = tomlkit.loads(config_content)
+
+        # Remove metadata section if present
+        if "_metadata" in config_data:
+            metadata = config_data.pop("_metadata")
+            print(
+                f"📋 Imported config generated at: {metadata.get('generated_at', 'unknown')}"
+            )
+
+        # Flatten the configuration for setting
+        settings_to_apply = []
+
+        def flatten_config(data: dict[str, Any], prefix: str = "") -> None:
+            """Recursively flatten nested configuration."""
+            for key, value in data.items():
+                full_key = f"{prefix}.{key}" if prefix else key
+
+                if isinstance(value, dict):
+                    # Recurse into nested objects
+                    flatten_config(value, full_key)
+                else:
+                    # This is a leaf value
+                    settings_to_apply.append((full_key, value))
+
+        flatten_config(config_data)
+
+        if not settings_to_apply:
+            print("⚠️  No configuration settings found to import")
+            return
+
+        print(f"📥 Found {len(settings_to_apply)} configuration settings to import")
+
+        # Show what will be changed
+        if dry_run:
+            console = Console()
+            table = Table(title="Configuration Changes (Dry Run)")
+            table.add_column("Setting", style="cyan")
+            table.add_column("Current Value", style="red")
+            table.add_column("New Value", style="green")
+
+            for key, new_value in settings_to_apply:
+                current_value = app_ctx.user_config.get(key)
+                table.add_row(key, str(current_value), str(new_value))
+
+            console.print(table)
+            print("🔍 Dry run complete - no changes made")
+            return
+
+        # Confirm before applying changes
+        if not force:
+            confirm = typer.confirm(
+                f"Apply {len(settings_to_apply)} configuration changes?"
+            )
+            if not confirm:
+                print("❌ Import cancelled")
+                return
+
+        # Create backup if requested
+        if backup:
+            backup_file = f"glovebox-config-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}.yaml"
+            try:
+                # Export current config as backup
+                export_config(ctx, backup_file, "yaml", True, False)
+                print(f"💾 Backup saved to: {backup_file}")
+            except Exception as e:
+                print(f"⚠️  Failed to create backup: {e}")
+                if not force:
+                    confirm_continue = typer.confirm("Continue without backup?")
+                    if not confirm_continue:
+                        print("❌ Import cancelled")
+                        return
+
+        # Apply configuration changes
+        successful_changes = 0
+        failed_changes = []
+
+        for key, value in settings_to_apply:
+            try:
+                # Convert string values to appropriate types
+                if isinstance(value, str) and key.endswith(
+                    ("_paths", "keyboard_paths")
+                ):
+                    # Handle path lists
+                    value = [Path(p.strip()) for p in value.split(",") if p.strip()]
+
+                app_ctx.user_config.set(key, value)
+                successful_changes += 1
+            except Exception as e:
+                failed_changes.append((key, str(e)))
+
+        # Save configuration
+        try:
+            app_ctx.user_config.save()
+            print_success_message("Configuration imported successfully!")
+            print(f"✅ Applied: {successful_changes} settings")
+
+            if failed_changes:
+                print(f"⚠️  Failed: {len(failed_changes)} settings")
+                for key, error in failed_changes:
+                    print(f"   {key}: {error}")
+        except Exception as e:
+            print_error_message(f"Failed to save configuration: {e}")
+            raise typer.Exit(1) from e
+
+    except Exception as e:
+        print_error_message(f"Failed to import configuration: {e}")
+        raise typer.Exit(1) from e
 
 
 def register_commands(app: typer.Typer) -> None:
