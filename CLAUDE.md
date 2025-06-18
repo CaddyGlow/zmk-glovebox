@@ -57,6 +57,76 @@ Layout Editor → JSON File → ZMK Files → Firmware → Flash
 
 **If you encounter ANY linting errors, you MUST fix them immediately before proceeding with other tasks.**
 
+## New Feature: Keymap Version Management
+
+**COMPLETED**: The keymap version management system is now fully implemented and operational.
+
+### Architecture Components
+
+1. **VersionManager** (`glovebox/layout/version_manager.py`):
+   - Handles master layout imports and upgrades
+   - Implements intelligent merge strategies preserving customizations
+   - Stores master layouts in `~/.glovebox/masters/{keyboard}/{version}.json`
+   - Tracks version metadata in YAML format
+
+2. **FirmwareTracker** (`glovebox/layout/firmware_tracker.py`):
+   - Links compiled firmware to layout files
+   - Tracks build metadata: date, profile, hash, build ID
+   - Enables verification of firmware-layout correspondence
+   - Supports rollback and change tracking
+
+3. **Enhanced Layout Models**:
+   - Added version tracking fields: `version`, `base_version`, `base_layout`
+   - Added firmware tracking: `last_firmware_build` metadata
+   - Maintains backwards compatibility with existing layouts
+
+### CLI Commands Added
+
+```bash
+# Import master layout versions
+glovebox layout import-master ~/Downloads/master-v42.json v42 [--force]
+
+# Upgrade custom layouts preserving all customizations
+glovebox layout upgrade my-custom.json --to-master v42 [--output path] [--from-master v41]
+
+# List available master versions
+glovebox layout list-masters glove80
+
+# Enhanced diff with DTSI comparison and JSON output
+glovebox layout diff layout1.json layout2.json [--include-dtsi] [--json]
+
+# Field manipulation commands
+glovebox layout get-field layout.json "layers[0]"
+glovebox layout set-field layout.json "title" "New Title"
+
+# Layer management commands
+glovebox layout add-layer layout.json "NewLayer" --position 5 [--import-from layer.json]
+glovebox layout remove-layer layout.json "LayerName"
+glovebox layout move-layer layout.json "LayerName" --position 3
+glovebox layout export-layer layout.json "LayerName" --format bindings
+
+# Patch and transform operations
+glovebox layout patch layout.json diff.json --output patched.json
+glovebox layout create-patch layout1.json layout2.json --output changes.patch
+```
+
+### Implementation Patterns
+
+- **Simple Merge Strategy**: Preserves all customizations while updating base layers
+- **DTSI Content Comparison**: Compares custom behaviors and device tree code
+- **Firmware Linking**: Automatic tracking of layout-to-firmware relationships
+- **Field Path Parsing**: Dot notation with array indexing (`layers[0].name`)
+- **Pydantic Integration**: Uses `model_dump(mode="json")` for proper serialization
+- **Layer Import/Export**: Multiple format support (bindings, layer object, full layout)
+
+### Testing and Quality Assurance
+
+- All new functionality includes comprehensive unit tests
+- Integration tests cover end-to-end upgrade workflows
+- Error handling with clear user feedback
+- Logging with multiple verbosity levels
+- Follows all existing code conventions and patterns
+
 ## Naming Conventions
 
 **CRITICAL: These naming conventions are MANDATORY:**
@@ -144,6 +214,11 @@ glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
 
 # Flash firmware
 glovebox firmware flash firmware.uf2 --profile glove80/v25.05
+
+# Keymap version management (NEW)
+glovebox layout import-master master-v42.json v42
+glovebox layout upgrade my-custom.json --to-master v42
+glovebox layout diff layout1.json layout2.json --include-dtsi --json
 ```
 
 ## Project Architecture
@@ -153,9 +228,13 @@ glovebox firmware flash firmware.uf2 --profile glove80/v25.05
 The codebase is organized into self-contained domains:
 
 #### Layout Domain (`glovebox/layout/`)
-- **Purpose**: Keyboard layout processing, JSON→DTSI conversion, component operations
+- **Purpose**: Keyboard layout processing, JSON→DTSI conversion, component operations, version management
 - **Factory Functions**: `create_layout_service()`, `create_layout_component_service()`, `create_layout_display_service()`
 - **Models**: `LayoutData`, `LayoutBinding`, `LayoutLayer`
+- **New Components**:
+  - `VersionManager`: Master layout imports, upgrades with customization preservation
+  - `FirmwareTracker`: Links compiled firmware to layout files with metadata tracking
+  - Enhanced CLI commands: diff, patch, field manipulation, layer management
 
 #### Firmware Domain (`glovebox/firmware/`)
 - **Purpose**: Firmware building and flashing operations
@@ -326,6 +405,10 @@ from glovebox.layout import create_layout_service, create_layout_component_servi
 from glovebox.firmware import create_build_service
 from glovebox.firmware.flash import create_flash_service
 from glovebox.compilation import create_compilation_service
+
+# Version management (NEW)
+from glovebox.layout.version_manager import create_version_manager
+from glovebox.layout.firmware_tracker import create_firmware_tracker
 
 # Configuration from config package
 from glovebox.config import create_keyboard_profile, KeyboardProfile

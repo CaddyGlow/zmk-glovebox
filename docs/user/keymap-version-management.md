@@ -365,4 +365,68 @@ If you're currently managing versions manually:
    # Test on device, then rename file when satisfied
    ```
 
+## Advanced Layout Operations
+
+### Field Manipulation
+Precisely edit layout fields using dot notation:
+
+```bash
+# Get specific field values
+glovebox layout get-field my-layout.json "title"
+glovebox layout get-field my-layout.json "layers[0]"  
+glovebox layout get-field my-layout.json "config_parameters[0].paramName"
+
+# Set field values
+glovebox layout set-field my-layout.json "title" "My Updated Layout"
+glovebox layout set-field my-layout.json "creator" "YourName"
+glovebox layout set-field my-layout.json "config_parameters[0].value" "y"
+```
+
+### Layer Management
+Comprehensive layer operations with import/export:
+
+```bash
+# Add layers with import capabilities
+glovebox layout add-layer my-layout.json "CustomLayer" --position 5
+glovebox layout add-layer my-layout.json "SymbolLayer" --import-from symbol-layer.json
+
+# Remove and reorder layers
+glovebox layout remove-layer my-layout.json "UnusedLayer"
+glovebox layout move-layer my-layout.json "SymbolLayer" --position 3
+glovebox layout move-layer my-layout.json "LastLayer" -- -1  # Move to end
+
+# Export layers for sharing or backup
+glovebox layout export-layer my-layout.json "SymbolLayer" --format bindings --output symbol.json
+glovebox layout export-layer my-layout.json "CustomLayer" --format layer --output custom-layer.json
+```
+
+### Enhanced Diff and Patching
+Advanced comparison including DTSI code and automated patching:
+
+```bash
+# Enhanced diff with DTSI comparison
+glovebox layout diff old-layout.json new-layout.json --include-dtsi --json
+
+# Create and apply patches
+glovebox layout create-patch old-layout.json new-layout.json --output changes.patch
+glovebox layout patch my-layout.json upgrade-changes.json --output upgraded.json
+```
+
+### Automation and Integration
+Combine operations for powerful workflows:
+
+```bash
+# Batch operations
+for layout in layouts/*.json; do
+  glovebox layout upgrade "$layout" --to-master v42
+  glovebox layout set-field "$layout" "creator" "AutoUpdated"
+done
+
+# Version control integration
+git add *.json
+git commit -m "Upgrade all layouts to v42"
+glovebox layout create-patch old-master.json new-master.json --output v42-changes.patch
+git apply v42-changes.patch  # Apply changes to other branches
+```
+
 This system transforms keymap version management from a tedious manual process into a fast, automated workflow that preserves all your customizations while keeping you up-to-date with the latest improvements.
