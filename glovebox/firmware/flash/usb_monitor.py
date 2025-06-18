@@ -131,7 +131,7 @@ class LinuxUSBDeviceMonitor(USBDeviceMonitorBase):
 
         # Import pyudev only on Linux
         try:
-            import pyudev  # type: ignore[import-untyped]
+            import pyudev  # type: ignore
         except ImportError as e:
             raise ImportError("pyudev is required for Linux USB monitoring") from e
 

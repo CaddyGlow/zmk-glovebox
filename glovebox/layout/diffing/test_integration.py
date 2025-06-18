@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -19,12 +20,12 @@ class TestLayoutDiffIntegration:
     """Integration tests for the complete diff/patch workflow."""
 
     @pytest.fixture
-    def diff_system(self):
+    def diff_system(self) -> LayoutDiffSystem:
         """Create a diff system instance."""
         return LayoutDiffSystem()
 
     @pytest.fixture
-    def patch_system(self):
+    def patch_system(self) -> LayoutPatchSystem:
         """Create a patch system instance."""
         return LayoutPatchSystem()
 
@@ -58,13 +59,13 @@ class TestLayoutDiffIntegration:
             uuid="test-uuid-base",
         )
 
-    def test_scenario_execution(self, diff_system, patch_system):
+    def test_scenario_execution(self, diff_system: LayoutDiffSystem, patch_system: LayoutPatchSystem) -> None:
         """Execute all test scenarios and verify results."""
         results = []
 
         for scenario in TEST_SCENARIOS:
-            base_name = scenario["from"]
-            modified_name = scenario["to"]
+            base_name: str = scenario["from"]  # type: ignore
+            modified_name: str = scenario["to"]  # type: ignore
 
             base = self.create_layout_data(TEST_CASES[base_name])
             modified = self.create_layout_data(TEST_CASES[modified_name])
@@ -126,7 +127,7 @@ class TestLayoutDiffIntegration:
 
         return True
 
-    def test_save_and_load_diff(self, diff_system, tmp_path):
+    def test_save_and_load_diff(self, diff_system: LayoutDiffSystem, tmp_path: Any) -> None:
         """Test saving and loading diffs from files."""
         base = self.create_layout_data(BASE_LAYOUT)
         modified = self.create_layout_data(COMPLEX_CHANGE)

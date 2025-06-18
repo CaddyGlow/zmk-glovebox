@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-import jsonpatch
+import jsonpatch  # type: ignore
 
 from glovebox.layout.models import LayoutData
 
@@ -9,7 +9,7 @@ from glovebox.layout.models import LayoutData
 class LayoutPatchSystem:
     """System for applying patches to LayoutData objects."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.validation_enabled = True
 
     def apply_patch(

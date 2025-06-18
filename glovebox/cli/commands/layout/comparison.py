@@ -425,24 +425,24 @@ def _format_comparison_text(
         else:
             # Show summary of behavior types changed
             detailed_changes = behaviors.get("detailed_changes", {})
-            total_changes = []
+            behavior_changes_summary: list[str] = []
             for behavior_type, changes in detailed_changes.items():
                 added_count = len(changes.get("added", []))
                 removed_count = len(changes.get("removed", []))
                 changed_count = len(changes.get("changed", []))
 
                 if added_count or removed_count or changed_count:
-                    type_summary = []
+                    type_summary: list[str] = []
                     if added_count:
                         type_summary.append(f"+{added_count}")
                     if removed_count:
                         type_summary.append(f"-{removed_count}")
                     if changed_count:
                         type_summary.append(f"~{changed_count}")
-                    total_changes.append(f"{behavior_type}: {'/'.join(type_summary)}")
+                    behavior_changes_summary.append(f"{behavior_type}: {'/'.join(type_summary)}")
 
-            if total_changes:
-                differences.append(f"  - {', '.join(total_changes)}")
+            if behavior_changes_summary:
+                differences.append(f"  - {', '.join(behavior_changes_summary)}")
 
     # Add config changes
     config = result.get("config", {})

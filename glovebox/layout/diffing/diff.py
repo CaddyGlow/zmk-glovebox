@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import jsonpatch
+import jsonpatch  # type: ignore
 from deepdiff import DeepDiff
 from pydantic import BaseModel
 
@@ -15,7 +15,7 @@ from glovebox.layout.models import LayoutData
 class LayoutDiffSystem:
     """Diff and patch system specifically for LayoutData structures."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.diff_engine = DeepDiff
 
     def create_layout_diff(
@@ -76,7 +76,7 @@ class LayoutDiffSystem:
     ) -> dict[str, Any]:
         """Analyze specific layout-related changes."""
 
-        changes = {
+        changes: dict[str, Any] = {
             "layers": {"added": [], "removed": [], "modified": [], "reordered": False},
             "behaviors": {
                 "hold_taps": {"added": [], "removed": [], "modified": []},
@@ -160,7 +160,7 @@ class LayoutDiffSystem:
     ) -> dict[str, list[dict[str, Any]]]:
         """Track movements of key bindings across layers and positions."""
 
-        movements = {
+        movements: dict[str, list[dict[str, Any]]] = {
             "within_layer": [],  # Bindings that moved within the same layer
             "between_layers": [],  # Bindings that moved to different layers
             "behavior_changes": [],  # Same position but behavior changed
@@ -222,7 +222,7 @@ class LayoutDiffSystem:
         self, layout_dict: dict[str, Any]
     ) -> dict[str, list[dict[str, Any]]]:
         """Create signatures for all bindings to track movements."""
-        signatures = {}
+        signatures: dict[str, list[dict[str, Any]]] = {}
 
         layers = layout_dict.get("layers", [])
         for layer_idx, layer in enumerate(layers):

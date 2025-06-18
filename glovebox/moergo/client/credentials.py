@@ -34,7 +34,7 @@ class CredentialManager:
         if keyring:
             # Use OS keyring (preferred)
             try:
-                keyring.set_password(  # type: ignore
+                keyring.set_password(
                     "glovebox-moergo", credentials.username, credentials.password
                 )
                 # Store username in config file for easy retrieval
@@ -91,7 +91,7 @@ class CredentialManager:
 
                 username = config.get("username")
                 if username:
-                    password = keyring.get_password("glovebox-moergo", username)  # type: ignore
+                    password = keyring.get_password("glovebox-moergo", username)
                     if password:
                         return UserCredentials(username=username, password=password)
             except Exception as e:
@@ -162,7 +162,7 @@ class CredentialManager:
 
                 username = config.get("username")
                 if username:
-                    keyring.delete_password("glovebox-moergo", username)  # type: ignore
+                    keyring.delete_password("glovebox-moergo", username)
             except Exception:
                 pass  # Ignore errors when clearing
 
@@ -188,7 +188,7 @@ class CredentialManager:
 
         if keyring:
             try:
-                backend = keyring.get_keyring()  # type: ignore
+                backend = keyring.get_keyring()
                 info["keyring_backend"] = str(type(backend).__name__)
             except Exception:
                 info["keyring_backend"] = "unknown"
