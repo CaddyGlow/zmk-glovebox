@@ -9,6 +9,7 @@ import requests
 
 from glovebox.core.cache import CacheKey, create_default_cache
 
+from ..history import MoErgoHistoryTracker
 from .auth import Glove80Auth
 from .credentials import CredentialManager
 from .models import (
@@ -35,6 +36,9 @@ class MoErgoClient:
 
         # Initialize cache for API responses
         self._cache = create_default_cache()
+
+        # Initialize history tracker
+        self.history_tracker = MoErgoHistoryTracker()
 
         # Set common headers
         self.session.headers.update(
@@ -123,14 +127,42 @@ class MoErgoClient:
             )
 
     def _authenticate(self) -> None:
-        """Perform authentication flow."""
+        """Perform authentication flow with refresh token priority."""
+        # Try refresh token first if we have existing tokens
+        if self._tokens and self._tokens.refresh_token:
+            try:
+                result = self.auth_client.refresh_token(self._tokens.refresh_token)
+                if result and "AuthenticationResult" in result:
+                    auth_result = result["AuthenticationResult"]
+                    # Refresh tokens don't return new refresh tokens by default
+                    # Keep the existing one unless a new one is provided
+                    new_refresh_token = auth_result.get(
+                        "RefreshToken", self._tokens.refresh_token
+                    )
+
+                    self._tokens = AuthTokens(
+                        access_token=auth_result["AccessToken"],
+                        refresh_token=new_refresh_token,
+                        id_token=auth_result["IdToken"],
+                        token_type=auth_result.get("TokenType", "Bearer"),
+                        expires_in=auth_result["ExpiresIn"],
+                    )
+
+                    # Store tokens for future use
+                    self.credential_manager.store_tokens(self._tokens)
+                    return
+            except Exception:
+                # If refresh fails, fall through to full authentication
+                pass
+
+        # Fall back to full authentication if refresh fails or no refresh token
         credentials = self.credential_manager.load_credentials()
         if not credentials:
             raise AuthenticationError(
                 "No stored credentials found. Please login first."
             )
 
-        # Try simple password auth first
+        # Try simple password auth
         try:
             result = self.auth_client.simple_login_attempt(
                 credentials.username, credentials.password
@@ -148,7 +180,7 @@ class MoErgoClient:
                 # Store tokens for future use
                 self.credential_manager.store_tokens(self._tokens)
                 return
-        except Exception as e:
+        except Exception:
             pass  # Fall through to SRP auth
 
         # If simple auth fails, we need SRP implementation
@@ -198,9 +230,38 @@ class MoErgoClient:
         try:
             response = self.session.get(self._get_full_url(endpoint))
             data = self._handle_response(response)
-            return MoErgoLayout(**data)
+            layout = MoErgoLayout(**data)
+
+            # Track successful download
+            self.history_tracker.add_entry(
+                action="download",
+                layout_uuid=layout_uuid,
+                success=True,
+                layout_title=layout.layout_meta.title,
+                metadata={"endpoint": endpoint},
+            )
+
+            return layout
         except requests.exceptions.RequestException as e:
+            # Track failed download
+            self.history_tracker.add_entry(
+                action="download",
+                layout_uuid=layout_uuid,
+                success=False,
+                error_message=str(e),
+                metadata={"endpoint": endpoint},
+            )
             raise NetworkError(f"Network error: {e}") from e
+        except Exception as e:
+            # Track failed download (other errors)
+            self.history_tracker.add_entry(
+                action="download",
+                layout_uuid=layout_uuid,
+                success=False,
+                error_message=str(e),
+                metadata={"endpoint": endpoint},
+            )
+            raise
 
     def get_layout_meta(
         self, layout_uuid: str, use_cache: bool = True
@@ -303,6 +364,7 @@ class MoErgoClient:
         self._ensure_authenticated()
 
         endpoint = f"layouts/v1/{layout_uuid}"
+        layout_title = layout_meta.get("layout_meta", {}).get("title", "Unknown")
 
         try:
             # Use ID token for write operations (PUT requires ID token, not access token)
@@ -325,9 +387,40 @@ class MoErgoClient:
                 self._get_full_url(endpoint), json=layout_meta, headers=headers
             )
 
-            return self._handle_response(response)  # type: ignore[no-any-return]
+            result = self._handle_response(response)
+
+            # Track successful upload
+            self.history_tracker.add_entry(
+                action="upload",
+                layout_uuid=layout_uuid,
+                success=True,
+                layout_title=layout_title,
+                metadata={"endpoint": endpoint, "method": "PUT"},
+            )
+
+            return result  # type: ignore[no-any-return]
         except requests.exceptions.RequestException as e:
+            # Track failed upload
+            self.history_tracker.add_entry(
+                action="upload",
+                layout_uuid=layout_uuid,
+                success=False,
+                layout_title=layout_title,
+                error_message=str(e),
+                metadata={"endpoint": endpoint, "method": "PUT"},
+            )
             raise NetworkError(f"Network error: {e}") from e
+        except Exception as e:
+            # Track failed upload (other errors)
+            self.history_tracker.add_entry(
+                action="upload",
+                layout_uuid=layout_uuid,
+                success=False,
+                layout_title=layout_title,
+                error_message=str(e),
+                metadata={"endpoint": endpoint, "method": "PUT"},
+            )
+            raise
 
     def update_layout(
         self, layout_uuid: str, layout_data: dict[str, Any]
@@ -349,8 +442,61 @@ class MoErgoClient:
         return MoErgoLayout(**response_data)
 
     def delete_layout(self, layout_uuid: str) -> bool:
-        """Delete a single layout."""
-        return self.batch_delete_layouts([layout_uuid])[layout_uuid]
+        """Delete a single layout using direct DELETE request."""
+        self._ensure_authenticated()
+
+        endpoint = f"layouts/v1/{layout_uuid}"
+
+        # Try to get layout title before deletion
+        layout_title = None
+        try:
+            layout = self.get_layout(layout_uuid)
+            layout_title = layout.layout_meta.title
+        except Exception:
+            pass  # Don't fail deletion if we can't get title
+
+        # Use same headers as other operations
+        assert self._tokens is not None, (
+            "Tokens should be available after authentication"
+        )
+        headers = {
+            "accept": "*/*",
+            "accept-language": "en-US,en;q=0.9",
+            "authorization": f"Bearer {self._tokens.id_token}",
+            "origin": "https://my.glove80.com",
+            "referer": "https://my.glove80.com/",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-origin",
+        }
+
+        try:
+            response = self.session.delete(
+                self._get_full_url(endpoint), headers=headers
+            )
+            success = response.status_code == 204
+
+            # Track deletion attempt
+            self.history_tracker.add_entry(
+                action="delete",
+                layout_uuid=layout_uuid,
+                success=success,
+                layout_title=layout_title,
+                metadata={"endpoint": endpoint, "status_code": response.status_code},
+            )
+
+            return success
+        except requests.exceptions.RequestException as e:
+            # Track failed deletion
+            self.history_tracker.add_entry(
+                action="delete",
+                layout_uuid=layout_uuid,
+                success=False,
+                layout_title=layout_title,
+                error_message=str(e),
+                metadata={"endpoint": endpoint},
+            )
+            return False
 
     def batch_delete_layouts(self, layout_uuids: list[str]) -> dict[str, bool]:
         """Delete multiple layouts in a batch operation.
@@ -461,12 +607,28 @@ class MoErgoClient:
         raise NotImplementedError("User info endpoint not yet discovered")
 
     def is_authenticated(self) -> bool:
-        """Check if client is currently authenticated."""
+        """Check if client is currently authenticated with valid tokens."""
         try:
             self._ensure_authenticated()
             return True
         except AuthenticationError:
             return False
+
+    def validate_authentication(self) -> bool:
+        """Validate authentication by making a test API call to the server."""
+        try:
+            self._ensure_authenticated()
+            # Make a lightweight API call to test if tokens are valid
+            # This will trigger re-authentication if tokens are invalid
+            self.list_user_layouts()
+            return True
+        except (AuthenticationError, Exception):
+            # If validation fails, try to re-authenticate
+            try:
+                self._authenticate()
+                return True
+            except AuthenticationError:
+                return False
 
     def get_credential_info(self) -> dict[str, Any]:
         """Get information about stored credentials."""
@@ -488,6 +650,210 @@ class MoErgoClient:
             "miss_count": stats.miss_count,
             "eviction_count": stats.eviction_count,
         }
+
+    def renew_token_if_needed(self, buffer_minutes: int = 10) -> bool:
+        """
+        Proactively renew tokens if they're close to expiring.
+
+        Useful for long-running processes that want to avoid token expiration
+        during operations.
+
+        Args:
+            buffer_minutes: Renew token if it expires within this many minutes
+
+        Returns:
+            True if token was renewed, False if renewal wasn't needed
+        """
+        if not self._tokens:
+            self._tokens = self.credential_manager.load_tokens()
+
+        if not self._tokens:
+            return False
+
+        # Check if token expires within buffer period
+        buffer_seconds = buffer_minutes * 60
+        expires_at = self._tokens.expires_at - buffer_seconds
+
+        if datetime.now().timestamp() > expires_at:
+            try:
+                self._authenticate()
+                return True
+            except AuthenticationError:
+                # If renewal fails, let it fail on next actual API call
+                return False
+
+        return False
+
+    def get_token_info(self) -> dict[str, Any]:
+        """
+        Get information about current tokens.
+
+        Returns:
+            Dict with token status information
+        """
+        if not self._tokens:
+            self._tokens = self.credential_manager.load_tokens()
+
+        if not self._tokens:
+            return {
+                "authenticated": False,
+                "expires_at": None,
+                "expires_in_minutes": None,
+                "needs_renewal": True,
+            }
+
+        expires_at_dt = datetime.fromtimestamp(self._tokens.expires_at)
+        expires_in_seconds = self._tokens.expires_at - datetime.now().timestamp()
+        expires_in_minutes = max(0, expires_in_seconds / 60)
+
+        return {
+            "authenticated": True,
+            "expires_at": expires_at_dt.isoformat(),
+            "expires_in_minutes": round(expires_in_minutes, 1),
+            "needs_renewal": expires_in_minutes < 5,
+        }
+
+    def test_layout_endpoints(
+        self, layout_uuid: str, layout_data: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """
+        Test different HTTP methods on layout endpoints to discover capabilities.
+
+        Args:
+            layout_uuid: UUID of layout to test with
+            layout_data: Optional layout data for POST/PUT tests
+
+        Returns:
+            Dict with results of different HTTP method tests
+        """
+        self._ensure_authenticated()
+
+        endpoint = f"layouts/v1/{layout_uuid}"
+        results = {}
+
+        # Standard headers for all requests
+        headers = {
+            "accept": "*/*",
+            "accept-language": "en-US,en;q=0.9",
+            "authorization": f"Bearer {self._tokens.id_token}",
+            "content-type": "application/json",
+            "origin": "https://my.glove80.com",
+            "referer": "https://my.glove80.com/",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-origin",
+        }
+
+        # Test GET (try with access token)
+        try:
+            get_headers = {"authorization": f"Bearer {self._tokens.access_token}"}
+            response = self.session.get(
+                self._get_full_url(endpoint), headers=get_headers
+            )
+            results["GET"] = {
+                "status_code": response.status_code,
+                "success": response.status_code == 200,
+                "error": None if response.status_code == 200 else response.text[:200],
+            }
+        except Exception as e:
+            results["GET"] = {"status_code": None, "success": False, "error": str(e)}
+
+        # Test PUT (current method we use)
+        if layout_data:
+            try:
+                response = self.session.put(
+                    self._get_full_url(endpoint), json=layout_data, headers=headers
+                )
+                results["PUT"] = {
+                    "status_code": response.status_code,
+                    "success": response.status_code in [200, 201, 204],
+                    "error": None
+                    if response.status_code in [200, 201, 204]
+                    else response.text[:200],
+                }
+            except Exception as e:
+                results["PUT"] = {
+                    "status_code": None,
+                    "success": False,
+                    "error": str(e),
+                }
+
+        # Test POST (try with access token instead of ID token)
+        if layout_data:
+            try:
+                post_headers = headers.copy()
+                post_headers["authorization"] = f"Bearer {self._tokens.access_token}"
+                response = self.session.post(
+                    self._get_full_url(endpoint), json=layout_data, headers=post_headers
+                )
+                results["POST"] = {
+                    "status_code": response.status_code,
+                    "success": response.status_code in [200, 201, 204],
+                    "error": None
+                    if response.status_code in [200, 201, 204]
+                    else response.text[:200],
+                }
+            except Exception as e:
+                results["POST"] = {
+                    "status_code": None,
+                    "success": False,
+                    "error": str(e),
+                }
+
+        # Test PATCH
+        if layout_data:
+            try:
+                response = self.session.patch(
+                    self._get_full_url(endpoint), json=layout_data, headers=headers
+                )
+                results["PATCH"] = {
+                    "status_code": response.status_code,
+                    "success": response.status_code in [200, 201, 204],
+                    "error": None
+                    if response.status_code in [200, 201, 204]
+                    else response.text[:200],
+                }
+            except Exception as e:
+                results["PATCH"] = {
+                    "status_code": None,
+                    "success": False,
+                    "error": str(e),
+                }
+
+        # Test DELETE
+        try:
+            response = self.session.delete(
+                self._get_full_url(endpoint), headers=headers
+            )
+            results["DELETE"] = {
+                "status_code": response.status_code,
+                "success": response.status_code in [200, 204],
+                "error": None
+                if response.status_code in [200, 204]
+                else response.text[:200],
+            }
+        except Exception as e:
+            results["DELETE"] = {"status_code": None, "success": False, "error": str(e)}
+
+        return results
+
+    def get_history(self, limit: int = 20) -> list[dict[str, Any]]:
+        """Get recent MoErgo API interaction history."""
+        entries = self.history_tracker.get_recent_history(limit)
+        return [entry.model_dump(mode="json") for entry in entries]
+
+    def get_layout_history(self, layout_uuid: str) -> list[dict[str, Any]]:
+        """Get history for a specific layout UUID."""
+        entries = self.history_tracker.get_layout_history(layout_uuid)
+        return [entry.model_dump(mode="json") for entry in entries]
+
+    def get_history_statistics(self) -> dict[str, Any]:
+        """Get MoErgo API usage statistics."""
+        return self.history_tracker.get_statistics()
+
+    def clear_history(self) -> None:
+        """Clear MoErgo API interaction history."""
+        self.history_tracker.clear_history()
 
 
 def create_moergo_client(

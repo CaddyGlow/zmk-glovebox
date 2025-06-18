@@ -1,7 +1,11 @@
 """Filesystem-based cache implementation."""
 
+import contextlib
+import fcntl
 import json
 import logging
+import os
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -34,10 +38,28 @@ class FilesystemCache(BaseCacheManager):
         super().__init__(config)
 
         if not self.config.cache_root:
-            # Default cache location
-            import tempfile
+            # Default cache location with process isolation
+            cache_base = Path(tempfile.gettempdir()) / "glovebox_cache"
 
-            self.config.cache_root = Path(tempfile.gettempdir()) / "glovebox_cache"
+            # Check environment variable for cache strategy
+            cache_strategy = os.environ.get(
+                "GLOVEBOX_CACHE_STRATEGY", "process_isolated"
+            )
+
+            if cache_strategy == "shared":
+                # Shared cache (original behavior) - may have race conditions
+                self.config.cache_root = cache_base
+            elif cache_strategy == "process_isolated":
+                # Process-specific cache directories (default)
+                self.config.cache_root = cache_base / f"proc_{os.getpid()}"
+            elif cache_strategy == "disabled":
+                # Use memory cache instead
+                raise FilesystemCacheError(
+                    "Filesystem cache disabled via GLOVEBOX_CACHE_STRATEGY=disabled"
+                )
+            else:
+                # Treat unknown strategies as shared
+                self.config.cache_root = cache_base
 
         self.cache_root = self.config.cache_root
         self.data_dir = self.cache_root / "data"
@@ -47,7 +69,71 @@ class FilesystemCache(BaseCacheManager):
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.metadata_dir.mkdir(parents=True, exist_ok=True)
 
+        # Check if file locking is enabled
+        self.use_file_locking = (
+            os.environ.get("GLOVEBOX_CACHE_FILE_LOCKING", "true").lower() == "true"
+        )
+
         logger.debug("Initialized filesystem cache at: %s", self.cache_root)
+        logger.debug("File locking enabled: %s", self.use_file_locking)
+
+    @contextlib.contextmanager
+    def _file_lock(self, key: str, operation: str = "read", timeout: float = 5.0):
+        """Context manager for file locking to prevent race conditions.
+
+        Args:
+            key: Cache key to lock
+            operation: "read", "write", or "delete"
+            timeout: Maximum time to wait for lock in seconds
+        """
+        # Skip locking if disabled
+        if not self.use_file_locking:
+            yield
+            return
+
+        lock_path = self.cache_root / f"{key}.lock"
+        lock_file = None
+
+        try:
+            # Create lock file
+            lock_file = lock_path.open("w")
+
+            # Choose lock type based on operation
+            if operation == "read":
+                lock_type = fcntl.LOCK_SH  # Shared lock for reads
+            else:
+                lock_type = fcntl.LOCK_EX  # Exclusive lock for writes/deletes
+
+            # Try to acquire lock with timeout
+            start_time = time.time()
+            while True:
+                try:
+                    fcntl.flock(lock_file.fileno(), lock_type | fcntl.LOCK_NB)
+                    break  # Lock acquired
+                except OSError:
+                    if time.time() - start_time > timeout:
+                        logger.debug(
+                            "Lock timeout for key %s operation %s", key, operation
+                        )
+                        # Proceed without lock after timeout
+                        break
+                    time.sleep(0.01)  # Short wait before retry
+
+            yield
+
+        except OSError as e:
+            logger.debug("File locking failed for key %s: %s", key, e)
+            # Continue without locking - cache is resilient
+            yield
+
+        finally:
+            # Clean up lock file
+            if lock_file:
+                try:
+                    lock_file.close()
+                    lock_path.unlink(missing_ok=True)
+                except OSError:
+                    pass  # Ignore cleanup errors
 
     def _get_data_path(self, key: str) -> Path:
         """Get file path for cached data."""
@@ -58,85 +144,104 @@ class FilesystemCache(BaseCacheManager):
         return self.metadata_dir / f"{key}.meta.json"
 
     def _get_raw(self, key: str) -> Any:
-        """Get raw value from filesystem."""
+        """Get raw value from filesystem with file locking."""
         data_path = self._get_data_path(key)
         metadata_path = self._get_metadata_path(key)
 
-        if not data_path.exists() or not metadata_path.exists():
-            return None
-
-        try:
-            # Load and check metadata
-            with metadata_path.open("r") as f:
-                metadata_data = json.load(f)
-                metadata = CacheMetadata(**metadata_data)
-
-            # Check if expired
-            if metadata.is_expired:
-                self._delete_raw(key)
+        with self._file_lock(key, "read"):
+            if not data_path.exists() or not metadata_path.exists():
                 return None
 
-            # Load data
-            with data_path.open("r") as f:
-                data = json.load(f)
+            try:
+                # Load and check metadata
+                with metadata_path.open("r") as f:
+                    metadata_data = json.load(f)
+                    metadata = CacheMetadata(**metadata_data)
 
-            # Update access metadata
-            metadata.touch()
-            self._save_metadata(key, metadata)
+                # Check if expired
+                if metadata.is_expired:
+                    # Need exclusive lock for deletion
+                    with self._file_lock(key, "delete"):
+                        self._delete_raw_unlocked(key)
+                    return None
 
-            return data
+                # Load data
+                with data_path.open("r") as f:
+                    data = json.load(f)
 
-        except (json.JSONDecodeError, OSError, KeyError) as e:
-            logger.warning("Failed to load cache entry %s: %s", key, e)
-            # Clean up corrupted cache entry
-            self._delete_raw(key)
-            return None
+                # Update access metadata (needs write lock)
+                with self._file_lock(key, "write"):
+                    metadata.touch()
+                    self._save_metadata(key, metadata)
+
+                return data
+
+            except (json.JSONDecodeError, OSError, KeyError) as e:
+                # Only log warnings for actual corruption, not empty files (which may be race conditions)
+                if isinstance(e, json.JSONDecodeError) and "Expecting value" in str(e):
+                    logger.debug(
+                        "Cache entry %s appears empty (possible race condition): %s",
+                        key,
+                        e,
+                    )
+                else:
+                    logger.warning("Failed to load cache entry %s: %s", key, e)
+                # Clean up corrupted cache entry
+                with self._file_lock(key, "delete"):
+                    self._delete_raw_unlocked(key)
+                return None
 
     def _set_raw(self, key: str, value: Any, ttl: int | None = None) -> None:
-        """Set raw value in filesystem."""
-        data_path = self._get_data_path(key)
-        metadata_path = self._get_metadata_path(key)
+        """Set raw value in filesystem with file locking."""
+        with self._file_lock(key, "write"):
+            data_path = self._get_data_path(key)
+            metadata_path = self._get_metadata_path(key)
 
-        try:
-            # Prepare data - ensure it's JSON serializable
-            serialized_data = self._prepare_for_serialization(value)
+            try:
+                # Prepare data - ensure it's JSON serializable
+                serialized_data = self._prepare_for_serialization(value)
 
-            # Create metadata
-            now = time.time()
-            ttl_to_use = ttl or self.config.default_ttl_seconds
-            size_bytes = self._calculate_size(serialized_data)
+                # Create metadata
+                now = time.time()
+                ttl_to_use = ttl or self.config.default_ttl_seconds
+                size_bytes = self._calculate_size(serialized_data)
 
-            metadata = CacheMetadata(
-                key=key,
-                size_bytes=size_bytes,
-                created_at=now,
-                last_accessed=now,
-                access_count=1,
-                ttl_seconds=ttl_to_use,
-            )
+                metadata = CacheMetadata(
+                    key=key,
+                    size_bytes=size_bytes,
+                    created_at=now,
+                    last_accessed=now,
+                    access_count=1,
+                    ttl_seconds=ttl_to_use,
+                )
 
-            # Save data and metadata atomically
-            with data_path.open("w") as f:
-                json.dump(serialized_data, f, separators=(",", ":"))
+                # Save data and metadata atomically
+                with data_path.open("w") as f:
+                    json.dump(serialized_data, f, separators=(",", ":"))
 
-            self._save_metadata(key, metadata)
+                self._save_metadata(key, metadata)
 
-            # Update statistics
-            self.stats.total_entries += 1
-            self.stats.total_size_bytes += size_bytes
+                # Update statistics
+                self.stats.total_entries += 1
+                self.stats.total_size_bytes += size_bytes
 
-            logger.debug(
-                "Cached entry %s (size: %d bytes, ttl: %s)",
-                key,
-                size_bytes,
-                ttl_to_use,
-            )
+                logger.debug(
+                    "Cached entry %s (size: %d bytes, ttl: %s)",
+                    key,
+                    size_bytes,
+                    ttl_to_use,
+                )
 
-        except (json.JSONDecodeError, OSError) as e:
-            raise FilesystemCacheError(f"Failed to cache entry {key}: {e}") from e
+            except (json.JSONDecodeError, OSError) as e:
+                raise FilesystemCacheError(f"Failed to cache entry {key}: {e}") from e
 
     def _delete_raw(self, key: str) -> bool:
-        """Delete raw value from filesystem."""
+        """Delete raw value from filesystem with file locking."""
+        with self._file_lock(key, "delete"):
+            return self._delete_raw_unlocked(key)
+
+    def _delete_raw_unlocked(self, key: str) -> bool:
+        """Delete raw value from filesystem without locking (assumes caller has lock)."""
         data_path = self._get_data_path(key)
         metadata_path = self._get_metadata_path(key)
 
@@ -147,7 +252,13 @@ class FilesystemCache(BaseCacheManager):
                 data_path.unlink()
                 deleted = True
             except OSError as e:
-                logger.warning("Failed to delete data file %s: %s", data_path, e)
+                # Only warn if it's not a "file not found" error (race condition)
+                if e.errno != 2:  # ENOENT - No such file or directory
+                    logger.warning("Failed to delete data file %s: %s", data_path, e)
+                else:
+                    logger.debug(
+                        "Data file %s already deleted (race condition)", data_path
+                    )
 
         if metadata_path.exists():
             try:
@@ -155,9 +266,16 @@ class FilesystemCache(BaseCacheManager):
                 if not deleted:  # Only count as deleted if we removed something
                     deleted = True
             except OSError as e:
-                logger.warning(
-                    "Failed to delete metadata file %s: %s", metadata_path, e
-                )
+                # Only warn if it's not a "file not found" error (race condition)
+                if e.errno != 2:  # ENOENT - No such file or directory
+                    logger.warning(
+                        "Failed to delete metadata file %s: %s", metadata_path, e
+                    )
+                else:
+                    logger.debug(
+                        "Metadata file %s already deleted (race condition)",
+                        metadata_path,
+                    )
 
         if deleted:
             self.stats.total_entries = max(0, self.stats.total_entries - 1)
@@ -186,45 +304,50 @@ class FilesystemCache(BaseCacheManager):
             raise FilesystemCacheError(f"Failed to clear cache: {e}") from e
 
     def _exists_raw(self, key: str) -> bool:
-        """Check if key exists in filesystem."""
-        data_path = self._get_data_path(key)
-        metadata_path = self._get_metadata_path(key)
+        """Check if key exists in filesystem with file locking."""
+        with self._file_lock(key, "read"):
+            data_path = self._get_data_path(key)
+            metadata_path = self._get_metadata_path(key)
 
-        if not data_path.exists() or not metadata_path.exists():
-            return False
-
-        # Check if expired
-        try:
-            with metadata_path.open("r") as f:
-                metadata_data = json.load(f)
-                metadata = CacheMetadata(**metadata_data)
-
-            if metadata.is_expired:
-                self._delete_raw(key)
+            if not data_path.exists() or not metadata_path.exists():
                 return False
 
-            return True
+            # Check if expired
+            try:
+                with metadata_path.open("r") as f:
+                    metadata_data = json.load(f)
+                    metadata = CacheMetadata(**metadata_data)
 
-        except (json.JSONDecodeError, OSError, KeyError):
-            # Corrupted metadata, treat as non-existent
-            self._delete_raw(key)
-            return False
+                if metadata.is_expired:
+                    # Need exclusive lock for deletion
+                    with self._file_lock(key, "delete"):
+                        self._delete_raw_unlocked(key)
+                    return False
+
+                return True
+
+            except (json.JSONDecodeError, OSError, KeyError):
+                # Corrupted metadata, treat as non-existent
+                with self._file_lock(key, "delete"):
+                    self._delete_raw_unlocked(key)
+                return False
 
     def get_metadata(self, key: str) -> CacheMetadata | None:
-        """Get metadata for cache entry."""
-        metadata_path = self._get_metadata_path(key)
+        """Get metadata for cache entry with file locking."""
+        with self._file_lock(key, "read"):
+            metadata_path = self._get_metadata_path(key)
 
-        if not metadata_path.exists():
-            return None
+            if not metadata_path.exists():
+                return None
 
-        try:
-            with metadata_path.open("r") as f:
-                metadata_data = json.load(f)
-                return CacheMetadata(**metadata_data)
+            try:
+                with metadata_path.open("r") as f:
+                    metadata_data = json.load(f)
+                    return CacheMetadata(**metadata_data)
 
-        except (json.JSONDecodeError, OSError, KeyError) as e:
-            logger.warning("Failed to load metadata for %s: %s", key, e)
-            return None
+            except (json.JSONDecodeError, OSError, KeyError) as e:
+                logger.warning("Failed to load metadata for %s: %s", key, e)
+                return None
 
     def cleanup(self) -> int:
         """Remove expired entries and enforce size limits."""
@@ -242,9 +365,10 @@ class FilesystemCache(BaseCacheManager):
 
                 if metadata.is_expired:
                     # Remove expired entries
-                    if self._delete_raw(key):
-                        removed_count += 1
-                        self.stats.eviction_count += 1
+                    with self._file_lock(key, "delete"):
+                        if self._delete_raw_unlocked(key):
+                            removed_count += 1
+                            self.stats.eviction_count += 1
                 else:
                     entries.append((key, metadata))
 
@@ -324,10 +448,11 @@ class FilesystemCache(BaseCacheManager):
             if current_size <= self.config.max_size_bytes:
                 break
 
-            if self._delete_raw(key):
-                current_size -= metadata.size_bytes
-                removed_count += 1
-                self.stats.eviction_count += 1
+            with self._file_lock(key, "delete"):
+                if self._delete_raw_unlocked(key):
+                    current_size -= metadata.size_bytes
+                    removed_count += 1
+                    self.stats.eviction_count += 1
 
         return removed_count
 
@@ -349,8 +474,9 @@ class FilesystemCache(BaseCacheManager):
 
         # Remove oldest entries
         for key, _metadata in entries[:entries_to_remove]:
-            if self._delete_raw(key):
-                removed_count += 1
-                self.stats.eviction_count += 1
+            with self._file_lock(key, "delete"):
+                if self._delete_raw_unlocked(key):
+                    removed_count += 1
+                    self.stats.eviction_count += 1
 
         return removed_count

@@ -294,3 +294,133 @@ class TestMoErgoClient:
         assert "platform" in info
         assert "config_dir" in info
         assert "has_credentials" in info
+
+    def test_refresh_token_success(self, client, mock_auth_response):
+        """Test successful token refresh."""
+        # Setup initial authentication
+        with patch.object(
+            client.auth_client, "simple_login_attempt", return_value=mock_auth_response
+        ):
+            client.login("test@example.com", "testpass123")
+
+        # Mock refresh token response
+        refresh_response = {
+            "AuthenticationResult": {
+                "AccessToken": "new-access-token",
+                "IdToken": "new-id-token",
+                "TokenType": "Bearer",
+                "ExpiresIn": 3600,
+                # Note: RefreshToken might not be returned in real AWS responses
+            }
+        }
+
+        # Simulate token near expiry and test refresh
+        with (
+            patch.object(client, "_is_token_expired", return_value=True),
+            patch.object(
+                client.auth_client, "refresh_token", return_value=refresh_response
+            ),
+        ):
+            client._ensure_authenticated()
+
+            # Verify tokens were updated
+            assert client._tokens.access_token == "new-access-token"
+            assert client._tokens.id_token == "new-id-token"
+
+    def test_refresh_token_fallback_to_full_auth(self, client, mock_auth_response):
+        """Test falling back to full authentication when refresh fails."""
+        # Setup initial authentication
+        with patch.object(
+            client.auth_client, "simple_login_attempt", return_value=mock_auth_response
+        ):
+            client.login("test@example.com", "testpass123")
+
+        # Mock refresh token failure and successful full auth
+        with (
+            patch.object(client, "_is_token_expired", return_value=True),
+            patch.object(client.auth_client, "refresh_token", return_value=None),
+            patch.object(
+                client.auth_client,
+                "simple_login_attempt",
+                return_value=mock_auth_response,
+            ),
+        ):
+            client._ensure_authenticated()
+
+            # Should have fallen back to full auth and updated tokens
+            assert client._tokens.access_token == "access_token_123"
+
+    def test_proactive_token_renewal_needed(self, client, mock_auth_response):
+        """Test proactive token renewal when token is close to expiry."""
+        # Setup initial authentication
+        with patch.object(
+            client.auth_client, "simple_login_attempt", return_value=mock_auth_response
+        ):
+            client.login("test@example.com", "testpass123")
+
+        # Mock datetime to make token appear expired within buffer
+        with patch("glovebox.moergo.client.client.datetime") as mock_datetime:
+            # Set current time to make token expire within buffer
+            mock_datetime.now.return_value.timestamp.return_value = (
+                client._tokens.expires_at + 1  # Past expiry time
+            )
+
+            with patch.object(client, "_authenticate") as mock_auth:
+                result = client.renew_token_if_needed(buffer_minutes=1)
+
+                assert result is True
+                mock_auth.assert_called_once()
+
+    def test_proactive_token_renewal_not_needed(self, client, mock_auth_response):
+        """Test proactive token renewal when token is still valid."""
+        # Setup initial authentication
+        with patch.object(
+            client.auth_client, "simple_login_attempt", return_value=mock_auth_response
+        ):
+            client.login("test@example.com", "testpass123")
+
+        # Mock datetime to make token appear valid (far from expiry)
+        with patch("glovebox.moergo.client.client.datetime") as mock_datetime:
+            # Set current time well before token expiry
+            mock_datetime.now.return_value.timestamp.return_value = (
+                client._tokens.expires_at - 3600  # 1 hour before expiry
+            )
+
+            result = client.renew_token_if_needed(buffer_minutes=10)
+
+            assert result is False
+
+    def test_get_token_info_authenticated(self, client, mock_auth_response):
+        """Test getting token info when authenticated."""
+        # Setup initial authentication
+        with patch.object(
+            client.auth_client, "simple_login_attempt", return_value=mock_auth_response
+        ):
+            client.login("test@example.com", "testpass123")
+
+        # Get the actual expires_at time from the token
+        expires_at = client._tokens.expires_at
+
+        with patch("glovebox.moergo.client.client.datetime") as mock_datetime:
+            # Set current time to 10 minutes before expiry
+            current_time = expires_at - 600  # 10 minutes before
+            mock_datetime.now.return_value.timestamp.return_value = current_time
+            mock_datetime.fromtimestamp.return_value.isoformat.return_value = (
+                "2025-01-01T00:00:00"
+            )
+
+            info = client.get_token_info()
+
+            assert info["authenticated"] is True
+            assert "expires_at" in info
+            assert info["expires_in_minutes"] == 10.0
+            assert info["needs_renewal"] is False
+
+    def test_get_token_info_not_authenticated(self, client):
+        """Test getting token info when not authenticated."""
+        info = client.get_token_info()
+
+        assert info["authenticated"] is False
+        assert info["expires_at"] is None
+        assert info["expires_in_minutes"] is None
+        assert info["needs_renewal"] is True
