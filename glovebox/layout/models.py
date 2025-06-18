@@ -319,9 +319,15 @@ class LayoutData(LayoutMetadata):
     custom_defined_behaviors: str = Field(default="", alias="custom_defined_behaviors")
     custom_devicetree: str = Field(default="", alias="custom_devicetree")
 
-    @model_serializer(when_used="json")
-    def sort_model(self) -> dict[str, Any]:
-        order = [
+    @model_serializer(mode="wrap")
+    def serialize_with_sorted_fields(
+        self, serializer: Any, info: Any
+    ) -> dict[str, Any]:
+        """Serialize with fields in a specific order."""
+        data = serializer(self)
+
+        # Define the desired field order
+        field_order = [
             "keyboard",
             "firmware_api_version",
             "locale",
@@ -337,10 +343,8 @@ class LayoutData(LayoutMetadata):
             "base_version",
             "base_layout",
             "last_firmware_build",
-            # Normal
+            # Normal layout structure
             "layer_names",
-            "custom_defined_behaviors",
-            "custom_devicetree",
             "config_parameters",
             "holdTaps",
             "combos",
@@ -350,7 +354,19 @@ class LayoutData(LayoutMetadata):
             "custom_defined_behaviors",
             "custom_devicetree",
         ]
-        return dict(sorted(self.model_dump().items()))
+
+        # Create ordered dict with known fields first
+        ordered_data = {}
+        for field in field_order:
+            if field in data:
+                ordered_data[field] = data[field]
+
+        # Add any remaining fields not in the order list
+        for key, value in data.items():
+            if key not in ordered_data:
+                ordered_data[key] = value
+
+        return ordered_data
 
     @field_validator("layers")
     @classmethod
