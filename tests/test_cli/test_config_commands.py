@@ -1,6 +1,8 @@
 """Tests for CLI config commands."""
 
 import json
+import tempfile
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -765,3 +767,730 @@ class TestConfigUserIntegration:
         user_config_fixture.load()
         reloaded_profile = user_config_fixture.get("profile")
         assert reloaded_profile == "persistent_test/v2.0"
+
+
+class TestConfigExport:
+    """Test config export command with all serialization formats."""
+
+    @pytest.fixture
+    def mock_export_context(self, user_config_fixture):
+        """Create a mock app context for export testing."""
+        from glovebox.cli.app import AppContext
+
+        mock_context = Mock(spec=AppContext)
+        mock_context.user_config = user_config_fixture
+        return mock_context
+
+    def test_export_yaml_format(self, cli_runner, mock_export_context):
+        """Test config export with YAML format."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_file = Path(temp_dir) / "test_config.yaml"
+
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = mock_export_context
+                result = cli_runner.invoke(
+                    app,
+                    [
+                        "config",
+                        "export",
+                        "--output",
+                        str(output_file),
+                        "--format",
+                        "yaml",
+                    ],
+                    obj=mock_export_context,
+                )
+
+            assert result.exit_code == 0
+            assert "Configuration exported" in result.output
+            assert "Format: YAML" in result.output
+            assert output_file.exists()
+
+            # Verify file contents
+            import yaml
+
+            with output_file.open("r") as f:
+                exported_data = yaml.safe_load(f)
+
+            assert "profile" in exported_data
+            assert "firmware" in exported_data
+            assert "_metadata" in exported_data
+            assert exported_data["_metadata"]["export_format"] == "yaml"
+
+    def test_export_json_format(self, cli_runner, mock_export_context):
+        """Test config export with JSON format."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_file = Path(temp_dir) / "test_config.json"
+
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = mock_export_context
+                result = cli_runner.invoke(
+                    app,
+                    [
+                        "config",
+                        "export",
+                        "--output",
+                        str(output_file),
+                        "--format",
+                        "json",
+                    ],
+                    obj=mock_export_context,
+                )
+
+            assert result.exit_code == 0
+            assert "Configuration exported" in result.output
+            assert "Format: JSON" in result.output
+            assert output_file.exists()
+
+            # Verify file contents
+            with output_file.open("r") as f:
+                exported_data = json.load(f)
+
+            assert "profile" in exported_data
+            assert "firmware" in exported_data
+            assert "_metadata" in exported_data
+            assert exported_data["_metadata"]["export_format"] == "json"
+
+    def test_export_toml_format(self, cli_runner, mock_export_context):
+        """Test config export with TOML format."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_file = Path(temp_dir) / "test_config.toml"
+
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = mock_export_context
+                result = cli_runner.invoke(
+                    app,
+                    [
+                        "config",
+                        "export",
+                        "--output",
+                        str(output_file),
+                        "--format",
+                        "toml",
+                    ],
+                    obj=mock_export_context,
+                )
+
+            assert result.exit_code == 0
+            assert "Configuration exported" in result.output
+            assert "Format: TOML" in result.output
+            assert "TOML format exported" in result.output
+            assert output_file.exists()
+
+            # Verify file contents
+            import tomlkit
+
+            with output_file.open("r") as f:
+                exported_data = tomlkit.load(f)
+
+            assert "profile" in exported_data
+            assert "firmware" in exported_data
+            assert "_metadata" in exported_data
+            assert exported_data["_metadata"]["export_format"] == "toml"
+
+            # Verify None values are filtered out (TOML compatibility)
+            firmware_docker = exported_data.get("firmware", {}).get("docker", {})
+            # Should not contain None values like manual_uid, manual_gid
+            assert all(v is not None for v in firmware_docker.values())
+
+    def test_export_with_defaults(self, cli_runner, mock_export_context):
+        """Test config export including default values."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_file = Path(temp_dir) / "test_config_defaults.yaml"
+
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = mock_export_context
+                result = cli_runner.invoke(
+                    app,
+                    [
+                        "config",
+                        "export",
+                        "--output",
+                        str(output_file),
+                        "--include-defaults",
+                    ],
+                    obj=mock_export_context,
+                )
+
+            assert result.exit_code == 0
+            assert "Include defaults: True" in result.output
+            assert output_file.exists()
+
+            # Verify more options are exported when including defaults
+            import yaml
+
+            with output_file.open("r") as f:
+                exported_data = yaml.safe_load(f)
+
+            # Should include cache_path and other default fields
+            assert "cache_path" in exported_data
+            assert "cache_strategy" in exported_data
+            assert "cache_file_locking" in exported_data
+
+    def test_export_without_defaults(self, cli_runner, mock_export_context):
+        """Test config export excluding default values."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_file = Path(temp_dir) / "test_config_no_defaults.yaml"
+
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = mock_export_context
+                result = cli_runner.invoke(
+                    app,
+                    ["config", "export", "--output", str(output_file), "--no-defaults"],
+                    obj=mock_export_context,
+                )
+
+            assert result.exit_code == 0
+            assert "Include defaults: False" in result.output
+            assert output_file.exists()
+
+            # Verify fewer options are exported when excluding defaults
+            import yaml
+
+            with output_file.open("r") as f:
+                exported_data = yaml.safe_load(f)
+
+            # Should only include non-default values
+            assert "_metadata" in exported_data
+            # May or may not include cache_path depending on if it was customized
+
+    def test_export_with_descriptions(self, cli_runner, mock_export_context):
+        """Test config export with field descriptions."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_file = Path(temp_dir) / "test_config_descriptions.yaml"
+
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = mock_export_context
+                result = cli_runner.invoke(
+                    app,
+                    [
+                        "config",
+                        "export",
+                        "--output",
+                        str(output_file),
+                        "--include-descriptions",
+                    ],
+                    obj=mock_export_context,
+                )
+
+            assert result.exit_code == 0
+            assert "Descriptions included as comments" in result.output
+            assert output_file.exists()
+
+            # Verify comments are included in YAML
+            with output_file.open("r") as f:
+                content = f.read()
+
+            assert "# Glovebox Configuration Export" in content
+            assert "# Generated at:" in content
+            assert "# Include defaults:" in content
+
+    def test_export_invalid_format(self, cli_runner, mock_export_context):
+        """Test config export with invalid format."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_file = Path(temp_dir) / "test_config.invalid"
+
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = mock_export_context
+                result = cli_runner.invoke(
+                    app,
+                    [
+                        "config",
+                        "export",
+                        "--output",
+                        str(output_file),
+                        "--format",
+                        "invalid",
+                    ],
+                    obj=mock_export_context,
+                )
+
+            assert result.exit_code == 1
+            assert "Unsupported format: invalid" in result.output
+            assert "Use yaml, json, or toml" in result.output
+
+
+class TestConfigImport:
+    """Test config import command with all serialization formats."""
+
+    @pytest.fixture
+    def mock_import_context(self, user_config_fixture):
+        """Create a mock app context for import testing."""
+        from glovebox.cli.app import AppContext
+
+        mock_context = Mock(spec=AppContext)
+        mock_context.user_config = user_config_fixture
+        return mock_context
+
+    def test_import_yaml_format(self, cli_runner, mock_import_context):
+        """Test config import with YAML format."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_file = Path(temp_dir) / "import_config.yaml"
+
+            # Create test config file
+            test_config = {
+                "profile": "imported_keyboard/v1.0",
+                "log_level": "DEBUG",
+                "cache_path": "/tmp/test_cache",
+                "firmware": {"flash": {"timeout": 120, "count": 5}},
+                "_metadata": {
+                    "generated_at": "2025-01-01T00:00:00",
+                    "export_format": "yaml",
+                },
+            }
+
+            import yaml
+
+            with config_file.open("w") as f:
+                yaml.dump(test_config, f)
+
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = mock_import_context
+                result = cli_runner.invoke(
+                    app,
+                    ["config", "import", str(config_file), "--force"],
+                    obj=mock_import_context,
+                )
+
+            assert result.exit_code == 0
+            assert "Configuration imported successfully!" in result.output
+            assert "Applied: 4 settings" in result.output
+            assert "Imported config generated at: 2025-01-01T00:00:00" in result.output
+
+    def test_import_json_format(self, cli_runner, mock_import_context):
+        """Test config import with JSON format."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_file = Path(temp_dir) / "import_config.json"
+
+            # Create test config file
+            test_config = {
+                "profile": "json_keyboard/v2.0",
+                "log_level": "ERROR",
+                "cache_strategy": "disabled",
+                "firmware": {"flash": {"timeout": 90, "track_flashed": False}},
+                "_metadata": {
+                    "generated_at": "2025-01-01T12:00:00",
+                    "export_format": "json",
+                },
+            }
+
+            with config_file.open("w") as f:
+                json.dump(test_config, f)
+
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = mock_import_context
+                result = cli_runner.invoke(
+                    app,
+                    ["config", "import", str(config_file), "--force"],
+                    obj=mock_import_context,
+                )
+
+            assert result.exit_code == 0
+            assert "Configuration imported successfully!" in result.output
+            assert "Applied: 5 settings" in result.output
+
+    def test_import_toml_format(self, cli_runner, mock_import_context):
+        """Test config import with TOML format."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_file = Path(temp_dir) / "import_config.toml"
+
+            # Create test config file
+            toml_content = """
+profile = "toml_keyboard/v3.0"
+log_level = "WARNING"
+cache_path = "/custom/cache/path"
+disable_version_checks = true
+
+[firmware.flash]
+timeout = 150
+count = 1
+wait = true
+
+[firmware.docker]
+enable_user_mapping = false
+container_home_dir = "/custom/home"
+
+[_metadata]
+generated_at = "2025-01-01T18:00:00"
+export_format = "toml"
+"""
+
+            with config_file.open("w") as f:
+                f.write(toml_content)
+
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = mock_import_context
+                result = cli_runner.invoke(
+                    app,
+                    ["config", "import", str(config_file), "--force"],
+                    obj=mock_import_context,
+                )
+
+            assert result.exit_code == 0
+            assert "Configuration imported successfully!" in result.output
+            assert "Applied: 8 settings" in result.output
+
+    def test_import_with_backup(self, cli_runner, mock_import_context):
+        """Test config import with backup creation."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_file = Path(temp_dir) / "import_config.yaml"
+
+            # Create minimal test config
+            test_config = {"profile": "backup_test/v1.0", "log_level": "INFO"}
+
+            import yaml
+
+            with config_file.open("w") as f:
+                yaml.dump(test_config, f)
+
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = mock_import_context
+                result = cli_runner.invoke(
+                    app,
+                    ["config", "import", str(config_file), "--force", "--backup"],
+                    obj=mock_import_context,
+                )
+
+            assert result.exit_code == 0
+            assert "Backup saved to:" in result.output
+            assert "Configuration imported successfully!" in result.output
+
+    def test_import_without_backup(self, cli_runner, mock_import_context):
+        """Test config import without backup creation."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_file = Path(temp_dir) / "import_config.yaml"
+
+            # Create minimal test config
+            test_config = {"profile": "no_backup_test/v1.0"}
+
+            import yaml
+
+            with config_file.open("w") as f:
+                yaml.dump(test_config, f)
+
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = mock_import_context
+                result = cli_runner.invoke(
+                    app,
+                    ["config", "import", str(config_file), "--force", "--no-backup"],
+                    obj=mock_import_context,
+                )
+
+            assert result.exit_code == 0
+            assert "Backup saved to:" not in result.output
+            assert "Configuration imported successfully!" in result.output
+
+    def test_import_dry_run(self, cli_runner, mock_import_context):
+        """Test config import with dry run mode."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_file = Path(temp_dir) / "import_config.yaml"
+
+            # Create test config with multiple settings
+            test_config = {
+                "profile": "dry_run_test/v1.0",
+                "log_level": "DEBUG",
+                "cache_strategy": "process_isolated",
+                "firmware": {"flash": {"timeout": 200, "count": 10}},
+            }
+
+            import yaml
+
+            with config_file.open("w") as f:
+                yaml.dump(test_config, f)
+
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = mock_import_context
+                result = cli_runner.invoke(
+                    app,
+                    ["config", "import", str(config_file), "--dry-run"],
+                    obj=mock_import_context,
+                )
+
+            assert result.exit_code == 0
+            assert "Configuration Changes (Dry Run)" in result.output
+            assert "Dry run complete - no changes made" in result.output
+            assert "Configuration imported successfully!" not in result.output
+
+    def test_import_nonexistent_file(self, cli_runner, mock_import_context):
+        """Test config import with nonexistent file."""
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_import_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "import", "/nonexistent/config.yaml", "--force"],
+                obj=mock_import_context,
+            )
+
+        assert result.exit_code == 1
+        assert "Configuration file not found:" in result.output
+
+    def test_import_unsupported_format(self, cli_runner, mock_import_context):
+        """Test config import with unsupported file format."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_file = Path(temp_dir) / "config.invalid"
+            config_file.write_text("invalid content")
+
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = mock_import_context
+                result = cli_runner.invoke(
+                    app,
+                    ["config", "import", str(config_file), "--force"],
+                    obj=mock_import_context,
+                )
+
+        assert result.exit_code == 1
+        assert "Unsupported file format: .invalid" in result.output
+        assert "Use .yaml, .json, or .toml" in result.output
+
+    def test_import_malformed_file(self, cli_runner, mock_import_context):
+        """Test config import with malformed file content."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_file = Path(temp_dir) / "malformed.yaml"
+            # Write invalid YAML
+            config_file.write_text("invalid: yaml: content: [")
+
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = mock_import_context
+                result = cli_runner.invoke(
+                    app,
+                    ["config", "import", str(config_file), "--force"],
+                    obj=mock_import_context,
+                )
+
+        assert result.exit_code == 1
+        assert "Failed to import configuration:" in result.output
+
+    def test_import_empty_config(self, cli_runner, mock_import_context):
+        """Test config import with empty configuration file."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_file = Path(temp_dir) / "empty.yaml"
+            config_file.write_text("")
+
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = mock_import_context
+                result = cli_runner.invoke(
+                    app,
+                    ["config", "import", str(config_file), "--force"],
+                    obj=mock_import_context,
+                )
+
+        assert result.exit_code == 0
+        assert "No configuration settings found to import" in result.output
+
+
+class TestConfigExportImportRoundTrip:
+    """Test round-trip export/import functionality for all formats."""
+
+    @pytest.fixture
+    def configured_context(self, user_config_fixture):
+        """Create a context with specific configuration for round-trip testing."""
+        from glovebox.cli.app import AppContext
+
+        # Set specific values for testing
+        user_config_fixture.set("profile", "roundtrip_test/v1.0")
+        user_config_fixture.set("log_level", "DEBUG")
+        user_config_fixture.set("cache_path", "/tmp/roundtrip_cache")
+        user_config_fixture.set("cache_strategy", "process_isolated")
+        user_config_fixture.set("firmware.flash.timeout", 300)
+        user_config_fixture.set("firmware.flash.count", 7)
+        user_config_fixture.set("firmware.docker.enable_user_mapping", False)
+
+        mock_context = Mock(spec=AppContext)
+        mock_context.user_config = user_config_fixture
+        return mock_context
+
+    def test_yaml_roundtrip(self, cli_runner, configured_context):
+        """Test YAML export followed by import preserves data."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            export_file = Path(temp_dir) / "roundtrip.yaml"
+
+            # Export configuration
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = configured_context
+                export_result = cli_runner.invoke(
+                    app,
+                    [
+                        "config",
+                        "export",
+                        "--output",
+                        str(export_file),
+                        "--format",
+                        "yaml",
+                    ],
+                    obj=configured_context,
+                )
+
+            assert export_result.exit_code == 0
+            assert export_file.exists()
+
+            # Import configuration
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = configured_context
+                import_result = cli_runner.invoke(
+                    app,
+                    ["config", "import", str(export_file), "--force"],
+                    obj=configured_context,
+                )
+
+            assert import_result.exit_code == 0
+            assert "Configuration imported successfully!" in import_result.output
+
+    def test_json_roundtrip(self, cli_runner, configured_context):
+        """Test JSON export followed by import preserves data."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            export_file = Path(temp_dir) / "roundtrip.json"
+
+            # Export configuration
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = configured_context
+                export_result = cli_runner.invoke(
+                    app,
+                    [
+                        "config",
+                        "export",
+                        "--output",
+                        str(export_file),
+                        "--format",
+                        "json",
+                    ],
+                    obj=configured_context,
+                )
+
+            assert export_result.exit_code == 0
+            assert export_file.exists()
+
+            # Import configuration
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = configured_context
+                import_result = cli_runner.invoke(
+                    app,
+                    ["config", "import", str(export_file), "--force"],
+                    obj=configured_context,
+                )
+
+            assert import_result.exit_code == 0
+            assert "Configuration imported successfully!" in import_result.output
+
+    def test_toml_roundtrip(self, cli_runner, configured_context):
+        """Test TOML export followed by import preserves data."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            export_file = Path(temp_dir) / "roundtrip.toml"
+
+            # Export configuration
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = configured_context
+                export_result = cli_runner.invoke(
+                    app,
+                    [
+                        "config",
+                        "export",
+                        "--output",
+                        str(export_file),
+                        "--format",
+                        "toml",
+                    ],
+                    obj=configured_context,
+                )
+
+            assert export_result.exit_code == 0
+            assert export_file.exists()
+
+            # Verify TOML doesn't contain None values
+            import tomlkit
+
+            with export_file.open("r") as f:
+                exported_data = tomlkit.load(f)
+
+            # Check that None values are filtered out
+            firmware_docker = exported_data.get("firmware", {}).get("docker", {})
+            assert all(v is not None for v in firmware_docker.values())
+
+            # Import configuration
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = configured_context
+                import_result = cli_runner.invoke(
+                    app,
+                    ["config", "import", str(export_file), "--force"],
+                    obj=configured_context,
+                )
+
+            assert import_result.exit_code == 0
+            assert "Configuration imported successfully!" in import_result.output
+
+    def test_cross_format_compatibility(self, cli_runner, configured_context):
+        """Test that data exported in one format can be imported in another."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            yaml_file = Path(temp_dir) / "config.yaml"
+            json_file = Path(temp_dir) / "config.json"
+            toml_file = Path(temp_dir) / "config.toml"
+
+            # Export to YAML
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = configured_context
+                yaml_result = cli_runner.invoke(
+                    app,
+                    [
+                        "config",
+                        "export",
+                        "--output",
+                        str(yaml_file),
+                        "--format",
+                        "yaml",
+                    ],
+                    obj=configured_context,
+                )
+
+            # Export to JSON
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = configured_context
+                json_result = cli_runner.invoke(
+                    app,
+                    [
+                        "config",
+                        "export",
+                        "--output",
+                        str(json_file),
+                        "--format",
+                        "json",
+                    ],
+                    obj=configured_context,
+                )
+
+            # Export to TOML
+            with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                mock_ctx.return_value.obj = configured_context
+                toml_result = cli_runner.invoke(
+                    app,
+                    [
+                        "config",
+                        "export",
+                        "--output",
+                        str(toml_file),
+                        "--format",
+                        "toml",
+                    ],
+                    obj=configured_context,
+                )
+
+            assert yaml_result.exit_code == 0
+            assert json_result.exit_code == 0
+            assert toml_result.exit_code == 0
+
+            # Verify all files can be imported successfully
+            for config_file in [yaml_file, json_file, toml_file]:
+                with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+                    mock_ctx.return_value.obj = configured_context
+                    import_result = cli_runner.invoke(
+                        app,
+                        [
+                            "config",
+                            "import",
+                            str(config_file),
+                            "--force",
+                            "--no-backup",
+                        ],
+                        obj=configured_context,
+                    )
+
+                assert import_result.exit_code == 0
+                assert "Configuration imported successfully!" in import_result.output

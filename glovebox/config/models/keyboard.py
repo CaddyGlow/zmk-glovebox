@@ -12,7 +12,6 @@ from glovebox.compilation.models import (
 from glovebox.layout.behavior.models import SystemBehavior
 
 from ..flash_methods import USBFlashConfig
-from ..models.workspace import UserWorkspaceConfig
 from .behavior import BehaviorConfig
 from .display import DisplayConfig
 from .firmware import FirmwareConfig, KConfigOption

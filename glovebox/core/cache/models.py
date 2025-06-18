@@ -55,7 +55,7 @@ class CacheEntry:
 
 @dataclass
 class CacheStats:
-    """Cache performance statistics."""
+    """In memory cache performance statistics."""
 
     total_entries: int
     total_size_bytes: int

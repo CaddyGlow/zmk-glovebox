@@ -16,7 +16,6 @@ from glovebox.core.cache import (
     create_default_cache,
 )
 
-from ..history import MoErgoHistoryTracker
 from .auth import Glove80Auth
 from .credentials import CredentialManager
 from .models import (
@@ -51,9 +50,6 @@ class MoErgoClient:
 
         # Initialize cache for API responses
         self._cache = cache or create_default_cache()
-
-        # Initialize history tracker
-        self.history_tracker = MoErgoHistoryTracker()
 
         # Set common headers
         self.session.headers.update(
@@ -277,36 +273,9 @@ class MoErgoClient:
             data = self._handle_response(response)
             layout = MoErgoLayout(**data)
 
-            # Track successful download
-            self.history_tracker.add_entry(
-                action="download",
-                layout_uuid=layout_uuid,
-                success=True,
-                layout_title=layout.layout_meta.title,
-                metadata={"endpoint": endpoint},
-            )
-
             return layout
         except requests.exceptions.RequestException as e:
-            # Track failed download
-            self.history_tracker.add_entry(
-                action="download",
-                layout_uuid=layout_uuid,
-                success=False,
-                error_message=str(e),
-                metadata={"endpoint": endpoint},
-            )
             raise NetworkError(f"Network error: {e}") from e
-        except Exception as e:
-            # Track failed download (other errors)
-            self.history_tracker.add_entry(
-                action="download",
-                layout_uuid=layout_uuid,
-                success=False,
-                error_message=str(e),
-                metadata={"endpoint": endpoint},
-            )
-            raise
 
     def get_layout_meta(
         self, layout_uuid: str, use_cache: bool = True
@@ -433,39 +402,9 @@ class MoErgoClient:
             )
 
             result = self._handle_response(response)
-
-            # Track successful upload
-            self.history_tracker.add_entry(
-                action="upload",
-                layout_uuid=layout_uuid,
-                success=True,
-                layout_title=layout_title,
-                metadata={"endpoint": endpoint, "method": "PUT"},
-            )
-
             return result  # type: ignore[no-any-return]
         except requests.exceptions.RequestException as e:
-            # Track failed upload
-            self.history_tracker.add_entry(
-                action="upload",
-                layout_uuid=layout_uuid,
-                success=False,
-                layout_title=layout_title,
-                error_message=str(e),
-                metadata={"endpoint": endpoint, "method": "PUT"},
-            )
             raise NetworkError(f"Network error: {e}") from e
-        except Exception as e:
-            # Track failed upload (other errors)
-            self.history_tracker.add_entry(
-                action="upload",
-                layout_uuid=layout_uuid,
-                success=False,
-                layout_title=layout_title,
-                error_message=str(e),
-                metadata={"endpoint": endpoint, "method": "PUT"},
-            )
-            raise
 
     def update_layout(
         self, layout_uuid: str, layout_data: dict[str, Any]
@@ -519,28 +458,8 @@ class MoErgoClient:
             response = self.session.delete(
                 self._get_full_url(endpoint), headers=headers
             )
-            success = response.status_code == 204
-
-            # Track deletion attempt
-            self.history_tracker.add_entry(
-                action="delete",
-                layout_uuid=layout_uuid,
-                success=success,
-                layout_title=layout_title,
-                metadata={"endpoint": endpoint, "status_code": response.status_code},
-            )
-
-            return success
-        except requests.exceptions.RequestException as e:
-            # Track failed deletion
-            self.history_tracker.add_entry(
-                action="delete",
-                layout_uuid=layout_uuid,
-                success=False,
-                layout_title=layout_title,
-                error_message=str(e),
-                metadata={"endpoint": endpoint},
-            )
+            return response.status_code == 204
+        except requests.exceptions.RequestException:
             return False
 
     def batch_delete_layouts(self, layout_uuids: list[str]) -> dict[str, bool]:
@@ -683,19 +602,6 @@ class MoErgoClient:
         """Clear all cached API responses."""
         self._cache.clear()
 
-    def get_cache_stats(self) -> dict[str, Any]:
-        """Get cache statistics and performance metrics."""
-        stats = self._cache.get_stats()
-        return {
-            "total_entries": stats.total_entries,
-            "total_size_mb": round(stats.total_size_bytes / (1024 * 1024), 2),
-            "hit_rate": round(stats.hit_rate, 1),
-            "miss_rate": round(stats.miss_rate, 1),
-            "hit_count": stats.hit_count,
-            "miss_count": stats.miss_count,
-            "eviction_count": stats.eviction_count,
-        }
-
     def renew_token_if_needed(self, buffer_minutes: int = 10) -> bool:
         """
         Proactively renew tokens if they're close to expiring.
@@ -821,26 +727,6 @@ class MoErgoClient:
                 )
 
                 data = self._handle_compile_response(response)
-
-                # Track successful compilation
-                retry_metadata = {
-                    "endpoint": endpoint,
-                    "firmware_version": firmware_version,
-                    "board": board,
-                    "timeout": timeout,
-                    "attempt": attempt + 1,
-                    "total_attempts": attempt + 1,
-                }
-                if attempt > 0:
-                    retry_metadata["retries_used"] = attempt
-
-                self.history_tracker.add_entry(
-                    action="compile",
-                    layout_uuid=layout_uuid,
-                    success=True,
-                    metadata=retry_metadata,
-                )
-
                 return FirmwareCompileResponse(**data)
 
             except requests.exceptions.Timeout as e:
@@ -850,95 +736,23 @@ class MoErgoClient:
                 if attempt < max_retries:
                     # Calculate delay with exponential backoff
                     delay = initial_retry_delay * (2**attempt)
-
-                    # Track retry attempt
-                    self.history_tracker.add_entry(
-                        action="compile",
-                        layout_uuid=layout_uuid,
-                        success=False,
-                        error_message=f"Timeout on attempt {attempt + 1}, retrying in {delay}s",
-                        metadata={
-                            "endpoint": endpoint,
-                            "firmware_version": firmware_version,
-                            "board": board,
-                            "timeout": timeout,
-                            "attempt": attempt + 1,
-                            "max_retries": max_retries,
-                            "retry_delay": delay,
-                        },
-                    )
-
                     time.sleep(delay)
                     continue
                 else:
-                    # Final timeout - track and raise
-                    self.history_tracker.add_entry(
-                        action="compile",
-                        layout_uuid=layout_uuid,
-                        success=False,
-                        error_message=f"Final timeout after {max_retries + 1} attempts",
-                        metadata={
-                            "endpoint": endpoint,
-                            "firmware_version": firmware_version,
-                            "board": board,
-                            "timeout": timeout,
-                            "total_attempts": max_retries + 1,
-                            "max_retries": max_retries,
-                        },
-                    )
+                    # Final timeout - raise
                     raise TimeoutError(
                         f"Firmware compilation timed out after {max_retries + 1} attempts "
                         f"({timeout} seconds each)"
                     ) from e
 
-            except CompilationError as e:
-                # Don't retry compilation errors - track and raise immediately
-                self.history_tracker.add_entry(
-                    action="compile",
-                    layout_uuid=layout_uuid,
-                    success=False,
-                    error_message=str(e),
-                    metadata={
-                        "endpoint": endpoint,
-                        "firmware_version": firmware_version,
-                        "board": board,
-                        "timeout": timeout,
-                        "attempt": attempt + 1,
-                        "compilation_detail": e.detail,
-                    },
-                )
+            except CompilationError:
+                # Don't retry compilation errors - raise immediately
                 raise
             except requests.exceptions.RequestException as e:
-                # Don't retry other network errors - track and raise immediately
-                self.history_tracker.add_entry(
-                    action="compile",
-                    layout_uuid=layout_uuid,
-                    success=False,
-                    error_message=str(e),
-                    metadata={
-                        "endpoint": endpoint,
-                        "firmware_version": firmware_version,
-                        "board": board,
-                        "timeout": timeout,
-                        "attempt": attempt + 1,
-                    },
-                )
+                # Don't retry other network errors - raise immediately
                 raise NetworkError(f"Network error: {e}") from e
-            except Exception as e:
-                # Don't retry other errors - track and raise immediately
-                self.history_tracker.add_entry(
-                    action="compile",
-                    layout_uuid=layout_uuid,
-                    success=False,
-                    error_message=str(e),
-                    metadata={
-                        "endpoint": endpoint,
-                        "firmware_version": firmware_version,
-                        "board": board,
-                        "timeout": timeout,
-                        "attempt": attempt + 1,
-                    },
-                )
+            except Exception:
+                # Don't retry other errors - raise immediately
                 raise
 
         # This should never be reached, but just in case
@@ -1122,24 +936,6 @@ class MoErgoClient:
             results["DELETE"] = {"status_code": None, "success": False, "error": str(e)}
 
         return results
-
-    def get_history(self, limit: int = 20) -> list[dict[str, Any]]:
-        """Get recent MoErgo API interaction history."""
-        entries = self.history_tracker.get_recent_history(limit)
-        return [entry.model_dump(mode="json") for entry in entries]
-
-    def get_layout_history(self, layout_uuid: str) -> list[dict[str, Any]]:
-        """Get history for a specific layout UUID."""
-        entries = self.history_tracker.get_layout_history(layout_uuid)
-        return [entry.model_dump(mode="json") for entry in entries]
-
-    def get_history_statistics(self) -> dict[str, Any]:
-        """Get MoErgo API usage statistics."""
-        return self.history_tracker.get_statistics()
-
-    def clear_history(self) -> None:
-        """Clear MoErgo API interaction history."""
-        self.history_tracker.clear_history()
 
 
 def create_moergo_client(

@@ -20,6 +20,7 @@ from glovebox.compilation.models.west_config import (
 from glovebox.compilation.protocols.compilation_protocols import (
     CompilationServiceProtocol,
 )
+from glovebox.core.cache import CacheKey, CacheManager, create_default_cache
 from glovebox.core.errors import CompilationError
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.models.docker import DockerUserContext
@@ -32,11 +33,14 @@ if TYPE_CHECKING:
 
 
 class ZmkWestService(CompilationServiceProtocol):
-    """Ultra-simplified ZMK config compilation service (<200 lines)."""
+    """Ultra-simplified ZMK config compilation service with intelligent caching."""
 
-    def __init__(self, docker_adapter: DockerAdapterProtocol) -> None:
-        """Initialize with Docker adapter."""
+    def __init__(
+        self, docker_adapter: DockerAdapterProtocol, cache: CacheManager | None = None
+    ) -> None:
+        """Initialize with Docker adapter and cache manager."""
         self.docker_adapter = docker_adapter
+        self.cache = cache or create_default_cache()
         self.logger = logging.getLogger(__name__)
 
     def compile(
@@ -164,13 +168,21 @@ class ZmkWestService(CompilationServiceProtocol):
         if not config.use_cache:
             return None
 
-        # Use repository as cache key
-        repo_name = config.repository.replace("/", "_").replace("-", "_")
-        cache_dir = Path.home() / ".cache" / "glovebox" / "workspaces" / repo_name
+        cache_key = self._generate_workspace_cache_key(config)
+        cached_path = self.cache.get(cache_key)
 
-        if cache_dir.exists() and (cache_dir / "zmk").exists():
-            self.logger.info("Using cached workspace: %s", cache_dir)
-            return cache_dir
+        if (
+            cached_path
+            and Path(cached_path).exists()
+            and (Path(cached_path) / "zmk").exists()
+        ):
+            self.logger.info("Using cached workspace: %s", cached_path)
+            return Path(cached_path)
+
+        # Clean up stale cache entry if path doesn't exist
+        if cached_path:
+            self.cache.delete(cache_key)
+
         return None
 
     def _cache_workspace(
@@ -180,11 +192,16 @@ class ZmkWestService(CompilationServiceProtocol):
         if not config.use_cache:
             return
 
+        cache_key = self._generate_workspace_cache_key(config)
+
+        # Create cache directory using the same pattern but under cache system
         repo_name = config.repository.replace("/", "_").replace("-", "_")
         cache_dir = Path.home() / ".cache" / "glovebox" / "workspaces" / repo_name
 
         if cache_dir.exists():
-            return  # Already cached
+            # Already cached, just update cache entry
+            self.cache.set(cache_key, str(cache_dir), ttl=24 * 3600)  # 24 hour TTL
+            return
 
         try:
             cache_dir.mkdir(parents=True, exist_ok=True)
@@ -192,11 +209,25 @@ class ZmkWestService(CompilationServiceProtocol):
             for subdir in ["modules", "zephyr", "zmk"]:
                 if (workspace_path / subdir).exists():
                     shutil.copytree(workspace_path / subdir, cache_dir / subdir)
+
+            # Store in cache with 24-hour TTL
+            self.cache.set(cache_key, str(cache_dir), ttl=24 * 3600)
+
             self.logger.info(
                 "Cached workspace for %s: %s", config.repository, cache_dir
             )
         except Exception as e:
             self.logger.warning("Failed to cache workspace: %s", e)
+
+    def _generate_workspace_cache_key(self, config: ZmkCompilationConfig) -> str:
+        """Generate cache key for workspace based on configuration."""
+        key_parts = [
+            "zmk_workspace",
+            config.repository,
+            config.branch,
+            config.image,
+        ]
+        return CacheKey.from_parts(*key_parts)
 
     def _get_or_create_workspace(
         self, keymap_file: Path, config_file: Path, config: ZmkCompilationConfig
@@ -515,9 +546,19 @@ class ZmkWestService(CompilationServiceProtocol):
             image_name = image_parts[0]
             image_tag = image_parts[1] if len(image_parts) > 1 else "latest"
 
+            # Check cache for recent image verification
+            image_cache_key = CacheKey.from_parts("docker_image", image_name, image_tag)
+            cached_verification = self.cache.get(image_cache_key)
+
+            if cached_verification:
+                self.logger.debug("Docker image verified from cache: %s", config.image)
+                return True
+
             # Check if image exists
             if self.docker_adapter.image_exists(image_name, image_tag):
                 self.logger.debug("Docker image already exists: %s", config.image)
+                # Cache verification for 1 hour to avoid repeated checks
+                self.cache.set(image_cache_key, True, ttl=3600)
                 return True
 
             self.logger.info("Docker image not found, pulling: %s", config.image)
@@ -532,6 +573,8 @@ class ZmkWestService(CompilationServiceProtocol):
 
             if result[0] == 0:
                 self.logger.info("Successfully pulled Docker image: %s", config.image)
+                # Cache successful pull for 1 hour
+                self.cache.set(image_cache_key, True, ttl=3600)
                 return True
             else:
                 self.logger.error(
@@ -548,6 +591,7 @@ class ZmkWestService(CompilationServiceProtocol):
 
 def create_zmk_config_simple_service(
     docker_adapter: DockerAdapterProtocol,
+    cache: CacheManager | None = None,
 ) -> ZmkWestService:
-    """Create simplified ZMK config service."""
-    return ZmkWestService(docker_adapter)
+    """Create simplified ZMK config service with optional cache manager."""
+    return ZmkWestService(docker_adapter, cache)

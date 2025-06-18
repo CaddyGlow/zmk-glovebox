@@ -1,5 +1,6 @@
 """User configuration models."""
 
+import os
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -7,7 +8,6 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from .firmware import UserFirmwareConfig
-from .workspace import UserArtifactConfig, UserCompilationConfig, UserWorkspaceConfig
 
 
 class UserConfigData(BaseSettings):
@@ -89,14 +89,23 @@ class UserConfigData(BaseSettings):
     )
 
     # DeepDiff settings
+    # TODO: not in use yet
     deepdiff_delta_serializer: str = Field(
         default="json",
         description="Serializer for DeepDiff delta objects: 'json' (default) or 'pickle'",
     )
 
     # Cache settings
+    cache_path: Path = Field(
+        default_factory=lambda: (
+            Path(os.environ["XDG_CACHE_HOME"]) / "glovebox"
+            if "XDG_CACHE_HOME" in os.environ
+            else Path.home() / ".cache" / "glovebox"
+        ),
+        description="Directory for caching build artifacts and dependencies",
+    )
     cache_strategy: str = Field(
-        default="process_isolated",
+        default="shared",
         description="Cache strategy: 'process_isolated' (default), 'shared', or 'disabled'",
     )
     cache_file_locking: bool = Field(
@@ -106,9 +115,6 @@ class UserConfigData(BaseSettings):
 
     # Firmware settings
     firmware: UserFirmwareConfig = Field(default_factory=UserFirmwareConfig)
-
-    # Compilation settings
-    compilation: UserCompilationConfig = Field(default_factory=UserCompilationConfig)
 
     @field_validator("profile")
     @classmethod
@@ -157,6 +163,25 @@ class UserConfigData(BaseSettings):
                 f"DeepDiff delta serializer must be one of {valid_serializers}"
             )
         return lower_v  # Always normalize to lowercase
+
+    @field_validator("cache_path", mode="before")
+    @classmethod
+    def validate_cache_path(cls, v: Any) -> Path:
+        """Validate and expand cache path, respecting XDG_CACHE_HOME."""
+        if isinstance(v, str):
+            # Handle string paths by expanding user home directory
+            path = Path(v).expanduser()
+        elif isinstance(v, Path):
+            path = v.expanduser()
+        else:
+            # Use default XDG cache logic
+            xdg_cache = os.environ.get("XDG_CACHE_HOME")
+            if xdg_cache:
+                path = Path(xdg_cache) / "glovebox"
+            else:
+                path = Path.home() / ".cache" / "glovebox"
+
+        return path.resolve()
 
     @field_validator("cache_strategy")
     @classmethod
