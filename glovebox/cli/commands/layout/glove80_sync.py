@@ -9,6 +9,7 @@ import typer
 
 from glovebox.layout.utils.json_operations import load_layout_file
 from glovebox.moergo.client import create_moergo_client
+from glovebox.moergo.versioning import create_layout_versioning
 
 
 # Create a typer app for glove80 commands
@@ -41,8 +42,10 @@ def upload(
 
     client = create_moergo_client()
 
-    if not client.is_authenticated():
-        typer.echo("❌ Not authenticated. Please run 'glovebox moergo login' first.")
+    if not client.validate_authentication():
+        typer.echo(
+            "❌ Authentication failed. Please run 'glovebox moergo login' first."
+        )
         raise typer.Exit(1) from None
 
     # Load the layout file
@@ -81,12 +84,48 @@ def upload(
 
     try:
         response = client.save_layout(layout_uuid, complete_layout)
+
+        # Update the most recent entry with local file path (save_layout already tracked this)
+        history = client.history_tracker.load_history()
+        if (
+            history
+            and history[-1].layout_uuid == layout_uuid
+            and history[-1].action == "upload"
+        ):
+            # Update the existing entry with file path
+            history[-1].local_file = str(layout_file)
+            history[-1].metadata.update({"cli_upload": True, "via": "upload_command"})
+            client.history_tracker.save_history(history)
+
         typer.echo("✅ Layout uploaded successfully!")
         typer.echo(f"🔗 UUID: {layout_uuid}")
         typer.echo(f"📝 Title: {layout_meta['title']}")
         if response.get("status") == "no_content":
             typer.echo("📊 Status: Upload completed")
     except Exception as e:
+        # Update the most recent failed entry with local file path if it exists
+        history = client.history_tracker.load_history()
+        if (
+            history
+            and history[-1].layout_uuid == layout_uuid
+            and history[-1].action == "upload"
+            and not history[-1].success
+        ):
+            # Update the existing failed entry
+            history[-1].local_file = str(layout_file)
+            history[-1].metadata.update({"cli_upload": True, "via": "upload_command"})
+            client.history_tracker.save_history(history)
+        else:
+            # Add new entry if no matching failed entry found
+            client.history_tracker.add_entry(
+                action="upload",
+                layout_uuid=layout_uuid,
+                success=False,
+                layout_title=str(layout_meta.get("title", "Unknown")),
+                local_file=str(layout_file),
+                error_message=str(e),
+                metadata={"cli_upload": True, "via": "upload_command"},
+            )
         typer.echo(f"❌ Error uploading layout: {e}")
         raise typer.Exit(1) from None
 
@@ -110,8 +149,10 @@ def update(
 
     client = create_moergo_client()
 
-    if not client.is_authenticated():
-        typer.echo("❌ Not authenticated. Please run 'glovebox moergo login' first.")
+    if not client.validate_authentication():
+        typer.echo(
+            "❌ Authentication failed. Please run 'glovebox moergo login' first."
+        )
         raise typer.Exit(1) from None
 
     # Get existing layout first
@@ -171,34 +212,93 @@ def download(
     output: Annotated[
         Path | None, typer.Option("-o", "--output", help="Save to file")
     ] = None,
+    write_uuid: Annotated[
+        bool,
+        typer.Option("-w", "--write-uuid", help="Save to file using UUID as filename"),
+    ] = False,
 ) -> None:
     """Download a layout from Glove80 cloud service."""
 
     client = create_moergo_client()
 
-    if not client.is_authenticated():
-        typer.echo("❌ Not authenticated. Please run 'glovebox moergo login' first.")
+    if not client.validate_authentication():
+        typer.echo(
+            "❌ Authentication failed. Please run 'glovebox moergo login' first.",
+            err=True,
+        )
         raise typer.Exit(1) from None
 
     try:
         layout = client.get_layout(layout_uuid)
 
-        typer.echo(f"📥 Downloaded layout: {layout.layout_meta.title}")
-        typer.echo(f"👤 Creator: {layout.layout_meta.creator}")
-        typer.echo(f"📅 Created: {layout.layout_meta.created_datetime}")
-        typer.echo(f"🏷️  Tags: {', '.join(layout.layout_meta.tags)}")
+        # Determine output file path
+        output_file = None
+        if write_uuid:
+            output_file = Path(f"{layout_uuid}.json")
+        elif output:
+            output_file = output
 
-        if output:
+        if output_file:
             # Save the config part (the actual layout data)
-            output.write_text(layout.config.model_dump_json(by_alias=True, indent=2))
-            typer.echo(f"💾 Saved to: {output}")
+            output_file.write_text(
+                layout.config.model_dump_json(by_alias=True, indent=2)
+            )
+            typer.echo(f"💾 Saved to: {output_file}", err=True)
         else:
-            # Print layout info to stdout
-            typer.echo("📄 Layout configuration:")
+            # Print only JSON to stdout (no meta information)
             typer.echo(layout.config.model_dump_json(by_alias=True, indent=2))
 
     except Exception as e:
-        typer.echo(f"❌ Error downloading layout: {e}")
+        typer.echo(f"❌ Error downloading layout: {e}", err=True)
+        raise typer.Exit(1) from None
+
+
+@glove80_group.command()
+def delete(
+    layout_uuid: Annotated[str, typer.Argument(help="UUID of the layout to delete")],
+    force: Annotated[
+        bool, typer.Option("--force", "-f", help="Skip confirmation prompt")
+    ] = False,
+) -> None:
+    """Delete a layout from Glove80 cloud service."""
+
+    client = create_moergo_client()
+
+    if not client.validate_authentication():
+        typer.echo(
+            "❌ Authentication failed. Please run 'glovebox moergo login' first."
+        )
+        raise typer.Exit(1) from None
+
+    # Get layout info first
+    try:
+        layout = client.get_layout(layout_uuid)
+        typer.echo(f"📄 Layout to delete: {layout.layout_meta.title}")
+        typer.echo(f"👤 Creator: {layout.layout_meta.creator}")
+        typer.echo(f"📅 Created: {layout.layout_meta.created_datetime}")
+    except Exception as e:
+        typer.echo(f"❌ Error fetching layout: {e}")
+        raise typer.Exit(1) from None
+
+    # Confirmation
+    if not force:
+        delete_confirm = typer.confirm(
+            f"⚠️  Are you sure you want to delete '{layout.layout_meta.title}'?"
+        )
+        if not delete_confirm:
+            typer.echo("❌ Deletion cancelled")
+            raise typer.Exit(0)
+
+    # Delete the layout
+    try:
+        success = client.delete_layout(layout_uuid)
+        if success:
+            typer.echo("✅ Layout deleted successfully!")
+        else:
+            typer.echo("❌ Failed to delete layout")
+            raise typer.Exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Error deleting layout: {e}")
         raise typer.Exit(1) from None
 
 
@@ -217,8 +317,10 @@ def list_layouts(
 
     client = create_moergo_client()
 
-    if not client.is_authenticated():
-        typer.echo("❌ Not authenticated. Please run 'glovebox moergo login' first.")
+    if not client.validate_authentication():
+        typer.echo(
+            "❌ Authentication failed. Please run 'glovebox moergo login' first."
+        )
         raise typer.Exit(1) from None
 
     try:
@@ -308,8 +410,10 @@ def meta(
 
     client = create_moergo_client()
 
-    if not client.is_authenticated():
-        typer.echo("❌ Not authenticated. Please run 'glovebox moergo login' first.")
+    if not client.validate_authentication():
+        typer.echo(
+            "❌ Authentication failed. Please run 'glovebox moergo login' first."
+        )
         raise typer.Exit(1) from None
 
     try:
@@ -350,8 +454,10 @@ def info(
 
     client = create_moergo_client()
 
-    if not client.is_authenticated():
-        typer.echo("❌ Not authenticated. Please run 'glovebox moergo login' first.")
+    if not client.validate_authentication():
+        typer.echo(
+            "❌ Authentication failed. Please run 'glovebox moergo login' first."
+        )
         raise typer.Exit(1) from None
 
     try:
@@ -392,54 +498,160 @@ def info(
 
 
 @glove80_group.command()
-def delete(
-    layout_uuid: Annotated[str, typer.Argument(help="UUID of the layout to delete")],
-    force: Annotated[
-        bool, typer.Option("--force", "-f", help="Skip confirmation prompt")
+def version_history(
+    layout_uuid: Annotated[
+        str, typer.Argument(help="UUID of the layout to show history for")
+    ],
+    show_tree: Annotated[
+        bool,
+        typer.Option("--tree", help="Show full family tree instead of linear lineage"),
     ] = False,
 ) -> None:
-    """Delete a layout from Glove80 cloud service."""
+    """Show version history of a layout using parent_uuid relationships."""
 
     client = create_moergo_client()
 
-    if not client.is_authenticated():
-        typer.echo("❌ Not authenticated. Please run 'glovebox moergo login' first.")
-        raise typer.Exit(1) from None
-
-    # Get layout info first
-    try:
-        meta_response = client.get_layout_meta(layout_uuid)
-        layout_meta = meta_response["layout_meta"]
-
-        typer.echo("🗑️  About to delete layout:")
-        typer.echo(f"   📝 Title: {layout_meta['title']}")
-        typer.echo(f"   🔗 UUID: {layout_uuid}")
-        typer.echo(f"   👤 Creator: {layout_meta['creator']}")
-        typer.echo(f"   📅 Modified: {datetime.fromtimestamp(layout_meta['date'])}")
-
-    except Exception as e:
-        typer.echo(f"❌ Error fetching layout info: {e}")
-        raise typer.Exit(1) from None
-
-    # Confirmation prompt
-    if not force:
-        confirm = typer.confirm(
-            "⚠️  Are you sure you want to delete this layout? This cannot be undone."
+    if not client.validate_authentication():
+        typer.echo(
+            "❌ Authentication failed. Please run 'glovebox moergo login' first."
         )
-        if not confirm:
-            typer.echo("❌ Deletion cancelled.")
-            return
+        raise typer.Exit(1) from None
+
+    versioning = create_layout_versioning(client)
 
     try:
-        success = client.delete_layout(layout_uuid)
-        if success:
-            typer.echo(f"✅ Layout '{layout_meta['title']}' deleted successfully!")
+        if show_tree:
+            typer.echo("🌳 Building complete version tree...")
+            # For now, show family members as this is synchronous
+            family_members = versioning.get_all_versions_in_family(layout_uuid)
+
+            if not family_members:
+                typer.echo("No version family found.")
+                return
+
+            typer.echo(f"📊 Version Family ({len(family_members)} versions):")
+            typer.echo("=" * 60)
+
+            for i, version in enumerate(family_members):
+                typer.echo(f"v{i + 1}: {version.title}")
+                typer.echo(f"   🔗 UUID: {version.uuid}")
+                typer.echo(f"   👤 Creator: {version.creator}")
+                typer.echo(f"   📅 Created: {version.created_datetime}")
+
+                if version.parent_uuid:
+                    typer.echo(f"   👪 Parent: {version.parent_uuid}")
+                else:
+                    typer.echo("   👑 Root version")
+
+                if version.notes:
+                    # Truncate notes to first 160 characters
+                    truncated_notes = version.notes[:160]
+                    if len(version.notes) > 160:
+                        truncated_notes += "..."
+                    typer.echo(f"   📝 Notes: {truncated_notes}")
+
+                if version.tags:
+                    typer.echo(f"   🏷️  Tags: {', '.join(version.tags)}")
+
+                typer.echo()
         else:
-            typer.echo("❌ Failed to delete layout.")
-            raise typer.Exit(1) from None
+            # Show linear lineage
+            lineage = versioning.get_version_lineage(layout_uuid)
+
+            if not lineage:
+                typer.echo("No version lineage found.")
+                return
+
+            versioning.print_version_lineage(lineage)
 
     except Exception as e:
-        typer.echo(f"❌ Error deleting layout: {e}")
+        typer.echo(f"❌ Error getting version history: {e}")
+        raise typer.Exit(1) from None
+
+
+@glove80_group.command()
+def create_version(
+    parent_uuid: Annotated[str, typer.Argument(help="UUID of the parent layout")],
+    layout_file: Annotated[
+        Path, typer.Argument(help="Layout file for the new version", exists=True)
+    ],
+    title: Annotated[str, typer.Option("--title", help="Title for the new version")],
+    notes: Annotated[str, typer.Option("--notes", help="Notes for this version")] = "",
+    tags: Annotated[
+        list[str] | None, typer.Option("--tag", help="Tags for the new version")
+    ] = None,
+) -> None:
+    """Create a new version of a layout with parent_uuid link."""
+
+    client = create_moergo_client()
+
+    if not client.validate_authentication():
+        typer.echo(
+            "❌ Authentication failed. Please run 'glovebox moergo login' first."
+        )
+        raise typer.Exit(1) from None
+
+    versioning = create_layout_versioning(client)
+
+    try:
+        # Get parent layout
+        parent_layout = client.get_layout(parent_uuid)
+        typer.echo(f"📥 Found parent layout: {parent_layout.layout_meta.title}")
+
+        # Load new layout content
+        new_layout_data = load_layout_file(layout_file)
+
+        # Create version with parent link
+        import uuid
+
+        new_uuid = str(uuid.uuid4())
+
+        # Create new layout metadata with parent reference
+        new_meta = {
+            "uuid": new_uuid,
+            "title": title,
+            "notes": notes,
+            "tags": tags or parent_layout.layout_meta.tags,
+            "parent_uuid": parent_layout.layout_meta.uuid,  # Key: set parent reference
+            "creator": parent_layout.layout_meta.creator,
+            "firmware_api_version": parent_layout.layout_meta.firmware_api_version,
+            "date": int(datetime.now().timestamp()),
+            "unlisted": parent_layout.layout_meta.unlisted,
+            "deleted": False,
+            "compiled": False,
+            "searchable": True,
+        }
+
+        # Create complete layout with new content
+        complete_layout = {
+            "layout_meta": new_meta,
+            "config": new_layout_data.model_dump(mode="json", by_alias=True),
+        }
+
+        typer.echo(f"📤 Creating new version '{title}' with parent link...")
+
+        # Upload the new version
+        response = client.save_layout(new_uuid, complete_layout)
+
+        typer.echo("✅ New version created successfully!")
+        typer.echo(f"🔗 New UUID: {new_uuid}")
+        typer.echo(f"👪 Parent UUID: {parent_uuid}")
+        typer.echo(f"📝 Title: {title}")
+
+        if notes:
+            typer.echo(f"📖 Notes: {notes}")
+
+        # Show lineage
+        typer.echo("\n📜 Updated lineage:")
+        lineage = versioning.get_version_lineage(new_uuid)
+        for i, version in enumerate(lineage):
+            if version.uuid == new_uuid:
+                typer.echo(f"  v{i + 1}: {version.title} ⭐ (NEW)")
+            else:
+                typer.echo(f"  v{i + 1}: {version.title}")
+
+    except Exception as e:
+        typer.echo(f"❌ Error creating version: {e}")
         raise typer.Exit(1) from None
 
 
@@ -456,8 +668,10 @@ def batch_delete(
 
     client = create_moergo_client()
 
-    if not client.is_authenticated():
-        typer.echo("❌ Not authenticated. Please run 'glovebox moergo login' first.")
+    if not client.validate_authentication():
+        typer.echo(
+            "❌ Authentication failed. Please run 'glovebox moergo login' first."
+        )
         raise typer.Exit(1) from None
 
     typer.echo(f"🗑️  About to delete {len(layout_uuids)} layouts:")
@@ -532,8 +746,10 @@ def browse(
 
     client = create_moergo_client()
 
-    if not client.is_authenticated():
-        typer.echo("❌ Not authenticated. Please run 'glovebox moergo login' first.")
+    if not client.validate_authentication():
+        typer.echo(
+            "❌ Authentication failed. Please run 'glovebox moergo login' first."
+        )
         raise typer.Exit(1) from None
 
     try:

@@ -19,7 +19,13 @@ moergo_app = typer.Typer(
 
 Authentication can be done interactively, with command line options, or environment variables:
 • Interactive: glovebox moergo login
-• Environment: MOERGO_USERNAME=user@email.com MOERGO_PASSWORD=*** glovebox moergo login""",
+• Environment: MOERGO_USERNAME=user@email.com MOERGO_PASSWORD=*** glovebox moergo login
+
+Credential Storage:
+• Automatically uses OS keyring (macOS Keychain, Windows Credential Manager, Linux keyring)
+• Falls back to encrypted file storage if keyring unavailable
+• Use 'glovebox moergo keystore' to see detailed storage information
+• Install 'keyring' package for enhanced security: pip install keyring""",
 )
 
 
@@ -63,13 +69,24 @@ def login(
         client.login(username, password)
 
         info = client.get_credential_info()
-        storage_method = (
-            "OS keyring" if info.get("keyring_available") else "encrypted file"
-        )
+        keyring_available = info.get("keyring_available", False)
 
-        typer.echo(
-            f"✅ Successfully logged in and stored credentials using {storage_method}"
-        )
+        if keyring_available:
+            storage_method = "OS keyring"
+            typer.echo(
+                f"✅ Successfully logged in and stored credentials using {storage_method}"
+            )
+            typer.echo("🔒 Your credentials are securely stored in your system keyring")
+        else:
+            storage_method = "file with basic obfuscation"
+            typer.echo(
+                f"✅ Successfully logged in and stored credentials using {storage_method}"
+            )
+            typer.echo(
+                "⚠️  For better security, consider installing the keyring package:"
+            )
+            typer.echo("   pip install keyring")
+            typer.echo("   Then login again to use secure keyring storage")
 
     except AuthenticationError as e:
         typer.echo(f"❌ Login failed: {e}")
@@ -109,10 +126,10 @@ def download_layout(
     try:
         client = create_moergo_client()
 
-        # Check if authenticated
-        if not client.is_authenticated():
+        # Check if authenticated with server validation
+        if not client.validate_authentication():
             typer.echo(
-                "❌ Not authenticated. Please run 'glovebox moergo login' first."
+                "❌ Authentication failed. Please run 'glovebox moergo login' first."
             )
             raise typer.Exit(1)
 
@@ -179,19 +196,47 @@ def status() -> None:
         info = client.get_credential_info()
 
         typer.echo("MoErgo Authentication Status:")
-        typer.echo(
-            f"  Authenticated: {'✅ Yes' if client.is_authenticated() else '❌ No'}"
+
+        # Check authentication status
+        is_auth = client.is_authenticated()
+        typer.echo(f"  Authenticated: {'✅ Yes' if is_auth else '❌ No'}")
+
+        # Show token info if authenticated
+        if is_auth:
+            try:
+                token_info = client.get_token_info()
+                if token_info.get("expires_in_minutes") is not None:
+                    expires_in = token_info["expires_in_minutes"]
+                    if expires_in > 60:
+                        expires_str = f"{expires_in / 60:.1f} hours"
+                    else:
+                        expires_str = f"{expires_in:.1f} minutes"
+                    typer.echo(f"  Token expires in: {expires_str}")
+
+                    if token_info.get("needs_renewal", False):
+                        typer.echo("  ⚠️  Token needs renewal soon")
+            except Exception:
+                pass  # Don't fail if we can't get token info
+
+        # Credential storage info
+        has_creds = info.get("has_credentials", False)
+        storage_method = (
+            "OS keyring" if info.get("keyring_available") else "file storage"
         )
+
+        typer.echo(f"  Credentials stored: {'✅ Yes' if has_creds else '❌ No'}")
+        if has_creds:
+            typer.echo(f"  Storage method: {storage_method}")
+
         typer.echo(
-            f"  Keyring Available: {'✅ Yes' if info.get('keyring_available') else '❌ No'}"
+            f"  Keyring available: {'✅ Yes' if info.get('keyring_available') else '❌ No'}"
         )
         typer.echo(f"  Platform: {info.get('platform', 'Unknown')}")
-        typer.echo(f"  Config Directory: {info.get('config_dir', 'Unknown')}")
 
         if info.get("keyring_backend"):
-            typer.echo(f"  Keyring Backend: {info['keyring_backend']}")
+            typer.echo(f"  Keyring backend: {info['keyring_backend']}")
 
-        if not client.is_authenticated():
+        if not is_auth and not has_creds:
             typer.echo("\n💡 To authenticate:")
             typer.echo("   Interactive: glovebox moergo login")
             typer.echo(
@@ -200,6 +245,192 @@ def status() -> None:
 
     except Exception as e:
         typer.echo(f"❌ Error checking status: {e}")
+        raise typer.Exit(1) from None
+
+
+@moergo_app.command("keystore")
+def keystore_info() -> None:
+    """Show detailed keystore and credential storage information."""
+    try:
+        client = create_moergo_client()
+        info = client.get_credential_info()
+
+        typer.echo("🔐 Keystore Information")
+        typer.echo("=" * 40)
+
+        # Platform info
+        typer.echo(f"Platform: {info.get('platform', 'Unknown')}")
+        typer.echo(f"Config directory: {info.get('config_dir', 'Unknown')}")
+
+        # Keyring availability
+        keyring_available = info.get("keyring_available", False)
+        if keyring_available:
+            typer.echo("✅ OS Keyring: Available")
+            backend = info.get("keyring_backend", "Unknown")
+            typer.echo(f"   Backend: {backend}")
+
+            # Platform-specific keyring info
+            platform_name = info.get("platform", "")
+            if platform_name == "Darwin":
+                typer.echo("   🍎 Using macOS Keychain")
+            elif platform_name == "Windows":
+                typer.echo("   🪟 Using Windows Credential Manager")
+            elif platform_name == "Linux":
+                typer.echo("   🐧 Using Linux keyring (secretstorage/keyctl)")
+        else:
+            typer.echo("❌ OS Keyring: Not available")
+            typer.echo("   💡 Install keyring package for better security:")
+            typer.echo("   pip install keyring")
+
+        # Current storage method
+        has_creds = info.get("has_credentials", False)
+        if has_creds:
+            storage_method = (
+                "OS keyring" if keyring_available else "file with obfuscation"
+            )
+            typer.echo(f"\n📁 Current storage method: {storage_method}")
+
+            if not keyring_available:
+                typer.echo("   ⚠️  File storage provides basic obfuscation only")
+                typer.echo("   🔒 For better security, install keyring package")
+        else:
+            typer.echo("\n📭 No credentials currently stored")
+
+        # Security recommendations
+        typer.echo("\n🛡️  Security Recommendations:")
+        if keyring_available:
+            typer.echo("   ✅ Your credentials are stored securely in OS keyring")
+        else:
+            typer.echo("   🔸 Install 'keyring' package for secure credential storage")
+            typer.echo("   🔸 File storage uses basic obfuscation (not encryption)")
+
+        typer.echo("   🔸 Use 'glovebox moergo logout' to clear stored credentials")
+        typer.echo("   🔸 Credentials are stored per-user with restricted permissions")
+
+    except Exception as e:
+        typer.echo(f"❌ Error getting keystore info: {e}")
+        raise typer.Exit(1) from None
+
+
+@moergo_app.command("history")
+def show_history(
+    limit: Annotated[
+        int, typer.Option("--limit", "-l", help="Number of entries to show")
+    ] = 20,
+    layout_uuid: Annotated[
+        str | None,
+        typer.Option("--layout", help="Show history for specific layout UUID"),
+    ] = None,
+    stats: Annotated[
+        bool, typer.Option("--stats", help="Show usage statistics")
+    ] = False,
+) -> None:
+    """Show MoErgo API interaction history."""
+    try:
+        client = create_moergo_client()
+
+        if stats:
+            # Show statistics
+            statistics = client.get_history_statistics()
+            typer.echo("📊 MoErgo API Usage Statistics")
+            typer.echo("=" * 35)
+
+            if statistics["total_operations"] == 0:
+                typer.echo("No API interactions recorded yet.")
+                return
+
+            typer.echo(f"Total operations: {statistics['total_operations']}")
+            typer.echo(f"Successful: {statistics['successful_operations']}")
+            typer.echo(f"Failed: {statistics['failed_operations']}")
+
+            success_rate = (
+                statistics["successful_operations"] / statistics["total_operations"]
+            ) * 100
+            typer.echo(f"Success rate: {success_rate:.1f}%")
+
+            typer.echo("\nOperations by type:")
+            typer.echo(f"  📤 Uploads: {statistics['uploads']}")
+            typer.echo(f"  📥 Downloads: {statistics['downloads']}")
+            typer.echo(f"  🗑️  Deletes: {statistics['deletes']}")
+            typer.echo(f"  ⚠️  Update attempts: {statistics['update_attempts']}")
+
+            typer.echo(f"\nUnique layouts: {statistics['unique_layouts']}")
+
+            if statistics["date_range"]:
+                typer.echo(f"First operation: {statistics['date_range']['earliest']}")
+                typer.echo(f"Latest operation: {statistics['date_range']['latest']}")
+
+        elif layout_uuid:
+            # Show history for specific layout
+            history = client.get_layout_history(layout_uuid)
+            if not history:
+                typer.echo(f"No history found for layout {layout_uuid}")
+                return
+
+            typer.echo(f"📄 History for Layout {layout_uuid}")
+            typer.echo("=" * 50)
+
+            for entry in reversed(history):  # Show oldest first
+                timestamp = entry["timestamp"]
+                action = entry["action"]
+                success = "✅" if entry["success"] else "❌"
+
+                action_icons = {
+                    "upload": "📤",
+                    "download": "📥",
+                    "delete": "🗑️",
+                    "update_attempt": "⚠️",
+                }
+                icon = action_icons.get(action, "🔄")
+
+                typer.echo(f"{success} {icon} {action.upper()} - {timestamp}")
+
+                if entry.get("layout_title"):
+                    typer.echo(f"   Title: {entry['layout_title']}")
+
+                if not entry["success"] and entry.get("error_message"):
+                    typer.echo(f"   Error: {entry['error_message']}")
+
+                typer.echo()
+        else:
+            # Show recent history
+            history = client.get_history(limit)
+            if not history:
+                typer.echo("No API interactions recorded yet.")
+                return
+
+            typer.echo(f"📚 Recent MoErgo API History (last {len(history)} operations)")
+            typer.echo("=" * 60)
+
+            for entry in history:
+                timestamp = entry["timestamp"]
+                action = entry["action"]
+                layout_uuid = entry["layout_uuid"][:8] + "..."  # Short UUID
+                success = "✅" if entry["success"] else "❌"
+
+                action_icons = {
+                    "upload": "📤",
+                    "download": "📥",
+                    "delete": "🗑️",
+                    "update_attempt": "⚠️",
+                }
+                icon = action_icons.get(action, "🔄")
+
+                title = entry.get("layout_title", "Unknown")
+                typer.echo(
+                    f"{success} {icon} {action.upper()} {layout_uuid} '{title}' - {timestamp}"
+                )
+
+                if not entry["success"] and entry.get("error_message"):
+                    error = (
+                        entry["error_message"][:80] + "..."
+                        if len(entry["error_message"]) > 80
+                        else entry["error_message"]
+                    )
+                    typer.echo(f"   Error: {error}")
+
+    except Exception as e:
+        typer.echo(f"❌ Error getting history: {e}")
         raise typer.Exit(1) from None
 
 

@@ -55,6 +55,30 @@ class CognitoAuth:
             # Silently fail for now - caller will handle the None return
             return None
 
+    def refresh_token(self, refresh_token: str) -> dict[str, Any] | None:
+        """
+        Refresh access token using refresh token.
+
+        Returns authentication result dict if successful, None otherwise.
+        """
+        headers = self._get_headers("AWSCognitoIdentityProviderService.InitiateAuth")
+
+        payload = {
+            "AuthFlow": "REFRESH_TOKEN_AUTH",
+            "ClientId": self.client_id,
+            "AuthParameters": {"REFRESH_TOKEN": refresh_token},
+        }
+
+        try:
+            response = requests.post(
+                self.cognito_url, headers=headers, json=payload, timeout=30
+            )
+            response.raise_for_status()
+            return response.json()  # type: ignore[no-any-return]
+        except requests.exceptions.RequestException:
+            # Silently fail for now - caller will handle the None return
+            return None
+
     def initiate_auth(self, username: str) -> dict[str, Any] | None:
         """
         Initiate SRP authentication flow.

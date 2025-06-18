@@ -68,15 +68,32 @@ def create_default_cache() -> CacheManager:
     - 500MB max size
     - 24 hour default TTL
     - LRU eviction policy
+    - Process isolation to avoid conflicts
+
+    Environment variables:
+    - GLOVEBOX_CACHE_STRATEGY: "process_isolated" (default), "shared", "disabled"
 
     Returns:
         Default configured cache manager
     """
-    return create_filesystem_cache(
-        max_size_mb=500,
-        max_entries=10000,
-        default_ttl_hours=24,
-    )
+    import os
+
+    cache_strategy = os.environ.get("GLOVEBOX_CACHE_STRATEGY", "process_isolated")
+
+    if cache_strategy == "disabled":
+        # Fall back to memory cache
+        return create_memory_cache(
+            max_size_mb=100,  # Smaller for memory
+            max_entries=1000,
+            default_ttl_hours=1,  # Shorter TTL for memory
+        )
+    else:
+        # Use filesystem cache (process_isolated or shared)
+        return create_filesystem_cache(
+            max_size_mb=500,
+            max_entries=10000,
+            default_ttl_hours=24,
+        )
 
 
 __all__ = [
