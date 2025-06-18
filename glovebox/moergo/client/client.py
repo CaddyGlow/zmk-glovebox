@@ -1,13 +1,20 @@
 """MoErgo API client for layout management."""
 
 import json
+import time
+import zlib
 from datetime import datetime, timedelta
 from typing import Any, Optional
 from urllib.parse import urljoin
 
 import requests
 
-from glovebox.core.cache import CacheKey, create_default_cache
+from glovebox.core.cache import (
+    CacheKey,
+    CacheManager,
+    create_cache_from_user_config,
+    create_default_cache,
+)
 
 from ..history import MoErgoHistoryTracker
 from .auth import Glove80Auth
@@ -16,8 +23,12 @@ from .models import (
     APIError,
     AuthenticationError,
     AuthTokens,
+    CompilationError,
+    FirmwareCompileRequest,
+    FirmwareCompileResponse,
     MoErgoLayout,
     NetworkError,
+    TimeoutError,
     UserCredentials,
     ValidationError,
 )
@@ -28,14 +39,18 @@ class MoErgoClient:
 
     BASE_URL = "https://my.glove80.com/api/"
 
-    def __init__(self, credential_manager: CredentialManager | None = None):
+    def __init__(
+        self,
+        credential_manager: CredentialManager | None = None,
+        cache: CacheManager | None = None,
+    ):
         self.credential_manager = credential_manager or CredentialManager()
         self.auth_client = Glove80Auth()
         self.session = requests.Session()
         self._tokens: AuthTokens | None = None
 
         # Initialize cache for API responses
-        self._cache = create_default_cache()
+        self._cache = cache or create_default_cache()
 
         # Initialize history tracker
         self.history_tracker = MoErgoHistoryTracker()
@@ -97,6 +112,36 @@ class MoErgoClient:
             raise NetworkError(f"Network error: {e}") from e
         except ValueError as e:
             raise APIError(f"Invalid JSON response: {e}") from e
+
+    def _handle_compile_response(self, response: requests.Response) -> Any:
+        """Handle compilation API response with specific error handling."""
+        try:
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.HTTPError as e:
+            if response.status_code == 400:
+                # Handle compilation failures
+                try:
+                    error_data = response.json()
+                    message = error_data.get("message", "Compilation failed")
+                    detail = error_data.get("detail", [])
+                    raise CompilationError(
+                        message,
+                        detail=detail,
+                        status_code=response.status_code,
+                        response_data=error_data,
+                    ) from e
+                except ValueError:
+                    # If response is not JSON, fall back to generic error
+                    raise CompilationError(
+                        f"Compilation failed: {response.text}",
+                        status_code=response.status_code,
+                    ) from e
+            else:
+                # For other status codes, use the standard handler
+                return self._handle_response(response)
+        except requests.exceptions.RequestException as e:
+            raise NetworkError(f"Network error: {e}") from e
 
     def _is_token_expired(self) -> bool:
         """Check if current token is expired."""
@@ -713,6 +758,244 @@ class MoErgoClient:
             "needs_renewal": expires_in_minutes < 5,
         }
 
+    def compile_firmware(
+        self,
+        layout_uuid: str,
+        keymap: str,
+        kconfig: str = "",
+        board: str = "glove80",
+        firmware_version: str = "v25.05",
+        timeout: int = 300,
+        max_retries: int = 3,
+        initial_retry_delay: float = 15.0,
+    ) -> FirmwareCompileResponse:
+        """
+        Compile firmware for a layout.
+
+        Args:
+            layout_uuid: UUID of the layout
+            keymap: ZMK keymap content
+            kconfig: ZMK Kconfig content (optional)
+            board: Target board (default: "glove80")
+            firmware_version: Firmware API version (default: "v25.05")
+            timeout: Request timeout in seconds (default: 300)
+            max_retries: Maximum retry attempts on timeout (default: 3)
+            initial_retry_delay: Initial delay before retry in seconds (default: 15.0)
+
+        Returns:
+            FirmwareCompileResponse with location of compiled firmware
+        """
+        self._ensure_authenticated()
+
+        endpoint = f"firmware/{firmware_version}/{layout_uuid}"
+
+        # Prepare request payload
+        compile_request = FirmwareCompileRequest(
+            keymap=keymap, kconfig=kconfig, board=board
+        )
+
+        # Retry logic for timeouts only
+        last_timeout_error = None
+        for attempt in range(max_retries + 1):  # +1 for initial attempt
+            try:
+                assert self._tokens is not None, (
+                    "Tokens should be available after authentication"
+                )
+                headers = {
+                    "accept": "*/*",
+                    "accept-language": "en-US,en;q=0.9",
+                    "authorization": f"Bearer {self._tokens.id_token}",
+                    "content-type": "application/json",
+                    "origin": "https://my.glove80.com",
+                    "referer": "https://my.glove80.com/",
+                    "sec-fetch-dest": "empty",
+                    "sec-fetch-mode": "cors",
+                    "sec-fetch-site": "same-origin",
+                }
+
+                response = self.session.post(
+                    self._get_full_url(endpoint),
+                    json=compile_request.model_dump(),
+                    headers=headers,
+                    timeout=timeout,
+                )
+
+                data = self._handle_compile_response(response)
+
+                # Track successful compilation
+                retry_metadata = {
+                    "endpoint": endpoint,
+                    "firmware_version": firmware_version,
+                    "board": board,
+                    "timeout": timeout,
+                    "attempt": attempt + 1,
+                    "total_attempts": attempt + 1,
+                }
+                if attempt > 0:
+                    retry_metadata["retries_used"] = attempt
+
+                self.history_tracker.add_entry(
+                    action="compile",
+                    layout_uuid=layout_uuid,
+                    success=True,
+                    metadata=retry_metadata,
+                )
+
+                return FirmwareCompileResponse(**data)
+
+            except requests.exceptions.Timeout as e:
+                last_timeout_error = e
+
+                # If this is not the last attempt, wait and retry
+                if attempt < max_retries:
+                    # Calculate delay with exponential backoff
+                    delay = initial_retry_delay * (2**attempt)
+
+                    # Track retry attempt
+                    self.history_tracker.add_entry(
+                        action="compile",
+                        layout_uuid=layout_uuid,
+                        success=False,
+                        error_message=f"Timeout on attempt {attempt + 1}, retrying in {delay}s",
+                        metadata={
+                            "endpoint": endpoint,
+                            "firmware_version": firmware_version,
+                            "board": board,
+                            "timeout": timeout,
+                            "attempt": attempt + 1,
+                            "max_retries": max_retries,
+                            "retry_delay": delay,
+                        },
+                    )
+
+                    time.sleep(delay)
+                    continue
+                else:
+                    # Final timeout - track and raise
+                    self.history_tracker.add_entry(
+                        action="compile",
+                        layout_uuid=layout_uuid,
+                        success=False,
+                        error_message=f"Final timeout after {max_retries + 1} attempts",
+                        metadata={
+                            "endpoint": endpoint,
+                            "firmware_version": firmware_version,
+                            "board": board,
+                            "timeout": timeout,
+                            "total_attempts": max_retries + 1,
+                            "max_retries": max_retries,
+                        },
+                    )
+                    raise TimeoutError(
+                        f"Firmware compilation timed out after {max_retries + 1} attempts "
+                        f"({timeout} seconds each)"
+                    ) from e
+
+            except CompilationError as e:
+                # Don't retry compilation errors - track and raise immediately
+                self.history_tracker.add_entry(
+                    action="compile",
+                    layout_uuid=layout_uuid,
+                    success=False,
+                    error_message=str(e),
+                    metadata={
+                        "endpoint": endpoint,
+                        "firmware_version": firmware_version,
+                        "board": board,
+                        "timeout": timeout,
+                        "attempt": attempt + 1,
+                        "compilation_detail": e.detail,
+                    },
+                )
+                raise
+            except requests.exceptions.RequestException as e:
+                # Don't retry other network errors - track and raise immediately
+                self.history_tracker.add_entry(
+                    action="compile",
+                    layout_uuid=layout_uuid,
+                    success=False,
+                    error_message=str(e),
+                    metadata={
+                        "endpoint": endpoint,
+                        "firmware_version": firmware_version,
+                        "board": board,
+                        "timeout": timeout,
+                        "attempt": attempt + 1,
+                    },
+                )
+                raise NetworkError(f"Network error: {e}") from e
+            except Exception as e:
+                # Don't retry other errors - track and raise immediately
+                self.history_tracker.add_entry(
+                    action="compile",
+                    layout_uuid=layout_uuid,
+                    success=False,
+                    error_message=str(e),
+                    metadata={
+                        "endpoint": endpoint,
+                        "firmware_version": firmware_version,
+                        "board": board,
+                        "timeout": timeout,
+                        "attempt": attempt + 1,
+                    },
+                )
+                raise
+
+        # This should never be reached, but just in case
+        raise TimeoutError("Unexpected end of retry loop") from last_timeout_error
+
+    def download_firmware(
+        self, firmware_location: str, output_path: str | None = None
+    ) -> bytes:
+        """
+        Download compiled firmware from MoErgo servers.
+
+        Args:
+            firmware_location: Location path from compile response
+            output_path: Optional local file path to save firmware
+
+        Returns:
+            Firmware content as bytes (decompressed if .gz file)
+        """
+        # Construct full download URL
+        download_url = urljoin("https://my.glove80.com/", firmware_location)
+
+        try:
+            # Download doesn't need authentication - firmware URLs are signed
+            headers = {
+                "accept": "*/*",
+                "accept-language": "en-US,en;q=0.9",
+                "referer": "https://my.glove80.com/",
+                "sec-fetch-dest": "empty",
+                "sec-fetch-mode": "cors",
+                "sec-fetch-site": "same-origin",
+            }
+
+            response = self.session.get(download_url, headers=headers)
+            response.raise_for_status()
+
+            firmware_data = response.content
+
+            # Only decompress if filename ends with .gz
+            if firmware_location.endswith(".gz"):
+                try:
+                    firmware_data = zlib.decompress(firmware_data)
+                except zlib.error as e:
+                    raise APIError(f"Failed to decompress firmware data: {e}") from e
+
+            # Save to file if path provided
+            if output_path:
+                from pathlib import Path
+
+                output_file = Path(output_path)
+                output_file.parent.mkdir(parents=True, exist_ok=True)
+                output_file.write_bytes(firmware_data)
+
+            return firmware_data
+
+        except requests.exceptions.RequestException as e:
+            raise NetworkError(f"Failed to download firmware: {e}") from e
+
     def test_layout_endpoints(
         self, layout_uuid: str, layout_data: dict[str, Any] | None = None
     ) -> dict[str, Any]:
@@ -732,6 +1015,9 @@ class MoErgoClient:
         results = {}
 
         # Standard headers for all requests
+        assert self._tokens is not None, (
+            "Tokens should be available after authentication"
+        )
         headers = {
             "accept": "*/*",
             "accept-language": "en-US,en;q=0.9",
@@ -858,6 +1144,19 @@ class MoErgoClient:
 
 def create_moergo_client(
     credential_manager: CredentialManager | None = None,
+    user_config: Any = None,
 ) -> MoErgoClient:
-    """Factory function to create MoErgo client."""
-    return MoErgoClient(credential_manager)
+    """Factory function to create MoErgo client.
+
+    Args:
+        credential_manager: Optional credential manager
+        user_config: Optional user configuration for cache settings
+
+    Returns:
+        Configured MoErgo client
+    """
+    cache = None
+    if user_config is not None:
+        cache = create_cache_from_user_config(user_config)
+
+    return MoErgoClient(credential_manager, cache)

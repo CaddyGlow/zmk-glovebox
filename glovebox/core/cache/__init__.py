@@ -5,6 +5,7 @@ across all domains (layout, config, firmware, compilation).
 """
 
 from pathlib import Path
+from typing import Any
 
 from glovebox.core.cache.cache_manager import CacheManager
 from glovebox.core.cache.filesystem_cache import FilesystemCache
@@ -17,6 +18,8 @@ def create_filesystem_cache(
     max_size_mb: int | None = None,
     max_entries: int | None = None,
     default_ttl_hours: int | None = None,
+    use_file_locking: bool = True,
+    cache_strategy: str = "process_isolated",
 ) -> CacheManager:
     """Create a filesystem-based cache manager.
 
@@ -25,6 +28,8 @@ def create_filesystem_cache(
         max_size_mb: Maximum cache size in megabytes
         max_entries: Maximum number of cache entries
         default_ttl_hours: Default time-to-live in hours
+        use_file_locking: Enable file locking for concurrent access protection
+        cache_strategy: Cache strategy ("process_isolated", "shared", "disabled")
 
     Returns:
         Configured filesystem cache manager
@@ -34,6 +39,8 @@ def create_filesystem_cache(
         max_size_bytes=max_size_mb * 1024 * 1024 if max_size_mb else None,
         max_entries=max_entries,
         default_ttl_seconds=default_ttl_hours * 3600 if default_ttl_hours else None,
+        use_file_locking=use_file_locking,
+        cache_strategy=cache_strategy,
     )
     return FilesystemCache(config)
 
@@ -61,7 +68,25 @@ def create_memory_cache(
     return MemoryCache(config)
 
 
-def create_default_cache() -> CacheManager:
+def create_cache_from_user_config(user_config: Any) -> CacheManager:
+    """Create a cache manager using user configuration.
+
+    Args:
+        user_config: User configuration object with cache_strategy and cache_file_locking attributes
+
+    Returns:
+        Configured cache manager
+    """
+    return create_default_cache(
+        cache_strategy=user_config.cache_strategy,
+        cache_file_locking=user_config.cache_file_locking,
+    )
+
+
+def create_default_cache(
+    cache_strategy: str = "process_isolated",
+    cache_file_locking: bool = True,
+) -> CacheManager:
     """Create a default cache manager for general use.
 
     Uses filesystem caching with reasonable defaults:
@@ -70,18 +95,14 @@ def create_default_cache() -> CacheManager:
     - LRU eviction policy
     - Process isolation to avoid conflicts
 
-    Environment variables:
-    - GLOVEBOX_CACHE_STRATEGY: "process_isolated" (default), "shared", "disabled"
+    Args:
+        cache_strategy: Cache strategy ("process_isolated", "shared", "disabled")
+        cache_file_locking: Enable file locking for concurrent access protection
 
     Returns:
         Default configured cache manager
     """
-    import os
-
-    cache_strategy = os.environ.get("GLOVEBOX_CACHE_STRATEGY", "process_isolated")
-
     if cache_strategy == "disabled":
-        # Fall back to memory cache
         return create_memory_cache(
             max_size_mb=100,  # Smaller for memory
             max_entries=1000,
@@ -93,6 +114,8 @@ def create_default_cache() -> CacheManager:
             max_size_mb=500,
             max_entries=10000,
             default_ttl_hours=24,
+            use_file_locking=cache_file_locking,
+            cache_strategy=cache_strategy,
         )
 
 
@@ -107,4 +130,5 @@ __all__ = [
     "create_filesystem_cache",
     "create_memory_cache",
     "create_default_cache",
+    "create_cache_from_user_config",
 ]

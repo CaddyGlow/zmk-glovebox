@@ -12,7 +12,7 @@ class MoErgoHistoryEntry(BaseModel):
     """Single entry in MoErgo interaction history."""
 
     timestamp: datetime
-    action: Literal["upload", "download", "delete", "update_attempt"]
+    action: Literal["upload", "download", "delete", "update_attempt", "compile"]
     layout_uuid: str
     layout_title: str | None = None
     local_file: str | None = None
@@ -32,7 +32,7 @@ class MoErgoHistoryTracker:
 
     def add_entry(
         self,
-        action: Literal["upload", "download", "delete", "update_attempt"],
+        action: Literal["upload", "download", "delete", "update_attempt", "compile"],
         layout_uuid: str,
         success: bool,
         layout_title: str | None = None,
@@ -127,6 +127,7 @@ class MoErgoHistoryTracker:
                 "downloads": 0,
                 "deletes": 0,
                 "update_attempts": 0,
+                "compiles": 0,
                 "unique_layouts": 0,
                 "date_range": None,
             }
@@ -154,6 +155,7 @@ class MoErgoHistoryTracker:
             "downloads": actions.get("download", 0),
             "deletes": actions.get("delete", 0),
             "update_attempts": actions.get("update_attempt", 0),
+            "compiles": actions.get("compile", 0),
             "unique_layouts": unique_layouts,
             "date_range": date_range,
         }
