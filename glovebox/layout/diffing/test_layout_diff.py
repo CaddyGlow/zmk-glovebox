@@ -28,12 +28,12 @@ class TestLayoutDiff:
     """Test suite for layout diff functionality."""
 
     @pytest.fixture
-    def diff_system(self):
+    def diff_system(self) -> LayoutDiffSystem:
         """Create a diff system instance."""
         return LayoutDiffSystem()
 
     @pytest.fixture
-    def patch_system(self):
+    def patch_system(self) -> LayoutPatchSystem:
         """Create a patch system instance."""
         return LayoutPatchSystem()
 
@@ -67,7 +67,7 @@ class TestLayoutDiff:
             uuid="test-uuid-base",
         )
 
-    def test_single_key_change(self, diff_system):
+    def test_single_key_change(self, diff_system: LayoutDiffSystem) -> None:
         """Test diffing a single key change."""
         base = self.create_layout_data(BASE_LAYOUT)
         modified = self.create_layout_data(SINGLE_KEY_CHANGE)
@@ -91,7 +91,7 @@ class TestLayoutDiff:
         assert change["to"]["value"] == "&kp"
         assert change["to"]["params"][0]["value"] == "A"
 
-    def test_multiple_key_changes(self, diff_system):
+    def test_multiple_key_changes(self, diff_system: LayoutDiffSystem) -> None:
         """Test diffing multiple key changes in the same layer."""
         base = self.create_layout_data(BASE_LAYOUT)
         modified = self.create_layout_data(MULTIPLE_KEY_CHANGES)
@@ -106,7 +106,7 @@ class TestLayoutDiff:
         positions_changed = {change["position"] for change in behavior_changes}
         assert positions_changed == {0, 2}  # Q->A at 0, E->D at 2
 
-    def test_layer_reorder(self, diff_system):
+    def test_layer_reorder(self, diff_system) -> None:
         """Test detecting layer reordering."""
         base = self.create_layout_data(BASE_LAYOUT)
         modified = self.create_layout_data(LAYER_REORDER)
@@ -122,7 +122,7 @@ class TestLayoutDiff:
         name_changes = layer_changes["layer_names"]["renamed"]
         assert len(name_changes) == 2
 
-    def test_layer_addition(self, diff_system):
+    def test_layer_addition(self, diff_system) -> None:
         """Test detecting layer addition."""
         base = self.create_layout_data(BASE_LAYOUT)
         modified = self.create_layout_data(LAYER_ADDITION)
@@ -137,7 +137,7 @@ class TestLayoutDiff:
         # Verify statistics
         assert diff["statistics"]["additions"] > 0
 
-    def test_layer_removal(self, diff_system):
+    def test_layer_removal(self, diff_system) -> None:
         """Test detecting layer removal."""
         base = self.create_layout_data(BASE_LAYOUT)
         modified = self.create_layout_data(LAYER_REMOVAL)
@@ -152,7 +152,7 @@ class TestLayoutDiff:
         # Verify statistics
         assert diff["statistics"]["removals"] > 0
 
-    def test_layer_content_change(self, diff_system):
+    def test_layer_content_change(self, diff_system) -> None:
         """Test detecting complete layer content change."""
         base = self.create_layout_data(BASE_LAYOUT)
         modified = self.create_layout_data(LAYER_CONTENT_CHANGE)
@@ -169,7 +169,7 @@ class TestLayoutDiff:
         ]
         assert len(behavior_changes) == 10  # All 10 keys changed
 
-    def test_complex_change(self, diff_system):
+    def test_complex_change(self, diff_system) -> None:
         """Test complex changes with multiple operations."""
         base = self.create_layout_data(BASE_LAYOUT)
         modified = self.create_layout_data(COMPLEX_CHANGE)
@@ -186,7 +186,7 @@ class TestLayoutDiff:
         # Verify high operation count
         assert diff["statistics"]["total_operations"] > 10
 
-    def test_partial_layer_change(self, diff_system):
+    def test_partial_layer_change(self, diff_system) -> None:
         """Test selective position changes in a layer."""
         base = self.create_layout_data(BASE_LAYOUT)
         modified = self.create_layout_data(PARTIAL_LAYER_CHANGE)
@@ -203,7 +203,7 @@ class TestLayoutDiff:
         changed_positions = {c["position"] for c in layer_1_changes}
         assert changed_positions == {2, 3, 7}
 
-    def test_patch_application(self, diff_system, patch_system):
+    def test_patch_application(self, diff_system, patch_system) -> None:
         """Test applying a patch to recreate the modified layout."""
         base = self.create_layout_data(BASE_LAYOUT)
         modified = self.create_layout_data(SINGLE_KEY_CHANGE)
@@ -222,7 +222,7 @@ class TestLayoutDiff:
         assert patched.layers[0][0].value == modified.layers[0][0].value
         assert patched.layers[0][0].params[0].value == "A"
 
-    def test_layer_move_with_key_change(self, diff_system):
+    def test_layer_move_with_key_change(self, diff_system) -> None:
         """Test layer movement combined with key changes."""
         base = self.create_layout_data(BASE_LAYOUT)
         modified = self.create_layout_data(LAYER_MOVE_WITH_KEY_CHANGE)
@@ -253,7 +253,7 @@ class TestLayoutDiff:
         assert change["to"]["value"] == "&kp"
         assert change["to"]["params"][0]["value"] == "A"
 
-    def test_round_trip_diff_patch(self, diff_system, patch_system):
+    def test_round_trip_diff_patch(self, diff_system, patch_system) -> None:
         """Test that diff and patch operations are reversible."""
         for test_name, test_layout in TEST_CASES.items():
             if test_name == "base":

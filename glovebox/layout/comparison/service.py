@@ -229,7 +229,7 @@ class LayoutComparisonService:
         changed_layers = {}
 
         # Group behavior changes by layer
-        layers_with_changes = {}
+        layers_with_changes: dict[int, list[dict[str, Any]]] = {}
         for change in behavior_changes:
             layer_idx = change["layer"]
             if layer_idx not in layers_with_changes:
@@ -490,14 +490,16 @@ class LayoutComparisonService:
     def _load_patch_file(self, patch_file_path: Path) -> dict[str, Any]:
         """Load patch data from file."""
         with patch_file_path.open() as f:
-            return json.load(f)
+            result: dict[str, Any] = json.load(f)
+            return result
 
     def _count_patch_changes(self, patch_data: dict[str, Any]) -> int:
         """Count the number of changes in a patch."""
         if "json_patch" in patch_data:
             return len(patch_data["json_patch"])
         elif "statistics" in patch_data:
-            return patch_data["statistics"].get("total_operations", 0)
+            total_ops: int = patch_data["statistics"].get("total_operations", 0)
+            return total_ops
         else:
             # Legacy format counting
             return len(patch_data.get("values_changed", {}))

@@ -15,7 +15,7 @@ class LayoutDiffManager:
         self.base_layout_path = base_layout_path
         self.diff_system = LayoutDiffSystem()
         self.patch_system = LayoutPatchSystem()
-        self.diff_history = []
+        self.diff_history: list[dict[str, Any]] = []
 
     def load_layout(self, path: Path) -> LayoutData:
         """Load a layout from JSON file."""
@@ -67,7 +67,7 @@ class LayoutDiffManager:
 
     def analyze_binding_changes(self, diff: dict[str, Any]) -> dict[str, Any]:
         """Analyze what specific bindings changed."""
-        analysis = {
+        analysis: dict[str, Any] = {
             "total_binding_changes": 0,
             "changes_by_layer": {},
             "behavior_frequency": {},

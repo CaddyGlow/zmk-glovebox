@@ -29,12 +29,12 @@ class TestBehaviorDiff:
     """Test suite for behavior-based layout diff functionality."""
 
     @pytest.fixture
-    def diff_system(self):
+    def diff_system(self) -> LayoutDiffSystem:
         """Create a diff system instance."""
         return LayoutDiffSystem()
 
     @pytest.fixture
-    def patch_system(self):
+    def patch_system(self) -> LayoutPatchSystem:
         """Create a patch system instance."""
         return LayoutPatchSystem()
 
@@ -148,7 +148,7 @@ class TestBehaviorDiff:
             inputListeners=input_listeners,
         )
 
-    def test_behavior_parameter_modifications(self, diff_system):
+    def test_behavior_parameter_modifications(self, diff_system) -> None:
         """Test detecting modifications to behavior parameters."""
         base = self.create_enhanced_layout_data(BASE_WITH_BEHAVIORS)
         modified = self.create_enhanced_layout_data(MODIFIED_BEHAVIORS)
@@ -173,7 +173,7 @@ class TestBehaviorDiff:
         assert len(behavior_changes["combos"]["removed"]) == 0
         assert len(behavior_changes["macros"]["removed"]) == 0
 
-    def test_behavior_replacement(self, diff_system):
+    def test_behavior_replacement(self, diff_system) -> None:
         """Test detecting complete behavior replacement."""
         base = self.create_enhanced_layout_data(BASE_WITH_BEHAVIORS)
         modified = self.create_enhanced_layout_data(BEHAVIOR_CHANGES)
@@ -199,7 +199,7 @@ class TestBehaviorDiff:
         assert len(behavior_changes["combos"]["modified"]) == 0
         assert len(behavior_changes["macros"]["modified"]) == 0
 
-    def test_behavior_diff_statistics(self, diff_system):
+    def test_behavior_diff_statistics(self, diff_system) -> None:
         """Test that behavior changes are reflected in diff statistics."""
         base = self.create_enhanced_layout_data(BASE_WITH_BEHAVIORS)
         modified = self.create_enhanced_layout_data(MODIFIED_BEHAVIORS)
@@ -222,7 +222,7 @@ class TestBehaviorDiff:
         ]
         assert len(behavior_paths) > 0, "Should have behavior-related patch operations"
 
-    def test_behavior_name_tracking(self, diff_system):
+    def test_behavior_name_tracking(self, diff_system) -> None:
         """Test that behavior changes are tracked by name correctly."""
         base = self.create_enhanced_layout_data(BASE_WITH_BEHAVIORS)
         modified = self.create_enhanced_layout_data(MODIFIED_BEHAVIORS)
@@ -240,7 +240,7 @@ class TestBehaviorDiff:
         assert "ht_new" in behavior_changes["hold_taps"]["added"]
         assert "combo_new" in behavior_changes["combos"]["added"]
 
-    def test_behavior_patch_application(self, diff_system, patch_system):
+    def test_behavior_patch_application(self, diff_system, patch_system) -> None:
         """Test applying behavior-related patches."""
         base = self.create_enhanced_layout_data(BASE_WITH_BEHAVIORS)
         modified = self.create_enhanced_layout_data(MODIFIED_BEHAVIORS)
@@ -267,7 +267,7 @@ class TestBehaviorDiff:
         assert "combo_new" in combo_names
         assert "macro_hello" in macro_names
 
-    def test_behavior_round_trip(self, diff_system, patch_system):
+    def test_behavior_round_trip(self, diff_system, patch_system) -> None:
         """Test round-trip behavior diff and patch operations."""
         for test_name, test_layout in BEHAVIOR_TEST_CASES.items():
             if test_name == "base_with_behaviors":
@@ -289,7 +289,7 @@ class TestBehaviorDiff:
             assert len(patched.combos) == len(modified.combos)
             assert len(patched.macros) == len(modified.macros)
 
-    def test_scenario_execution(self, diff_system):
+    def test_scenario_execution(self, diff_system) -> None:
         """Execute behavior test scenarios and verify expected changes."""
         for scenario in BEHAVIOR_SCENARIOS:
             base_name = scenario["from"]

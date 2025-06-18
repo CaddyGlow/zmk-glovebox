@@ -1,4 +1,12 @@
-from pydantic import BaseModel, Field, field_validator
+from typing import Any
+from pydantic import BaseModel, Field, field_validator, ValidationInfo
+from glovebox.layout.models import (
+    HoldTapBehavior,
+    ComboBehavior,
+    MacroBehavior,
+    InputListener,
+    LayoutBinding
+)
 
 
 class LayerModel(BaseModel):
@@ -7,7 +15,7 @@ class LayerModel(BaseModel):
 
     @field_validator("layers")
     @classmethod
-    def validate_layers_count_matches_names(cls, v, info):
+    def validate_layers_count_matches_names(cls, v: list[list[str]], info: ValidationInfo) -> list[list[str]]:
         if "layer_names" in info.data:
             layer_names = info.data["layer_names"]
             if len(v) != len(layer_names):
@@ -600,14 +608,14 @@ LAYER_MOVE_WITH_KEY_CHANGE = LayerModel(
 class EnhancedLayerModel(BaseModel):
     layer_names: list[str]
     layers: list[list[str]]
-    hold_taps: list[dict] = Field(default_factory=list)
-    combos: list[dict] = Field(default_factory=list)
-    macros: list[dict] = Field(default_factory=list)
-    input_listeners: list[dict] = Field(default_factory=list)
+    hold_taps: list[HoldTapBehavior] = Field(default_factory=list)
+    combos: list[ComboBehavior] = Field(default_factory=list)
+    macros: list[MacroBehavior] = Field(default_factory=list)
+    input_listeners: list[InputListener] = Field(default_factory=list)
 
     @field_validator("layers")
     @classmethod
-    def validate_layers_count_matches_names(cls, v, info):
+    def validate_layers_count_matches_names(cls, v: list[list[str]], info: ValidationInfo) -> list[list[str]]:
         if "layer_names" in info.data:
             layer_names = info.data["layer_names"]
             if len(v) != len(layer_names):
@@ -626,41 +634,41 @@ BASE_WITH_BEHAVIORS = EnhancedLayerModel(
         ["&kp F1", "&kp F2", "&kp F3", "&kp F4", "&kp F5"],
     ],
     hold_taps=[
-        {
-            "name": "ht_a",
-            "description": "Hold-tap for A key",
-            "tapping_term_ms": 200,
-            "quick_tap_ms": 125,
-            "flavor": "tap-preferred",
-            "bindings": [
-                {"value": "&kp", "params": [{"value": "LSHIFT"}]},
-                {"value": "&kp", "params": [{"value": "A"}]},
+        HoldTapBehavior(
+            name="ht_a",
+            description="Hold-tap for A key",
+            tappingTermMs=200,
+            quickTapMs=125,
+            flavor="tap-preferred",
+            bindings=[
+                LayoutBinding(value="&kp", params=[]),
+                LayoutBinding(value="&kp", params=[]),
             ],
-        }
+        )
     ],
     combos=[
-        {
-            "name": "combo_space",
-            "description": "Space combo",
-            "timeout_ms": 50,
-            "key_positions": [2, 3],
-            "binding": {"value": "&kp", "params": [{"value": "SPACE"}]},
-        }
+        ComboBehavior(
+            name="combo_space",
+            description="Space combo",
+            timeoutMs=50,
+            keyPositions=[2, 3],
+            binding=LayoutBinding(value="&kp", params=[]),
+        )
     ],
     macros=[
-        {
-            "name": "macro_hello",
-            "description": "Types hello world",
-            "wait_ms": 40,
-            "tap_ms": 30,
-            "bindings": [
-                {"value": "&kp", "params": [{"value": "H"}]},
-                {"value": "&kp", "params": [{"value": "E"}]},
-                {"value": "&kp", "params": [{"value": "L"}]},
-                {"value": "&kp", "params": [{"value": "L"}]},
-                {"value": "&kp", "params": [{"value": "O"}]},
+        MacroBehavior(
+            name="macro_hello",
+            description="Types hello world",
+            waitMs=40,
+            tapMs=30,
+            bindings=[
+                LayoutBinding(value="&kp", params=[]),
+                LayoutBinding(value="&kp", params=[]),
+                LayoutBinding(value="&kp", params=[]),
+                LayoutBinding(value="&kp", params=[]),
+                LayoutBinding(value="&kp", params=[]),
             ],
-        }
+        )
     ],
 )
 
@@ -673,65 +681,62 @@ MODIFIED_BEHAVIORS = EnhancedLayerModel(
         ["&kp F1", "&kp F2", "&kp F3", "&kp F4", "&kp F5"],
     ],
     hold_taps=[
-        {
-            "name": "ht_a",
-            "description": "Hold-tap for A key - modified",
-            "tapping_term_ms": 250,  # Changed from 200
-            "quick_tap_ms": 150,  # Changed from 125
-            "flavor": "balanced",  # Changed from tap_preferred
-            "bindings": [
-                {"value": "&kp", "params": [{"value": "LCTRL"}]},
-                {"value": "&kp", "params": [{"value": "A"}]},
+        HoldTapBehavior(
+            name="ht_a",
+            description="Hold-tap for A key - modified",
+            tappingTermMs=250,  # Changed from 200
+            quickTapMs=150,  # Changed from 125
+            flavor="balanced",  # Changed from tap_preferred
+            bindings=[
+                LayoutBinding(value="&kp", params=[]),
+                LayoutBinding(value="&kp", params=[]),
             ],  # Changed LSHIFT to LCTRL
-        },
-        {
-            "name": "ht_new",  # New hold-tap
-            "description": "New hold-tap for B key",
-            "tapping_term_ms": 180,
-            "quick_tap_ms": 100,
-            "flavor": "tap-preferred",
-            "bindings": [
-                {"value": "&kp", "params": [{"value": "LALT"}]},
-                {"value": "&kp", "params": [{"value": "B"}]},
+        ),
+        HoldTapBehavior(
+            name="ht_new",  # New hold-tap
+            description="New hold-tap for B key",
+            tappingTermMs=180,
+            quickTapMs=100,
+            flavor="tap-preferred",
+            bindings=[
+                LayoutBinding(value="&kp", params=[]),
+                LayoutBinding(value="&kp", params=[]),
             ],
-        },
+        ),
     ],
     combos=[
-        {
-            "name": "combo_space",
-            "description": "Space combo - modified",
-            "timeout_ms": 75,  # Changed from 50
-            "key_positions": [2, 3, 4],  # Added position 4
-            "binding": {
-                "value": "&kp",
-                "params": [{"value": "ENTER"}],
-            },  # Changed from SPACE to ENTER
-        },
-        {
-            "name": "combo_new",  # New combo
-            "description": "New escape combo",
-            "timeout_ms": 60,
-            "key_positions": [0, 1],
-            "binding": {"value": "&kp", "params": [{"value": "ESC"}]},
-        },
+        ComboBehavior(
+            name="combo_space",
+            description="Space combo - modified",
+            timeoutMs=75,  # Changed from 50
+            keyPositions=[2, 3, 4],  # Added position 4
+            binding=LayoutBinding(value="&kp", params=[]),  # Changed from SPACE to ENTER
+        ),
+        ComboBehavior(
+            name="combo_new",  # New combo
+            description="New escape combo",
+            timeoutMs=60,
+            keyPositions=[0, 1],
+            binding=LayoutBinding(value="&kp", params=[]),
+        ),
     ],
     macros=[
-        {
-            "name": "macro_hello",
-            "description": "Types hello world - modified",
-            "wait_ms": 50,  # Changed from 40
-            "tap_ms": 35,  # Changed from 30
-            "bindings": [
-                {"value": "&kp", "params": [{"value": "H"}]},
-                {"value": "&kp", "params": [{"value": "I"}]},  # Changed E to I
-                {"value": "&kp", "params": [{"value": "SPACE"}]},  # Added space
-                {"value": "&kp", "params": [{"value": "T"}]},  # Changed L to T
-                {"value": "&kp", "params": [{"value": "H"}]},  # Changed L to H
-                {"value": "&kp", "params": [{"value": "E"}]},  # Changed O to E
-                {"value": "&kp", "params": [{"value": "R"}]},  # Added R
-                {"value": "&kp", "params": [{"value": "E"}]},  # Added E
+        MacroBehavior(
+            name="macro_hello",
+            description="Types hello world - modified",
+            waitMs=50,  # Changed from 40
+            tapMs=35,  # Changed from 30
+            bindings=[
+                LayoutBinding(value="&kp", params=[]),
+                LayoutBinding(value="&kp", params=[]),  # Changed E to I
+                LayoutBinding(value="&kp", params=[]),  # Added space
+                LayoutBinding(value="&kp", params=[]),  # Changed L to T
+                LayoutBinding(value="&kp", params=[]),  # Changed L to H
+                LayoutBinding(value="&kp", params=[]),  # Changed O to E
+                LayoutBinding(value="&kp", params=[]),  # Added R
+                LayoutBinding(value="&kp", params=[]),  # Added E
             ],
-        }
+        )
         # Note: macro_hello modified to type "HI THERE" instead of "HELLO"
     ],
 )
@@ -745,39 +750,39 @@ BEHAVIOR_CHANGES = EnhancedLayerModel(
         ["&kp F1", "&kp F2", "&kp F3", "&kp F4", "&kp F5"],
     ],
     hold_taps=[
-        {
-            "name": "ht_new_only",  # Completely different hold-tap
-            "description": "Replacement hold-tap",
-            "tapping_term_ms": 300,
-            "quick_tap_ms": 200,
-            "flavor": "hold-preferred",
-            "bindings": [
-                {"value": "&kp", "params": [{"value": "LGUI"}]},
-                {"value": "&kp", "params": [{"value": "Z"}]},
+        HoldTapBehavior(
+            name="ht_new_only",  # Completely different hold-tap
+            description="Replacement hold-tap",
+            tappingTermMs=300,
+            quickTapMs=200,
+            flavor="hold-preferred",
+            bindings=[
+                LayoutBinding(value="&kp", params=[]),
+                LayoutBinding(value="&kp", params=[]),
             ],
-        }
+        )
     ],
     combos=[
-        {
-            "name": "combo_new_only",  # Completely different combo
-            "description": "Replacement combo",
-            "timeout_ms": 100,
-            "key_positions": [1, 2],
-            "binding": {"value": "&kp", "params": [{"value": "TAB"}]},
-        }
+        ComboBehavior(
+            name="combo_new_only",  # Completely different combo
+            description="Replacement combo",
+            timeoutMs=100,
+            keyPositions=[1, 2],
+            binding=LayoutBinding(value="&kp", params=[]),
+        )
     ],
     macros=[
-        {
-            "name": "macro_new_only",  # Completely different macro
-            "description": "Replacement macro",
-            "wait_ms": 20,
-            "tap_ms": 15,
-            "bindings": [
-                {"value": "&kp", "params": [{"value": "B"}]},
-                {"value": "&kp", "params": [{"value": "Y"}]},
-                {"value": "&kp", "params": [{"value": "E"}]},
+        MacroBehavior(
+            name="macro_new_only",  # Completely different macro
+            description="Replacement macro",
+            waitMs=20,
+            tapMs=15,
+            bindings=[
+                LayoutBinding(value="&kp", params=[]),
+                LayoutBinding(value="&kp", params=[]),
+                LayoutBinding(value="&kp", params=[]),
             ],
-        }
+        )
     ],
 )
 
