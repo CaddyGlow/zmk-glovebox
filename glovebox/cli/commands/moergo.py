@@ -72,17 +72,42 @@ def login(
         keyring_available = info.get("keyring_available", False)
 
         from glovebox.cli.helpers.theme import Icons
+
         # Note: This function doesn't have ctx parameter, so we'll use default emoji mode
         use_emoji = True  # Default behavior for this command
 
         if keyring_available:
             storage_method = "OS keyring"
-            typer.echo(Icons.format_with_icon("SUCCESS", f"Successfully logged in and stored credentials using {storage_method}", use_emoji))
-            typer.echo(Icons.format_with_icon("INFO", "Your credentials are securely stored in your system keyring", use_emoji))
+            typer.echo(
+                Icons.format_with_icon(
+                    "SUCCESS",
+                    f"Successfully logged in and stored credentials using {storage_method}",
+                    use_emoji,
+                )
+            )
+            typer.echo(
+                Icons.format_with_icon(
+                    "INFO",
+                    "Your credentials are securely stored in your system keyring",
+                    use_emoji,
+                )
+            )
         else:
             storage_method = "file with basic obfuscation"
-            typer.echo(Icons.format_with_icon("SUCCESS", f"Successfully logged in and stored credentials using {storage_method}", use_emoji))
-            typer.echo(Icons.format_with_icon("WARNING", "For better security, consider installing the keyring package:", use_emoji))
+            typer.echo(
+                Icons.format_with_icon(
+                    "SUCCESS",
+                    f"Successfully logged in and stored credentials using {storage_method}",
+                    use_emoji,
+                )
+            )
+            typer.echo(
+                Icons.format_with_icon(
+                    "WARNING",
+                    "For better security, consider installing the keyring package:",
+                    use_emoji,
+                )
+            )
             typer.echo("   pip install keyring")
             typer.echo("   Then login again to use secure keyring storage")
 
@@ -101,11 +126,18 @@ def logout() -> None:
         client = create_moergo_client()
         client.logout()
         from glovebox.cli.helpers.theme import Icons
+
         use_emoji = True  # Default behavior for this command
-        typer.echo(Icons.format_with_icon("SUCCESS", "Successfully logged out and cleared credentials", use_emoji))
+        typer.echo(
+            Icons.format_with_icon(
+                "SUCCESS", "Successfully logged out and cleared credentials", use_emoji
+            )
+        )
 
     except Exception as e:
-        typer.echo(Icons.format_with_icon("ERROR", f"Error during logout: {e}", use_emoji))
+        typer.echo(
+            Icons.format_with_icon("ERROR", f"Error during logout: {e}", use_emoji)
+        )
         raise typer.Exit(1) from None
 
 
@@ -129,8 +161,15 @@ def download_layout(
         # Check if authenticated with server validation
         if not client.validate_authentication():
             from glovebox.cli.helpers.theme import Icons
+
             use_emoji = True  # Default behavior for this command
-            typer.echo(Icons.format_with_icon("ERROR", "Authentication failed. Please run 'glovebox moergo login' first.", use_emoji))
+            typer.echo(
+                Icons.format_with_icon(
+                    "ERROR",
+                    "Authentication failed. Please run 'glovebox moergo login' first.",
+                    use_emoji,
+                )
+            )
             raise typer.Exit(1)
 
         typer.echo(f"Downloading layout {layout_id}...")
@@ -144,7 +183,13 @@ def download_layout(
 
         # Check if file exists
         if output.exists() and not force:
-            typer.echo(Icons.format_with_icon("ERROR", f"File {output} already exists. Use --force to overwrite.", use_emoji))
+            typer.echo(
+                Icons.format_with_icon(
+                    "ERROR",
+                    f"File {output} already exists. Use --force to overwrite.",
+                    use_emoji,
+                )
+            )
             raise typer.Exit(1)
 
         # Convert to layout data and save
@@ -164,7 +209,13 @@ def download_layout(
         with output.open("w") as f:
             json.dump(layout_data, f, indent=2)
 
-        typer.echo(Icons.format_with_icon("SUCCESS", f"Layout '{layout.layout_meta.title}' saved to {output}", use_emoji))
+        typer.echo(
+            Icons.format_with_icon(
+                "SUCCESS",
+                f"Layout '{layout.layout_meta.title}' saved to {output}",
+                use_emoji,
+            )
+        )
         typer.echo(f"   Creator: {layout.layout_meta.creator}")
         typer.echo(f"   Created: {layout.layout_meta.created_datetime}")
 
@@ -175,14 +226,18 @@ def download_layout(
             typer.echo(f"   Tags: {', '.join(layout.layout_meta.tags)}")
 
     except AuthenticationError as e:
-        typer.echo(Icons.format_with_icon("ERROR", f"Authentication error: {e}", use_emoji))
+        typer.echo(
+            Icons.format_with_icon("ERROR", f"Authentication error: {e}", use_emoji)
+        )
         typer.echo("Try running 'glovebox moergo login' first.")
         raise typer.Exit(1) from None
     except NetworkError as e:
         typer.echo(Icons.format_with_icon("ERROR", f"Network error: {e}", use_emoji))
         raise typer.Exit(1) from None
     except Exception as e:
-        typer.echo(Icons.format_with_icon("ERROR", f"Error downloading layout: {e}", use_emoji))
+        typer.echo(
+            Icons.format_with_icon("ERROR", f"Error downloading layout: {e}", use_emoji)
+        )
         if logger.isEnabledFor(logging.DEBUG):
             logger.exception("Full error details")
         raise typer.Exit(1) from None
@@ -284,6 +339,7 @@ def keystore_info() -> None:
         info = client.get_credential_info()
 
         from glovebox.cli.helpers.theme import Icons
+
         use_emoji = True  # Default behavior for this command
         typer.echo(f"{Icons.get_icon('KEYSTORE', use_emoji)} Keystore Information")
         typer.echo("=" * 40)
@@ -295,21 +351,33 @@ def keystore_info() -> None:
         # Keyring availability
         keyring_available = info.get("keyring_available", False)
         if keyring_available:
-            typer.echo(Icons.format_with_icon("SUCCESS", "OS Keyring: Available", use_emoji))
+            typer.echo(
+                Icons.format_with_icon("SUCCESS", "OS Keyring: Available", use_emoji)
+            )
             backend = info.get("keyring_backend", "Unknown")
             typer.echo(f"   Backend: {backend}")
 
             # Platform-specific keyring info
             platform_name = info.get("platform", "")
             if platform_name == "Darwin":
-                typer.echo(f"   {Icons.get_icon('INFO', use_emoji)} Using macOS Keychain")
+                typer.echo(
+                    f"   {Icons.get_icon('INFO', use_emoji)} Using macOS Keychain"
+                )
             elif platform_name == "Windows":
-                typer.echo(f"   {Icons.get_icon('INFO', use_emoji)} Using Windows Credential Manager")
+                typer.echo(
+                    f"   {Icons.get_icon('INFO', use_emoji)} Using Windows Credential Manager"
+                )
             elif platform_name == "Linux":
-                typer.echo(f"   {Icons.get_icon('INFO', use_emoji)} Using Linux keyring (secretstorage/keyctl)")
+                typer.echo(
+                    f"   {Icons.get_icon('INFO', use_emoji)} Using Linux keyring (secretstorage/keyctl)"
+                )
         else:
-            typer.echo(Icons.format_with_icon("ERROR", "OS Keyring: Not available", use_emoji))
-            typer.echo(f"   {Icons.get_icon('INFO', use_emoji)} Install keyring package for better security:")
+            typer.echo(
+                Icons.format_with_icon("ERROR", "OS Keyring: Not available", use_emoji)
+            )
+            typer.echo(
+                f"   {Icons.get_icon('INFO', use_emoji)} Install keyring package for better security:"
+            )
             typer.echo("   pip install keyring")
 
         # Current storage method
@@ -318,27 +386,49 @@ def keystore_info() -> None:
             storage_method = (
                 "OS keyring" if keyring_available else "file with obfuscation"
             )
-            typer.echo(f"\n{Icons.get_icon('CONFIG', use_emoji)} Current storage method: {storage_method}")
+            typer.echo(
+                f"\n{Icons.get_icon('CONFIG', use_emoji)} Current storage method: {storage_method}"
+            )
 
             if not keyring_available:
-                typer.echo(f"   {Icons.format_with_icon('WARNING', 'File storage provides basic obfuscation only', use_emoji)}")
-                typer.echo(f"   {Icons.get_icon('INFO', use_emoji)} For better security, install keyring package")
+                typer.echo(
+                    f"   {Icons.format_with_icon('WARNING', 'File storage provides basic obfuscation only', use_emoji)}"
+                )
+                typer.echo(
+                    f"   {Icons.get_icon('INFO', use_emoji)} For better security, install keyring package"
+                )
         else:
-            typer.echo(f"\n{Icons.get_icon('INFO', use_emoji)} No credentials currently stored")
+            typer.echo(
+                f"\n{Icons.get_icon('INFO', use_emoji)} No credentials currently stored"
+            )
 
         # Security recommendations
         typer.echo(f"\n{Icons.get_icon('INFO', use_emoji)} Security Recommendations:")
         if keyring_available:
-            typer.echo(f"   {Icons.format_with_icon('SUCCESS', 'Your credentials are stored securely in OS keyring', use_emoji)}")
+            typer.echo(
+                f"   {Icons.format_with_icon('SUCCESS', 'Your credentials are stored securely in OS keyring', use_emoji)}"
+            )
         else:
-            typer.echo(f"   {Icons.get_icon('BULLET', use_emoji)} Install 'keyring' package for secure credential storage")
-            typer.echo(f"   {Icons.get_icon('BULLET', use_emoji)} File storage uses basic obfuscation (not encryption)")
+            typer.echo(
+                f"   {Icons.get_icon('BULLET', use_emoji)} Install 'keyring' package for secure credential storage"
+            )
+            typer.echo(
+                f"   {Icons.get_icon('BULLET', use_emoji)} File storage uses basic obfuscation (not encryption)"
+            )
 
-        typer.echo(f"   {Icons.get_icon('BULLET', use_emoji)} Use 'glovebox moergo logout' to clear stored credentials")
-        typer.echo(f"   {Icons.get_icon('BULLET', use_emoji)} Credentials are stored per-user with restricted permissions")
+        typer.echo(
+            f"   {Icons.get_icon('BULLET', use_emoji)} Use 'glovebox moergo logout' to clear stored credentials"
+        )
+        typer.echo(
+            f"   {Icons.get_icon('BULLET', use_emoji)} Credentials are stored per-user with restricted permissions"
+        )
 
     except Exception as e:
-        typer.echo(Icons.format_with_icon("ERROR", f"Error getting keystore info: {e}", use_emoji))
+        typer.echo(
+            Icons.format_with_icon(
+                "ERROR", f"Error getting keystore info: {e}", use_emoji
+            )
+        )
         raise typer.Exit(1) from None
 
 

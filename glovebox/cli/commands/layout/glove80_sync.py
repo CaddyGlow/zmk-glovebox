@@ -268,6 +268,7 @@ def delete(
 
 @glove80_group.command()
 def list_layouts(
+    ctx: typer.Context,
     detailed: Annotated[
         bool,
         typer.Option("--detailed", "-d", help="Show detailed info for recent layouts"),
@@ -278,12 +279,21 @@ def list_layouts(
     ] = 5,
 ) -> None:
     """List all user's layouts from Glove80 cloud service."""
+    from glovebox.cli.app import AppContext
+    from glovebox.cli.helpers.theme import Icons
+
+    app_ctx: AppContext = ctx.obj
+    use_emoji = app_ctx.use_emoji
 
     client = create_moergo_client()
 
     if not client.validate_authentication():
         typer.echo(
-            "❌ Authentication failed. Please run 'glovebox moergo login' first."
+            Icons.format_with_icon(
+                "ERROR",
+                "Authentication failed. Please run 'glovebox moergo login' first.",
+                use_emoji,
+            )
         )
         raise typer.Exit(1) from None
 
@@ -291,7 +301,9 @@ def list_layouts(
         layouts = client.list_user_layouts()
 
         if not layouts:
-            typer.echo("📭 No layouts found.")
+            typer.echo(
+                Icons.format_with_icon("MAILBOX", "No layouts found.", use_emoji)
+            )
             return
 
         # Group by status for better display
@@ -300,27 +312,43 @@ def list_layouts(
             layout for layout in layouts if layout["status"] == "compiled"
         ]
 
-        typer.echo(f"📄 Found {len(layouts)} layouts:")
+        typer.echo(
+            Icons.format_with_icon(
+                "DOCUMENT", f"Found {len(layouts)} layouts:", use_emoji
+            )
+        )
         typer.echo()
 
         if compiled_layouts:
-            typer.echo(f"✅ Compiled layouts ({len(compiled_layouts)}):")
+            typer.echo(
+                Icons.format_with_icon(
+                    "SUCCESS", f"Compiled layouts ({len(compiled_layouts)}):", use_emoji
+                )
+            )
             for layout in compiled_layouts[:10]:  # Show first 10
-                typer.echo(f"   🔗 {layout['uuid']}")
+                typer.echo(f"   {Icons.get_icon('LINK', use_emoji)} {layout['uuid']}")
             if len(compiled_layouts) > 10:
                 typer.echo(f"   ... and {len(compiled_layouts) - 10} more")
             typer.echo()
 
         if draft_layouts:
-            typer.echo(f"📝 Draft layouts ({len(draft_layouts)}):")
+            typer.echo(
+                Icons.format_with_icon(
+                    "DOCUMENT", f"Draft layouts ({len(draft_layouts)}):", use_emoji
+                )
+            )
             for layout in draft_layouts[:10]:  # Show first 10
-                typer.echo(f"   🔗 {layout['uuid']}")
+                typer.echo(f"   {Icons.get_icon('LINK', use_emoji)} {layout['uuid']}")
             if len(draft_layouts) > 10:
                 typer.echo(f"   ... and {len(draft_layouts) - 10} more")
             typer.echo()
 
         typer.echo(
-            "💡 Use 'glovebox layout glove80 info <uuid>' to get details about a specific layout"
+            Icons.format_with_icon(
+                "INFO",
+                "Use 'glovebox layout glove80 info <uuid>' to get details about a specific layout",
+                use_emoji,
+            )
         )
 
         # Show detailed info for recent layouts if requested
@@ -692,6 +720,7 @@ def batch_delete(
 
 @glove80_group.command()
 def browse(
+    ctx: typer.Context,
     limit: Annotated[
         int, typer.Option("--limit", "-l", help="Limit number of layouts to show")
     ] = 20,
@@ -707,41 +736,74 @@ def browse(
     ] = False,
 ) -> None:
     """Browse public layouts from Glove80 community."""
+    from glovebox.cli.app import AppContext
+    from glovebox.cli.helpers.theme import Icons
+
+    app_ctx: AppContext = ctx.obj
+    use_emoji = app_ctx.use_emoji
 
     client = create_moergo_client()
 
     if not client.validate_authentication():
         typer.echo(
-            "❌ Authentication failed. Please run 'glovebox moergo login' first."
+            Icons.format_with_icon(
+                "ERROR",
+                "Authentication failed. Please run 'glovebox moergo login' first.",
+                use_emoji,
+            )
         )
         raise typer.Exit(1) from None
 
     try:
         if tags:
-            typer.echo(f"🌐 Fetching public layouts with tags: {', '.join(tags)}")
+            typer.echo(
+                Icons.format_with_icon(
+                    "GLOBE",
+                    f"Fetching public layouts with tags: {', '.join(tags)}",
+                    use_emoji,
+                )
+            )
         else:
-            typer.echo("🌐 Fetching public layouts from Glove80 community...")
+            typer.echo(
+                Icons.format_with_icon(
+                    "GLOBE",
+                    "Fetching public layouts from Glove80 community...",
+                    use_emoji,
+                )
+            )
 
         # Show cache status
         if not no_cache:
-            typer.echo("💾 Using cached data when available...")
+            typer.echo(
+                Icons.format_with_icon(
+                    "SAVE", "Using cached data when available...", use_emoji
+                )
+            )
 
         public_uuids = client.list_public_layouts(tags=tags, use_cache=not no_cache)
 
         if tags:
             typer.echo(
-                f"📄 Found {len(public_uuids)} public layouts with tags '{', '.join(tags)}' (showing {min(limit, len(public_uuids))}):"
+                Icons.format_with_icon(
+                    "DOCUMENT",
+                    f"Found {len(public_uuids)} public layouts with tags '{', '.join(tags)}' (showing {min(limit, len(public_uuids))}):",
+                    use_emoji,
+                )
             )
         else:
             typer.echo(
-                f"📄 Found {len(public_uuids)} public layouts (showing {min(limit, len(public_uuids))}):"
+                Icons.format_with_icon(
+                    "DOCUMENT",
+                    f"Found {len(public_uuids)} public layouts (showing {min(limit, len(public_uuids))}):",
+                    use_emoji,
+                )
             )
         typer.echo()
 
         # Show basic list first
         if not detailed:
             for i, uuid in enumerate(public_uuids[:limit]):
-                typer.echo(f"   {i + 1:3d}. 🔗 {uuid}")
+                typer.echo(f"   {i + 1:3d}. {Icons.get_icon('LINK', use_emoji)} {uuid}")
         else:
             # Show detailed info for each layout
             for i, uuid in enumerate(public_uuids[:limit]):
@@ -749,27 +811,35 @@ def browse(
                     meta_response = client.get_layout_meta(uuid, use_cache=not no_cache)
                     layout_meta = meta_response["layout_meta"]
 
-                    status_icon = "✅" if layout_meta["compiled"] else "📝"
+                    status_icon = (
+                        Icons.get_icon("SUCCESS", use_emoji)
+                        if layout_meta["compiled"]
+                        else Icons.get_icon("DOCUMENT", use_emoji)
+                    )
                     typer.echo(f"{i + 1:3d}. {status_icon} {layout_meta['title']}")
-                    typer.echo(f"     🔗 UUID: {uuid}")
-                    typer.echo(f"     👤 Creator: {layout_meta['creator']}")
+                    typer.echo(f"     {Icons.get_icon('LINK', use_emoji)} UUID: {uuid}")
                     typer.echo(
-                        f"     📅 Modified: {datetime.fromtimestamp(layout_meta['date'])}"
+                        f"     {Icons.get_icon('USER', use_emoji)} Creator: {layout_meta['creator']}"
+                    )
+                    typer.echo(
+                        f"     {Icons.get_icon('CALENDAR', use_emoji)} Modified: {datetime.fromtimestamp(layout_meta['date'])}"
                     )
                     if layout_meta["tags"]:
                         typer.echo(
-                            f"     🏷️  Tags: {', '.join(layout_meta['tags'][:3])}{'...' if len(layout_meta['tags']) > 3 else ''}"
+                            f"     {Icons.get_icon('TAG', use_emoji)} Tags: {', '.join(layout_meta['tags'][:3])}{'...' if len(layout_meta['tags']) > 3 else ''}"
                         )
                     if layout_meta.get("notes"):
                         # Show first line of notes
                         first_line = layout_meta["notes"].split("\n")[0]
                         if len(first_line) > 60:
                             first_line = first_line[:57] + "..."
-                        typer.echo(f"     📝 Notes: {first_line}")
+                        typer.echo(
+                            f"     {Icons.get_icon('DOCUMENT', use_emoji)} Notes: {first_line}"
+                        )
                     typer.echo()
                 except Exception:
                     typer.echo(
-                        f"{i + 1:3d}. ❓ Layout {uuid} (unable to fetch details)"
+                        f"{i + 1:3d}. {Icons.get_icon('QUESTION', use_emoji)} Layout {uuid} (unable to fetch details)"
                     )
                     typer.echo()
 

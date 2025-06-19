@@ -1,5 +1,6 @@
 """OS-specific implementations for flash operations."""
 
+import json
 import logging
 import os
 import platform
@@ -26,6 +27,66 @@ from glovebox.firmware.flash.models import BlockDevice
 
 
 logger = logging.getLogger(__name__)
+
+
+def is_wsl2() -> bool:
+    """Detect if running in WSL2 environment."""
+    try:
+        with Path("/proc/version").open() as f:
+            version = f.read().lower()
+        return "microsoft" in version
+    except (OSError, FileNotFoundError):
+        return False
+
+
+def windows_to_wsl_path(windows_path: str) -> str:
+    """Convert Windows path to WSL path using wslpath.
+
+    Args:
+        windows_path: Windows path (e.g., 'E:\\')
+
+    Returns:
+        WSL path (e.g., '/mnt/e/')
+
+    Raises:
+        OSError: If wslpath command fails
+    """
+    try:
+        result = subprocess.run(
+            ["wslpath", "-u", windows_path],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
+        )
+        return result.stdout.strip()
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        raise OSError(f"Failed to convert Windows path {windows_path}: {e}") from e
+
+
+def wsl_to_windows_path(wsl_path: str) -> str:
+    """Convert WSL path to Windows path using wslpath.
+
+    Args:
+        wsl_path: WSL path (e.g., '/mnt/e/')
+
+    Returns:
+        Windows path (e.g., 'E:\\')
+
+    Raises:
+        OSError: If wslpath command fails
+    """
+    try:
+        result = subprocess.run(
+            ["wslpath", "-w", wsl_path],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
+        )
+        return result.stdout.strip()
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        raise OSError(f"Failed to convert WSL path {wsl_path}: {e}") from e
 
 
 class LinuxFlashOS:
@@ -336,6 +397,330 @@ class MacOSFlashOS:
             return False
 
 
+class WSL2FlashOS:
+    """WSL2-specific flash operations using Windows commands via interop."""
+
+    def __init__(self) -> None:
+        """Initialize WSL2 flash OS adapter."""
+        if not self._validate_wsl_interop():
+            raise OSError("Windows interop not available in WSL2 environment")
+
+    def _validate_wsl_interop(self) -> bool:
+        """Verify Windows interop is available in WSL2."""
+        try:
+            result = subprocess.run(
+                ["powershell.exe", "-Command", "echo 'test'"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=True,
+            )
+            return result.returncode == 0
+        except (
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+            FileNotFoundError,
+        ):
+            return False
+
+    def get_device_path(self, device_name: str) -> str:
+        """Get the device path for WSL2.
+
+        If device_name is a Windows drive letter, convert to WSL2 path.
+        Otherwise, return as-is.
+        """
+        # If device_name is a Windows drive letter, convert to WSL2 path
+        if len(device_name) == 2 and device_name[1] == ":":
+            try:
+                return windows_to_wsl_path(device_name + "\\")
+            except OSError as e:
+                logger.warning(f"Could not convert device path {device_name}: {e}")
+                return device_name
+
+        return device_name
+
+    def mount_device(self, device: BlockDevice) -> list[str]:
+        """Mount device in WSL2 using PowerShell to detect Windows drives."""
+        mount_points: list[str] = []
+
+        try:
+            # Use PowerShell to get removable drives with JSON output
+            ps_command = (
+                "Get-WmiObject -Class Win32_LogicalDisk | "
+                "Where-Object {$_.DriveType -eq 2} | "
+                "Select-Object Caption, VolumeName, Size, FreeSpace | "
+                "ConvertTo-Json"
+            )
+
+            result = subprocess.run(
+                ["powershell.exe", "-Command", ps_command],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=True,
+            )
+
+            if not result.stdout.strip():
+                logger.warning("No removable drives found")
+                return mount_points
+
+            # Parse JSON response
+            try:
+                drives_data = json.loads(result.stdout)
+                # Handle single drive case (PowerShell returns object, not array)
+                if isinstance(drives_data, dict):
+                    drives_data = [drives_data]
+
+                for drive in drives_data:
+                    drive_letter = drive["Caption"]
+
+                    if self._is_matching_device(device, drive):
+                        # Check if drive is accessible
+                        if self._is_drive_accessible_ps(drive_letter):
+                            # Convert Windows path to WSL2 path
+                            try:
+                                wsl_path = windows_to_wsl_path(drive_letter + "\\")
+                                mount_points.append(wsl_path)
+                                logger.debug(
+                                    f"Found accessible WSL2 drive: {wsl_path} ({drive_letter})"
+                                )
+                            except OSError as e:
+                                logger.warning(
+                                    f"Could not convert path for {drive_letter}: {e}"
+                                )
+                        else:
+                            logger.warning(f"Drive {drive_letter} is not accessible")
+
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse PowerShell JSON output: {e}")
+                raise OSError(f"Failed to parse drive information: {e}") from e
+
+            if not mount_points:
+                # Try waiting a moment for drive to be ready
+                time.sleep(2)
+                logger.debug("Retrying drive detection after wait...")
+
+                # Try again with same command
+                result = subprocess.run(
+                    ["powershell.exe", "-Command", ps_command],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    check=True,
+                )
+
+                if result.stdout.strip():
+                    drives_data = json.loads(result.stdout)
+                    if isinstance(drives_data, dict):
+                        drives_data = [drives_data]
+
+                    for drive in drives_data:
+                        drive_letter = drive["Caption"]
+                        if self._is_matching_device(
+                            device, drive
+                        ) and self._is_drive_accessible_ps(drive_letter):
+                            try:
+                                wsl_path = windows_to_wsl_path(drive_letter + "\\")
+                                mount_points.append(wsl_path)
+                                logger.debug(
+                                    f"Found accessible WSL2 drive after wait: {wsl_path}"
+                                )
+                            except OSError:
+                                continue
+
+            if not mount_points:
+                logger.warning(
+                    f"No accessible mount points found for device {device.name}"
+                )
+
+        except subprocess.CalledProcessError as e:
+            raise OSError(f"Failed to detect drives via PowerShell: {e}") from e
+        except subprocess.TimeoutExpired as e:
+            raise OSError(f"PowerShell command timed out: {e}") from e
+
+        return mount_points
+
+    def _is_matching_device(
+        self, device: BlockDevice, drive_data: dict[str, str]
+    ) -> bool:
+        """Check if a PowerShell drive object matches our BlockDevice."""
+        # Match by volume name if available
+        if device.label and drive_data.get("VolumeName"):
+            return device.label == drive_data["VolumeName"]
+
+        # For now, assume any removable drive could be our target
+        return True
+
+    def _is_drive_accessible_ps(self, drive_letter: str) -> bool:
+        """Check if a drive letter is accessible using PowerShell."""
+        try:
+            ps_command = f"Test-Path '{drive_letter}\\'"
+            result = subprocess.run(
+                ["powershell.exe", "-Command", ps_command],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=True,
+            )
+            return result.stdout.strip().lower() == "true"
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            return False
+
+    def unmount_device(self, device: BlockDevice) -> bool:
+        """Unmount device in WSL2 using PowerShell."""
+        try:
+            # Get removable drives to find matching ones
+            ps_command = (
+                "Get-WmiObject -Class Win32_LogicalDisk | "
+                "Where-Object {$_.DriveType -eq 2} | "
+                "Select-Object Caption, VolumeName | "
+                "ConvertTo-Json"
+            )
+
+            result = subprocess.run(
+                ["powershell.exe", "-Command", ps_command],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=True,
+            )
+
+            if not result.stdout.strip():
+                return True  # No drives to unmount
+
+            drives_data = json.loads(result.stdout)
+            if isinstance(drives_data, dict):
+                drives_data = [drives_data]
+
+            success = True
+            for drive in drives_data:
+                if self._is_matching_device(device, drive):
+                    drive_letter = drive["Caption"]
+
+                    # Use PowerShell to dismount the volume
+                    dismount_command = (
+                        f"$volume = Get-WmiObject -Class Win32_Volume | "
+                        f"Where-Object {{$_.DriveLetter -eq '{drive_letter}'}}; "
+                        f"if ($volume) {{ $volume.Dismount($false, $false) }}"
+                    )
+
+                    try:
+                        subprocess.run(
+                            ["powershell.exe", "-Command", dismount_command],
+                            capture_output=True,
+                            text=True,
+                            timeout=5,
+                            check=True,
+                        )
+                        logger.debug(f"Successfully dismounted {drive_letter}")
+                    except (
+                        subprocess.CalledProcessError,
+                        subprocess.TimeoutExpired,
+                    ) as e:
+                        logger.warning(f"Error dismounting {drive_letter}: {e}")
+                        success = False
+
+            return success
+
+        except (
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+            json.JSONDecodeError,
+        ) as e:
+            logger.warning(f"Error during unmount: {e}")
+            return False
+
+    def copy_firmware_file(self, firmware_file: Path, mount_point: str) -> bool:
+        """Copy firmware file to mounted device in WSL2."""
+        try:
+            # Convert WSL paths to Windows paths for PowerShell copy operation
+            windows_mount = wsl_to_windows_path(mount_point)
+            windows_firmware = wsl_to_windows_path(str(firmware_file))
+
+            # Ensure Windows mount point ends with backslash
+            if not windows_mount.endswith("\\"):
+                windows_mount += "\\"
+
+            dest_path_windows = windows_mount + firmware_file.name
+            dest_path_wsl = windows_to_wsl_path(dest_path_windows)
+
+            logger.info(
+                f"Copying {firmware_file} to {dest_path_wsl} (via {dest_path_windows})"
+            )
+
+            # Use PowerShell Copy-Item for reliable copying
+            ps_command = (
+                f"Copy-Item -Path '{windows_firmware}' -Destination '{windows_mount}'"
+            )
+
+            result = subprocess.run(
+                ["powershell.exe", "-Command", ps_command],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=True,
+            )
+
+            # Verify the file was copied successfully
+            dest_path = Path(dest_path_wsl)
+            if (
+                dest_path.exists()
+                and dest_path.stat().st_size == firmware_file.stat().st_size
+            ):
+                logger.debug(f"File copied successfully to {dest_path}")
+                return True
+            else:
+                logger.error(f"File copy verification failed for {dest_path}")
+                return False
+
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            logger.error(f"Failed to copy firmware file: {e}")
+            return False
+
+    def sync_filesystem(self, mount_point: str) -> bool:
+        """Sync filesystem in WSL2 using Windows flush commands."""
+        try:
+            # Convert WSL path to Windows path
+            windows_mount = wsl_to_windows_path(mount_point)
+            drive_letter = windows_mount.rstrip("\\")
+
+            # Use PowerShell to flush file system buffers
+            ps_command = (
+                f"$handle = [System.IO.File]::Open('{drive_letter}', "
+                f"[System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, "
+                f"[System.IO.FileShare]::ReadWrite); "
+                f"$handle.Flush(); $handle.Close()"
+            )
+
+            result = subprocess.run(
+                ["powershell.exe", "-Command", ps_command],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            if result.returncode == 0:
+                logger.debug(f"Successfully synced filesystem for {mount_point}")
+                return True
+            else:
+                logger.warning(f"Filesystem sync returned code {result.returncode}")
+                return False
+
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            logger.warning(f"Error during filesystem sync: {e}")
+            # Try alternative approach
+            try:
+                subprocess.run(["sync"], check=True, timeout=5)
+                logger.debug("Used Linux sync command as fallback")
+                return True
+            except (
+                subprocess.CalledProcessError,
+                subprocess.TimeoutExpired,
+                FileNotFoundError,
+            ):
+                return False
+
+
 class WindowsFlashOS:
     """Windows-specific flash operations using WMI."""
 
@@ -581,8 +966,18 @@ def create_flash_os_adapter() -> "FlashOSProtocol":
     system = platform.system()
 
     if system == "Linux":
-        logger.debug("Creating Linux flash OS adapter")
-        return LinuxFlashOS()
+        # Check if running in WSL2
+        if is_wsl2():
+            logger.debug("Creating WSL2 flash OS adapter")
+            try:
+                return WSL2FlashOS()
+            except OSError as e:
+                logger.error(f"Failed to create WSL2 flash adapter: {e}")
+                logger.warning("Falling back to Linux adapter")
+                return LinuxFlashOS()
+        else:
+            logger.debug("Creating Linux flash OS adapter")
+            return LinuxFlashOS()
     elif system == "Darwin":
         logger.debug("Creating macOS flash OS adapter")
         return MacOSFlashOS()
