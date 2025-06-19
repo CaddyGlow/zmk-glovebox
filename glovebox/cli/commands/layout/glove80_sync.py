@@ -7,7 +7,9 @@ from typing import Annotated, Optional
 
 import typer
 
+from glovebox.layout.models.bookmarks import BookmarkSource
 from glovebox.layout.utils.json_operations import load_layout_file
+from glovebox.moergo.bookmark_service import create_bookmark_service
 from glovebox.moergo.client import create_moergo_client
 from glovebox.moergo.versioning import create_layout_versioning
 
@@ -711,7 +713,7 @@ def batch_delete(
             for uuid in failed:
                 title = layout_infos.get(uuid, {}).get("title", "Unknown")
                 typer.echo(f"   ❌ {title} ({uuid})")
-            raise typer.Exit(1) from None
+            raise typer.Exit(1)
 
     except Exception as e:
         typer.echo(f"❌ Error deleting layouts: {e}")
@@ -906,3 +908,808 @@ def cache_clear(
     except Exception as e:
         typer.echo(f"❌ Error clearing cache: {e}")
         raise typer.Exit(1) from None
+
+
+# Create a typer app for bookmark commands
+bookmark_group = typer.Typer(
+    name="bookmark",
+    help="Manage layout bookmarks for easy access",
+    no_args_is_help=True,
+)
+
+
+def complete_bookmark_name(incomplete: str) -> list[str]:
+    """Tab completion for bookmark names."""
+    try:
+        bookmark_service = create_bookmark_service()
+        bookmarks = bookmark_service.list_bookmarks()
+        return [
+            bookmark.name
+            for bookmark in bookmarks
+            if bookmark.name.startswith(incomplete)
+        ]
+    except Exception:
+        # If completion fails, return empty list
+        return []
+
+
+@bookmark_group.command("list")
+def list_bookmarks(
+    ctx: typer.Context,
+    factory_only: Annotated[
+        bool, typer.Option("--factory", help="Show only factory default bookmarks")
+    ] = False,
+    user_only: Annotated[
+        bool, typer.Option("--user", help="Show only user bookmarks")
+    ] = False,
+) -> None:
+    """List all saved layout bookmarks."""
+    from glovebox.cli.app import AppContext
+    from glovebox.cli.helpers.theme import Icons
+
+    app_ctx: AppContext = ctx.obj
+    use_emoji = app_ctx.use_emoji
+
+    try:
+        bookmark_service = create_bookmark_service()
+
+        # Determine source filter
+        source_filter = None
+        if factory_only:
+            source_filter = BookmarkSource.FACTORY
+        elif user_only:
+            source_filter = BookmarkSource.USER
+
+        bookmarks = bookmark_service.list_bookmarks(source_filter)
+
+        if not bookmarks:
+            if factory_only:
+                typer.echo(
+                    Icons.format_with_icon(
+                        "MAILBOX", "No factory bookmarks found.", use_emoji
+                    )
+                )
+            elif user_only:
+                typer.echo(
+                    Icons.format_with_icon(
+                        "MAILBOX", "No user bookmarks found.", use_emoji
+                    )
+                )
+            else:
+                typer.echo(
+                    Icons.format_with_icon("MAILBOX", "No bookmarks found.", use_emoji)
+                )
+            return
+
+        # Group bookmarks by source
+        factory_bookmarks = [b for b in bookmarks if b.source == BookmarkSource.FACTORY]
+        user_bookmarks = [b for b in bookmarks if b.source == BookmarkSource.USER]
+
+        typer.echo(
+            Icons.format_with_icon(
+                "DOCUMENT", f"Found {len(bookmarks)} bookmarks:", use_emoji
+            )
+        )
+        typer.echo()
+
+        if factory_bookmarks and not user_only:
+            typer.echo(
+                Icons.format_with_icon(
+                    "FACTORY",
+                    f"Factory defaults ({len(factory_bookmarks)}):",
+                    use_emoji,
+                )
+            )
+            for bookmark in factory_bookmarks:
+                typer.echo(f"   {Icons.get_icon('FACTORY', use_emoji)} {bookmark.name}")
+                typer.echo(
+                    f"      {Icons.get_icon('LINK', use_emoji)} UUID: {bookmark.uuid}"
+                )
+                if bookmark.title:
+                    typer.echo(
+                        f"      {Icons.get_icon('DOCUMENT', use_emoji)} Title: {bookmark.title}"
+                    )
+                if bookmark.description:
+                    typer.echo(
+                        f"      {Icons.get_icon('INFO', use_emoji)} Description: {bookmark.description}"
+                    )
+                typer.echo()
+
+        if user_bookmarks and not factory_only:
+            typer.echo(
+                Icons.format_with_icon(
+                    "USER", f"User bookmarks ({len(user_bookmarks)}):", use_emoji
+                )
+            )
+            for bookmark in user_bookmarks:
+                typer.echo(f"   {Icons.get_icon('USER', use_emoji)} {bookmark.name}")
+                typer.echo(
+                    f"      {Icons.get_icon('LINK', use_emoji)} UUID: {bookmark.uuid}"
+                )
+                if bookmark.title:
+                    typer.echo(
+                        f"      {Icons.get_icon('DOCUMENT', use_emoji)} Title: {bookmark.title}"
+                    )
+                if bookmark.description:
+                    typer.echo(
+                        f"      {Icons.get_icon('INFO', use_emoji)} Description: {bookmark.description}"
+                    )
+                typer.echo()
+
+        typer.echo(
+            Icons.format_with_icon(
+                "INFO",
+                "Use 'glovebox layout glove80 bookmark info <name>' for details",
+                use_emoji,
+            )
+        )
+        typer.echo(
+            Icons.format_with_icon(
+                "INFO",
+                "Use 'glovebox layout glove80 bookmark clone <name> <output.json>' to clone",
+                use_emoji,
+            )
+        )
+
+    except Exception as e:
+        typer.echo(
+            Icons.format_with_icon("ERROR", f"Error listing bookmarks: {e}", use_emoji)
+        )
+        raise typer.Exit(1) from None
+
+
+@bookmark_group.command()
+def add(
+    ctx: typer.Context,
+    layout_uuid: Annotated[str, typer.Argument(help="UUID of the layout to bookmark")],
+    name: Annotated[str, typer.Argument(help="Name for the bookmark")],
+    description: Annotated[
+        str | None,
+        typer.Option("--description", "-d", help="Description for the bookmark"),
+    ] = None,
+    no_fetch: Annotated[
+        bool, typer.Option("--no-fetch", help="Don't fetch metadata from MoErgo")
+    ] = False,
+) -> None:
+    """Add a new layout bookmark."""
+    from glovebox.cli.app import AppContext
+    from glovebox.cli.helpers.theme import Icons
+
+    app_ctx: AppContext = ctx.obj
+    use_emoji = app_ctx.use_emoji
+
+    try:
+        bookmark_service = create_bookmark_service()
+
+        # Check if bookmark already exists
+        existing = bookmark_service.get_bookmark(name)
+        if existing:
+            typer.echo(
+                Icons.format_with_icon(
+                    "WARNING",
+                    f"Bookmark '{name}' already exists (UUID: {existing.uuid})",
+                    use_emoji,
+                )
+            )
+            if not typer.confirm("Do you want to replace it?"):
+                typer.echo(
+                    Icons.format_with_icon(
+                        "ERROR", "Bookmark creation cancelled.", use_emoji
+                    )
+                )
+                return
+
+        # Add the bookmark
+        bookmark = bookmark_service.add_bookmark(
+            uuid=layout_uuid,
+            name=name,
+            description=description,
+            fetch_metadata=not no_fetch,
+        )
+
+        typer.echo(
+            Icons.format_with_icon("SUCCESS", "Bookmark added successfully!", use_emoji)
+        )
+        typer.echo(f"{Icons.get_icon('BOOKMARK', use_emoji)} Name: {bookmark.name}")
+        typer.echo(f"{Icons.get_icon('LINK', use_emoji)} UUID: {bookmark.uuid}")
+        if bookmark.title:
+            typer.echo(
+                f"{Icons.get_icon('DOCUMENT', use_emoji)} Title: {bookmark.title}"
+            )
+        if bookmark.description:
+            typer.echo(
+                f"{Icons.get_icon('INFO', use_emoji)} Description: {bookmark.description}"
+            )
+
+    except Exception as e:
+        typer.echo(
+            Icons.format_with_icon("ERROR", f"Error adding bookmark: {e}", use_emoji)
+        )
+        raise typer.Exit(1) from None
+
+
+@bookmark_group.command()
+def remove(
+    ctx: typer.Context,
+    name: Annotated[
+        str,
+        typer.Argument(
+            help="Name of the bookmark to remove", autocompletion=complete_bookmark_name
+        ),
+    ],
+    force: Annotated[
+        bool, typer.Option("--force", "-f", help="Skip confirmation prompt")
+    ] = False,
+) -> None:
+    """Remove a layout bookmark."""
+    from glovebox.cli.app import AppContext
+
+    app_ctx: AppContext = ctx.obj
+    use_emoji = app_ctx.use_emoji
+
+    try:
+        bookmark_service = create_bookmark_service()
+
+        # Check if bookmark exists
+        bookmark = bookmark_service.get_bookmark(name)
+        if not bookmark:
+            typer.echo(f"❌ Bookmark '{name}' not found.")
+            raise typer.Exit(1)
+
+        # Show bookmark info
+        typer.echo(f"📄 Bookmark to remove: {bookmark.name}")
+        typer.echo(f"🔗 UUID: {bookmark.uuid}")
+        if bookmark.title:
+            typer.echo(f"📝 Title: {bookmark.title}")
+
+        # Confirmation
+        if not force and not typer.confirm(
+            f"⚠️  Are you sure you want to remove bookmark '{name}'?"
+        ):
+            typer.echo("❌ Bookmark removal cancelled.")
+            return
+
+        # Remove the bookmark
+        success = bookmark_service.remove_bookmark(name)
+        if success:
+            typer.echo(f"✅ Bookmark '{name}' removed successfully!")
+        else:
+            typer.echo(f"❌ Failed to remove bookmark '{name}'.")
+            raise typer.Exit(1)
+
+    except Exception as e:
+        typer.echo(f"❌ Error removing bookmark: {e}")
+        raise typer.Exit(1) from None
+
+
+@bookmark_group.command("info")
+def bookmark_info(
+    ctx: typer.Context,
+    name: Annotated[
+        str,
+        typer.Argument(
+            help="Name of the bookmark to get info for",
+            autocompletion=complete_bookmark_name,
+        ),
+    ],
+) -> None:
+    """Get detailed information about a bookmarked layout."""
+    from glovebox.cli.app import AppContext
+    from glovebox.cli.helpers.theme import Icons
+
+    app_ctx: AppContext = ctx.obj
+    use_emoji = app_ctx.use_emoji
+
+    try:
+        bookmark_service = create_bookmark_service()
+
+        # Get bookmark
+        bookmark = bookmark_service.get_bookmark(name)
+        if not bookmark:
+            typer.echo(f"❌ Bookmark '{name}' not found.")
+            raise typer.Exit(1)
+
+        # Get full layout data
+        layout = bookmark_service.get_layout_by_bookmark(name)
+
+        # Display bookmark info
+        source_icon = "📦" if bookmark.source == BookmarkSource.FACTORY else "👤"
+        typer.echo(f"{source_icon} Bookmark: {bookmark.name}")
+        typer.echo(f"🔗 UUID: {bookmark.uuid}")
+
+        # Layout metadata
+        typer.echo(f"📝 Title: {layout.layout_meta.title}")
+        typer.echo(f"👤 Creator: {layout.layout_meta.creator}")
+        typer.echo(f"📅 Created: {layout.layout_meta.created_datetime}")
+        typer.echo(
+            f"🔄 Last Modified: {datetime.fromtimestamp(layout.layout_meta.date)}"
+        )
+
+        if layout.layout_meta.tags:
+            typer.echo(f"🏷️  Tags: {', '.join(layout.layout_meta.tags)}")
+
+        typer.echo(
+            f"👁️  Visibility: {'Unlisted' if layout.layout_meta.unlisted else 'Public'}"
+        )
+        typer.echo(f"⚙️  Firmware API: {layout.layout_meta.firmware_api_version}")
+
+        if bookmark.description:
+            typer.echo(f"💬 Bookmark Description: {bookmark.description}")
+
+        if layout.layout_meta.notes:
+            typer.echo("📋 Layout Notes:")
+            typer.echo(f"   {layout.layout_meta.notes}")
+
+        # Layout stats
+        config = layout.config
+        typer.echo("📊 Layout Stats:")
+        typer.echo(f"   Layers: {len(config.layer_names)}")
+        typer.echo(f"   Hold-taps: {len(config.hold_taps)}")
+        typer.echo(f"   Combos: {len(config.combos)}")
+        typer.echo(f"   Macros: {len(config.macros)}")
+
+    except Exception as e:
+        typer.echo(f"❌ Error getting bookmark info: {e}")
+        raise typer.Exit(1) from None
+
+
+@bookmark_group.command()
+def clone(
+    ctx: typer.Context,
+    name: Annotated[
+        str,
+        typer.Argument(
+            help="Name of the bookmark to clone", autocompletion=complete_bookmark_name
+        ),
+    ],
+    output: Annotated[
+        Path, typer.Argument(help="Output file path for the cloned layout")
+    ],
+) -> None:
+    """Clone a bookmarked layout to a local file."""
+    from glovebox.cli.app import AppContext
+    from glovebox.cli.helpers.theme import Icons
+
+    app_ctx: AppContext = ctx.obj
+    use_emoji = app_ctx.use_emoji
+
+    try:
+        bookmark_service = create_bookmark_service()
+
+        # Get bookmark
+        bookmark = bookmark_service.get_bookmark(name)
+        if not bookmark:
+            typer.echo(f"❌ Bookmark '{name}' not found.")
+            raise typer.Exit(1)
+
+        # Get full layout data
+        layout = bookmark_service.get_layout_by_bookmark(name)
+
+        # Save the config part (the actual layout data)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(layout.config.model_dump_json(by_alias=True, indent=2))
+
+        typer.echo("✅ Layout cloned successfully!")
+        typer.echo(f"📛 Bookmark: {bookmark.name}")
+        typer.echo(f"📝 Title: {layout.layout_meta.title}")
+        typer.echo(f"💾 Saved to: {output}")
+
+    except Exception as e:
+        typer.echo(f"❌ Error cloning bookmark: {e}")
+        raise typer.Exit(1) from None
+
+
+@bookmark_group.command()
+def refresh(
+    ctx: typer.Context,
+    force: Annotated[
+        bool, typer.Option("--force", "-f", help="Skip confirmation prompt")
+    ] = False,
+) -> None:
+    """Refresh factory default bookmarks from MoErgo API."""
+    from glovebox.cli.app import AppContext
+    from glovebox.cli.helpers.theme import Icons
+
+    app_ctx: AppContext = ctx.obj
+    use_emoji = app_ctx.use_emoji
+
+    try:
+        bookmark_service = create_bookmark_service()
+
+        # Confirmation
+        if not force and not typer.confirm(
+            "⚠️  This will replace all factory bookmarks with fresh data. Continue?"
+        ):
+            typer.echo("❌ Refresh cancelled.")
+            return
+
+        # Refresh factory defaults
+        count = bookmark_service.refresh_factory_defaults()
+
+        typer.echo(
+            Icons.format_with_icon(
+                "SUCCESS", f"Refreshed {count} factory default bookmarks!", use_emoji
+            )
+        )
+        typer.echo(
+            Icons.format_with_icon(
+                "INFO",
+                "Use 'glovebox layout glove80 bookmark list --factory' to see them",
+                use_emoji,
+            )
+        )
+
+    except Exception as e:
+        typer.echo(
+            Icons.format_with_icon(
+                "ERROR", f"Error refreshing factory bookmarks: {e}", use_emoji
+            )
+        )
+        raise typer.Exit(1) from None
+
+
+@bookmark_group.command("compile")
+def compile_bookmark(
+    ctx: typer.Context,
+    name: Annotated[
+        str,
+        typer.Argument(
+            help="Name of the bookmark to compile",
+            autocompletion=complete_bookmark_name,
+        ),
+    ],
+    profile: Annotated[
+        str, typer.Option("--profile", help="Keyboard profile (e.g., 'glove80/v25.05')")
+    ],
+    output: Annotated[
+        Path | None,
+        typer.Option("-o", "--output", help="Output directory for firmware"),
+    ] = None,
+    force: Annotated[
+        bool, typer.Option("--force", help="Force compilation even if firmware exists")
+    ] = False,
+) -> None:
+    """Compile firmware for a bookmarked layout."""
+    from glovebox.cli.app import AppContext
+    from glovebox.cli.helpers.theme import Icons
+    from glovebox.config import create_keyboard_profile
+
+    app_ctx: AppContext = ctx.obj
+    use_emoji = app_ctx.use_emoji
+
+    try:
+        bookmark_service = create_bookmark_service()
+
+        # Get bookmark
+        bookmark = bookmark_service.get_bookmark(name)
+        if not bookmark:
+            typer.echo(
+                Icons.format_with_icon(
+                    "ERROR", f"Bookmark '{name}' not found.", use_emoji
+                )
+            )
+            raise typer.Exit(1)
+
+        # Get layout metadata to check if firmware is already compiled
+        layout_meta = bookmark_service._client.get_layout_meta(
+            bookmark.uuid, use_cache=True
+        )
+
+        # Check if firmware is already compiled on MoErgo servers
+        if layout_meta["layout_meta"]["compiled"] and not force:
+            typer.echo(
+                Icons.format_with_icon(
+                    "INFO",
+                    f"Firmware already compiled for '{bookmark.name}' on MoErgo servers",
+                    use_emoji,
+                )
+            )
+            typer.echo(
+                Icons.format_with_icon(
+                    "INFO",
+                    "Use 'glovebox layout glove80 bookmark flash' to flash directly",
+                    use_emoji,
+                )
+            )
+            typer.echo(
+                Icons.format_with_icon(
+                    "INFO", "Use --force to compile locally anyway", use_emoji
+                )
+            )
+            return
+
+        # Parse profile
+        try:
+            keyboard_profile = create_keyboard_profile(profile)
+        except Exception as e:
+            typer.echo(
+                Icons.format_with_icon(
+                    "ERROR", f"Invalid profile '{profile}': {e}", use_emoji
+                )
+            )
+            raise typer.Exit(1) from e
+
+        # Get layout data and compile locally
+        layout = bookmark_service.get_layout_by_bookmark(name)
+
+        typer.echo(
+            Icons.format_with_icon(
+                "BUILD",
+                f"Compiling firmware for bookmark '{bookmark.name}'...",
+                use_emoji,
+            )
+        )
+        typer.echo(
+            f"{Icons.get_icon('DOCUMENT', use_emoji)} Layout: {layout.layout_meta.title}"
+        )
+        typer.echo(f"{Icons.get_icon('CONFIG', use_emoji)} Profile: {profile}")
+
+        # Clone layout to temporary file for compilation
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False
+        ) as tmp_file:
+            tmp_file.write(layout.config.model_dump_json(by_alias=True, indent=2))
+            temp_layout_path = Path(tmp_file.name)
+
+        try:
+            # Import layout service for compilation
+            from glovebox.layout import create_layout_service
+
+            layout_service = create_layout_service()
+
+            # Determine output path
+            if output is None:
+                output = Path(f"{bookmark.name}-firmware")
+
+            # Compile layout
+            result = layout_service.generate_from_file(
+                profile=keyboard_profile,
+                json_file_path=temp_layout_path,
+                output_file_prefix=output,
+                force=force,
+            )
+
+            if result.success:
+                typer.echo(
+                    Icons.format_with_icon(
+                        "SUCCESS", "Firmware compiled successfully!", use_emoji
+                    )
+                )
+                typer.echo(f"{Icons.get_icon('FOLDER', use_emoji)} Output: {output}")
+            else:
+                typer.echo(
+                    Icons.format_with_icon(
+                        "ERROR",
+                        f"Compilation failed: {'; '.join(result.errors)}",
+                        use_emoji,
+                    )
+                )
+                raise typer.Exit(1)
+
+        finally:
+            # Clean up temporary file
+            temp_layout_path.unlink(missing_ok=True)
+
+    except Exception as e:
+        typer.echo(
+            Icons.format_with_icon("ERROR", f"Error compiling bookmark: {e}", use_emoji)
+        )
+        raise typer.Exit(1) from None
+
+
+@bookmark_group.command()
+def flash(
+    ctx: typer.Context,
+    name: Annotated[
+        str,
+        typer.Argument(
+            help="Name of the bookmark to flash", autocompletion=complete_bookmark_name
+        ),
+    ],
+    profile: Annotated[
+        str, typer.Option("--profile", help="Keyboard profile (e.g., 'glove80/v25.05')")
+    ],
+    force_compile: Annotated[
+        bool,
+        typer.Option(
+            "--force-compile",
+            help="Force local compilation even if firmware exists on MoErgo",
+        ),
+    ] = False,
+) -> None:
+    """Flash firmware for a bookmarked layout directly to keyboard."""
+    from glovebox.cli.app import AppContext
+    from glovebox.cli.helpers.theme import Icons
+    from glovebox.config import create_keyboard_profile
+
+    app_ctx: AppContext = ctx.obj
+    use_emoji = app_ctx.use_emoji
+
+    try:
+        bookmark_service = create_bookmark_service()
+
+        # Get bookmark
+        bookmark = bookmark_service.get_bookmark(name)
+        if not bookmark:
+            typer.echo(
+                Icons.format_with_icon(
+                    "ERROR", f"Bookmark '{name}' not found.", use_emoji
+                )
+            )
+            raise typer.Exit(1)
+
+        # Parse profile
+        try:
+            keyboard_profile = create_keyboard_profile(profile)
+        except Exception as e:
+            typer.echo(
+                Icons.format_with_icon(
+                    "ERROR", f"Invalid profile '{profile}': {e}", use_emoji
+                )
+            )
+            raise typer.Exit(1) from e
+
+        # Get layout metadata to check compilation status
+        layout_meta = bookmark_service._client.get_layout_meta(
+            bookmark.uuid, use_cache=True
+        )
+
+        typer.echo(
+            Icons.format_with_icon(
+                "FLASH", f"Preparing to flash bookmark '{bookmark.name}'...", use_emoji
+            )
+        )
+
+        # Check if we can use MoErgo's compiled firmware
+        if layout_meta["layout_meta"]["compiled"] and not force_compile:
+            typer.echo(
+                Icons.format_with_icon(
+                    "INFO", "Using pre-compiled firmware from MoErgo servers", use_emoji
+                )
+            )
+
+            # Use MoErgo's compile and download workflow
+            layout = bookmark_service.get_layout_by_bookmark(name)
+
+            # Import layout service to convert to ZMK format
+            from glovebox.layout import create_layout_service
+
+            layout_service = create_layout_service()
+
+            # Generate ZMK files from layout
+            import tempfile
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_output = Path(temp_dir) / "temp_keymap"
+
+                # Clone layout to temporary file
+                temp_layout_path = Path(temp_dir) / "layout.json"
+                temp_layout_path.write_text(
+                    layout.config.model_dump_json(by_alias=True, indent=2)
+                )
+
+                # Generate ZMK files
+                result = layout_service.generate_from_file(
+                    profile=keyboard_profile,
+                    json_file_path=temp_layout_path,
+                    output_file_prefix=temp_output,
+                    force=True,
+                )
+
+                if not result.success:
+                    typer.echo(
+                        Icons.format_with_icon(
+                            "ERROR",
+                            f"Failed to generate ZMK files: {'; '.join(result.errors)}",
+                            use_emoji,
+                        )
+                    )
+                    raise typer.Exit(1)
+
+                # Read the generated files
+                keymap_file = temp_output.with_suffix(".keymap")
+                config_file = temp_output.with_suffix(".conf")
+
+                keymap_content = keymap_file.read_text()
+                config_content = config_file.read_text() if config_file.exists() else ""
+
+                # Compile firmware using MoErgo API
+                typer.echo(
+                    Icons.format_with_icon(
+                        "BUILD", "Compiling firmware on MoErgo servers...", use_emoji
+                    )
+                )
+
+                compile_response = bookmark_service._client.compile_firmware(
+                    layout_uuid=bookmark.uuid,
+                    keymap=keymap_content,
+                    kconfig=config_content,
+                    board=keyboard_profile.keyboard_name or "glove80",
+                    firmware_version=keyboard_profile.firmware_version or "v25.05",
+                )
+
+                # Download firmware
+                typer.echo(
+                    Icons.format_with_icon(
+                        "DOWNLOAD", "Downloading compiled firmware...", use_emoji
+                    )
+                )
+
+                firmware_path = Path(f"{bookmark.name}.uf2")
+                firmware_data = bookmark_service._client.download_firmware(
+                    firmware_location=compile_response.location,
+                    output_path=str(firmware_path),
+                )
+
+                typer.echo(
+                    Icons.format_with_icon(
+                        "SUCCESS", f"Firmware downloaded: {firmware_path}", use_emoji
+                    )
+                )
+
+                # Flash the firmware
+                from glovebox.firmware.flash import create_flash_service
+
+                flash_service = create_flash_service()
+
+                typer.echo(
+                    Icons.format_with_icon(
+                        "FLASH", "Flashing firmware to keyboard...", use_emoji
+                    )
+                )
+
+                flash_result = flash_service.flash_from_file(
+                    firmware_file_path=firmware_path, profile=keyboard_profile
+                )
+
+                if flash_result.success:
+                    typer.echo(
+                        Icons.format_with_icon(
+                            "SUCCESS", "Firmware flashed successfully!", use_emoji
+                        )
+                    )
+                else:
+                    typer.echo(
+                        Icons.format_with_icon(
+                            "ERROR",
+                            f"Flash failed: {'; '.join(flash_result.errors)}",
+                            use_emoji,
+                        )
+                    )
+                    raise typer.Exit(1)
+        else:
+            # Fall back to local compilation and flash
+            typer.echo(
+                Icons.format_with_icon(
+                    "INFO", "Compiling locally and flashing...", use_emoji
+                )
+            )
+
+            # TODO: Implement local compile + flash workflow
+            # This would use the existing firmware compilation and flash services
+            typer.echo(
+                Icons.format_with_icon(
+                    "WARNING",
+                    "Local compilation + flash not yet implemented",
+                    use_emoji,
+                )
+            )
+            typer.echo(
+                Icons.format_with_icon(
+                    "INFO",
+                    "Use 'glovebox layout glove80 bookmark compile' first",
+                    use_emoji,
+                )
+            )
+
+    except Exception as e:
+        typer.echo(
+            Icons.format_with_icon("ERROR", f"Error flashing bookmark: {e}", use_emoji)
+        )
+        raise typer.Exit(1) from None
+
+
+# Add bookmark subcommand to the main glove80 group
+glove80_group.add_typer(bookmark_group)

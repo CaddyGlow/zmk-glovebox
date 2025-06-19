@@ -2,12 +2,25 @@
 
 import os
 from pathlib import Path
-from typing import Annotated, Any
+
+# Import bookmark models
+from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from .firmware import UserFirmwareConfig
+
+
+if TYPE_CHECKING:
+    from glovebox.layout.models import BookmarkCollection
+else:
+    # Import at runtime to avoid circular imports
+    try:
+        from glovebox.layout.models import BookmarkCollection
+    except ImportError:
+        # Handle case where layout models aren't available yet
+        BookmarkCollection = None
 
 
 class UserConfigData(BaseSettings):
@@ -122,6 +135,11 @@ class UserConfigData(BaseSettings):
     # Firmware settings
     firmware: UserFirmwareConfig = Field(default_factory=UserFirmwareConfig)
 
+    # Layout bookmarks
+    layout_bookmarks: "BookmarkCollection | None" = Field(
+        default=None, description="Collection of saved layout bookmarks for easy access"
+    )
+
     @field_validator("profile")
     @classmethod
     def validate_profile(cls, v: str) -> str:
@@ -199,3 +217,8 @@ class UserConfigData(BaseSettings):
         if lower_v not in valid_strategies:
             raise ValueError(f"Cache strategy must be one of {valid_strategies}")
         return lower_v  # Always normalize to lowercase
+
+
+# Rebuild model to resolve forward references
+if not TYPE_CHECKING and BookmarkCollection is not None:
+    UserConfigData.model_rebuild()

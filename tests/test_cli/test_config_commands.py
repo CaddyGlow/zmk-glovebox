@@ -884,14 +884,14 @@ class TestConfigExport:
                 exported_data = tomlkit.load(f)
 
             # Type guard to ensure exported_data is dict-like
-            if isinstance(exported_data, dict) or hasattr(exported_data, "__getitem__"):
+            if hasattr(exported_data, "__getitem__"):
                 assert "profile" in exported_data
                 assert "firmware" in exported_data
                 assert "_metadata" in exported_data
 
                 # Safely access nested data with type checking
                 metadata = exported_data.get("_metadata")
-                if isinstance(metadata, dict) or hasattr(metadata, "__getitem__"):
+                if metadata is not None and hasattr(metadata, "__getitem__"):
                     assert metadata["export_format"] == "toml"
 
             # Verify None values are filtered out (TOML compatibility)

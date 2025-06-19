@@ -3,10 +3,16 @@
 from pydantic import BaseModel, Field
 
 
+# ZMK Constants
+MACRO_PLACEHOLDER = "MACRO_PLACEHOLDER"
+
+
 class ZmkCompatibleStrings(BaseModel):
     """ZMK compatible string constants."""
 
     macro: str = Field(default="zmk,behavior-macro")
+    macro_one_param: str = Field(default="zmk,behavior-macro-one-param")
+    macro_two_param: str = Field(default="zmk,behavior-macro-two-param")
     hold_tap: str = Field(default="zmk,behavior-hold-tap")
     combos: str = Field(default="zmk,combos")
     keymap: str = Field(default="zmk,keymap")

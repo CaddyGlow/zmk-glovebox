@@ -30,6 +30,9 @@ Bash wrapper script for easier execution.
 # Test WSL2 flash adapter initialization
 ./scripts/debug-wsl2 test-adapter
 
+# Diagnose drive mounting issues
+./scripts/debug-wsl2 diagnose-drive
+
 # Mock firmware flash operation
 ./scripts/debug-wsl2 mock-flash /path/to/firmware.uf2
 
@@ -128,6 +131,32 @@ Tests WSL2FlashOS adapter:
 - Device path conversion
 - Mock device mounting
 - Error handling validation
+
+### `diagnose-drive`
+Comprehensive drive mounting diagnostics:
+- Detects all removable drives via PowerShell
+- Tests PowerShell accessibility for each drive
+- Tests wslpath conversion for each drive
+- Verifies WSL2 path accessibility
+- Provides specific troubleshooting recommendations
+- Suggests manual mounting commands if needed
+
+**Example Output:**
+```
+Drive 1: E:
+  Volume Name: BACKUP02
+  Size: 30927880192 bytes
+  File System: FAT32
+  PowerShell Accessible: ✓
+  wslpath Conversion: ✗
+  Fallback Path: /mnt/e/
+  Fallback Accessible: ✗
+
+Recommendations:
+  • wslpath command fails for this drive
+  • This may indicate the drive is not properly mounted in WSL2
+  • Try running: sudo mount -t drvfs E: /mnt/e (replace E: with your drive letter)
+```
 
 ### `mock-flash`
 Simulates complete firmware flash operation:

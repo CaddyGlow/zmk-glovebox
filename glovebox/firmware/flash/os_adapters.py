@@ -49,7 +49,7 @@ def windows_to_wsl_path(windows_path: str) -> str:
         WSL path (e.g., '/mnt/e/')
 
     Raises:
-        OSError: If wslpath command fails
+        OSError: If wslpath command fails and fallback fails
     """
     try:
         result = subprocess.run(
@@ -61,6 +61,21 @@ def windows_to_wsl_path(windows_path: str) -> str:
         )
         return result.stdout.strip()
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        # Try fallback conversion for drive letters
+        if len(windows_path) >= 2 and windows_path[1] == ":":
+            drive_letter = windows_path[0].lower()
+            fallback_path = f"/mnt/{drive_letter}/"
+            logger.debug(
+                f"wslpath failed for {windows_path}, trying fallback: {fallback_path}"
+            )
+
+            # Test if the fallback path exists
+            if Path(fallback_path).exists():
+                logger.debug(f"Fallback path {fallback_path} exists, using it")
+                return fallback_path
+            else:
+                logger.debug(f"Fallback path {fallback_path} does not exist")
+
         raise OSError(f"Failed to convert Windows path {windows_path}: {e}") from e
 
 
@@ -475,21 +490,29 @@ class WSL2FlashOS:
                     drive_letter = drive["Caption"]
 
                     if self._is_matching_device(device, drive):
-                        # Check if drive is accessible
+                        # Check if drive is accessible via PowerShell
                         if self._is_drive_accessible_ps(drive_letter):
-                            # Convert Windows path to WSL2 path
+                            # Try to convert Windows path to WSL2 path
                             try:
                                 wsl_path = windows_to_wsl_path(drive_letter + "\\")
-                                mount_points.append(wsl_path)
-                                logger.debug(
-                                    f"Found accessible WSL2 drive: {wsl_path} ({drive_letter})"
-                                )
+                                # Verify the WSL path is actually accessible
+                                if Path(wsl_path).exists():
+                                    mount_points.append(wsl_path)
+                                    logger.debug(
+                                        f"Found accessible WSL2 drive: {wsl_path} ({drive_letter})"
+                                    )
+                                else:
+                                    logger.warning(
+                                        f"WSL path {wsl_path} for {drive_letter} does not exist"
+                                    )
                             except OSError as e:
                                 logger.warning(
                                     f"Could not convert path for {drive_letter}: {e}"
                                 )
                         else:
-                            logger.warning(f"Drive {drive_letter} is not accessible")
+                            logger.debug(
+                                f"Drive {drive_letter} is not accessible via PowerShell"
+                            )
 
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse PowerShell JSON output: {e}")
