@@ -30,7 +30,7 @@ class BookmarkService:
         """Initialize bookmark service."""
         self._client = moergo_client
         self._user_config = user_config
-        self._cache = cache or create_default_cache()
+        self._cache = cache or create_default_cache(cache_strategy="shared")
         self._bookmarks: BookmarkCollection | None = None
 
     def get_bookmarks(self) -> BookmarkCollection:

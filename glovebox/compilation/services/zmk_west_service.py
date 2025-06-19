@@ -20,7 +20,7 @@ from glovebox.compilation.models.west_config import (
 from glovebox.compilation.protocols.compilation_protocols import (
     CompilationServiceProtocol,
 )
-from glovebox.core.cache import CacheKey, CacheManager, create_default_cache
+from glovebox.core.cache import CacheKey, CacheManager
 from glovebox.core.errors import CompilationError
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.models.docker import DockerUserContext
@@ -40,7 +40,7 @@ class ZmkWestService(CompilationServiceProtocol):
     ) -> None:
         """Initialize with Docker adapter and cache manager."""
         self.docker_adapter = docker_adapter
-        self.cache = cache or create_default_cache()
+        self.cache = cache
         self.logger = logging.getLogger(__name__)
 
     def compile(
@@ -168,20 +168,21 @@ class ZmkWestService(CompilationServiceProtocol):
         if not config.use_cache:
             return None
 
-        cache_key = self._generate_workspace_cache_key(config)
-        cached_path = self.cache.get(cache_key)
+        if self.cache:
+            cache_key = self._generate_workspace_cache_key(config)
+            cached_path = self.cache.get(cache_key)
 
-        if (
-            cached_path
-            and Path(cached_path).exists()
-            and (Path(cached_path) / "zmk").exists()
-        ):
-            self.logger.info("Using cached workspace: %s", cached_path)
-            return Path(cached_path)
+            if (
+                cached_path
+                and Path(cached_path).exists()
+                and (Path(cached_path) / "zmk").exists()
+            ):
+                self.logger.info("Using cached workspace: %s", cached_path)
+                return Path(cached_path)
 
-        # Clean up stale cache entry if path doesn't exist
-        if cached_path:
-            self.cache.delete(cache_key)
+            # Clean up stale cache entry if path doesn't exist
+            if cached_path:
+                self.cache.delete(cache_key)
 
         return None
 
@@ -198,7 +199,7 @@ class ZmkWestService(CompilationServiceProtocol):
         repo_name = config.repository.replace("/", "_").replace("-", "_")
         cache_dir = Path.home() / ".cache" / "glovebox" / "workspaces" / repo_name
 
-        if cache_dir.exists():
+        if cache_dir.exists() and self.cache:
             # Already cached, just update cache entry
             self.cache.set(cache_key, str(cache_dir), ttl=24 * 3600)  # 24 hour TTL
             return
@@ -211,7 +212,8 @@ class ZmkWestService(CompilationServiceProtocol):
                     shutil.copytree(workspace_path / subdir, cache_dir / subdir)
 
             # Store in cache with 24-hour TTL
-            self.cache.set(cache_key, str(cache_dir), ttl=24 * 3600)
+            if self.cache:
+                self.cache.set(cache_key, str(cache_dir), ttl=24 * 3600)
 
             self.logger.info(
                 "Cached workspace for %s: %s", config.repository, cache_dir
@@ -548,17 +550,21 @@ class ZmkWestService(CompilationServiceProtocol):
 
             # Check cache for recent image verification
             image_cache_key = CacheKey.from_parts("docker_image", image_name, image_tag)
-            cached_verification = self.cache.get(image_cache_key)
+            if self.cache:
+                cached_verification = self.cache.get(image_cache_key)
 
-            if cached_verification:
-                self.logger.debug("Docker image verified from cache: %s", config.image)
-                return True
+                if cached_verification:
+                    self.logger.debug(
+                        "Docker image verified from cache: %s", config.image
+                    )
+                    return True
 
             # Check if image exists
             if self.docker_adapter.image_exists(image_name, image_tag):
                 self.logger.debug("Docker image already exists: %s", config.image)
                 # Cache verification for 1 hour to avoid repeated checks
-                self.cache.set(image_cache_key, True, ttl=3600)
+                if self.cache:
+                    self.cache.set(image_cache_key, True, ttl=3600)
                 return True
 
             self.logger.info("Docker image not found, pulling: %s", config.image)
@@ -574,7 +580,8 @@ class ZmkWestService(CompilationServiceProtocol):
             if result[0] == 0:
                 self.logger.info("Successfully pulled Docker image: %s", config.image)
                 # Cache successful pull for 1 hour
-                self.cache.set(image_cache_key, True, ttl=3600)
+                if self.cache:
+                    self.cache.set(image_cache_key, True, ttl=3600)
                 return True
             else:
                 self.logger.error(
@@ -589,7 +596,7 @@ class ZmkWestService(CompilationServiceProtocol):
             return False
 
 
-def create_zmk_config_simple_service(
+def create_zmk_west_service(
     docker_adapter: DockerAdapterProtocol,
     cache: CacheManager | None = None,
 ) -> ZmkWestService:

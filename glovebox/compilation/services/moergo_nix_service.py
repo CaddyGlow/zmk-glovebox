@@ -392,20 +392,18 @@ class MoergoNixService(CompilationServiceProtocol):
         """Get keyboard profile for accessing Dockerfile location."""
         try:
             # For Moergo compilation, we know it's typically glove80
-            from glovebox.config.keyboard_profile import (
-                create_keyboard_profile_with_includes,
-            )
+            from glovebox.config.keyboard_profile import create_keyboard_profile
 
             # Create a keyboard-only profile (no firmware needed for Dockerfile access)
-            # Use the include-aware loader to handle glove80.yaml's includes directive
-            return create_keyboard_profile_with_includes("glove80")
+            # Uses unified function that always includes include-aware loading
+            return create_keyboard_profile("glove80")
         except Exception as e:
             self.logger.error("Failed to create keyboard profile: %s", e)
             return None
 
 
-def create_moergo_simple_service(
+def create_moergo_nix_service(
     docker_adapter: DockerAdapterProtocol,
 ) -> MoergoNixService:
-    """Create simplified Moergo service."""
+    """Create Moergo nix service."""
     return MoergoNixService(docker_adapter)

@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.table import Table
 
 from glovebox.compilation.cache import inject_base_dependencies_cache_from_workspace
+from glovebox.cli.helpers.theme import Icons
 
 
 logger = logging.getLogger(__name__)
@@ -92,8 +93,6 @@ def inject_base_deps_command(
             zmk_revision=zmk_revision,
             cache_root=cache_root,
         )
-
-        from glovebox.cli.helpers.theme import Icons
 
         # Note: This function doesn't have ctx parameter, using default emoji mode
         use_emoji = True

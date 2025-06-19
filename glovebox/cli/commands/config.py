@@ -19,7 +19,7 @@ from glovebox.cli.helpers import (
 )
 from glovebox.config.keyboard_profile import (
     get_available_keyboards,
-    load_keyboard_config_with_includes,
+    load_keyboard_config,
 )
 
 
@@ -95,9 +95,7 @@ def complete_firmware_names(ctx: typer.Context, incomplete: str) -> list[str]:
         if not keyboard_name:
             return []
 
-        keyboard_config = load_keyboard_config_with_includes(
-            keyboard_name, app_ctx.user_config
-        )
+        keyboard_config = load_keyboard_config(keyboard_name, app_ctx.user_config)
 
         if not keyboard_config.firmwares:
             return []
@@ -634,7 +632,7 @@ def list_keyboards(
             # Get detailed information if verbose
             if verbose:
                 try:
-                    typed_config = load_keyboard_config_with_includes(
+                    typed_config = load_keyboard_config(
                         keyboard_name, app_ctx.user_config
                     )
                     # Convert to dict for JSON serialization
@@ -661,7 +659,7 @@ def list_keyboards(
         # Get and display detailed information for each keyboard
         for keyboard_name in keyboards:
             try:
-                keyboard_config = load_keyboard_config_with_includes(
+                keyboard_config = load_keyboard_config(
                     keyboard_name, app_ctx.user_config
                 )
                 description = (
@@ -713,9 +711,7 @@ def show_keyboard(
     # Get app context with user config
     app_ctx: AppContext = ctx.obj
     # Get the keyboard configuration
-    keyboard_config = load_keyboard_config_with_includes(
-        keyboard_name, app_ctx.user_config
-    )
+    keyboard_config = load_keyboard_config(keyboard_name, app_ctx.user_config)
 
     # Create output formatter
     formatter = create_output_formatter()
@@ -745,9 +741,7 @@ def list_firmwares(
     # Get app context with user config
     app_ctx: AppContext = ctx.obj
     # Get keyboard configuration
-    keyboard_config = load_keyboard_config_with_includes(
-        keyboard_name, app_ctx.user_config
-    )
+    keyboard_config = load_keyboard_config(keyboard_name, app_ctx.user_config)
 
     # Get firmwares from keyboard config
     firmwares = keyboard_config.firmwares
@@ -821,9 +815,7 @@ def show_firmware(
     # Get app context with user config
     app_ctx: AppContext = ctx.obj
     # Get keyboard configuration
-    keyboard_config = load_keyboard_config_with_includes(
-        keyboard_name, app_ctx.user_config
-    )
+    keyboard_config = load_keyboard_config(keyboard_name, app_ctx.user_config)
 
     # Get firmware configuration
     firmwares = keyboard_config.firmwares

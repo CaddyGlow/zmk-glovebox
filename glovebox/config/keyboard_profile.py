@@ -117,85 +117,23 @@ def _find_keyboard_config_file(
 def load_keyboard_config(
     keyboard_name: str, user_config: Optional["UserConfig"] = None
 ) -> KeyboardConfig:
-    """Load a keyboard configuration by name as a typed object.
+    """Load a keyboard configuration by name with include support.
+
+    This is the unified keyboard configuration loading function that always
+    uses include-aware loading for consistency.
 
     Args:
         keyboard_name: Name of the keyboard to load
         user_config: Optional user configuration instance
 
     Returns:
-        Typed KeyboardConfig object
+        Typed KeyboardConfig object with includes resolved
 
     Raises:
         ConfigError: If the keyboard configuration cannot be found or loaded
     """
-    logger.debug("Loading keyboard configuration: %s", keyboard_name)
-
-    # Return cached typed configuration if available
-    if keyboard_name in _keyboard_configs:
-        logger.debug("  ✓ Found cached configuration for '%s'", keyboard_name)
-        return _keyboard_configs[keyboard_name]
-
-    logger.debug("  ↻ Configuration not cached, loading from file...")
-
-    # Find the configuration file
-    config_file = _find_keyboard_config_file(keyboard_name, user_config)
-    if not config_file:
-        raise ConfigError(f"Keyboard configuration not found: {keyboard_name}")
-
-    # Load the configuration
-    try:
-        logger.debug("  📄 Reading config file: %s", config_file)
-
-        with config_file.open() as f:
-            raw_config = yaml.safe_load(f)
-
-        logger.debug("  ✓ YAML parsing successful")
-        logger.debug(
-            "  📋 Raw config keys: %s",
-            list(raw_config.keys()) if isinstance(raw_config, dict) else "Not a dict",
-        )
-
-        # Basic validation
-        if not isinstance(raw_config, dict):
-            raise ConfigError(f"Invalid keyboard configuration format: {keyboard_name}")
-
-        # Fix keyboard name mismatch if needed
-        if raw_config.get("keyboard") != keyboard_name:
-            logger.debug(
-                "  ⚠ Keyboard name mismatch: file has '%s', expected '%s' - fixing",
-                raw_config.get("keyboard"),
-                keyboard_name,
-            )
-            logger.warning(
-                "Keyboard name mismatch: %s != %s",
-                raw_config.get("keyboard"),
-                keyboard_name,
-            )
-            raw_config["keyboard"] = keyboard_name
-
-        logger.debug("  🔍 Validating configuration with Pydantic...")
-
-        # Convert to typed object using Pydantic validation
-        typed_config = KeyboardConfig.model_validate(raw_config)
-
-        logger.debug("  ✓ Pydantic validation successful")
-        logger.debug("  💾 Caching configuration for future use")
-
-        # Cache the typed configuration
-        _keyboard_configs[keyboard_name] = typed_config
-        logger.info("Loaded keyboard configuration: %s", keyboard_name)
-
-        logger.debug("%r", typed_config)
-        return typed_config
-    except yaml.YAMLError as e:
-        raise ConfigError(f"Error parsing keyboard configuration: {e}") from e
-    except OSError as e:
-        raise ConfigError(f"Error reading keyboard configuration: {e}") from e
-    except ValidationError as e:
-        raise ConfigError(f"Invalid keyboard configuration format: {e}") from e
-    except Exception as e:
-        raise ConfigError(f"Error loading keyboard configuration: {e}") from e
+    # Delegate to the include-aware implementation
+    return load_keyboard_config_with_includes(keyboard_name, user_config)
 
 
 def get_firmware_config(
@@ -304,6 +242,9 @@ def create_keyboard_profile(
 ) -> "KeyboardProfile":  # Forward reference
     """Create a KeyboardProfile for the given keyboard and optional firmware.
 
+    This is the unified keyboard profile creation function that always
+    uses include-aware configuration loading for consistency.
+
     Args:
         keyboard_name: Name of the keyboard
         firmware_version: Version of firmware to use (optional)
@@ -316,33 +257,10 @@ def create_keyboard_profile(
         ConfigError: If the keyboard configuration cannot be found, or if firmware
                     version is specified but not found
     """
-    logger.debug(
-        "Creating keyboard profile: keyboard='%s', firmware='%s'",
-        keyboard_name,
-        firmware_version,
+    # Delegate to the include-aware implementation
+    return create_keyboard_profile_with_includes(
+        keyboard_name, firmware_version, user_config
     )
-
-    from glovebox.config.profile import KeyboardProfile
-
-    keyboard_config = load_keyboard_config(keyboard_name, user_config)
-
-    if firmware_version:
-        logger.debug(
-            "  🔧 Creating profile with specific firmware: %s", firmware_version
-        )
-    else:
-        logger.debug("  📦 Creating keyboard-only profile (no firmware specified)")
-
-    profile = KeyboardProfile(keyboard_config, firmware_version)
-
-    logger.debug("  ✓ Profile created successfully")
-    logger.debug("    - Keyboard: %s", profile.keyboard_name)
-    logger.debug(
-        "    - Firmware: %s", profile.firmware_version or "None (keyboard-only)"
-    )
-    logger.debug("    - Has firmware config: %s", profile.firmware_config is not None)
-
-    return profile
 
 
 def create_profile_from_keyboard_name(
@@ -392,8 +310,9 @@ def load_keyboard_config_with_includes(
 ) -> KeyboardConfig:
     """Load a keyboard configuration with include directive support.
 
-    This function provides enhanced configuration loading that supports
-    include directives for configuration composition and reuse.
+    NOTE: This function is now the implementation behind the unified
+    load_keyboard_config() function. Direct use is maintained for
+    backwards compatibility but load_keyboard_config() is preferred.
 
     Args:
         keyboard_name: Name of the keyboard to load
@@ -426,8 +345,9 @@ def create_keyboard_profile_with_includes(
 ) -> "KeyboardProfile":
     """Create a KeyboardProfile with include directive support.
 
-    This function creates a keyboard profile using the enhanced configuration
-    loading that supports include directives.
+    NOTE: This function is now the implementation behind the unified
+    create_keyboard_profile() function. Direct use is maintained for
+    backwards compatibility but create_keyboard_profile() is preferred.
 
     Args:
         keyboard_name: Name of the keyboard

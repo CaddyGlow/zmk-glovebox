@@ -1372,7 +1372,6 @@ def compile_bookmark(
     """Compile firmware for a bookmarked layout."""
     from glovebox.cli.app import AppContext
     from glovebox.cli.helpers.theme import Icons
-    from glovebox.config import create_keyboard_profile
 
     app_ctx: AppContext = ctx.obj
     use_emoji = app_ctx.use_emoji
@@ -1420,7 +1419,9 @@ def compile_bookmark(
 
         # Parse profile
         try:
-            keyboard_profile = create_keyboard_profile(profile)
+            from glovebox.cli.helpers.profile import create_profile_from_context
+
+            keyboard_profile = create_profile_from_context(ctx, profile)
         except Exception as e:
             typer.echo(
                 Icons.format_with_icon(
@@ -1522,7 +1523,6 @@ def flash(
     """Flash firmware for a bookmarked layout directly to keyboard."""
     from glovebox.cli.app import AppContext
     from glovebox.cli.helpers.theme import Icons
-    from glovebox.config import create_keyboard_profile
 
     app_ctx: AppContext = ctx.obj
     use_emoji = app_ctx.use_emoji
@@ -1542,7 +1542,9 @@ def flash(
 
         # Parse profile
         try:
-            keyboard_profile = create_keyboard_profile(profile)
+            from glovebox.cli.helpers.profile import create_profile_from_context
+
+            keyboard_profile = create_profile_from_context(ctx, profile)
         except Exception as e:
             typer.echo(
                 Icons.format_with_icon(
