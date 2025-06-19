@@ -5,6 +5,10 @@ import logging
 from typing import Annotated, Any
 
 import typer
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
 
 from glovebox.cli.app import AppContext
 from glovebox.cli.decorators import handle_errors
@@ -13,6 +17,7 @@ from glovebox.cli.helpers import (
     print_list_item,
     print_success_message,
 )
+from glovebox.cli.helpers.theme import Colors, Icons, TableStyles
 from glovebox.config.keyboard_profile import (
     get_available_keyboards,
     load_keyboard_config,
@@ -20,6 +25,234 @@ from glovebox.config.keyboard_profile import (
 
 
 logger = logging.getLogger(__name__)
+
+
+def _get_keyboard_field_defaults() -> dict[str, Any]:
+    """Get default values for keyboard configuration fields."""
+    from glovebox.config.models.behavior import BehaviorConfig
+    from glovebox.config.models.display import DisplayConfig
+    from glovebox.config.models.keyboard import KeyboardConfig
+    from glovebox.config.models.zmk import ZmkConfig
+
+    defaults = {}
+
+    # Get field defaults from KeyboardConfig
+    for field_name, field_info in KeyboardConfig.model_fields.items():
+        if hasattr(field_info, 'default') and field_info.default is not None:
+            defaults[field_name] = field_info.default
+        elif hasattr(field_info, 'default_factory') and field_info.default_factory is not None:
+            try:
+                defaults[field_name] = field_info.default_factory()  # type: ignore
+            except Exception:
+                defaults[field_name] = f"<factory: {field_info.default_factory.__name__}>"
+        else:
+            defaults[field_name] = None
+
+    # Add defaults for nested config objects
+    try:
+        defaults['display'] = DisplayConfig()
+        defaults['behaviors'] = BehaviorConfig()
+        defaults['zmk'] = ZmkConfig()
+    except Exception:
+        # If factory creation fails, mark as factory
+        defaults['display'] = "<factory: DisplayConfig>"
+        defaults['behaviors'] = "<factory: BehaviorConfig>"
+        defaults['zmk'] = "<factory: ZmkConfig>"
+
+    return defaults
+
+
+def _get_keyboard_config_sources(keyboard_name: str, app_ctx: AppContext) -> dict[str, str]:
+    """Get source file information for keyboard configuration fields."""
+    # This is a simplified implementation - in a full implementation,
+    # we would need to modify the config loading to track sources
+    from pathlib import Path
+
+    from glovebox.config.keyboard_profile import get_available_keyboards
+
+    sources = {}
+    keyboard_paths = app_ctx.user_config.get("keyboard_paths", [])
+
+    # Try to find the main config file
+    main_config_file = None
+    for keyboard_path in keyboard_paths:
+        possible_files = [
+            Path(keyboard_path) / f"{keyboard_name}.yaml",
+            Path(keyboard_path) / keyboard_name / "main.yaml",
+            Path(keyboard_path) / "keyboards" / f"{keyboard_name}.yaml",
+            Path(keyboard_path) / "keyboards" / keyboard_name / "main.yaml",
+        ]
+
+        for file_path in possible_files:
+            if file_path.exists():
+                main_config_file = file_path
+                break
+
+        if main_config_file:
+            break
+
+    # For now, mark all fields as coming from the main config file
+    # In a full implementation, we would track which include file each field came from
+    source_name = str(main_config_file) if main_config_file else f"{keyboard_name}.yaml (not found)"
+
+    # Basic keyboard fields
+    basic_fields = ['keyboard', 'description', 'vendor', 'key_count']
+    for field in basic_fields:
+        sources[field] = source_name
+
+    # Config sections that might come from includes
+    sources['compile_methods'] = f"{keyboard_name}/strategies.yaml"
+    sources['flash_methods'] = f"{keyboard_name}/hardware.yaml"
+    sources['firmwares'] = f"{keyboard_name}/firmwares.yaml"
+    sources['behaviors'] = "config/behaviors/common.yaml"
+    sources['display'] = "config/display/defaults.yaml"
+    sources['zmk'] = "config/zmk/validation.yaml"
+
+    return sources
+
+
+def _print_keyboard_config_table(
+    keyboard_config: Any,
+    keyboard_name: str,
+    app_ctx: AppContext,
+    show_sources: bool,
+    show_defaults: bool,
+    verbose: bool
+) -> None:
+    """Print keyboard configuration in a table format with optional sources and defaults."""
+    from glovebox.cli.helpers.theme import Icons
+
+    console = Console()
+
+    # Create table with appropriate columns
+    table = Table(title=f"Keyboard Configuration: {keyboard_name}")
+    table.add_column("Setting", style="cyan", width=25)
+    table.add_column("Current Value", style="green", width=30)
+
+    if show_defaults:
+        table.add_column("Default Value", style="blue", width=25)
+
+    if show_sources:
+        table.add_column("Source", style="yellow", width=35)
+
+    # Get defaults and sources if requested
+    defaults = _get_keyboard_field_defaults() if show_defaults else {}
+    sources = _get_keyboard_config_sources(keyboard_name, app_ctx) if show_sources else {}
+
+    def format_value(value: Any) -> str:
+        """Format a value for display."""
+        if value is None:
+            return "(not set)"
+        elif isinstance(value, list):
+            if not value:
+                return "(empty list)"
+            elif len(value) == 1:
+                return str(value[0])
+            else:
+                return f"[{len(value)} items]"
+        elif isinstance(value, dict):
+            if not value:
+                return "(empty dict)"
+            else:
+                return f"{{...}} ({len(value)} keys)"
+        elif hasattr(value, '__dict__'):
+            # For Pydantic models
+            return f"<{value.__class__.__name__}>"
+        else:
+            return str(value)
+
+    # Basic keyboard information
+    basic_fields = [
+        ('keyboard', getattr(keyboard_config, 'keyboard', None)),
+        ('description', getattr(keyboard_config, 'description', None)),
+        ('vendor', getattr(keyboard_config, 'vendor', None)),
+        ('key_count', getattr(keyboard_config, 'key_count', None)),
+    ]
+
+    for field_name, field_value in basic_fields:
+        row_data = [field_name, format_value(field_value)]
+
+        if show_defaults:
+            default_value = defaults.get(field_name)
+            row_data.append(format_value(default_value))
+
+        if show_sources:
+            source = sources.get(field_name, "unknown")
+            row_data.append(source)
+
+        table.add_row(*row_data)
+
+    # Configuration sections
+    config_sections = []
+    if hasattr(keyboard_config, 'compile_methods') and keyboard_config.compile_methods:
+        config_sections.append(('compile_methods', keyboard_config.compile_methods))
+
+    if hasattr(keyboard_config, 'flash_methods') and keyboard_config.flash_methods:
+        config_sections.append(('flash_methods', keyboard_config.flash_methods))
+
+    if hasattr(keyboard_config, 'firmwares') and keyboard_config.firmwares:
+        config_sections.append(('firmwares', keyboard_config.firmwares))
+
+    # Show verbose sections if verbose flag is set OR if sources/defaults are requested
+    show_verbose_sections = verbose or show_sources or show_defaults
+
+    if show_verbose_sections:
+        if hasattr(keyboard_config, 'behaviors') and keyboard_config.behaviors:
+            config_sections.append(('behaviors', keyboard_config.behaviors))
+
+        if hasattr(keyboard_config, 'display') and keyboard_config.display:
+            config_sections.append(('display', keyboard_config.display))
+
+        if hasattr(keyboard_config, 'zmk') and keyboard_config.zmk:
+            config_sections.append(('zmk', keyboard_config.zmk))
+
+    for field_name, field_value in config_sections:
+        row_data = [field_name, format_value(field_value)]
+
+        if show_defaults:
+            default_value = defaults.get(field_name)
+            row_data.append(format_value(default_value))
+
+        if show_sources:
+            source = sources.get(field_name, "unknown")
+            row_data.append(source)
+
+        table.add_row(*row_data)
+
+    # Print header with icon
+    header_icon = Icons.get_icon("KEYBOARD", app_ctx.use_emoji)
+    console.print(Panel(f"{header_icon} Keyboard Configuration Details", border_style="cyan"))
+    console.print(table)
+
+    # Print helpful information
+    console.print("\n[dim]Configuration information:[/dim]")
+    if show_defaults:
+        console.print("[dim]  • Default values shown are from Pydantic model field definitions[/dim]")
+    if show_sources:
+        console.print("[dim]  • Sources show the configuration files that provide each setting[/dim]")
+        console.print("[dim]  • Keyboard configs use an include system for modular configuration[/dim]")
+
+    console.print(f"\n[dim]Use 'glovebox keyboard edit {keyboard_name} --interactive' to modify configuration[/dim]")
+
+
+def _enhance_config_data_with_metadata(
+    config_data: dict[str, Any],
+    keyboard_config: Any,
+    keyboard_name: str,
+    app_ctx: AppContext,
+    show_sources: bool,
+    show_defaults: bool
+) -> dict[str, Any]:
+    """Enhance config data with sources and defaults metadata for non-text formats."""
+    enhanced_data = config_data.copy()
+
+    if show_defaults:
+        enhanced_data["_defaults"] = _get_keyboard_field_defaults()
+
+    if show_sources:
+        enhanced_data["_sources"] = _get_keyboard_config_sources(keyboard_name, app_ctx)
+
+    return enhanced_data
 
 
 def complete_keyboard_names(incomplete: str) -> list[str]:
@@ -189,6 +422,161 @@ def _build_keyboard_config_data(
     return config_data
 
 
+def _print_keyboard_details_rich(
+    config_data: dict[str, Any], use_emoji: bool = True, console: Console | None = None
+) -> None:
+    """Print keyboard configuration details using rich formatting.
+
+    Args:
+        config_data: Keyboard configuration data
+        use_emoji: Whether to use emoji icons
+        console: Rich console instance
+    """
+    if console is None:
+        console = Console()
+
+    # Header panel
+    keyboard_name = config_data.get("keyboard", "Unknown")
+    keyboard_icon = Icons.get_icon("KEYBOARD", use_emoji)
+    header = Text(f"Keyboard Configuration: {keyboard_name}", style="bold magenta")
+    console.print(
+        Panel(header, title=f"{keyboard_icon} Keyboard Details", border_style="blue")
+    )
+    console.print()
+
+    # Basic information table
+    basic_table = Table(
+        title=f"{Icons.get_icon('INFO', use_emoji)} Basic Information",
+        show_header=True,
+        header_style="bold green",
+    )
+    basic_table.add_column("Property", style="cyan", no_wrap=True)
+    basic_table.add_column("Value", style="white")
+
+    # Add basic properties
+    basic_properties = [
+        ("Name", config_data.get("keyboard", "Unknown")),
+        ("Description", config_data.get("description", "No description")),
+        ("Vendor", config_data.get("vendor", "Unknown")),
+        ("Key Count", config_data.get("key_count", "Unknown")),
+    ]
+
+    for prop, value in basic_properties:
+        basic_table.add_row(prop, str(value))
+
+    console.print(basic_table)
+    console.print()
+
+    # Flash methods table
+    flash_methods = config_data.get("flash_methods", [])
+    if flash_methods:
+        flash_table = Table(
+            title=f"{Icons.get_icon('FLASH', use_emoji)} Flash Methods",
+            show_header=True,
+            header_style="bold yellow",
+        )
+        flash_table.add_column("Priority", style="cyan", no_wrap=True)
+        flash_table.add_column("Method", style="yellow")
+        flash_table.add_column("Details", style="white")
+
+        for method in flash_methods:
+            priority = str(method.get("priority", "Unknown"))
+            method_type = method.get("method_type", "Unknown")
+
+            # Build details string
+            details = []
+            if method.get("device_query"):
+                details.append(f"Query: {method['device_query']}")
+            if method.get("vid") and method.get("pid"):
+                details.append(f"VID:PID {method['vid']}:{method['pid']}")
+            if method.get("mount_timeout"):
+                details.append(f"Mount timeout: {method['mount_timeout']}s")
+
+            details_str = "; ".join(details) if details else "Default settings"
+            flash_table.add_row(priority, method_type, details_str)
+
+        console.print(flash_table)
+        console.print()
+
+    # Compile methods table
+    compile_methods = config_data.get("compile_methods", [])
+    if compile_methods:
+        compile_table = Table(
+            title=f"{Icons.get_icon('BUILD', use_emoji)} Compile Methods",
+            show_header=True,
+            header_style="bold blue",
+        )
+        compile_table.add_column("Priority", style="cyan", no_wrap=True)
+        compile_table.add_column("Strategy", style="blue")
+        compile_table.add_column("Details", style="white")
+
+        for method in compile_methods:
+            priority = str(method.get("priority", "Unknown"))
+            strategy = method.get("method_type", "Unknown")
+
+            # Build details string
+            details = []
+            if method.get("repository"):
+                details.append(f"Repo: {method['repository']}")
+            if method.get("branch"):
+                details.append(f"Branch: {method['branch']}")
+            if method.get("image"):
+                details.append(f"Image: {method['image']}")
+
+            details_str = "; ".join(details) if details else "Default settings"
+            compile_table.add_row(priority, strategy, details_str)
+
+        console.print(compile_table)
+        console.print()
+
+    # Firmwares table
+    firmwares = config_data.get("firmwares", {})
+    if firmwares:
+        firmware_table = Table(
+            title=f"{Icons.get_icon('FIRMWARE', use_emoji)} Available Firmwares ({len(firmwares)})",
+            show_header=True,
+            header_style="bold magenta",
+        )
+        firmware_table.add_column("Firmware", style="cyan", no_wrap=True)
+        firmware_table.add_column("Version", style="green")
+        firmware_table.add_column("Description", style="white")
+
+        for name, fw_data in firmwares.items():
+            version = fw_data.get("version", "Unknown")
+            description = fw_data.get("description", "No description")
+            firmware_table.add_row(name, version, description)
+
+        console.print(firmware_table)
+        console.print()
+
+    # Selected firmware details if specified
+    if config_data.get("selected_firmware"):
+        selected_fw = config_data["selected_firmware"]
+        fw_details = config_data.get("firmware_details", {})
+        if fw_details:
+            selected_table = Table(
+                title=f"{Icons.get_icon('STAR', use_emoji)} Selected Firmware: {selected_fw}",
+                show_header=True,
+                header_style="bold magenta",
+            )
+            selected_table.add_column("Property", style="cyan", no_wrap=True)
+            selected_table.add_column("Value", style="white")
+
+            for prop, value in fw_details.items():
+                if isinstance(value, dict):
+                    value_str = "; ".join(f"{k}: {v}" for k, v in value.items())
+                else:
+                    value_str = str(value)
+                selected_table.add_row(prop.replace("_", " ").title(), value_str)
+
+            console.print(selected_table)
+        elif config_data.get("firmware_error"):
+            error_icon = Icons.get_icon("ERROR", use_emoji)
+            console.print(
+                f"\n[bold red]{error_icon} {config_data['firmware_error']}[/bold red]\n"
+            )
+
+
 @handle_errors
 def list_keyboards(
     ctx: typer.Context,
@@ -234,10 +622,36 @@ def list_keyboards(
         print(json.dumps(output, indent=2))
         return
 
-    # Text output
+    # Text output with rich formatting
+    console = Console()
+
     if verbose:
-        print(f"Available Keyboard Configurations ({len(keyboards)}):")
-        print("-" * 60)
+        # Create header panel
+        keyboard_icon = Icons.get_icon("KEYBOARD", app_ctx.use_emoji)
+        header = Text(
+            f"Available Keyboard Configurations ({len(keyboards)})",
+            style="bold magenta",
+        )
+        console.print(
+            Panel(
+                header,
+                title=f"{keyboard_icon} Keyboard Configurations",
+                border_style="blue",
+            )
+        )
+        console.print()
+
+        # Create table for detailed keyboard information
+        table = Table(
+            title=f"{keyboard_icon} Keyboard Details",
+            show_header=True,
+            header_style="bold blue",
+        )
+        table.add_column("Keyboard", style="cyan", no_wrap=True)
+        table.add_column("Description", style="white")
+        table.add_column("Vendor", style="yellow")
+        table.add_column("Key Count", style="green")
+        table.add_column("Firmwares", style="magenta")
 
         # Get and display detailed information for each keyboard
         for keyboard_name in keyboards:
@@ -255,23 +669,45 @@ def list_keyboards(
                     if hasattr(keyboard_config, "vendor")
                     else "N/A"
                 )
-                version = (
-                    "N/A"  # Version is not a top-level attribute in KeyboardConfig
+                key_count = (
+                    str(keyboard_config.key_count)
+                    if hasattr(keyboard_config, "key_count")
+                    and keyboard_config.key_count
+                    else "N/A"
                 )
 
-                print(f"• {keyboard_name}")
-                print(f"  Description: {description}")
-                print(f"  Vendor: {vendor}")
-                print(f"  Version: {version}")
-                print("")
+                # Count firmwares
+                firmware_count = (
+                    len(keyboard_config.firmwares)
+                    if hasattr(keyboard_config, "firmwares")
+                    and keyboard_config.firmwares
+                    else 0
+                )
+
+                firmware_display = (
+                    f"{firmware_count} available" if firmware_count > 0 else "None"
+                )
+
+                table.add_row(
+                    keyboard_name, description, vendor, key_count, firmware_display
+                )
             except Exception as e:
-                print(f"• {keyboard_name}")
-                print(f"  Error: {e}")
-                print("")
+                error_icon = Icons.get_icon("ERROR", app_ctx.use_emoji)
+                table.add_row(
+                    keyboard_name, f"{error_icon} {str(e)}", "Error", "Error", "Error"
+                )
+
+        console.print(table)
     else:
-        print(f"Available keyboard configurations ({len(keyboards)}):")
+        # Simple list format with rich styling
+        keyboard_icon = Icons.get_icon("KEYBOARD", app_ctx.use_emoji)
+        console.print(
+            f"\n[bold cyan]{keyboard_icon} Available keyboard configurations ({len(keyboards)}):[/bold cyan]\n"
+        )
+
         for keyboard in keyboards:
-            print_list_item(keyboard)
+            bullet_icon = Icons.get_icon("BULLET", app_ctx.use_emoji)
+            console.print(f"  {bullet_icon} [cyan]{keyboard}[/cyan]")
 
 
 @handle_errors
@@ -294,6 +730,12 @@ def show_keyboard(
     ),
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show detailed configuration information"
+    ),
+    show_sources: bool = typer.Option(
+        False, "--sources", help="Show configuration sources and include hierarchy"
+    ),
+    show_defaults: bool = typer.Option(
+        False, "--defaults", help="Show default values alongside current values"
     ),
 ) -> None:
     """Show details of a specific keyboard configuration.
@@ -370,5 +812,20 @@ def show_keyboard(
                     f"Firmware version '{firmware_version}' not found"
                 )
 
-    # Use the unified output formatter
-    formatter.print_formatted(config_data, format)
+    # Use rich formatting for text output or unified formatter for other formats
+    if format.lower() == "text":
+        # Handle sources and defaults flags for text output
+        if show_sources or show_defaults:
+            _print_keyboard_config_table(
+                keyboard_config, keyboard_name, app_ctx, show_sources, show_defaults, verbose
+            )
+        else:
+            _print_keyboard_details_rich(config_data, app_ctx.use_emoji, console=Console())
+    else:
+        # For non-text formats, add sources and defaults to config_data if requested
+        if show_sources or show_defaults:
+            config_data = _enhance_config_data_with_metadata(
+                config_data, keyboard_config, keyboard_name, app_ctx, show_sources, show_defaults
+            )
+        # Use the unified output formatter for other formats
+        formatter.print_formatted(config_data, format)

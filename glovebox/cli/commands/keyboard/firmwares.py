@@ -5,6 +5,10 @@ import logging
 from typing import Annotated, Any
 
 import typer
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
 
 from glovebox.cli.app import AppContext
 from glovebox.cli.decorators import handle_errors
@@ -13,6 +17,7 @@ from glovebox.cli.helpers import (
     print_list_item,
     print_success_message,
 )
+from glovebox.cli.helpers.theme import Colors, Icons
 from glovebox.config.keyboard_profile import load_keyboard_config
 
 
@@ -87,7 +92,11 @@ def list_firmwares(
     firmwares = keyboard_config.firmwares
 
     if not firmwares:
-        print(f"No firmwares found for {keyboard_name}")
+        console = Console()
+        error_icon = Icons.get_icon("ERROR", app_ctx.use_emoji)
+        console.print(
+            f"\n[bold red]{error_icon} No firmwares found for {keyboard_name}[/bold red]\n"
+        )
         return
 
     if format.lower() == "json":
@@ -110,31 +119,62 @@ def list_firmwares(
         print(json.dumps(output, indent=2))
         return
 
-    # Text output
+    # Text output with rich formatting
+    console = Console()
+
     if verbose:
-        print(f"Available Firmware Versions for {keyboard_name} ({len(firmwares)}):")
-        print("-" * 60)
+        # Create header panel
+        firmware_icon = Icons.get_icon("FIRMWARE", app_ctx.use_emoji)
+        header = Text(
+            f"Available Firmware Versions for {keyboard_name} ({len(firmwares)})",
+            style="bold magenta",
+        )
+        console.print(
+            Panel(
+                header,
+                title=f"{firmware_icon} Firmware Configurations",
+                border_style="blue",
+            )
+        )
+        console.print()
+
+        # Create detailed firmware table
+        table = Table(
+            title=f"{firmware_icon} Firmware Details",
+            show_header=True,
+            header_style="bold blue",
+        )
+        table.add_column("Firmware", style="cyan", no_wrap=True)
+        table.add_column("Version", style="green")
+        table.add_column("Description", style="white")
+        table.add_column("Repository", style="yellow")
+        table.add_column("Branch", style="magenta")
 
         for firmware_name, firmware in firmwares.items():
             version = firmware.version
             description = firmware.description
 
-            print(f"• {firmware_name}")
-            print(f"  Version: {version}")
-            print(f"  Description: {description}")
-
-            # Show build options if available
+            # Get build options if available
             build_options = firmware.build_options
+            repository = "N/A"
+            branch = "N/A"
             if build_options:
-                print("  Build Options:")
-                print(f"    repository: {build_options.repository}")
-                print(f"    branch: {build_options.branch}")
+                repository = build_options.repository or "N/A"
+                branch = build_options.branch or "N/A"
 
-            print("")
+            table.add_row(firmware_name, version, description, repository, branch)
+
+        console.print(table)
     else:
-        print(f"Found {len(firmwares)} firmware(s) for {keyboard_name}:")
+        # Simple list format with rich styling
+        firmware_icon = Icons.get_icon("FIRMWARE", app_ctx.use_emoji)
+        console.print(
+            f"\n[bold cyan]{firmware_icon} Found {len(firmwares)} firmware(s) for {keyboard_name}:[/bold cyan]\n"
+        )
+
         for firmware_name in firmwares:
-            print_list_item(firmware_name)
+            bullet_icon = Icons.get_icon("BULLET", app_ctx.use_emoji)
+            console.print(f"  {bullet_icon} [cyan]{firmware_name}[/cyan]")
 
 
 @handle_errors
@@ -177,40 +217,81 @@ def show_firmware(
         print(json.dumps(output, indent=2))
         return
 
-    # Text output
-    print(f"Firmware: {firmware_name} for {keyboard_name}")
-    print("-" * 60)
+    # Text output with rich formatting
+    console = Console()
+
+    # Create header panel
+    firmware_icon = Icons.get_icon("FIRMWARE", app_ctx.use_emoji)
+    header = Text(
+        f"Firmware: {firmware_name} for {keyboard_name}", style="bold magenta"
+    )
+    console.print(
+        Panel(header, title=f"{firmware_icon} Firmware Details", border_style="blue")
+    )
+    console.print()
+
+    # Basic information table
+    basic_table = Table(
+        title=f"{Icons.get_icon('INFO', app_ctx.use_emoji)} Basic Information",
+        show_header=True,
+        header_style="bold green",
+    )
+    basic_table.add_column("Property", style="cyan", no_wrap=True)
+    basic_table.add_column("Value", style="white")
 
     # Display basic information
     version = firmware_config.version
     description = firmware_config.description
 
-    print(f"Version: {version}")
-    print(f"Description: {description}")
+    basic_table.add_row("Firmware Name", firmware_name)
+    basic_table.add_row("Version", version)
+    basic_table.add_row("Description", description)
+    basic_table.add_row("Keyboard", keyboard_name)
 
-    # Display build options
+    console.print(basic_table)
+    console.print()
+
+    # Build options table
     build_options = firmware_config.build_options
     if build_options:
-        print("\nBuild Options:")
-        print(f"  repository: {build_options.repository}")
-        print(f"  branch: {build_options.branch}")
+        build_table = Table(
+            title=f"{Icons.get_icon('BUILD', app_ctx.use_emoji)} Build Options",
+            show_header=True,
+            header_style="bold blue",
+        )
+        build_table.add_column("Option", style="cyan", no_wrap=True)
+        build_table.add_column("Value", style="white")
 
-    # Display kconfig options
+        build_table.add_row("Repository", build_options.repository or "N/A")
+        build_table.add_row("Branch", build_options.branch or "N/A")
+
+        console.print(build_table)
+        console.print()
+
+    # Kconfig options table
     kconfig = (
         firmware_config.kconfig
         if hasattr(firmware_config, "kconfig") and firmware_config.kconfig is not None
         else {}
     )
     if kconfig:
-        print("\nKconfig Options:")
+        kconfig_table = Table(
+            title=f"{Icons.get_icon('CONFIG', app_ctx.use_emoji)} Kconfig Options ({len(kconfig)})",
+            show_header=True,
+            header_style="bold yellow",
+        )
+        kconfig_table.add_column("Option", style="cyan", no_wrap=True)
+        kconfig_table.add_column("Type", style="yellow")
+        kconfig_table.add_column("Default", style="green")
+        kconfig_table.add_column("Description", style="white")
+
         for _key, config in kconfig.items():
             # config is always a KConfigOption instance
             name = config.name
             type_str = config.type
-            default = config.default
-            description = config.description
+            default = str(config.default)
+            description = config.description or "No description"
 
-            print(f"  • {name} ({type_str})")
-            print(f"    Default: {default}")
-            if description:
-                print(f"    Description: {description}")
+            kconfig_table.add_row(name, type_str, default, description)
+
+        console.print(kconfig_table)

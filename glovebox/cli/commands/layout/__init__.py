@@ -14,8 +14,9 @@ from .edit import edit
 # Import file operations
 from .file_operations import export, import_layout, merge, split
 
-# Keep glove80_sync for now (will be moved to keyboard commands later)
-from .glove80_sync import glove80_group
+# Import new cloud and bookmark commands
+from .cloud import register_commands as register_cloud_commands
+from .bookmarks import register_commands as register_bookmarks_commands
 
 # Import upgrade command
 from .upgrade import upgrade
@@ -57,7 +58,8 @@ Comparison:
   patch       - Apply JSON diff patch to layout
 
 Cloud Integration:
-  glove80     - Cloud sync operations (temporary, moving to keyboard commands)
+  cloud       - Essential cloud operations (upload, download, list, browse, delete)
+  bookmarks   - Bookmark management for easy access to saved layouts
 """,
     no_args_is_help=True,
     rich_markup_mode="rich",
@@ -87,8 +89,9 @@ layout_app.command()(patch)
 # Register version management subcommand group
 layout_app.add_typer(versions_app, name="versions")
 
-# Register cloud sync commands (temporary - will be moved to keyboard commands)
-layout_app.add_typer(glove80_group, name="glove80")
+# Register cloud and bookmark commands
+register_cloud_commands(layout_app)
+register_bookmarks_commands(layout_app)
 
 
 def register_commands(app: typer.Typer) -> None:

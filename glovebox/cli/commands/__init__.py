@@ -11,6 +11,8 @@ from glovebox.cli.commands.keyboard import (
     register_commands as register_keyboard_commands,
 )
 from glovebox.cli.commands.layout import register_commands as register_layout_commands
+from glovebox.cli.commands.layout.cloud import register_commands as register_cloud_commands
+from glovebox.cli.commands.layout.bookmarks import register_commands as register_bookmarks_commands
 from glovebox.cli.commands.moergo import register_commands as register_moergo_commands
 from glovebox.cli.commands.status import register_commands as register_status_commands
 
@@ -27,4 +29,6 @@ def register_all_commands(app: typer.Typer) -> None:
     register_keyboard_commands(app)
     register_status_commands(app)
     register_moergo_commands(app)
+    register_cloud_commands(app)
+    register_bookmarks_commands(app)
     app.add_typer(cache_app, name="cache")
