@@ -14,9 +14,10 @@ import os
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field, field_validator
 
 from glovebox.compilation.models.build_matrix import BuildMatrix
+from glovebox.models.base import GloveboxBaseModel
 from glovebox.models.docker_path import DockerPath
 
 
@@ -26,7 +27,7 @@ def expand_path_variables(path_str: Path) -> Path:
     return Path(expanded).expanduser()
 
 
-class DockerUserConfig(BaseModel):
+class DockerUserConfig(GloveboxBaseModel):
     """Docker user mapping configuration."""
 
     enable_user_mapping: bool = True
@@ -49,7 +50,7 @@ class DockerUserConfig(BaseModel):
         return path.resolve() if path.exists() else path
 
 
-class CacheConfig(BaseModel):
+class CacheConfig(GloveboxBaseModel):
     """Configuration for cache management."""
 
     enabled: bool = True
@@ -60,7 +61,7 @@ class CacheConfig(BaseModel):
     enable_smart_invalidation: bool = True
 
 
-class ZmkWorkspaceConfig(BaseModel):
+class ZmkWorkspaceConfig(GloveboxBaseModel):
     """ZMK workspace configuration for zmk_config strategy."""
 
     repository: str = "zmkfirmware/zmk"
@@ -83,7 +84,7 @@ class ZmkWorkspaceConfig(BaseModel):
     )
 
 
-class CompilationConfig(BaseModel):
+class CompilationConfig(GloveboxBaseModel):
     """Base compilation configuration for all strategies."""
 
     # Core identification

@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any, TypeAlias, Union
 
 from pydantic import (
-    BaseModel,
     ConfigDict,
     Field,
     field_serializer,
@@ -25,6 +24,7 @@ from glovebox.layout.behavior.models import (
     SystemBehaviorParam,
     SystemParamList,
 )
+from glovebox.models.base import GloveboxBaseModel
 
 from .bookmarks import BookmarkCollection, BookmarkSource, LayoutBookmark
 
@@ -44,10 +44,8 @@ ConfigParamList: TypeAlias = list["ConfigParameter"]
 
 
 # TODO: rename to maybe KeyPararm to avoid confusion with LayoutParam
-class LayoutParam(BaseModel):
+class LayoutParam(GloveboxBaseModel):
     """Model for parameter values in key bindings."""
-
-    model_config = ConfigDict(extra="allow")
 
     value: ParamValue
     params: list["LayoutParam"] = Field(default_factory=list)
@@ -57,10 +55,8 @@ class LayoutParam(BaseModel):
 LayoutParam.model_rebuild()
 
 
-class LayoutBinding(BaseModel):
+class LayoutBinding(GloveboxBaseModel):
     """Model for individual key bindings."""
-
-    model_config = ConfigDict(extra="allow")
 
     value: str
     params: list[LayoutParam] = Field(default_factory=list)
@@ -71,10 +67,8 @@ class LayoutBinding(BaseModel):
         return self.value
 
 
-class LayoutLayer(BaseModel):
+class LayoutLayer(GloveboxBaseModel):
     """Model for keyboard layers."""
-
-    model_config = ConfigDict(extra="allow")
 
     name: str
     bindings: list[LayoutBinding]
@@ -91,10 +85,8 @@ class LayoutLayer(BaseModel):
         return v
 
 
-class HoldTapBehavior(BaseModel):
+class HoldTapBehavior(GloveboxBaseModel):
     """Model for hold-tap behavior definitions."""
-
-    model_config = ConfigDict(extra="allow")
 
     name: str
     description: str | None = ""
@@ -170,10 +162,8 @@ class HoldTapBehavior(BaseModel):
         return v
 
 
-class ComboBehavior(BaseModel):
+class ComboBehavior(GloveboxBaseModel):
     """Model for combo definitions."""
-
-    model_config = ConfigDict(extra="allow")
 
     name: str
     description: str | None = ""
@@ -195,10 +185,8 @@ class ComboBehavior(BaseModel):
         return v
 
 
-class MacroBehavior(BaseModel):
+class MacroBehavior(GloveboxBaseModel):
     """Model for macro definitions."""
-
-    model_config = ConfigDict(extra="allow")
 
     name: str
     description: str | None = ""
@@ -220,29 +208,23 @@ class MacroBehavior(BaseModel):
         return v
 
 
-class ConfigParameter(BaseModel):
+class ConfigParameter(GloveboxBaseModel):
     """Model for configuration parameters."""
-
-    model_config = ConfigDict(extra="allow")
 
     param_name: str = Field(alias="paramName")
     value: ConfigValue
     description: str | None = None
 
 
-class InputProcessor(BaseModel):
+class InputProcessor(GloveboxBaseModel):
     """Model for input processors."""
-
-    model_config = ConfigDict(extra="allow")
 
     code: str
     params: list[ParamValue] = Field(default_factory=list)
 
 
-class InputListenerNode(BaseModel):
+class InputListenerNode(GloveboxBaseModel):
     """Model for input listener nodes."""
-
-    model_config = ConfigDict(extra="allow")
 
     code: str
     description: str | None = ""
@@ -252,10 +234,8 @@ class InputListenerNode(BaseModel):
     )
 
 
-class InputListener(BaseModel):
+class InputListener(GloveboxBaseModel):
     """Model for input listeners."""
-
-    model_config = ConfigDict(extra="allow")
 
     code: str
     input_processors: list[InputProcessor] = Field(
@@ -264,10 +244,8 @@ class InputListener(BaseModel):
     nodes: list[InputListenerNode] = Field(default_factory=list)
 
 
-class LayoutMetadata(BaseModel):
+class LayoutMetadata(GloveboxBaseModel):
     """Pydantic model for layout metadata fields."""
-
-    model_config = ConfigDict(extra="allow")
 
     # Required fields
     keyboard: str
@@ -324,7 +302,7 @@ class LayoutMetadata(BaseModel):
 class LayoutData(LayoutMetadata):
     """Complete layout data model with Pydantic v2."""
 
-    model_config = ConfigDict(extra="allow", str_strip_whitespace=True)
+    # LayoutData doesn't need to override model_config since it inherits from GloveboxBaseModel
 
     # Essential structure fields
     layers: list[LayerBindings] = Field(default_factory=list)
@@ -431,12 +409,12 @@ class LayoutData(LayoutMetadata):
         return structured_layers
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary with proper field names."""
-        return self.model_dump(by_alias=True, exclude_unset=True)
+        """Convert to dictionary with proper field names and JSON serialization."""
+        return self.model_dump(mode="json", by_alias=True, exclude_unset=True)
 
 
 # Layout result models
-class KeymapResult(BaseModel):
+class KeymapResult(GloveboxBaseModel):
     """Result of keymap operations."""
 
     success: bool
@@ -469,7 +447,7 @@ class KeymapResult(BaseModel):
         self.success = False
 
 
-class LayoutResult(BaseModel):
+class LayoutResult(GloveboxBaseModel):
     """Result of layout operations."""
 
     success: bool

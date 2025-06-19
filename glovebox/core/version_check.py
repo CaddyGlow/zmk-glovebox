@@ -204,7 +204,7 @@ class ZmkVersionChecker:
     def _cache_result(self, result: VersionCheckResult) -> None:
         """Cache version check result."""
         try:
-            data = result.model_dump()
+            data = result.model_dump(by_alias=True, exclude_unset=True, mode="json")
 
             # Convert datetime to string
             if data.get("last_check"):

@@ -12,7 +12,9 @@ from rich.text import Text
 class FormattableData(Protocol):
     """Protocol for data that can be formatted for output."""
 
-    def to_dict(self) -> dict[str, Any]:
+    def model_dump(
+        self, *, by_alias: bool = True, exclude_unset: bool = True, mode: str = "json"
+    ) -> dict[str, Any]:
         """Convert to dictionary for JSON/table formatting."""
         ...
 
@@ -72,8 +74,8 @@ class OutputFormatter:
     def _format_json(self, data: Any) -> str:
         """Format data as JSON."""
         if hasattr(data, "model_dump"):
-            # Pydantic model
-            return json.dumps(data.model_dump(), indent=2)
+            # Pydantic v2 model - use JSON mode for proper serialization
+            return json.dumps(data.model_dump(mode="json"), indent=2)
         elif hasattr(data, "to_dict"):
             # Custom to_dict method
             return json.dumps(data.to_dict(), indent=2)
@@ -84,7 +86,7 @@ class OutputFormatter:
             json_data = []
             for item in data:
                 if hasattr(item, "model_dump"):
-                    json_data.append(item.model_dump())
+                    json_data.append(item.model_dump(mode="json"))
                 elif hasattr(item, "to_dict"):
                     json_data.append(item.to_dict())
                 else:

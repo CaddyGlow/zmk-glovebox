@@ -12,11 +12,13 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from glovebox.models.base import GloveboxBaseModel
 
 
 # West command specification
-class WestCommand(BaseModel):
+class WestCommand(GloveboxBaseModel):
     """West command specification."""
 
     name: str | None = None
@@ -24,27 +26,27 @@ class WestCommand(BaseModel):
     help: str | None = None
 
 
-class WestCommandsFile(BaseModel):
+class WestCommandsFile(GloveboxBaseModel):
     """West commands file specification."""
 
     file: str
     commands: list[WestCommand]
 
 
-class WestCommandsConfig(BaseModel):
+class WestCommandsConfig(GloveboxBaseModel):
     """West commands configuration from west-commands.yml."""
 
     west_commands: list[WestCommandsFile] = Field(serialization_alias="west-commands")
 
 
-class WestRemote(BaseModel):
+class WestRemote(GloveboxBaseModel):
     """West remote configuration."""
 
     name: str
     url_base: str = Field(serialization_alias="url-base")
 
 
-class WestProject(BaseModel):
+class WestProject(GloveboxBaseModel):
     """West project configuration."""
 
     name: str
@@ -60,14 +62,14 @@ class WestProject(BaseModel):
     groups: list[str] | None = None
 
 
-class WestDefaults(BaseModel):
+class WestDefaults(GloveboxBaseModel):
     """West defaults configuration."""
 
     remote: str | None = None
     revision: str = "main"
 
 
-class WestSelf(BaseModel):
+class WestSelf(GloveboxBaseModel):
     """West self configuration for manifest repository."""
 
     path: str | None = None
@@ -80,7 +82,7 @@ class WestSelf(BaseModel):
     }
 
 
-class WestManifest(BaseModel):
+class WestManifest(GloveboxBaseModel):
     """West manifest configuration."""
 
     defaults: WestDefaults | None = None
@@ -239,7 +241,7 @@ class WestManifest(BaseModel):
             self.projects[0].revision = value
 
 
-class WestManifestConfig(BaseModel):
+class WestManifestConfig(GloveboxBaseModel):
     """Complete west.yml manifest configuration."""
 
     version: str | None = None
@@ -252,7 +254,7 @@ class WestManifestConfig(BaseModel):
             str: YAML representation of the manifest
         """
         return yaml.safe_dump(
-            self.model_dump(by_alias=True, exclude_none=True),
+            self.model_dump(by_alias=True, exclude_unset=True, mode="json"),
             default_flow_style=False,
             sort_keys=False,
         )

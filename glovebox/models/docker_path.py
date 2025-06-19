@@ -4,13 +4,15 @@ import logging
 from pathlib import Path
 from typing import Self
 
-from pydantic import BaseModel, field_validator
+from pydantic import field_validator
+
+from glovebox.models.base import GloveboxBaseModel
 
 
 logger = logging.getLogger(__name__)
 
 
-class DockerPath(BaseModel):
+class DockerPath(GloveboxBaseModel):
     """Represents a mapping between host and container paths.
 
     Provides a clean API for Docker volume mounting and path resolution.

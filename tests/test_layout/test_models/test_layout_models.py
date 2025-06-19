@@ -37,7 +37,7 @@ class TestLayoutDataTimestampSerialization:
         layout = LayoutData(keyboard="glove80", title="Test Layout", date=test_date)
 
         # Test regular serialization
-        regular_data = layout.model_dump()
+        regular_data = layout.model_dump(by_alias=True, exclude_unset=True)
         assert isinstance(regular_data["date"], datetime)
         assert regular_data["date"] == test_date
 
@@ -102,7 +102,7 @@ class TestKeymapResultTimestampSerialization:
         result = KeymapResult(success=True, timestamp=test_timestamp)
 
         # Test regular serialization
-        regular_data = result.model_dump()
+        regular_data = result.model_dump(by_alias=True, exclude_unset=True)
         assert isinstance(regular_data["timestamp"], datetime)
         assert regular_data["timestamp"] == test_timestamp
 
@@ -154,7 +154,7 @@ class TestLayoutResultTimestampSerialization:
         result = LayoutResult(success=True, timestamp=test_timestamp)
 
         # Test regular serialization
-        regular_data = result.model_dump()
+        regular_data = result.model_dump(by_alias=True, exclude_unset=True)
         assert isinstance(regular_data["timestamp"], datetime)
         assert regular_data["timestamp"] == test_timestamp
 

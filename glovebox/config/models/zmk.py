@@ -1,13 +1,15 @@
 """ZMK configuration models."""
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from glovebox.models.base import GloveboxBaseModel
 
 
 # ZMK Constants
 MACRO_PLACEHOLDER = "MACRO_PLACEHOLDER"
 
 
-class ZmkCompatibleStrings(BaseModel):
+class ZmkCompatibleStrings(GloveboxBaseModel):
     """ZMK compatible string constants."""
 
     macro: str = Field(default="zmk,behavior-macro")
@@ -18,7 +20,7 @@ class ZmkCompatibleStrings(BaseModel):
     keymap: str = Field(default="zmk,keymap")
 
 
-class ZmkPatterns(BaseModel):
+class ZmkPatterns(GloveboxBaseModel):
     """ZMK naming and pattern configuration."""
 
     layer_define: str = Field(default="LAYER_{}")
@@ -26,7 +28,7 @@ class ZmkPatterns(BaseModel):
     kconfig_prefix: str = Field(default="CONFIG_")
 
 
-class FileExtensions(BaseModel):
+class FileExtensions(GloveboxBaseModel):
     """File extension configuration."""
 
     keymap: str = Field(default=".keymap")
@@ -35,7 +37,7 @@ class FileExtensions(BaseModel):
     metadata: str = Field(default=".json")
 
 
-class ValidationLimits(BaseModel):
+class ValidationLimits(GloveboxBaseModel):
     """Validation limits and thresholds."""
 
     max_layers: int = Field(default=10, gt=0)
@@ -44,7 +46,7 @@ class ValidationLimits(BaseModel):
     warn_many_layers_threshold: int = Field(default=10, gt=0)
 
 
-class ZmkConfig(BaseModel):
+class ZmkConfig(GloveboxBaseModel):
     """ZMK-specific configuration and constants."""
 
     compatible_strings: ZmkCompatibleStrings = Field(

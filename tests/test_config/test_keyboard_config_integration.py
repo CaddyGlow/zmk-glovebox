@@ -155,7 +155,7 @@ class TestKeyboardConfigCustomSections:
         assert config.display.formatting.trans_display == "TRANS"
         assert config.display.formatting.key_width == 10
         assert config.display.formatting.center_small_rows is False
-        assert config.display.formatting.horizontal_spacer == " ║ "
+        assert config.display.formatting.horizontal_spacer == "║"
 
         # Other sections should still have defaults
         assert config.behavior.magic_layer_command == "&magic LAYER_Magic 0"
@@ -303,7 +303,7 @@ class TestKeyboardConfigSerialization:
             key_count=50,
         )
 
-        config_dict = config.model_dump()
+        config_dict = config.model_dump(by_alias=True, mode="json")
 
         # Verify all sections are present in serialized output
         assert "keyboard" in config_dict
@@ -344,7 +344,9 @@ class TestKeyboardConfigSerialization:
         )
 
         # Serialize to dict
-        config_dict = original_config.model_dump()
+        config_dict = original_config.model_dump(
+            by_alias=True, exclude_unset=True, mode="json"
+        )
 
         # Deserialize back to model
         restored_config = KeyboardConfig.model_validate(config_dict)

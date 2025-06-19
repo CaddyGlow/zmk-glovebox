@@ -137,7 +137,9 @@ def update(
         raise typer.Exit(1) from None
 
     # Update metadata
-    updated_meta = existing_layout.layout_meta.model_dump()
+    updated_meta = existing_layout.layout_meta.model_dump(
+        by_alias=True, exclude_unset=True, mode="json"
+    )
     updated_meta["date"] = int(datetime.now().timestamp())
 
     if title:

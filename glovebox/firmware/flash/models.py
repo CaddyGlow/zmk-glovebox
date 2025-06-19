@@ -7,8 +7,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 
+from glovebox.models.base import GloveboxBaseModel
 from glovebox.models.results import BaseResult
 
 

@@ -184,7 +184,11 @@ class BookmarkService:
         if use_cache:
             cache_key = CacheKey.from_parts("bookmark_layout", bookmark.uuid)
             # Cache for 24 hours since layout content is immutable by UUID
-            self._cache.set(cache_key, layout.model_dump(), ttl=86400)
+            self._cache.set(
+                cache_key,
+                layout.model_dump(by_alias=True, exclude_unset=True, mode="json"),
+                ttl=86400,
+            )
 
         return layout
 

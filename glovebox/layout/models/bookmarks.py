@@ -2,7 +2,9 @@
 
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from glovebox.models.base import GloveboxBaseModel
 
 
 class BookmarkSource(str, Enum):
@@ -12,7 +14,7 @@ class BookmarkSource(str, Enum):
     USER = "user"
 
 
-class LayoutBookmark(BaseModel):
+class LayoutBookmark(GloveboxBaseModel):
     """A bookmark reference to a layout by UUID."""
 
     uuid: str = Field(..., description="Layout UUID from MoErgo API")
@@ -34,7 +36,7 @@ class LayoutBookmark(BaseModel):
         return f"{source_indicator} {self.name} ({self.uuid[:8]}...)"
 
 
-class BookmarkCollection(BaseModel):
+class BookmarkCollection(GloveboxBaseModel):
     """Collection of layout bookmarks."""
 
     bookmarks: list[LayoutBookmark] = Field(

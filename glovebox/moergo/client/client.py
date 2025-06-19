@@ -721,7 +721,9 @@ class MoErgoClient:
 
                 response = self.session.post(
                     self._get_full_url(endpoint),
-                    json=compile_request.model_dump(),
+                    json=compile_request.model_dump(
+                        by_alias=True, exclude_unset=True, mode="json"
+                    ),
                     headers=headers,
                     timeout=timeout,
                 )

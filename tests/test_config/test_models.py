@@ -373,7 +373,7 @@ class TestConfigurationValidation:
         )
 
         # Test dict conversion
-        config_dict = config.model_dump(mode="json")
+        config_dict = config.model_dump(by_alias=True, mode="json")
 
         assert config_dict["profile"] == "serialize/test"
         assert config_dict["log_level"] == "ERROR"

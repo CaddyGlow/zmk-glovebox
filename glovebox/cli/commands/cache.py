@@ -10,8 +10,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from glovebox.compilation.cache import inject_base_dependencies_cache_from_workspace
 from glovebox.cli.helpers.theme import Icons
+from glovebox.compilation.cache import inject_base_dependencies_cache_from_workspace
 
 
 logger = logging.getLogger(__name__)

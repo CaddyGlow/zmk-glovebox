@@ -3,10 +3,12 @@
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field, field_validator
+
+from glovebox.models.base import GloveboxBaseModel
 
 
-class KConfigOption(BaseModel):
+class KConfigOption(GloveboxBaseModel):
     """Definition of a KConfig option."""
 
     name: str
@@ -15,14 +17,14 @@ class KConfigOption(BaseModel):
     description: str
 
 
-class BuildOptions(BaseModel):
+class BuildOptions(GloveboxBaseModel):
     """Build options for a firmware."""
 
     repository: str
     branch: str
 
 
-class FirmwareConfig(BaseModel):
+class FirmwareConfig(GloveboxBaseModel):
     """Firmware configuration for a keyboard."""
 
     version: str
@@ -31,7 +33,7 @@ class FirmwareConfig(BaseModel):
     kconfig: dict[str, KConfigOption] | None = None
 
 
-class FirmwareFlashConfig(BaseModel):
+class FirmwareFlashConfig(GloveboxBaseModel):
     """Firmware flash configuration settings."""
 
     # Device detection and flashing behavior
@@ -63,7 +65,7 @@ class FirmwareFlashConfig(BaseModel):
     )
 
 
-class FirmwareDockerConfig(BaseModel):
+class FirmwareDockerConfig(GloveboxBaseModel):
     """Docker user context configuration for firmware compilation."""
 
     # Auto-detection settings
@@ -136,7 +138,7 @@ class FirmwareDockerConfig(BaseModel):
         return v
 
 
-class UserFirmwareConfig(BaseModel):
+class UserFirmwareConfig(GloveboxBaseModel):
     """Firmware-related configuration settings."""
 
     flash: FirmwareFlashConfig = Field(default_factory=FirmwareFlashConfig)

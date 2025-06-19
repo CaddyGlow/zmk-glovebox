@@ -273,8 +273,12 @@ class TestLayoutDiff:
             patched = patch_system.apply_patch(base, diff)
 
             # The patched layout should match the modified layout
-            patched_dict = patched.model_dump(by_alias=True, exclude_unset=True)
-            modified_dict = modified.model_dump(by_alias=True, exclude_unset=True)
+            patched_dict = patched.model_dump(
+                by_alias=True, exclude_unset=True, mode="json"
+            )
+            modified_dict = modified.model_dump(
+                by_alias=True, exclude_unset=True, mode="json"
+            )
 
             # Compare layers
             assert len(patched_dict["layers"]) == len(modified_dict["layers"])
