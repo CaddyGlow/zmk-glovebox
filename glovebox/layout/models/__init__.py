@@ -364,8 +364,9 @@ class LayoutData(LayoutMetadata):
     @classmethod
     def validate_layers_structure(cls, v: list[LayerBindings]) -> list[LayerBindings]:
         """Validate layers structure."""
+        # Allow empty layers list during construction/processing
         if not v:
-            raise ValueError("Layout must have at least one layer") from None
+            return v
 
         for i, layer in enumerate(v):
             if not isinstance(layer, list):

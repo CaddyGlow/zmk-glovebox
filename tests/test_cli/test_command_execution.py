@@ -22,9 +22,9 @@ def setup_layout_command_test(mock_layout_service, mock_keyboard_profile):
     """Set up common mocks for layout command tests."""
     with (
         patch(
-            "glovebox.cli.commands.layout.create_layout_service"
+            "glovebox.cli.commands.layout.core.create_layout_service"
         ) as mock_create_service,
-        patch("glovebox.cli.commands.layout.Path") as mock_path_cls,
+        patch("glovebox.cli.commands.layout.core.Path") as mock_path_cls,
         patch(
             "glovebox.cli.helpers.profile.create_profile_from_option"
         ) as mock_create_profile,
@@ -320,7 +320,7 @@ def test_command_errors(command, args, cli_runner, tmp_path):
 
         # Set up file path mock
         with (
-            patch("glovebox.cli.commands.layout.Path") as mock_path_cls,
+            patch("glovebox.cli.commands.layout.core.Path") as mock_path_cls,
             patch("glovebox.cli.commands.firmware.Path") as mock_path_cls2,
         ):
             # Set path to not exist for error case

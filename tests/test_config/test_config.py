@@ -628,7 +628,7 @@ def test_initialize_search_paths():
 def test_load_keyboard_config(typed_config_file, mock_keyboard_config_dict):
     """Test loading a keyboard configuration as a typed object."""
     with patch(
-        "glovebox.config.keyboard_profile._find_keyboard_config_file"
+        "glovebox.config.include_loader.IncludeConfigLoader._find_config_file"
     ) as mock_find:
         mock_find.return_value = typed_config_file
 
@@ -655,7 +655,7 @@ def test_load_keyboard_config(typed_config_file, mock_keyboard_config_dict):
 def test_create_keyboard_profile(typed_config_file, mock_keyboard_config_dict):
     """Test creating a KeyboardProfile."""
     with patch(
-        "glovebox.config.keyboard_profile._find_keyboard_config_file"
+        "glovebox.config.include_loader.IncludeConfigLoader._find_config_file"
     ) as mock_find:
         mock_find.return_value = typed_config_file
 
@@ -679,7 +679,7 @@ def test_create_keyboard_profile(typed_config_file, mock_keyboard_config_dict):
 def test_get_firmware_config(typed_config_file, mock_keyboard_config_dict):
     """Test getting a firmware configuration as a typed object."""
     with patch(
-        "glovebox.config.keyboard_profile._find_keyboard_config_file"
+        "glovebox.config.include_loader.IncludeConfigLoader._find_config_file"
     ) as mock_find:
         mock_find.return_value = typed_config_file
 
@@ -700,7 +700,7 @@ def test_get_firmware_config(typed_config_file, mock_keyboard_config_dict):
 def test_kconfig_options_from_profile(typed_config_file, mock_keyboard_config_dict):
     """Test getting combined kconfig options from a profile."""
     with patch(
-        "glovebox.config.keyboard_profile._find_keyboard_config_file"
+        "glovebox.config.include_loader.IncludeConfigLoader._find_config_file"
     ) as mock_find:
         mock_find.return_value = typed_config_file
 
@@ -744,7 +744,7 @@ def test_resolve_includes(mock_keyboard_profile):
 def test_nonexistent_keyboard():
     """Test trying to load a nonexistent keyboard configuration."""
     with patch(
-        "glovebox.config.keyboard_profile._find_keyboard_config_file"
+        "glovebox.config.include_loader.IncludeConfigLoader._find_config_file"
     ) as mock_find:
         mock_find.return_value = None
 
@@ -757,7 +757,7 @@ def test_nonexistent_keyboard():
 def test_nonexistent_firmware(typed_config_file, mock_keyboard_config_dict):
     """Test trying to get a nonexistent firmware configuration."""
     with patch(
-        "glovebox.config.keyboard_profile._find_keyboard_config_file"
+        "glovebox.config.include_loader.IncludeConfigLoader._find_config_file"
     ) as mock_find:
         mock_find.return_value = typed_config_file
 
@@ -778,7 +778,7 @@ def test_keyboard_name_mismatch(mock_keyboard_config_dict):
 
         # Patch to return our temp file
         with patch(
-            "glovebox.config.keyboard_profile._find_keyboard_config_file"
+            "glovebox.config.include_loader.IncludeConfigLoader._find_config_file"
         ) as mock_find:
             mock_find.return_value = Path(temp_file.name)
 
@@ -794,7 +794,7 @@ def test_keyboard_name_mismatch(mock_keyboard_config_dict):
 def test_clear_cache(typed_config_file, mock_keyboard_config_dict):
     """Test clearing the configuration cache."""
     with patch(
-        "glovebox.config.keyboard_profile._find_keyboard_config_file"
+        "glovebox.config.include_loader.IncludeConfigLoader._find_config_file"
     ) as mock_find:
         mock_find.return_value = typed_config_file
 

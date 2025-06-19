@@ -120,6 +120,7 @@ def mock_profile():
     mock.keyboard_config.keymap.keymap_dtsi = (
         "#include <behaviors.dtsi>\n{{ keymap_node }}"
     )
+    mock.keyboard_config.keymap.keymap_dtsi_file = None  # Using inline template
     mock.keyboard_config.keymap.key_position_header = "// Key positions"
     mock.keyboard_config.keymap.system_behaviors_dts = "// System behaviors"
 
@@ -465,6 +466,9 @@ class TestLayoutServiceWithMockedConfig:
         # Create mock keymap
         mock_profile.keyboard_config.keymap = Mock()
         mock_profile.keyboard_config.keymap.keymap_dtsi = "// Template content"
+        mock_profile.keyboard_config.keymap.keymap_dtsi_file = (
+            None  # Using inline template
+        )
         mock_profile.keyboard_config.keymap.key_position_header = "// Key positions"
         mock_profile.keyboard_config.keymap.system_behaviors_dts = "// Behaviors"
         mock_profile.keyboard_config.keymap.includes = []
@@ -485,6 +489,8 @@ class TestLayoutServiceWithMockedConfig:
         mock_profile.keyboard_config.zmk.patterns.kconfig_prefix = "CONFIG_"
         mock_profile.system_behaviors = []
         mock_profile.kconfig_options = {}
+        mock_profile.keyboard_config.keymap.header_includes = []
+        mock_profile.keyboard_config.keymap.system_behaviors = []
 
         mock_create_profile.return_value = mock_profile
 

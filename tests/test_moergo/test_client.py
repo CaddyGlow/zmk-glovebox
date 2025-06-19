@@ -278,6 +278,83 @@ class TestMoErgoClient:
             with pytest.raises(NetworkError):
                 client.get_layout("test-uuid-123")
 
+    @patch("requests.Session.get")
+    def test_handle_empty_response(self, mock_get, client, mock_auth_response):
+        """Test handling of empty server response."""
+        # Setup authentication
+        with patch.object(
+            client.auth_client, "simple_login_attempt", return_value=mock_auth_response
+        ):
+            client.login("test@example.com", "testpass123")
+
+        # Mock empty response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = b""
+        mock_response.text = ""
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        # This should handle empty response gracefully
+        result = client._handle_response(mock_response)
+        assert result == {"success": True, "status": "empty_response"}
+
+    @patch("requests.Session.get")
+    def test_handle_invalid_json_response(self, mock_get, client, mock_auth_response):
+        """Test handling of invalid JSON response with proper error message."""
+        # Setup authentication
+        with patch.object(
+            client.auth_client, "simple_login_attempt", return_value=mock_auth_response
+        ):
+            client.login("test@example.com", "testpass123")
+
+        # Mock invalid JSON response (non-empty content that isn't valid JSON)
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = Mock()
+        mock_response.content.strip.return_value = b"invalid json content"
+        mock_response.text = "invalid json content"
+        mock_response.headers = {"content-type": "text/html"}
+        mock_response.raise_for_status = Mock()
+        # Mock json() to raise ValueError
+        mock_response.json.side_effect = ValueError(
+            "Expecting value: line 1 column 1 (char 0)"
+        )
+        mock_get.return_value = mock_response
+
+        with pytest.raises(APIError) as exc_info:
+            client._handle_response(mock_response)
+
+        error_message = str(exc_info.value)
+        assert "Server returned invalid JSON response" in error_message
+        assert "Status: 200" in error_message
+        assert "Content-Type: text/html" in error_message
+        assert "invalid json content" in error_message
+
+    @patch("requests.Session.get")
+    def test_handle_empty_content_json_parsing_error(
+        self, mock_get, client, mock_auth_response
+    ):
+        """Test handling of whitespace-only response that fails JSON parsing."""
+        # Setup authentication
+        with patch.object(
+            client.auth_client, "simple_login_attempt", return_value=mock_auth_response
+        ):
+            client.login("test@example.com", "testpass123")
+
+        # Mock response with only whitespace
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = b"   \n  "
+        mock_response.text = "   \n  "
+        mock_response.headers = {"content-type": "application/json"}
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        # This should handle whitespace-only response as empty
+        result = client._handle_response(mock_response)
+        assert result == {"success": True, "status": "empty_response"}
+
     def test_is_authenticated_true(self, client, mock_auth_response):
         """Test authentication check returns True when authenticated."""
         with patch.object(

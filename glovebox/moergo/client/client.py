@@ -84,30 +84,48 @@ class MoErgoClient:
             if not response.content.strip():
                 return {"success": True, "status": "empty_response"}
 
-            return response.json()
+            # Try to parse JSON response
+            try:
+                return response.json()
+            except ValueError as json_error:
+                # If JSON parsing fails, provide more context about the response
+                content_preview = response.text[:200] if response.text else "(empty)"
+                raise APIError(
+                    f"Server returned invalid JSON response. Status: {response.status_code}, "
+                    f"Content-Type: {response.headers.get('content-type', 'unknown')}, "
+                    f"Content preview: {content_preview}"
+                ) from json_error
         except requests.exceptions.HTTPError as e:
+
+            def safe_json_parse(resp: requests.Response) -> Any:
+                """Safely parse JSON response, returning None if parsing fails."""
+                if not resp.content:
+                    return None
+                try:
+                    return resp.json()
+                except (ValueError, TypeError):
+                    return None
+
             if response.status_code == 401:
                 raise AuthenticationError(
                     "Authentication failed",
                     status_code=response.status_code,
-                    response_data=response.json() if response.content else None,
+                    response_data=safe_json_parse(response),
                 ) from e
             elif response.status_code == 400:
                 raise ValidationError(
                     f"Request validation failed: {response.text}",
                     status_code=response.status_code,
-                    response_data=response.json() if response.content else None,
+                    response_data=safe_json_parse(response),
                 ) from e
             else:
                 raise APIError(
                     f"API request failed: {e}",
                     status_code=response.status_code,
-                    response_data=response.json() if response.content else None,
+                    response_data=safe_json_parse(response),
                 ) from e
         except requests.exceptions.RequestException as e:
             raise NetworkError(f"Network error: {e}") from e
-        except ValueError as e:
-            raise APIError(f"Invalid JSON response: {e}") from e
 
     def _handle_compile_response(self, response: requests.Response) -> Any:
         """Handle compilation API response with specific error handling."""
