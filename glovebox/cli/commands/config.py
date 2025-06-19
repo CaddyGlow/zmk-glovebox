@@ -26,6 +26,89 @@ from glovebox.config.keyboard_profile import (
 logger = logging.getLogger(__name__)
 
 
+def complete_config_keys(incomplete: str) -> list[str]:
+    """Tab completion for configuration keys."""
+    try:
+        from glovebox.config.models.firmware import (
+            FirmwareDockerConfig,
+            FirmwareFlashConfig,
+        )
+        from glovebox.config.models.user import UserConfigData
+
+        def get_all_config_keys() -> list[str]:
+            """Get all valid configuration keys from the models."""
+            keys = []
+
+            # Add core keys
+            for field_name in UserConfigData.model_fields:
+                if field_name not in [
+                    "firmware",
+                    "compilation",
+                ]:  # These are handled separately
+                    keys.append(field_name)
+
+            # Add firmware keys
+            for field_name in FirmwareFlashConfig.model_fields:
+                keys.append(f"firmware.flash.{field_name}")
+
+            for field_name in FirmwareDockerConfig.model_fields:
+                keys.append(f"firmware.docker.{field_name}")
+
+            return keys
+
+        valid_keys = get_all_config_keys()
+        return [key for key in valid_keys if key.startswith(incomplete)]
+    except Exception:
+        # If completion fails, return empty list
+        return []
+
+
+def complete_keyboard_names(incomplete: str) -> list[str]:
+    """Tab completion for keyboard names."""
+    try:
+        from glovebox.config import create_user_config
+
+        user_config = create_user_config()
+        keyboards = get_available_keyboards(user_config)
+        return [keyboard for keyboard in keyboards if keyboard.startswith(incomplete)]
+    except Exception:
+        # If completion fails, return empty list
+        return []
+
+
+def complete_firmware_names(ctx: typer.Context, incomplete: str) -> list[str]:
+    """Tab completion for firmware names based on keyboard context."""
+    try:
+        from glovebox.cli.app import AppContext
+
+        # Try to get keyboard name from command line args
+        # This is a bit tricky since we need to parse the current command context
+        app_ctx = getattr(ctx, "obj", None)
+        if not app_ctx or not isinstance(app_ctx, AppContext):
+            return []
+
+        # Get keyboard from command line arguments - this is contextual
+        # In practice, we need the keyboard parameter which should be before this
+        params = getattr(ctx, "params", {})
+        keyboard_name = params.get("keyboard_name")
+
+        if not keyboard_name:
+            return []
+
+        keyboard_config = load_keyboard_config_with_includes(
+            keyboard_name, app_ctx.user_config
+        )
+
+        if not keyboard_config.firmwares:
+            return []
+
+        firmwares = list(keyboard_config.firmwares.keys())
+        return [firmware for firmware in firmwares if firmware.startswith(incomplete)]
+    except Exception:
+        # If completion fails, return empty list
+        return []
+
+
 def _build_keyboard_config_data(
     keyboard_config: Any, verbose: bool = False
 ) -> dict[str, Any]:
@@ -192,7 +275,12 @@ config_app = typer.Typer(
 @handle_errors
 def set_config(
     ctx: typer.Context,
-    key: Annotated[str, typer.Argument(help="Configuration key to set")],
+    key: Annotated[
+        str,
+        typer.Argument(
+            help="Configuration key to set", autocompletion=complete_config_keys
+        ),
+    ],
     value: Annotated[str, typer.Argument(help="Value to set")],
     save: Annotated[
         bool, typer.Option("--save", help="Save configuration to file")
@@ -609,7 +697,9 @@ def list_keyboards(
 @handle_errors
 def show_keyboard(
     ctx: typer.Context,
-    keyboard_name: str = typer.Argument(..., help="Keyboard name to show"),
+    keyboard_name: str = typer.Argument(
+        ..., help="Keyboard name to show", autocompletion=complete_keyboard_names
+    ),
     format: str = typer.Option(
         "text", "--format", "-f", help="Output format (text, json, markdown, table)"
     ),
@@ -641,7 +731,9 @@ def show_keyboard(
 @handle_errors
 def list_firmwares(
     ctx: typer.Context,
-    keyboard_name: str = typer.Argument(..., help="Keyboard name"),
+    keyboard_name: str = typer.Argument(
+        ..., help="Keyboard name", autocompletion=complete_keyboard_names
+    ),
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show detailed information"
     ),
@@ -715,8 +807,12 @@ def list_firmwares(
 @handle_errors
 def show_firmware(
     ctx: typer.Context,
-    keyboard_name: str = typer.Argument(..., help="Keyboard name"),
-    firmware_name: str = typer.Argument(..., help="Firmware name to show"),
+    keyboard_name: str = typer.Argument(
+        ..., help="Keyboard name", autocompletion=complete_keyboard_names
+    ),
+    firmware_name: str = typer.Argument(
+        ..., help="Firmware name to show", autocompletion=complete_firmware_names
+    ),
     format: str = typer.Option(
         "text", "--format", "-f", help="Output format (text, json)"
     ),
