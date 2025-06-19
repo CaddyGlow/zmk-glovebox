@@ -646,10 +646,7 @@ BASE_WITH_BEHAVIORS = EnhancedLayerModel(
             tappingTermMs=200,
             quickTapMs=125,
             flavor="tap-preferred",
-            bindings=[
-                LayoutBinding(value="&kp", params=[]),
-                LayoutBinding(value="&kp", params=[]),
-            ],
+            bindings=["&kp", "&kp"],
         )
     ],
     combos=[
@@ -693,10 +690,7 @@ MODIFIED_BEHAVIORS = EnhancedLayerModel(
             tappingTermMs=250,  # Changed from 200
             quickTapMs=150,  # Changed from 125
             flavor="balanced",  # Changed from tap_preferred
-            bindings=[
-                LayoutBinding(value="&kp", params=[]),
-                LayoutBinding(value="&kp", params=[]),
-            ],  # Changed LSHIFT to LCTRL
+            bindings=["&kp", "&kp"],  # Changed LSHIFT to LCTRL
         ),
         HoldTapBehavior(
             name="ht_new",  # New hold-tap
@@ -704,10 +698,7 @@ MODIFIED_BEHAVIORS = EnhancedLayerModel(
             tappingTermMs=180,
             quickTapMs=100,
             flavor="tap-preferred",
-            bindings=[
-                LayoutBinding(value="&kp", params=[]),
-                LayoutBinding(value="&kp", params=[]),
-            ],
+            bindings=["&kp", "&kp"],
         ),
     ],
     combos=[
@@ -764,10 +755,7 @@ BEHAVIOR_CHANGES = EnhancedLayerModel(
             tappingTermMs=300,
             quickTapMs=200,
             flavor="hold-preferred",
-            bindings=[
-                LayoutBinding(value="&kp", params=[]),
-                LayoutBinding(value="&kp", params=[]),
-            ],
+            bindings=["&kp", "&kp"],
         )
     ],
     combos=[

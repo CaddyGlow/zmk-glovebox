@@ -64,31 +64,14 @@ class TestBehaviorDiff:
         # Convert behavior dictionaries to proper models
         hold_taps = []
         for ht_model in enhanced_model.hold_taps:
-            # Convert binding objects to proper LayoutBinding objects if needed
-            bindings = []
-            for binding in ht_model.bindings:
-                if hasattr(binding, "params"):
-                    # Already a LayoutBinding
-                    bindings.append(binding)
-                else:
-                    # Convert from dict-like
-                    params = []
-                    for p in binding.params:
-                        if hasattr(p, "value"):
-                            # Already a LayoutParam
-                            params.append(p)
-                        else:
-                            # Convert from dict
-                            params.append(LayoutParam(value=p["value"]))  # type: ignore  # type: ignore
-                    bindings.append(LayoutBinding(value=binding.value, params=params))
-
+            # HoldTapBehavior.bindings are already strings in the test data
             hold_tap = HoldTapBehavior(
                 name=ht_model.name,
                 description=ht_model.description or "",
                 tappingTermMs=ht_model.tapping_term_ms,
                 quickTapMs=ht_model.quick_tap_ms,
                 flavor=ht_model.flavor,
-                bindings=bindings,
+                bindings=ht_model.bindings,  # Already list[str]
             )
             hold_taps.append(hold_tap)
 
@@ -120,11 +103,11 @@ class TestBehaviorDiff:
         macros = []
         for macro_model in enhanced_model.macros:
             # Convert binding objects to proper LayoutBinding objects if needed
-            bindings = []
+            macro_bindings: list[LayoutBinding] = []
             for binding in macro_model.bindings:
                 if hasattr(binding, "params"):
                     # Already a LayoutBinding
-                    bindings.append(binding)
+                    macro_bindings.append(binding)
                 else:
                     # Convert from dict-like
                     params = []
@@ -135,14 +118,16 @@ class TestBehaviorDiff:
                         else:
                             # Convert from dict
                             params.append(LayoutParam(value=p["value"]))  # type: ignore  # type: ignore
-                    bindings.append(LayoutBinding(value=binding.value, params=params))
+                    macro_bindings.append(
+                        LayoutBinding(value=binding.value, params=params)
+                    )
 
             macro = MacroBehavior(
                 name=macro_model.name,
                 description=macro_model.description or "",
                 waitMs=macro_model.wait_ms,
                 tapMs=macro_model.tap_ms,
-                bindings=bindings,
+                bindings=macro_bindings,
             )
             macros.append(macro)
 
