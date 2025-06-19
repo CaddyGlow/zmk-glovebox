@@ -138,9 +138,8 @@ class ZmkFileContentGenerator:
             self._behavior_formatter.set_hold_tap_binding_context(True)
             try:
                 for binding_ref in bindings:
-                    formatted_bindings.append(
-                        self._behavior_formatter.format_binding(binding_ref)
-                    )
+                    # bindings are now strings, just use as-is (e.g., "&kp", "&lt")
+                    formatted_bindings.append(binding_ref)
             finally:
                 # Always reset context flag
                 self._behavior_formatter.set_hold_tap_binding_context(False)

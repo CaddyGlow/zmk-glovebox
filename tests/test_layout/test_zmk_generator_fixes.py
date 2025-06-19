@@ -196,10 +196,7 @@ class TestHoldTapBindingReferences:
         hold_tap = HoldTapBehavior(
             name="&space_v3_TKZ",
             description="Space layer access",
-            bindings=[
-                LayoutBinding(value="&mo", params=[]),  # No params in binding def
-                LayoutBinding(value="&kp", params=[]),  # No params in binding def
-            ],
+            bindings=["&mo", "&kp"],
             tappingTermMs=200,
             flavor="balanced",
             quickTapMs=150,
@@ -404,10 +401,7 @@ class TestIntegrationScenarios:
                 HoldTapBehavior(
                     name="&test_ht",
                     description="Test hold-tap",
-                    bindings=[
-                        LayoutBinding(value="&mo", params=[]),
-                        LayoutBinding(value="&kp", params=[]),
-                    ],
+                    bindings=["&mo", "&kp"],
                     tappingTermMs=200,
                     flavor="balanced",
                 )

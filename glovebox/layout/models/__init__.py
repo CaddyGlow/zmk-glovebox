@@ -8,6 +8,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    field_serializer,
     field_validator,
     model_serializer,
     model_validator,
@@ -97,7 +98,7 @@ class HoldTapBehavior(BaseModel):
 
     name: str
     description: str | None = ""
-    bindings: list[LayoutBinding] = Field(default_factory=list)
+    bindings: list[str] = Field(default_factory=list)
     tapping_term_ms: int | None = Field(default=None, alias="tappingTermMs")
     quick_tap_ms: int | None = Field(default=None, alias="quickTapMs")
     flavor: str | None = None
@@ -114,25 +115,30 @@ class HoldTapBehavior(BaseModel):
 
     @field_validator("bindings", mode="before")
     @classmethod
-    def convert_string_bindings(cls, v: Any) -> Any:
-        """Convert string bindings to LayoutBinding objects.
+    def convert_legacy_bindings(cls, v: Any) -> Any:
+        """Convert legacy LayoutBinding objects to strings for backward compatibility.
 
-        For hold-tap behaviors, bindings can be simple behavior references
-        like "&kp" without parameters, which is valid ZMK syntax.
+        This handles JSON data that still uses the old format:
+        bindings: [{"value": "&kp", "params": []}, {"value": "&lt", "params": []}]
+
+        And converts it to the new format:
+        bindings: ["&kp", "&lt"]
         """
         if isinstance(v, list):
             result = []
             for item in v:
                 if isinstance(item, str):
-                    # Convert string to LayoutBinding object
-                    # For hold-tap bindings, empty params is valid
-                    result.append(LayoutBinding(value=item, params=[]))
-                elif isinstance(item, dict):
-                    # Convert dict to LayoutBinding object
-                    result.append(LayoutBinding.model_validate(item))
-                else:
-                    # Assume it's already a LayoutBinding
+                    # Already a string, keep as-is
                     result.append(item)
+                elif isinstance(item, dict) and "value" in item:
+                    # Legacy LayoutBinding dict format, extract value
+                    result.append(item["value"])
+                elif hasattr(item, "value"):
+                    # Legacy LayoutBinding object, extract value
+                    result.append(item.value)
+                else:
+                    # Unknown format, try to convert to string
+                    result.append(str(item))
             return result
         return v
 
@@ -155,7 +161,7 @@ class HoldTapBehavior(BaseModel):
 
     @field_validator("bindings")
     @classmethod
-    def validate_bindings_count(cls, v: list[LayoutBinding]) -> list[LayoutBinding]:
+    def validate_bindings_count(cls, v: list[str]) -> list[str]:
         """Validate that hold-tap has exactly 2 bindings."""
         if len(v) != 2:
             raise ValueError(
@@ -273,6 +279,12 @@ class LayoutMetadata(BaseModel):
     uuid: str = Field(default="")
     parent_uuid: str = Field(default="", alias="parent_uuid")
     date: datetime = Field(default_factory=datetime.now)
+
+    @field_serializer("date", when_used="json")
+    def serialize_date(self, dt: datetime) -> int:
+        """Serialize date to Unix timestamp for JSON."""
+        return int(dt.timestamp())
+
     creator: str = Field(default="")
     notes: str = Field(default="")
     tags: list[str] = Field(default_factory=list)
@@ -432,6 +444,11 @@ class KeymapResult(BaseModel):
     messages: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
 
+    @field_serializer("timestamp", when_used="json")
+    def serialize_timestamp(self, dt: datetime) -> int:
+        """Serialize timestamp to Unix timestamp for JSON."""
+        return int(dt.timestamp())
+
     keymap_path: Path | None = None
     conf_path: Path | None = None
     json_path: Path | None = None
@@ -459,6 +476,11 @@ class LayoutResult(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
     messages: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
+
+    @field_serializer("timestamp", when_used="json")
+    def serialize_timestamp(self, dt: datetime) -> int:
+        """Serialize timestamp to Unix timestamp for JSON."""
+        return int(dt.timestamp())
 
     keymap_path: Path | None = None
     conf_path: Path | None = None
