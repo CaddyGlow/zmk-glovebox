@@ -101,6 +101,11 @@ class Icons:
     LOCK = "🔒"
     KEYSTORE = "🔐"
 
+    # Bookmark-specific icons
+    BOOKMARK = "📑"
+    FACTORY = "🏭"
+    CLONE = "📋"
+
     # Text fallbacks for emoji-disabled mode
     _TEXT_FALLBACKS = {
         # Status indicators - use minimal or no prefix for clean output
@@ -159,6 +164,9 @@ class Icons:
         "DIAMOND": "•",  # Use bullet for list items
         "LOCK": "",  # Clean for security
         "KEYSTORE": "",  # Clean for keystore
+        "BOOKMARK": "",  # Clean for bookmarks
+        "FACTORY": "",  # Clean for factory items
+        "CLONE": "",  # Clean for clone operations
     }
 
     @classmethod

@@ -331,3 +331,108 @@ class TestBehaviorConfigurationSupport:
 
         # Unknown behavior should not be in the mapping
         assert "&unknown" not in formatter._behavior_classes
+
+
+class TestHoldTapBindingContext:
+    """Tests for hold-tap binding context functionality."""
+
+    def test_hold_tap_context_switching(self, behavior_formatter):
+        """Test hold-tap context can be switched on and off."""
+        # Default should be False
+        assert not behavior_formatter._is_hold_tap_binding_context
+
+        # Should be able to set to True
+        behavior_formatter.set_hold_tap_binding_context(True)
+        assert behavior_formatter._is_hold_tap_binding_context
+
+        # Should be able to set back to False
+        behavior_formatter.set_hold_tap_binding_context(False)
+        assert not behavior_formatter._is_hold_tap_binding_context
+
+    def test_layer_toggle_behavior_in_hold_tap_context(self, behavior_formatter):
+        """Test LayerToggleBehavior handles hold-tap context correctly."""
+        # In normal context, &mo without params should error
+        behavior_formatter.set_hold_tap_binding_context(False)
+        binding = LayoutBinding(value="&mo", params=[])
+        result = behavior_formatter.format_binding(binding)
+        assert "&error" in result
+        assert "requires exactly 1 parameter" in result
+
+        # In hold-tap context, &mo without params should work
+        behavior_formatter.set_hold_tap_binding_context(True)
+        result = behavior_formatter.format_binding(binding)
+        assert result == "&mo"
+
+        # With params should work in both contexts
+        binding_with_param = LayoutBinding(
+            value="&mo", params=[LayoutParam(value="1", params=[])]
+        )
+        result = behavior_formatter.format_binding(binding_with_param)
+        assert result == "&mo 1"
+
+    def test_custom_behavior_in_hold_tap_context(
+        self, behavior_formatter, behavior_registry
+    ):
+        """Test CustomBehaviorRef handles hold-tap context correctly."""
+        # Register a custom behavior that expects parameters
+        behavior_registry.register_behavior(
+            SystemBehavior(
+                code="&custom_ht",
+                name="Custom Hold-Tap",
+                description="Custom behavior for testing",
+                expected_params=2,
+                origin="user",
+                params=[],
+            )
+        )
+
+        # In normal context, missing params should add MACRO_PLACEHOLDER
+        behavior_formatter.set_hold_tap_binding_context(False)
+        binding = LayoutBinding(
+            value="&custom_ht",
+            params=[LayoutParam(value="A", params=[])],  # Only 1 param, expects 2
+        )
+        result = behavior_formatter.format_binding(binding)
+        assert "MACRO_PLACEHOLDER" in result
+
+        # In hold-tap context, no params should give bare reference
+        behavior_formatter.set_hold_tap_binding_context(True)
+        binding_no_params = LayoutBinding(value="&custom_ht", params=[])
+        result = behavior_formatter.format_binding(binding_no_params)
+        assert result == "&custom_ht"
+
+
+class TestMacroPlaceholder:
+    """Tests for MACRO_PLACEHOLDER usage."""
+
+    def test_macro_placeholder_import(self):
+        """Test that MACRO_PLACEHOLDER can be imported."""
+        from glovebox.config.models.zmk import MACRO_PLACEHOLDER
+
+        assert MACRO_PLACEHOLDER == "MACRO_PLACEHOLDER"
+
+    def test_custom_behavior_uses_macro_placeholder(
+        self, behavior_formatter, behavior_registry
+    ):
+        """Test that missing parameters use MACRO_PLACEHOLDER instead of '0'."""
+        # Register a behavior that expects 2 parameters
+        behavior_registry.register_behavior(
+            SystemBehavior(
+                code="&test_behavior",
+                name="Test Behavior",
+                description="Test behavior for placeholder testing",
+                expected_params=2,
+                origin="layout",
+                params=[],
+            )
+        )
+
+        # Binding with only 1 parameter (missing 1)
+        binding = LayoutBinding(
+            value="&test_behavior", params=[LayoutParam(value="PARAM1", params=[])]
+        )
+
+        result = behavior_formatter.format_binding(binding)
+        assert result == "&test_behavior PARAM1 MACRO_PLACEHOLDER"
+        # Should NOT use "0"
+        assert " 0" not in result

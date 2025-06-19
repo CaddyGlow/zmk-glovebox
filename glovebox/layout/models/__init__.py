@@ -25,6 +25,8 @@ from glovebox.layout.behavior.models import (
     SystemParamList,
 )
 
+from .bookmarks import BookmarkCollection, BookmarkSource, LayoutBookmark
+
 
 # Type aliases for common parameter types
 ConfigValue: TypeAlias = str | int | bool
@@ -559,4 +561,8 @@ __all__ = [
     # Result models
     "KeymapResult",
     "LayoutResult",
+    # Bookmark models
+    "LayoutBookmark",
+    "BookmarkCollection",
+    "BookmarkSource",
 ]

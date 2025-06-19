@@ -132,13 +132,18 @@ class ZmkFileContentGenerator:
             if tapping_term is not None:
                 dtsi_parts.append(f"    tapping-term-ms = <{tapping_term}>;")
 
-            # Format bindings
+            # Format bindings with hold-tap context
             formatted_bindings = []
-            for binding_ref in bindings:
-                # Always use format_binding for consistent handling
-                formatted_bindings.append(
-                    self._behavior_formatter.format_binding(binding_ref)
-                )
+            # Set context flag for hold-tap binding formatting
+            self._behavior_formatter.set_hold_tap_binding_context(True)
+            try:
+                for binding_ref in bindings:
+                    formatted_bindings.append(
+                        self._behavior_formatter.format_binding(binding_ref)
+                    )
+            finally:
+                # Always reset context flag
+                self._behavior_formatter.set_hold_tap_binding_context(False)
 
             if len(formatted_bindings) == required_bindings:
                 if required_bindings == 2:
@@ -222,25 +227,17 @@ class ZmkFileContentGenerator:
             wait_ms = macro.wait_ms
             tap_ms = macro.tap_ms
 
-            # ZMK macro binding specification only supports #binding-cells = <0>
-            # Parameters are handled at keymap invocation level, not macro definition level
+            # Set compatible string and binding-cells based on macro parameters
             compatible_strings = profile.keyboard_config.zmk.compatible_strings
-            compatible = compatible_strings.macro
-            binding_cells = "0"
 
-            # NOTE: Previous logic attempted to set binding-cells based on macro params,
-            # but ZMK binding spec (zmk,behavior-macro.yaml) includes zero_param.yaml
-            # which enforces #binding-cells = <0> regardless of conceptual parameters.
-            # Keeping old logic commented for reference in case binding spec changes:
-            #
             if not params:
                 compatible = compatible_strings.macro
                 binding_cells = "0"
             elif len(params) == 1:
-                compatible = compatible_strings.macro
+                compatible = compatible_strings.macro_one_param
                 binding_cells = "1"
             elif len(params) == 2:
-                compatible = compatible_strings.macro
+                compatible = compatible_strings.macro_two_param
                 binding_cells = "2"
             else:
                 max_params = (
@@ -250,7 +247,6 @@ class ZmkFileContentGenerator:
                     f"Macro '{name}' has {len(params)} params, not supported. Max: {max_params}."
                 )
                 continue
-
             # Register the macro behavior
             self._behavior_registry.register_behavior(
                 SystemBehavior(
@@ -327,7 +323,6 @@ class ZmkFileContentGenerator:
         }
 
         for combo in combos_data:
-            logger.info(f"Processing combo: {combo}")
             name = combo.name
             if not name:
                 logger.warning("Skipping combo with missing 'name'.")
@@ -365,21 +360,19 @@ class ZmkFileContentGenerator:
 
             # Format layers
             if layers_spec and layers_spec != [-1]:
-                combo_layer_defines = []
+                combo_layer_indices = []
                 for layer_id in layers_spec:
-                    # Get layer define directly using the layer index
-                    layer_define = layer_defines.get(layer_id)
-
-                    if layer_define:
-                        combo_layer_defines.append(layer_define)
+                    # Use layer index directly instead of define statement
+                    if layer_id < len(layer_names):
+                        combo_layer_indices.append(str(layer_id))
                     else:
                         logger.warning(
                             f"Combo '{name}' specifies unknown layer '{layer_id}'. Ignoring this layer."
                         )
 
-                if combo_layer_defines:
+                if combo_layer_indices:
                     dtsi_parts.append(
-                        f"        layers = <{' '.join(combo_layer_defines)}>;"
+                        f"        layers = <{' '.join(combo_layer_indices)}>;"
                     )
 
             dtsi_parts.append("    };")

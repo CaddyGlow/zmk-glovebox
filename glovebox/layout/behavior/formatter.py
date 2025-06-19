@@ -4,6 +4,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
+from glovebox.config.models.zmk import MACRO_PLACEHOLDER
+
 
 if TYPE_CHECKING:
     from glovebox.config.models import BehaviorConfig
@@ -43,8 +45,17 @@ class BehaviorFormatterImpl:
         self._keycode_map = keycode_map or {}
         self._behavior_classes: dict[str, type[Behavior]] = {}
         self._modifier_map: dict[str, str] = {}
+        self._is_hold_tap_binding_context = False
         self._init_behavior_class_map()
         self._init_modifier_map()
+
+    def set_hold_tap_binding_context(self, is_hold_tap_context: bool) -> None:
+        """Set whether we're formatting bindings for hold-tap definitions.
+
+        Args:
+            is_hold_tap_context: True if formatting hold-tap binding references
+        """
+        self._is_hold_tap_binding_context = is_hold_tap_context
 
     def format_binding(self, binding_data: LayoutBinding) -> str:
         """Format a binding dictionary to DTSI string.
@@ -244,6 +255,19 @@ class Behavior(ABC):
         self.formatter = formatter
         self._validate_params()
 
+    def _is_hold_tap_binding_context(self) -> bool:
+        """Check if we're in a hold-tap binding context."""
+        return self.formatter._is_hold_tap_binding_context
+
+    def _should_use_bare_reference(self) -> bool:
+        """Check if this behavior should be formatted as a bare reference.
+
+        Returns True if:
+        - We're in a hold-tap binding context AND
+        - No parameters are provided
+        """
+        return self._is_hold_tap_binding_context() and not self.params
+
     @abstractmethod
     def _validate_params(self) -> None:
         """Validate parameters for this behavior."""
@@ -327,12 +351,18 @@ class LayerToggleBehavior(Behavior):
     """Handles &mo, &to, &tog."""
 
     def _validate_params(self) -> None:
+        # Allow empty params in hold-tap binding context
+        if self._is_hold_tap_binding_context() and not self.params:
+            return
         if len(self.params) != 1:
             raise ValueError(
                 f"{self.behavior_name} requires exactly 1 parameter (layer)."
             ) from None
 
     def format_dtsi(self) -> str:
+        if self._should_use_bare_reference():
+            return self.behavior_name
+
         layer = self.formatter.format_param_recursive(self.params[0])
         return f"{self.behavior_name} {layer}"
 
@@ -341,25 +371,23 @@ class OneParamBehavior(Behavior):
     """Handles behaviors taking one parameter."""
 
     def _validate_params(self) -> None:
+        # Allow empty params in hold-tap binding context
+        if self._is_hold_tap_binding_context() and not self.params:
+            return
         if len(self.params) != 1:
             raise ValueError(
                 f"{self.behavior_name} requires exactly 1 parameter."
             ) from None
 
     def format_dtsi(self) -> str:
+        if self._should_use_bare_reference():
+            return self.behavior_name
+
         if not self.params:
             logger.error(f"Behavior {self.behavior_name} missing raw parameters.")
             return f"&error /* {self.behavior_name} missing params */"
 
-        param_data = self.params[0]
-
-        # if isinstance(param_data, dict) and "value" in param_data:
-        #     # Cast to SystemBehaviorParam for type checking
-        #     param_cast = cast(SystemBehaviorParam, param_data)
-        #     param_formatted = self.formatter.format_kp_param_recursive(param_cast)
-        # else:
         param_formatted = self.formatter.format_param_recursive(self.params[0])
-
         return f"{self.behavior_name} {param_formatted}"
 
 
@@ -450,11 +478,14 @@ class CustomBehaviorRef(Behavior):
                 formatted_params.append(formatted)
 
             if expected_params > 0 and num_params_received < expected_params:
+                # Use systematic hold-tap binding context check
+                if self._should_use_bare_reference():
+                    return self.behavior_name
                 logger.warning(
-                    f"Behavior '{self.behavior_name}' (origin: {origin}) expects {expected_params} parameters but received only {num_params_received}. Appending '0' for missing parameters."
+                    f"Behavior '{self.behavior_name}' (origin: {origin}) expects {expected_params} parameters but received only {num_params_received}. Appending '{MACRO_PLACEHOLDER}' for missing parameters."
                 )
                 missing_count = expected_params - num_params_received
-                formatted_params.extend(["0"] * missing_count)
+                formatted_params.extend([MACRO_PLACEHOLDER] * missing_count)
 
             param_str = " ".join(formatted_params)
             return f"{self.behavior_name} {param_str}".strip()

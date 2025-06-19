@@ -14,6 +14,7 @@ Commands:
     test-paths            - Test path conversion utilities
     test-powershell       - Test PowerShell interop
     test-adapter          - Test WSL2 flash adapter
+    diagnose-drive        - Diagnose drive mounting issues
     mock-flash <file>     - Mock firmware flash operation
     help                  - Show this help message
 """
@@ -59,6 +60,7 @@ def cmd_env() -> None:
     print_header("Environment Information")
 
     import platform
+
     print(f"Platform: {platform.system()}")
     print(f"Platform Version: {platform.version()}")
     print(f"Architecture: {platform.architecture()}")
@@ -127,7 +129,7 @@ def cmd_list_devices() -> None:
             print(f"    File System: {drive.get('FileSystem', 'N/A')}")
 
             # Test path conversion
-            drive_letter = drive.get('Caption', '')
+            drive_letter = drive.get("Caption", "")
             if drive_letter:
                 try:
                     wsl_path = windows_to_wsl_path(drive_letter + "\\")
@@ -228,6 +230,11 @@ def cmd_test_paths() -> None:
                 converted = windows_to_wsl_path(test_path)
                 print(f"Windows → WSL: {converted}")
 
+                # Check if the converted path exists
+                if converted.startswith("/"):
+                    path_exists = Path(converted).exists()
+                    print(f"Path exists: {'✓' if path_exists else '✗'}")
+
                 # Try reverse conversion
                 try:
                     back_converted = wsl_to_windows_path(converted)
@@ -242,6 +249,20 @@ def cmd_test_paths() -> None:
             except Exception as e:
                 print(f"✗ Windows → WSL conversion failed: {e}")
 
+                # Try fallback for drive letters
+                if len(test_path) >= 2 and test_path[1] == ":":
+                    drive_letter = test_path[0].lower()
+                    fallback_path = f"/mnt/{drive_letter}/"
+                    print(f"Trying fallback: {fallback_path}")
+
+                    path_exists = Path(fallback_path).exists()
+                    print(f"Fallback exists: {'✓' if path_exists else '✗'}")
+
+                    if path_exists:
+                        print(f"✓ Fallback path is accessible: {fallback_path}")
+                    else:
+                        print("✗ Drive may not be mounted in WSL2")
+
 
 def cmd_test_powershell() -> None:
     """Test PowerShell interop."""
@@ -252,7 +273,10 @@ def cmd_test_powershell() -> None:
         ("Get-Date", "Get current date"),
         ("$PSVersionTable | ConvertTo-Json", "PowerShell version info"),
         ("Test-Path 'C:\\'", "Test path accessibility"),
-        ("Get-WmiObject -Class Win32_ComputerSystem | Select-Object Name | ConvertTo-Json", "WMI test"),
+        (
+            "Get-WmiObject -Class Win32_ComputerSystem | Select-Object Name | ConvertTo-Json",
+            "WMI test",
+        ),
     ]
 
     for command, description in tests:
@@ -401,6 +425,113 @@ def cmd_mock_flash(firmware_file: str) -> None:
         print(f"✗ Mock flash operation failed: {e}")
 
 
+def cmd_diagnose_drive() -> None:
+    """Diagnose specific drive mounting issues."""
+    print_header("Drive Mounting Diagnosis")
+
+    # Get all removable drives first
+    print_section("Available Removable Drives")
+    try:
+        ps_command = (
+            "Get-WmiObject -Class Win32_LogicalDisk | "
+            "Where-Object {$_.DriveType -eq 2} | "
+            "Select-Object Caption, VolumeName, Size, FreeSpace, FileSystem | "
+            "ConvertTo-Json"
+        )
+
+        result = subprocess.run(
+            ["powershell.exe", "-Command", ps_command],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=True,
+        )
+
+        if not result.stdout.strip():
+            print("No removable drives found.")
+            return
+
+        drives_data = json.loads(result.stdout)
+        if isinstance(drives_data, dict):
+            drives_data = [drives_data]
+
+        for i, drive in enumerate(drives_data, 1):
+            drive_letter = drive.get("Caption", "N/A")
+            print(f"\nDrive {i}: {drive_letter}")
+            print(f"  Volume Name: {drive.get('VolumeName', 'N/A')}")
+            print(f"  Size: {drive.get('Size', 'N/A')} bytes")
+            print(f"  File System: {drive.get('FileSystem', 'N/A')}")
+
+            # Test PowerShell accessibility
+            ps_accessible = False
+            try:
+                ps_test_cmd = f"Test-Path '{drive_letter}\\\\'"
+                ps_result = subprocess.run(
+                    ["powershell.exe", "-Command", ps_test_cmd],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    check=True,
+                )
+                ps_accessible = ps_result.stdout.strip().lower() == "true"
+            except Exception:
+                ps_accessible = False
+
+            print(f"  PowerShell Accessible: {'✓' if ps_accessible else '✗'}")
+
+            # Test wslpath conversion
+            wslpath_works = False
+            wsl_path = None
+            try:
+                wsl_result = subprocess.run(
+                    ["wslpath", "-u", drive_letter + "\\"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=5,
+                )
+                wsl_path = wsl_result.stdout.strip()
+                wslpath_works = True
+            except Exception:
+                wslpath_works = False
+
+            print(f"  wslpath Conversion: {'✓' if wslpath_works else '✗'}")
+            if wsl_path:
+                print(f"  WSL Path: {wsl_path}")
+
+                # Test WSL path accessibility
+                wsl_accessible = Path(wsl_path).exists()
+                print(f"  WSL Path Accessible: {'✓' if wsl_accessible else '✗'}")
+            else:
+                # Try fallback
+                fallback_path = f"/mnt/{drive_letter[0].lower()}/"
+                print(f"  Fallback Path: {fallback_path}")
+                fallback_accessible = Path(fallback_path).exists()
+                print(f"  Fallback Accessible: {'✓' if fallback_accessible else '✗'}")
+
+            print_section("Recommendations")
+            if not ps_accessible:
+                print("  • Drive is not accessible from Windows PowerShell")
+                print("  • Try safely ejecting and reconnecting the drive")
+            elif not wslpath_works:
+                print("  • wslpath command fails for this drive")
+                print("  • This may indicate the drive is not properly mounted in WSL2")
+                print(
+                    "  • Try running: sudo mount -t drvfs E: /mnt/e (replace E: with your drive letter)"
+                )
+            elif wsl_path and not Path(wsl_path).exists():
+                print("  • wslpath conversion works but WSL path doesn't exist")
+                print("  • This may indicate a WSL2 configuration issue")
+                print("  • Try restarting WSL2: wsl --shutdown (from Windows cmd)")
+            else:
+                print(
+                    "  • Drive appears to be working correctly for WSL2 flash operations"
+                )
+
+    except Exception as e:
+        print(f"Drive diagnosis failed: {e}")
+
+
 def cmd_help() -> None:
     """Show help message."""
     print(__doc__)
@@ -424,6 +555,8 @@ def main() -> None:
         cmd_test_powershell()
     elif command == "test-adapter":
         cmd_test_adapter()
+    elif command == "diagnose-drive":
+        cmd_diagnose_drive()
     elif command == "mock-flash":
         if len(sys.argv) < 3:
             print("Error: mock-flash requires a firmware file path")
