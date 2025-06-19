@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
+from rich.console import Console
+from rich.table import Table
 
 from glovebox.cli.app import AppContext
 from glovebox.cli.decorators import handle_errors
@@ -15,6 +17,7 @@ from glovebox.cli.helpers import (
     print_error_message,
     print_success_message,
 )
+from glovebox.cli.helpers.theme import Icons
 from glovebox.config.keyboard_profile import (
     get_available_keyboards,
     load_keyboard_config,
@@ -318,27 +321,34 @@ def edit_keyboard(
 
             # Get value from keyboard config
             value = _get_keyboard_config_value(keyboard_config, key)
+
+            # Use rich console for better formatting
+            console = Console()
+
             if isinstance(value, list):
                 if not value:
-                    print(f"{key}: (empty list)")
+                    console.print(f"[cyan]{key}:[/cyan] [dim](empty list)[/dim]")
                 else:
-                    print(f"{key}:")
+                    console.print(f"[cyan]{key}:[/cyan]")
                     for item in value:
-                        print(f"  - {item}")
+                        bullet_icon = Icons.get_icon("BULLET", app_ctx.use_emoji)
+                        console.print(f"  {bullet_icon} [white]{item}[/white]")
             else:
-                print(f"{key}: {value}")
+                console.print(f"[cyan]{key}:[/cyan] [white]{value}[/white]")
 
     # For now, we'll show a message that editing keyboard configs directly isn't fully supported
     # since keyboard configs are typically loaded from YAML files
     if any([set, add, remove, clear]):
-        print_error_message(
-            "Direct editing of keyboard configuration values is not yet supported."
+        console = Console()
+        error_icon = Icons.get_icon("ERROR", app_ctx.use_emoji)
+        console.print(
+            f"\n[bold red]{error_icon} Direct editing of keyboard configuration values is not yet supported.[/bold red]"
         )
-        print_error_message(
-            "Keyboard configurations are loaded from YAML files in the keyboard_paths."
+        console.print(
+            "[yellow]Keyboard configurations are loaded from YAML files in the keyboard_paths.[/yellow]"
         )
-        print_error_message(
-            "Use --interactive mode to edit the YAML files directly, or modify the files manually."
+        console.print(
+            "[blue]Use --interactive mode to edit the YAML files directly, or modify the files manually.[/blue]\n"
         )
         raise typer.Exit(1)
 
@@ -368,6 +378,8 @@ def _handle_interactive_keyboard_edit(keyboard_name: str, app_ctx: AppContext) -
     if not editor:
         editor = os.environ.get("EDITOR", "nano")
 
+    console = Console()
+
     # Find the keyboard config file
     keyboard_paths = app_ctx.user_config.get("keyboard_paths", [])
     config_file_path = None
@@ -390,12 +402,14 @@ def _handle_interactive_keyboard_edit(keyboard_name: str, app_ctx: AppContext) -
             break
 
     if not config_file_path:
-        print_error_message(
-            f"Could not find configuration file for keyboard '{keyboard_name}'"
+        error_icon = Icons.get_icon("ERROR", app_ctx.use_emoji)
+        console.print(
+            f"\n[bold red]{error_icon} Could not find configuration file for keyboard '{keyboard_name}'[/bold red]"
         )
-        print_error_message("Searched in keyboard_paths:")
+        console.print("[yellow]Searched in keyboard_paths:[/yellow]")
         for path in keyboard_paths:
-            print_error_message(f"  - {path}")
+            bullet_icon = Icons.get_icon("BULLET", app_ctx.use_emoji)
+            console.print(f"  {bullet_icon} [dim]{path}[/dim]")
         raise typer.Exit(1)
 
     # Get the file modification time before editing
@@ -403,24 +417,31 @@ def _handle_interactive_keyboard_edit(keyboard_name: str, app_ctx: AppContext) -
 
     try:
         # Open the config file in the editor
-        print_success_message(f"Opening {config_file_path} in {editor}...")
+        info_icon = Icons.get_icon("INFO", app_ctx.use_emoji)
+        console.print(
+            f"\n[bold blue]{info_icon} Opening {config_file_path} in {editor}...[/bold blue]"
+        )
         result = subprocess.run([editor, str(config_file_path)], check=True)
 
         # Check if the file was modified
         if config_file_path.exists():
             new_mtime = config_file_path.stat().st_mtime
             if new_mtime > original_mtime:
-                print_success_message("Keyboard configuration file modified")
+                success_icon = Icons.get_icon("SUCCESS", app_ctx.use_emoji)
+                console.print(
+                    f"\n[bold green]{success_icon} Keyboard configuration file modified[/bold green]"
+                )
 
                 # Try to reload the configuration to validate it
                 try:
                     load_keyboard_config(keyboard_name, app_ctx.user_config)
-                    print_success_message(
-                        "Keyboard configuration reloaded successfully"
+                    console.print(
+                        f"[bold green]{success_icon} Keyboard configuration reloaded successfully[/bold green]"
                     )
                 except Exception as e:
-                    print_error_message(
-                        f"Keyboard configuration file has validation errors: {e}"
+                    error_icon = Icons.get_icon("ERROR", app_ctx.use_emoji)
+                    console.print(
+                        f"[bold red]{error_icon} Keyboard configuration file has validation errors: {e}[/bold red]"
                     )
 
                     # Ask if user wants to re-edit
@@ -429,29 +450,39 @@ def _handle_interactive_keyboard_edit(keyboard_name: str, app_ctx: AppContext) -
                     ):
                         _handle_interactive_keyboard_edit(keyboard_name, app_ctx)
                     else:
-                        print_error_message(
-                            "Configuration changes were not applied due to validation errors"
+                        error_icon = Icons.get_icon("ERROR", app_ctx.use_emoji)
+                        console.print(
+                            f"[bold red]{error_icon} Configuration changes were not applied due to validation errors[/bold red]"
                         )
                         raise typer.Exit(1) from e
             else:
-                print_success_message("No changes made to keyboard configuration file")
+                info_icon = Icons.get_icon("INFO", app_ctx.use_emoji)
+                console.print(
+                    f"[blue]{info_icon} No changes made to keyboard configuration file[/blue]"
+                )
         else:
-            print_error_message(
-                "Keyboard configuration file was deleted during editing"
+            error_icon = Icons.get_icon("ERROR", app_ctx.use_emoji)
+            console.print(
+                f"[bold red]{error_icon} Keyboard configuration file was deleted during editing[/bold red]"
             )
             raise typer.Exit(1)
 
     except subprocess.CalledProcessError as e:
-        print_error_message(f"Editor exited with error code {e.returncode}")
+        error_icon = Icons.get_icon("ERROR", app_ctx.use_emoji)
+        console.print(
+            f"[bold red]{error_icon} Editor exited with error code {e.returncode}[/bold red]"
+        )
         raise typer.Exit(1) from e
     except FileNotFoundError as e:
-        print_error_message(
-            f"Editor '{editor}' not found. Please check your editor configuration."
+        error_icon = Icons.get_icon("ERROR", app_ctx.use_emoji)
+        console.print(
+            f"[bold red]{error_icon} Editor '{editor}' not found. Please check your editor configuration.[/bold red]"
         )
-        print_error_message(
-            "You can set the editor with: glovebox config edit --set editor=your_editor"
+        console.print(
+            "[yellow]You can set the editor with: glovebox config edit --set editor=your_editor[/yellow]"
         )
         raise typer.Exit(1) from e
     except KeyboardInterrupt as e:
-        print_error_message("Interactive editing cancelled")
+        warning_icon = Icons.get_icon("WARNING", app_ctx.use_emoji)
+        console.print(f"[yellow]{warning_icon} Interactive editing cancelled[/yellow]")
         raise typer.Exit(1) from e

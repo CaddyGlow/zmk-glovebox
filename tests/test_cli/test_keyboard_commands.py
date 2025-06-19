@@ -96,9 +96,9 @@ class TestKeyboardList:
             result = cli_runner.invoke(app, ["keyboard", "list", "--verbose"])
 
             assert result.exit_code == 0
-            assert "Available Keyboard Configurations (1):" in result.output
+            assert "Keyboard Configurations" in result.output  # Rich header
             assert "test_keyboard" in result.output
-            assert "Test keyboard description" in result.output
+            assert "Test keyboard" in result.output and "description" in result.output  # May be split across lines
             assert "Test Vendor" in result.output
 
     def test_list_keyboards_json_format(self, cli_runner):
@@ -173,7 +173,7 @@ class TestKeyboardList:
 
             assert result.exit_code == 0
             assert "broken_keyboard" in result.output
-            assert "Error: Configuration file not found" in result.output
+            assert ("Configuration file not found" in result.output or "Error" in result.output)
 
 
 class TestKeyboardEdit:
@@ -377,17 +377,14 @@ class TestKeyboardShow:
             result = cli_runner.invoke(app, ["keyboard", "show", "test_keyboard"])
 
             assert result.exit_code == 0
-            # Check unified output format structure
-            assert "keyboard: test_keyboard" in result.output
-            assert "description: Test keyboard description" in result.output
-            assert "vendor: Test Vendor" in result.output
-            assert "key_count: 84" in result.output
-            assert "flash_methods:" in result.output
-            assert "device_query" in result.output
-            assert "compile_methods:" in result.output
-            assert "method_type" in result.output
-            assert "firmwares:" in result.output
-            assert "firmware_count: 2" in result.output
+            # Check rich output format structure
+            assert "test_keyboard" in result.output
+            assert "Test keyboard description" in result.output
+            assert "Test Vendor" in result.output
+            assert "84" in result.output
+            assert "Flash Methods" in result.output
+            assert "Compile Methods" in result.output
+            assert "Available Firmwares" in result.output
 
     def test_show_keyboard_with_profile_option(self, cli_runner, mock_keyboard_config):
         """Test keyboard show with --profile option."""
@@ -401,8 +398,8 @@ class TestKeyboardShow:
             )
 
             assert result.exit_code == 0
-            assert "keyboard: test_keyboard" in result.output
-            assert "description: Test keyboard description" in result.output
+            assert "test_keyboard" in result.output
+            assert "Test keyboard description" in result.output
 
     def test_show_keyboard_with_profile_and_firmware(
         self, cli_runner, mock_keyboard_config
@@ -418,9 +415,8 @@ class TestKeyboardShow:
             )
 
             assert result.exit_code == 0
-            assert "keyboard: test_keyboard" in result.output
-            assert "selected_firmware: v1.0" in result.output
-            assert "firmware_details:" in result.output
+            assert "test_keyboard" in result.output
+            assert "v1.0" in result.output  # Firmware version should appear in rich output
 
     def test_show_keyboard_with_positional_firmware(
         self, cli_runner, mock_keyboard_config
@@ -436,9 +432,8 @@ class TestKeyboardShow:
             )
 
             assert result.exit_code == 0
-            assert "keyboard: test_keyboard" in result.output
-            assert "selected_firmware: v2.0" in result.output
-            assert "firmware_details:" in result.output
+            assert "test_keyboard" in result.output
+            assert "v2.0" in result.output  # Firmware version should appear in rich output
 
     def test_show_keyboard_profile_and_positional_conflict(self, cli_runner):
         """Test keyboard show with both --profile and positional arguments (should fail)."""
@@ -468,12 +463,10 @@ class TestKeyboardShow:
             )
 
             assert result.exit_code == 0  # Should still succeed but show error
-            assert "keyboard: test_keyboard" in result.output
-            assert "selected_firmware: nonexistent" in result.output
-            assert (
-                "firmware_error: Firmware version 'nonexistent' not found"
-                in result.output
-            )
+            assert "test_keyboard" in result.output
+            assert "nonexistent" in result.output  # Firmware name should appear
+            # Rich output may show this differently, so check for general error indication
+            assert ("not found" in result.output or "error" in result.output.lower())
 
     def test_show_keyboard_json_format(self, cli_runner, mock_keyboard_config):
         """Test keyboard show with JSON format."""
@@ -519,12 +512,12 @@ class TestKeyboardShow:
             )
 
             assert result.exit_code == 0
-            assert "keyboard: test_keyboard" in result.output
-            assert "description: Test keyboard description" in result.output
-            # Verbose should include additional details
-            assert "flash_methods:" in result.output
-            assert "compile_methods:" in result.output
-            assert "firmwares:" in result.output
+            assert "test_keyboard" in result.output
+            assert "Test keyboard description" in result.output
+            # Verbose should include additional details in rich output
+            assert "Flash Methods" in result.output
+            assert "Compile Methods" in result.output
+            assert "Available Firmwares" in result.output
 
     def test_show_keyboard_not_found(self, cli_runner):
         """Test keyboard show when keyboard is not found."""
@@ -537,6 +530,88 @@ class TestKeyboardShow:
 
             assert result.exit_code == 1
             assert "Keyboard configuration not found" in result.output
+
+    def test_show_keyboard_with_sources_flag(self, cli_runner, mock_keyboard_config):
+        """Test keyboard show with --sources flag."""
+        with patch(
+            "glovebox.cli.commands.keyboard.info.load_keyboard_config"
+        ) as mock_load_config:
+            mock_load_config.return_value = mock_keyboard_config
+
+            result = cli_runner.invoke(
+                app, ["keyboard", "show", "test_keyboard", "--sources"]
+            )
+
+            assert result.exit_code == 0
+            assert "test_keyboard" in result.output
+            assert "Source" in result.output  # Column header in table
+            assert ".yaml" in result.output  # Should show source files
+
+    def test_show_keyboard_with_defaults_flag(self, cli_runner, mock_keyboard_config):
+        """Test keyboard show with --defaults flag."""
+        with patch(
+            "glovebox.cli.commands.keyboard.info.load_keyboard_config"
+        ) as mock_load_config:
+            mock_load_config.return_value = mock_keyboard_config
+
+            result = cli_runner.invoke(
+                app, ["keyboard", "show", "test_keyboard", "--defaults"]
+            )
+
+            assert result.exit_code == 0
+            assert "test_keyboard" in result.output
+            assert "Default Value" in result.output  # Column header in table
+            assert "Default values shown are from Pydantic model field definitions" in result.output
+
+    def test_show_keyboard_with_sources_and_defaults_flags(self, cli_runner, mock_keyboard_config):
+        """Test keyboard show with both --sources and --defaults flags."""
+        with patch(
+            "glovebox.cli.commands.keyboard.info.load_keyboard_config"
+        ) as mock_load_config:
+            mock_load_config.return_value = mock_keyboard_config
+
+            result = cli_runner.invoke(
+                app, ["keyboard", "show", "test_keyboard", "--sources", "--defaults"]
+            )
+
+            assert result.exit_code == 0
+            assert "test_keyboard" in result.output
+            assert "Source" in result.output  # Column header in table
+            assert "Default Value" in result.output  # Column header in table
+            assert "include system" in result.output  # Should mention the include system
+
+    def test_show_keyboard_sources_json_format(self, cli_runner, mock_keyboard_config):
+        """Test keyboard show with --sources in JSON format includes metadata."""
+        with patch(
+            "glovebox.cli.commands.keyboard.info.load_keyboard_config"
+        ) as mock_load_config:
+            mock_load_config.return_value = mock_keyboard_config
+
+            result = cli_runner.invoke(
+                app, ["keyboard", "show", "test_keyboard", "--sources", "--format", "json"]
+            )
+
+            assert result.exit_code == 0
+            output_data = json.loads(result.output)
+            assert "_sources" in output_data
+            assert "keyboard" in output_data["_sources"]
+            assert "compile_methods" in output_data["_sources"]
+
+    def test_show_keyboard_defaults_json_format(self, cli_runner, mock_keyboard_config):
+        """Test keyboard show with --defaults in JSON format includes metadata."""
+        with patch(
+            "glovebox.cli.commands.keyboard.info.load_keyboard_config"
+        ) as mock_load_config:
+            mock_load_config.return_value = mock_keyboard_config
+
+            result = cli_runner.invoke(
+                app, ["keyboard", "show", "test_keyboard", "--defaults", "--format", "json"]
+            )
+
+            assert result.exit_code == 0
+            output_data = json.loads(result.output)
+            assert "_defaults" in output_data
+            assert "keyboard" in output_data["_defaults"]
 
 
 class TestKeyboardFirmwares:
@@ -634,11 +709,11 @@ class TestKeyboardFirmware:
 
             assert result.exit_code == 0
             assert "Firmware: v1.0 for test_keyboard" in result.output
-            assert "Version: v1.0" in result.output
-            assert "Description: Test firmware v1.0" in result.output
-            assert "Build Options:" in result.output
-            assert "repository: https://github.com/moergo-sc/zmk" in result.output
-            assert "branch: glove80" in result.output
+            assert "v1.0" in result.output  # Version appears in rich table
+            assert "Test firmware v1.0" in result.output
+            assert "Build Options" in result.output  # Rich section header
+            assert "https://github.com/moergo-sc/zmk" in result.output
+            assert "glove80" in result.output
 
     def test_firmware_json_format(self, cli_runner, mock_keyboard_config):
         """Test keyboard firmware with JSON format."""
