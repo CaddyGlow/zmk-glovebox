@@ -2,6 +2,7 @@
 
 import typer
 
+from .edit import edit_keyboard
 from .firmwares import list_firmwares, show_firmware
 from .info import list_keyboards, show_keyboard
 
@@ -16,6 +17,7 @@ keyboard_app = typer.Typer(
 # Register keyboard information commands
 keyboard_app.command(name="list")(list_keyboards)
 keyboard_app.command(name="show")(show_keyboard)
+keyboard_app.command(name="edit")(edit_keyboard)
 
 # Register firmware commands
 keyboard_app.command(name="firmwares")(list_firmwares)
