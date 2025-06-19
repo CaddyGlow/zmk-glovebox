@@ -811,18 +811,26 @@ def check_updates(
     if result.check_disabled and not force:
         from glovebox.cli.app import AppContext
         from glovebox.cli.helpers.theme import Icons
+
         app_ctx: AppContext = ctx.obj
         use_emoji = app_ctx.use_emoji
-        print(Icons.format_with_icon("WARNING", "Version checks are disabled", use_emoji))
+        print(
+            Icons.format_with_icon("WARNING", "Version checks are disabled", use_emoji)
+        )
         print("   To enable: glovebox config set disable_version_checks false")
         return
 
     if result.has_update and result.latest_version:
         from glovebox.cli.app import AppContext
         from glovebox.cli.helpers.theme import Icons
+
         app_context: AppContext = ctx.obj
         use_emoji = app_context.use_emoji
-        print(Icons.format_with_icon("LOADING", "ZMK Firmware Update Available!", use_emoji))
+        print(
+            Icons.format_with_icon(
+                "LOADING", "ZMK Firmware Update Available!", use_emoji
+            )
+        )
         print(f"   Current: {result.current_version or 'unknown'}")
         print(f"   Latest:  {result.latest_version}")
         if result.is_prerelease:
@@ -832,9 +840,12 @@ def check_updates(
     else:
         from glovebox.cli.app import AppContext
         from glovebox.cli.helpers.theme import Icons
+
         app_ctx2: AppContext = ctx.obj
         use_emoji = app_ctx2.use_emoji
-        print(Icons.format_with_icon("SUCCESS", "ZMK firmware is up to date", use_emoji))
+        print(
+            Icons.format_with_icon("SUCCESS", "ZMK firmware is up to date", use_emoji)
+        )
 
     if result.last_check:
         print(f"   Last checked: {result.last_check.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -1045,14 +1056,23 @@ def export_config(
         print_success_message(f"Configuration exported to {output_path}")
         from glovebox.cli.app import AppContext
         from glovebox.cli.helpers.theme import Icons
+
         app_context: AppContext = ctx.obj
         use_emoji = app_context.use_emoji
         print(f"{Icons.get_icon('CONFIG', use_emoji)} Format: {format.upper()}")
-        print(f"{Icons.get_icon('CONFIG', use_emoji)} Options exported: {total_options}")
-        print(f"{Icons.get_icon('INFO', use_emoji)} Include defaults: {include_defaults}")
+        print(
+            f"{Icons.get_icon('CONFIG', use_emoji)} Options exported: {total_options}"
+        )
+        print(
+            f"{Icons.get_icon('INFO', use_emoji)} Include defaults: {include_defaults}"
+        )
 
         if include_descriptions and format.lower() == "yaml":
-            print(Icons.format_with_icon("INFO", "Descriptions included as comments", use_emoji))
+            print(
+                Icons.format_with_icon(
+                    "INFO", "Descriptions included as comments", use_emoji
+                )
+            )
         elif format.lower() == "toml":
             print(Icons.format_with_icon("INFO", "TOML format exported", use_emoji))
 
@@ -1127,6 +1147,7 @@ def import_config(
             metadata = config_data.pop("_metadata")
             from glovebox.cli.app import AppContext
             from glovebox.cli.helpers.theme import Icons
+
             app_context: AppContext = ctx.obj
             use_emoji = app_context.use_emoji
             print(
@@ -1151,10 +1172,20 @@ def import_config(
         flatten_config(config_data)
 
         if not settings_to_apply:
-            print(Icons.format_with_icon("WARNING", "No configuration settings found to import", use_emoji))
+            print(
+                Icons.format_with_icon(
+                    "WARNING", "No configuration settings found to import", use_emoji
+                )
+            )
             return
 
-        print(Icons.format_with_icon("INFO", f"Found {len(settings_to_apply)} configuration settings to import", use_emoji))
+        print(
+            Icons.format_with_icon(
+                "INFO",
+                f"Found {len(settings_to_apply)} configuration settings to import",
+                use_emoji,
+            )
+        )
 
         # Show what will be changed
         if dry_run:
@@ -1169,7 +1200,11 @@ def import_config(
                 table.add_row(key, str(current_value), str(new_value))
 
             console.print(table)
-            print(Icons.format_with_icon("INFO", "Dry run complete - no changes made", use_emoji))
+            print(
+                Icons.format_with_icon(
+                    "INFO", "Dry run complete - no changes made", use_emoji
+                )
+            )
             return
 
         # Confirm before applying changes
@@ -1187,13 +1222,23 @@ def import_config(
             try:
                 # Export current config as backup
                 export_config(ctx, backup_file, "yaml", True, False)
-                print(f"{Icons.get_icon('SAVE', use_emoji)} Backup saved to: {backup_file}")
+                print(
+                    f"{Icons.get_icon('SAVE', use_emoji)} Backup saved to: {backup_file}"
+                )
             except Exception as e:
-                print(Icons.format_with_icon("WARNING", f"Failed to create backup: {e}", use_emoji))
+                print(
+                    Icons.format_with_icon(
+                        "WARNING", f"Failed to create backup: {e}", use_emoji
+                    )
+                )
                 if not force:
                     confirm_continue = typer.confirm("Continue without backup?")
                     if not confirm_continue:
-                        print(Icons.format_with_icon("ERROR", "Import cancelled", use_emoji))
+                        print(
+                            Icons.format_with_icon(
+                                "ERROR", "Import cancelled", use_emoji
+                            )
+                        )
                         return
 
         # Apply configuration changes
@@ -1218,10 +1263,18 @@ def import_config(
         try:
             app_ctx.user_config.save()
             print_success_message("Configuration imported successfully!")
-            print(Icons.format_with_icon("SUCCESS", f"Applied: {successful_changes} settings", use_emoji))
+            print(
+                Icons.format_with_icon(
+                    "SUCCESS", f"Applied: {successful_changes} settings", use_emoji
+                )
+            )
 
             if failed_changes:
-                print(Icons.format_with_icon("WARNING", f"Failed: {len(failed_changes)} settings", use_emoji))
+                print(
+                    Icons.format_with_icon(
+                        "WARNING", f"Failed: {len(failed_changes)} settings", use_emoji
+                    )
+                )
                 for key, error in failed_changes:
                     print(f"   {key}: {error}")
         except Exception as e:

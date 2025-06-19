@@ -395,7 +395,9 @@ def _print_usb_diagnostics_table(
     detected_devices = usb_data.get("detected_devices", [])
     device_count = len(detected_devices)
     usb_table.add_row(
-        "USB Devices", Icons.format_with_icon("SUCCESS", f"{device_count} found", use_emoji), "Currently connected devices"
+        "USB Devices",
+        Icons.format_with_icon("SUCCESS", f"{device_count} found", use_emoji),
+        "Currently connected devices",
     )
 
     # OS capabilities
