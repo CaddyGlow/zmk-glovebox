@@ -94,7 +94,7 @@ class TestDisplayFormatting:
         assert formatting.trans_display == "TRANS"
         assert formatting.key_width == 12
         assert formatting.center_small_rows is False
-        assert formatting.horizontal_spacer == "│"
+        assert formatting.horizontal_spacer == " │ "
 
     def test_display_formatting_validation(self):
         """Test display formatting validation."""
@@ -165,7 +165,7 @@ class TestDisplayConfig:
         assert config.layout_structure is None
         assert config.formatting.header_width == 100
         assert config.formatting.key_width == 10
-        assert config.formatting.horizontal_spacer == "║"
+        assert config.formatting.horizontal_spacer == " ║ "
 
     def test_complete_display_config(self):
         """Test complete display config with all components."""
@@ -223,7 +223,7 @@ class TestDisplayConfig:
         assert config.layout_structure.rows["row0"] == [[0, 1, 2], [3, 4, 5]]
         assert config.formatting.header_width == 120
         assert config.formatting.none_display == "NULL"
-        assert config.formatting.horizontal_spacer == "⏐"
+        assert config.formatting.horizontal_spacer == " ⏐ "
 
     def test_display_config_serialization(self):
         """Test display config serialization."""
@@ -289,7 +289,7 @@ class TestDisplayConfigIntegration:
         assert config.formatting.none_display == "___"
         assert config.formatting.trans_display == "==="
         assert config.formatting.key_width == 6
-        assert config.formatting.horizontal_spacer == "┃"
+        assert config.formatting.horizontal_spacer == " ┃ "
 
     def test_split_keyboard_display_config(self):
         """Test display config for split keyboard."""

@@ -63,6 +63,61 @@ def complete_config_keys(incomplete: str) -> list[str]:
         return []
 
 
+def complete_config_list_keys(incomplete: str) -> list[str]:
+    """Tab completion for configuration keys that are lists."""
+    try:
+        from glovebox.config.models.firmware import (
+            FirmwareDockerConfig,
+            FirmwareFlashConfig,
+        )
+        from glovebox.config.models.user import UserConfigData
+
+        def get_list_config_keys() -> list[str]:
+            """Get configuration keys that are lists."""
+            keys = []
+
+            # Check core keys for list types
+            for field_name, field_info in UserConfigData.model_fields.items():
+                if (
+                    field_name not in ["firmware", "compilation"]
+                    and hasattr(field_info, "annotation")
+                    and field_info.annotation
+                ):
+                    annotation = field_info.annotation
+                    if (
+                        hasattr(annotation, "__origin__")
+                        and annotation.__origin__ is list
+                    ):
+                        keys.append(field_name)
+
+            # Check firmware keys for list types
+            for field_name, field_info in FirmwareFlashConfig.model_fields.items():
+                if hasattr(field_info, "annotation") and field_info.annotation:
+                    annotation = field_info.annotation
+                    if (
+                        hasattr(annotation, "__origin__")
+                        and annotation.__origin__ is list
+                    ):
+                        keys.append(f"firmware.flash.{field_name}")
+
+            for field_name, field_info in FirmwareDockerConfig.model_fields.items():
+                if hasattr(field_info, "annotation") and field_info.annotation:
+                    annotation = field_info.annotation
+                    if (
+                        hasattr(annotation, "__origin__")
+                        and annotation.__origin__ is list
+                    ):
+                        keys.append(f"firmware.docker.{field_name}")
+
+            return keys
+
+        valid_keys = get_list_config_keys()
+        return [key for key in valid_keys if key.startswith(incomplete)]
+    except Exception:
+        # If completion fails, return empty list
+        return []
+
+
 def complete_keyboard_names(incomplete: str) -> list[str]:
     """Tab completion for keyboard names."""
     try:
@@ -1167,6 +1222,173 @@ def export_config(
     except Exception as e:
         print_error_message(f"Failed to export configuration: {e}")
         raise typer.Exit(1) from e
+
+
+@config_app.command(name="add")
+@handle_errors
+def add_to_list(
+    ctx: typer.Context,
+    key: Annotated[
+        str,
+        typer.Argument(
+            help="Configuration list key to add to",
+            autocompletion=complete_config_list_keys,
+        ),
+    ],
+    value: Annotated[str, typer.Argument(help="Value to add to the list")],
+    save: Annotated[
+        bool, typer.Option("--save", help="Save configuration to file")
+    ] = True,
+) -> None:
+    """Add a value to a configuration list."""
+    # Get app context with user config
+    app_ctx: AppContext = ctx.obj
+
+    # Check if key exists and is a list
+    def get_field_type_for_key(config_key: str) -> type:
+        """Get the expected type for a configuration key."""
+        from glovebox.config.models.firmware import (
+            FirmwareDockerConfig,
+            FirmwareFlashConfig,
+        )
+        from glovebox.config.models.user import UserConfigData
+
+        if "." in config_key:
+            parts = config_key.split(".")
+            if len(parts) == 3 and parts[0] == "firmware":
+                if parts[1] == "flash":
+                    field_info = FirmwareFlashConfig.model_fields.get(parts[2])
+                elif parts[1] == "docker":
+                    field_info = FirmwareDockerConfig.model_fields.get(parts[2])
+                else:
+                    return str
+            else:
+                return str
+        else:
+            field_info = UserConfigData.model_fields.get(config_key)
+
+        if field_info and hasattr(field_info, "annotation") and field_info.annotation:
+            annotation = field_info.annotation
+            if hasattr(annotation, "__origin__") and annotation.__origin__ is list:
+                return list
+            else:
+                return annotation
+        return str
+
+    field_type = get_field_type_for_key(key)
+
+    if field_type is not list:
+        print_error_message(f"Configuration key '{key}' is not a list")
+        raise typer.Exit(1)
+
+    # Get current list value
+    current_list = app_ctx.user_config.get(key, [])
+    if not isinstance(current_list, list):
+        current_list = []
+
+    # Convert value to appropriate type if needed
+    typed_value: Any = value
+    if key.endswith("_paths") or key == "keyboard_paths":
+        typed_value = Path(value)
+
+    # Check if value already exists
+    if typed_value in current_list:
+        print_error_message(f"Value '{value}' already exists in {key}")
+        raise typer.Exit(1)
+
+    # Add the value to the list
+    current_list.append(typed_value)
+    app_ctx.user_config.set(key, current_list)
+    print_success_message(f"Added '{value}' to {key}")
+
+    # Save configuration if requested
+    if save:
+        app_ctx.user_config.save()
+        print_success_message("Configuration saved")
+
+
+@config_app.command(name="remove")
+@handle_errors
+def remove_from_list(
+    ctx: typer.Context,
+    key: Annotated[
+        str,
+        typer.Argument(
+            help="Configuration list key to remove from",
+            autocompletion=complete_config_list_keys,
+        ),
+    ],
+    value: Annotated[str, typer.Argument(help="Value to remove from the list")],
+    save: Annotated[
+        bool, typer.Option("--save", help="Save configuration to file")
+    ] = True,
+) -> None:
+    """Remove a value from a configuration list."""
+    # Get app context with user config
+    app_ctx: AppContext = ctx.obj
+
+    # Check if key exists and is a list
+    def get_field_type_for_key(config_key: str) -> type:
+        """Get the expected type for a configuration key."""
+        from glovebox.config.models.firmware import (
+            FirmwareDockerConfig,
+            FirmwareFlashConfig,
+        )
+        from glovebox.config.models.user import UserConfigData
+
+        if "." in config_key:
+            parts = config_key.split(".")
+            if len(parts) == 3 and parts[0] == "firmware":
+                if parts[1] == "flash":
+                    field_info = FirmwareFlashConfig.model_fields.get(parts[2])
+                elif parts[1] == "docker":
+                    field_info = FirmwareDockerConfig.model_fields.get(parts[2])
+                else:
+                    return str
+            else:
+                return str
+        else:
+            field_info = UserConfigData.model_fields.get(config_key)
+
+        if field_info and hasattr(field_info, "annotation") and field_info.annotation:
+            annotation = field_info.annotation
+            if hasattr(annotation, "__origin__") and annotation.__origin__ is list:
+                return list
+            else:
+                return annotation
+        return str
+
+    field_type = get_field_type_for_key(key)
+
+    if field_type is not list:
+        print_error_message(f"Configuration key '{key}' is not a list")
+        raise typer.Exit(1)
+
+    # Get current list value
+    current_list = app_ctx.user_config.get(key, [])
+    if not isinstance(current_list, list):
+        print_error_message(f"Configuration key '{key}' is not a list")
+        raise typer.Exit(1)
+
+    # Convert value to appropriate type if needed
+    typed_value: Any = value
+    if key.endswith("_paths") or key == "keyboard_paths":
+        typed_value = Path(value)
+
+    # Check if value exists in list
+    if typed_value not in current_list:
+        print_error_message(f"Value '{value}' not found in {key}")
+        raise typer.Exit(1)
+
+    # Remove the value from the list
+    current_list.remove(typed_value)
+    app_ctx.user_config.set(key, current_list)
+    print_success_message(f"Removed '{value}' from {key}")
+
+    # Save configuration if requested
+    if save:
+        app_ctx.user_config.save()
+        print_success_message("Configuration saved")
 
 
 @config_app.command(name="import")

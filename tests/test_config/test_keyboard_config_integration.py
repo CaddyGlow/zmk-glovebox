@@ -155,7 +155,7 @@ class TestKeyboardConfigCustomSections:
         assert config.display.formatting.trans_display == "TRANS"
         assert config.display.formatting.key_width == 10
         assert config.display.formatting.center_small_rows is False
-        assert config.display.formatting.horizontal_spacer == "║"
+        assert config.display.formatting.horizontal_spacer == " ║ "
 
         # Other sections should still have defaults
         assert config.behavior.magic_layer_command == "&magic LAYER_Magic 0"
