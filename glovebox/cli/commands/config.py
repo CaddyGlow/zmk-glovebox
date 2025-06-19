@@ -809,12 +809,20 @@ def check_updates(
     )
 
     if result.check_disabled and not force:
-        print("⚠️  Version checks are disabled")
+        from glovebox.cli.app import AppContext
+        from glovebox.cli.helpers.theme import Icons
+        app_ctx: AppContext = ctx.obj
+        use_emoji = app_ctx.use_emoji
+        print(Icons.format_with_icon("WARNING", "Version checks are disabled", use_emoji))
         print("   To enable: glovebox config set disable_version_checks false")
         return
 
     if result.has_update and result.latest_version:
-        print("🔄 ZMK Firmware Update Available!")
+        from glovebox.cli.app import AppContext
+        from glovebox.cli.helpers.theme import Icons
+        app_context: AppContext = ctx.obj
+        use_emoji = app_context.use_emoji
+        print(Icons.format_with_icon("LOADING", "ZMK Firmware Update Available!", use_emoji))
         print(f"   Current: {result.current_version or 'unknown'}")
         print(f"   Latest:  {result.latest_version}")
         if result.is_prerelease:
@@ -822,7 +830,11 @@ def check_updates(
         if result.latest_url:
             print(f"   Details: {result.latest_url}")
     else:
-        print("✅ ZMK firmware is up to date")
+        from glovebox.cli.app import AppContext
+        from glovebox.cli.helpers.theme import Icons
+        app_ctx2: AppContext = ctx.obj
+        use_emoji = app_ctx2.use_emoji
+        print(Icons.format_with_icon("SUCCESS", "ZMK firmware is up to date", use_emoji))
 
     if result.last_check:
         print(f"   Last checked: {result.last_check.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -872,6 +884,7 @@ def export_config(
     """Export all configuration options to a file with current values."""
     from pathlib import Path
 
+    from glovebox.cli.app import AppContext as AppCtx
     from glovebox.config.models.firmware import (
         FirmwareDockerConfig,
         FirmwareFlashConfig,
@@ -879,7 +892,7 @@ def export_config(
     from glovebox.config.models.user import UserConfigData
 
     # Get app context with user config
-    app_ctx: AppContext = ctx.obj
+    app_ctx: AppCtx = ctx.obj
     output_path = Path(output_file)
 
     def get_current_value(key: str) -> Any:
@@ -1030,14 +1043,18 @@ def export_config(
         )
 
         print_success_message(f"Configuration exported to {output_path}")
-        print(f"📁 Format: {format.upper()}")
-        print(f"⚙️  Options exported: {total_options}")
-        print(f"📊 Include defaults: {include_defaults}")
+        from glovebox.cli.app import AppContext
+        from glovebox.cli.helpers.theme import Icons
+        app_context: AppContext = ctx.obj
+        use_emoji = app_context.use_emoji
+        print(f"{Icons.get_icon('CONFIG', use_emoji)} Format: {format.upper()}")
+        print(f"{Icons.get_icon('CONFIG', use_emoji)} Options exported: {total_options}")
+        print(f"{Icons.get_icon('INFO', use_emoji)} Include defaults: {include_defaults}")
 
         if include_descriptions and format.lower() == "yaml":
-            print("💬 Descriptions included as comments")
+            print(Icons.format_with_icon("INFO", "Descriptions included as comments", use_emoji))
         elif format.lower() == "toml":
-            print("📋 TOML format exported")
+            print(Icons.format_with_icon("INFO", "TOML format exported", use_emoji))
 
     except Exception as e:
         print_error_message(f"Failed to export configuration: {e}")
@@ -1064,8 +1081,10 @@ def import_config(
     """Import configuration from a YAML, JSON, or TOML file."""
     from pathlib import Path
 
+    from glovebox.cli.app import AppContext as AppCtx
+
     # Get app context with user config
-    app_ctx: AppContext = ctx.obj
+    app_ctx: AppCtx = ctx.obj
     config_path = Path(config_file)
 
     if not config_path.exists():
@@ -1106,8 +1125,12 @@ def import_config(
         # Remove metadata section if present
         if "_metadata" in config_data:
             metadata = config_data.pop("_metadata")
+            from glovebox.cli.app import AppContext
+            from glovebox.cli.helpers.theme import Icons
+            app_context: AppContext = ctx.obj
+            use_emoji = app_context.use_emoji
             print(
-                f"📋 Imported config generated at: {metadata.get('generated_at', 'unknown')}"
+                f"{Icons.get_icon('INFO', use_emoji)} Imported config generated at: {metadata.get('generated_at', 'unknown')}"
             )
 
         # Flatten the configuration for setting
@@ -1128,10 +1151,10 @@ def import_config(
         flatten_config(config_data)
 
         if not settings_to_apply:
-            print("⚠️  No configuration settings found to import")
+            print(Icons.format_with_icon("WARNING", "No configuration settings found to import", use_emoji))
             return
 
-        print(f"📥 Found {len(settings_to_apply)} configuration settings to import")
+        print(Icons.format_with_icon("INFO", f"Found {len(settings_to_apply)} configuration settings to import", use_emoji))
 
         # Show what will be changed
         if dry_run:
@@ -1146,7 +1169,7 @@ def import_config(
                 table.add_row(key, str(current_value), str(new_value))
 
             console.print(table)
-            print("🔍 Dry run complete - no changes made")
+            print(Icons.format_with_icon("INFO", "Dry run complete - no changes made", use_emoji))
             return
 
         # Confirm before applying changes
@@ -1155,7 +1178,7 @@ def import_config(
                 f"Apply {len(settings_to_apply)} configuration changes?"
             )
             if not confirm:
-                print("❌ Import cancelled")
+                print(Icons.format_with_icon("ERROR", "Import cancelled", use_emoji))
                 return
 
         # Create backup if requested
@@ -1164,13 +1187,13 @@ def import_config(
             try:
                 # Export current config as backup
                 export_config(ctx, backup_file, "yaml", True, False)
-                print(f"💾 Backup saved to: {backup_file}")
+                print(f"{Icons.get_icon('SAVE', use_emoji)} Backup saved to: {backup_file}")
             except Exception as e:
-                print(f"⚠️  Failed to create backup: {e}")
+                print(Icons.format_with_icon("WARNING", f"Failed to create backup: {e}", use_emoji))
                 if not force:
                     confirm_continue = typer.confirm("Continue without backup?")
                     if not confirm_continue:
-                        print("❌ Import cancelled")
+                        print(Icons.format_with_icon("ERROR", "Import cancelled", use_emoji))
                         return
 
         # Apply configuration changes
@@ -1195,10 +1218,10 @@ def import_config(
         try:
             app_ctx.user_config.save()
             print_success_message("Configuration imported successfully!")
-            print(f"✅ Applied: {successful_changes} settings")
+            print(Icons.format_with_icon("SUCCESS", f"Applied: {successful_changes} settings", use_emoji))
 
             if failed_changes:
-                print(f"⚠️  Failed: {len(failed_changes)} settings")
+                print(Icons.format_with_icon("WARNING", f"Failed: {len(failed_changes)} settings", use_emoji))
                 for key, error in failed_changes:
                     print(f"   {key}: {error}")
         except Exception as e:

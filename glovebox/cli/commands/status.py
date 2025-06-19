@@ -41,25 +41,35 @@ def _format_diagnostics_json(data: dict[str, Any]) -> None:
     print(json.dumps(full_diagnostics, indent=2))
 
 
-def _format_status_markdown(data: dict[str, Any]) -> None:
+def _format_status_markdown(data: dict[str, Any], use_emoji: bool = True) -> None:
     """Format status data as Markdown."""
+    from glovebox.cli.helpers.theme import Icons
+
     print(f"# Glovebox Status v{data['version']}")
     print()
 
     # Dependencies section
-    print("## 🔗 System Dependencies")
+    link_icon = Icons.get_icon("ARROW", use_emoji)
+    print(f"## {link_icon} System Dependencies")
     print()
     print("| Tool | Status | Version |")
     print("|------|--------|---------|")
 
     for name, info in data["dependencies"].items():
-        status_icon = "✅ Available" if info["status"] == "available" else "❌ Missing"
+        success_icon = Icons.get_icon("SUCCESS", use_emoji)
+        error_icon = Icons.get_icon("ERROR", use_emoji)
+        status_icon = (
+            f"{success_icon} Available"
+            if info["status"] == "available"
+            else f"{error_icon} Missing"
+        )
         print(f"| {name} | {status_icon} | {info['version']} |")
 
     print()
 
     # Keyboards section
-    print(f"## ⌨️ Available Keyboards ({len(data['keyboards'])})")
+    keyboard_icon = Icons.get_icon("KEYBOARD", use_emoji)
+    print(f"## {keyboard_icon} Available Keyboards ({len(data['keyboards'])})")
     print()
 
     if data["keyboards"]:
@@ -67,7 +77,8 @@ def _format_status_markdown(data: dict[str, Any]) -> None:
             print(f"### {kb['name']}")
 
             if kb["status"] == "error":
-                print(f"❌ **Error**: {kb['error']}")
+                error_icon = Icons.get_icon("ERROR", use_emoji)
+                print(f"{error_icon} **Error**: {kb['error']}")
             elif kb["firmwares"]:
                 print(f"**Firmwares**: {len(kb['firmwares'])} available")
                 print()
@@ -82,7 +93,8 @@ def _format_status_markdown(data: dict[str, Any]) -> None:
         print()
 
     # Environment section
-    print("## 🌍 Environment Information")
+    system_icon = Icons.get_icon("SYSTEM", use_emoji)
+    print(f"## {system_icon} Environment Information")
     print()
     print("| Property | Value |")
     print("|----------|-------|")
@@ -92,18 +104,26 @@ def _format_status_markdown(data: dict[str, Any]) -> None:
         print(f"| {formatted_key} | {value} |")
 
 
-def _format_status_table(data: dict[str, Any]) -> None:
+def _format_status_table(data: dict[str, Any], use_emoji: bool = True) -> None:
     """Format status data as Rich tables (default format)."""
+    from glovebox.cli.helpers.theme import Icons
+
     console = Console()
 
     # Header with version
     header = Text(f"Glovebox v{data['version']}", style="bold magenta")
-    console.print(Panel(header, title="🔧 Glovebox Status", border_style="blue"))
+    firmware_icon = Icons.get_icon("FIRMWARE", use_emoji)
+    console.print(
+        Panel(header, title=f"{firmware_icon} Glovebox Status", border_style="blue")
+    )
     console.print()
 
     # Dependencies table
+    link_icon = Icons.get_icon("ARROW", use_emoji)
     deps_table = Table(
-        title="🔗 System Dependencies", show_header=True, header_style="bold blue"
+        title=f"{link_icon} System Dependencies",
+        show_header=True,
+        header_style="bold blue",
     )
     deps_table.add_column("Tool", style="cyan", no_wrap=True)
     deps_table.add_column("Status", style="bold")
@@ -112,9 +132,11 @@ def _format_status_table(data: dict[str, Any]) -> None:
     docker_info = data.get("docker", {})
     if docker_info.get("availability") == "available":
         version = docker_info.get("version_info", {}).get("client", "Unknown")
-        deps_table.add_row("Docker", "✅ Available", version)
+        status_text = Icons.format_with_icon("SUCCESS", "Available", use_emoji)
+        deps_table.add_row("Docker", status_text, version)
     else:
-        deps_table.add_row("Docker", "❌ Missing", "Not found")
+        status_text = Icons.format_with_icon("ERROR", "Missing", use_emoji)
+        deps_table.add_row("Docker", status_text, "Not found")
 
     console.print(deps_table)
     console.print()
@@ -125,8 +147,9 @@ def _format_status_table(data: dict[str, Any]) -> None:
         "keyboard_status", []
     )
     if keyboard_status:
+        keyboard_icon = Icons.get_icon("KEYBOARD", use_emoji)
         keyboards_table = Table(
-            title=f"⌨️ Available Keyboards ({len(keyboard_status)})",
+            title=f"{keyboard_icon} Available Keyboards ({len(keyboard_status)})",
             show_header=True,
             header_style="bold green",
         )
@@ -137,11 +160,13 @@ def _format_status_table(data: dict[str, Any]) -> None:
         for kb in keyboard_status:
             name = kb.get("name", "Unknown")
             if kb.get("status") == "error":
+                status_text = Icons.format_with_icon("ERROR", "Error", use_emoji)
                 keyboards_table.add_row(
-                    name, "❌ Error", kb.get("error", "Unknown error")
+                    name, status_text, kb.get("error", "Unknown error")
                 )
             else:
-                keyboards_table.add_row(name, "✅ Available", "")
+                status_text = Icons.format_with_icon("SUCCESS", "Available", use_emoji)
+                keyboards_table.add_row(name, status_text, "")
 
         console.print(keyboards_table)
     else:
@@ -150,8 +175,11 @@ def _format_status_table(data: dict[str, Any]) -> None:
     console.print()
 
     # Environment table
+    system_icon = Icons.get_icon("SYSTEM", use_emoji)
     env_table = Table(
-        title="🌍 Environment Information", show_header=True, header_style="bold cyan"
+        title=f"{system_icon} Environment Information",
+        show_header=True,
+        header_style="bold cyan",
     )
     env_table.add_column("Property", style="cyan", no_wrap=True)
     env_table.add_column("Value", style="white")
@@ -164,39 +192,51 @@ def _format_status_table(data: dict[str, Any]) -> None:
     console.print(env_table)
 
 
-def _format_diagnostics_table(data: dict[str, Any]) -> None:
+def _format_diagnostics_table(data: dict[str, Any], use_emoji: bool = True) -> None:
     """Format comprehensive diagnostics data as Rich tables."""
+    from glovebox.cli.helpers.theme import Icons
+
     console = Console()
 
     # Header with version
     header = Text(f"Glovebox v{data.get('version', 'unknown')}", style="bold magenta")
+    firmware_icon = Icons.get_icon("FIRMWARE", use_emoji)
     console.print(
-        Panel(header, title="🔧 Comprehensive Diagnostics", border_style="blue")
+        Panel(
+            header,
+            title=f"{firmware_icon} Comprehensive Diagnostics",
+            border_style="blue",
+        )
     )
     console.print()
 
     # System Diagnostics
-    _print_system_diagnostics_table(console, data.get("system", {}))
+    _print_system_diagnostics_table(console, data.get("system", {}), use_emoji)
 
     # Docker Diagnostics
-    _print_docker_diagnostics_table(console, data.get("docker", {}))
+    _print_docker_diagnostics_table(console, data.get("docker", {}), use_emoji)
 
     # USB/Flash Diagnostics
-    _print_usb_diagnostics_table(console, data.get("usb_flash", {}))
+    _print_usb_diagnostics_table(console, data.get("usb_flash", {}), use_emoji)
 
     # Configuration Diagnostics
-    _print_config_diagnostics_table(console, data.get("configuration", {}))
+    _print_config_diagnostics_table(console, data.get("configuration", {}), use_emoji)
 
     # Layout Diagnostics
-    _print_layout_diagnostics_table(console, data.get("layout", {}))
+    _print_layout_diagnostics_table(console, data.get("layout", {}), use_emoji)
 
 
 def _print_system_diagnostics_table(
-    console: Console, system_data: dict[str, Any]
+    console: Console, system_data: dict[str, Any], use_emoji: bool = True
 ) -> None:
     """Print system diagnostics table."""
+    from glovebox.cli.helpers.theme import Icons
+
+    system_icon = Icons.get_icon("SYSTEM", use_emoji)
     system_table = Table(
-        title="🖥️ System Environment", show_header=True, header_style="bold cyan"
+        title=f"{system_icon} System Environment",
+        show_header=True,
+        header_style="bold cyan",
     )
     system_table.add_column("Component", style="cyan", no_wrap=True)
     system_table.add_column("Status", style="bold")
@@ -207,11 +247,14 @@ def _print_system_diagnostics_table(
     disk_space = system_data.get("disk_space", {})
 
     # Environment info
+    success_icon = Icons.get_icon("SUCCESS", use_emoji)
     system_table.add_row(
-        "Platform", "✅ Available", environment.get("platform", "Unknown")
+        "Platform", f"{success_icon} Available", environment.get("platform", "Unknown")
     )
     system_table.add_row(
-        "Python", "✅ Available", f"v{environment.get('python_version', 'Unknown')}"
+        "Python",
+        f"{success_icon} Available",
+        f"v{environment.get('python_version', 'Unknown')}",
     )
 
     # File system checks
@@ -221,13 +264,23 @@ def _print_system_diagnostics_table(
         path_key = f"{key}_path"
 
         if writable_key in file_system:
-            status = "✅ Writable" if file_system[writable_key] else "⚠️ Read-only"
+            if file_system[writable_key]:
+                status_icon = Icons.get_icon("SUCCESS", use_emoji)
+                status = f"{status_icon} Writable"
+            else:
+                status_icon = Icons.get_icon("WARNING", use_emoji)
+                status = f"{status_icon} Read-only"
             details = file_system.get(path_key, "Unknown path")
             system_table.add_row(key.replace("_", " ").title(), status, details)
 
     # Disk space
     if "available_gb" in disk_space:
-        status = "✅ Available" if disk_space["available_gb"] > 1.0 else "⚠️ Low space"
+        if disk_space["available_gb"] > 1.0:
+            status_icon = Icons.get_icon("SUCCESS", use_emoji)
+            status = f"{status_icon} Available"
+        else:
+            status_icon = Icons.get_icon("WARNING", use_emoji)
+            status = f"{status_icon} Low space"
         details = f"{disk_space['available_gb']} GB available"
         system_table.add_row("Disk Space", status, details)
 
@@ -236,11 +289,16 @@ def _print_system_diagnostics_table(
 
 
 def _print_docker_diagnostics_table(
-    console: Console, docker_data: dict[str, Any]
+    console: Console, docker_data: dict[str, Any], use_emoji: bool = True
 ) -> None:
     """Print Docker diagnostics table."""
+    from glovebox.cli.helpers.theme import Icons
+
+    docker_icon = Icons.get_icon("DOCKER", use_emoji)
     docker_table = Table(
-        title="🐳 Docker Environment", show_header=True, header_style="bold blue"
+        title=f"{docker_icon} Docker Environment",
+        show_header=True,
+        header_style="bold blue",
     )
     docker_table.add_column("Component", style="cyan", no_wrap=True)
     docker_table.add_column("Status", style="bold")
@@ -249,10 +307,10 @@ def _print_docker_diagnostics_table(
     # Docker availability
     availability = docker_data.get("availability", "unknown")
     if availability == "available":
-        status = "✅ Available"
+        status = Icons.format_with_icon("SUCCESS", "Available", use_emoji)
         version = docker_data.get("version_info", {}).get("client", "Unknown version")
     else:
-        status = "❌ Unavailable"
+        status = Icons.format_with_icon("ERROR", "Unavailable", use_emoji)
         version = "Not installed or not accessible"
 
     docker_table.add_row("Docker Client", status, version)
@@ -260,13 +318,13 @@ def _print_docker_diagnostics_table(
     # Docker daemon
     daemon_status = docker_data.get("daemon_status", "unknown")
     if daemon_status == "running":
-        daemon_display = "✅ Running"
+        daemon_display = Icons.format_with_icon("SUCCESS", "Running", use_emoji)
         server_version = docker_data.get("version_info", {}).get("server", "Unknown")
     elif daemon_status == "stopped":
-        daemon_display = "❌ Stopped"
+        daemon_display = Icons.format_with_icon("ERROR", "Stopped", use_emoji)
         server_version = "Daemon not running"
     else:
-        daemon_display = "⚠️ Unknown"
+        daemon_display = Icons.format_with_icon("WARNING", "Unknown", use_emoji)
         server_version = "Status unclear"
 
     docker_table.add_row("Docker Daemon", daemon_display, server_version)
@@ -275,11 +333,11 @@ def _print_docker_diagnostics_table(
     images = docker_data.get("images", {})
     for image_name, image_status in images.items():
         if image_status == "available":
-            status_display = "✅ Available"
+            status_display = Icons.format_with_icon("SUCCESS", "Available", use_emoji)
         elif image_status == "missing":
-            status_display = "❌ Missing"
+            status_display = Icons.format_with_icon("ERROR", "Missing", use_emoji)
         else:
-            status_display = "⚠️ Error"
+            status_display = Icons.format_with_icon("WARNING", "Error", use_emoji)
 
         docker_table.add_row(f"Image: {image_name}", status_display, "")
 
@@ -287,11 +345,11 @@ def _print_docker_diagnostics_table(
     capabilities = docker_data.get("capabilities", {})
     for cap_name, cap_status in capabilities.items():
         if cap_status == "available":
-            cap_display = "✅ Working"
+            cap_display = Icons.format_with_icon("SUCCESS", "Working", use_emoji)
         elif cap_status == "limited":
-            cap_display = "⚠️ Limited"
+            cap_display = Icons.format_with_icon("WARNING", "Limited", use_emoji)
         else:
-            cap_display = "❌ Unavailable"
+            cap_display = Icons.format_with_icon("ERROR", "Unavailable", use_emoji)
 
         docker_table.add_row(
             f"Capability: {cap_name.replace('_', ' ').title()}", cap_display, ""
@@ -301,10 +359,17 @@ def _print_docker_diagnostics_table(
     console.print()
 
 
-def _print_usb_diagnostics_table(console: Console, usb_data: dict[str, Any]) -> None:
+def _print_usb_diagnostics_table(
+    console: Console, usb_data: dict[str, Any], use_emoji: bool = True
+) -> None:
     """Print USB/Flash diagnostics table."""
+    from glovebox.cli.helpers.theme import Icons
+
+    usb_icon = Icons.get_icon("USB", use_emoji)
     usb_table = Table(
-        title="🔌 USB/Flash Capabilities", show_header=True, header_style="bold yellow"
+        title=f"{usb_icon} USB/Flash Capabilities",
+        show_header=True,
+        header_style="bold yellow",
     )
     usb_table.add_column("Component", style="cyan", no_wrap=True)
     usb_table.add_column("Status", style="bold")
@@ -315,13 +380,13 @@ def _print_usb_diagnostics_table(console: Console, usb_data: dict[str, Any]) -> 
     detection_status = usb_detection.get("status", "unknown")
 
     if detection_status == "available":
-        status_display = "✅ Working"
+        status_display = Icons.format_with_icon("SUCCESS", "Working", use_emoji)
         platform_adapter = usb_detection.get("platform_adapter", "Unknown")
     elif detection_status == "unsupported_platform":
-        status_display = "⚠️ Unsupported"
+        status_display = Icons.format_with_icon("WARNING", "Unsupported", use_emoji)
         platform_adapter = "Platform not supported"
     else:
-        status_display = "❌ Error"
+        status_display = Icons.format_with_icon("ERROR", "Error", use_emoji)
         platform_adapter = usb_detection.get("error", "Unknown error")
 
     usb_table.add_row("USB Detection", status_display, platform_adapter)
@@ -330,7 +395,7 @@ def _print_usb_diagnostics_table(console: Console, usb_data: dict[str, Any]) -> 
     detected_devices = usb_data.get("detected_devices", [])
     device_count = len(detected_devices)
     usb_table.add_row(
-        "USB Devices", f"✅ {device_count} found", "Currently connected devices"
+        "USB Devices", Icons.format_with_icon("SUCCESS", f"{device_count} found", use_emoji), "Currently connected devices"
     )
 
     # OS capabilities
@@ -338,10 +403,10 @@ def _print_usb_diagnostics_table(console: Console, usb_data: dict[str, Any]) -> 
     mount_tool = os_capabilities.get("mount_tool", "unknown")
 
     if mount_tool in ["udisksctl", "diskutil"]:
-        status_display = "✅ Available"
+        status_display = Icons.format_with_icon("SUCCESS", "Available", use_emoji)
         details = f"Using {mount_tool}"
     else:
-        status_display = "❌ Unavailable"
+        status_display = Icons.format_with_icon("ERROR", "Unavailable", use_emoji)
         details = "No mount tool found"
 
     usb_table.add_row("Mount Tool", status_display, details)
@@ -352,7 +417,7 @@ def _print_usb_diagnostics_table(console: Console, usb_data: dict[str, Any]) -> 
     # Detailed USB devices table if devices are found
     if detected_devices:
         devices_table = Table(
-            title=f"🔌 Detected USB Devices ({len(detected_devices)})",
+            title=f"{Icons.get_icon('DEVICE', use_emoji)} Detected USB Devices ({len(detected_devices)})",
             show_header=True,
             header_style="bold yellow",
         )
@@ -402,11 +467,16 @@ def _print_usb_diagnostics_table(console: Console, usb_data: dict[str, Any]) -> 
 
 
 def _print_config_diagnostics_table(
-    console: Console, config_data: dict[str, Any]
+    console: Console, config_data: dict[str, Any], use_emoji: bool = True
 ) -> None:
     """Print configuration diagnostics table."""
+    from glovebox.cli.helpers.theme import Icons
+
+    config_icon = Icons.get_icon("CONFIG", use_emoji)
     config_table = Table(
-        title="⚙️ Configuration", show_header=True, header_style="bold green"
+        title=f"{config_icon} Configuration",
+        show_header=True,
+        header_style="bold green",
     )
     config_table.add_column("Component", style="cyan", no_wrap=True)
     config_table.add_column("Status", style="bold")
@@ -417,14 +487,14 @@ def _print_config_diagnostics_table(
     validation_status = user_config.get("validation_status", "unknown")
 
     if validation_status == "valid":
-        status_display = "✅ Valid"
+        status_display = Icons.format_with_icon("SUCCESS", "Valid", use_emoji)
         details = user_config.get("found_config", "Configuration loaded")
     elif validation_status == "error":
-        status_display = "❌ Error"
+        status_display = Icons.format_with_icon("ERROR", "Error", use_emoji)
         errors = user_config.get("validation_errors", ["Unknown error"])
         details = "; ".join(errors)
     else:
-        status_display = "⚠️ Unknown"
+        status_display = Icons.format_with_icon("WARNING", "Unknown", use_emoji)
         details = "Status unclear"
 
     config_table.add_row("User Config", status_display, details)
@@ -434,7 +504,7 @@ def _print_config_diagnostics_table(
     env_count = len(env_vars)
     config_table.add_row(
         "Environment Variables",
-        f"ℹ️ {env_count} found",
+        Icons.format_with_icon("INFO", f"{env_count} found", use_emoji),
         ", ".join(env_vars.keys()) if env_vars else "None",
     )
 
@@ -443,7 +513,7 @@ def _print_config_diagnostics_table(
     found_keyboards = keyboard_discovery.get("found_keyboards", 0)
     config_table.add_row(
         "Available Keyboards",
-        f"✅ {found_keyboards} found",
+        Icons.format_with_icon("SUCCESS", f"{found_keyboards} found", use_emoji),
         "Keyboard configurations loaded",
     )
 
@@ -452,11 +522,16 @@ def _print_config_diagnostics_table(
 
 
 def _print_layout_diagnostics_table(
-    console: Console, layout_data: dict[str, Any]
+    console: Console, layout_data: dict[str, Any], use_emoji: bool = True
 ) -> None:
     """Print layout processing diagnostics table."""
+    from glovebox.cli.helpers.theme import Icons
+
+    layout_icon = Icons.get_icon("LAYOUT", use_emoji)
     layout_table = Table(
-        title="📐 Layout Processing", show_header=True, header_style="bold magenta"
+        title=f"{layout_icon} Layout Processing",
+        show_header=True,
+        header_style="bold magenta",
     )
     layout_table.add_column("Component", style="cyan", no_wrap=True)
     layout_table.add_column("Status", style="bold")
@@ -471,14 +546,14 @@ def _print_layout_diagnostics_table(
             continue
 
         if status == "available":
-            status_display = "✅ Available"
+            status_display = Icons.format_with_icon("SUCCESS", "Available", use_emoji)
             details = "Working correctly"
         elif status == "error":
-            status_display = "❌ Error"
+            status_display = Icons.format_with_icon("ERROR", "Error", use_emoji)
             error_key = f"{component}_error"
             details = layout_data.get(error_key, "Unknown error")
         else:
-            status_display = "⚠️ Unknown"
+            status_display = Icons.format_with_icon("WARNING", "Unknown", use_emoji)
             details = "Status unclear"
 
         layout_table.add_row(
@@ -488,13 +563,13 @@ def _print_layout_diagnostics_table(
     # ZMK generation capabilities
     for component, status in zmk_generation.items():
         if status == "available":
-            status_display = "✅ Available"
+            status_display = Icons.format_with_icon("SUCCESS", "Available", use_emoji)
             details = "Ready for generation"
         elif status == "error":
-            status_display = "❌ Error"
+            status_display = Icons.format_with_icon("ERROR", "Error", use_emoji)
             details = "Generation not available"
         else:
-            status_display = "⚠️ Unknown"
+            status_display = Icons.format_with_icon("WARNING", "Unknown", use_emoji)
             details = "Status unclear"
 
         layout_table.add_row(
@@ -530,15 +605,18 @@ def status_command(
     # Collect all status data
     data = _collect_status_data(app_ctx.user_config)
 
+    # Get emoji mode setting from app context
+    use_emoji = app_ctx.use_emoji
+
     # Format and display based on format option
     if format.lower() == "json":
         _format_status_json(data)
     elif format.lower() in ("markdown", "md"):
-        _format_status_markdown(data)
+        _format_status_markdown(data, use_emoji)
     elif format.lower() == "table":
-        _format_status_table(data)
+        _format_status_table(data, use_emoji)
     elif format.lower() in ("diagnostics", "diag"):
-        _format_diagnostics_table(data)
+        _format_diagnostics_table(data, use_emoji)
     elif format.lower() in ("diag-json", "diagnostics-json"):
         _format_diagnostics_json(data)
     else:
