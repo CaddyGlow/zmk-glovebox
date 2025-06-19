@@ -510,22 +510,107 @@ glovebox firmware flash [OPTIONS] FIRMWARE_FILE
 ### Configuration Commands
 
 #### `glovebox config list`
-List available keyboard configurations.
+Show current configuration settings with optional defaults and descriptions.
 
 ```bash
 glovebox config list [OPTIONS]
 ```
 
 **Options:**
-- `--verbose, -v`: Show detailed information
-- `--format`: Output format (text or json)
+- `--sources`: Show configuration sources
+- `--defaults`: Show default values alongside current values
+- `--descriptions`: Show field descriptions
 
-#### `glovebox config show`
+#### `glovebox config edit`
+Unified configuration editing command supporting multiple operations.
+
+```bash
+glovebox config edit [OPTIONS]
+```
+
+**Options:**
+- `--get KEY`: Get configuration values (can be used multiple times)
+- `--set KEY=VALUE`: Set configuration values (can be used multiple times)
+- `--add KEY=VALUE`: Add values to list configurations (can be used multiple times)
+- `--remove KEY=VALUE`: Remove values from list configurations (can be used multiple times)
+- `--save/--no-save`: Save configuration to file (default: save)
+
+**Examples:**
+```bash
+# Get configuration values
+glovebox config edit --get keyboard_paths --get cache_strategy
+
+# Set configuration values
+glovebox config edit --set cache_strategy=shared --set emoji_mode=true
+
+# Add to configuration lists
+glovebox config edit --add keyboard_paths=/new/path
+
+# Remove from configuration lists
+glovebox config edit --remove keyboard_paths=/old/path
+
+# Combined operations
+glovebox config edit --set cache_strategy=shared --add keyboard_paths=/new/path --save
+```
+
+#### `glovebox config export`
+Export configuration to file with current values.
+
+```bash
+glovebox config export [OPTIONS]
+```
+
+**Options:**
+- `--output, -o`: Output file path (default: glovebox-config.yaml)
+- `--format, -f`: Output format (yaml, json, toml)
+- `--include-defaults/--no-defaults`: Include default values
+- `--include-descriptions/--no-descriptions`: Include field descriptions as comments
+
+#### `glovebox config import`
+Import configuration from a YAML, JSON, or TOML file.
+
+```bash
+glovebox config import [OPTIONS] CONFIG_FILE
+```
+
+**Options:**
+- `--dry-run`: Show what would be imported without making changes
+- `--backup/--no-backup`: Create backup of current config before importing
+- `--force`: Import without confirmation prompts
+
+### Keyboard Commands
+
+#### `glovebox keyboard list`
+List available keyboard configurations.
+
+```bash
+glovebox keyboard list [OPTIONS]
+```
+
+**Options:**
+- `--verbose, -v`: Show detailed information
+- `--format, -f`: Output format (text, json)
+
+#### `glovebox keyboard show`
 Show details of a specific keyboard configuration.
 
 ```bash
-glovebox config show KEYBOARD_NAME
+glovebox keyboard show [OPTIONS] KEYBOARD_NAME
 ```
+
+**Options:**
+- `--format, -f`: Output format (text, json, markdown, table)
+- `--verbose, -v`: Show detailed configuration information
+
+#### `glovebox keyboard firmwares`
+List available firmware configurations for a keyboard.
+
+```bash
+glovebox keyboard firmwares [OPTIONS] KEYBOARD_NAME
+```
+
+**Options:**
+- `--format, -f`: Output format (text, json)
 
 #### `glovebox status`
 Show system status and diagnostics.

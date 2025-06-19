@@ -48,8 +48,14 @@ class MoErgoClient:
         self.session = requests.Session()
         self._tokens: AuthTokens | None = None
 
-        # Initialize cache for API responses
-        self._cache = cache or create_default_cache()
+        # Initialize cache for API responses - use user config if no cache provided
+        if cache is None:
+            from glovebox.config.user_config import create_user_config
+
+            user_config = create_user_config()
+            self._cache = create_cache_from_user_config(user_config._config)
+        else:
+            self._cache = cache
 
         # Set common headers
         self.session.headers.update(

@@ -408,6 +408,25 @@ class UserConfig:
         except (AttributeError, ValueError):
             return logging.INFO
 
+    @property
+    def config_file_path(self) -> Path | None:
+        """
+        Get the path to the main configuration file.
+
+        Returns:
+            Path to the configuration file, or None if not set
+        """
+        return self._main_config_path
+
+    def reload(self) -> None:
+        """
+        Reload the configuration from the file system.
+
+        This re-reads the configuration file and validates it,
+        useful after external edits to the config file.
+        """
+        self._load_config()
+
 
 # Factory function to create UserConfig instance
 def create_user_config(
