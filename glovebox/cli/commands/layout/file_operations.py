@@ -18,9 +18,7 @@ from glovebox.layout.service import create_layout_service
 def split(
     ctx: typer.Context,
     layout_file: Annotated[Path, typer.Argument(help="Path to layout JSON file")],
-    output_dir: Annotated[
-        Path, typer.Option("--output-dir", "-o", help="Directory to save split files")
-    ],
+    output_dir: Annotated[Path, typer.Argument(help="Directory to save split files")],
     profile: ProfileOption = None,
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite existing files")
@@ -39,13 +37,13 @@ def split(
 
     Examples:
         # Split layout into components
-        glovebox layout split my-layout.json --output-dir ./components/
+        glovebox layout split my-layout.json ./components/
 
         # Force overwrite existing files
-        glovebox layout split layout.json --output-dir ./split/ --force
+        glovebox layout split layout.json ./split/ --force
 
         # Specify keyboard profile
-        glovebox layout split layout.json --output-dir ./out/ --profile glove80/v25.05
+        glovebox layout split layout.json ./out/ --profile glove80/v25.05
     """
     command = LayoutOutputCommand()
     command.validate_layout_file(layout_file)
@@ -101,9 +99,7 @@ def merge(
         Path,
         typer.Argument(help="Directory with metadata.json and layers/ subdirectory"),
     ],
-    output: Annotated[
-        Path, typer.Option("--output", "-o", help="Output layout JSON file path")
-    ],
+    output_file: Annotated[Path, typer.Argument(help="Output layout JSON file path")],
     profile: ProfileOption = None,
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite existing files")
@@ -121,13 +117,13 @@ def merge(
 
     Examples:
         # Merge components back into layout
-        glovebox layout merge ./components/ --output merged-layout.json
+        glovebox layout merge ./components/ merged-layout.json
 
         # Force overwrite existing output file
-        glovebox layout merge ./split/ --output layout.json --force
+        glovebox layout merge ./split/ layout.json --force
 
         # Specify keyboard profile
-        glovebox layout merge ./components/ --output layout.json --profile glove80/v25.05
+        glovebox layout merge ./components/ layout.json --profile glove80/v25.05
     """
     command = LayoutOutputCommand()
 
@@ -138,7 +134,7 @@ def merge(
         result = layout_service.generate_from_directory(
             profile=keyboard_profile,
             components_dir=input_dir,
-            output_file_prefix=output,
+            output_file_prefix=output_file,
             force=force,
         )
 
@@ -147,7 +143,7 @@ def merge(
                 result_data = {
                     "success": True,
                     "source_directory": str(input_dir),
-                    "output_file": str(output),
+                    "output_file": str(output_file),
                     "components_merged": result.messages
                     if hasattr(result, "messages")
                     else [],
@@ -158,7 +154,7 @@ def merge(
                     "Components merged into layout",
                     {
                         "source_directory": input_dir,
-                        "output_file": output,
+                        "output_file": output_file,
                         "status": "Layout file created successfully",
                     },
                 )

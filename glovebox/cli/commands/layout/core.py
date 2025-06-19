@@ -22,15 +22,15 @@ from glovebox.layout.service import create_layout_service
 @with_profile()
 def compile_layout(
     ctx: typer.Context,
+    json_file: Annotated[
+        str,
+        typer.Argument(help="Path to keymap JSON file"),
+    ],
     output_file_prefix: Annotated[
         str,
         typer.Argument(
             help="Output directory and base filename (e.g., 'config/my_glove80')"
         ),
-    ],
-    json_file: Annotated[
-        str,
-        typer.Argument(help="Path to keymap JSON file"),
     ],
     profile: ProfileOption = None,
     force: Annotated[

@@ -8,7 +8,11 @@ import typer
 
 from glovebox.cli.app import AppContext
 from glovebox.cli.decorators import handle_errors
-from glovebox.cli.helpers import print_list_item, print_success_message
+from glovebox.cli.helpers import (
+    print_error_message,
+    print_list_item,
+    print_success_message,
+)
 from glovebox.config.keyboard_profile import (
     get_available_keyboards,
     load_keyboard_config,
@@ -273,8 +277,17 @@ def list_keyboards(
 @handle_errors
 def show_keyboard(
     ctx: typer.Context,
-    keyboard_name: str = typer.Argument(
-        ..., help="Keyboard name to show", autocompletion=complete_keyboard_names
+    keyboard_name: str | None = typer.Argument(
+        None, help="Keyboard name to show", autocompletion=complete_keyboard_names
+    ),
+    firmware_version: str | None = typer.Argument(
+        None, help="Firmware version to show (optional)"
+    ),
+    profile: str | None = typer.Option(
+        None,
+        "--profile",
+        "-p",
+        help="Profile in format 'keyboard' or 'keyboard/firmware' (overrides positional args)",
     ),
     format: str = typer.Option(
         "text", "--format", "-f", help="Output format (text, json, markdown, table)"
@@ -283,11 +296,47 @@ def show_keyboard(
         False, "--verbose", "-v", help="Show detailed configuration information"
     ),
 ) -> None:
-    """Show details of a specific keyboard configuration."""
+    """Show details of a specific keyboard configuration.
+
+    Examples:
+        # Show keyboard using positional argument
+        glovebox keyboard show glove80
+
+        # Show keyboard with firmware using positional arguments
+        glovebox keyboard show glove80 v25.05
+
+        # Show keyboard using --profile option
+        glovebox keyboard show --profile glove80
+
+        # Show keyboard with firmware using --profile option
+        glovebox keyboard show --profile glove80/v25.05
+    """
     from glovebox.cli.helpers.output_formatter import create_output_formatter
 
     # Get app context with user config
     app_ctx: AppContext = ctx.obj
+
+    # Parse keyboard and firmware from profile or positional args
+    if profile:
+        if keyboard_name or firmware_version:
+            print_error_message(
+                "Cannot use both --profile and positional arguments. Use one or the other."
+            )
+            raise typer.Exit(1)
+
+        # Parse profile
+        if "/" in profile:
+            keyboard_name, firmware_version = profile.split("/", 1)
+        else:
+            keyboard_name = profile
+            firmware_version = None
+
+    if not keyboard_name:
+        print_error_message(
+            "Keyboard name is required (either as positional argument or via --profile)"
+        )
+        raise typer.Exit(1)
+
     # Get the keyboard configuration
     keyboard_config = load_keyboard_config(keyboard_name, app_ctx.user_config)
 
@@ -296,6 +345,30 @@ def show_keyboard(
 
     # Build comprehensive configuration data
     config_data = _build_keyboard_config_data(keyboard_config, verbose)
+
+    # If firmware version is specified, add firmware-specific information
+    if firmware_version:
+        config_data["selected_firmware"] = firmware_version
+        if hasattr(keyboard_config, "firmwares") and keyboard_config.firmwares:
+            firmware_config = keyboard_config.firmwares.get(firmware_version)
+            if firmware_config:
+                config_data["firmware_details"] = {
+                    "version": firmware_config.version,
+                    "description": firmware_config.description,
+                }
+                if (
+                    verbose
+                    and hasattr(firmware_config, "build_options")
+                    and firmware_config.build_options
+                ):
+                    config_data["firmware_details"]["build_options"] = {
+                        "repository": firmware_config.build_options.repository,
+                        "branch": firmware_config.build_options.branch,
+                    }
+            else:
+                config_data["firmware_error"] = (
+                    f"Firmware version '{firmware_version}' not found"
+                )
 
     # Use the unified output formatter
     formatter.print_formatted(config_data, format)
