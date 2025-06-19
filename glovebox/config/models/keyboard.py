@@ -3,13 +3,14 @@
 import logging
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from glovebox.compilation.models import (
     MoergoCompilationConfig,
     ZmkCompilationConfig,
 )
 from glovebox.layout.behavior.models import SystemBehavior
+from glovebox.models.base import GloveboxBaseModel
 
 from ..flash_methods import USBFlashConfig
 from .behavior import BehaviorConfig
@@ -22,10 +23,18 @@ logger = logging.getLogger(__name__)
 
 
 # Formatting configuration
-class FormattingConfig(BaseModel):
+class FormattingConfig(GloveboxBaseModel):
     """Formatting configuration for a keyboard."""
 
-    key_gap: str
+    # Override model config to preserve whitespace for formatting fields
+    model_config = ConfigDict(
+        extra="allow",
+        str_strip_whitespace=False,  # Don't strip whitespace for formatting fields
+        use_enum_values=True,
+        validate_assignment=True,
+    )
+
+    key_gap: str = Field(default=" ")
     base_indent: str = ""
     rows: list[list[int]] | None = None
 
@@ -39,7 +48,7 @@ class FormattingConfig(BaseModel):
 
 
 # Keymap section
-class KeymapSection(BaseModel):
+class KeymapSection(GloveboxBaseModel):
     """Keymap section of a keyboard configuration."""
 
     header_includes: list[str]
@@ -73,7 +82,7 @@ FlashMethodConfigUnion = USBFlashConfig
 
 
 # Complete keyboard configuration
-class KeyboardConfig(BaseModel):
+class KeyboardConfig(GloveboxBaseModel):
     """Complete keyboard configuration with method-specific configs."""
 
     keyboard: str

@@ -22,7 +22,9 @@ class LayoutPatchSystem:
             self._validate_diff_format(diff)
 
         # Convert layout to dict
-        layout_dict = base_layout.model_dump(by_alias=True, exclude_unset=True)
+        layout_dict = base_layout.model_dump(
+            by_alias=True, exclude_unset=True, mode="json"
+        )
 
         # Apply JSON patch
         patch = jsonpatch.JsonPatch(diff["json_patch"])

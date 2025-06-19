@@ -518,8 +518,11 @@ class FilesystemCache(BaseCacheManager):
             return value
         elif isinstance(value, Path):
             return str(value)
+        elif hasattr(value, "model_dump"):
+            # Pydantic v2 models
+            return value.model_dump(mode="json")
         elif hasattr(value, "dict"):
-            # Pydantic models
+            # Pydantic v1 models (legacy support)
             return value.dict()
         elif hasattr(value, "__dict__"):
             # Regular objects with __dict__

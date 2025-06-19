@@ -4,13 +4,15 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
+
+from glovebox.models.base import GloveboxBaseModel
 
 
 logger = logging.getLogger(__name__)
 
 
-class BaseResult(BaseModel):
+class BaseResult(GloveboxBaseModel):
     """Base class for all operation results."""
 
     success: bool

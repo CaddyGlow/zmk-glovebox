@@ -1,9 +1,11 @@
 """Display configuration models."""
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
+
+from glovebox.models.base import GloveboxBaseModel
 
 
-class LayoutStructure(BaseModel):
+class LayoutStructure(GloveboxBaseModel):
     """Physical layout structure for display."""
 
     rows: dict[str, list[list[int]]] = Field(
@@ -35,8 +37,16 @@ class LayoutStructure(BaseModel):
         return v
 
 
-class DisplayFormatting(BaseModel):
+class DisplayFormatting(GloveboxBaseModel):
     """Display formatting configuration."""
+
+    # Override model config to preserve whitespace for display formatting fields
+    model_config = ConfigDict(
+        extra="allow",
+        str_strip_whitespace=False,  # Don't strip whitespace for display formatting fields
+        use_enum_values=True,
+        validate_assignment=True,
+    )
 
     header_width: int = Field(default=80, gt=0)
     none_display: str = Field(default="&none")
@@ -46,7 +56,7 @@ class DisplayFormatting(BaseModel):
     horizontal_spacer: str = Field(default=" | ")
 
 
-class DisplayConfig(BaseModel):
+class DisplayConfig(GloveboxBaseModel):
     """Complete display configuration."""
 
     layout_structure: LayoutStructure | None = None

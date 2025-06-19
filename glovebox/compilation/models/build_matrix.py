@@ -5,10 +5,12 @@ https://github.com/zmkfirmware/unified-zmk-config-template/blob/main/build.yaml
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from glovebox.models.base import GloveboxBaseModel
 
 
-class BuildTarget(BaseModel):
+class BuildTarget(GloveboxBaseModel):
     """Individual build target configuration from build.yaml.
 
     Pydantic model version for validation and serialization.
@@ -48,7 +50,7 @@ class BuildTarget(BaseModel):
         return self.board
 
 
-class BuildMatrix(BaseModel):
+class BuildMatrix(GloveboxBaseModel):
     """Configuration parsed from ZMK config repository build.yaml.
 
     Compatible with GitHub Actions workflow build matrix format.
@@ -104,7 +106,7 @@ class BuildMatrix(BaseModel):
     def to_yaml(self, yaml_path: Path) -> None:
         """Save BuildMatrix to YAML file, explicitly including None fields."""
 
-        data = self.model_dump()
+        data = self.model_dump(by_alias=True, exclude_unset=True, mode="json")
 
         # Filter out None values in YAML output
         data = {k: v for k, v in data.items() if v is not None}

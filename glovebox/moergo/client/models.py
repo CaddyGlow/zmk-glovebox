@@ -3,12 +3,13 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from glovebox.layout.models import LayoutData
+from glovebox.models.base import GloveboxBaseModel
 
 
-class LayoutMeta(BaseModel):
+class LayoutMeta(GloveboxBaseModel):
     """Layout metadata from MoErgo API response."""
 
     uuid: str
@@ -30,14 +31,14 @@ class LayoutMeta(BaseModel):
         return datetime.fromtimestamp(self.date)
 
 
-class MoErgoLayout(BaseModel):
+class MoErgoLayout(GloveboxBaseModel):
     """Complete layout response from MoErgo API."""
 
     layout_meta: LayoutMeta
     config: LayoutData
 
 
-class AuthTokens(BaseModel):
+class AuthTokens(GloveboxBaseModel):
     """Authentication tokens from Cognito."""
 
     access_token: str
@@ -52,7 +53,7 @@ class AuthTokens(BaseModel):
         return datetime.now().timestamp() + self.expires_in
 
 
-class UserCredentials(BaseModel):
+class UserCredentials(GloveboxBaseModel):
     """User login credentials."""
 
     username: str
@@ -111,7 +112,7 @@ class CompilationError(APIError):
         self.detail = detail or []
 
 
-class FirmwareCompileRequest(BaseModel):
+class FirmwareCompileRequest(GloveboxBaseModel):
     """Request payload for firmware compilation."""
 
     keymap: str
@@ -119,7 +120,7 @@ class FirmwareCompileRequest(BaseModel):
     board: str = "glove80"
 
 
-class FirmwareCompileResponse(BaseModel):
+class FirmwareCompileResponse(GloveboxBaseModel):
     """Response from firmware compilation endpoint."""
 
     location: str

@@ -1,23 +1,25 @@
 """Behavior configuration models."""
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from glovebox.models.base import GloveboxBaseModel
 
 
-class BehaviorMapping(BaseModel):
+class BehaviorMapping(GloveboxBaseModel):
     """Individual behavior class mapping."""
 
     behavior_name: str = Field(description="ZMK behavior name (e.g., '&kp')")
     behavior_class: str = Field(description="Python class name (e.g., 'KPBehavior')")
 
 
-class ModifierMapping(BaseModel):
+class ModifierMapping(GloveboxBaseModel):
     """Modifier key mapping configuration."""
 
     long_form: str = Field(description="Long modifier name (e.g., 'LALT')")
     short_form: str = Field(description="Short modifier name (e.g., 'LA')")
 
 
-class BehaviorConfig(BaseModel):
+class BehaviorConfig(GloveboxBaseModel):
     """Behavior system configuration."""
 
     behavior_mappings: list[BehaviorMapping] = Field(default_factory=list)

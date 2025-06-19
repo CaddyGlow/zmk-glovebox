@@ -41,7 +41,9 @@ class TestZmkCompatibleStrings:
             macro="test,macro", hold_tap="test,hold-tap", combos="test,combos"
         )
 
-        compatible_dict = compatible.model_dump()
+        compatible_dict = compatible.model_dump(
+            by_alias=True, exclude_unset=True, mode="json"
+        )
 
         assert compatible_dict["macro"] == "test,macro"
         assert compatible_dict["hold_tap"] == "test,hold-tap"
@@ -85,7 +87,9 @@ class TestZmkPatterns:
         """Test ZmkPatterns serialization."""
         patterns = ZmkPatterns(layer_define="TEST_{}", node_name_sanitize="[^A-Z]")
 
-        patterns_dict = patterns.model_dump()
+        patterns_dict = patterns.model_dump(
+            by_alias=True, exclude_unset=True, mode="json"
+        )
 
         assert patterns_dict["layer_define"] == "TEST_{}"
         assert patterns_dict["node_name_sanitize"] == "[^A-Z]"
@@ -135,7 +139,7 @@ class TestFileExtensions:
             keymap=".test_keymap", conf=".test_conf", dtsi=".test_dtsi"
         )
 
-        extensions_dict = extensions.model_dump()
+        extensions_dict = extensions.model_dump(by_alias=True, mode="json")
 
         assert extensions_dict["keymap"] == ".test_keymap"
         assert extensions_dict["conf"] == ".test_conf"
@@ -209,7 +213,7 @@ class TestValidationLimits:
             max_layers=25, max_macro_params=3, required_holdtap_bindings=4
         )
 
-        limits_dict = limits.model_dump()
+        limits_dict = limits.model_dump(by_alias=True, mode="json")
 
         assert limits_dict["max_layers"] == 25
         assert limits_dict["max_macro_params"] == 3
@@ -294,7 +298,7 @@ class TestZmkConfig:
             patterns=ZmkPatterns(layer_define="TEST_{}"),
         )
 
-        config_dict = config.model_dump()
+        config_dict = config.model_dump(by_alias=True, mode="json")
 
         # Check nested structures
         assert "compatible_strings" in config_dict

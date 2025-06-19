@@ -114,7 +114,11 @@ if __name__ == "__main__":
     # Save the patched layout
     output_path = Path("layouts/patched_layout.json")
     with output_path.open("w") as f:
-        json.dump(patched_layout.to_dict(), f, indent=2)
+        json.dump(
+            patched_layout.model_dump(by_alias=True, exclude_unset=True, mode="json"),
+            f,
+            indent=2,
+        )
 
     # Analyze what changed
     analysis = manager.analyze_binding_changes(diff)

@@ -924,7 +924,12 @@ if __name__ == "__main__":
     print("=== TEST CASES ===\n")
     for name, layout in TEST_CASES.items():
         print(f"--- {name.upper()} ---")
-        print(json.dumps(layout.model_dump(), indent=2))
+        print(
+            json.dumps(
+                layout.model_dump(by_alias=True, exclude_unset=True, mode="json"),
+                indent=2,
+            )
+        )
         print()
 
     print("\n=== TEST SCENARIOS ===\n")

@@ -209,7 +209,7 @@ class ZmkFileContentGenerator:
         if not macros_data:
             return ""
 
-        dtsi_parts = [""]
+        dtsi_parts: list[str] = []
 
         for macro in macros_data:
             name = macro.name
@@ -428,7 +428,7 @@ class ZmkFileContentGenerator:
                         )
                         continue
 
-                    dtsi_parts.append("")
+                    # dtsi_parts.append("")
                     dtsi_parts.append(f"    // {node.description or node_code}")
                     dtsi_parts.append(f"    {node_code} {{")
 
@@ -451,10 +451,9 @@ class ZmkFileContentGenerator:
                     dtsi_parts.append("    };")
 
             dtsi_parts.append("};")
-            dtsi_parts.append("")
-            dtsi_parts.append("")
 
-        return "\n".join(self._indent_array(dtsi_parts))
+        return "\n".join(dtsi_parts)
+        # return "\n".join(self._indent_array(dtsi_parts))
 
     def generate_keymap_node(
         self,
@@ -501,7 +500,7 @@ class ZmkFileContentGenerator:
 
             # Format the bindings using the layout formatter with custom indent for DTSI
             formatted_grid = self._layout_formatter.generate_layer_layout(
-                formatted_bindings, profile, base_indent="            "
+                formatted_bindings, profile, base_indent=""
             )
 
             # Add the formatted grid
@@ -514,7 +513,7 @@ class ZmkFileContentGenerator:
         # Add keymap closing
         dtsi_parts.append("};")
 
-        return "\n".join(dtsi_parts)
+        return "\n".join(self._indent_array(dtsi_parts))
 
     def generate_kconfig_conf(
         self, keymap_data: "LayoutData", profile: "KeyboardProfile"

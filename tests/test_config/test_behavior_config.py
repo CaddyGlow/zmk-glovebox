@@ -118,7 +118,7 @@ class TestBehaviorConfig:
         )
 
         # Test that it can be converted to dict
-        config_dict = config.model_dump()
+        config_dict = config.model_dump(by_alias=True, exclude_unset=True, mode="json")
 
         assert "behavior_mappings" in config_dict
         assert "modifier_mappings" in config_dict

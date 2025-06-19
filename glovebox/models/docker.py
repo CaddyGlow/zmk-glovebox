@@ -5,10 +5,12 @@ import platform
 from pathlib import Path
 from typing import ClassVar
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field, field_validator
+
+from glovebox.models.base import GloveboxBaseModel
 
 
-class DockerUserContext(BaseModel):
+class DockerUserContext(GloveboxBaseModel):
     """Docker user context for volume permission handling.
 
     Represents user information needed for Docker --user flag to

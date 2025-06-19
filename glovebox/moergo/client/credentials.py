@@ -127,7 +127,7 @@ class CredentialManager:
 
     def store_tokens(self, tokens: AuthTokens) -> None:
         """Store authentication tokens."""
-        token_data = tokens.model_dump()
+        token_data = tokens.model_dump(by_alias=True, exclude_unset=True, mode="json")
 
         with self.tokens_file.open("w") as f:
             json.dump(token_data, f, indent=2)

@@ -6,7 +6,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field, field_validator
+
+from glovebox.models.base import GloveboxBaseModel
 
 
 logger = logging.getLogger(__name__)
@@ -46,7 +48,7 @@ class FirmwareOutputFiles:
     artifacts_dir: Path | None = None
 
 
-class BuildResult(BaseModel):
+class BuildResult(GloveboxBaseModel):
     """Result of firmware build operations."""
 
     success: bool
