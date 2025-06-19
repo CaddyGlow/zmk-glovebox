@@ -34,6 +34,7 @@ class AppContext:
         verbose: int = 0,
         log_file: str | None = None,
         config_file: str | None = None,
+        no_emoji: bool = False,
     ):
         """Initialize AppContext.
 
@@ -41,16 +42,32 @@ class AppContext:
             verbose: Verbosity level
             log_file: Path to log file
             config_file: Path to configuration file
+            no_emoji: Whether to disable emoji icons
         """
         self.verbose = verbose
         self.log_file = log_file
         self.config_file = config_file
+        self.no_emoji = no_emoji
 
         # Initialize user config with CLI-provided config file
         from glovebox.config.user_config import create_user_config
 
         self.user_config = create_user_config(cli_config_path=config_file)
         self.keyboard_profile = None
+
+    @property
+    def use_emoji(self) -> bool:
+        """Get whether to use emoji based on CLI flag and config.
+
+        CLI --no-emoji flag takes precedence over config file setting.
+
+        Returns:
+            True if emoji should be used, False otherwise
+        """
+        if self.no_emoji:
+            # CLI flag overrides config
+            return False
+        return self.user_config._config.emoji_mode
 
 
 # Create a custom exception handler that will print stack traces
@@ -105,6 +122,10 @@ def main_callback(
         str | None,
         typer.Option("-c", "--config", help="Path to configuration file"),
     ] = None,
+    no_emoji: Annotated[
+        bool,
+        typer.Option("--no-emoji", help="Disable emoji icons in output"),
+    ] = False,
     version: Annotated[
         bool, typer.Option("--version", help="Show version and exit")
     ] = False,
@@ -121,7 +142,7 @@ def main_callback(
 
     # Initialize and store context
     app_context = AppContext(
-        verbose=verbose, log_file=log_file, config_file=config_file
+        verbose=verbose, log_file=log_file, config_file=config_file, no_emoji=no_emoji
     )
     ctx.obj = app_context
 

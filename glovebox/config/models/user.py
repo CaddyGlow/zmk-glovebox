@@ -113,6 +113,12 @@ class UserConfigData(BaseSettings):
         description="Enable file locking for cache operations to prevent race conditions",
     )
 
+    # UI settings
+    emoji_mode: bool = Field(
+        default=True,
+        description="Enable emoji icons in CLI output",
+    )
+
     # Firmware settings
     firmware: UserFirmwareConfig = Field(default_factory=UserFirmwareConfig)
 

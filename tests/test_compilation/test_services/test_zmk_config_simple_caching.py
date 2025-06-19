@@ -692,4 +692,3 @@ class TestZmkWorkspaceCaching:
             config_cache_enabled
         )
         # Don't assert anything about the result since it depends on previous test state
-

@@ -93,12 +93,15 @@ def inject_base_deps_command(
             cache_root=cache_root,
         )
 
-        typer.echo("✅ Base dependencies cache injected successfully!")
+        from glovebox.cli.helpers.theme import Icons
+        # Note: This function doesn't have ctx parameter, using default emoji mode
+        use_emoji = True
+        typer.echo(Icons.format_with_icon("SUCCESS", "Base dependencies cache injected successfully!", use_emoji))
         typer.echo(f"Cache key: {cache_key}")
 
     except Exception as e:
         logger.error("Failed to inject base dependencies cache: %s", e)
-        typer.echo(f"❌ Error: {e}", err=True)
+        typer.echo(Icons.format_with_icon("ERROR", f"Error: {e}", use_emoji), err=True)
         raise typer.Exit(1) from e
 
 
@@ -142,20 +145,23 @@ def list_base_deps_command(
                         zmk_repo = metadata.get("zmk_repo_url", "unknown")
                         zmk_revision = metadata.get("zmk_revision", "unknown")
 
-                        typer.echo(f"  📦 {entry.name}")
+                        from glovebox.cli.helpers.theme import Icons
+                        # Note: This function doesn't have ctx parameter, using default emoji mode
+                        use_emoji = True
+                        typer.echo(f"  {Icons.get_icon('BUILD', use_emoji)} {entry.name}")
                         typer.echo(f"     ZMK: {zmk_repo}@{zmk_revision}")
                         typer.echo(f"     Created: {created_at}")
                         typer.echo()
                     except Exception:
-                        typer.echo(f"  📦 {entry.name} (metadata unavailable)")
+                        typer.echo(f"  {Icons.get_icon('BUILD', use_emoji)} {entry.name} (metadata unavailable)")
                         typer.echo()
                 else:
-                    typer.echo(f"  📦 {entry.name} (no metadata)")
+                    typer.echo(f"  {Icons.get_icon('BUILD', use_emoji)} {entry.name} (no metadata)")
                     typer.echo()
 
     except Exception as e:
         logger.error("Failed to list base dependencies cache: %s", e)
-        typer.echo(f"❌ Error: {e}", err=True)
+        typer.echo(Icons.format_with_icon("ERROR", f"Error: {e}", use_emoji), err=True)
         raise typer.Exit(1) from e
 
 
@@ -174,8 +180,11 @@ def list_workspaces() -> None:
         console.print("[yellow]No cached workspaces found[/yellow]")
         return
 
+    from glovebox.cli.helpers.theme import Icons
+    # Note: We can't get app context here since this function doesn't have ctx parameter
+    # Using emoji=True as fallback for this case
     table = Table(
-        title="📦 Cached ZMK Workspaces",
+        title=f"{Icons.get_icon('BUILD', True)} Cached ZMK Workspaces",
         show_header=True,
         header_style="bold green",
     )
@@ -249,7 +258,10 @@ def clear_workspace(
 
         try:
             shutil.rmtree(workspace_dir)
-            console.print(f"[green]✓ Cleared cached workspace for {repository}[/green]")
+            from glovebox.cli.helpers.theme import Icons
+            # Note: This function doesn't have ctx parameter, using default emoji mode
+            use_emoji = True
+            console.print(f"[green]{Icons.get_icon('SUCCESS', use_emoji)} Cleared cached workspace for {repository}[/green]")
         except Exception as e:
             console.print(f"[red]Failed to clear cache: {e}[/red]")
             raise typer.Exit(1) from e
@@ -276,7 +288,7 @@ def clear_workspace(
         try:
             shutil.rmtree(cache_dir)
             console.print(
-                f"[green]✓ Cleared all cached workspaces ({_format_size(total_size)})[/green]"
+                f"[green]{Icons.get_icon('SUCCESS', use_emoji)} Cleared all cached workspaces ({_format_size(total_size)})[/green]"
             )
         except Exception as e:
             console.print(f"[red]Failed to clear cache: {e}[/red]")
@@ -413,10 +425,13 @@ def import_workspace(
             # Calculate size
             dir_size = _get_directory_size(dest_dir)
             total_size += dir_size
-            console.print(f"    ✓ {dir_name}: {_format_size(dir_size)}")
+            from glovebox.cli.helpers.theme import Icons
+            # Note: This function doesn't have ctx parameter, using default emoji mode
+            use_emoji = True
+            console.print(f"    {Icons.get_icon('SUCCESS', use_emoji)} {dir_name}: {_format_size(dir_size)}")
 
         console.print(
-            f"\n[green]✅ Successfully imported workspace cache for {repository}[/green]"
+            f"\n[green]{Icons.format_with_icon('SUCCESS', f'Successfully imported workspace cache for {repository}', use_emoji)}[/green]"
         )
         console.print(f"[bold]Cache location:[/bold] {target_cache_dir}")
         console.print(f"[bold]Total size:[/bold] {_format_size(total_size)}")
@@ -456,9 +471,12 @@ def cleanup_command(
 
         typer.echo(f"Cleaning up cache entries older than {max_age_days} days...")
         base_cache.cleanup_cache(max_age_days=max_age_days)
-        typer.echo("✅ Cache cleanup completed.")
+        from glovebox.cli.helpers.theme import Icons
+        # Note: This function doesn't have ctx parameter, using default emoji mode
+        use_emoji = True
+        typer.echo(Icons.format_with_icon("SUCCESS", "Cache cleanup completed.", use_emoji))
 
     except Exception as e:
         logger.error("Failed to cleanup cache: %s", e)
-        typer.echo(f"❌ Error: {e}", err=True)
+        typer.echo(Icons.format_with_icon("ERROR", f"Error: {e}", use_emoji), err=True)
         raise typer.Exit(1) from e
