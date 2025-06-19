@@ -454,6 +454,264 @@ class TestConfigFirmware:
             assert "v2.0" in result.output
 
 
+class TestConfigAdd:
+    """Test config add command."""
+
+    def test_add_to_keyboard_paths(self, cli_runner):
+        """Test adding a path to keyboard_paths list."""
+        # Create a mock user config that's easier to control
+        mock_user_config = Mock()
+        mock_user_config.get.return_value = []
+        
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+        
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_app_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "add", "keyboard_paths", "/path/to/new/keyboard"],
+                obj=mock_app_context,
+            )
+
+        assert result.exit_code == 0
+        assert "Added '/path/to/new/keyboard' to keyboard_paths" in result.output
+        assert "Configuration saved" in result.output
+
+    def test_add_to_empty_list(self, cli_runner):
+        """Test adding to an empty list."""
+        # Create a mock user config
+        mock_user_config = Mock()
+        mock_user_config.get.return_value = []
+        
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+        
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_app_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "add", "keyboard_paths", "/first/path"],
+                obj=mock_app_context,
+            )
+
+        assert result.exit_code == 0
+        assert "Added '/first/path' to keyboard_paths" in result.output
+
+    def test_add_duplicate_value(self, cli_runner):
+        """Test adding a value that already exists in the list."""
+        from pathlib import Path
+
+        # Create a mock user config with existing path
+        mock_user_config = Mock()
+        mock_user_config.get.return_value = [Path("/existing/path")]
+        
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+        
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_app_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "add", "keyboard_paths", "/existing/path"],
+                obj=mock_app_context,
+            )
+
+        assert result.exit_code == 1
+        assert (
+            "Value '/existing/path' already exists in keyboard_paths" in result.output
+        )
+
+    def test_add_to_non_list_field(self, cli_runner):
+        """Test adding to a field that is not a list."""
+        # Create a mock user config
+        mock_user_config = Mock()
+        
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+        
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_app_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "add", "profile", "some_value"],
+                obj=mock_app_context,
+            )
+
+        assert result.exit_code == 1
+        assert "Configuration key 'profile' is not a list" in result.output
+
+    def test_add_without_save(self, cli_runner):
+        """Test adding without saving."""
+        # Create a mock user config
+        mock_user_config = Mock()
+        mock_user_config.get.return_value = []
+        
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+        
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_app_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "add", "keyboard_paths", "/no/save/path", "--no-save"],
+                obj=mock_app_context,
+            )
+
+        assert result.exit_code == 0
+        assert "Added '/no/save/path' to keyboard_paths" in result.output
+        assert "Configuration saved" not in result.output
+
+
+class TestConfigRemove:
+    """Test config remove command."""
+
+    def test_remove_from_keyboard_paths(self, cli_runner):
+        """Test removing a path from keyboard_paths list."""
+        from pathlib import Path
+
+        # Create a real list that can be modified
+        test_list = [
+            Path("/path/to/keep"),
+            Path("/path/to/remove"),
+            Path("/another/path"),
+        ]
+        
+        # Create a mock user config
+        mock_user_config = Mock()
+        mock_user_config.get.return_value = test_list
+        
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+        
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_app_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "remove", "keyboard_paths", "/path/to/remove"],
+                obj=mock_app_context,
+            )
+
+        assert result.exit_code == 0
+        assert "Removed '/path/to/remove' from keyboard_paths" in result.output
+        assert "Configuration saved" in result.output
+
+    def test_remove_nonexistent_value(self, cli_runner):
+        """Test removing a value that doesn't exist in the list."""
+        from pathlib import Path
+
+        # Create a mock user config
+        mock_user_config = Mock()
+        mock_user_config.get.return_value = [Path("/existing/path")]
+        
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+        
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_app_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "remove", "keyboard_paths", "/nonexistent/path"],
+                obj=mock_app_context,
+            )
+
+        assert result.exit_code == 1
+        assert "Value '/nonexistent/path' not found in keyboard_paths" in result.output
+
+    def test_remove_from_empty_list(self, cli_runner):
+        """Test removing from an empty list."""
+        # Create a mock user config
+        mock_user_config = Mock()
+        mock_user_config.get.return_value = []
+        
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+        
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_app_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "remove", "keyboard_paths", "/any/path"],
+                obj=mock_app_context,
+            )
+
+        assert result.exit_code == 1
+        assert "Value '/any/path' not found in keyboard_paths" in result.output
+
+    def test_remove_from_non_list_field(self, cli_runner):
+        """Test removing from a field that is not a list."""
+        # Create a mock user config
+        mock_user_config = Mock()
+        
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+        
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_app_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "remove", "profile", "some_value"],
+                obj=mock_app_context,
+            )
+
+        assert result.exit_code == 1
+        assert "Configuration key 'profile' is not a list" in result.output
+
+    def test_remove_from_non_list_value(self, cli_runner):
+        """Test removing when the config value is not a list."""
+        # Create a mock user config
+        mock_user_config = Mock()
+        mock_user_config.get.return_value = "not_a_list"
+        
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+        
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_app_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "remove", "keyboard_paths", "/any/path"],
+                obj=mock_app_context,
+            )
+
+        assert result.exit_code == 1
+        assert "Configuration key 'keyboard_paths' is not a list" in result.output
+
+    def test_remove_without_save(self, cli_runner):
+        """Test removing without saving."""
+        from pathlib import Path
+
+        # Create a mock user config
+        mock_user_config = Mock()
+        mock_user_config.get.return_value = [Path("/path/to/remove")]
+        
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+        
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_app_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "remove", "keyboard_paths", "/path/to/remove", "--no-save"],
+                obj=mock_app_context,
+            )
+
+        assert result.exit_code == 0
+        assert "Removed '/path/to/remove' from keyboard_paths" in result.output
+        assert "Configuration saved" not in result.output
+
+
 class TestConfigSet:
     """Test config set command."""
 

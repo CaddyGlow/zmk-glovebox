@@ -398,12 +398,26 @@ class TestDockerAdapter:
         """Test successful image building."""
         adapter = DockerAdapter()
 
+        # Create a mock Path object that pretends to exist and be a directory
+        mock_dockerfile_dir = Mock(spec=Path)
+        mock_dockerfile_dir.exists.return_value = True
+        mock_dockerfile_dir.is_dir.return_value = True
+        mock_dockerfile_dir.resolve.return_value = mock_dockerfile_dir
+        mock_dockerfile_dir.__str__ = Mock(return_value="/test/dockerfile")
+        mock_dockerfile_dir.__truediv__ = Mock(
+            return_value=mock_dockerfile_dir
+        )  # For dockerfile_path = dockerfile_dir / "Dockerfile"
+
         dockerfile_dir = Path("/test/dockerfile")
         with (
             patch.object(adapter, "is_available", return_value=True),
-            patch("subprocess.run") as mock_run,
-            patch("pathlib.Path.exists", return_value=True),
-            patch("pathlib.Path.is_dir", return_value=True),
+            patch(
+                "glovebox.utils.stream_process.run_command", return_value=(0, [], [])
+            ) as mock_run,
+            patch(
+                "glovebox.adapters.docker_adapter.Path",
+                return_value=mock_dockerfile_dir,
+            ),
         ):
             result: tuple[int, list[str], list[str]] = adapter.build_image(
                 dockerfile_dir=dockerfile_dir,
@@ -419,11 +433,12 @@ class TestDockerAdapter:
             "-t",
             "test-image:v1.0",
             "--no-cache",
-            str(dockerfile_dir),
+            "/test/dockerfile",  # This will be the mocked string representation
         ]
-        mock_run.assert_called_once_with(
-            expected_cmd, check=True, capture_output=True, text=True
-        )
+        # Verify the command was called correctly (just check the command, not the middleware)
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args[0]  # Get positional arguments
+        assert call_args[0] == expected_cmd
 
     def test_build_image_no_cache_false(self):
         """Test image building without no-cache flag."""
@@ -433,8 +448,8 @@ class TestDockerAdapter:
         with (
             patch.object(adapter, "is_available", return_value=True),
             patch("subprocess.run") as mock_run,
-            patch("pathlib.Path.exists", return_value=True),
-            patch("pathlib.Path.is_dir", return_value=True),
+            patch.object(Path, "exists", return_value=True),
+            patch.object(Path, "is_dir", return_value=True),
         ):
             adapter.build_image(dockerfile_dir=dockerfile_dir, image_name="test-image")
 
@@ -465,7 +480,7 @@ class TestDockerAdapter:
 
         with (
             patch.object(adapter, "is_available", return_value=True),
-            patch("pathlib.Path.exists", return_value=False),
+            patch.object(Path, "exists", return_value=False),
             pytest.raises(DockerError, match="Dockerfile directory not found"),
         ):
             adapter.build_image(Path("/nonexistent"), "test-image")
@@ -476,8 +491,8 @@ class TestDockerAdapter:
 
         with (
             patch.object(adapter, "is_available", return_value=True),
-            patch("pathlib.Path.exists", return_value=True),
-            patch("pathlib.Path.is_dir", return_value=False),
+            patch.object(Path, "exists", return_value=True),
+            patch.object(Path, "is_dir", return_value=False),
             pytest.raises(DockerError, match="Dockerfile directory not found"),
         ):
             adapter.build_image(Path("/test/file"), "test-image")
@@ -497,8 +512,8 @@ class TestDockerAdapter:
                 return self.name == "dockerfile"
 
             with (
-                patch("pathlib.Path.exists", mock_exists),
-                patch("pathlib.Path.is_dir", mock_is_dir),
+                patch.object(Path, "exists", mock_exists),
+                patch.object(Path, "is_dir", mock_is_dir),
                 pytest.raises(DockerError, match="Dockerfile not found"),
             ):
                 adapter.build_image(dockerfile_dir, "test-image")
@@ -514,8 +529,8 @@ class TestDockerAdapter:
         with (
             patch.object(adapter, "is_available", return_value=True),
             patch("subprocess.run", side_effect=error),
-            patch("pathlib.Path.exists", return_value=True),
-            patch("pathlib.Path.is_dir", return_value=True),
+            patch.object(Path, "exists", return_value=True),
+            patch.object(Path, "is_dir", return_value=True),
             pytest.raises(
                 DockerError,
                 match="Docker image build failed: Build failed: syntax error",
