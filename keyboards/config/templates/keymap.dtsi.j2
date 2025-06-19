@@ -24,16 +24,11 @@
 #endif
 
 /* Custom Device-tree */
-{% if custom_devicetree %}
 {{ custom_devicetree }}
-{% endif %}
 
 /* Input Listeners */
 {# Render generated DTS from inputListeners JSON data #}
-{% if input_listeners_dtsi %}
 {{ input_listeners_dtsi }}
-{% endif %}
-
 
 /* System behavior and Macros */
 {# Render content read from system_behaviors.dts #}
@@ -56,9 +51,7 @@
 / {
     macros {
 
-{% if user_macros_dtsi %}
 {{ user_macros_dtsi }}
-{% endif %}
     };
 };
 
@@ -77,7 +70,7 @@
 {% if combos_dtsi -%}
 / {
 {{ combos_dtsi }}
-};
+  };
 {% endif %}
 
 /* Automatically generated keymap */

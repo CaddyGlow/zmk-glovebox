@@ -131,7 +131,7 @@ class TestConfigList:
                 "glovebox.cli.commands.config.get_available_keyboards"
             ) as mock_get_keyboards,
             patch(
-                "glovebox.cli.commands.config.load_keyboard_config_with_includes"
+                "glovebox.cli.commands.config.load_keyboard_config"
             ) as mock_load_config,
         ):
             mock_get_keyboards.return_value = ["test_keyboard"]
@@ -168,7 +168,7 @@ class TestConfigList:
                 "glovebox.cli.commands.config.get_available_keyboards"
             ) as mock_get_keyboards,
             patch(
-                "glovebox.cli.commands.config.load_keyboard_config_with_includes"
+                "glovebox.cli.commands.config.load_keyboard_config"
             ) as mock_load_config,
             patch("glovebox.core.logging.get_logger") as mock_logger,
         ):
@@ -212,7 +212,7 @@ class TestConfigList:
                 "glovebox.cli.commands.config.get_available_keyboards"
             ) as mock_get_keyboards,
             patch(
-                "glovebox.cli.commands.config.load_keyboard_config_with_includes"
+                "glovebox.cli.commands.config.load_keyboard_config"
             ) as mock_load_config,
         ):
             mock_get_keyboards.return_value = ["broken_keyboard"]
@@ -231,7 +231,7 @@ class TestConfigShowKeyboard:
     def test_show_keyboard_text_format(self, cli_runner, mock_keyboard_config):
         """Test show-keyboard with text format (new unified output format)."""
         with patch(
-            "glovebox.cli.commands.config.load_keyboard_config_with_includes"
+            "glovebox.cli.commands.config.load_keyboard_config"
         ) as mock_load_config:
             mock_load_config.return_value = mock_keyboard_config
 
@@ -255,7 +255,7 @@ class TestConfigShowKeyboard:
     def test_show_keyboard_json_format(self, cli_runner, mock_keyboard_config):
         """Test show-keyboard with JSON format (new unified output format)."""
         with patch(
-            "glovebox.cli.commands.config.load_keyboard_config_with_includes"
+            "glovebox.cli.commands.config.load_keyboard_config"
         ) as mock_load_config:
             mock_load_config.return_value = mock_keyboard_config
 
@@ -287,7 +287,7 @@ class TestConfigShowKeyboard:
     def test_show_keyboard_not_found(self, cli_runner):
         """Test show-keyboard when keyboard is not found."""
         with patch(
-            "glovebox.cli.commands.config.load_keyboard_config_with_includes"
+            "glovebox.cli.commands.config.load_keyboard_config"
         ) as mock_load_config:
             mock_load_config.side_effect = Exception("Keyboard configuration not found")
 
@@ -303,7 +303,7 @@ class TestConfigFirmwares:
     def test_firmwares_text_format(self, cli_runner, mock_keyboard_config):
         """Test firmwares with text format."""
         with patch(
-            "glovebox.cli.commands.config.load_keyboard_config_with_includes"
+            "glovebox.cli.commands.config.load_keyboard_config"
         ) as mock_load_config:
             mock_load_config.return_value = mock_keyboard_config
 
@@ -317,7 +317,7 @@ class TestConfigFirmwares:
     def test_firmwares_verbose_text_format(self, cli_runner, mock_keyboard_config):
         """Test firmwares with verbose text format."""
         with patch(
-            "glovebox.cli.commands.config.load_keyboard_config_with_includes"
+            "glovebox.cli.commands.config.load_keyboard_config"
         ) as mock_load_config:
             mock_load_config.return_value = mock_keyboard_config
 
@@ -337,7 +337,7 @@ class TestConfigFirmwares:
     def test_firmwares_json_format(self, cli_runner, mock_keyboard_config):
         """Test firmwares with JSON format."""
         with patch(
-            "glovebox.cli.commands.config.load_keyboard_config_with_includes"
+            "glovebox.cli.commands.config.load_keyboard_config"
         ) as mock_load_config:
             mock_load_config.return_value = mock_keyboard_config
 
@@ -384,7 +384,7 @@ class TestConfigFirmwares:
         )
 
         with patch(
-            "glovebox.cli.commands.config.load_keyboard_config_with_includes"
+            "glovebox.cli.commands.config.load_keyboard_config"
         ) as mock_load_config:
             mock_load_config.return_value = mock_config
 
@@ -400,7 +400,7 @@ class TestConfigFirmware:
     def test_firmware_text_format(self, cli_runner, mock_keyboard_config):
         """Test firmware with text format."""
         with patch(
-            "glovebox.cli.commands.config.load_keyboard_config_with_includes"
+            "glovebox.cli.commands.config.load_keyboard_config"
         ) as mock_load_config:
             mock_load_config.return_value = mock_keyboard_config
 
@@ -419,7 +419,7 @@ class TestConfigFirmware:
     def test_firmware_json_format(self, cli_runner, mock_keyboard_config):
         """Test firmware with JSON format."""
         with patch(
-            "glovebox.cli.commands.config.load_keyboard_config_with_includes"
+            "glovebox.cli.commands.config.load_keyboard_config"
         ) as mock_load_config:
             mock_load_config.return_value = mock_keyboard_config
 
@@ -439,7 +439,7 @@ class TestConfigFirmware:
     def test_firmware_not_found(self, cli_runner, mock_keyboard_config):
         """Test firmware when firmware is not found."""
         with patch(
-            "glovebox.cli.commands.config.load_keyboard_config_with_includes"
+            "glovebox.cli.commands.config.load_keyboard_config"
         ) as mock_load_config:
             mock_load_config.return_value = mock_keyboard_config
 
@@ -601,7 +601,7 @@ class TestConfigInvalidFormat:
     def test_show_keyboard_invalid_format(self, cli_runner, mock_keyboard_config):
         """Test show-keyboard with invalid format (fallback to text format)."""
         with patch(
-            "glovebox.cli.commands.config.load_keyboard_config_with_includes"
+            "glovebox.cli.commands.config.load_keyboard_config"
         ) as mock_load_config:
             mock_load_config.return_value = mock_keyboard_config
 

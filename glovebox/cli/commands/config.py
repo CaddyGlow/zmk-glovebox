@@ -1190,9 +1190,11 @@ def import_config(
     from pathlib import Path
 
     from glovebox.cli.app import AppContext as AppCtx
+    from glovebox.cli.helpers.theme import Icons
 
     # Get app context with user config
     app_ctx: AppCtx = ctx.obj
+    use_emoji = app_ctx.use_emoji
     config_path = Path(config_file)
 
     if not config_path.exists():
@@ -1233,11 +1235,6 @@ def import_config(
         # Remove metadata section if present
         if "_metadata" in config_data:
             metadata = config_data.pop("_metadata")
-            from glovebox.cli.app import AppContext
-            from glovebox.cli.helpers.theme import Icons
-
-            app_context: AppContext = ctx.obj
-            use_emoji = app_context.use_emoji
             print(
                 f"{Icons.get_icon('INFO', use_emoji)} Imported config generated at: {metadata.get('generated_at', 'unknown')}"
             )

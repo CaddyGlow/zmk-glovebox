@@ -55,8 +55,18 @@ def test_firmware_list_devices_command(cli_runner):
 
         result = FlashResult(success=True)
         result.device_details = [
-            {"name": "Device 1", "serial": "GLV80-1234", "path": "/dev/sdX"},
-            {"name": "Device 2", "serial": "GLV80-5678", "path": "/dev/sdY"},
+            {
+                "name": "Device 1",
+                "status": "success",
+                "serial": "GLV80-1234",
+                "path": "/dev/sdX",
+            },
+            {
+                "name": "Device 2",
+                "status": "success",
+                "serial": "GLV80-5678",
+                "path": "/dev/sdY",
+            },
         ]
         # Updated to use the correct method name
         mock_flash_service.list_devices.return_value = result

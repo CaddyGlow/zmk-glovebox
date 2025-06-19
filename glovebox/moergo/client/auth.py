@@ -51,7 +51,7 @@ class CognitoAuth:
             )
             response.raise_for_status()
             return response.json()  # type: ignore[no-any-return]
-        except requests.exceptions.RequestException:
+        except (requests.exceptions.RequestException, ValueError):
             # Silently fail for now - caller will handle the None return
             return None
 
@@ -75,7 +75,7 @@ class CognitoAuth:
             )
             response.raise_for_status()
             return response.json()  # type: ignore[no-any-return]
-        except requests.exceptions.RequestException:
+        except (requests.exceptions.RequestException, ValueError):
             # Silently fail for now - caller will handle the None return
             return None
 
@@ -99,7 +99,7 @@ class CognitoAuth:
             )
             response.raise_for_status()
             return response.json()  # type: ignore[no-any-return]
-        except requests.exceptions.RequestException:
+        except (requests.exceptions.RequestException, ValueError):
             return None
 
 
