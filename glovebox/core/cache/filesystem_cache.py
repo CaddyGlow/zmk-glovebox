@@ -150,11 +150,11 @@ class FilesystemCache(BaseCacheManager):
         data_path = self._get_data_path(key)
         metadata_path = self._get_metadata_path(key)
 
-        # First, check existence and read metadata under read lock
+        # First, check existence and read data under read lock
         metadata = None
         data = None
-        needs_deletion = False
-        needs_update = False
+        is_expired = False
+        is_corrupted = False
 
         with self._file_lock(key, "read"):
             if not data_path.exists() or not metadata_path.exists():
@@ -168,41 +168,86 @@ class FilesystemCache(BaseCacheManager):
 
                 # Check if expired
                 if metadata.is_expired:
-                    needs_deletion = True
-                    return None
-
-                # Load data
-                with data_path.open("r") as f:
-                    data = json.load(f)
-
-                needs_update = True
+                    is_expired = True
+                else:
+                    # Load data
+                    with data_path.open("r") as f:
+                        data = json.load(f)
 
             except (json.JSONDecodeError, OSError, KeyError) as e:
-                # Only log warnings for actual corruption, not empty files (which may be race conditions)
-                if isinstance(e, json.JSONDecodeError) and "Expecting value" in str(e):
-                    logger.debug(
-                        "Cache entry %s appears empty (possible race condition): %s",
-                        key,
-                        e,
-                    )
-                else:
-                    logger.warning("Failed to load cache entry %s: %s", key, e)
-                needs_deletion = True
-                return None
+                # Handle different types of errors more carefully
+                if isinstance(e, json.JSONDecodeError):
+                    if "Expecting value" in str(e) or "Expecting" in str(e):
+                        # Likely a concurrent write operation, retry once after a short delay
+                        logger.debug(
+                            "Cache entry %s appears to be in-use (possible concurrent write): %s",
+                            key,
+                            e,
+                        )
+                        time.sleep(0.001)  # Brief delay
+                        try:
+                            # Retry reading metadata
+                            with metadata_path.open("r") as f:
+                                metadata_data = json.load(f)
+                                metadata = CacheMetadata(**metadata_data)
 
-        # Handle deletion outside of read lock to avoid deadlock
-        if needs_deletion:
+                            # Check if expired after successful read
+                            if metadata.is_expired:
+                                is_expired = True
+                            else:
+                                # Try to read data
+                                with data_path.open("r") as f:
+                                    data = json.load(f)
+                        except (json.JSONDecodeError, OSError, KeyError):
+                            # Still can't read after retry, mark as corrupted
+                            logger.warning(
+                                "Cache entry %s corrupted after retry: %s", key, e
+                            )
+                            is_corrupted = True
+                    else:
+                        # Other JSON errors are likely real corruption
+                        logger.warning("Cache entry %s has JSON corruption: %s", key, e)
+                        is_corrupted = True
+                elif isinstance(e, OSError):
+                    # File system errors
+                    logger.debug("Cache entry %s file system error: %s", key, e)
+                    return None  # Treat as missing, don't mark corrupted
+                else:
+                    # KeyError or other issues
+                    logger.warning("Cache entry %s metadata error: %s", key, e)
+                    is_corrupted = True
+
+        # Handle corrupted or expired entries outside read lock to avoid deadlock
+        if is_corrupted or is_expired:
             with self._file_lock(key, "delete"):
                 self._delete_raw_unlocked(key)
             return None
 
-        # Update metadata outside of read lock to avoid deadlock
-        if needs_update and metadata:
-            with self._file_lock(key, "write"):
-                metadata.touch()
-                self._save_metadata(key, metadata)
+        # For successful reads, update metadata atomically
+        if data is not None and metadata:
+            self._atomic_metadata_update(key, metadata)
 
         return data
+
+    def _atomic_metadata_update(self, key: str, metadata: CacheMetadata) -> None:
+        """Atomically update metadata with proper race condition handling."""
+        with self._file_lock(key, "write"):
+            metadata_path = self._get_metadata_path(key)
+
+            # Re-read current metadata to avoid lost updates
+            current_metadata = metadata
+            if metadata_path.exists():
+                try:
+                    with metadata_path.open("r") as f:
+                        metadata_data = json.load(f)
+                        current_metadata = CacheMetadata(**metadata_data)
+                except (json.JSONDecodeError, OSError, KeyError):
+                    # If we can't read current metadata, use the one we have
+                    current_metadata = metadata
+
+            # Update access information
+            current_metadata.touch()
+            self._save_metadata(key, current_metadata)
 
     def _set_raw(self, key: str, value: Any, ttl: int | None = None) -> None:
         """Set raw value in filesystem with file locking."""

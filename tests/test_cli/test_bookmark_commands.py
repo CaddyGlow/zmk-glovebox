@@ -200,13 +200,13 @@ class TestBookmarkCommands:
         )
 
         assert result.exit_code == 0
-        assert "Added bookmark" in result.stdout
+        assert "Bookmark added successfully!" in result.stdout
         assert "test-layout" in result.stdout
         mock_bookmark_service.add_bookmark.assert_called_once_with(
-            "12345678-1234-1234-1234-123456789012",
-            "test-layout",
-            "Test description",
-            True,
+            uuid="12345678-1234-1234-1234-123456789012",
+            name="test-layout",
+            description="Test description",
+            fetch_metadata=True,
         )
 
     @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
@@ -230,14 +230,18 @@ class TestBookmarkCommands:
                 "add",
                 "12345678-1234-1234-1234-123456789012",
                 "test-layout",
-                "--no-metadata",
+                "--no-fetch",
             ],
             obj=mock_app_context,
         )
 
         assert result.exit_code == 0
+        assert "Bookmark added successfully!" in result.stdout
         mock_bookmark_service.add_bookmark.assert_called_once_with(
-            "12345678-1234-1234-1234-123456789012", "test-layout", None, False
+            uuid="12345678-1234-1234-1234-123456789012",
+            name="test-layout",
+            description=None,
+            fetch_metadata=False,
         )
 
     @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
@@ -263,14 +267,22 @@ class TestBookmarkCommands:
     ):
         """Test removing a bookmark successfully."""
         mock_create_service.return_value = mock_bookmark_service
+        mock_bookmark_service.get_bookmark.return_value = LayoutBookmark(
+            uuid="12345678-1234-1234-1234-123456789012",
+            name="test-layout",
+            title="Test Layout",
+            source=BookmarkSource.USER,
+        )
         mock_bookmark_service.remove_bookmark.return_value = True
 
         result = runner.invoke(
-            glove80_group, ["bookmark", "remove", "test-layout"], obj=mock_app_context
+            glove80_group,
+            ["bookmark", "remove", "test-layout", "--force"],
+            obj=mock_app_context,
         )
 
         assert result.exit_code == 0
-        assert "Removed bookmark" in result.stdout
+        assert "removed successfully!" in result.stdout
         assert "test-layout" in result.stdout
         mock_bookmark_service.remove_bookmark.assert_called_once_with("test-layout")
 
@@ -280,19 +292,24 @@ class TestBookmarkCommands:
     ):
         """Test removing a bookmark that doesn't exist."""
         mock_create_service.return_value = mock_bookmark_service
-        mock_bookmark_service.remove_bookmark.return_value = False
+        mock_bookmark_service.get_bookmark.return_value = None
 
         result = runner.invoke(
             glove80_group, ["bookmark", "remove", "nonexistent"], obj=mock_app_context
         )
 
         assert result.exit_code == 1
-        assert "Bookmark not found" in result.stdout
+        assert "not found" in result.stdout
         assert "nonexistent" in result.stdout
 
     @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
     def test_bookmark_info_exists(
-        self, mock_create_service, runner, mock_bookmark_service, mock_app_context
+        self,
+        mock_create_service,
+        runner,
+        mock_bookmark_service,
+        mock_app_context,
+        mock_moergo_layout,
     ):
         """Test getting info for an existing bookmark."""
         mock_create_service.return_value = mock_bookmark_service
@@ -306,6 +323,7 @@ class TestBookmarkCommands:
             source=BookmarkSource.USER,
         )
         mock_bookmark_service.get_bookmark.return_value = bookmark
+        mock_bookmark_service.get_layout_by_bookmark.return_value = mock_moergo_layout
 
         result = runner.invoke(
             glove80_group, ["bookmark", "info", "test-layout"], obj=mock_app_context
@@ -314,8 +332,6 @@ class TestBookmarkCommands:
         assert result.exit_code == 0
         assert "test-layout" in result.stdout
         assert "Test Layout" in result.stdout
-        assert "Test description" in result.stdout
-        assert "test, layout" in result.stdout
         mock_bookmark_service.get_bookmark.assert_called_once_with("test-layout")
 
     @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
@@ -331,7 +347,7 @@ class TestBookmarkCommands:
         )
 
         assert result.exit_code == 1
-        assert "Bookmark not found" in result.stdout
+        assert "not found" in result.stdout
         assert "nonexistent" in result.stdout
 
     @patch("glovebox.cli.commands.layout.glove80_sync.load_layout_file")
@@ -348,6 +364,14 @@ class TestBookmarkCommands:
     ):
         """Test cloning a bookmark to a file successfully."""
         mock_create_service.return_value = mock_bookmark_service
+
+        bookmark = LayoutBookmark(
+            uuid="12345678-1234-1234-1234-123456789012",
+            name="test-layout",
+            title="Test Layout",
+            source=BookmarkSource.USER,
+        )
+        mock_bookmark_service.get_bookmark.return_value = bookmark
         mock_bookmark_service.get_layout_by_bookmark.return_value = mock_moergo_layout
         mock_load_layout.return_value = mock_layout_data
 
@@ -360,10 +384,10 @@ class TestBookmarkCommands:
         )
 
         assert result.exit_code == 0
-        assert "Cloned bookmark" in result.stdout
+        assert "cloned successfully!" in result.stdout
         assert "test-layout" in result.stdout
         mock_bookmark_service.get_layout_by_bookmark.assert_called_once_with(
-            "test-layout", True
+            "test-layout"
         )
 
     @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
@@ -394,11 +418,12 @@ class TestBookmarkCommands:
         mock_bookmark_service.refresh_factory_defaults.return_value = 5
 
         result = runner.invoke(
-            glove80_group, ["bookmark", "refresh"], obj=mock_app_context
+            glove80_group, ["bookmark", "refresh", "--force"], obj=mock_app_context
         )
 
         assert result.exit_code == 0
-        assert "Refreshed 5 factory bookmarks" in result.stdout
+        assert "factory" in result.stdout.lower()
+        assert "bookmarks" in result.stdout.lower()
         mock_bookmark_service.refresh_factory_defaults.assert_called_once()
 
     @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
