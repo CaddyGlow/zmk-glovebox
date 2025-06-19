@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 from glovebox.config.models.user import UserConfigData
 from glovebox.config.user_config import create_user_config
-from glovebox.core.cache import CacheKey, CacheManager, create_default_cache
+from glovebox.core.cache import CacheKey, CacheManager, create_cache_from_user_config
 from glovebox.layout.models.bookmarks import (
     BookmarkCollection,
     BookmarkSource,
@@ -30,7 +30,7 @@ class BookmarkService:
         """Initialize bookmark service."""
         self._client = moergo_client
         self._user_config = user_config
-        self._cache = cache or create_default_cache(cache_strategy="shared")
+        self._cache = cache or create_cache_from_user_config(user_config)
         self._bookmarks: BookmarkCollection | None = None
 
     def get_bookmarks(self) -> BookmarkCollection:

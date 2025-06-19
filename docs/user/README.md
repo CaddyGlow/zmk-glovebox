@@ -35,6 +35,7 @@ Welcome to the Glovebox user documentation. These guides will help you get start
 
 ### Configuration
 - **[User Configuration](user-configuration.md)** - Personal settings and preferences
+- **[CLI Commands](cli-reference.md)** - Complete command reference and examples
 - **[Custom Keyboards](custom-keyboards.md)** - Adding support for new keyboards
 - **[Environment Setup](environment-setup.md)** - Development environment configuration
 
@@ -62,8 +63,16 @@ glovebox layout import-master ~/Downloads/glorious-v42.json v42
 glovebox layout upgrade my-custom-v41.json --to-master v42
 glovebox layout diff layout-v41.json layout-v42.json
 
-# List configurations
-glovebox config list
+# Configuration management
+glovebox config list                    # Show current configuration
+glovebox config list --defaults         # Include default values
+glovebox config edit --set key=value    # Set configuration values
+glovebox config edit --get key          # Get configuration values
+
+# Keyboard management
+glovebox keyboard list                  # List available keyboards
+glovebox keyboard show glove80          # Show keyboard details
+glovebox keyboard firmwares glove80     # List firmware versions
 
 # Show system status
 glovebox status
@@ -114,9 +123,36 @@ Glovebox is designed to easily support new keyboards. See [Custom Keyboards](cus
 - **[Contributing Guide](../../CONTRIBUTING.md)** - How to contribute to Glovebox
 - **[Development Setup](../dev/README.md)** - Setting up development environment
 
-## What's New
+## Recent Updates
 
-See the [CHANGELOG](../../CHANGELOG.md) for recent updates and new features.
+### Enhanced CLI Structure
+- **Modular Commands**: CLI commands organized into focused modules (config, keyboard, layout, firmware)
+- **Unified Configuration**: New `config edit` command supports multiple operations in one call
+- **Dedicated Keyboard Commands**: Separate `keyboard` module for keyboard management
+- **Enhanced Configuration Viewing**: `config list` with optional defaults, descriptions, and sources
+
+### New Configuration Commands
+```bash
+# Unified configuration editing
+glovebox config edit --set cache_strategy=shared --add keyboard_paths=/new/path
+
+# Enhanced configuration viewing  
+glovebox config list --defaults --descriptions --sources
+
+# Configuration import/export
+glovebox config export --format yaml --include-defaults
+glovebox config import config.yaml --dry-run
+```
+
+### New Keyboard Commands
+```bash
+# Dedicated keyboard management
+glovebox keyboard list --verbose
+glovebox keyboard show glove80 --format json
+glovebox keyboard firmwares glove80
+```
+
+See the [CHANGELOG](../../CHANGELOG.md) for complete update history.
 
 ## Examples
 

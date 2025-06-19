@@ -132,6 +132,12 @@ class UserConfigData(BaseSettings):
         description="Enable emoji icons in CLI output",
     )
 
+    # Editor settings
+    editor: str = Field(
+        default_factory=lambda: os.environ.get("EDITOR", "nano"),
+        description="Default text editor for interactive config editing (defaults to $EDITOR or 'nano')",
+    )
+
     # Firmware settings
     firmware: UserFirmwareConfig = Field(default_factory=UserFirmwareConfig)
 

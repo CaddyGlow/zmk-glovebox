@@ -7,7 +7,7 @@ GitHub Actions workflow pattern for ZMK config builds.
 from glovebox.compilation.protocols.compilation_protocols import (
     CompilationServiceProtocol,
 )
-from glovebox.core.cache import create_default_cache
+from glovebox.core.cache import create_cache_from_user_config
 
 
 # Simple factory function for direct service selection
@@ -43,9 +43,11 @@ def create_zmk_west_service() -> CompilationServiceProtocol:
     from glovebox.compilation.services.zmk_west_service import (
         create_zmk_west_service,
     )
+    from glovebox.config.user_config import create_user_config
 
     docker_adapter = create_docker_adapter()
-    cache = create_default_cache(cache_strategy="shared")
+    user_config = create_user_config()
+    cache = create_cache_from_user_config(user_config._config)
     return create_zmk_west_service(docker_adapter, cache)
 
 

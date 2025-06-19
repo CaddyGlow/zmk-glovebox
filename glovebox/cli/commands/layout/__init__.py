@@ -1,13 +1,27 @@
-"""Layout CLI commands - refactored into focused modules."""
+"""Layout CLI commands - refactored into focused, logical command groups."""
 
 import typer
 
-from .comparison import create_patch, diff, patch
-from .core import compile_layout, compose, decompose, show, validate
-from .editing import get_field, set_field
+# Import comparison commands
+from .comparison import diff, patch
+
+# Import core operations
+from .core import compile_layout, show, validate
+
+# Import unified edit command
+from .edit import edit
+
+# Import file operations
+from .file_operations import export, import_layout, merge, split
+
+# Keep glove80_sync for now (will be moved to keyboard commands later)
 from .glove80_sync import glove80_group
-from .layers import add_layer, export_layer, list_layers, move_layer, remove_layer
-from .version import import_master, list_masters, upgrade
+
+# Import upgrade command
+from .upgrade import upgrade
+
+# Import version management subcommand group
+from .versions import versions_app
 
 
 # Create a typer app for layout commands
@@ -15,41 +29,65 @@ layout_app = typer.Typer(
     name="layout",
     help="""Layout management commands.
 
-Convert JSON layouts to ZMK files, extract/merge layers, validate layouts,
-and display visual representations of keyboard layouts.""",
+Transform JSON layouts to ZMK files, edit layouts with batch operations,
+manage file operations, handle version upgrades, and compare layouts.
+
+**NEW COMMAND STRUCTURE** (8 main commands instead of 19+):
+
+Core Operations:
+  compile     - Convert JSON layout to ZMK files
+  validate    - Validate layout syntax and structure
+  show        - Display layout in terminal
+
+Unified Editing:
+  edit        - Get/set fields, add/remove/move layers (batch operations)
+
+File Operations:
+  split       - Split layout into component files (was decompose)
+  merge       - Merge component files into layout (was compose)
+  export      - Export layer to external file (was export-layer)
+  import      - Import from other layouts (new unified import)
+
+Version Management:
+  versions    - Subcommand group for master version management
+  upgrade     - Upgrade layout to new master version
+
+Comparison:
+  diff        - Compare layouts with optional patch creation
+  patch       - Apply JSON diff patch to layout
+
+Cloud Integration:
+  glove80     - Cloud sync operations (temporary, moving to keyboard commands)
+""",
     no_args_is_help=True,
     rich_markup_mode="rich",
 )
 
-# Register core commands
+# Register core operations
 layout_app.command(name="compile")(compile_layout)
-layout_app.command()(decompose)
-layout_app.command()(compose)
 layout_app.command()(validate)
 layout_app.command()(show)
 
-# Register version management commands
-layout_app.command(name="import-master")(import_master)
+# Register unified edit command
+layout_app.command()(edit)
+
+# Register file operations
+layout_app.command()(split)
+layout_app.command()(merge)
+layout_app.command()(export)
+layout_app.command(name="import")(import_layout)  # import is a Python keyword
+
+# Register upgrade command
 layout_app.command()(upgrade)
-layout_app.command(name="list-masters")(list_masters)
 
 # Register comparison commands
 layout_app.command()(diff)
 layout_app.command()(patch)
-layout_app.command(name="create-patch")(create_patch)
 
-# Register field editing commands
-layout_app.command(name="get-field")(get_field)
-layout_app.command(name="set-field")(set_field)
+# Register version management subcommand group
+layout_app.add_typer(versions_app, name="versions")
 
-# Register layer management commands
-layout_app.command(name="add-layer")(add_layer)
-layout_app.command(name="remove-layer")(remove_layer)
-layout_app.command(name="move-layer")(move_layer)
-layout_app.command(name="list-layers")(list_layers)
-layout_app.command(name="export-layer")(export_layer)
-
-# Register Glove80 cloud sync commands
+# Register cloud sync commands (temporary - will be moved to keyboard commands)
 layout_app.add_typer(glove80_group, name="glove80")
 
 

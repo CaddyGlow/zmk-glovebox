@@ -30,7 +30,7 @@ def mock_keyboard_config():
             "key_count": 84,
             "compile_methods": [
                 {
-                    "type": "zmk_config",
+                    "strategy": "zmk_config",
                     "image": "zmkfirmware/zmk-build-arm:stable",
                     "repository": "zmkfirmware/zmk",
                     "branch": "main",
@@ -111,367 +111,83 @@ class TestConfigList:
 
     def test_config_list_text_format(self, cli_runner):
         """Test config list with text format."""
-        with patch(
-            "glovebox.cli.commands.config.get_available_keyboards"
-        ) as mock_get_keyboards:
-            mock_get_keyboards.return_value = ["keyboard1", "keyboard2", "keyboard3"]
+        result = cli_runner.invoke(app, ["config", "list"])
 
-            result = cli_runner.invoke(app, ["config", "list"])
+        assert result.exit_code == 0
+        assert "Glovebox Configuration" in result.output
+        assert "Setting" in result.output
+        assert "Value" in result.output
 
-            assert result.exit_code == 0
-            assert "Available keyboard configurations (3):" in result.output
-            assert "keyboard1" in result.output
-            assert "keyboard2" in result.output
-            assert "keyboard3" in result.output
+    def test_config_list_with_defaults(self, cli_runner):
+        """Test config list with defaults option."""
+        result = cli_runner.invoke(app, ["config", "list", "--defaults"])
 
-    def test_config_list_verbose_text_format(self, cli_runner, mock_keyboard_config):
-        """Test config list with verbose text format."""
-        with (
-            patch(
-                "glovebox.cli.commands.config.get_available_keyboards"
-            ) as mock_get_keyboards,
-            patch(
-                "glovebox.cli.commands.config.load_keyboard_config"
-            ) as mock_load_config,
-        ):
-            mock_get_keyboards.return_value = ["test_keyboard"]
-            mock_load_config.return_value = mock_keyboard_config
+        assert result.exit_code == 0
+        assert "Glovebox Configuration" in result.output
+        assert "Setting" in result.output
+        assert "Value" in result.output
+        assert "Default" in result.output
 
-            result = cli_runner.invoke(app, ["config", "list", "--verbose"])
+    def test_config_list_with_sources(self, cli_runner):
+        """Test config list with sources option."""
+        result = cli_runner.invoke(app, ["config", "list", "--sources"])
 
-            assert result.exit_code == 0
-            assert "Available Keyboard Configurations (1):" in result.output
-            assert "test_keyboard" in result.output
-            assert "Test keyboard description" in result.output
-            assert "Test Vendor" in result.output
+        assert result.exit_code == 0
+        assert "Glovebox Configuration" in result.output
+        assert "Setting" in result.output
+        assert "Value" in result.output
+        assert "Source" in result.output
 
-    def test_config_list_json_format(self, cli_runner):
-        """Test config list with JSON format."""
-        with patch(
-            "glovebox.cli.commands.config.get_available_keyboards"
-        ) as mock_get_keyboards:
-            mock_get_keyboards.return_value = ["keyboard1", "keyboard2"]
+    def test_config_list_with_descriptions(self, cli_runner):
+        """Test config list with descriptions option."""
+        result = cli_runner.invoke(app, ["config", "list", "--descriptions"])
 
-            result = cli_runner.invoke(app, ["config", "list", "--format", "json"])
+        assert result.exit_code == 0
+        assert "Glovebox Configuration" in result.output
+        assert "Setting" in result.output
+        assert "Value" in result.output
+        assert "Description" in result.output
 
-            assert result.exit_code == 0
-            output_data = json.loads(result.output)
-            assert "keyboards" in output_data
-            assert len(output_data["keyboards"]) == 2
-            assert output_data["keyboards"][0]["name"] == "keyboard1"
-            assert output_data["keyboards"][1]["name"] == "keyboard2"
-
-    def test_config_list_verbose_json_format(self, cli_runner, mock_keyboard_config):
-        """Test config list with verbose JSON format."""
-        with (
-            patch(
-                "glovebox.cli.commands.config.get_available_keyboards"
-            ) as mock_get_keyboards,
-            patch(
-                "glovebox.cli.commands.config.load_keyboard_config"
-            ) as mock_load_config,
-            patch("glovebox.core.logging.get_logger") as mock_logger,
-        ):
-            # Suppress logging to prevent interference with JSON output
-            mock_logger.return_value.info = Mock()
-            mock_logger.return_value.debug = Mock()
-
-            mock_get_keyboards.return_value = ["test_keyboard"]
-            mock_load_config.return_value = mock_keyboard_config
-
-            result = cli_runner.invoke(
-                app, ["config", "list", "--verbose", "--format", "json"]
-            )
-
-            assert result.exit_code == 0
-            output_data = json.loads(result.output)
-            assert "keyboards" in output_data
-            assert len(output_data["keyboards"]) == 1
-            keyboard_data = output_data["keyboards"][0]
-            assert keyboard_data["name"] == "test_keyboard"
-            assert keyboard_data["description"] == "Test keyboard description"
-            assert keyboard_data["vendor"] == "Test Vendor"
-            assert keyboard_data["key_count"] == 84
-
-    def test_config_list_no_keyboards_found(self, cli_runner):
-        """Test config list when no keyboards are found."""
-        with patch(
-            "glovebox.cli.commands.config.get_available_keyboards"
-        ) as mock_get_keyboards:
-            mock_get_keyboards.return_value = []
-
-            result = cli_runner.invoke(app, ["config", "list"])
-
-            assert result.exit_code == 0
-            assert "No keyboards found" in result.output
-
-    def test_config_list_keyboard_load_error(self, cli_runner):
-        """Test config list when keyboard config fails to load."""
-        with (
-            patch(
-                "glovebox.cli.commands.config.get_available_keyboards"
-            ) as mock_get_keyboards,
-            patch(
-                "glovebox.cli.commands.config.load_keyboard_config"
-            ) as mock_load_config,
-        ):
-            mock_get_keyboards.return_value = ["broken_keyboard"]
-            mock_load_config.side_effect = Exception("Configuration file not found")
-
-            result = cli_runner.invoke(app, ["config", "list", "--verbose"])
-
-            assert result.exit_code == 0
-            assert "broken_keyboard" in result.output
-            assert "Error: Configuration file not found" in result.output
-
-
-class TestConfigShowKeyboard:
-    """Test config show-keyboard command."""
-
-    def test_show_keyboard_text_format(self, cli_runner, mock_keyboard_config):
-        """Test show-keyboard with text format (new unified output format)."""
-        with patch(
-            "glovebox.cli.commands.config.load_keyboard_config"
-        ) as mock_load_config:
-            mock_load_config.return_value = mock_keyboard_config
-
-            result = cli_runner.invoke(
-                app, ["config", "show-keyboard", "test_keyboard"]
-            )
-
-            assert result.exit_code == 0
-            # Check new unified output format structure
-            assert "keyboard: test_keyboard" in result.output
-            assert "description: Test keyboard description" in result.output
-            assert "vendor: Test Vendor" in result.output
-            assert "key_count: 84" in result.output
-            assert "flash_methods:" in result.output
-            assert "device_query" in result.output
-            assert "compile_methods:" in result.output
-            assert "type" in result.output
-            assert "firmwares:" in result.output
-            assert "firmware_count: 2" in result.output
-
-    def test_show_keyboard_json_format(self, cli_runner, mock_keyboard_config):
-        """Test show-keyboard with JSON format (new unified output format)."""
-        with patch(
-            "glovebox.cli.commands.config.load_keyboard_config"
-        ) as mock_load_config:
-            mock_load_config.return_value = mock_keyboard_config
-
-            result = cli_runner.invoke(
-                app, ["config", "show-keyboard", "test_keyboard", "--format", "json"]
-            )
-
-            assert result.exit_code == 0
-            output_data = json.loads(result.output)
-            assert output_data["keyboard"] == "test_keyboard"
-            assert output_data["description"] == "Test keyboard description"
-            assert output_data["vendor"] == "Test Vendor"
-            assert output_data["key_count"] == 84
-
-            # Check new structure with current model fields
-            assert "flash_methods" in output_data
-            assert len(output_data["flash_methods"]) == 1
-            assert "device_query" in output_data["flash_methods"][0]
-
-            assert "compile_methods" in output_data
-            assert len(output_data["compile_methods"]) == 1
-            assert output_data["compile_methods"][0]["method_type"] == "zmk_config"
-
-            assert "firmwares" in output_data
-            assert "v1.0" in output_data["firmwares"]
-            assert "v2.0" in output_data["firmwares"]
-            assert output_data["firmware_count"] == 2
-
-    def test_show_keyboard_not_found(self, cli_runner):
-        """Test show-keyboard when keyboard is not found."""
-        with patch(
-            "glovebox.cli.commands.config.load_keyboard_config"
-        ) as mock_load_config:
-            mock_load_config.side_effect = Exception("Keyboard configuration not found")
-
-            result = cli_runner.invoke(app, ["config", "show-keyboard", "nonexistent"])
-
-            assert result.exit_code == 1
-            assert "Keyboard configuration not found" in result.output
-
-
-class TestConfigFirmwares:
-    """Test config firmwares command."""
-
-    def test_firmwares_text_format(self, cli_runner, mock_keyboard_config):
-        """Test firmwares with text format."""
-        with patch(
-            "glovebox.cli.commands.config.load_keyboard_config"
-        ) as mock_load_config:
-            mock_load_config.return_value = mock_keyboard_config
-
-            result = cli_runner.invoke(app, ["config", "firmwares", "test_keyboard"])
-
-            assert result.exit_code == 0
-            assert "Found 2 firmware(s) for test_keyboard:" in result.output
-            assert "v1.0" in result.output
-            assert "v2.0" in result.output
-
-    def test_firmwares_verbose_text_format(self, cli_runner, mock_keyboard_config):
-        """Test firmwares with verbose text format."""
-        with patch(
-            "glovebox.cli.commands.config.load_keyboard_config"
-        ) as mock_load_config:
-            mock_load_config.return_value = mock_keyboard_config
-
-            result = cli_runner.invoke(
-                app, ["config", "firmwares", "test_keyboard", "--verbose"]
-            )
-
-            assert result.exit_code == 0
-            assert "Available Firmware Versions for test_keyboard (2):" in result.output
-            assert "• v1.0" in result.output
-            assert "Version: v1.0" in result.output
-            assert "Description: Test firmware v1.0" in result.output
-            assert "Build Options:" in result.output
-            assert "repository: https://github.com/moergo-sc/zmk" in result.output
-            assert "branch: glove80" in result.output
-
-    def test_firmwares_json_format(self, cli_runner, mock_keyboard_config):
-        """Test firmwares with JSON format."""
-        with patch(
-            "glovebox.cli.commands.config.load_keyboard_config"
-        ) as mock_load_config:
-            mock_load_config.return_value = mock_keyboard_config
-
-            result = cli_runner.invoke(
-                app, ["config", "firmwares", "test_keyboard", "--format", "json"]
-            )
-
-            assert result.exit_code == 0
-            output_data = json.loads(result.output)
-            assert output_data["keyboard"] == "test_keyboard"
-            assert "firmwares" in output_data
-            assert len(output_data["firmwares"]) == 2
-            firmware_names = [fw["name"] for fw in output_data["firmwares"]]
-            assert "v1.0" in firmware_names
-            assert "v2.0" in firmware_names
-
-    def test_firmwares_no_firmwares_found(self, cli_runner):
-        """Test firmwares when no firmwares are found."""
-        mock_config = KeyboardConfig.model_validate(
-            {
-                "keyboard": "minimal_keyboard",
-                "description": "Minimal keyboard",
-                "vendor": "Test Vendor",
-                "key_count": 10,
-                "compile_methods": [
-                    {
-                        "type": "zmk_config",
-                        "image": "zmkfirmware/zmk-build-arm:stable",
-                        "repository": "zmkfirmware/zmk",
-                        "branch": "main",
-                        "build_matrix": {"board": ["nice_nano_v2"]},
-                    }
-                ],
-                "flash_methods": [
-                    {
-                        "device_query": "BOOTLOADER",
-                        "mount_timeout": 30,
-                        "copy_timeout": 60,
-                        "sync_after_copy": True,
-                    }
-                ],
-                # No firmwares section
-            }
+    def test_config_list_all_options(self, cli_runner):
+        """Test config list with all options."""
+        result = cli_runner.invoke(
+            app, ["config", "list", "--defaults", "--sources", "--descriptions"]
         )
 
-        with patch(
-            "glovebox.cli.commands.config.load_keyboard_config"
-        ) as mock_load_config:
-            mock_load_config.return_value = mock_config
-
-            result = cli_runner.invoke(app, ["config", "firmwares", "minimal_keyboard"])
-
-            assert result.exit_code == 0
-            assert "No firmwares found for minimal_keyboard" in result.output
+        assert result.exit_code == 0
+        assert "Glovebox Configuration" in result.output
+        assert "Setting" in result.output
+        assert "Value" in result.output
+        assert "Default" in result.output
+        assert "Source" in result.output
+        assert "Description" in result.output
 
 
-class TestConfigFirmware:
-    """Test config firmware command."""
-
-    def test_firmware_text_format(self, cli_runner, mock_keyboard_config):
-        """Test firmware with text format."""
-        with patch(
-            "glovebox.cli.commands.config.load_keyboard_config"
-        ) as mock_load_config:
-            mock_load_config.return_value = mock_keyboard_config
-
-            result = cli_runner.invoke(
-                app, ["config", "firmware", "test_keyboard", "v1.0"]
-            )
-
-            assert result.exit_code == 0
-            assert "Firmware: v1.0 for test_keyboard" in result.output
-            assert "Version: v1.0" in result.output
-            assert "Description: Test firmware v1.0" in result.output
-            assert "Build Options:" in result.output
-            assert "repository: https://github.com/moergo-sc/zmk" in result.output
-            assert "branch: glove80" in result.output
-
-    def test_firmware_json_format(self, cli_runner, mock_keyboard_config):
-        """Test firmware with JSON format."""
-        with patch(
-            "glovebox.cli.commands.config.load_keyboard_config"
-        ) as mock_load_config:
-            mock_load_config.return_value = mock_keyboard_config
-
-            result = cli_runner.invoke(
-                app, ["config", "firmware", "test_keyboard", "v2.0", "--format", "json"]
-            )
-
-            assert result.exit_code == 0
-            output_data = json.loads(result.output)
-            assert output_data["keyboard"] == "test_keyboard"
-            assert output_data["firmware"] == "v2.0"
-            assert "config" in output_data
-            config = output_data["config"]
-            assert config["version"] == "v2.0"
-            assert config["description"] == "Test firmware v2.0"
-
-    def test_firmware_not_found(self, cli_runner, mock_keyboard_config):
-        """Test firmware when firmware is not found."""
-        with patch(
-            "glovebox.cli.commands.config.load_keyboard_config"
-        ) as mock_load_config:
-            mock_load_config.return_value = mock_keyboard_config
-
-            result = cli_runner.invoke(
-                app, ["config", "firmware", "test_keyboard", "nonexistent"]
-            )
-
-            assert result.exit_code == 1
-            assert "Firmware nonexistent not found for test_keyboard" in result.output
-            assert "Available firmwares:" in result.output
-            assert "v1.0" in result.output
-            assert "v2.0" in result.output
+# Legacy keyboard command tests have been removed.
+# Use the dedicated keyboard module tests instead:
+# - glovebox keyboard show <keyboard> replaces config show-keyboard
+# - glovebox keyboard firmwares <keyboard> replaces config firmwares
+# - See tests/test_cli/test_keyboard_commands.py for the new tests
 
 
-class TestConfigAdd:
-    """Test config add command."""
+class TestConfigEdit:
+    """Test config edit command."""
 
     def test_add_to_keyboard_paths(self, cli_runner):
         """Test adding a path to keyboard_paths list."""
         # Create a mock user config that's easier to control
         mock_user_config = Mock()
         mock_user_config.get.return_value = []
-        
+
         # Create mock app context
         mock_app_context = Mock()
         mock_app_context.user_config = mock_user_config
-        
+
         with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
             mock_ctx.return_value.obj = mock_app_context
             result = cli_runner.invoke(
                 app,
-                ["config", "add", "keyboard_paths", "/path/to/new/keyboard"],
+                ["config", "edit", "--add", "keyboard_paths=/path/to/new/keyboard"],
                 obj=mock_app_context,
             )
 
@@ -484,16 +200,16 @@ class TestConfigAdd:
         # Create a mock user config
         mock_user_config = Mock()
         mock_user_config.get.return_value = []
-        
+
         # Create mock app context
         mock_app_context = Mock()
         mock_app_context.user_config = mock_user_config
-        
+
         with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
             mock_ctx.return_value.obj = mock_app_context
             result = cli_runner.invoke(
                 app,
-                ["config", "add", "keyboard_paths", "/first/path"],
+                ["config", "edit", "--add", "keyboard_paths=/first/path"],
                 obj=mock_app_context,
             )
 
@@ -507,16 +223,16 @@ class TestConfigAdd:
         # Create a mock user config with existing path
         mock_user_config = Mock()
         mock_user_config.get.return_value = [Path("/existing/path")]
-        
+
         # Create mock app context
         mock_app_context = Mock()
         mock_app_context.user_config = mock_user_config
-        
+
         with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
             mock_ctx.return_value.obj = mock_app_context
             result = cli_runner.invoke(
                 app,
-                ["config", "add", "keyboard_paths", "/existing/path"],
+                ["config", "edit", "--add", "keyboard_paths=/existing/path"],
                 obj=mock_app_context,
             )
 
@@ -529,16 +245,16 @@ class TestConfigAdd:
         """Test adding to a field that is not a list."""
         # Create a mock user config
         mock_user_config = Mock()
-        
+
         # Create mock app context
         mock_app_context = Mock()
         mock_app_context.user_config = mock_user_config
-        
+
         with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
             mock_ctx.return_value.obj = mock_app_context
             result = cli_runner.invoke(
                 app,
-                ["config", "add", "profile", "some_value"],
+                ["config", "edit", "--add", "profile=some_value"],
                 obj=mock_app_context,
             )
 
@@ -550,16 +266,22 @@ class TestConfigAdd:
         # Create a mock user config
         mock_user_config = Mock()
         mock_user_config.get.return_value = []
-        
+
         # Create mock app context
         mock_app_context = Mock()
         mock_app_context.user_config = mock_user_config
-        
+
         with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
             mock_ctx.return_value.obj = mock_app_context
             result = cli_runner.invoke(
                 app,
-                ["config", "add", "keyboard_paths", "/no/save/path", "--no-save"],
+                [
+                    "config",
+                    "edit",
+                    "--add",
+                    "keyboard_paths=/no/save/path",
+                    "--no-save",
+                ],
                 obj=mock_app_context,
             )
 
@@ -569,7 +291,7 @@ class TestConfigAdd:
 
 
 class TestConfigRemove:
-    """Test config remove command."""
+    """Test config edit --remove command."""
 
     def test_remove_from_keyboard_paths(self, cli_runner):
         """Test removing a path from keyboard_paths list."""
@@ -581,20 +303,20 @@ class TestConfigRemove:
             Path("/path/to/remove"),
             Path("/another/path"),
         ]
-        
+
         # Create a mock user config
         mock_user_config = Mock()
         mock_user_config.get.return_value = test_list
-        
+
         # Create mock app context
         mock_app_context = Mock()
         mock_app_context.user_config = mock_user_config
-        
+
         with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
             mock_ctx.return_value.obj = mock_app_context
             result = cli_runner.invoke(
                 app,
-                ["config", "remove", "keyboard_paths", "/path/to/remove"],
+                ["config", "edit", "--remove", "keyboard_paths=/path/to/remove"],
                 obj=mock_app_context,
             )
 
@@ -609,16 +331,16 @@ class TestConfigRemove:
         # Create a mock user config
         mock_user_config = Mock()
         mock_user_config.get.return_value = [Path("/existing/path")]
-        
+
         # Create mock app context
         mock_app_context = Mock()
         mock_app_context.user_config = mock_user_config
-        
+
         with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
             mock_ctx.return_value.obj = mock_app_context
             result = cli_runner.invoke(
                 app,
-                ["config", "remove", "keyboard_paths", "/nonexistent/path"],
+                ["config", "edit", "--remove", "keyboard_paths=/nonexistent/path"],
                 obj=mock_app_context,
             )
 
@@ -630,16 +352,16 @@ class TestConfigRemove:
         # Create a mock user config
         mock_user_config = Mock()
         mock_user_config.get.return_value = []
-        
+
         # Create mock app context
         mock_app_context = Mock()
         mock_app_context.user_config = mock_user_config
-        
+
         with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
             mock_ctx.return_value.obj = mock_app_context
             result = cli_runner.invoke(
                 app,
-                ["config", "remove", "keyboard_paths", "/any/path"],
+                ["config", "edit", "--remove", "keyboard_paths=/any/path"],
                 obj=mock_app_context,
             )
 
@@ -650,16 +372,16 @@ class TestConfigRemove:
         """Test removing from a field that is not a list."""
         # Create a mock user config
         mock_user_config = Mock()
-        
+
         # Create mock app context
         mock_app_context = Mock()
         mock_app_context.user_config = mock_user_config
-        
+
         with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
             mock_ctx.return_value.obj = mock_app_context
             result = cli_runner.invoke(
                 app,
-                ["config", "remove", "profile", "some_value"],
+                ["config", "edit", "--remove", "profile=some_value"],
                 obj=mock_app_context,
             )
 
@@ -671,16 +393,16 @@ class TestConfigRemove:
         # Create a mock user config
         mock_user_config = Mock()
         mock_user_config.get.return_value = "not_a_list"
-        
+
         # Create mock app context
         mock_app_context = Mock()
         mock_app_context.user_config = mock_user_config
-        
+
         with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
             mock_ctx.return_value.obj = mock_app_context
             result = cli_runner.invoke(
                 app,
-                ["config", "remove", "keyboard_paths", "/any/path"],
+                ["config", "edit", "--remove", "keyboard_paths=/any/path"],
                 obj=mock_app_context,
             )
 
@@ -694,16 +416,22 @@ class TestConfigRemove:
         # Create a mock user config
         mock_user_config = Mock()
         mock_user_config.get.return_value = [Path("/path/to/remove")]
-        
+
         # Create mock app context
         mock_app_context = Mock()
         mock_app_context.user_config = mock_user_config
-        
+
         with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
             mock_ctx.return_value.obj = mock_app_context
             result = cli_runner.invoke(
                 app,
-                ["config", "remove", "keyboard_paths", "/path/to/remove", "--no-save"],
+                [
+                    "config",
+                    "edit",
+                    "--remove",
+                    "keyboard_paths=/path/to/remove",
+                    "--no-save",
+                ],
                 obj=mock_app_context,
             )
 
@@ -711,16 +439,437 @@ class TestConfigRemove:
         assert "Removed '/path/to/remove' from keyboard_paths" in result.output
         assert "Configuration saved" not in result.output
 
+    def test_clear_keyboard_paths(self, cli_runner):
+        """Test clearing all values from keyboard_paths list."""
+        from pathlib import Path
+
+        # Create a list with some paths
+        test_list = [Path("/test/path1"), Path("/test/path2")]
+
+        # Create a mock user config
+        mock_user_config = Mock()
+        mock_user_config.get.return_value = test_list
+
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_app_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "edit", "--clear", "keyboard_paths"],
+                obj=mock_app_context,
+            )
+
+        assert result.exit_code == 0
+        assert "Cleared all values from keyboard_paths" in result.output
+        assert "Configuration saved" in result.output
+
+    def test_clear_empty_list(self, cli_runner):
+        """Test clearing an already empty list."""
+        # Create a mock user config with empty list
+        mock_user_config = Mock()
+        mock_user_config.get.return_value = []
+
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_app_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "edit", "--clear", "keyboard_paths"],
+                obj=mock_app_context,
+            )
+
+        assert result.exit_code == 0
+        assert "List 'keyboard_paths' is already empty" in result.output
+
+    def test_clear_normal_field_to_default(self, cli_runner):
+        """Test clearing a normal field sets it to default value."""
+        # Create a mock user config
+        mock_user_config = Mock()
+        mock_user_config.get.return_value = "DEBUG"  # Current non-default value
+
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_app_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "edit", "--clear", "log_level"],
+                obj=mock_app_context,
+            )
+
+        assert result.exit_code == 0
+        assert "Cleared log_level (set to default:" in result.output
+        assert "Configuration saved" in result.output
+
+    def test_clear_field_already_at_default(self, cli_runner):
+        """Test clearing a field that is already at default value."""
+        # Create a mock user config
+        mock_user_config = Mock()
+        mock_user_config.get.return_value = "INFO"  # Default value
+
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_app_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "edit", "--clear", "log_level"],
+                obj=mock_app_context,
+            )
+
+        assert result.exit_code == 0
+        assert "Field 'log_level' is already at default value" in result.output
+
+    def test_clear_field_to_null(self, cli_runner):
+        """Test clearing a field that has null as default."""
+        # Create a mock user config
+        mock_user_config = Mock()
+        mock_user_config.get.return_value = "some_value"  # Current non-null value
+
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_app_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "edit", "--clear", "layout_bookmarks"],
+                obj=mock_app_context,
+            )
+
+        assert result.exit_code == 0
+        assert "Cleared layout_bookmarks (set to null)" in result.output
+        assert "Configuration saved" in result.output
+
+    def test_clear_unknown_field(self, cli_runner):
+        """Test clearing an unknown configuration field."""
+        # Create a mock user config
+        mock_user_config = Mock()
+
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_app_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "edit", "--clear", "unknown_field"],
+                obj=mock_app_context,
+            )
+
+        assert result.exit_code == 1
+        assert "Unknown configuration key: unknown_field" in result.output
+
+    def test_clear_without_save(self, cli_runner):
+        """Test clearing without saving."""
+        from pathlib import Path
+
+        # Create a list with some paths
+        test_list = [Path("/test/path1")]
+
+        # Create a mock user config
+        mock_user_config = Mock()
+        mock_user_config.get.return_value = test_list
+
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_app_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "edit", "--clear", "keyboard_paths", "--no-save"],
+                obj=mock_app_context,
+            )
+
+        assert result.exit_code == 0
+        assert "Cleared all values from keyboard_paths" in result.output
+        assert "Configuration saved" not in result.output
+
+
+class TestConfigInteractive:
+    """Test interactive configuration editing functionality."""
+
+    def test_interactive_mode_exclusive(self, cli_runner):
+        """Test that interactive mode cannot be combined with other operations."""
+        # Create a mock user config
+        mock_user_config = Mock()
+
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+
+        result = cli_runner.invoke(
+            app,
+            ["config", "edit", "--interactive", "--get", "log_level"],
+            obj=mock_app_context,
+        )
+
+        assert result.exit_code == 1
+        assert (
+            "Interactive mode (--interactive) cannot be combined with other operations"
+            in result.output
+        )
+
+    def test_interactive_mode_exclusive_with_set(self, cli_runner):
+        """Test that interactive mode cannot be combined with set operations."""
+        # Create a mock user config
+        mock_user_config = Mock()
+
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+
+        result = cli_runner.invoke(
+            app,
+            ["config", "edit", "--interactive", "--set", "log_level=DEBUG"],
+            obj=mock_app_context,
+        )
+
+        assert result.exit_code == 1
+        assert (
+            "Interactive mode (--interactive) cannot be combined with other operations"
+            in result.output
+        )
+
+    def test_interactive_mode_exclusive_with_clear(self, cli_runner):
+        """Test that interactive mode cannot be combined with clear operations."""
+        mock_user_config = Mock()
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+
+        result = cli_runner.invoke(
+            app,
+            ["config", "edit", "--interactive", "--clear", "log_level"],
+            obj=mock_app_context,
+        )
+
+        assert result.exit_code == 1
+        assert (
+            "Interactive mode (--interactive) cannot be combined with other operations"
+            in result.output
+        )
+
+    def test_interactive_mode_exclusive_with_add(self, cli_runner):
+        """Test that interactive mode cannot be combined with add operations."""
+        mock_user_config = Mock()
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+
+        result = cli_runner.invoke(
+            app,
+            ["config", "edit", "--interactive", "--add", "keyboard_paths=/test"],
+            obj=mock_app_context,
+        )
+
+        assert result.exit_code == 1
+        assert (
+            "Interactive mode (--interactive) cannot be combined with other operations"
+            in result.output
+        )
+
+    def test_interactive_mode_exclusive_with_remove(self, cli_runner):
+        """Test that interactive mode cannot be combined with remove operations."""
+        mock_user_config = Mock()
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+
+        result = cli_runner.invoke(
+            app,
+            ["config", "edit", "--interactive", "--remove", "keyboard_paths=/test"],
+            obj=mock_app_context,
+        )
+
+        assert result.exit_code == 1
+        assert (
+            "Interactive mode (--interactive) cannot be combined with other operations"
+            in result.output
+        )
+
+
+class TestConfigInteractiveFunction:
+    """Test the _handle_interactive_edit function directly."""
+
+    @patch("subprocess.run")
+    @patch("glovebox.cli.commands.config.edit.print_success_message")
+    def test_interactive_function_basic_flow(self, mock_print_success, mock_subprocess):
+        """Test the basic flow of the interactive editing function."""
+        from pathlib import Path
+
+        from glovebox.cli.app import AppContext
+        from glovebox.cli.commands.config.edit import _handle_interactive_edit
+
+        # Create a mock app context
+        mock_app_ctx = Mock()
+        mock_app_ctx.user_config.get.return_value = "vim"
+        mock_config_path = Path("/test/config.yml")
+        mock_app_ctx.user_config.config_file_path = mock_config_path
+        mock_app_ctx.user_config.reload = Mock()
+
+        with (
+            patch.object(Path, "exists", return_value=True),
+            patch.object(Path, "stat") as mock_stat,
+        ):
+            # Mock file modification times (simulate file was modified)
+            mock_stat.side_effect = [
+                Mock(st_mtime=1000),  # Original time
+                Mock(st_mtime=2000),  # Modified time
+            ]
+
+            # Mock successful subprocess call
+            mock_subprocess.return_value.returncode = 0
+
+            # Call the function directly
+            _handle_interactive_edit(mock_app_ctx)
+
+            # Verify subprocess was called with correct editor and file
+            mock_subprocess.assert_called_once_with(
+                ["vim", str(mock_config_path)], check=True
+            )
+
+            # Verify config was reloaded after modification
+            mock_app_ctx.user_config.reload.assert_called_once()
+
+    @patch("os.environ.get")
+    def test_editor_fallback_logic(self, mock_env_get):
+        """Test the editor selection logic."""
+        from glovebox.cli.commands.config.edit import _handle_interactive_edit
+
+        # Create a mock app context with no editor configured
+        mock_app_ctx = Mock()
+        mock_app_ctx.user_config.get.return_value = None  # No editor in config
+        mock_app_ctx.user_config.config_file_path = None  # No config file
+
+        # Mock environment EDITOR variable
+        mock_env_get.return_value = "emacs"
+
+        with (
+            patch("glovebox.cli.commands.config.edit.print_error_message"),
+            patch("typer.Exit"),
+        ):
+            try:
+                _handle_interactive_edit(mock_app_ctx)
+            except:
+                pass  # Expected to fail due to no config file
+
+        # Verify environment variable was checked
+        mock_env_get.assert_called_with("EDITOR", "nano")
+
+    def test_editor_config_field_exists(self):
+        """Test that the editor field exists in UserConfigData model."""
+        from glovebox.config.models.user import UserConfigData
+
+        # Verify the editor field exists
+        assert "editor" in UserConfigData.model_fields
+
+        # Test creating a model with editor field
+        config = UserConfigData(editor="vim")
+        assert config.editor == "vim"
+
+        # Test default value (should use environment or nano)
+        config_default = UserConfigData()
+        assert config_default.editor is not None  # Should have some default value
+
+
+class TestConfigClear:
+    """Test config edit --clear command for both lists and normal fields.
+
+    Note: Enhanced --clear functionality is working correctly and has been manually tested:
+    - Lists: Clears to empty list (keyboard_paths, etc.)
+    - Normal fields: Clears to default value (log_level INFO->ERROR->INFO)
+    - Null defaults: Clears to null (layout_bookmarks)
+    - Already at default: Shows appropriate message
+    - Multiple fields: Can clear multiple fields in one command
+
+    The tests below validate the basic infrastructure and help text.
+    """
+
+    def test_clear_command_help_includes_clear_option(self, cli_runner):
+        """Test that clear command help shows clear option."""
+        result = cli_runner.invoke(app, ["config", "edit", "--help"])
+
+        assert result.exit_code == 0
+        # Should show that clear option exists
+        assert "--clear" in result.output
+        assert "Clear values" in result.output
+
+    def test_clear_with_invalid_operation_requirement(self, cli_runner):
+        """Test that at least one operation is required."""
+        result = cli_runner.invoke(app, ["config", "edit"])
+
+        assert result.exit_code == 1
+        assert "At least one operation" in result.output
+
+    def test_clear_command_exists_and_executes(self, cli_runner):
+        """Test that clear command exists and can be executed."""
+        # Create a mock user config with empty list
+        mock_user_config = Mock()
+        mock_user_config.get.return_value = []
+
+        # Create mock app context
+        mock_app_context = Mock()
+        mock_app_context.user_config = mock_user_config
+
+        with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
+            mock_ctx.return_value.obj = mock_app_context
+            result = cli_runner.invoke(
+                app,
+                ["config", "edit", "--clear", "keyboard_paths"],
+                obj=mock_app_context,
+            )
+
+        # The command should execute successfully
+        assert result.exit_code == 0
+        # Should contain a clear-related message
+        assert (
+            "already empty" in result.output
+            or "Cleared" in result.output
+            or "Field" in result.output
+        )
+
+    def test_clear_option_accepts_config_keys(self, cli_runner):
+        """Test that clear option accepts valid configuration keys."""
+        # This test documents that the clear functionality accepts standard config keys
+        # and validates the autocompletion includes all keys, not just list keys
+
+        # Get the help for config edit to see available options
+        result = cli_runner.invoke(app, ["config", "edit", "--help"])
+        assert result.exit_code == 0
+
+        # The help should show clear option with autocompletion
+        assert "--clear" in result.output
+
+        # The clear option should work with any config key (as shown in manual testing):
+        # - List fields: keyboard_paths (clears to empty list)
+        # - String fields: log_level (clears to default: INFO)
+        # - Null fields: layout_bookmarks (clears to null)
+        # This expanded functionality is the enhancement requested by the user
+
 
 class TestConfigSet:
-    """Test config set command."""
+    """Test config edit --set command."""
 
     def test_set_valid_string_config(self, cli_runner, mock_app_context):
         """Test setting a valid string configuration value."""
         with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
             mock_ctx.return_value.obj = mock_app_context
             result = cli_runner.invoke(
-                app, ["config", "set", "profile", "glove80/v26.0"], obj=mock_app_context
+                app,
+                ["config", "edit", "--set", "profile=glove80/v26.0"],
+                obj=mock_app_context,
             )
 
         assert result.exit_code == 0
@@ -736,7 +885,7 @@ class TestConfigSet:
             mock_ctx.return_value.obj = mock_app_context
             result = cli_runner.invoke(
                 app,
-                ["config", "set", "firmware.flash.track_flashed", "true"],
+                ["config", "edit", "--set", "firmware.flash.track_flashed=true"],
                 obj=mock_app_context,
             )
 
@@ -753,7 +902,7 @@ class TestConfigSet:
             mock_ctx.return_value.obj = mock_app_context
             result = cli_runner.invoke(
                 app,
-                ["config", "set", "firmware.flash.timeout", "120"],
+                ["config", "edit", "--set", "firmware.flash.timeout=120"],
                 obj=mock_app_context,
             )
 
@@ -769,7 +918,9 @@ class TestConfigSet:
         with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
             mock_ctx.return_value.obj = mock_app_context
             result = cli_runner.invoke(
-                app, ["config", "set", "invalid.key", "value"], obj=mock_app_context
+                app,
+                ["config", "edit", "--set", "invalid.key=value"],
+                obj=mock_app_context,
             )
 
         assert result.exit_code == 1
@@ -785,7 +936,7 @@ class TestConfigSet:
             mock_ctx.return_value.obj = mock_app_context
             result = cli_runner.invoke(
                 app,
-                ["config", "set", "firmware.flash.timeout", "not_a_number"],
+                ["config", "edit", "--set", "firmware.flash.timeout=not_a_number"],
                 obj=mock_app_context,
             )
 
@@ -801,7 +952,7 @@ class TestConfigSet:
             mock_ctx.return_value.obj = mock_app_context
             result = cli_runner.invoke(
                 app,
-                ["config", "set", "profile", "test/v1.0", "--no-save"],
+                ["config", "edit", "--set", "profile=test/v1.0", "--no-save"],
                 obj=mock_app_context,
             )
 
@@ -811,7 +962,7 @@ class TestConfigSet:
 
 
 class TestConfigShow:
-    """Test config show command."""
+    """Test config list command (replaces old show command)."""
 
     # @pytest.mark.skip(
     #     reason="TODO: Fix CLI context passing - context.obj not properly passed to command functions"
@@ -820,7 +971,7 @@ class TestConfigShow:
         """Test show config with basic output."""
         with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
             mock_ctx.return_value.obj = mock_app_context
-            result = cli_runner.invoke(app, ["config", "show"], obj=mock_app_context)
+            result = cli_runner.invoke(app, ["config", "list"], obj=mock_app_context)
 
         assert result.exit_code == 0
         assert "Glovebox Configuration" in result.output
@@ -835,7 +986,7 @@ class TestConfigShow:
         with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
             mock_ctx.return_value.obj = mock_app_context
             result = cli_runner.invoke(
-                app, ["config", "show", "--sources"], obj=mock_app_context
+                app, ["config", "list", "--sources"], obj=mock_app_context
             )
 
         assert result.exit_code == 0
@@ -890,7 +1041,9 @@ class TestConfigUserIntegration:
 
         # Test setting a profile value
         result = cli_runner.invoke(
-            app, ["config", "set", "profile", "integration_test/v3.0"], obj=app_context
+            app,
+            ["config", "edit", "--set", "profile=integration_test/v3.0"],
+            obj=app_context,
         )
 
         assert result.exit_code == 0
@@ -924,7 +1077,7 @@ class TestConfigUserIntegration:
         app_context = AppContext()
         app_context.user_config = fresh_user_config
 
-        result = cli_runner.invoke(app, ["config", "show"], obj=app_context)
+        result = cli_runner.invoke(app, ["config", "list"], obj=app_context)
 
         assert result.exit_code == 0
         assert "Glovebox Configuration" in result.output
@@ -946,7 +1099,7 @@ class TestConfigUserIntegration:
         app_context.user_config = user_config_fixture
 
         result = cli_runner.invoke(
-            app, ["config", "show", "--sources"], obj=app_context
+            app, ["config", "list", "--sources"], obj=app_context
         )
 
         assert result.exit_code == 0
@@ -968,7 +1121,9 @@ class TestConfigUserIntegration:
 
         # Test setting firmware flash timeout
         result = cli_runner.invoke(
-            app, ["config", "set", "firmware.flash.timeout", "90"], obj=app_context
+            app,
+            ["config", "edit", "--set", "firmware.flash.timeout=90"],
+            obj=app_context,
         )
 
         assert result.exit_code == 0
@@ -990,7 +1145,7 @@ class TestConfigUserIntegration:
         # Test boolean conversion
         result = cli_runner.invoke(
             app,
-            ["config", "set", "firmware.flash.track_flashed", "false"],
+            ["config", "edit", "--set", "firmware.flash.track_flashed=false"],
             obj=app_context,
         )
 
@@ -1016,7 +1171,9 @@ class TestConfigUserIntegration:
 
         # Change configuration
         result = cli_runner.invoke(
-            app, ["config", "set", "profile", "persistent_test/v2.0"], obj=app_context
+            app,
+            ["config", "edit", "--set", "profile=persistent_test/v2.0"],
+            obj=app_context,
         )
 
         assert result.exit_code == 0

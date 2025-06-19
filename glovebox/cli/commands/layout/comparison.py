@@ -18,7 +18,7 @@ def diff(
     output_format: Annotated[
         str,
         typer.Option(
-            "--output-format",
+            "--format",
             help="Output format: summary (default), detailed, dtsi, pretty, or json",
         ),
     ] = "summary",
@@ -28,11 +28,26 @@ def diff(
             "--compare-dtsi", help="Include detailed custom DTSI code comparison"
         ),
     ] = False,
+    output_patch: Annotated[
+        Path | None,
+        typer.Option(
+            "--output-patch",
+            help="Create unified diff patch file for DTSI sections",
+        ),
+    ] = None,
+    patch_section: Annotated[
+        str,
+        typer.Option(
+            "--patch-section",
+            help="DTSI section for patch: behaviors, devicetree, or both",
+        ),
+    ] = "both",
 ) -> None:
-    """Compare two layouts showing differences.
+    """Compare two layouts showing differences with optional patch creation.
 
     Shows differences between two layout files, focusing on layers,
-    behaviors, custom DTSI code, and configuration changes.
+    behaviors, custom DTSI code, and configuration changes. Can also
+    create unified diff patch files for DTSI sections.
 
     Output Formats:
         summary  - Basic difference counts (default)
@@ -42,38 +57,33 @@ def diff(
         json     - Structured data with exact key changes for automation
 
     The --compare-dtsi flag enables detailed custom DTSI code comparison
-    for any output format.
+    for any output format. The --output-patch option creates a unified
+    diff patch file (replaces the old create-patch command).
 
     Examples:
         # Basic comparison showing layer and config changes
         glovebox layout diff my-layout-v41.json my-layout-v42.json
 
         # Detailed view with individual key differences
-        glovebox layout diff layout1.json layout2.json --output-format detailed
+        glovebox layout diff layout1.json layout2.json --format detailed
 
         # Include custom DTSI code differences
         glovebox layout diff layout1.json layout2.json --compare-dtsi
 
-        # DTSI-focused output with unified diff format
-        glovebox layout diff layout1.json layout2.json --output-format dtsi
+        # Create patch file for DTSI sections
+        glovebox layout diff old.json new.json --output-patch changes.patch
 
-        # Pretty human-readable output using DeepDiff
-        glovebox layout diff layout1.json layout2.json --output-format pretty
+        # Create patch for specific DTSI section
+        glovebox layout diff old.json new.json --output-patch behaviors.patch --patch-section behaviors
 
         # JSON output with structured key change data
-        glovebox layout diff layout1.json layout2.json --output-format json
+        glovebox layout diff layout1.json layout2.json --format json
 
-        # JSON with DTSI differences for complete automation
-        glovebox layout diff layout1.json layout2.json --output-format json --compare-dtsi
-
-        # Extract single-line patch string for merge tools
-        glovebox layout diff layout1.json layout2.json --output-format json --compare-dtsi | jq -r '.custom_dtsi.custom_defined_behaviors.patch_string'
+        # Compare and create patch in one command
+        glovebox layout diff layout1.json layout2.json --format detailed --output-patch changes.patch
 
         # Compare your custom layout with a master version
-        glovebox layout diff ~/.glovebox/masters/glove80/v42-rc3.json my-custom.json --output-format detailed
-
-        # Process JSON output with jq to extract specific changes
-        glovebox layout diff layout1.json layout2.json --output-format json | jq '.layers.changed.Cursor.key_changes'
+        glovebox layout diff ~/.glovebox/masters/glove80/v42-rc3.json my-custom.json --format detailed
     """
     command = LayoutOutputCommand()
     command.validate_layout_file(layout1)
@@ -111,6 +121,39 @@ def diff(
                 print_success_message(f"Found {len(differences)} difference(s):")
                 for diff in differences:
                     print_list_item(diff)
+
+        # Create patch file if requested
+        if output_patch:
+            try:
+                comparison_service = create_layout_comparison_service()
+                patch_result = comparison_service.create_dtsi_patch(
+                    layout1_path=layout1,
+                    layout2_path=layout2,
+                    output=output_patch,
+                    section=patch_section,
+                )
+
+                if patch_result["has_differences"]:
+                    from glovebox.cli.helpers import (
+                        print_list_item,
+                        print_success_message,
+                    )
+
+                    print_success_message("Created patch file successfully")
+                    print_list_item(f"Patch file: {patch_result['output']}")
+                    print_list_item(f"Sections: {patch_result['sections']}")
+                    print_list_item(f"Size: {patch_result['patch_lines']} lines")
+                else:
+                    from glovebox.cli.helpers import print_success_message
+
+                    print_success_message(
+                        "No differences found in specified DTSI sections for patch"
+                    )
+
+            except Exception as e:
+                from glovebox.cli.helpers import print_error_message
+
+                print_error_message(f"Failed to create patch file: {e}")
 
     except Exception as e:
         command.handle_service_error(e, "compare layouts")
@@ -178,87 +221,6 @@ def patch(
 
     except Exception as e:
         command.handle_service_error(e, "apply patch")
-
-
-@handle_errors
-def create_patch(
-    layout1: Annotated[Path, typer.Argument(help="Original layout file")],
-    layout2: Annotated[Path, typer.Argument(help="Modified layout file")],
-    output: Annotated[
-        Path | None,
-        typer.Option(
-            "--output", "-o", help="Output patch file (default: auto-generated)"
-        ),
-    ] = None,
-    section: Annotated[
-        str,
-        typer.Option(
-            "--section", help="DTSI section to patch: behaviors, devicetree, or both"
-        ),
-    ] = "both",
-) -> None:
-    """Create a unified diff patch file for custom DTSI sections.
-
-    Generates standard unified diff patches that can be used with merge tools
-    like git apply, patch command, or merge tools.
-
-    The patch focuses on custom_defined_behaviors and custom_devicetree
-    sections only, providing merge-tool compatible output.
-
-    Examples:
-        # Create patch for both DTSI sections
-        glovebox layout create-patch old.json new.json --output changes.patch
-
-        # Create patch for behaviors only
-        glovebox layout create-patch old.json new.json --section behaviors
-
-        # Create patch for devicetree only
-        glovebox layout create-patch old.json new.json --section devicetree
-
-        # Auto-generate patch filename
-        glovebox layout create-patch old.json new.json
-    """
-    command = LayoutOutputCommand()
-    command.validate_layout_file(layout1)
-    command.validate_layout_file(layout2)
-
-    try:
-        comparison_service = create_layout_comparison_service()
-        result = comparison_service.create_dtsi_patch(
-            layout1_path=layout1,
-            layout2_path=layout2,
-            output=output,
-            section=section,
-        )
-
-        if not result["has_differences"]:
-            from glovebox.cli.helpers import print_success_message
-
-            print_success_message("No differences found in specified DTSI sections")
-            return
-
-        # Show success with details
-        command.print_operation_success(
-            "Created patch file successfully",
-            {
-                "source": result["source"],
-                "target": result["target"],
-                "output": result["output"],
-                "sections": result["sections"],
-                "patch_size": f"{result['patch_lines']} lines",
-            },
-        )
-
-        # Show usage instructions
-        from glovebox.cli.helpers import print_list_item, print_success_message
-
-        print_success_message("Usage instructions:")
-        print_list_item(f"Apply with git: git apply {result['output']}")
-        print_list_item(f"Apply with patch: patch -p1 < {result['output']}")
-        print_list_item(f"View with diff tool: your-merge-tool {result['output']}")
-
-    except Exception as e:
-        command.handle_service_error(e, "create patch")
 
 
 def _format_comparison_text(
