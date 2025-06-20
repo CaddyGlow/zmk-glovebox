@@ -118,6 +118,84 @@ Layout Editor → JSON File → ZMK Files → Firmware → Flash
    - ALL tests should pass mypy
    - See `docs/dev/testing.md` for complete testing standards and requirements
 
+## CRITICAL: Test Isolation and Anti-Pollution Rules
+
+**MANDATORY REQUIREMENTS - MUST BE FOLLOWED WITHOUT EXCEPTION:**
+
+1. **NEVER write files to the current working directory in tests**:
+   ```python
+   # ✅ CORRECT - Always use tmp_path or isolated fixtures
+   def test_file_creation(tmp_path):
+       test_file = tmp_path / "test.json"
+       test_file.write_text('{"test": "data"}')
+   
+   # ❌ INCORRECT - Never write to current directory
+   def test_file_creation_bad():
+       Path("test.json").write_text('{"test": "data"}')  # NEVER DO THIS
+   ```
+
+2. **ALWAYS use proper test isolation for configuration**:
+   ```python
+   # ✅ CORRECT - Use isolated_config fixture for any config-related tests
+   def test_config_operation(isolated_config):
+       config = UserConfig(cli_config_path=isolated_config.config_file)
+       # Test operations are isolated to temp directory
+   
+   # ❌ INCORRECT - Never modify real user configuration
+   def test_config_bad():
+       config = UserConfig()  # Uses real ~/.glovebox/ directory
+   ```
+
+3. **MANDATORY use of isolation fixtures for CLI tests**:
+   ```python
+   # ✅ CORRECT - Use isolated_cli_environment for CLI command tests
+   def test_cli_command(isolated_cli_environment, cli_runner):
+       result = cli_runner.invoke(app, ["config", "list"])
+       # All file operations isolated to temp directory
+   
+   # ❌ INCORRECT - CLI tests without isolation can pollute project
+   def test_cli_bad(cli_runner):
+       result = cli_runner.invoke(app, ["config", "export"])  # May write to current dir
+   ```
+
+4. **ENFORCE test file size limits**:
+   - **Maximum 500 lines per test file** (ENFORCED)
+   - Split large test files into domain-specific modules
+   - Use shared fixtures in `conftest.py` files
+
+5. **CLEANUP requirements**:
+   ```python
+   # ✅ CORRECT - Tests must clean up after themselves
+   @pytest.fixture
+   def temp_files(tmp_path):
+       yield tmp_path
+       # Automatic cleanup via tmp_path
+   
+   # ✅ CORRECT - Manual cleanup when needed
+   def test_with_cleanup():
+       try:
+           # Test operations
+           pass
+       finally:
+           # Explicit cleanup if needed
+           pass
+   ```
+
+6. **FORBIDDEN practices in tests**:
+   - Creating files in project root directory
+   - Writing to `~/.glovebox/` or user config directories
+   - Modifying global environment without proper restoration
+   - Tests that depend on external file system state
+   - Tests that write backup files to current directory
+
+**Available Isolation Fixtures:**
+- `isolated_config`: Complete configuration isolation with temp directories
+- `isolated_cli_environment`: CLI command isolation with mocked environment
+- `temp_config_dir`: Temporary configuration directory
+- `mock_user_config`: Mocked user configuration that doesn't touch filesystem
+
+**If you encounter ANY test pollution or isolation issues, you MUST fix them immediately before proceeding with other tasks.**
+
 ## New Feature: Keymap Version Management
 
 **COMPLETED**: The keymap version management system is now fully implemented and operational.

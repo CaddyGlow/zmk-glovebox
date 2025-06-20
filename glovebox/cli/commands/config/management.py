@@ -526,10 +526,19 @@ def import_config(
 
         # Create backup if requested
         if backup:
-            backup_file = f"glovebox-config-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}.yaml"
+            # Create backup in config directory, not current working directory
+            config_dir = (
+                app_ctx.user_config.config_file_path.parent
+                if app_ctx.user_config.config_file_path
+                else Path.home() / ".glovebox"
+            )
+            backup_file = (
+                config_dir
+                / f"glovebox-config-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}.yaml"
+            )
             try:
                 # Export current config as backup
-                export_config(ctx, backup_file, "yaml", True, False)
+                export_config(ctx, str(backup_file), "yaml", True, False)
                 print(
                     f"{Icons.get_icon('SAVE', use_emoji)} Backup saved to: {backup_file}"
                 )

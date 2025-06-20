@@ -51,10 +51,8 @@ class TestCloudCommands:
             date=1234567890,
             creator="test-user",
             title="Test Layout",
-            description="Test description",
+            notes="Test description",
             tags=["test"],
-            layout_image_url="https://example.com/image.png",
-            is_public=True,
             firmware_api_version="v25.05",
         )
 
@@ -182,7 +180,12 @@ class TestCloudCommands:
 
     @patch("glovebox.cli.commands.cloud.create_moergo_client")
     def test_delete_success(
-        self, mock_create_client, runner, mock_moergo_client, mock_moergo_layout, mock_app_context
+        self,
+        mock_create_client,
+        runner,
+        mock_moergo_client,
+        mock_moergo_layout,
+        mock_app_context,
     ):
         """Test deleting a layout successfully."""
         mock_create_client.return_value = mock_moergo_client
