@@ -11,6 +11,9 @@ from rich.console import Console
 from rich.table import Table
 
 from glovebox.cli.helpers.theme import Icons
+from glovebox.compilation.cache.workspace_cache_service import (
+    create_zmk_workspace_cache_service,
+)
 from glovebox.config.user_config import create_user_config
 from glovebox.core.cache_v2 import create_cache_from_user_config
 from glovebox.core.cache_v2.cache_manager import CacheManager
@@ -51,39 +54,58 @@ def _get_directory_size(path: Path) -> int:
     return total
 
 
-def _get_cache_manager() -> CacheManager:
-    """Get cache manager using user config."""
+def _get_cache_manager_and_service():
+    """Get cache manager and workspace cache service using user config.
+
+    Returns:
+        Tuple of (cache_manager, workspace_cache_service, user_config)
+    """
     try:
         user_config = create_user_config()
-        return create_cache_from_user_config(user_config, tag="workspace")
+        cache_manager = create_cache_from_user_config(user_config, tag="workspace")
+        workspace_cache_service = create_zmk_workspace_cache_service(
+            user_config, cache_manager
+        )
+        return cache_manager, workspace_cache_service, user_config
     except Exception:
         # Fallback to default cache if user config fails
         from glovebox.core.cache_v2 import create_default_cache
 
-        return create_default_cache(tag="workspace")
+        cache_manager = create_default_cache(tag="workspace")
+        # Create a minimal user config for fallback
+        user_config = create_user_config()
+        workspace_cache_service = create_zmk_workspace_cache_service(
+            user_config, cache_manager
+        )
+        return cache_manager, workspace_cache_service, user_config
+
+
+def _get_cache_manager() -> CacheManager:
+    """Get cache manager using user config (backward compatibility)."""
+    cache_manager, _, _ = _get_cache_manager_and_service()
+    return cache_manager
 
 
 @workspace_app.command(name="show")
 def workspace_show() -> None:
-    """Show all cached ZMK workspaces with metadata from cache_v2."""
+    """Show all cached ZMK workspaces with enhanced metadata."""
     try:
-        cache_manager = _get_cache_manager()
-        cache_dir = get_workspace_cache_dir()
+        cache_manager, workspace_cache_service, user_config = (
+            _get_cache_manager_and_service()
+        )
 
-        if not cache_dir.exists():
-            console.print("[yellow]No workspace cache directory found[/yellow]")
-            return
-
-        cached_workspaces = list(cache_dir.iterdir())
+        # Get cached workspaces using the new service
+        cached_workspaces = workspace_cache_service.list_cached_workspaces()
 
         if not cached_workspaces:
             console.print("[yellow]No cached workspaces found[/yellow]")
+            cache_dir = workspace_cache_service.get_cache_directory()
+            console.print(f"[dim]Cache directory: {cache_dir}[/dim]")
             return
 
-        # Note: We can't get app context here since this function doesn't have ctx parameter
-        # Using emoji icon mode as fallback for this case
+        # Create table with enhanced metadata
         table = Table(
-            title=f"{Icons.get_icon('BUILD', 'emoji')} Cached ZMK Workspaces (cache_v2)",
+            title=f"{Icons.get_icon('BUILD', 'emoji')} Cached ZMK Workspaces (Enhanced)",
             show_header=True,
             header_style="bold green",
         )
@@ -91,46 +113,39 @@ def workspace_show() -> None:
         table.add_column("Branch", style="yellow")
         table.add_column("Cache Level", style="magenta")
         table.add_column("Size", style="white")
+        table.add_column("Age", style="blue")
         table.add_column("Components", style="green")
+        table.add_column("Auto-Detected", style="dim")
 
         total_size = 0
 
-        for workspace_dir in sorted(cached_workspaces):
-            if workspace_dir.is_dir():
-                repo_name = workspace_dir.name.replace("_", "/")
-                size = _get_directory_size(workspace_dir)
-                total_size += size
+        for metadata in sorted(cached_workspaces, key=lambda x: x.repository):
+            size_bytes = metadata.size_bytes or _get_directory_size(
+                metadata.workspace_path
+            )
+            total_size += size_bytes
 
-                # Check what components are cached
-                components = []
-                for component in ["zmk", "zephyr", "modules"]:
-                    if (workspace_dir / component).exists():
-                        components.append(component)
+            # Format age
+            age_str = f"{metadata.age_hours:.1f}h"
+            if metadata.age_hours > 24:
+                age_str = f"{metadata.age_hours / 24:.1f}d"
 
-                # Try to detect git info and cache level from cache_v2
-                git_info = detect_git_info(workspace_dir)
-                branch = git_info.get("branch", "unknown")
-
-                # Check cache levels using cache_v2
-                cache_levels = []
-                for level in ["base", "branch", "full"]:
-                    cache_key = generate_workspace_cache_key(repo_name, branch, level)
-                    if cache_manager.exists(cache_key):
-                        cache_levels.append(level)
-
-                level_str = "/".join(cache_levels) if cache_levels else "legacy"
-
-                table.add_row(
-                    repo_name,
-                    branch,
-                    level_str,
-                    _format_size(size),
-                    ", ".join(components) if components else "empty",
-                )
+            table.add_row(
+                metadata.repository,
+                metadata.branch,
+                metadata.cache_level.value,
+                _format_size(size_bytes),
+                age_str,
+                ", ".join(metadata.cached_components)
+                if metadata.cached_components
+                else "unknown",
+                "✓" if metadata.auto_detected else "",
+            )
 
         console.print(table)
         console.print(f"\n[bold]Total cache size:[/bold] {_format_size(total_size)}")
-        console.print("[dim]Cache managed by:[/dim] glovebox/core/cache_v2")
+        console.print(f"[bold]Total workspaces:[/bold] {len(cached_workspaces)}")
+        console.print("[dim]Cache managed by:[/dim] ZmkWorkspaceCacheService")
 
     except Exception as e:
         logger.error("Failed to show workspace cache: %s", e)
@@ -412,157 +427,66 @@ def workspace_add(
         typer.Option("--force", "-f", help="Overwrite existing cache"),
     ] = False,
 ) -> None:
-    """Add an existing ZMK workspace to cache using cache_v2 system.
+    """Add an existing ZMK workspace to cache with auto-detection support.
 
     This allows you to cache a workspace you've already built locally,
-    with auto-detection of git repository info and ZMK workspace structure.
+    with enhanced auto-detection of git repository info and workspace structure.
 
     Your workspace should contain directories like: zmk/, zephyr/, modules/
     """
     try:
-        cache_manager = _get_cache_manager()
+        cache_manager, workspace_cache_service, user_config = (
+            _get_cache_manager_and_service()
+        )
         workspace_path = workspace_path.resolve()
         icon_mode = "emoji"  # Default icon mode
-        target_cache_dir: Path | None = None  # Initialize for cleanup
 
-        if not workspace_path.exists():
+        # Use the new workspace cache service for adding external workspace
+        result = workspace_cache_service.add_external_workspace(
+            source_path=workspace_path, repository=repository, force=force
+        )
+
+        if result.success:
+            # Display success information with enhanced metadata
+            metadata = result.metadata
+
             console.print(
-                f"[red]Error: Workspace directory does not exist: {workspace_path}[/red]"
+                f"\n[green]{Icons.format_with_icon('SUCCESS', 'Successfully added workspace cache', icon_mode)}[/green]"
             )
-            raise typer.Exit(1)
-
-        if not workspace_path.is_dir():
             console.print(
-                f"[red]Error: Path is not a directory: {workspace_path}[/red]"
+                f"[bold]Repository:[/bold] {metadata.repository}@{metadata.branch}"
             )
-            raise typer.Exit(1)
+            console.print(f"[bold]Cache location:[/bold] {metadata.workspace_path}")
 
-        # Auto-detect git repository info if not provided
-        if not repository:
-            git_info = detect_git_info(workspace_path)
-            repository = git_info["repository"]
-            branch = git_info["branch"]
+            if metadata.size_bytes:
+                console.print(
+                    f"[bold]Total size:[/bold] {_format_size(metadata.size_bytes)}"
+                )
+
+            if metadata.cached_components:
+                console.print(
+                    f"[bold]Components cached:[/bold] {', '.join(metadata.cached_components)}"
+                )
+
+            console.print(f"[bold]Cache level:[/bold] {metadata.cache_level.value}")
+
+            if metadata.auto_detected:
+                console.print(
+                    f"[bold]Auto-detected from:[/bold] {metadata.auto_detected_source}"
+                )
+
             console.print(
-                f"[blue]Auto-detected repository: {repository}@{branch}[/blue]"
+                f"\n[dim]Future builds using '{metadata.repository}' will now use this cache![/dim]"
             )
         else:
-            git_info = detect_git_info(workspace_path)
-            branch = git_info.get("branch", "main")
-
-        # Check for required ZMK workspace components
-        required_dirs = ["zmk", "zephyr", "modules"]
-        missing_dirs = []
-        existing_dirs = []
-
-        for dir_name in required_dirs:
-            dir_path = workspace_path / dir_name
-            if dir_path.exists() and dir_path.is_dir():
-                existing_dirs.append(dir_name)
-            else:
-                missing_dirs.append(dir_name)
-
-        if not existing_dirs:
             console.print(
-                f"[red]Error: No ZMK workspace components found in {workspace_path}[/red]"
-            )
-            console.print(
-                f"[yellow]Expected directories: {', '.join(required_dirs)}[/yellow]"
+                f"[red]Failed to add workspace to cache: {result.error_message}[/red]"
             )
             raise typer.Exit(1)
-
-        if missing_dirs:
-            console.print(
-                f"[yellow]Warning: Missing components: {', '.join(missing_dirs)}[/yellow]"
-            )
-            console.print(
-                f"[green]Found components: {', '.join(existing_dirs)}[/green]"
-            )
-
-            if not typer.confirm("Continue with partial workspace?"):
-                console.print("[yellow]Cancelled[/yellow]")
-                return
-
-        # Set up cache directory
-        cache_dir = get_workspace_cache_dir()
-        repo_cache_name = repository.replace("/", "_").replace("-", "_")
-        target_cache_dir = cache_dir / repo_cache_name
-
-        # Check if already cached in cache_v2
-        base_key = generate_workspace_cache_key(repository, branch, "base")
-        if cache_manager.exists(base_key) and not force:
-            console.print(f"[yellow]Workspace already cached for {repository}[/yellow]")
-            if not typer.confirm("Overwrite existing cache?"):
-                console.print("[yellow]Cancelled[/yellow]")
-                return
-
-        if target_cache_dir.exists() and not force:
-            console.print(
-                f"[yellow]Cache directory already exists for {repository}[/yellow]"
-            )
-            if not typer.confirm("Overwrite existing cache?"):
-                console.print("[yellow]Cancelled[/yellow]")
-                return
-
-        # Create cache directory
-        target_cache_dir.mkdir(parents=True, exist_ok=True)
-
-        # Copy workspace components
-        console.print(
-            f"[blue]Adding workspace to cache: {workspace_path} -> {repository}[/blue]"
-        )
-
-        total_size = 0
-        for dir_name in existing_dirs:
-            src_dir = workspace_path / dir_name
-            dest_dir = target_cache_dir / dir_name
-
-            console.print(f"  • Copying {dir_name}...")
-
-            # Remove existing if it exists
-            if dest_dir.exists():
-                shutil.rmtree(dest_dir)
-
-            # Copy directory
-            shutil.copytree(src_dir, dest_dir)
-
-            # Calculate size
-            dir_size = _get_directory_size(dest_dir)
-            total_size += dir_size
-
-            console.print(
-                f"    {Icons.get_icon('SUCCESS', icon_mode)} {dir_name}: {_format_size(dir_size)}"
-            )
-
-        # Store in cache_v2 with tiered TTLs (following ZmkWestService pattern)
-        ttls = get_workspace_cache_ttls()
-        base_key = generate_workspace_cache_key(repository, branch, "base")
-        branch_key = generate_workspace_cache_key(repository, branch, "branch")
-        full_key = generate_workspace_cache_key(repository, branch, "full")
-
-        cache_manager.set(base_key, str(target_cache_dir), ttl=ttls["base"])
-        cache_manager.set(branch_key, str(target_cache_dir), ttl=ttls["branch"])
-        cache_manager.set(full_key, str(target_cache_dir), ttl=ttls["full"])
-
-        console.print(
-            f"\n[green]{Icons.format_with_icon('SUCCESS', f'Successfully added workspace cache for {repository}', icon_mode)}[/green]"
-        )
-        console.print(f"[bold]Repository:[/bold] {repository}@{branch}")
-        console.print(f"[bold]Cache location:[/bold] {target_cache_dir}")
-        console.print(f"[bold]Total size:[/bold] {_format_size(total_size)}")
-        console.print(f"[bold]Components cached:[/bold] {', '.join(existing_dirs)}")
-        console.print("[bold]Cache levels:[/bold] base/branch/full (cache_v2)")
-
-        console.print(
-            f"\n[dim]Future builds using '{repository}' will now use this cache![/dim]"
-        )
 
     except Exception as e:
         logger.error("Failed to add workspace to cache: %s", e)
         console.print(f"[red]Error: {e}[/red]")
-        # Clean up partial cache on failure
-        if target_cache_dir is not None and target_cache_dir.exists():
-            with contextlib.suppress(Exception):
-                shutil.rmtree(target_cache_dir)
         raise typer.Exit(1) from e
 
 

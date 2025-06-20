@@ -9,6 +9,10 @@ from typing import TYPE_CHECKING
 
 import yaml
 
+from glovebox.compilation.cache.workspace_cache_service import (
+    ZmkWorkspaceCacheService,
+    create_zmk_workspace_cache_service,
+)
 from glovebox.compilation.models import (
     CompilationConfigUnion,
     ZmkCompilationConfig,
@@ -21,9 +25,11 @@ from glovebox.compilation.models.west_config import (
 from glovebox.compilation.protocols.compilation_protocols import (
     CompilationServiceProtocol,
 )
+from glovebox.config.user_config import UserConfig
 from glovebox.core.cache_v2.cache_manager import CacheManager
 from glovebox.core.cache_v2.models import CacheKey
 from glovebox.core.errors import CompilationError
+from glovebox.core.workspace_cache_utils import generate_workspace_cache_key
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.models.docker import DockerUserContext
 from glovebox.protocols import DockerAdapterProtocol
@@ -37,19 +43,40 @@ if TYPE_CHECKING:
 class ZmkWestService(CompilationServiceProtocol):
     """Ultra-simplified ZMK config compilation service with intelligent caching."""
 
-    # Cache TTL constants
-    CACHE_TTL_BASE = 30 * 24 * 3600  # 30 days
-    CACHE_TTL_BRANCH = 24 * 3600  # 1 day
-    CACHE_TTL_FULL = 12 * 3600  # 12 hours
-    CACHE_TTL_BUILD = 3600  # 1 hour
-
     def __init__(
-        self, docker_adapter: DockerAdapterProtocol, cache: CacheManager | None = None
+        self,
+        docker_adapter: DockerAdapterProtocol,
+        user_config: UserConfig,
+        cache: CacheManager | None = None,
+        workspace_cache_service: ZmkWorkspaceCacheService | None = None,
     ) -> None:
-        """Initialize with Docker adapter and cache manager."""
+        """Initialize with Docker adapter, user config, and cache manager."""
         self.docker_adapter = docker_adapter
+        self.user_config = user_config
         self.cache = cache
         self.logger = logging.getLogger(__name__)
+
+        # Create workspace cache service if not provided
+        if workspace_cache_service is None and cache is not None:
+            self.workspace_cache_service: ZmkWorkspaceCacheService | None = create_zmk_workspace_cache_service(
+                user_config, cache
+            )
+        else:
+            self.workspace_cache_service = workspace_cache_service
+
+        # Get TTL values from user config for backward compatibility
+        if self.user_config:
+            cache_ttls = self.user_config._config.cache_ttls.get_workspace_ttls()
+            self.CACHE_TTL_BASE = cache_ttls["base"]
+            self.CACHE_TTL_BRANCH = cache_ttls["branch"]
+            self.CACHE_TTL_FULL = cache_ttls["full"]
+            self.CACHE_TTL_BUILD = cache_ttls["build"]
+        else:
+            # Fallback to default values
+            self.CACHE_TTL_BASE = 30 * 24 * 3600  # 30 days
+            self.CACHE_TTL_BRANCH = 24 * 3600  # 1 day
+            self.CACHE_TTL_FULL = 12 * 3600  # 12 hours
+            self.CACHE_TTL_BUILD = 3600  # 1 hour
 
     def compile(
         self,
@@ -196,75 +223,65 @@ class ZmkWestService(CompilationServiceProtocol):
 
     def _get_cached_workspace(self, config: ZmkCompilationConfig) -> Path | None:
         """Get cached workspace if available using tiered cache lookup."""
-        if not config.use_cache or not self.cache:
+        if not config.use_cache or not self.workspace_cache_service:
             return None
 
         # Try cache lookup in order of specificity: full -> branch -> base
         cache_levels = ["full", "branch", "base"]
 
         for level in cache_levels:
-            cache_key = self._generate_workspace_cache_key(config, level)
-            cached_path = self.cache.get(cache_key)
+            cache_result = self.workspace_cache_service.get_cached_workspace(
+                config.repository, config.branch, level
+            )
 
-            if cached_path:
-                if Path(cached_path).exists() and (Path(cached_path) / "zmk").exists():
-                    self.logger.info(
-                        "Using cached workspace (%s level): %s", level, cached_path
-                    )
+            if (
+                cache_result.success
+                and cache_result.workspace_path
+                and (cache_result.workspace_path / "zmk").exists()
+            ):
+                self.logger.info(
+                    "Using cached workspace (%s level): %s",
+                    level,
+                    cache_result.workspace_path,
+                )
 
-                    # Promote cache to more specific levels if needed
-                    self._promote_cache_entry(config, level, cached_path)
+                # Promote cache to more specific levels if needed
+                self._promote_cache_entry(
+                    config, level, str(cache_result.workspace_path)
+                )
 
-                    return Path(cached_path)
-                else:
-                    # Clean up stale cache entry if path doesn't exist
-                    self.cache.delete(cache_key)
+                return cache_result.workspace_path
+
         return None
 
     def _cache_workspace(
         self, workspace_path: Path, config: ZmkCompilationConfig
     ) -> None:
         """Cache workspace for future use with tiered caching strategy."""
-        if not config.use_cache or not self.cache:
+        if not config.use_cache or not self.workspace_cache_service:
             return
 
-        # Create cache directory using the same pattern but under cache system
-        repo_name = config.repository.replace("/", "_").replace("-", "_")
-        cache_dir = Path.home() / ".cache" / "glovebox" / "workspaces" / repo_name
-
-        if cache_dir.exists():
-            # Already cached, just update cache entries with different TTLs
-            base_key = self._generate_workspace_cache_key(config, "base")
-            branch_key = self._generate_workspace_cache_key(config, "branch")
-            full_key = self._generate_workspace_cache_key(config, "full")
-
-            # Cache with tiered TTLs
-            self.cache.set(base_key, str(cache_dir), ttl=self.CACHE_TTL_BASE)
-            self.cache.set(branch_key, str(cache_dir), ttl=self.CACHE_TTL_BRANCH)
-            self.cache.set(full_key, str(cache_dir), ttl=self.CACHE_TTL_FULL)
-            return
         try:
-            cache_dir.mkdir(parents=True, exist_ok=True)
-
-            # Copy the west workspace directories
-            for subdir in ["modules", "zephyr", "zmk"]:
-                src_dir = workspace_path / subdir
-                dst_dir = cache_dir / subdir
-                if src_dir.exists():
-                    shutil.copytree(src_dir, dst_dir)
-
-            # Store in cache with tiered TTLs
-            base_key = self._generate_workspace_cache_key(config, "base")
-            branch_key = self._generate_workspace_cache_key(config, "branch")
-            full_key = self._generate_workspace_cache_key(config, "full")
-
-            self.cache.set(base_key, str(cache_dir), ttl=self.CACHE_TTL_BASE)
-            self.cache.set(branch_key, str(cache_dir), ttl=self.CACHE_TTL_BRANCH)
-            self.cache.set(full_key, str(cache_dir), ttl=self.CACHE_TTL_FULL)
-
-            self.logger.info(
-                "Cached workspace for %s: %s", config.repository, cache_dir
+            # Use the new workspace cache service to handle caching
+            cache_result = self.workspace_cache_service.cache_workspace(
+                workspace_path=workspace_path,
+                repository=config.repository,
+                branch=config.branch,
+                cache_levels=["base", "branch", "full"],
+                build_profile=f"{config.repository}@{config.branch}",
             )
+
+            if cache_result.success:
+                self.logger.info(
+                    "Cached workspace for %s@%s: %s",
+                    config.repository,
+                    config.branch,
+                    cache_result.workspace_path,
+                )
+            else:
+                self.logger.warning(
+                    "Failed to cache workspace: %s", cache_result.error_message
+                )
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.warning("Failed to cache workspace: %s", e, exc_info=exc_info)
@@ -362,61 +379,33 @@ class ZmkWestService(CompilationServiceProtocol):
         keymap_file: Path | None = None,
         config_file: Path | None = None,
     ) -> str:
-        """Generate cache key for workspace based on configuration and cache level.
+        """Generate cache key for workspace based on configuration and cache level."""
 
-        Args:
-            config: ZMK compilation configuration
-            level: Cache level - "base" (repo only), "branch" (repo+branch), "full" (repo+branch+matrix), or "build" (includes input files)
-            keymap_file: Keymap file for build-level caching
-            config_file: Config file for build-level caching
-        """
-        if level == "base":
-            # Base repository cache - longest TTL (30 days)
-            key_parts = [
-                "zmk_workspace_base",
-                config.repository,
-                config.image,
-            ]
-        elif level == "branch":
-            # Repository + branch cache - medium TTL (1 day)
-            key_parts = [
-                "zmk_workspace_branch",
-                config.repository,
-                config.branch,
-                config.image,
-            ]
-        elif level == "full":
-            # Full configuration cache - shorter TTL (12 hours)
-            build_matrix_hash = str(hash(str(config.build_matrix.model_dump_json())))
-            key_parts = [
-                "zmk_workspace_full",
-                config.repository,
-                config.branch,
-                config.image,
-                build_matrix_hash,
-            ]
-        else:  # level == "build"
-            # Build result cache - shortest TTL (1 hour), includes input file hashes
-            build_matrix_hash = str(hash(str(config.build_matrix.model_dump_json())))
-            key_parts = [
-                "zmk_build_result",
-                config.repository,
-                config.branch,
-                config.image,
-                build_matrix_hash,
-            ]
+        # Prepare build matrix data for shared function
+        build_matrix_data = None
+        if level in ["full", "build"]:
+            build_matrix_data = config.build_matrix.model_dump(mode="json")
 
-            # Add input file hashes for build-specific caching
+        # Prepare additional parts for build level
+        additional_parts = []
+        if level == "build":
             if keymap_file and keymap_file.exists():
                 keymap_hash = CacheKey.from_path(keymap_file)
-                key_parts.append(keymap_hash)
+                additional_parts.append(keymap_hash)
 
             if config_file and config_file.exists():
                 config_hash = CacheKey.from_path(config_file)
-                key_parts.append(config_hash)
+                additional_parts.append(config_hash)
 
-        cache_key = CacheKey.from_parts(*key_parts)
-        return cache_key
+        # Use shared utility with appropriate parameters
+        return generate_workspace_cache_key(
+            repository=config.repository,
+            branch=config.branch,
+            level=level,
+            image=config.image,
+            build_matrix_data=build_matrix_data,
+            additional_parts=additional_parts if additional_parts else None,
+        )
 
     def _get_or_create_workspace(
         self, keymap_file: Path, config_file: Path, config: ZmkCompilationConfig
@@ -759,7 +748,24 @@ class ZmkWestService(CompilationServiceProtocol):
 
 def create_zmk_west_service(
     docker_adapter: DockerAdapterProtocol,
+    user_config: UserConfig,
     cache: CacheManager | None = None,
+    workspace_cache_service: ZmkWorkspaceCacheService | None = None,
 ) -> ZmkWestService:
-    """Create simplified ZMK config service with optional cache manager."""
-    return ZmkWestService(docker_adapter, cache)
+    """Create ZMK West service with comprehensive cache management.
+
+    Args:
+        docker_adapter: Docker adapter for container operations
+        user_config: User configuration with cache settings
+        cache: Optional cache manager instance
+        workspace_cache_service: Optional workspace cache service
+
+    Returns:
+        Configured ZmkWestService instance
+    """
+    return ZmkWestService(
+        docker_adapter=docker_adapter,
+        user_config=user_config,
+        cache=cache,
+        workspace_cache_service=workspace_cache_service,
+    )

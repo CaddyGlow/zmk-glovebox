@@ -25,6 +25,7 @@ from glovebox.compilation.services.zmk_west_service import (
     create_zmk_west_service,
 )
 from glovebox.config.profile import KeyboardProfile
+from glovebox.config.user_config import create_user_config
 from glovebox.core.cache_v2 import create_default_cache
 from glovebox.core.cache_v2.cache_manager import CacheManager
 from glovebox.firmware.models import BuildResult
@@ -56,9 +57,9 @@ class TestZmkWorkspaceCaching:
         return adapter
 
     @pytest.fixture
-    def zmk_service(self, mock_docker_adapter, cache_manager):
+    def zmk_service(self, mock_docker_adapter, isolated_config, cache_manager):
         """Create ZMK service with cache."""
-        return create_zmk_west_service(mock_docker_adapter, cache_manager)
+        return create_zmk_west_service(mock_docker_adapter, isolated_config, cache_manager)
 
     @pytest.fixture
     def zmk_config(self):
@@ -163,7 +164,7 @@ class TestZmkWorkspaceCaching:
         assert cache_key == same_key
 
     def test_cache_disabled_compilation(
-        self, mock_docker_adapter, cache_manager, test_files
+        self, mock_docker_adapter, isolated_config, cache_manager, test_files
     ):
         """Test compilation with caching disabled."""
         keymap_file, config_file = test_files
@@ -180,7 +181,7 @@ class TestZmkWorkspaceCaching:
             ),
         )
 
-        service = create_zmk_west_service(mock_docker_adapter, cache_manager)
+        service = create_zmk_west_service(mock_docker_adapter, isolated_config, cache_manager)
         profile = Mock(spec=KeyboardProfile)
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -396,14 +397,14 @@ class TestZmkWorkspaceCaching:
                 assert cached_workspace is not None
 
     def test_concurrent_cache_access(
-        self, mock_docker_adapter, cache_manager, zmk_config, test_files
+        self, mock_docker_adapter, isolated_config, cache_manager, zmk_config, test_files
     ):
         """Test concurrent access to workspace cache."""
         keymap_file, config_file = test_files
 
         def compile_worker(worker_id):
             """Worker function for concurrent compilation."""
-            service = create_zmk_west_service(mock_docker_adapter, cache_manager)
+            service = create_zmk_west_service(mock_docker_adapter, isolated_config, cache_manager)
             profile = Mock(spec=KeyboardProfile)
 
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -581,7 +582,7 @@ class TestZmkWorkspaceCaching:
                 assert cached_workspace is not None
 
     def test_multiprocess_cache_safety_during_file_operations(
-        self, mock_docker_adapter, cache_manager, zmk_config, test_files
+        self, mock_docker_adapter, isolated_config, cache_manager, zmk_config, test_files
     ):
         """Test thread/multiprocess safety during cache file operations.
 
@@ -594,7 +595,7 @@ class TestZmkWorkspaceCaching:
             """Worker function that performs cache operations concurrently."""
             import random
 
-            service = create_zmk_west_service(mock_docker_adapter, cache_manager)
+            service = create_zmk_west_service(mock_docker_adapter, isolated_config, cache_manager)
 
             # Create a realistic workspace structure
             with tempfile.TemporaryDirectory() as temp_workspace:
@@ -667,7 +668,7 @@ class TestZmkWorkspaceCaching:
         assert success_rate >= 0.7, f"Too many failures: {success_rate:.2%}"
 
         # Verify final cache state is consistent
-        final_service = create_zmk_west_service(mock_docker_adapter, cache_manager)
+        final_service = create_zmk_west_service(mock_docker_adapter, isolated_config, cache_manager)
         final_cached = final_service._get_cached_workspace(zmk_config)
 
         if final_cached:
@@ -849,7 +850,7 @@ class TestZmkWorkspaceCaching:
         cached_verification = zmk_service.cache.get(image_cache_key)
         assert cached_verification is True
 
-    def test_cache_configuration_respect(self, mock_docker_adapter):
+    def test_cache_configuration_respect(self, mock_docker_adapter, isolated_config):
         """Test that cache configuration is properly respected."""
         # Test with cache disabled in config
         config_no_cache = ZmkCompilationConfig(
@@ -863,13 +864,13 @@ class TestZmkWorkspaceCaching:
 
         # Even with a cache manager, should return None when use_cache=False
         service_with_cache = create_zmk_west_service(
-            mock_docker_adapter, create_default_cache()
+            mock_docker_adapter, isolated_config, create_default_cache()
         )
         cached = service_with_cache._get_cached_workspace(config_no_cache)
         assert cached is None
 
         # Test with cache enabled but creates default cache when None provided
-        service_default_cache = create_zmk_west_service(mock_docker_adapter, None)
+        service_default_cache = create_zmk_west_service(mock_docker_adapter, isolated_config, None)
         config_cache_enabled = ZmkCompilationConfig(
             strategy="zmk_config",
             repository="zmkfirmware/zmk",

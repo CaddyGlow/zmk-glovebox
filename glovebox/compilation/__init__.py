@@ -48,7 +48,7 @@ def create_zmk_west_service() -> CompilationServiceProtocol:
     docker_adapter = create_docker_adapter()
     user_config = create_user_config()
     cache = create_cache_from_user_config(user_config._config, tag="compilation")
-    return create_zmk_west_service(docker_adapter, cache)
+    return create_zmk_west_service(docker_adapter, user_config, cache)
 
 
 def create_moergo_nix_service() -> CompilationServiceProtocol:
