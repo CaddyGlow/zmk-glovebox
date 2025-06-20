@@ -510,36 +510,24 @@ class TestBookmarkService:
         )
 
 
-@patch("glovebox.moergo.bookmark_service.create_moergo_client")
-@patch("glovebox.config.user_config.create_user_config")
-def test_create_bookmark_service_defaults(
-    mock_create_user_config, mock_create_moergo_client
-):
+def test_create_bookmark_service_defaults(isolated_config):
     """Test creating bookmark service with default dependencies."""
     from glovebox.moergo.bookmark_service import create_bookmark_service
 
-    mock_moergo_client = Mock()
-    mock_create_moergo_client.return_value = mock_moergo_client
+    # Use isolated config to prevent pollution
+    with patch(
+        "glovebox.moergo.bookmark_service.create_moergo_client"
+    ) as mock_create_client:
+        mock_moergo_client = Mock()
+        mock_create_client.return_value = mock_moergo_client
 
-    mock_user_config_manager = Mock()
-    mock_user_config = Mock()
-    # Mock cache_path to support Path operations
-    mock_cache_path = Mock()
-    mock_cache_path.__truediv__ = Mock(
-        return_value=mock_cache_path
-    )  # Support / operator
-    mock_user_config.cache_path = mock_cache_path
-    mock_user_config.cache_strategy = "shared"
-    mock_user_config_manager._config = mock_user_config
-    mock_create_user_config.return_value = mock_user_config_manager
+        service = create_bookmark_service()
 
-    service = create_bookmark_service()
+        assert service._client == mock_moergo_client
+        # user_config will be from isolated environment
+        assert service._user_config is not None
 
-    assert service._client == mock_moergo_client
-    assert service._user_config == mock_user_config
-
-    mock_create_moergo_client.assert_called_once()
-    mock_create_user_config.assert_called_once()
+        mock_create_client.assert_called_once()
 
 
 def test_create_bookmark_service_with_args():
