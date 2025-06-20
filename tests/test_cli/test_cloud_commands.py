@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 
 from glovebox.cli.commands.cloud import cloud_app
 from glovebox.layout.models import LayoutData
-from glovebox.moergo.client.models import LayoutMeta, MoErgoLayout
+from glovebox.moergo.client import LayoutMeta, MoErgoLayout
 
 
 class TestCloudCommands:

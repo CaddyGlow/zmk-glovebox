@@ -441,7 +441,7 @@ class TestMoErgoClient:
             client.login("test@example.com", "testpass123")
 
         # Mock datetime to make token appear expired within buffer
-        with patch("glovebox.moergo.client.client.datetime") as mock_datetime:
+        with patch("glovebox.moergo.client.base_client.datetime") as mock_datetime:
             # Set current time to make token expire within buffer
             mock_datetime.now.return_value.timestamp.return_value = (
                 client._tokens.expires_at + 1  # Past expiry time
@@ -462,7 +462,7 @@ class TestMoErgoClient:
             client.login("test@example.com", "testpass123")
 
         # Mock datetime to make token appear valid (far from expiry)
-        with patch("glovebox.moergo.client.client.datetime") as mock_datetime:
+        with patch("glovebox.moergo.client.base_client.datetime") as mock_datetime:
             # Set current time well before token expiry
             mock_datetime.now.return_value.timestamp.return_value = (
                 client._tokens.expires_at - 3600  # 1 hour before expiry
@@ -483,7 +483,7 @@ class TestMoErgoClient:
         # Get the actual expires_at time from the token
         expires_at = client._tokens.expires_at
 
-        with patch("glovebox.moergo.client.client.datetime") as mock_datetime:
+        with patch("glovebox.moergo.client.base_client.datetime") as mock_datetime:
             # Set current time to 10 minutes before expiry
             current_time = expires_at - 600  # 10 minutes before
             mock_datetime.now.return_value.timestamp.return_value = current_time
