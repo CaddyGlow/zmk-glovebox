@@ -9,8 +9,9 @@ if TYPE_CHECKING:
     from glovebox.config.flash_methods import USBFlashConfig
 
 from glovebox.firmware.flash.models import BlockDevice
-from glovebox.firmware.flash.usb_monitor import create_usb_monitor
+from glovebox.firmware.flash.usb_monitor import USBDeviceMonitorBase, create_usb_monitor
 from glovebox.firmware.flash.wait_state import DeviceWaitState
+from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
 
 
 logger = logging.getLogger(__name__)
@@ -19,13 +20,28 @@ logger = logging.getLogger(__name__)
 class DeviceWaitService:
     """Service for waiting for USB devices with real-time monitoring."""
 
-    def __init__(self) -> None:
-        """Initialize device wait service."""
-        self.usb_monitor = create_usb_monitor()
-        # Import here to avoid circular import
-        from glovebox.adapters.usb_adapter import create_usb_adapter
+    def __init__(
+        self,
+        usb_adapter: USBAdapterProtocol | None = None,
+        usb_monitor: USBDeviceMonitorBase | None = None,
+    ) -> None:
+        """Initialize device wait service.
 
-        self.usb_adapter = create_usb_adapter()
+        Args:
+            usb_adapter: USB adapter for device operations. If None, creates default.
+            usb_monitor: USB monitor for device events. If None, creates default.
+        """
+        if usb_adapter is None:
+            # Import here to avoid circular import when using default
+            from glovebox.adapters.usb_adapter import create_usb_adapter
+
+            usb_adapter = create_usb_adapter()
+
+        if usb_monitor is None:
+            usb_monitor = create_usb_monitor()
+
+        self.usb_adapter = usb_adapter
+        self.usb_monitor = usb_monitor
 
     def wait_for_devices(
         self,

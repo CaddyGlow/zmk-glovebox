@@ -55,6 +55,11 @@ def login(
     """
     import os
 
+    from glovebox.cli.helpers.theme import Icons
+
+    # Note: This function doesn't have ctx parameter, so we'll use default icon mode
+    icon_mode = "emoji"  # Default behavior for this command
+
     try:
         # Get username from parameter, environment, or prompt
         if username is None:
@@ -73,11 +78,6 @@ def login(
 
         info = client.get_credential_info()
         keyring_available = info.get("keyring_available", False)
-
-        from glovebox.cli.helpers.theme import Icons
-
-        # Note: This function doesn't have ctx parameter, so we'll use default icon mode
-        icon_mode = "emoji"  # Default behavior for this command
 
         if keyring_available:
             storage_method = "OS keyring"
@@ -125,12 +125,13 @@ def login(
 @moergo_app.command("logout")
 def logout() -> None:
     """Clear stored MoErgo credentials."""
+    from glovebox.cli.helpers.theme import Icons
+
+    icon_mode = "emoji"  # Default behavior for this command
+
     try:
         client = create_moergo_client()
         client.logout()
-        from glovebox.cli.helpers.theme import Icons
-
-        icon_mode = "emoji"  # Default behavior for this command
         typer.echo(
             Icons.format_with_icon(
                 "SUCCESS", "Successfully logged out and cleared credentials", icon_mode
@@ -158,14 +159,15 @@ def download_layout(
     ] = False,
 ) -> None:
     """Download a layout by ID from MoErgo."""
+    from glovebox.cli.helpers.theme import Icons
+
+    icon_mode = "emoji"  # Default behavior for this command
+
     try:
         client = create_moergo_client()
 
         # Check if authenticated with server validation
         if not client.validate_authentication():
-            from glovebox.cli.helpers.theme import Icons
-
-            icon_mode = "emoji"  # Default behavior for this command
             typer.echo(
                 Icons.format_with_icon(
                     "ERROR",
@@ -337,13 +339,13 @@ def status(ctx: typer.Context) -> None:
 @moergo_app.command("keystore")
 def keystore_info() -> None:
     """Show detailed keystore and credential storage information."""
+    from glovebox.cli.helpers.theme import Icons
+
+    icon_mode = "emoji"  # Default behavior for this command
+
     try:
         client = create_moergo_client()
         info = client.get_credential_info()
-
-        from glovebox.cli.helpers.theme import Icons
-
-        icon_mode = "emoji"  # Default behavior for this command
         typer.echo(f"{Icons.get_icon('KEYSTORE', icon_mode)} Keystore Information")
         typer.echo("=" * 40)
 

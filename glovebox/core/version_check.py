@@ -4,12 +4,14 @@ import json
 import logging
 import urllib.request
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
 
 from glovebox.config import create_user_config
+from glovebox.core.cache_v2 import create_cache_from_user_config
+from glovebox.core.cache_v2.cache_manager import CacheManager
+from glovebox.core.cache_v2.models import CacheKey
 
 
 logger = logging.getLogger(__name__)
@@ -40,11 +42,17 @@ class VersionCheckResult(BaseModel):
 class ZmkVersionChecker:
     """Service to check for ZMK firmware updates."""
 
-    def __init__(self) -> None:
-        """Initialize version checker."""
+    def __init__(self, cache: CacheManager | None = None) -> None:
+        """Initialize version checker.
+
+        Args:
+            cache: Optional cache manager. If None, creates from user config.
+        """
         self.logger = logging.getLogger(__name__)
-        self.cache_file = Path.home() / ".cache" / "glovebox" / "zmk_version_check.json"
-        self.cache_file.parent.mkdir(parents=True, exist_ok=True)
+        self._user_config = create_user_config()
+        self._cache = cache or create_cache_from_user_config(
+            self._user_config._config, tag="version_check"
+        )
 
     def check_for_updates(
         self, force: bool = False, include_prereleases: bool = False
@@ -60,13 +68,12 @@ class ZmkVersionChecker:
         """
         try:
             # Check user settings
-            user_config = create_user_config()
-            if user_config._config.disable_version_checks and not force:
+            if self._user_config._config.disable_version_checks and not force:
                 return VersionCheckResult(has_update=False, check_disabled=True)
 
             # Check cache if not forcing
             if not force:
-                cached_result = self._get_cached_result()
+                cached_result = self._get_cached_result(include_prereleases)
                 if cached_result and self._is_cache_valid(cached_result):
                     return cached_result
 
@@ -98,7 +105,7 @@ class ZmkVersionChecker:
             )
 
             # Cache the result
-            self._cache_result(result)
+            self._cache_result(result, include_prereleases)
 
             return result
 
@@ -182,36 +189,48 @@ class ZmkVersionChecker:
         except Exception:
             return False
 
-    def _get_cached_result(self) -> VersionCheckResult | None:
+    def _get_cached_result(
+        self, include_prereleases: bool
+    ) -> VersionCheckResult | None:
         """Get cached version check result."""
         try:
-            if not self.cache_file.exists():
+            cache_key = CacheKey.from_parts(
+                "zmk_version_check", str(include_prereleases)
+            )
+
+            cached_data = self._cache.get(cache_key)
+            if cached_data is None:
                 return None
 
-            with self.cache_file.open() as f:
-                data = json.load(f)
+            # Parse datetime if present
+            if cached_data.get("last_check"):
+                cached_data["last_check"] = datetime.fromisoformat(
+                    cached_data["last_check"]
+                )
 
-            # Parse datetime
-            if data.get("last_check"):
-                data["last_check"] = datetime.fromisoformat(data["last_check"])
-
-            return VersionCheckResult(**data)
+            return VersionCheckResult(**cached_data)
 
         except Exception as e:
             self.logger.debug("Failed to load cached version check: %s", e)
             return None
 
-    def _cache_result(self, result: VersionCheckResult) -> None:
+    def _cache_result(
+        self, result: VersionCheckResult, include_prereleases: bool
+    ) -> None:
         """Cache version check result."""
         try:
             data = result.model_dump(by_alias=True, exclude_unset=True, mode="json")
 
-            # Convert datetime to string
+            # Convert datetime to string for JSON serialization
             if data.get("last_check"):
                 data["last_check"] = data["last_check"].isoformat()
 
-            with self.cache_file.open("w") as f:
-                json.dump(data, f, indent=2)
+            cache_key = CacheKey.from_parts(
+                "zmk_version_check", str(include_prereleases)
+            )
+
+            # Cache for 24 hours
+            self._cache.set(cache_key, data, ttl=24 * 60 * 60)
 
         except Exception as e:
             self.logger.debug("Failed to cache version check result: %s", e)
@@ -227,9 +246,8 @@ class ZmkVersionChecker:
     def disable_version_checks(self) -> None:
         """Disable automatic version checks."""
         try:
-            user_config = create_user_config()
-            user_config._config.disable_version_checks = True
-            user_config.save()
+            self._user_config._config.disable_version_checks = True
+            self._user_config.save()
             self.logger.info("Version checks disabled")
         except Exception as e:
             self.logger.error("Failed to disable version checks: %s", e)
@@ -237,9 +255,8 @@ class ZmkVersionChecker:
     def enable_version_checks(self) -> None:
         """Enable automatic version checks."""
         try:
-            user_config = create_user_config()
-            user_config._config.disable_version_checks = False
-            user_config.save()
+            self._user_config._config.disable_version_checks = False
+            self._user_config.save()
             self.logger.info("Version checks enabled")
         except Exception as e:
             self.logger.error("Failed to enable version checks: %s", e)

@@ -28,7 +28,9 @@ def mock_device():
 @pytest.fixture
 def wait_service():
     """Create a DeviceWaitService instance for testing."""
-    return DeviceWaitService()
+    mock_adapter = Mock()
+    mock_monitor = Mock()
+    return DeviceWaitService(usb_adapter=mock_adapter, usb_monitor=mock_monitor)
 
 
 class TestDeviceWaitState:
@@ -100,17 +102,14 @@ class TestDeviceWaitState:
 class TestDeviceWaitService:
     """Test DeviceWaitService with mock USB monitoring."""
 
-    @patch("glovebox.firmware.flash.device_wait_service.create_usb_monitor")
-    @patch("glovebox.adapters.usb_adapter.create_usb_adapter")
-    def test_immediate_target_reached(
-        self, mock_adapter_factory, mock_monitor_factory, mock_device
-    ):
+    def test_immediate_target_reached(self, mock_device):
         """Test when target devices are already available."""
         mock_adapter = Mock()
         mock_adapter.list_matching_devices.return_value = [mock_device]
-        mock_adapter_factory.return_value = mock_adapter
 
-        service = DeviceWaitService()
+        mock_monitor = Mock()
+
+        service = DeviceWaitService(usb_adapter=mock_adapter, usb_monitor=mock_monitor)
 
         result = service.wait_for_devices(
             target_count=1,
@@ -123,50 +122,192 @@ class TestDeviceWaitService:
         assert len(result) == 1
         assert result[0] == mock_device
 
-    @pytest.mark.skip(
-        reason="TODO: Circular dependency in DeviceWaitService.__init__ makes USB adapter mocking complex. Need to refactor USB adapter injection to remove circular import."
-    )
     def test_wait_with_callback(self, mock_device):
         """Test waiting with device callback."""
-        # This test requires complex mocking due to circular dependencies
-        # TODO: Refactor DeviceWaitService to accept USB adapter as constructor parameter
-        # to remove the circular import and enable proper testing
-        pass
+        mock_usb_adapter = Mock()
+        mock_usb_monitor = Mock()
+        mock_flash_config = Mock()
 
-    @pytest.mark.skip(
-        reason="TODO: Circular dependency in DeviceWaitService.__init__ makes USB adapter mocking complex. Need to refactor USB adapter injection to remove circular import."
-    )
+        # Mock initial device list (empty)
+        mock_usb_adapter.list_matching_devices.return_value = []
+
+        service = DeviceWaitService(
+            usb_adapter=mock_usb_adapter, usb_monitor=mock_usb_monitor
+        )
+
+        # Mock the device callback to simulate device arrival
+        registered_callback = None
+
+        def capture_callback(callback):
+            nonlocal registered_callback
+            registered_callback = callback
+
+        mock_usb_monitor.register_callback.side_effect = capture_callback
+
+        # Mock the _matches_query method to return True for our mock device
+        def mock_matches_query(device, query):
+            return device == mock_device and query == "test"
+
+        # Patch the _matches_query method to always match our mock device
+        with patch.object(service, "_matches_query", side_effect=mock_matches_query):
+            # Start the wait in a separate thread to test callback behavior
+            import threading
+            import time
+
+            result_container = []
+
+            def wait_thread():
+                result = service.wait_for_devices(
+                    target_count=1,
+                    timeout=2.0,
+                    query="test",
+                    flash_config=mock_flash_config,
+                    poll_interval=0.1,
+                    show_progress=False,
+                )
+                result_container.append(result)
+
+            thread = threading.Thread(target=wait_thread)
+            thread.start()
+
+            # Give the thread time to start and register callback
+            time.sleep(0.2)
+
+            # Simulate device arrival via callback
+            if registered_callback:
+                registered_callback("add", mock_device)
+
+            # Wait for thread to complete
+            thread.join(timeout=3.0)
+
+            # Verify results
+            assert len(result_container) == 1
+            assert len(result_container[0]) == 1
+            assert result_container[0][0] == mock_device
+
+        # Verify monitoring was set up and cleaned up
+        mock_usb_monitor.register_callback.assert_called_once()
+        mock_usb_monitor.start_monitoring.assert_called_once()
+        mock_usb_monitor.unregister_callback.assert_called_once()
+        mock_usb_monitor.stop_monitoring.assert_called_once()
+
     def test_timeout_behavior(self):
         """Test timeout behavior when no devices are found."""
-        # This test requires complex mocking due to circular dependencies
-        # TODO: Refactor DeviceWaitService to accept USB adapter as constructor parameter
-        # to remove the circular import and enable proper testing
-        pass
+        mock_usb_adapter = Mock()
+        mock_usb_monitor = Mock()
+        mock_flash_config = Mock()
 
-    @pytest.mark.skip(
-        reason="TODO: Circular dependency in DeviceWaitService.__init__ makes USB adapter mocking complex. Need to refactor USB adapter injection to remove circular import."
-    )
+        # Mock empty device list (no devices found)
+        mock_usb_adapter.list_matching_devices.return_value = []
+
+        service = DeviceWaitService(
+            usb_adapter=mock_usb_adapter, usb_monitor=mock_usb_monitor
+        )
+
+        import time
+
+        start_time = time.time()
+
+        result = service.wait_for_devices(
+            target_count=2,
+            timeout=0.5,  # Short timeout
+            query="test",
+            flash_config=mock_flash_config,
+            poll_interval=0.1,
+            show_progress=False,
+        )
+
+        end_time = time.time()
+        elapsed = end_time - start_time
+
+        # Verify timeout behavior
+        assert len(result) == 0  # No devices found
+        assert elapsed >= 0.5  # At least the timeout duration
+        assert elapsed < 1.0  # But not too much longer
+
+        # Verify monitoring was set up and cleaned up
+        mock_usb_monitor.register_callback.assert_called_once()
+        mock_usb_monitor.start_monitoring.assert_called_once()
+        mock_usb_monitor.unregister_callback.assert_called_once()
+        mock_usb_monitor.stop_monitoring.assert_called_once()
+
     def test_device_remove_callback(self, mock_device):
         """Test device removal callback."""
-        # This test requires complex mocking due to circular dependencies
-        # TODO: Refactor DeviceWaitService to accept USB adapter as constructor parameter
-        # to remove the circular import and enable proper testing
-        pass
+        mock_usb_adapter = Mock()
+        mock_usb_monitor = Mock()
+        mock_flash_config = Mock()
+
+        # Mock initial device list with our device already present
+        mock_usb_adapter.list_matching_devices.return_value = [mock_device]
+
+        service = DeviceWaitService(
+            usb_adapter=mock_usb_adapter, usb_monitor=mock_usb_monitor
+        )
+
+        # Mock the device callback to simulate device removal
+        registered_callback = None
+
+        def capture_callback(callback):
+            nonlocal registered_callback
+            registered_callback = callback
+
+        mock_usb_monitor.register_callback.side_effect = capture_callback
+
+        # Start the wait in a separate thread
+        import threading
+        import time
+
+        result_container = []
+
+        def wait_thread():
+            result = service.wait_for_devices(
+                target_count=2,  # Need 2 devices, start with 1
+                timeout=2.0,
+                query="test",
+                flash_config=mock_flash_config,
+                poll_interval=0.1,
+                show_progress=False,
+            )
+            result_container.append(result)
+
+        thread = threading.Thread(target=wait_thread)
+        thread.start()
+
+        # Give the thread time to start and register callback
+        time.sleep(0.2)
+
+        # Simulate device removal via callback
+        if registered_callback:
+            registered_callback("remove", mock_device)
+
+        # Wait for thread to complete (should timeout with 0 devices)
+        thread.join(timeout=3.0)
+
+        # Verify results - should have no devices after removal
+        assert len(result_container) == 1
+        assert len(result_container[0]) == 0  # Device was removed
+
+        # Verify monitoring was set up and cleaned up
+        mock_usb_monitor.register_callback.assert_called_once()
+        mock_usb_monitor.start_monitoring.assert_called_once()
+        mock_usb_monitor.unregister_callback.assert_called_once()
+        mock_usb_monitor.stop_monitoring.assert_called_once()
 
     def test_matches_query_integration(self):
         """Test query matching integration with USB adapter."""
-        service = DeviceWaitService()
+        mock_adapter = Mock()
+        mock_monitor = Mock()
+        service = DeviceWaitService(usb_adapter=mock_adapter, usb_monitor=mock_monitor)
+
         mock_device = Mock()
         mock_device.device_node = "/dev/test"
 
-        # Mock the USB adapter's list_matching_devices method with patch
-        with patch.object(service.usb_adapter, "list_matching_devices") as mock_list:
-            # Test positive match
-            mock_list.return_value = [mock_device]
-            result = service._matches_query(mock_device, "test_query")
-            assert result is True
+        # Test positive match
+        mock_adapter.list_matching_devices.return_value = [mock_device]
+        result = service._matches_query(mock_device, "test_query")
+        assert result is True
 
-            # Test negative match
-            mock_list.return_value = []
-            result = service._matches_query(mock_device, "test_query")
-            assert result is False
+        # Test negative match
+        mock_adapter.list_matching_devices.return_value = []
+        result = service._matches_query(mock_device, "test_query")
+        assert result is False
