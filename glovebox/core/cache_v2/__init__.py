@@ -8,6 +8,12 @@ import os
 from pathlib import Path
 from typing import Any
 
+from glovebox.core.cache_v2.cache_coordinator import (
+    cleanup_shared_cache_instances,
+    get_cache_instance_count,
+    get_shared_cache_instance,
+    reset_shared_cache_instances,
+)
 from glovebox.core.cache_v2.cache_manager import CacheManager
 from glovebox.core.cache_v2.diskcache_manager import DiskCacheManager
 from glovebox.core.cache_v2.models import DiskCacheConfig
@@ -50,14 +56,14 @@ def create_diskcache_manager(
 def create_cache_from_user_config(
     user_config: Any, tag: str | None = None
 ) -> CacheManager:
-    """Create a cache manager using user configuration.
+    """Create a cache manager using user configuration with shared coordination.
 
     Args:
         user_config: User configuration object with cache settings
         tag: Optional tag for cache isolation
 
     Returns:
-        Configured cache manager
+        Configured cache manager (shared instance when possible)
     """
     # Check global cache disable
     if _is_cache_globally_disabled():
@@ -74,22 +80,23 @@ def create_cache_from_user_config(
     if tag and _is_module_cache_disabled(tag):
         return _create_disabled_cache()
 
+    # Use shared cache coordination
     cache_root = getattr(user_config, "cache_path", Path.home() / ".cache" / "glovebox")
-    return create_diskcache_manager(
+    return get_shared_cache_instance(
         cache_root=cache_root,
-        enabled=True,
         tag=tag,
+        enabled=True,
     )
 
 
 def create_default_cache(tag: str | None = None) -> CacheManager:
-    """Create a default cache manager for general use.
+    """Create a default cache manager for general use with shared coordination.
 
     Args:
         tag: Optional tag for cache isolation
 
     Returns:
-        Default configured cache manager
+        Default configured cache manager (shared instance when possible)
     """
     # Check for global disable
     if _is_cache_globally_disabled():
@@ -99,17 +106,17 @@ def create_default_cache(tag: str | None = None) -> CacheManager:
     if tag and _is_module_cache_disabled(tag):
         return _create_disabled_cache()
 
-    # Use XDG cache directory
+    # Use XDG cache directory with shared coordination
     cache_root = (
         Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "glovebox"
     )
 
-    return create_diskcache_manager(
+    return get_shared_cache_instance(
         cache_root=cache_root,
+        tag=tag,
         enabled=True,
         max_size_gb=2,
         timeout=30,
-        tag=tag,
     )
 
 
@@ -141,4 +148,8 @@ __all__ = [
     "create_diskcache_manager",
     "create_cache_from_user_config",
     "create_default_cache",
+    "get_shared_cache_instance",
+    "reset_shared_cache_instances",
+    "get_cache_instance_count",
+    "cleanup_shared_cache_instances",
 ]

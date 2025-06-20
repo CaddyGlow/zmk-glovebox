@@ -8,7 +8,11 @@ The caching system reduces compilation time by reusing shared dependencies
 across multiple builds and provides enhanced cache operations.
 """
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    from glovebox.config.user_config import UserConfig
 
 
 # Legacy cache injector support (optional dependency)
@@ -43,13 +47,41 @@ except ImportError:
     # Keep placeholder implementations
     pass
 
-from .models import WorkspaceCacheMetadata
-from .workspace_cache_service import (
+from glovebox.core.cache_v2 import create_cache_from_user_config  # noqa: E402
+from glovebox.core.cache_v2.cache_manager import CacheManager  # noqa: E402
+
+from .models import WorkspaceCacheMetadata  # noqa: E402
+from .workspace_cache_service import (  # noqa: E402
     WorkspaceAutoDetectionResult,
     WorkspaceCacheResult,
     ZmkWorkspaceCacheService,
     create_zmk_workspace_cache_service,
 )
+
+
+def create_compilation_cache_service(
+    user_config: "UserConfig",
+) -> tuple[CacheManager, ZmkWorkspaceCacheService]:
+    """Factory function for compilation cache service with shared coordination.
+
+    This function follows the established factory function pattern from CLAUDE.md
+    and provides unified cache management for the compilation domain.
+
+    Args:
+        user_config: User configuration instance
+
+    Returns:
+        Tuple of (cache_manager, workspace_cache_service) using shared coordination
+    """
+    # Use shared cache coordination for compilation domain
+    cache_manager = create_cache_from_user_config(
+        user_config._config, tag="compilation"
+    )
+
+    # Create workspace cache service with shared cache
+    workspace_service = create_zmk_workspace_cache_service(user_config, cache_manager)
+
+    return cache_manager, workspace_service
 
 
 __all__ = [
@@ -60,4 +92,5 @@ __all__ = [
     "WorkspaceCacheResult",
     "WorkspaceAutoDetectionResult",
     "create_zmk_workspace_cache_service",
+    "create_compilation_cache_service",
 ]

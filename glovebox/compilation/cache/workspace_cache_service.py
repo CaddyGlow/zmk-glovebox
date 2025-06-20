@@ -323,16 +323,31 @@ class ZmkWorkspaceCacheService:
                         )
                     else:
                         # For subsequent levels, create symlink to avoid duplication
-                        if level_cache_dir.exists():
-                            shutil.rmtree(level_cache_dir)
-                        level_cache_dir.symlink_to(
-                            cached_workspace_path, target_is_directory=True
-                        )
-                        self.logger.debug(
-                            "Created symlink from %s to %s",
-                            level_cache_dir,
-                            cached_workspace_path,
-                        )
+                        try:
+                            if level_cache_dir.exists():
+                                if level_cache_dir.is_symlink():
+                                    level_cache_dir.unlink()
+                                else:
+                                    shutil.rmtree(level_cache_dir)
+
+                            # Create symlink using absolute path to avoid issues
+                            level_cache_dir.symlink_to(
+                                cached_workspace_path.resolve(),
+                                target_is_directory=True,
+                            )
+                            self.logger.debug(
+                                "Created symlink from %s to %s",
+                                level_cache_dir,
+                                cached_workspace_path,
+                            )
+                        except Exception as e:
+                            self.logger.warning(
+                                "Failed to create symlink for cache level %s: %s",
+                                cache_level,
+                                e,
+                            )
+                            # Continue with other cache levels even if symlink fails
+                            continue
 
                     # Create metadata for this cache level pointing to the cached data
                     metadata = WorkspaceCacheMetadata(  # type: ignore[call-arg]
@@ -475,13 +490,18 @@ class ZmkWorkspaceCacheService:
         """List all cached workspaces with their metadata.
 
         Scans both cache metadata and filesystem to discover all cached workspaces.
+        When multiple cache levels exist for the same workspace, shows the highest level.
 
         Returns:
             List of WorkspaceCacheMetadata for all cached workspaces
         """
-        workspaces: list[WorkspaceCacheMetadata] = []
-        seen_workspaces = set()  # Track (repository, branch) to avoid duplicates
+        workspaces: dict[
+            tuple[str, str], WorkspaceCacheMetadata
+        ] = {}  # (repo, branch) -> metadata
         seen_cache_keys = set()  # Track cache keys to avoid duplicates
+
+        # Define cache level priority (higher number = higher priority)
+        cache_level_priority = {"base": 1, "branch": 2, "full": 3, "build": 4}
 
         try:
             # Method 1: Get workspaces from cache metadata
@@ -528,10 +548,77 @@ class ZmkWorkspaceCacheService:
                                     if actual_workspace_path != metadata.workspace_path:
                                         metadata.workspace_path = actual_workspace_path
 
-                                    # Only add if we haven't seen this workspace yet
-                                    if workspace_key not in seen_workspaces:
-                                        workspaces.append(metadata)
-                                        seen_workspaces.add(workspace_key)
+                                    # Verify git repository info matches metadata
+                                    # For ZMK workspaces, check the zmk subdirectory for git info
+                                    zmk_path = actual_workspace_path / "zmk"
+                                    if (
+                                        zmk_path.exists()
+                                        and (zmk_path / ".git").exists()
+                                    ):
+                                        git_info = detect_git_info(zmk_path)
+                                    else:
+                                        git_info = detect_git_info(
+                                            actual_workspace_path
+                                        )
+
+                                    actual_repo = git_info.get("repository", "unknown")
+                                    actual_branch = git_info.get("branch", "main")
+
+                                    # If metadata doesn't match actual git info, update it
+                                    if actual_repo != "unknown" and (
+                                        actual_repo != metadata.repository
+                                        or actual_branch != metadata.branch
+                                    ):
+                                        self.logger.debug(
+                                            "Correcting metadata mismatch for %s: %s@%s -> %s@%s",
+                                            cache_key,
+                                            metadata.repository,
+                                            metadata.branch,
+                                            actual_repo,
+                                            actual_branch,
+                                        )
+                                        metadata.repository = actual_repo
+                                        metadata.branch = actual_branch
+                                        metadata.notes = (
+                                            "Auto-corrected metadata from git info"
+                                        )
+
+                                        # Update workspace_key with corrected info
+                                        workspace_key = (
+                                            metadata.repository,
+                                            metadata.branch,
+                                        )
+
+                                    # Check if we should add or update this workspace entry
+                                    cache_level_str = (
+                                        metadata.cache_level.value
+                                        if hasattr(metadata.cache_level, "value")
+                                        else str(metadata.cache_level)
+                                    )
+                                    current_priority = cache_level_priority.get(
+                                        cache_level_str, 0
+                                    )
+
+                                    if workspace_key in workspaces:
+                                        # Compare priority with existing entry
+                                        existing_metadata = workspaces[workspace_key]
+                                        existing_level_str = (
+                                            existing_metadata.cache_level.value
+                                            if hasattr(
+                                                existing_metadata.cache_level, "value"
+                                            )
+                                            else str(existing_metadata.cache_level)
+                                        )
+                                        existing_priority = cache_level_priority.get(
+                                            existing_level_str, 0
+                                        )
+
+                                        # Replace if current has higher priority
+                                        if current_priority > existing_priority:
+                                            workspaces[workspace_key] = metadata
+                                    else:
+                                        # First entry for this workspace
+                                        workspaces[workspace_key] = metadata
 
                                     seen_cache_keys.add(cache_key)
                                 else:
@@ -579,7 +666,7 @@ class ZmkWorkspaceCacheService:
 
                     if repository:
                         workspace_key = (repository, branch)
-                        if workspace_key not in seen_workspaces:
+                        if workspace_key not in workspaces:
                             # Create metadata for orphaned workspace
                             metadata = WorkspaceCacheMetadata(  # type: ignore[call-arg]
                                 workspace_path=actual_workspace_dir,
@@ -588,8 +675,7 @@ class ZmkWorkspaceCacheService:
                                 cache_level=CacheLevel.BASE,
                                 notes="Orphaned workspace directory (metadata missing)",
                             )
-                            workspaces.append(metadata)
-                            seen_workspaces.add(workspace_key)
+                            workspaces[workspace_key] = metadata
                             self.logger.debug(
                                 "Found orphaned workspace: %s@%s at %s",
                                 repository,
@@ -603,7 +689,7 @@ class ZmkWorkspaceCacheService:
                 "Failed to list cached workspaces: %s", e, exc_info=exc_info
             )
 
-        return workspaces
+        return list(workspaces.values())
 
     def delete_cached_workspace(
         self, repository: str, branch: str | None = None

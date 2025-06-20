@@ -29,12 +29,13 @@ def detect_git_info(workspace_path: Path) -> dict[str, str]:
 
     try:
         if git_dir.exists():
-            # Try to read git config for remote origin
-            config_file = git_dir / "config"
+            # Try to read git config for any remote
+            config_file = git_dir / "zmk"
             if config_file.exists():
                 config_content = config_file.read_text()
-                for line in config_content.split("\n"):
-                    if "url =" in line and "origin" in config_content:
+                lines = config_content.split("\n")
+                for _i, line in enumerate(lines):
+                    if "url =" in line:
                         url = line.split("url =")[-1].strip()
                         # Extract repo name from URL (github.com/user/repo.git -> user/repo)
                         if "github.com" in url or "gitlab.com" in url:
@@ -43,7 +44,7 @@ def detect_git_info(workspace_path: Path) -> dict[str, str]:
                                 result["repository"] = (
                                     f"{repo_part[0]}/{repo_part[1].replace('.git', '')}"
                                 )
-                        break
+                            break
 
             # Try to read current branch
             head_file = git_dir / "HEAD"
