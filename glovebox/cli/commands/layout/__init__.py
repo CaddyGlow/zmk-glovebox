@@ -3,7 +3,6 @@
 import typer
 
 # Note: cloud and bookmarks commands have been moved to main commands directory
-
 # Import comparison commands
 from .comparison import diff, patch
 

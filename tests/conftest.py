@@ -1,6 +1,8 @@
 """Core test fixtures for the glovebox project."""
 
 import json
+import os
+import tempfile
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any
@@ -19,6 +21,7 @@ from glovebox.config.models import (
     KeymapSection,
 )
 from glovebox.config.profile import KeyboardProfile
+from glovebox.config.user_config import UserConfig
 from glovebox.firmware.flash.models import FlashResult
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.layout.models import LayoutResult, SystemBehavior
@@ -46,6 +49,110 @@ def mock_template_adapter() -> Mock:
     """Create a mock template adapter for testing."""
     adapter = Mock(spec=TemplateAdapterProtocol)
     return adapter
+
+
+# ---- Test Isolation Fixtures ----
+
+
+@pytest.fixture
+def isolated_config(tmp_path: Path) -> Generator[UserConfig, None, None]:
+    """Create an isolated UserConfig instance with temporary directories.
+
+    This fixture provides complete configuration isolation by:
+    - Using a temporary config directory instead of ~/.glovebox/
+    - Mocking environment variables to prevent external influence
+    - Creating a clean UserConfig instance for each test
+
+    Usage:
+        def test_config_operation(isolated_config):
+            config = isolated_config
+            config.set("profile", "test_keyboard/v1.0")
+            # All operations are isolated to temp directory
+    """
+    # Create isolated config directory structure
+    config_dir = tmp_path / ".glovebox"
+    config_dir.mkdir(parents=True)
+    config_file = config_dir / "glovebox.yaml"
+
+    # Create minimal valid config
+    initial_config = {
+        "profile": "test_keyboard/v1.0",
+        "log_level": "INFO",
+        "keyboard_paths": [],
+    }
+
+    with config_file.open("w") as f:
+        yaml.dump(initial_config, f)
+
+    # Mock environment to prevent external config influence
+    original_env = dict(os.environ)
+
+    # Clear any existing GLOVEBOX_ env vars
+    for key in list(os.environ.keys()):
+        if key.startswith("GLOVEBOX_"):
+            del os.environ[key]
+
+    # Set isolated environment
+    os.environ["GLOVEBOX_CONFIG_DIR"] = str(config_dir)
+
+    try:
+        # Create isolated UserConfig instance
+        user_config = UserConfig(cli_config_path=config_file)
+        yield user_config
+    finally:
+        # Restore original environment
+        os.environ.clear()
+        os.environ.update(original_env)
+
+
+@pytest.fixture
+def isolated_cli_environment(
+    isolated_config: UserConfig, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Generator[dict[str, Any], None, None]:
+    """Create isolated environment for CLI command tests.
+
+    This fixture provides complete CLI isolation by:
+    - Using isolated_config for configuration management
+    - Setting current directory to a temporary path
+    - Mocking environment variables
+    - Providing a clean environment context
+
+    Usage:
+        def test_cli_command(isolated_cli_environment, cli_runner):
+            result = cli_runner.invoke(app, ["config", "list"])
+            # All file operations isolated to temp directory
+    """
+    # Change to temporary directory for the test
+    original_cwd = Path.cwd()
+    os.chdir(tmp_path)
+
+    # Create working directories
+    work_dir = tmp_path / "work"
+    output_dir = tmp_path / "output"
+    work_dir.mkdir()
+    output_dir.mkdir()
+
+    # Mock common environment variables
+    monkeypatch.setenv(
+        "GLOVEBOX_CONFIG_DIR", str(isolated_config.config_file_path.parent)
+    )
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("TMPDIR", str(tmp_path / "tmp"))
+
+    # Create environment context
+    env_context = {
+        "config": isolated_config,
+        "work_dir": work_dir,
+        "output_dir": output_dir,
+        "temp_dir": tmp_path,
+        "config_file": isolated_config.config_file_path,
+    }
+
+    try:
+        yield env_context
+    finally:
+        # Restore original working directory
+        os.chdir(original_cwd)
 
 
 # ---- Test Data Directories ----

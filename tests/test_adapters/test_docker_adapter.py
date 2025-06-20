@@ -403,7 +403,7 @@ class TestDockerAdapter:
         mock_dockerfile_dir.exists.return_value = True
         mock_dockerfile_dir.is_dir.return_value = True
         mock_dockerfile_dir.resolve.return_value = mock_dockerfile_dir
-        mock_dockerfile_dir.__str__ = Mock(return_value="/test/dockerfile")
+        mock_dockerfile_dir.__str__ = lambda: "/test/dockerfile"  # type: ignore[method-assign]
         mock_dockerfile_dir.__truediv__ = Mock(
             return_value=mock_dockerfile_dir
         )  # For dockerfile_path = dockerfile_dir / "Dockerfile"
