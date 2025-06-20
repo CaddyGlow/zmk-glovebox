@@ -66,7 +66,9 @@ def windows_to_wsl_path(windows_path: str) -> str:
             drive_letter = windows_path[0].lower()
             fallback_path = f"/mnt/{drive_letter}/"
             logger.debug(
-                "wslpath failed for %s, trying fallback: %s", windows_path, fallback_path
+                "wslpath failed for %s, trying fallback: %s",
+                windows_path,
+                fallback_path,
             )
 
             # Test if the fallback path exists
@@ -77,7 +79,9 @@ def windows_to_wsl_path(windows_path: str) -> str:
                 logger.debug("Fallback path %s does not exist", fallback_path)
 
         exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.error("Failed to convert Windows path %s: %s", windows_path, e, exc_info=exc_info)
+        logger.error(
+            "Failed to convert Windows path %s: %s", windows_path, e, exc_info=exc_info
+        )
         raise OSError(f"Failed to convert Windows path {windows_path}: {e}") from e
 
 
@@ -174,11 +178,15 @@ class LinuxFlashOS:
 
         except subprocess.TimeoutExpired as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Timeout mounting device %s: %s", device_path, e, exc_info=exc_info)
+            logger.error(
+                "Timeout mounting device %s: %s", device_path, e, exc_info=exc_info
+            )
             raise OSError(f"Timeout mounting device {device_path}") from e
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Failed to mount device %s: %s", device_path, e, exc_info=exc_info)
+            logger.error(
+                "Failed to mount device %s: %s", device_path, e, exc_info=exc_info
+            )
             raise OSError(f"Failed to mount device {device_path}: {e}") from e
 
         return mount_points
