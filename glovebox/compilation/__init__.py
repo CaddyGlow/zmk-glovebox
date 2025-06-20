@@ -4,10 +4,10 @@ This domain provides comprehensive compilation services following the
 GitHub Actions workflow pattern for ZMK config builds.
 """
 
+# Defer import to avoid circular dependency
 from glovebox.compilation.protocols.compilation_protocols import (
     CompilationServiceProtocol,
 )
-from glovebox.core.cache_v2 import create_cache_from_user_config
 
 
 # Simple factory function for direct service selection
@@ -34,7 +34,7 @@ def create_compilation_service(strategy: str) -> CompilationServiceProtocol:
 
 
 def create_zmk_west_service() -> CompilationServiceProtocol:
-    """Create ZMK with West compilation service.
+    """Create ZMK with West compilation service using shared cache coordination.
 
     Returns:
         CompilationServiceProtocol: ZMK config compilation service
@@ -47,8 +47,15 @@ def create_zmk_west_service() -> CompilationServiceProtocol:
 
     docker_adapter = create_docker_adapter()
     user_config = create_user_config()
-    cache = create_cache_from_user_config(user_config._config, tag="compilation")
-    return create_zmk_west_service(docker_adapter, user_config, cache)
+
+    # Use shared cache coordination via domain-specific factory
+    from glovebox.compilation.cache import create_compilation_cache_service
+
+    cache, workspace_service = create_compilation_cache_service(user_config)
+
+    return create_zmk_west_service(
+        docker_adapter, user_config, cache, workspace_service
+    )
 
 
 def create_moergo_nix_service() -> CompilationServiceProtocol:

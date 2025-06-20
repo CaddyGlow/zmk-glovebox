@@ -158,6 +158,47 @@ def isolated_cli_environment(
         os.chdir(original_cwd)
 
 
+@pytest.fixture(autouse=True)
+def reset_shared_cache() -> Generator[None, None, None]:
+    """Reset shared cache instances before each test for isolation.
+
+    This fixture ensures test isolation by resetting all shared cache instances
+    following CLAUDE.md requirements for test pollution prevention.
+
+    The fixture is autouse=True to automatically reset cache between tests.
+    """
+    from glovebox.core.cache_v2 import reset_shared_cache_instances
+
+    # Reset cache before test
+    reset_shared_cache_instances()
+
+    yield
+
+    # Reset cache after test for extra safety
+    reset_shared_cache_instances()
+
+
+@pytest.fixture
+def shared_cache_stats() -> Generator[callable, None, None]:
+    """Provide access to shared cache statistics for testing.
+
+    Returns:
+        Callable that returns cache instance count and keys for debugging
+    """
+    from glovebox.core.cache_v2 import (
+        get_cache_instance_count,
+        get_cache_instance_keys,
+    )
+
+    def get_stats() -> dict[str, Any]:
+        return {
+            "instance_count": get_cache_instance_count(),
+            "instance_keys": get_cache_instance_keys(),
+        }
+
+    yield get_stats
+
+
 # ---- Test Data Directories ----
 
 

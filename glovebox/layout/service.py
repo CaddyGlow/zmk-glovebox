@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
@@ -167,6 +167,111 @@ class LayoutService(BaseService):
         """Generate ZMK keymap and config files from keymap data."""
         logger.info("Starting keymap generation for %s", profile.keyboard_name)
 
+        # Import metrics here to avoid circular dependencies
+        try:
+            from glovebox.metrics.collector import layout_metrics
+
+            metrics_enabled = True
+        except ImportError:
+            metrics_enabled = False
+
+        if metrics_enabled:
+            with layout_metrics() as metrics:
+                metrics.set_context(
+                    profile_name=f"{profile.keyboard_name}/{profile.firmware_version}"
+                    if profile.firmware_version
+                    else profile.keyboard_name,
+                    keyboard_name=profile.keyboard_name,
+                    firmware_version=profile.firmware_version,
+                    layer_count=len(keymap_data.layers) if keymap_data.layers else 0,
+                    binding_count=sum(len(layer) for layer in keymap_data.layers)
+                    if keymap_data.layers
+                    else 0,
+                    output_directory=Path(output_file_prefix).parent,
+                )
+                return self._generate_with_metrics(
+                    profile, keymap_data, output_file_prefix, force, metrics
+                )
+        else:
+            return self._generate_core(profile, keymap_data, output_file_prefix, force)
+
+    def _generate_with_metrics(
+        self,
+        profile: "KeyboardProfile",
+        keymap_data: LayoutData,
+        output_file_prefix: str | Path,
+        force: bool,
+        metrics: Any,
+    ) -> LayoutResult:
+        """Generate ZMK keymap and config files with metrics collection."""
+        # Prepare output paths
+        with metrics.time_operation("preparation"):
+            output_paths = prepare_output_paths(output_file_prefix, profile)
+
+            # Check if output files already exist (unless force=True)
+            if not force:
+                existing_files = [
+                    path
+                    for path in [output_paths.keymap, output_paths.conf]
+                    if path.exists()
+                ]
+                if existing_files:
+                    existing_names = [f.name for f in existing_files]
+                    raise LayoutError(
+                        f"Output files already exist: {existing_names}. Use force=True to overwrite."
+                    )
+
+            # Ensure output directory exists
+            self._file_adapter.create_directory(output_paths.keymap.parent)
+
+        # Initialize result
+        result = LayoutResult(success=False)
+
+        # Register behaviors needed for this layout
+        with metrics.time_operation("behavior_registration"):
+            register_layout_behaviors(profile, keymap_data, self._behavior_registry)
+
+        # Generate config file (.conf)
+        with metrics.time_operation("config_generation"):
+            generate_config_file(
+                self._file_adapter,
+                profile,
+                keymap_data,
+                output_paths.conf,
+            )
+            result.conf_path = output_paths.conf
+
+        # Generate keymap file (.keymap)
+        with metrics.time_operation("keymap_generation"):
+            generate_keymap_file(
+                self._file_adapter,
+                self._template_adapter,
+                self._dtsi_generator,
+                keymap_data,
+                profile,
+                output_paths.keymap,
+            )
+            result.keymap_path = output_paths.keymap
+
+        # Save original JSON file for reference
+        with metrics.time_operation("json_saving"):
+            self._file_adapter.write_json(
+                output_paths.json, keymap_data.model_dump(mode="json", by_alias=True)
+            )
+            result.json_path = output_paths.json
+
+        result.success = True
+        logger.info("Keymap generation completed successfully")
+        return result
+
+    def _generate_core(
+        self,
+        profile: "KeyboardProfile",
+        keymap_data: LayoutData,
+        output_file_prefix: str | Path,
+        force: bool = False,
+    ) -> LayoutResult:
+        """Generate ZMK keymap and config files from keymap data (core implementation without metrics)."""
         # Prepare output paths
         output_paths = prepare_output_paths(output_file_prefix, profile)
 

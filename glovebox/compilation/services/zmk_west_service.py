@@ -6,7 +6,7 @@ import shutil
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -90,6 +90,135 @@ class ZmkWestService(CompilationServiceProtocol):
         """Execute ZMK compilation."""
         self.logger.info("Starting ZMK config compilation")
 
+        # Import metrics here to avoid circular dependencies
+        try:
+            from glovebox.metrics.collector import firmware_metrics
+
+            metrics_enabled = True
+        except ImportError:
+            metrics_enabled = False
+
+        if metrics_enabled:
+            with firmware_metrics() as metrics:
+                metrics.set_context(
+                    profile_name=f"{keyboard_profile.keyboard_name}/{keyboard_profile.firmware_version}"
+                    if keyboard_profile.firmware_version
+                    else keyboard_profile.keyboard_name,
+                    keyboard_name=keyboard_profile.keyboard_name,
+                    firmware_version=keyboard_profile.firmware_version,
+                    compilation_strategy="zmk_config",
+                    board_targets=config.build_matrix.board
+                    if isinstance(config, ZmkCompilationConfig)
+                    else None,
+                )
+                return self._compile_with_metrics(
+                    keymap_file,
+                    config_file,
+                    output_dir,
+                    config,
+                    keyboard_profile,
+                    metrics,
+                )
+        else:
+            return self._compile_core(
+                keymap_file, config_file, output_dir, config, keyboard_profile
+            )
+
+    def _compile_with_metrics(
+        self,
+        keymap_file: Path,
+        config_file: Path,
+        output_dir: Path,
+        config: CompilationConfigUnion,
+        keyboard_profile: "KeyboardProfile",
+        metrics: Any,
+    ) -> BuildResult:
+        """Execute ZMK compilation with metrics collection."""
+        if not isinstance(config, ZmkCompilationConfig):
+            return BuildResult(
+                success=False, errors=["Invalid config type for ZMK compilation"]
+            )
+
+        # Try to use cached build result first (most specific cache)
+        with metrics.time_operation("cache_check"):
+            cached_result = self._get_cached_build_result(
+                keymap_file, config_file, config
+            )
+            if cached_result:
+                metrics.set_cache_info(cache_hit=True, cache_key="build_result")
+                self.logger.info(
+                    "Returning cached build result - compilation skipped entirely"
+                )
+                return cached_result
+
+            metrics.set_cache_info(cache_hit=False)
+
+        # Try to use cached workspace
+        with metrics.time_operation("workspace_setup"):
+            workspace_path, cache_level = self._get_or_create_workspace(
+                keymap_file, config_file, config
+            )
+            if not workspace_path:
+                self.logger.error("Workspace setup failed")
+                return BuildResult(success=False, errors=["Workspace setup failed"])
+
+            metrics.set_context(workspace_path=workspace_path)
+
+        with metrics.time_operation("compilation"):
+            compilation_success = self._run_compilation(
+                workspace_path, config, cache_level
+            )
+
+        # Cache workspace dependencies even if compilation fails
+        with metrics.time_operation("workspace_caching"):
+            self._cache_workspace(workspace_path, config)
+
+        # Always try to collect artifacts, even on build failure (for debugging)
+        with metrics.time_operation("artifact_collection"):
+            output_files = self._collect_files(workspace_path, output_dir)
+
+        if not compilation_success:
+            self.logger.error(
+                "Compilation failed, returning partial results for debugging"
+            )
+            return BuildResult(
+                success=False,
+                errors=["Compilation failed"],
+                output_files=output_files,  # Include partial artifacts for debugging
+            )
+
+        build_result = BuildResult(
+            success=True,
+            output_files=output_files,
+            messages=[
+                f"Generated {'1' if output_files.main_uf2 else '0'} firmware files"
+            ],
+        )
+
+        # Cache the successful build result
+        with metrics.time_operation("result_caching"):
+            self._cache_build_result(keymap_file, config_file, config, build_result)
+
+        # Set final metrics context
+        metrics.set_context(
+            artifacts_generated=1 if output_files.main_uf2 else 0,
+            firmware_size_bytes=output_files.main_uf2.stat().st_size
+            if output_files.main_uf2 and output_files.main_uf2.exists()
+            else None,
+        )
+
+        self.logger.info("ZMK compilation completed successfully")
+        return build_result
+
+    def _compile_core(
+        self,
+        keymap_file: Path,
+        config_file: Path,
+        output_dir: Path,
+        config: CompilationConfigUnion,
+        keyboard_profile: "KeyboardProfile",
+    ) -> BuildResult:
+        """Execute ZMK compilation (core implementation without metrics)."""
         try:
             if not isinstance(config, ZmkCompilationConfig):
                 return BuildResult(
@@ -271,12 +400,17 @@ class ZmkWestService(CompilationServiceProtocol):
             return
 
         try:
+            # Determine appropriate cache levels based on workspace completeness
+            # For a workspace that has been through compilation, it should be "full"
+            # since it contains all dependencies and has been built
+            cache_levels = ["full", "branch", "base"]  # Store as full level primarily
+
             # Use the new workspace cache service to handle caching
             cache_result = self.workspace_cache_service.cache_workspace(
                 workspace_path=workspace_path,
                 repository=config.repository,
                 branch=config.branch,
-                cache_levels=["base", "branch", "full"],
+                cache_levels=cache_levels,
                 build_profile=f"{config.repository}@{config.branch}",
             )
 
