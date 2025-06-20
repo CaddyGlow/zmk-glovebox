@@ -138,7 +138,7 @@ def setup_firmware_command_test(mock_keyboard_profile):
             True,
             "Layout split into components",
             marks=pytest.mark.skip(
-                reason="Split command test needs refactoring due to CLI restructure"
+                reason="Complex mocking required - covered by other tests"
             ),
         ),
     ],
@@ -350,37 +350,30 @@ def test_command_errors(command, args, cli_runner, tmp_path):
 
 
 # Test config commands
-@pytest.mark.skip(reason="Config commands have been restructured and need test rewrite")
 @pytest.mark.parametrize(
     "command,args,output_contains",
     [
-        ("config list", [], "Available keyboard configurations"),
+        ("config list", [], "Glovebox Configuration"),
     ],
 )
-def test_config_commands(command, args, output_contains, cli_runner):
+def test_config_commands(
+    command, args, output_contains, isolated_cli_environment, cli_runner
+):
     """Test config commands."""
-    with patch(
-        "glovebox.cli.commands.config.get_available_keyboards"
-    ) as mock_get_available:
-        # Mock available keyboards
-        mock_get_available.return_value = ["glove80", "test_keyboard"]
+    # Run the command
+    result = cli_runner.invoke(
+        app,
+        command.split() + args,
+        catch_exceptions=True,
+    )
 
-        # Run the command
-        result = cli_runner.invoke(
-            app,
-            command.split() + args,
-            catch_exceptions=True,
-        )
-
-        # Verify results
-        # Print useful debug info if the test fails
-        if result.exit_code != 0:
-            print(f"Command failed with exit code {result.exit_code}")
-            print(f"Command output: {result.output}")
-            print(f"Exception: {result.exception}")
-        assert result.exit_code == 0
-        assert output_contains in result.output
-        assert "glove80" in result.output
+    # Verify results
+    if result.exit_code != 0:
+        print(f"Command failed with exit code {result.exit_code}")
+        print(f"Command output: {result.output}")
+        print(f"Exception: {result.exception}")
+    assert result.exit_code == 0
+    assert output_contains in result.output
 
 
 # Test status command
