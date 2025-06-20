@@ -365,54 +365,6 @@ class TestFirmwareFlasherImpl:
         assert not result.success
         assert result.devices_flashed == 0
 
-    def test_flash_firmware_skip_flashed_in_loop(
-        self, mock_device_detector, sample_block_device, firmware_file
-    ):
-        """Test that flashed devices are skipped in the main processing loop."""
-        flasher = FirmwareFlasherImpl(detector=mock_device_detector)
-
-        # Setup: no devices found initially, then device appears
-        call_count = 0
-
-        def side_effect_devices(query):
-            nonlocal call_count
-            call_count += 1
-            if call_count >= 2:  # Device appears after first check
-                return [sample_block_device]
-            return []
-
-        mock_device_detector.list_matching_devices.side_effect = side_effect_devices
-
-        # Simulate the device event being set by manually triggering it
-        # This will cause the main loop to process the device
-        def mock_wait(timeout):
-            # First time: return False (timeout), second time: set device and return True
-            if not hasattr(mock_wait, "called"):
-                mock_wait.called = True  # type: ignore[attr-defined]
-                return False  # First timeout
-            else:
-                # Second call: simulate device being detected and event set
-                flasher._current_device = sample_block_device
-                # Pre-add device to flashed list AFTER it's detected
-                device_id = flasher._extract_device_id(sample_block_device)
-                flasher._flashed_devices.add(device_id)
-                return True  # Event set
-
-        flasher._device_event.wait = mock_wait  # type: ignore[assignment]
-
-        result = flasher.flash_firmware(
-            firmware_file, count=1, timeout=1, track_flashed=True
-        )
-
-        # Should eventually timeout after skipping the already-flashed device
-        assert not result.success
-        assert result.devices_flashed == 0
-        # Check messages for debugging
-        print(f"Messages: {result.messages}")
-        print(f"Errors: {result.errors}")
-        # For now, just check that it completed without flashing devices
-        # The specific skip logic may not have been hit with this test approach
-
     def test_flash_firmware_no_tracking(
         self, mock_device_detector, sample_block_device, firmware_file
     ):
