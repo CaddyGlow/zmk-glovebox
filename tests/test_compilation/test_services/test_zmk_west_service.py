@@ -59,7 +59,9 @@ class TestZmkWorkspaceCaching:
     @pytest.fixture
     def zmk_service(self, mock_docker_adapter, isolated_config, cache_manager):
         """Create ZMK service with cache."""
-        return create_zmk_west_service(mock_docker_adapter, isolated_config, cache_manager)
+        return create_zmk_west_service(
+            mock_docker_adapter, isolated_config, cache_manager
+        )
 
     @pytest.fixture
     def zmk_config(self):
@@ -181,15 +183,18 @@ class TestZmkWorkspaceCaching:
             ),
         )
 
-        service = create_zmk_west_service(mock_docker_adapter, isolated_config, cache_manager)
+        service = create_zmk_west_service(
+            mock_docker_adapter, isolated_config, cache_manager
+        )
         profile = Mock(spec=KeyboardProfile)
 
         with tempfile.TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir)
 
             # Should not use cache when disabled
-            cached_workspace = service._get_cached_workspace(config)
+            cached_workspace, cache_level = service._get_cached_workspace(config)
             assert cached_workspace is None
+            assert cache_level is None
 
             # Compilation should still work
             result = service.compile(
@@ -224,8 +229,9 @@ class TestZmkWorkspaceCaching:
             shutil.rmtree(cache_dir, ignore_errors=True)
 
         # First call should be cache miss for this unique config
-        cached_workspace = zmk_service._get_cached_workspace(unique_config)
+        cached_workspace, cache_level = zmk_service._get_cached_workspace(unique_config)
         assert cached_workspace is None
+        assert cache_level is None
 
         # Create a mock cached workspace
         with tempfile.TemporaryDirectory() as temp_workspace:
@@ -247,8 +253,11 @@ class TestZmkWorkspaceCaching:
             zmk_service._cache_workspace(workspace_path, unique_config)
 
             # Second call should be cache hit
-            cached_workspace = zmk_service._get_cached_workspace(unique_config)
+            cached_workspace, cache_level = zmk_service._get_cached_workspace(
+                unique_config
+            )
             assert cached_workspace is not None
+            assert cache_level is not None
             assert cached_workspace.exists()
             assert (cached_workspace / "zmk").exists()
 
@@ -263,8 +272,9 @@ class TestZmkWorkspaceCaching:
         zmk_service.cache.set(cache_key, fake_path)
 
         # Should return None and clean up stale entry
-        cached_workspace = zmk_service._get_cached_workspace(zmk_config)
+        cached_workspace, cache_level = zmk_service._get_cached_workspace(zmk_config)
         assert cached_workspace is None
+        assert cache_level is None
 
         # Cache entry should be removed
         assert zmk_service.cache.get(cache_key) is None
@@ -393,18 +403,28 @@ class TestZmkWorkspaceCaching:
                 assert result2.success
 
                 # Verify cache was used (workspace should be available)
-                cached_workspace = zmk_service._get_cached_workspace(zmk_config)
+                cached_workspace, cache_level = zmk_service._get_cached_workspace(
+                    zmk_config
+                )
                 assert cached_workspace is not None
+                assert cache_level is not None
 
     def test_concurrent_cache_access(
-        self, mock_docker_adapter, isolated_config, cache_manager, zmk_config, test_files
+        self,
+        mock_docker_adapter,
+        isolated_config,
+        cache_manager,
+        zmk_config,
+        test_files,
     ):
         """Test concurrent access to workspace cache."""
         keymap_file, config_file = test_files
 
         def compile_worker(worker_id):
             """Worker function for concurrent compilation."""
-            service = create_zmk_west_service(mock_docker_adapter, isolated_config, cache_manager)
+            service = create_zmk_west_service(
+                mock_docker_adapter, isolated_config, cache_manager
+            )
             profile = Mock(spec=KeyboardProfile)
 
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -486,12 +506,14 @@ class TestZmkWorkspaceCaching:
             zmk_service._cache_workspace(workspace1, config1)
             zmk_service._cache_workspace(workspace2, config2)
 
-            cached1 = zmk_service._get_cached_workspace(config1)
-            cached2 = zmk_service._get_cached_workspace(config2)
+            cached1, cache_level1 = zmk_service._get_cached_workspace(config1)
+            cached2, cache_level2 = zmk_service._get_cached_workspace(config2)
 
             # Both should be cached but in different locations
             assert cached1 is not None
             assert cached2 is not None
+            assert cache_level1 is not None
+            assert cache_level2 is not None
             assert cached1 != cached2
 
     def test_repository_only_caching_behavior(self, zmk_service):
@@ -578,11 +600,19 @@ class TestZmkWorkspaceCaching:
 
                 # But workspace should be cached even on failure
                 # This is the new behavior - cache dependencies even when compilation fails
-                cached_workspace = zmk_service._get_cached_workspace(zmk_config)
+                cached_workspace, cache_level = zmk_service._get_cached_workspace(
+                    zmk_config
+                )
                 assert cached_workspace is not None
+                assert cache_level is not None
 
     def test_multiprocess_cache_safety_during_file_operations(
-        self, mock_docker_adapter, isolated_config, cache_manager, zmk_config, test_files
+        self,
+        mock_docker_adapter,
+        isolated_config,
+        cache_manager,
+        zmk_config,
+        test_files,
     ):
         """Test thread/multiprocess safety during cache file operations.
 
@@ -595,7 +625,9 @@ class TestZmkWorkspaceCaching:
             """Worker function that performs cache operations concurrently."""
             import random
 
-            service = create_zmk_west_service(mock_docker_adapter, isolated_config, cache_manager)
+            service = create_zmk_west_service(
+                mock_docker_adapter, isolated_config, cache_manager
+            )
 
             # Create a realistic workspace structure
             with tempfile.TemporaryDirectory() as temp_workspace:
@@ -619,12 +651,14 @@ class TestZmkWorkspaceCaching:
                     service._cache_workspace(workspace_path, zmk_config)
 
                     # Immediately try to retrieve cached workspace
-                    cached = service._get_cached_workspace(zmk_config)
+                    cached, cache_level = service._get_cached_workspace(zmk_config)
 
                     # Try to use the cached workspace for compilation setup
                     if cached:
-                        new_workspace = service._get_or_create_workspace(
-                            keymap_file, config_file, zmk_config
+                        new_workspace, new_cache_level = (
+                            service._get_or_create_workspace(
+                                keymap_file, config_file, zmk_config
+                            )
                         )
 
                         # Verify workspace integrity
@@ -668,8 +702,12 @@ class TestZmkWorkspaceCaching:
         assert success_rate >= 0.7, f"Too many failures: {success_rate:.2%}"
 
         # Verify final cache state is consistent
-        final_service = create_zmk_west_service(mock_docker_adapter, isolated_config, cache_manager)
-        final_cached = final_service._get_cached_workspace(zmk_config)
+        final_service = create_zmk_west_service(
+            mock_docker_adapter, isolated_config, cache_manager
+        )
+        final_cached, final_cache_level = final_service._get_cached_workspace(
+            zmk_config
+        )
 
         if final_cached:
             # Verify cached workspace integrity
@@ -711,7 +749,9 @@ class TestZmkWorkspaceCaching:
                 zmk_service._cache_workspace(workspace_path, zmk_config)
 
                 # Immediately try to read from cache
-                cached_workspace = zmk_service._get_cached_workspace(zmk_config)
+                cached_workspace, cache_level = zmk_service._get_cached_workspace(
+                    zmk_config
+                )
 
                 if cached_workspace:
                     # Try to access files in cached workspace
@@ -759,7 +799,7 @@ class TestZmkWorkspaceCaching:
         assert success_rate >= 0.8, f"Too many failures: {success_rate:.2%}"
 
         # Final verification - cache should be in consistent state
-        final_cached = zmk_service._get_cached_workspace(zmk_config)
+        final_cached, final_cache_level = zmk_service._get_cached_workspace(zmk_config)
         if final_cached:
             assert final_cached.exists()
             # Verify cache content is not corrupted
@@ -866,11 +906,14 @@ class TestZmkWorkspaceCaching:
         service_with_cache = create_zmk_west_service(
             mock_docker_adapter, isolated_config, create_default_cache()
         )
-        cached = service_with_cache._get_cached_workspace(config_no_cache)
+        cached, cache_level = service_with_cache._get_cached_workspace(config_no_cache)
         assert cached is None
+        assert cache_level is None
 
         # Test with cache enabled but creates default cache when None provided
-        service_default_cache = create_zmk_west_service(mock_docker_adapter, isolated_config, None)
+        service_default_cache = create_zmk_west_service(
+            mock_docker_adapter, isolated_config, None
+        )
         config_cache_enabled = ZmkCompilationConfig(
             strategy="zmk_config",
             repository="zmkfirmware/zmk",
@@ -882,7 +925,7 @@ class TestZmkWorkspaceCaching:
 
         # Service creates default cache when None is provided, so this might return a cached workspace
         # if one exists from previous tests. We just verify it doesn't crash.
-        cached_default = service_default_cache._get_cached_workspace(
-            config_cache_enabled
+        cached_default, default_cache_level = (
+            service_default_cache._get_cached_workspace(config_cache_enabled)
         )
         # Don't assert anything about the result since it depends on previous test state

@@ -4,6 +4,7 @@ import json
 import logging
 import shutil
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -58,8 +59,8 @@ class ZmkWestService(CompilationServiceProtocol):
 
         # Create workspace cache service if not provided
         if workspace_cache_service is None and cache is not None:
-            self.workspace_cache_service: ZmkWorkspaceCacheService | None = create_zmk_workspace_cache_service(
-                user_config, cache
+            self.workspace_cache_service: ZmkWorkspaceCacheService | None = (
+                create_zmk_workspace_cache_service(user_config, cache)
             )
         else:
             self.workspace_cache_service = workspace_cache_service
@@ -106,14 +107,16 @@ class ZmkWestService(CompilationServiceProtocol):
                 return cached_result
 
             # Try to use cached workspace
-            workspace_path = self._get_or_create_workspace(
+            workspace_path, cache_level = self._get_or_create_workspace(
                 keymap_file, config_file, config
             )
             if not workspace_path:
                 self.logger.error("Workspace setup failed")
                 return BuildResult(success=False, errors=["Workspace setup failed"])
 
-            compilation_success = self._run_compilation(workspace_path, config)
+            compilation_success = self._run_compilation(
+                workspace_path, config, cache_level
+            )
 
             # Cache workspace dependencies even if compilation fails
             # This allows reuse of successfully downloaded/built dependencies
@@ -221,10 +224,16 @@ class ZmkWestService(CompilationServiceProtocol):
         """Check availability."""
         return self.docker_adapter is not None
 
-    def _get_cached_workspace(self, config: ZmkCompilationConfig) -> Path | None:
-        """Get cached workspace if available using tiered cache lookup."""
+    def _get_cached_workspace(
+        self, config: ZmkCompilationConfig
+    ) -> tuple[Path | None, str | None]:
+        """Get cached workspace if available using tiered cache lookup.
+
+        Returns:
+            Tuple of (workspace_path, cache_level) or (None, None) if no cache found
+        """
         if not config.use_cache or not self.workspace_cache_service:
-            return None
+            return None, None
 
         # Try cache lookup in order of specificity: full -> branch -> base
         cache_levels = ["full", "branch", "base"]
@@ -250,9 +259,9 @@ class ZmkWestService(CompilationServiceProtocol):
                     config, level, str(cache_result.workspace_path)
                 )
 
-                return cache_result.workspace_path
+                return cache_result.workspace_path, level
 
-        return None
+        return None, None
 
     def _cache_workspace(
         self, workspace_path: Path, config: ZmkCompilationConfig
@@ -409,11 +418,16 @@ class ZmkWestService(CompilationServiceProtocol):
 
     def _get_or_create_workspace(
         self, keymap_file: Path, config_file: Path, config: ZmkCompilationConfig
-    ) -> Path | None:
-        """Get cached workspace or create new one."""
+    ) -> tuple[Path | None, str | None]:
+        """Get cached workspace or create new one.
+
+        Returns:
+            Tuple of (workspace_path, cache_level) or (None, None) if failed
+        """
         # Try to use cached workspace
-        cached_workspace = self._get_cached_workspace(config)
+        cached_workspace, cache_level = self._get_cached_workspace(config)
         workspace_path = Path(tempfile.mkdtemp(prefix="zmk_"))
+
         if cached_workspace:
             # Create temporary workspace and copy from cache
             try:
@@ -424,10 +438,15 @@ class ZmkWestService(CompilationServiceProtocol):
                             cached_workspace / subdir, workspace_path / subdir
                         )
 
+                # Copy west update marker if it exists
+                west_marker = cached_workspace / ".west_last_update"
+                if west_marker.exists():
+                    shutil.copy2(west_marker, workspace_path / ".west_last_update")
+
                 # Set up config directory with fresh files
                 self._setup_workspace(keymap_file, config_file, config, workspace_path)
-                self.logger.info("Using cached workspace")
-                return workspace_path
+                self.logger.info("Using cached workspace (%s level)", cache_level)
+                return workspace_path, cache_level
             except Exception as e:
                 exc_info = self.logger.isEnabledFor(logging.DEBUG)
                 self.logger.warning(
@@ -435,9 +454,9 @@ class ZmkWestService(CompilationServiceProtocol):
                 )
                 shutil.rmtree(workspace_path, ignore_errors=True)
 
-        # Create fresh workspace
+        # Create fresh workspace (no cache level)
         self._setup_workspace(keymap_file, config_file, config, workspace_path)
-        return workspace_path
+        return workspace_path, None
 
     def _setup_workspace(
         self,
@@ -482,10 +501,65 @@ class ZmkWestService(CompilationServiceProtocol):
         with (config_dir / "west.yml").open("w") as f:
             f.write(manifest.to_yaml())
 
-    def _run_compilation(
-        self, workspace_path: Path, config: ZmkCompilationConfig
+    def _should_run_west_update(
+        self, workspace_path: Path, cache_level: str | None = None
     ) -> bool:
-        """Run Docker compilation."""
+        """Determine if west update should be run based on cache level.
+
+        Args:
+            workspace_path: Path to the workspace
+            cache_level: Cache level used ('base', 'branch', 'full', 'build')
+
+        Returns:
+            True if west update should be run
+        """
+        # Always update for fresh workspaces (no cache level)
+        if not cache_level:
+            self.logger.info("Running west update for fresh workspace")
+            return True
+
+        # Update policy based on cache level completeness:
+        # - base: Always update (least complete, dependencies may be missing)
+        # - branch: Never update (branch-specific dependencies should be stable)
+        # - full: Never update (most complete, all dependencies present)
+        # - build: Always update (build-specific, needs latest for accuracy)
+
+        if cache_level == "base":
+            self.logger.info(
+                "Running west update for base cache level (dependencies may be incomplete)"
+            )
+            return True
+        elif cache_level in ["branch", "full"]:
+            self.logger.info(
+                "Skipping west update for %s cache level (dependencies should be complete)",
+                cache_level,
+            )
+            return False
+        elif cache_level == "build":
+            self.logger.info(
+                "Running west update for build cache level (ensuring latest dependencies)"
+            )
+            return True
+        else:
+            # Unknown cache level, err on the side of updating
+            self.logger.warning(
+                "Unknown cache level '%s', defaulting to west update", cache_level
+            )
+            return True
+
+    def _run_compilation(
+        self,
+        workspace_path: Path,
+        config: ZmkCompilationConfig,
+        cache_level: str | None = None,
+    ) -> bool:
+        """Run Docker compilation with intelligent west update logic.
+
+        Args:
+            workspace_path: Path to the workspace
+            config: ZMK compilation configuration
+            cache_level: Cache level used for this workspace
+        """
         try:
             # Check if Docker image exists, build if not
             if not self._ensure_docker_image(config):
@@ -497,12 +571,17 @@ class ZmkWestService(CompilationServiceProtocol):
             if not build_commands:
                 return False
 
-            base_commands = [
-                "cd /workspace",
-                "west init -l config",
-                "west update",
-                "west zephyr-export",
-            ]
+            # Build base commands with conditional west update
+            base_commands = ["cd /workspace", "west init -l config"]
+
+            # Only run west update if needed based on cache level
+            if self._should_run_west_update(workspace_path, cache_level):
+                base_commands.append("west update")
+                # Create update marker after successful update
+                base_commands.append("touch /workspace/.west_last_update")
+
+            # Always run west zephyr-export to set up Zephyr environment variables
+            base_commands.append("west zephyr-export")
 
             all_commands = base_commands + build_commands
 
