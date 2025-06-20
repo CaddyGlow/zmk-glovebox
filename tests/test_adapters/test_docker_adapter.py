@@ -403,7 +403,7 @@ class TestDockerAdapter:
         mock_dockerfile_dir.exists.return_value = True
         mock_dockerfile_dir.is_dir.return_value = True
         mock_dockerfile_dir.resolve.return_value = mock_dockerfile_dir
-        mock_dockerfile_dir.__str__ = lambda: "/test/dockerfile"  # type: ignore[method-assign]
+        mock_dockerfile_dir.__str__ = lambda self: "/test/dockerfile"  # type: ignore[method-assign,misc,assignment]
         mock_dockerfile_dir.__truediv__ = Mock(
             return_value=mock_dockerfile_dir
         )  # For dockerfile_path = dockerfile_dir / "Dockerfile"
@@ -447,7 +447,9 @@ class TestDockerAdapter:
         dockerfile_dir = Path("/test/dockerfile")
         with (
             patch.object(adapter, "is_available", return_value=True),
-            patch("subprocess.run") as mock_run,
+            patch(
+                "glovebox.utils.stream_process.run_command", return_value=(0, [], [])
+            ) as mock_run,
             patch.object(Path, "exists", return_value=True),
             patch.object(Path, "is_dir", return_value=True),
         ):
@@ -460,9 +462,9 @@ class TestDockerAdapter:
             "test-image:latest",
             str(dockerfile_dir),
         ]
-        mock_run.assert_called_once_with(
-            expected_cmd, check=True, capture_output=True, text=True
-        )
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args[0]  # Get positional arguments
+        assert call_args[0] == expected_cmd
 
     def test_build_image_docker_not_available(self):
         """Test build_image raises error when Docker is not available."""
@@ -528,12 +530,12 @@ class TestDockerAdapter:
         dockerfile_dir = Path("/test/dockerfile")
         with (
             patch.object(adapter, "is_available", return_value=True),
-            patch("subprocess.run", side_effect=error),
+            patch("glovebox.utils.stream_process.run_command", side_effect=error),
             patch.object(Path, "exists", return_value=True),
             patch.object(Path, "is_dir", return_value=True),
             pytest.raises(
                 DockerError,
-                match="Docker image build failed: Build failed: syntax error",
+                match="Docker subprocess error",
             ),
         ):
             adapter.build_image(dockerfile_dir, "test-image")
