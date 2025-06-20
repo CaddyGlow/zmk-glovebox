@@ -30,7 +30,9 @@ def upload(
     title: Annotated[str | None, typer.Option(help="Title for the layout")] = None,
     uuid: Annotated[
         str | None,
-        typer.Option(help="Specify UUID for the layout (generates one if not provided)"),
+        typer.Option(
+            help="Specify UUID for the layout (generates one if not provided)"
+        ),
     ] = None,
     notes: Annotated[str | None, typer.Option(help="Add notes to the layout")] = None,
     tags: Annotated[
@@ -42,7 +44,9 @@ def upload(
     client = create_moergo_client()
 
     if not client.validate_authentication():
-        typer.echo("❌ Authentication failed. Please run 'glovebox moergo login' first.")
+        typer.echo(
+            "❌ Authentication failed. Please run 'glovebox moergo login' first."
+        )
         raise typer.Exit(1)
 
     # Load the layout file
@@ -100,7 +104,9 @@ def download(
     client = create_moergo_client()
 
     if not client.validate_authentication():
-        typer.echo("❌ Authentication failed. Please run 'glovebox moergo login' first.")
+        typer.echo(
+            "❌ Authentication failed. Please run 'glovebox moergo login' first."
+        )
         raise typer.Exit(1)
 
     try:
@@ -108,9 +114,7 @@ def download(
 
         # Save the config part (the actual layout data)
         output_file.parent.mkdir(parents=True, exist_ok=True)
-        output_file.write_text(
-            layout.config.model_dump_json(by_alias=True, indent=2)
-        )
+        output_file.write_text(layout.config.model_dump_json(by_alias=True, indent=2))
         typer.echo(f"💾 Downloaded to: {output_file}")
 
     except Exception as e:
@@ -291,7 +295,9 @@ def delete(
     client = create_moergo_client()
 
     if not client.validate_authentication():
-        typer.echo("❌ Authentication failed. Please run 'glovebox moergo login' first.")
+        typer.echo(
+            "❌ Authentication failed. Please run 'glovebox moergo login' first."
+        )
         raise typer.Exit(1)
 
     # Get layout info first
@@ -329,4 +335,3 @@ def delete(
 def register_commands(app: typer.Typer) -> None:
     """Register cloud commands with the main app."""
     app.add_typer(cloud_app, name="cloud")
-

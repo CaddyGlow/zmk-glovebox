@@ -760,10 +760,12 @@ class TestConfigInteractiveFunction:
             patch("glovebox.cli.commands.config.edit.print_error_message"),
             patch("typer.Exit"),
         ):
-            try:
-                _handle_interactive_edit(mock_app_ctx)
-            except:
-                pass  # Expected to fail due to no config file
+            import contextlib
+
+            with contextlib.suppress(Exception):
+                _handle_interactive_edit(
+                    mock_app_ctx
+                )  # Expected to fail due to no config file
 
         # Verify environment variable was checked
         mock_env_get.assert_called_with("EDITOR", "nano")

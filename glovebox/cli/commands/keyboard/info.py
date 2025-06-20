@@ -38,31 +38,38 @@ def _get_keyboard_field_defaults() -> dict[str, Any]:
 
     # Get field defaults from KeyboardConfig
     for field_name, field_info in KeyboardConfig.model_fields.items():
-        if hasattr(field_info, 'default') and field_info.default is not None:
+        if hasattr(field_info, "default") and field_info.default is not None:
             defaults[field_name] = field_info.default
-        elif hasattr(field_info, 'default_factory') and field_info.default_factory is not None:
+        elif (
+            hasattr(field_info, "default_factory")
+            and field_info.default_factory is not None
+        ):
             try:
                 defaults[field_name] = field_info.default_factory()  # type: ignore
             except Exception:
-                defaults[field_name] = f"<factory: {field_info.default_factory.__name__}>"
+                defaults[field_name] = (
+                    f"<factory: {field_info.default_factory.__name__}>"
+                )
         else:
             defaults[field_name] = None
 
     # Add defaults for nested config objects
     try:
-        defaults['display'] = DisplayConfig()
-        defaults['behaviors'] = BehaviorConfig()
-        defaults['zmk'] = ZmkConfig()
+        defaults["display"] = DisplayConfig()
+        defaults["behaviors"] = BehaviorConfig()
+        defaults["zmk"] = ZmkConfig()
     except Exception:
         # If factory creation fails, mark as factory
-        defaults['display'] = "<factory: DisplayConfig>"
-        defaults['behaviors'] = "<factory: BehaviorConfig>"
-        defaults['zmk'] = "<factory: ZmkConfig>"
+        defaults["display"] = "<factory: DisplayConfig>"
+        defaults["behaviors"] = "<factory: BehaviorConfig>"
+        defaults["zmk"] = "<factory: ZmkConfig>"
 
     return defaults
 
 
-def _get_keyboard_config_sources(keyboard_name: str, app_ctx: AppContext) -> dict[str, str]:
+def _get_keyboard_config_sources(
+    keyboard_name: str, app_ctx: AppContext
+) -> dict[str, str]:
     """Get source file information for keyboard configuration fields."""
     # This is a simplified implementation - in a full implementation,
     # we would need to modify the config loading to track sources
@@ -93,20 +100,24 @@ def _get_keyboard_config_sources(keyboard_name: str, app_ctx: AppContext) -> dic
 
     # For now, mark all fields as coming from the main config file
     # In a full implementation, we would track which include file each field came from
-    source_name = str(main_config_file) if main_config_file else f"{keyboard_name}.yaml (not found)"
+    source_name = (
+        str(main_config_file)
+        if main_config_file
+        else f"{keyboard_name}.yaml (not found)"
+    )
 
     # Basic keyboard fields
-    basic_fields = ['keyboard', 'description', 'vendor', 'key_count']
+    basic_fields = ["keyboard", "description", "vendor", "key_count"]
     for field in basic_fields:
         sources[field] = source_name
 
     # Config sections that might come from includes
-    sources['compile_methods'] = f"{keyboard_name}/strategies.yaml"
-    sources['flash_methods'] = f"{keyboard_name}/hardware.yaml"
-    sources['firmwares'] = f"{keyboard_name}/firmwares.yaml"
-    sources['behaviors'] = "config/behaviors/common.yaml"
-    sources['display'] = "config/display/defaults.yaml"
-    sources['zmk'] = "config/zmk/validation.yaml"
+    sources["compile_methods"] = f"{keyboard_name}/strategies.yaml"
+    sources["flash_methods"] = f"{keyboard_name}/hardware.yaml"
+    sources["firmwares"] = f"{keyboard_name}/firmwares.yaml"
+    sources["behaviors"] = "config/behaviors/common.yaml"
+    sources["display"] = "config/display/defaults.yaml"
+    sources["zmk"] = "config/zmk/validation.yaml"
 
     return sources
 
@@ -117,7 +128,7 @@ def _print_keyboard_config_table(
     app_ctx: AppContext,
     show_sources: bool,
     show_defaults: bool,
-    verbose: bool
+    verbose: bool,
 ) -> None:
     """Print keyboard configuration in a table format with optional sources and defaults."""
     from glovebox.cli.helpers.theme import Icons
@@ -137,7 +148,9 @@ def _print_keyboard_config_table(
 
     # Get defaults and sources if requested
     defaults = _get_keyboard_field_defaults() if show_defaults else {}
-    sources = _get_keyboard_config_sources(keyboard_name, app_ctx) if show_sources else {}
+    sources = (
+        _get_keyboard_config_sources(keyboard_name, app_ctx) if show_sources else {}
+    )
 
     def format_value(value: Any) -> str:
         """Format a value for display."""
@@ -155,7 +168,7 @@ def _print_keyboard_config_table(
                 return "(empty dict)"
             else:
                 return f"{{...}} ({len(value)} keys)"
-        elif hasattr(value, '__dict__'):
+        elif hasattr(value, "__dict__"):
             # For Pydantic models
             return f"<{value.__class__.__name__}>"
         else:
@@ -163,10 +176,10 @@ def _print_keyboard_config_table(
 
     # Basic keyboard information
     basic_fields = [
-        ('keyboard', getattr(keyboard_config, 'keyboard', None)),
-        ('description', getattr(keyboard_config, 'description', None)),
-        ('vendor', getattr(keyboard_config, 'vendor', None)),
-        ('key_count', getattr(keyboard_config, 'key_count', None)),
+        ("keyboard", getattr(keyboard_config, "keyboard", None)),
+        ("description", getattr(keyboard_config, "description", None)),
+        ("vendor", getattr(keyboard_config, "vendor", None)),
+        ("key_count", getattr(keyboard_config, "key_count", None)),
     ]
 
     for field_name, field_value in basic_fields:
@@ -184,27 +197,27 @@ def _print_keyboard_config_table(
 
     # Configuration sections
     config_sections = []
-    if hasattr(keyboard_config, 'compile_methods') and keyboard_config.compile_methods:
-        config_sections.append(('compile_methods', keyboard_config.compile_methods))
+    if hasattr(keyboard_config, "compile_methods") and keyboard_config.compile_methods:
+        config_sections.append(("compile_methods", keyboard_config.compile_methods))
 
-    if hasattr(keyboard_config, 'flash_methods') and keyboard_config.flash_methods:
-        config_sections.append(('flash_methods', keyboard_config.flash_methods))
+    if hasattr(keyboard_config, "flash_methods") and keyboard_config.flash_methods:
+        config_sections.append(("flash_methods", keyboard_config.flash_methods))
 
-    if hasattr(keyboard_config, 'firmwares') and keyboard_config.firmwares:
-        config_sections.append(('firmwares', keyboard_config.firmwares))
+    if hasattr(keyboard_config, "firmwares") and keyboard_config.firmwares:
+        config_sections.append(("firmwares", keyboard_config.firmwares))
 
     # Show verbose sections if verbose flag is set OR if sources/defaults are requested
     show_verbose_sections = verbose or show_sources or show_defaults
 
     if show_verbose_sections:
-        if hasattr(keyboard_config, 'behaviors') and keyboard_config.behaviors:
-            config_sections.append(('behaviors', keyboard_config.behaviors))
+        if hasattr(keyboard_config, "behaviors") and keyboard_config.behaviors:
+            config_sections.append(("behaviors", keyboard_config.behaviors))
 
-        if hasattr(keyboard_config, 'display') and keyboard_config.display:
-            config_sections.append(('display', keyboard_config.display))
+        if hasattr(keyboard_config, "display") and keyboard_config.display:
+            config_sections.append(("display", keyboard_config.display))
 
-        if hasattr(keyboard_config, 'zmk') and keyboard_config.zmk:
-            config_sections.append(('zmk', keyboard_config.zmk))
+        if hasattr(keyboard_config, "zmk") and keyboard_config.zmk:
+            config_sections.append(("zmk", keyboard_config.zmk))
 
     for field_name, field_value in config_sections:
         row_data = [field_name, format_value(field_value)]
@@ -221,18 +234,28 @@ def _print_keyboard_config_table(
 
     # Print header with icon
     header_icon = Icons.get_icon("KEYBOARD", app_ctx.use_emoji)
-    console.print(Panel(f"{header_icon} Keyboard Configuration Details", border_style="cyan"))
+    console.print(
+        Panel(f"{header_icon} Keyboard Configuration Details", border_style="cyan")
+    )
     console.print(table)
 
     # Print helpful information
     console.print("\n[dim]Configuration information:[/dim]")
     if show_defaults:
-        console.print("[dim]  • Default values shown are from Pydantic model field definitions[/dim]")
+        console.print(
+            "[dim]  • Default values shown are from Pydantic model field definitions[/dim]"
+        )
     if show_sources:
-        console.print("[dim]  • Sources show the configuration files that provide each setting[/dim]")
-        console.print("[dim]  • Keyboard configs use an include system for modular configuration[/dim]")
+        console.print(
+            "[dim]  • Sources show the configuration files that provide each setting[/dim]"
+        )
+        console.print(
+            "[dim]  • Keyboard configs use an include system for modular configuration[/dim]"
+        )
 
-    console.print(f"\n[dim]Use 'glovebox keyboard edit {keyboard_name} --interactive' to modify configuration[/dim]")
+    console.print(
+        f"\n[dim]Use 'glovebox keyboard edit {keyboard_name} --interactive' to modify configuration[/dim]"
+    )
 
 
 def _enhance_config_data_with_metadata(
@@ -241,7 +264,7 @@ def _enhance_config_data_with_metadata(
     keyboard_name: str,
     app_ctx: AppContext,
     show_sources: bool,
-    show_defaults: bool
+    show_defaults: bool,
 ) -> dict[str, Any]:
     """Enhance config data with sources and defaults metadata for non-text formats."""
     enhanced_data = config_data.copy()
@@ -817,15 +840,27 @@ def show_keyboard(
         # Handle sources and defaults flags for text output
         if show_sources or show_defaults:
             _print_keyboard_config_table(
-                keyboard_config, keyboard_name, app_ctx, show_sources, show_defaults, verbose
+                keyboard_config,
+                keyboard_name,
+                app_ctx,
+                show_sources,
+                show_defaults,
+                verbose,
             )
         else:
-            _print_keyboard_details_rich(config_data, app_ctx.use_emoji, console=Console())
+            _print_keyboard_details_rich(
+                config_data, app_ctx.use_emoji, console=Console()
+            )
     else:
         # For non-text formats, add sources and defaults to config_data if requested
         if show_sources or show_defaults:
             config_data = _enhance_config_data_with_metadata(
-                config_data, keyboard_config, keyboard_name, app_ctx, show_sources, show_defaults
+                config_data,
+                keyboard_config,
+                keyboard_name,
+                app_ctx,
+                show_sources,
+                show_defaults,
             )
         # Use the unified output formatter for other formats
         formatter.print_formatted(config_data, format)

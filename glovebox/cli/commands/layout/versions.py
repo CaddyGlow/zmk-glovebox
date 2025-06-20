@@ -203,9 +203,7 @@ def show_version(
         print_error_message(
             f"Master version '{version}' not found for keyboard '{keyboard}'"
         )
-        print_list_item(
-            "Use 'glovebox layout versions list' to see available versions"
-        )
+        print_list_item("Use 'glovebox layout versions list' to see available versions")
         print_list_item(
             "Note: get_master_info method needs to be implemented in VersionManager"
         )
@@ -253,4 +251,3 @@ def remove_version(
 
     except Exception as e:
         command.handle_service_error(e, f"remove version '{version}'")
-

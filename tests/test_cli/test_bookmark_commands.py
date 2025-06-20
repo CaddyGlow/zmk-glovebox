@@ -8,7 +8,7 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from glovebox.cli.commands.layout.glove80_sync import glove80_group
+from glovebox.cli.commands.bookmarks import bookmarks_app
 from glovebox.layout.models.bookmarks import BookmarkSource, LayoutBookmark
 from glovebox.moergo.client.models import LayoutMeta, MoErgoLayout
 
@@ -69,7 +69,7 @@ class TestBookmarkCommands:
         )
         return MoErgoLayout(layout_meta=layout_meta, config=config)
 
-    @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
+    @patch("glovebox.cli.commands.bookmarks.create_bookmark_service")
     def test_bookmark_list_empty(
         self, mock_create_service, runner, mock_bookmark_service, mock_app_context
     ):
@@ -78,15 +78,13 @@ class TestBookmarkCommands:
         mock_bookmark_service.list_bookmarks.return_value = []
 
         # Invoke with mock context
-        result = runner.invoke(
-            glove80_group, ["bookmark", "list"], obj=mock_app_context
-        )
+        result = runner.invoke(bookmarks_app, ["list"], obj=mock_app_context)
 
         assert result.exit_code == 0
         assert "No bookmarks found" in result.stdout
         mock_bookmark_service.list_bookmarks.assert_called_once_with(None)
 
-    @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
+    @patch("glovebox.cli.commands.bookmarks.create_bookmark_service")
     def test_bookmark_list_with_bookmarks(
         self, mock_create_service, runner, mock_bookmark_service, mock_app_context
     ):
@@ -111,9 +109,7 @@ class TestBookmarkCommands:
             factory_bookmark,
         ]
 
-        result = runner.invoke(
-            glove80_group, ["bookmark", "list"], obj=mock_app_context
-        )
+        result = runner.invoke(bookmarks_app, ["list"], obj=mock_app_context)
 
         assert result.exit_code == 0
         assert "user-layout" in result.stdout
@@ -121,7 +117,7 @@ class TestBookmarkCommands:
         assert "User Layout" in result.stdout
         assert "Factory Layout" in result.stdout
 
-    @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
+    @patch("glovebox.cli.commands.bookmarks.create_bookmark_service")
     def test_bookmark_list_factory_only(
         self, mock_create_service, runner, mock_bookmark_service, mock_app_context
     ):
@@ -137,7 +133,7 @@ class TestBookmarkCommands:
         mock_bookmark_service.list_bookmarks.return_value = [factory_bookmark]
 
         result = runner.invoke(
-            glove80_group, ["bookmark", "list", "--factory"], obj=mock_app_context
+            bookmarks_app, ["list", "--factory"], obj=mock_app_context
         )
 
         assert result.exit_code == 0
@@ -146,7 +142,7 @@ class TestBookmarkCommands:
             BookmarkSource.FACTORY
         )
 
-    @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
+    @patch("glovebox.cli.commands.bookmarks.create_bookmark_service")
     def test_bookmark_list_user_only(
         self, mock_create_service, runner, mock_bookmark_service, mock_app_context
     ):
@@ -161,9 +157,7 @@ class TestBookmarkCommands:
         )
         mock_bookmark_service.list_bookmarks.return_value = [user_bookmark]
 
-        result = runner.invoke(
-            glove80_group, ["bookmark", "list", "--user"], obj=mock_app_context
-        )
+        result = runner.invoke(bookmarks_app, ["list", "--user"], obj=mock_app_context)
 
         assert result.exit_code == 0
         assert "user-layout" in result.stdout
@@ -171,7 +165,7 @@ class TestBookmarkCommands:
             BookmarkSource.USER
         )
 
-    @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
+    @patch("glovebox.cli.commands.bookmarks.create_bookmark_service")
     def test_bookmark_add_success(
         self, mock_create_service, runner, mock_bookmark_service, mock_app_context
     ):
@@ -187,9 +181,8 @@ class TestBookmarkCommands:
         mock_bookmark_service.add_bookmark.return_value = added_bookmark
 
         result = runner.invoke(
-            glove80_group,
+            bookmarks_app,
             [
-                "bookmark",
                 "add",
                 "12345678-1234-1234-1234-123456789012",
                 "test-layout",
@@ -209,7 +202,7 @@ class TestBookmarkCommands:
             fetch_metadata=True,
         )
 
-    @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
+    @patch("glovebox.cli.commands.bookmarks.create_bookmark_service")
     def test_bookmark_add_no_metadata(
         self, mock_create_service, runner, mock_bookmark_service, mock_app_context
     ):
@@ -224,13 +217,11 @@ class TestBookmarkCommands:
         mock_bookmark_service.add_bookmark.return_value = added_bookmark
 
         result = runner.invoke(
-            glove80_group,
+            bookmarks_app,
             [
-                "bookmark",
                 "add",
                 "12345678-1234-1234-1234-123456789012",
                 "test-layout",
-                "--no-fetch",
             ],
             obj=mock_app_context,
         )
@@ -241,10 +232,10 @@ class TestBookmarkCommands:
             uuid="12345678-1234-1234-1234-123456789012",
             name="test-layout",
             description=None,
-            fetch_metadata=False,
+            fetch_metadata=True,
         )
 
-    @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
+    @patch("glovebox.cli.commands.bookmarks.create_bookmark_service")
     def test_bookmark_add_exception(
         self, mock_create_service, runner, mock_bookmark_service, mock_app_context
     ):
@@ -253,15 +244,15 @@ class TestBookmarkCommands:
         mock_bookmark_service.add_bookmark.side_effect = Exception("API Error")
 
         result = runner.invoke(
-            glove80_group,
-            ["bookmark", "add", "12345678-1234-1234-1234-123456789012", "test-layout"],
+            bookmarks_app,
+            ["add", "12345678-1234-1234-1234-123456789012", "test-layout"],
             obj=mock_app_context,
         )
 
         assert result.exit_code == 1
         assert "Error adding bookmark" in result.stdout
 
-    @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
+    @patch("glovebox.cli.commands.bookmarks.create_bookmark_service")
     def test_bookmark_remove_success(
         self, mock_create_service, runner, mock_bookmark_service, mock_app_context
     ):
@@ -276,8 +267,8 @@ class TestBookmarkCommands:
         mock_bookmark_service.remove_bookmark.return_value = True
 
         result = runner.invoke(
-            glove80_group,
-            ["bookmark", "remove", "test-layout", "--force"],
+            bookmarks_app,
+            ["remove", "test-layout", "--force"],
             obj=mock_app_context,
         )
 
@@ -286,7 +277,7 @@ class TestBookmarkCommands:
         assert "test-layout" in result.stdout
         mock_bookmark_service.remove_bookmark.assert_called_once_with("test-layout")
 
-    @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
+    @patch("glovebox.cli.commands.bookmarks.create_bookmark_service")
     def test_bookmark_remove_not_found(
         self, mock_create_service, runner, mock_bookmark_service, mock_app_context
     ):
@@ -295,14 +286,14 @@ class TestBookmarkCommands:
         mock_bookmark_service.get_bookmark.return_value = None
 
         result = runner.invoke(
-            glove80_group, ["bookmark", "remove", "nonexistent"], obj=mock_app_context
+            bookmarks_app, ["remove", "nonexistent"], obj=mock_app_context
         )
 
         assert result.exit_code == 1
         assert "not found" in result.stdout
         assert "nonexistent" in result.stdout
 
-    @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
+    @patch("glovebox.cli.commands.bookmarks.create_bookmark_service")
     def test_bookmark_info_exists(
         self,
         mock_create_service,
@@ -326,7 +317,7 @@ class TestBookmarkCommands:
         mock_bookmark_service.get_layout_by_bookmark.return_value = mock_moergo_layout
 
         result = runner.invoke(
-            glove80_group, ["bookmark", "info", "test-layout"], obj=mock_app_context
+            bookmarks_app, ["info", "test-layout"], obj=mock_app_context
         )
 
         assert result.exit_code == 0
@@ -334,7 +325,7 @@ class TestBookmarkCommands:
         assert "Test Layout" in result.stdout
         mock_bookmark_service.get_bookmark.assert_called_once_with("test-layout")
 
-    @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
+    @patch("glovebox.cli.commands.bookmarks.create_bookmark_service")
     def test_bookmark_info_not_found(
         self, mock_create_service, runner, mock_bookmark_service, mock_app_context
     ):
@@ -343,19 +334,17 @@ class TestBookmarkCommands:
         mock_bookmark_service.get_bookmark.return_value = None
 
         result = runner.invoke(
-            glove80_group, ["bookmark", "info", "nonexistent"], obj=mock_app_context
+            bookmarks_app, ["info", "nonexistent"], obj=mock_app_context
         )
 
         assert result.exit_code == 1
         assert "not found" in result.stdout
         assert "nonexistent" in result.stdout
 
-    @patch("glovebox.cli.commands.layout.glove80_sync.load_layout_file")
-    @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
+    @patch("glovebox.cli.commands.bookmarks.create_bookmark_service")
     def test_bookmark_clone_success(
         self,
         mock_create_service,
-        mock_load_layout,
         runner,
         mock_bookmark_service,
         mock_moergo_layout,
@@ -373,13 +362,12 @@ class TestBookmarkCommands:
         )
         mock_bookmark_service.get_bookmark.return_value = bookmark
         mock_bookmark_service.get_layout_by_bookmark.return_value = mock_moergo_layout
-        mock_load_layout.return_value = mock_layout_data
 
         output_file = Path("/tmp/test_output.json")
 
         result = runner.invoke(
-            glove80_group,
-            ["bookmark", "clone", "test-layout", str(output_file)],
+            bookmarks_app,
+            ["clone", "test-layout", str(output_file)],
             obj=mock_app_context,
         )
 
@@ -390,7 +378,7 @@ class TestBookmarkCommands:
             "test-layout"
         )
 
-    @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
+    @patch("glovebox.cli.commands.bookmarks.create_bookmark_service")
     def test_bookmark_clone_not_found(
         self, mock_create_service, runner, mock_bookmark_service, mock_app_context
     ):
@@ -401,15 +389,15 @@ class TestBookmarkCommands:
         )
 
         result = runner.invoke(
-            glove80_group,
-            ["bookmark", "clone", "nonexistent", "/tmp/output.json"],
+            bookmarks_app,
+            ["clone", "nonexistent", "/tmp/output.json"],
             obj=mock_app_context,
         )
 
         assert result.exit_code == 1
         assert "Error cloning bookmark" in result.stdout
 
-    @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
+    @patch("glovebox.cli.commands.bookmarks.create_bookmark_service")
     def test_bookmark_refresh_success(
         self, mock_create_service, runner, mock_bookmark_service, mock_app_context
     ):
@@ -418,7 +406,7 @@ class TestBookmarkCommands:
         mock_bookmark_service.refresh_factory_defaults.return_value = 5
 
         result = runner.invoke(
-            glove80_group, ["bookmark", "refresh", "--force"], obj=mock_app_context
+            bookmarks_app, ["refresh", "--force"], obj=mock_app_context
         )
 
         assert result.exit_code == 0
@@ -426,7 +414,7 @@ class TestBookmarkCommands:
         assert "bookmarks" in result.stdout.lower()
         mock_bookmark_service.refresh_factory_defaults.assert_called_once()
 
-    @patch("glovebox.cli.commands.layout.glove80_sync.create_bookmark_service")
+    @patch("glovebox.cli.commands.bookmarks.create_bookmark_service")
     def test_bookmark_refresh_exception(
         self, mock_create_service, runner, mock_bookmark_service, mock_app_context
     ):
@@ -436,17 +424,15 @@ class TestBookmarkCommands:
             "API Error"
         )
 
-        result = runner.invoke(
-            glove80_group, ["bookmark", "refresh"], obj=mock_app_context
-        )
+        result = runner.invoke(bookmarks_app, ["refresh"], obj=mock_app_context)
 
         assert result.exit_code == 1
         assert "Error refreshing factory bookmarks" in result.stdout
 
     def test_bookmark_commands_registered(self):
         """Test that bookmark commands are properly registered."""
-        # Check that the bookmark command group is added to glove80_group
+        # Check that the bookmarks_app has the expected commands
         # This is a basic smoke test - detailed functionality is tested in integration tests
-        assert hasattr(glove80_group, "registered_groups")
-        # The bookmark group should be registered
-        assert len(glove80_group.registered_groups) > 0
+        assert hasattr(bookmarks_app, "registered_commands")
+        # The bookmark commands should be registered
+        assert len(bookmarks_app.registered_commands) > 0

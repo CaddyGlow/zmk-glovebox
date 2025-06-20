@@ -147,7 +147,9 @@ def list(
                 typer.echo()
 
         typer.echo("💡 Use 'glovebox bookmarks clone <name> <output.json>' to clone")
-        typer.echo("💡 Use 'glovebox bookmarks flash <name> --profile <profile>' to flash")
+        typer.echo(
+            "💡 Use 'glovebox bookmarks flash <name> --profile <profile>' to flash"
+        )
 
     except Exception as e:
         typer.echo(f"❌ Error listing bookmarks: {e}")
@@ -226,6 +228,7 @@ def flash(
         # Parse profile
         try:
             from glovebox.cli.helpers.profile import create_profile_from_context
+
             keyboard_profile = create_profile_from_context(ctx, profile)
         except Exception as e:
             typer.echo(f"❌ Invalid profile '{profile}': {e}")
@@ -247,10 +250,12 @@ def flash(
 
             # Import layout service to convert to ZMK format
             from glovebox.layout import create_layout_service
+
             layout_service = create_layout_service()
 
             # Generate ZMK files from layout
             import tempfile
+
             with tempfile.TemporaryDirectory() as temp_dir:
                 temp_output = Path(temp_dir) / "temp_keymap"
 
@@ -269,7 +274,9 @@ def flash(
                 )
 
                 if not result.success:
-                    typer.echo(f"❌ Failed to generate ZMK files: {'; '.join(result.errors)}")
+                    typer.echo(
+                        f"❌ Failed to generate ZMK files: {'; '.join(result.errors)}"
+                    )
                     raise typer.Exit(1)
 
                 # Read the generated files
@@ -299,6 +306,7 @@ def flash(
 
                 # Flash the firmware
                 from glovebox.firmware.flash import create_flash_service
+
                 flash_service = create_flash_service()
 
                 typer.echo("⚡ Flashing firmware to keyboard...")
@@ -312,7 +320,9 @@ def flash(
                     typer.echo(f"❌ Flash failed: {'; '.join(flash_result.errors)}")
                     raise typer.Exit(1)
         else:
-            typer.echo("⚠️ Layout not compiled on MoErgo servers. Compile locally first.")
+            typer.echo(
+                "⚠️ Layout not compiled on MoErgo servers. Compile locally first."
+            )
             typer.echo("💡 Use 'glovebox layout compile' to build firmware locally")
 
     except Exception as e:
@@ -320,7 +330,130 @@ def flash(
         raise typer.Exit(1) from e
 
 
+@bookmarks_app.command()
+def remove(
+    ctx: typer.Context,
+    name: Annotated[
+        str,
+        typer.Argument(
+            help="Name of the bookmark to remove",
+            autocompletion=complete_bookmark_name,
+        ),
+    ],
+    force: Annotated[bool, typer.Option("--force", help="Skip confirmation")] = False,
+) -> None:
+    """Remove a layout bookmark."""
+    from glovebox.cli.app import AppContext
+    from glovebox.cli.helpers.theme import Icons
+
+    app_ctx: AppContext = ctx.obj
+    use_emoji = app_ctx.use_emoji
+
+    try:
+        bookmark_service = create_bookmark_service()
+
+        # Check if bookmark exists
+        bookmark = bookmark_service.get_bookmark(name)
+        if not bookmark:
+            typer.echo(f"❌ Bookmark '{name}' not found")
+            raise typer.Exit(1)
+
+        # Ask for confirmation unless --force is used
+        if not force:
+            confirm = typer.confirm(f"Remove bookmark '{name}'?")
+            if not confirm:
+                typer.echo("❌ Operation cancelled")
+                return
+
+        # Remove the bookmark
+        success = bookmark_service.remove_bookmark(name)
+        if success:
+            typer.echo(f"✅ Bookmark '{name}' removed successfully!")
+        else:
+            typer.echo(f"❌ Failed to remove bookmark '{name}'")
+            raise typer.Exit(1)
+
+    except Exception as e:
+        typer.echo(f"❌ Error removing bookmark: {e}")
+        raise typer.Exit(1) from e
+
+
+@bookmarks_app.command()
+def info(
+    ctx: typer.Context,
+    name: Annotated[
+        str,
+        typer.Argument(
+            help="Name of the bookmark to show info for",
+            autocompletion=complete_bookmark_name,
+        ),
+    ],
+) -> None:
+    """Get detailed information about a bookmarked layout."""
+    from glovebox.cli.app import AppContext
+    from glovebox.cli.helpers.theme import Icons
+
+    app_ctx: AppContext = ctx.obj
+    use_emoji = app_ctx.use_emoji
+
+    try:
+        bookmark_service = create_bookmark_service()
+
+        # Get bookmark info
+        bookmark = bookmark_service.get_bookmark(name)
+        if not bookmark:
+            typer.echo(f"❌ Bookmark '{name}' not found")
+            raise typer.Exit(1)
+
+        # Display bookmark information
+        typer.echo(f"📛 Name: {bookmark.name}")
+        typer.echo(f"🔗 UUID: {bookmark.uuid}")
+        if bookmark.title:
+            typer.echo(f"📝 Title: {bookmark.title}")
+        if bookmark.description:
+            typer.echo(f"💬 Description: {bookmark.description}")
+        if bookmark.tags:
+            typer.echo(f"🏷️  Tags: {', '.join(bookmark.tags)}")
+        typer.echo(
+            f"📂 Source: {bookmark.source.value if hasattr(bookmark.source, 'value') else bookmark.source}"
+        )
+
+    except Exception as e:
+        typer.echo(f"❌ Error getting bookmark info: {e}")
+        raise typer.Exit(1) from e
+
+
+@bookmarks_app.command()
+def refresh(
+    ctx: typer.Context,
+    force: Annotated[bool, typer.Option("--force", help="Skip confirmation")] = False,
+) -> None:
+    """Refresh factory default bookmarks from MoErgo API."""
+    from glovebox.cli.app import AppContext
+    from glovebox.cli.helpers.theme import Icons
+
+    app_ctx: AppContext = ctx.obj
+    use_emoji = app_ctx.use_emoji
+
+    try:
+        bookmark_service = create_bookmark_service()
+
+        # Ask for confirmation unless --force is used
+        if not force:
+            confirm = typer.confirm("Refresh factory default bookmarks?")
+            if not confirm:
+                typer.echo("❌ Operation cancelled")
+                return
+
+        # Refresh factory defaults
+        count = bookmark_service.refresh_factory_defaults()
+        typer.echo(f"✅ Refreshed {count} factory default bookmarks!")
+
+    except Exception as e:
+        typer.echo(f"❌ Error refreshing factory bookmarks: {e}")
+        raise typer.Exit(1) from e
+
+
 def register_commands(app: typer.Typer) -> None:
     """Register bookmark commands with the main app."""
     app.add_typer(bookmarks_app, name="bookmarks")
-
