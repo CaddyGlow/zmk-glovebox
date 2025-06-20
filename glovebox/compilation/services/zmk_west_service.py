@@ -1,5 +1,6 @@
 """ZMK config with west compilation service."""
 
+import json
 import logging
 import shutil
 import tempfile
@@ -36,6 +37,12 @@ if TYPE_CHECKING:
 class ZmkWestService(CompilationServiceProtocol):
     """Ultra-simplified ZMK config compilation service with intelligent caching."""
 
+    # Cache TTL constants
+    CACHE_TTL_BASE = 30 * 24 * 3600  # 30 days
+    CACHE_TTL_BRANCH = 24 * 3600  # 1 day
+    CACHE_TTL_FULL = 12 * 3600  # 12 hours
+    CACHE_TTL_BUILD = 3600  # 1 hour
+
     def __init__(
         self, docker_adapter: DockerAdapterProtocol, cache: CacheManager | None = None
     ) -> None:
@@ -61,19 +68,32 @@ class ZmkWestService(CompilationServiceProtocol):
                     success=False, errors=["Invalid config type for ZMK compilation"]
                 )
 
-            # Try to use cached workspace first
+            # Try to use cached build result first (most specific cache)
+            cached_result = self._get_cached_build_result(
+                keymap_file, config_file, config
+            )
+            if cached_result:
+                self.logger.info(
+                    "Returning cached build result - compilation skipped entirely"
+                )
+                return cached_result
+
+            # Try to use cached workspace
             workspace_path = self._get_or_create_workspace(
                 keymap_file, config_file, config
             )
             if not workspace_path:
+                self.logger.error("Workspace setup failed")
                 return BuildResult(success=False, errors=["Workspace setup failed"])
 
             compilation_success = self._run_compilation(workspace_path, config)
-
             # Always try to collect artifacts, even on build failure (for debugging)
             output_files = self._collect_files(workspace_path, output_dir)
 
             if not compilation_success:
+                self.logger.error(
+                    "Compilation failed, returning partial results for debugging"
+                )
                 return BuildResult(
                     success=False,
                     errors=["Compilation failed"],
@@ -83,13 +103,19 @@ class ZmkWestService(CompilationServiceProtocol):
             # Cache workspace after successful compilation
             self._cache_workspace(workspace_path, config)
 
-            return BuildResult(
+            build_result = BuildResult(
                 success=True,
                 output_files=output_files,
                 messages=[
                     f"Generated {'1' if output_files.main_uf2 else '0'} firmware files"
                 ],
             )
+
+            # Cache the successful build result
+            self._cache_build_result(keymap_file, config_file, config, build_result)
+
+            self.logger.info("ZMK compilation completed successfully")
+            return build_result
 
         except Exception as e:
             self.logger.error("Compilation failed: %s", e)
@@ -165,56 +191,72 @@ class ZmkWestService(CompilationServiceProtocol):
         return self.docker_adapter is not None
 
     def _get_cached_workspace(self, config: ZmkCompilationConfig) -> Path | None:
-        """Get cached workspace if available."""
-        if not config.use_cache:
+        """Get cached workspace if available using tiered cache lookup."""
+        if not config.use_cache or not self.cache:
             return None
 
-        if self.cache:
-            cache_key = self._generate_workspace_cache_key(config)
+        # Try cache lookup in order of specificity: full -> branch -> base
+        cache_levels = ["full", "branch", "base"]
+
+        for level in cache_levels:
+            cache_key = self._generate_workspace_cache_key(config, level)
             cached_path = self.cache.get(cache_key)
 
-            if (
-                cached_path
-                and Path(cached_path).exists()
-                and (Path(cached_path) / "zmk").exists()
-            ):
-                self.logger.info("Using cached workspace: %s", cached_path)
-                return Path(cached_path)
-
-            # Clean up stale cache entry if path doesn't exist
             if cached_path:
-                self.cache.delete(cache_key)
+                if Path(cached_path).exists() and (Path(cached_path) / "zmk").exists():
+                    self.logger.info(
+                        "Using cached workspace (%s level): %s", level, cached_path
+                    )
 
+                    # Promote cache to more specific levels if needed
+                    self._promote_cache_entry(config, level, cached_path)
+
+                    return Path(cached_path)
+                else:
+                    # Clean up stale cache entry if path doesn't exist
+                    self.cache.delete(cache_key)
         return None
 
     def _cache_workspace(
         self, workspace_path: Path, config: ZmkCompilationConfig
     ) -> None:
-        """Cache workspace for future use."""
-        if not config.use_cache:
+        """Cache workspace for future use with tiered caching strategy."""
+        if not config.use_cache or not self.cache:
             return
-
-        cache_key = self._generate_workspace_cache_key(config)
 
         # Create cache directory using the same pattern but under cache system
         repo_name = config.repository.replace("/", "_").replace("-", "_")
         cache_dir = Path.home() / ".cache" / "glovebox" / "workspaces" / repo_name
 
-        if cache_dir.exists() and self.cache:
-            # Already cached, just update cache entry
-            self.cache.set(cache_key, str(cache_dir), ttl=24 * 3600)  # 24 hour TTL
-            return
+        if cache_dir.exists():
+            # Already cached, just update cache entries with different TTLs
+            base_key = self._generate_workspace_cache_key(config, "base")
+            branch_key = self._generate_workspace_cache_key(config, "branch")
+            full_key = self._generate_workspace_cache_key(config, "full")
 
+            # Cache with tiered TTLs
+            self.cache.set(base_key, str(cache_dir), ttl=self.CACHE_TTL_BASE)
+            self.cache.set(branch_key, str(cache_dir), ttl=self.CACHE_TTL_BRANCH)
+            self.cache.set(full_key, str(cache_dir), ttl=self.CACHE_TTL_FULL)
+            return
         try:
             cache_dir.mkdir(parents=True, exist_ok=True)
+
             # Copy the west workspace directories
             for subdir in ["modules", "zephyr", "zmk"]:
-                if (workspace_path / subdir).exists():
-                    shutil.copytree(workspace_path / subdir, cache_dir / subdir)
+                src_dir = workspace_path / subdir
+                dst_dir = cache_dir / subdir
+                if src_dir.exists():
+                    shutil.copytree(src_dir, dst_dir)
 
-            # Store in cache with 24-hour TTL
-            if self.cache:
-                self.cache.set(cache_key, str(cache_dir), ttl=24 * 3600)
+            # Store in cache with tiered TTLs
+            base_key = self._generate_workspace_cache_key(config, "base")
+            branch_key = self._generate_workspace_cache_key(config, "branch")
+            full_key = self._generate_workspace_cache_key(config, "full")
+
+            self.cache.set(base_key, str(cache_dir), ttl=self.CACHE_TTL_BASE)
+            self.cache.set(branch_key, str(cache_dir), ttl=self.CACHE_TTL_BRANCH)
+            self.cache.set(full_key, str(cache_dir), ttl=self.CACHE_TTL_FULL)
 
             self.logger.info(
                 "Cached workspace for %s: %s", config.repository, cache_dir
@@ -222,15 +264,154 @@ class ZmkWestService(CompilationServiceProtocol):
         except Exception as e:
             self.logger.warning("Failed to cache workspace: %s", e)
 
-    def _generate_workspace_cache_key(self, config: ZmkCompilationConfig) -> str:
-        """Generate cache key for workspace based on configuration."""
-        key_parts = [
-            "zmk_workspace",
-            config.repository,
-            config.branch,
-            config.image,
-        ]
-        return CacheKey.from_parts(*key_parts)
+    def _promote_cache_entry(
+        self, config: ZmkCompilationConfig, level: str, cached_path: str
+    ) -> None:
+        """Promote cache entry to more specific levels to avoid repeated lookups."""
+        if level == "full" or not self.cache:
+            return  # Already most specific or no cache
+
+        if level == "base":
+            # Update both branch and full cache
+            branch_key = self._generate_workspace_cache_key(config, "branch")
+            full_key = self._generate_workspace_cache_key(config, "full")
+            self.cache.set(branch_key, cached_path, ttl=self.CACHE_TTL_BRANCH)
+            self.cache.set(full_key, cached_path, ttl=self.CACHE_TTL_FULL)
+        elif level == "branch":
+            # Update full cache only
+            full_key = self._generate_workspace_cache_key(config, "full")
+            self.cache.set(full_key, cached_path, ttl=self.CACHE_TTL_FULL)
+
+    def _get_cached_build_result(
+        self, keymap_file: Path, config_file: Path, config: ZmkCompilationConfig
+    ) -> BuildResult | None:
+        """Get cached build result if available."""
+        if not config.use_cache or not self.cache:
+            return None
+
+        build_cache_key = self._generate_workspace_cache_key(
+            config, "build", keymap_file, config_file
+        )
+
+        cached_result = self.cache.get(build_cache_key)
+
+        if cached_result:
+            try:
+                # Deserialize cached build result
+                result_data = (
+                    cached_result
+                    if isinstance(cached_result, dict)
+                    else json.loads(cached_result)
+                )
+                build_result = BuildResult(**result_data)
+
+                # Verify cached output files still exist
+                if build_result.output_files and build_result.output_files.main_uf2:
+                    if build_result.output_files.main_uf2.exists():
+                        self.logger.info(
+                            "Using cached build result for %s", keymap_file.name
+                        )
+                        return build_result
+                    else:
+                        # Clean up stale cache entry
+                        self.cache.delete(build_cache_key)
+                else:
+                    self.cache.delete(build_cache_key)
+
+            except Exception as e:
+                self.logger.warning("Failed to deserialize cached build result: %s", e)
+                self.cache.delete(build_cache_key)
+
+        return None
+
+    def _cache_build_result(
+        self,
+        keymap_file: Path,
+        config_file: Path,
+        config: ZmkCompilationConfig,
+        build_result: BuildResult,
+    ) -> None:
+        """Cache build result for future use."""
+        if not config.use_cache or not self.cache or not build_result.success:
+            return
+
+        try:
+            build_cache_key = self._generate_workspace_cache_key(
+                config, "build", keymap_file, config_file
+            )
+
+            # Serialize build result for caching
+            result_data = build_result.model_dump(mode="json")
+
+            # Cache for 1 hour since build results are very specific
+            self.cache.set(build_cache_key, result_data, ttl=self.CACHE_TTL_BUILD)
+            self.logger.info("Cached build result for %s", keymap_file.name)
+
+        except Exception as e:
+            self.logger.warning("Failed to cache build result: %s", e)
+
+    def _generate_workspace_cache_key(
+        self,
+        config: ZmkCompilationConfig,
+        level: str = "full",
+        keymap_file: Path | None = None,
+        config_file: Path | None = None,
+    ) -> str:
+        """Generate cache key for workspace based on configuration and cache level.
+
+        Args:
+            config: ZMK compilation configuration
+            level: Cache level - "base" (repo only), "branch" (repo+branch), "full" (repo+branch+matrix), or "build" (includes input files)
+            keymap_file: Keymap file for build-level caching
+            config_file: Config file for build-level caching
+        """
+        if level == "base":
+            # Base repository cache - longest TTL (30 days)
+            key_parts = [
+                "zmk_workspace_base",
+                config.repository,
+                config.image,
+            ]
+        elif level == "branch":
+            # Repository + branch cache - medium TTL (1 day)
+            key_parts = [
+                "zmk_workspace_branch",
+                config.repository,
+                config.branch,
+                config.image,
+            ]
+        elif level == "full":
+            # Full configuration cache - shorter TTL (12 hours)
+            build_matrix_hash = str(hash(str(config.build_matrix.model_dump_json())))
+            key_parts = [
+                "zmk_workspace_full",
+                config.repository,
+                config.branch,
+                config.image,
+                build_matrix_hash,
+            ]
+        else:  # level == "build"
+            # Build result cache - shortest TTL (1 hour), includes input file hashes
+            build_matrix_hash = str(hash(str(config.build_matrix.model_dump_json())))
+            key_parts = [
+                "zmk_build_result",
+                config.repository,
+                config.branch,
+                config.image,
+                build_matrix_hash,
+            ]
+
+            # Add input file hashes for build-specific caching
+            if keymap_file and keymap_file.exists():
+                keymap_hash = CacheKey.from_path(keymap_file)
+                key_parts.append(keymap_hash)
+
+            if config_file and config_file.exists():
+                config_hash = CacheKey.from_path(config_file)
+                key_parts.append(config_hash)
+
+        cache_key = CacheKey.from_parts(*key_parts)
+        return cache_key
 
     def _get_or_create_workspace(
         self, keymap_file: Path, config_file: Path, config: ZmkCompilationConfig
@@ -239,7 +420,6 @@ class ZmkWestService(CompilationServiceProtocol):
         # Try to use cached workspace
         cached_workspace = self._get_cached_workspace(config)
         workspace_path = Path(tempfile.mkdtemp(prefix="zmk_"))
-        self.logger.info("workspace %s", workspace_path)
         if cached_workspace:
             # Create temporary workspace and copy from cache
             try:
@@ -252,9 +432,7 @@ class ZmkWestService(CompilationServiceProtocol):
 
                 # Set up config directory with fresh files
                 self._setup_workspace(keymap_file, config_file, config, workspace_path)
-                self.logger.info(
-                    "Using cached workspace (will still run west update for branch changes)"
-                )
+                self.logger.info("Using cached workspace")
                 return workspace_path
             except Exception as e:
                 self.logger.warning("Failed to use cached workspace: %s", e)
@@ -276,7 +454,7 @@ class ZmkWestService(CompilationServiceProtocol):
             config_dir = workspace_path / "config"
             self._setup_config_dir(config_dir, keymap_file, config_file, config)
 
-            self._create_build_yaml(workspace_path, config)
+            config.build_matrix.to_yaml(workspace_path / "build.yaml")
 
         except Exception as e:
             raise CompilationError(f"Workspace setup failed: {e}") from e
@@ -295,17 +473,7 @@ class ZmkWestService(CompilationServiceProtocol):
         shutil.copy2(keymap_file, config_dir / keymap_file.name)
         shutil.copy2(config_file, config_dir / config_file.name)
 
-        # Create build configuration files using proper models
-        self._create_west_yml(config_dir, config)
-
-    def _create_build_yaml(
-        self, workspace_path: Path, config: ZmkCompilationConfig
-    ) -> None:
-        """Create build.yaml using proper build matrix models."""
-        config.build_matrix.to_yaml(workspace_path / "build.yaml")
-
-    def _create_west_yml(self, config_dir: Path, config: ZmkCompilationConfig) -> None:
-        """Create west.yml using proper west config models."""
+        # Create west.yml using proper west config models
         manifest = WestManifestConfig(
             manifest=WestManifest.from_repository_config(
                 repository=config.repository,
@@ -314,8 +482,6 @@ class ZmkWestService(CompilationServiceProtocol):
                 import_file="app/west.yml",
             )
         )
-
-        # Create west manifest
         with (config_dir / "west.yml").open("w") as f:
             f.write(manifest.to_yaml())
 
@@ -346,7 +512,7 @@ class ZmkWestService(CompilationServiceProtocol):
             # Use current user context to avoid permission issues
             user_context = DockerUserContext.detect_current_user()
 
-            self.logger.info("Running Docker command: %s", " && ".join(all_commands))
+            self.logger.info("Running Docker compilation")
 
             result: tuple[int, list[str], list[str]] = (
                 self.docker_adapter.run_container(
@@ -361,10 +527,6 @@ class ZmkWestService(CompilationServiceProtocol):
 
             if return_code != 0:
                 self.logger.error("Build failed with exit code %d", return_code)
-                if stderr:
-                    self.logger.error("stderr: %s", stderr)
-                if stdout:
-                    self.logger.info("stdout: %s", stdout)
                 return False
 
             self.logger.info("Build completed successfully")
@@ -412,9 +574,7 @@ class ZmkWestService(CompilationServiceProtocol):
                 cmd_parts.extend(cmake_args)
                 build_commands.append(" ".join(cmd_parts))
 
-            self.logger.info(
-                "Generated %d build commands: %s", len(build_commands), build_commands
-            )
+            self.logger.info("Generated %d build commands", len(build_commands))
             return build_commands
 
         except Exception as e:
@@ -482,11 +642,7 @@ class ZmkWestService(CompilationServiceProtocol):
             )
 
         if collected_items:
-            self.logger.info(
-                "Collected %d ZMK artifacts: %s",
-                len(collected_items),
-                ", ".join(collected_items),
-            )
+            self.logger.info("Collected %d ZMK artifacts", len(collected_items))
         else:
             self.logger.warning("No build artifacts found in workspace")
 
@@ -555,17 +711,13 @@ class ZmkWestService(CompilationServiceProtocol):
                 cached_verification = self.cache.get(image_cache_key)
 
                 if cached_verification:
-                    self.logger.debug(
-                        "Docker image verified from cache: %s", config.image
-                    )
                     return True
 
             # Check if image exists
             if self.docker_adapter.image_exists(image_name, image_tag):
-                self.logger.debug("Docker image already exists: %s", config.image)
                 # Cache verification for 1 hour to avoid repeated checks
                 if self.cache:
-                    self.cache.set(image_cache_key, True, ttl=3600)
+                    self.cache.set(image_cache_key, True, ttl=self.CACHE_TTL_BUILD)
                 return True
 
             self.logger.info("Docker image not found, pulling: %s", config.image)
@@ -582,7 +734,7 @@ class ZmkWestService(CompilationServiceProtocol):
                 self.logger.info("Successfully pulled Docker image: %s", config.image)
                 # Cache successful pull for 1 hour
                 if self.cache:
-                    self.cache.set(image_cache_key, True, ttl=3600)
+                    self.cache.set(image_cache_key, True, ttl=self.CACHE_TTL_BUILD)
                 return True
             else:
                 self.logger.error(
