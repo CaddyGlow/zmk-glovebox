@@ -49,7 +49,23 @@ Layout Editor → JSON File → ZMK Files → Firmware → Flash
    - Use `Path.open()` instead of built-in `open()`
    - Use lazy logging formatting (`%` style, not f-strings)
 
-4. **MANDATORY PRE-COMMIT CHECKS**:
+4. **MANDATORY EXCEPTION LOGGING PATTERN**:
+   ```python
+   # ✅ REQUIRED - Exception logging with debug-aware stack traces
+   except Exception as e:
+       exc_info = self.logger.isEnabledFor(logging.DEBUG)
+       self.logger.error("Operation failed: %s", e, exc_info=exc_info)
+   
+   # ❌ INCORRECT - Missing debug-aware stack trace
+   except Exception as e:
+       self.logger.error("Operation failed: %s", e)
+   ```
+   - **MANDATORY for ALL exception handlers** that log errors/warnings
+   - Stack traces appear ONLY when debug logging is enabled
+   - Keeps production logs clean while enabling debugging
+   - Can be one-lined: `exc_info=self.logger.isEnabledFor(logging.DEBUG)`
+
+5. **MANDATORY PRE-COMMIT CHECKS**:
    ```bash
    pre-commit run --all-files
    pytest

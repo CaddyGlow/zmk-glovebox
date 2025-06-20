@@ -87,6 +87,11 @@ class ZmkWestService(CompilationServiceProtocol):
                 return BuildResult(success=False, errors=["Workspace setup failed"])
 
             compilation_success = self._run_compilation(workspace_path, config)
+
+            # Cache workspace dependencies even if compilation fails
+            # This allows reuse of successfully downloaded/built dependencies
+            self._cache_workspace(workspace_path, config)
+
             # Always try to collect artifacts, even on build failure (for debugging)
             output_files = self._collect_files(workspace_path, output_dir)
 
@@ -99,9 +104,6 @@ class ZmkWestService(CompilationServiceProtocol):
                     errors=["Compilation failed"],
                     output_files=output_files,  # Include partial artifacts for debugging
                 )
-
-            # Cache workspace after successful compilation
-            self._cache_workspace(workspace_path, config)
 
             build_result = BuildResult(
                 success=True,
@@ -118,7 +120,8 @@ class ZmkWestService(CompilationServiceProtocol):
             return build_result
 
         except Exception as e:
-            self.logger.error("Compilation failed: %s", e)
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("Compilation failed: %s", e, exc_info=exc_info)
             return BuildResult(success=False, errors=[str(e)])
 
     def compile_from_json(
@@ -179,7 +182,8 @@ class ZmkWestService(CompilationServiceProtocol):
                 )
 
         except Exception as e:
-            self.logger.error("JSON compilation failed: %s", e)
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("JSON compilation failed: %s", e, exc_info=exc_info)
             return BuildResult(success=False, errors=[str(e)])
 
     def validate_config(self, config: CompilationConfigUnion) -> bool:
@@ -262,7 +266,8 @@ class ZmkWestService(CompilationServiceProtocol):
                 "Cached workspace for %s: %s", config.repository, cache_dir
             )
         except Exception as e:
-            self.logger.warning("Failed to cache workspace: %s", e)
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.warning("Failed to cache workspace: %s", e, exc_info=exc_info)
 
     def _promote_cache_entry(
         self, config: ZmkCompilationConfig, level: str, cached_path: str
@@ -435,7 +440,10 @@ class ZmkWestService(CompilationServiceProtocol):
                 self.logger.info("Using cached workspace")
                 return workspace_path
             except Exception as e:
-                self.logger.warning("Failed to use cached workspace: %s", e)
+                exc_info = self.logger.isEnabledFor(logging.DEBUG)
+                self.logger.warning(
+                    "Failed to use cached workspace: %s", e, exc_info=exc_info
+                )
                 shutil.rmtree(workspace_path, ignore_errors=True)
 
         # Create fresh workspace

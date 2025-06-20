@@ -5,7 +5,6 @@ from glovebox.compilation.models.build_matrix import (
     BuildTarget,
 )
 from glovebox.compilation.models.compilation_config import (
-    CacheConfig,
     CompilationConfig,
     CompilationConfigUnion,
     DockerUserConfig,
@@ -34,7 +33,6 @@ __all__: list[str] = [
     "MoergoCompilationConfig",
     "CompilationConfigUnion",
     "DockerUserConfig",
-    "CacheConfig",
     "ZmkWorkspaceConfig",
     # West configuration models
     "WestCommandsConfig",

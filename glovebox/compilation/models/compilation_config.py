@@ -50,22 +50,8 @@ class DockerUserConfig(GloveboxBaseModel):
         return path.resolve() if path.exists() else path
 
 
-class CacheConfig(GloveboxBaseModel):
-    """Configuration for cache management."""
-
-    enabled: bool = True
-    max_age_hours: float = 24.0
-    max_cache_size_gb: float = 5.0
-    cleanup_interval_hours: float = 6.0
-    enable_compression: bool = True
-    enable_smart_invalidation: bool = True
-
-
 class ZmkWorkspaceConfig(GloveboxBaseModel):
     """ZMK workspace configuration for zmk_config strategy."""
-
-    repository: str = "zmkfirmware/zmk"
-    branch: str = "main"
 
     workspace_path: DockerPath = Field(
         default_factory=lambda: DockerPath(
@@ -88,29 +74,33 @@ class CompilationConfig(GloveboxBaseModel):
     """Base compilation configuration for all strategies."""
 
     # Core identification
-    strategy: str  # Strategy type: "zmk_config", "moergo", etc.
+    strategy: str = Field(
+        default="zmk_config", description="Compilation strategy type used as hint"
+    )
 
     # Docker configuration
-    image: str = "zmkfirmware/zmk-build-arm:stable"
-    jobs: int | None = None
-    build_commands: list[str] = Field(default_factory=list)
-    entrypoint_command: str | None = None
+    image: str = Field(
+        default="zmkfirmware/zmk-build-arm:stable", description="docker image to use"
+    )
 
     # Repository configuration (used by services)
-    repository: str = "zmkfirmware/zmk"
-    branch: str = "main"
+    repository: str = Field(
+        default="zmkfirmware/zmk", description="Repository to use to build the firmware"
+    )
+    branch: str = Field(
+        default="main", description="Branch to use to build the firmware"
+    )
 
     # Build matrix (used by services)
     build_matrix: BuildMatrix = Field(
         default_factory=lambda: BuildMatrix(board=["nice_nano_v2"])
     )
 
-    # Workspace management
-    cleanup_workspace: bool = True
-    preserve_on_failure: bool = False
-
     # Docker user configuration
-    docker_user: DockerUserConfig = Field(default_factory=DockerUserConfig)
+    docker_user: DockerUserConfig = Field(
+        default_factory=DockerUserConfig,
+        description="Settings to drop docker privileges, used to fix volume permission error",
+    )
 
     @field_validator("strategy")
     @classmethod
@@ -128,14 +118,10 @@ class ZmkCompilationConfig(CompilationConfig):
     image: str = "zmkfirmware/zmk-build-arm:stable"
     repository: str = "zmkfirmware/zmk"
     branch: str = "main"
+    use_cache: bool = Field(
+        default=True, description="Enable caching of workspaces and build results"
+    )
 
-    # ZMK-specific configuration
-    cache: CacheConfig = Field(default_factory=CacheConfig)
-    artifact_naming: str = "zmk_github_actions"
-    workspace: ZmkWorkspaceConfig = Field(default_factory=ZmkWorkspaceConfig)
-    use_cache: bool = True
-
-    # Build configuration (from old build_config field)
     build_matrix: BuildMatrix = Field(
         default_factory=lambda: BuildMatrix(board=["nice_nano_v2"])
     )
@@ -148,13 +134,6 @@ class MoergoCompilationConfig(CompilationConfig):
     image: str = "glove80-zmk-config-docker"
     repository: str = "moergo-sc/zmk"
     branch: str = "v25.05"
-
-    # Moergo-specific workspace configuration
-    workspace_path: DockerPath = Field(
-        default_factory=lambda: DockerPath(
-            host_path=Path("/workspace"), container_path="/workspace"
-        )
-    )
 
     # Build matrix for Moergo (typically Glove80 left/right)
     build_matrix: BuildMatrix = Field(
@@ -177,6 +156,5 @@ __all__ = [
     "MoergoCompilationConfig",
     "CompilationConfigUnion",
     "DockerUserConfig",
-    "CacheConfig",
     "ZmkWorkspaceConfig",
 ]

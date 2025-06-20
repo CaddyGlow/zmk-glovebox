@@ -169,3 +169,6 @@ class KeyboardProfile:
             File content as string, or None if file not found
         """
         return self.load_file(f"toolchain/{filename}")
+
+    def __str__(self) -> str:
+        return f"{self.keyboard_name}/{self.firmware_version}"
