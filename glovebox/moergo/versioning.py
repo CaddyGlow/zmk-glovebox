@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from .client.client import MoErgoClient
+from .client import MoErgoClient
 from .client.models import MoErgoLayout
 
 

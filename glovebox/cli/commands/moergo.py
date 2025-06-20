@@ -7,8 +7,11 @@ from typing import Annotated
 
 import typer
 
-from glovebox.moergo.client import create_moergo_client
-from glovebox.moergo.client.models import AuthenticationError, NetworkError
+from glovebox.moergo.client import (
+    AuthenticationError,
+    NetworkError,
+    create_moergo_client,
+)
 
 
 logger = logging.getLogger(__name__)

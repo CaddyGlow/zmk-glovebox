@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Test script for the new firmware compilation endpoint."""
 
-from glovebox.moergo.client import create_moergo_client
-from glovebox.moergo.client.models import CompilationError, TimeoutError
+from glovebox.moergo.client import CompilationError, TimeoutError, create_moergo_client
 
 
 def test_compile_endpoint() -> bool:

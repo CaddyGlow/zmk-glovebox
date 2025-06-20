@@ -32,13 +32,13 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 # Import after path setup to avoid E402 linting issues
-from glovebox.firmware.flash.models import BlockDevice  # noqa: E402
-from glovebox.firmware.flash.os_adapters import (  # noqa: E402
-    WSL2FlashOS,
+from glovebox.firmware.flash.adapters.os_utils import (  # noqa: E402
     is_wsl2,
     windows_to_wsl_path,
     wsl_to_windows_path,
 )
+from glovebox.firmware.flash.adapters.wsl2_adapter import WSL2FlashOS  # noqa: E402
+from glovebox.firmware.flash.models import BlockDevice  # noqa: E402
 
 
 def print_header(title: str) -> None:

@@ -12,8 +12,7 @@ from glovebox.layout.models.bookmarks import (
     LayoutBookmark,
 )
 from glovebox.moergo.bookmark_service import BookmarkService
-from glovebox.moergo.client import MoErgoClient
-from glovebox.moergo.client.models import LayoutMeta, MoErgoLayout
+from glovebox.moergo.client import LayoutMeta, MoErgoClient, MoErgoLayout
 
 
 class TestBookmarkService:

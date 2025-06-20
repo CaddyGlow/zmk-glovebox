@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 
 from glovebox.cli.commands.bookmarks import bookmarks_app
 from glovebox.layout.models.bookmarks import BookmarkSource, LayoutBookmark
-from glovebox.moergo.client.models import LayoutMeta, MoErgoLayout
+from glovebox.moergo.client import LayoutMeta, MoErgoLayout
 
 
 class TestBookmarkCommands:
