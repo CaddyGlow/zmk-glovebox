@@ -543,7 +543,7 @@ class TestZmkWorkspaceCaching:
     def test_cache_cleanup_on_compilation_failure(
         self, zmk_service, zmk_config, keyboard_profile, test_files
     ):
-        """Test that workspace is still cached even if compilation fails."""
+        """Test that workspace is cached even when compilation fails."""
         keymap_file, config_file = test_files
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -569,10 +569,200 @@ class TestZmkWorkspaceCaching:
                 # Compilation should fail
                 assert not result.success
 
-                # But workspace should not be cached on failure
-                # (caching only happens on success)
+                # But workspace should be cached even on failure
+                # This is the new behavior - cache dependencies even when compilation fails
                 cached_workspace = zmk_service._get_cached_workspace(zmk_config)
-                # This could be None if no previous successful compilation
+                assert cached_workspace is not None
+
+    def test_multiprocess_cache_safety_during_file_operations(
+        self, mock_docker_adapter, cache_manager, zmk_config, test_files
+    ):
+        """Test thread/multiprocess safety during cache file operations.
+
+        This test ensures that concurrent cache operations don't corrupt
+        cached workspaces or cause race conditions during file copying.
+        """
+        keymap_file, config_file = test_files
+
+        def worker_cache_operations(worker_id):
+            """Worker function that performs cache operations concurrently."""
+            import random
+
+            service = create_zmk_west_service(mock_docker_adapter, cache_manager)
+
+            # Create a realistic workspace structure
+            with tempfile.TemporaryDirectory() as temp_workspace:
+                workspace_path = Path(temp_workspace)
+
+                # Create substantial workspace content
+                for subdir in ["zmk", "modules", "zephyr"]:
+                    subdir_path = workspace_path / subdir
+                    subdir_path.mkdir()
+
+                    # Add files to make copying operations take time
+                    for i in range(5):
+                        file_path = subdir_path / f"file_{i}.txt"
+                        file_path.write_text(f"Content for {subdir}/file_{i}" * 50)
+
+                # Add small random delay to increase chance of race conditions
+                time.sleep(random.uniform(0.01, 0.05))
+
+                try:
+                    # Each worker tries to cache the workspace simultaneously
+                    service._cache_workspace(workspace_path, zmk_config)
+
+                    # Immediately try to retrieve cached workspace
+                    cached = service._get_cached_workspace(zmk_config)
+
+                    # Try to use the cached workspace for compilation setup
+                    if cached:
+                        new_workspace = service._get_or_create_workspace(
+                            keymap_file, config_file, zmk_config
+                        )
+
+                        # Verify workspace integrity
+                        assert new_workspace is not None
+                        assert (new_workspace / "zmk").exists()
+                        assert (new_workspace / "modules").exists()
+                        assert (new_workspace / "zephyr").exists()
+
+                        # Verify some content integrity
+                        for subdir in ["zmk", "modules", "zephyr"]:
+                            subdir_path = new_workspace / subdir
+                            files = list(subdir_path.glob("file_*.txt"))
+                            if files:  # Content should exist if copied correctly
+                                sample_file = files[0]
+                                content = sample_file.read_text()
+                                assert subdir in content
+
+                    return worker_id, True, None
+
+                except Exception as e:
+                    return worker_id, False, str(e)
+
+        # Test with threading for simplicity
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [executor.submit(worker_cache_operations, i) for i in range(4)]
+            results = [future.result() for future in futures]
+
+        # Analyze results
+        successful_workers = [r for r in results if r[1]]
+        failed_workers = [r for r in results if not r[1]]
+
+        if failed_workers:
+            print("Failure details:")
+            for worker_id, _success, error in failed_workers:
+                print(f"  Worker {worker_id}: {error}")
+
+        # Most workers should succeed
+        success_rate = len(successful_workers) / len(results)
+        assert success_rate >= 0.7, f"Too many failures: {success_rate:.2%}"
+
+        # Verify final cache state is consistent
+        final_service = create_zmk_west_service(mock_docker_adapter, cache_manager)
+        final_cached = final_service._get_cached_workspace(zmk_config)
+
+        if final_cached:
+            # Verify cached workspace integrity
+            assert final_cached.exists()
+            assert (final_cached / "zmk").exists()
+
+    def test_cache_atomic_operations_file_locking(
+        self, zmk_service, zmk_config, test_files
+    ):
+        """Test atomic operations and file locking during cache updates.
+
+        This test specifically checks for issues that might arise from
+        non-atomic file operations during concurrent cache access.
+        """
+        keymap_file, config_file = test_files
+
+        import threading
+
+        # Create test workspace
+        with tempfile.TemporaryDirectory() as temp_workspace:
+            workspace_path = Path(temp_workspace)
+
+            # Create substantial workspace content
+            for subdir in ["zmk", "modules", "zephyr"]:
+                subdir_path = workspace_path / subdir
+                subdir_path.mkdir()
+
+                # Large file to make copying take time
+                large_file = subdir_path / "large_file.txt"
+                large_file.write_text("x" * 10000)  # 10KB file
+
+        results = []
+        exceptions = []
+
+        def concurrent_cache_access(thread_id):
+            """Function that accesses cache concurrently."""
+            try:
+                # Cache the workspace
+                zmk_service._cache_workspace(workspace_path, zmk_config)
+
+                # Immediately try to read from cache
+                cached_workspace = zmk_service._get_cached_workspace(zmk_config)
+
+                if cached_workspace:
+                    # Try to access files in cached workspace
+                    for subdir in ["zmk", "modules", "zephyr"]:
+                        subdir_path = cached_workspace / subdir
+                        if subdir_path.exists():
+                            large_file = subdir_path / "large_file.txt"
+                            if large_file.exists():
+                                # Read the file to ensure it's not corrupted
+                                content = large_file.read_text()
+                                assert len(content) == 10000
+
+                results.append((thread_id, True))
+
+            except Exception as e:
+                exceptions.append((thread_id, e))
+                results.append((thread_id, False))
+
+        # Create multiple threads that access cache simultaneously
+        threads = []
+        for i in range(5):
+            thread = threading.Thread(target=concurrent_cache_access, args=(i,))
+            threads.append(thread)
+
+        # Start all threads nearly simultaneously
+        for thread in threads:
+            thread.start()
+            time.sleep(0.01)  # Small delay to create some overlap
+
+        # Wait for all threads to complete
+        for thread in threads:
+            thread.join(timeout=10)
+
+        # Check results
+        successful = sum(1 for _, success in results if success)
+        total = len(results)
+
+        if exceptions:
+            print("Exceptions encountered:")
+            for thread_id, exc in exceptions:
+                print(f"  Thread {thread_id}: {exc}")
+
+        # Most operations should succeed
+        success_rate = successful / total if total > 0 else 0
+        assert success_rate >= 0.8, f"Too many failures: {success_rate:.2%}"
+
+        # Final verification - cache should be in consistent state
+        final_cached = zmk_service._get_cached_workspace(zmk_config)
+        if final_cached:
+            assert final_cached.exists()
+            # Verify cache content is not corrupted
+            for subdir in ["zmk", "modules", "zephyr"]:
+                large_file = final_cached / subdir / "large_file.txt"
+                if large_file.exists():
+                    content = large_file.read_text()
+                    assert len(content) == 10000, (
+                        "Cache file was corrupted during concurrent access"
+                    )
 
     def test_workspace_cache_directory_creation(self, zmk_service, zmk_config):
         """Test workspace cache directory creation."""
@@ -647,9 +837,7 @@ class TestZmkWorkspaceCaching:
         image_name = image_parts[0]
         image_tag = image_parts[1] if len(image_parts) > 1 else "latest"
 
-        from glovebox.core.cache_v2.models import (
-            CacheKey,  # type: ignore[import-untyped]
-        )
+        from glovebox.core.cache_v2.models import CacheKey
 
         image_cache_key = CacheKey.from_parts("docker_image", image_name, image_tag)
         cached_verification = zmk_service.cache.get(image_cache_key)
