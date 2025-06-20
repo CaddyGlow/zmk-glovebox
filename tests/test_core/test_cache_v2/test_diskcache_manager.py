@@ -173,7 +173,7 @@ class TestDiskCacheManager:
         assert cache_manager.get("error_key", "default") == "default"
 
         # Set should raise exception
-        with pytest.raises(OSError):
+        with pytest.raises(Exception, match="Test error"):
             cache_manager.set("error_key", "error_value")
 
         # Delete should return False on error
