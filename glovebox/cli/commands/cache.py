@@ -12,16 +12,15 @@ from rich.table import Table
 
 from glovebox.cli.helpers.theme import Icons
 from glovebox.compilation.cache.workspace_cache_service import (
+    ZmkWorkspaceCacheService,
     create_zmk_workspace_cache_service,
 )
-from glovebox.config.user_config import create_user_config
+from glovebox.config.user_config import UserConfig, create_user_config
 from glovebox.core.cache_v2 import create_cache_from_user_config
 from glovebox.core.cache_v2.cache_manager import CacheManager
 from glovebox.core.workspace_cache_utils import (
     detect_git_info,
     generate_workspace_cache_key,
-    get_workspace_cache_dir,
-    get_workspace_cache_ttls,
 )
 
 
@@ -54,7 +53,9 @@ def _get_directory_size(path: Path) -> int:
     return total
 
 
-def _get_cache_manager_and_service():
+def _get_cache_manager_and_service() -> tuple[
+    CacheManager, ZmkWorkspaceCacheService, UserConfig
+]:
     """Get cache manager and workspace cache service using user config.
 
     Returns:
@@ -62,7 +63,7 @@ def _get_cache_manager_and_service():
     """
     try:
         user_config = create_user_config()
-        cache_manager = create_cache_from_user_config(user_config, tag="workspace")
+        cache_manager = create_cache_from_user_config(user_config, tag="compilation")
         workspace_cache_service = create_zmk_workspace_cache_service(
             user_config, cache_manager
         )
@@ -71,7 +72,7 @@ def _get_cache_manager_and_service():
         # Fallback to default cache if user config fails
         from glovebox.core.cache_v2 import create_default_cache
 
-        cache_manager = create_default_cache(tag="workspace")
+        cache_manager = create_default_cache(tag="compilation")
         # Create a minimal user config for fallback
         user_config = create_user_config()
         workspace_cache_service = create_zmk_workspace_cache_service(
@@ -130,10 +131,17 @@ def workspace_show() -> None:
             if metadata.age_hours > 24:
                 age_str = f"{metadata.age_hours / 24:.1f}d"
 
+            # Handle cache_level safely - could be string or enum
+            cache_level_str = (
+                metadata.cache_level.value
+                if hasattr(metadata.cache_level, "value")
+                else str(metadata.cache_level)
+            )
+
             table.add_row(
                 metadata.repository,
                 metadata.branch,
-                metadata.cache_level.value,
+                cache_level_str,
                 _format_size(size_bytes),
                 age_str,
                 ", ".join(metadata.cached_components)
@@ -170,66 +178,63 @@ def workspace_delete(
         typer.Option("--all", help="Delete all cached workspaces"),
     ] = False,
 ) -> None:
-    """Delete cached workspace(s) using cache_v2 system."""
+    """Delete cached workspace(s) using ZmkWorkspaceCacheService."""
     try:
-        cache_manager = _get_cache_manager()
-        cache_dir = get_workspace_cache_dir()
-
-        if not cache_dir.exists():
-            console.print("[yellow]No workspace cache directory found[/yellow]")
-            return
+        cache_manager, workspace_cache_service, user_config = (
+            _get_cache_manager_and_service()
+        )
 
         if repository:
-            # Clear specific repository
-            repo_cache_name = repository.replace("/", "_").replace("-", "_")
-            workspace_dir = cache_dir / repo_cache_name
+            # Get workspace metadata to show size before deletion
+            cached_workspaces = workspace_cache_service.list_cached_workspaces()
+            target_workspace = None
 
-            if not workspace_dir.exists():
+            for workspace in cached_workspaces:
+                if workspace.repository == repository:
+                    target_workspace = workspace
+                    break
+
+            if not target_workspace:
                 console.print(
                     f"[yellow]No cached workspace found for {repository}[/yellow]"
                 )
                 return
 
             if not force:
-                size = _get_directory_size(workspace_dir)
+                size_bytes = target_workspace.size_bytes or _get_directory_size(
+                    target_workspace.workspace_path
+                )
                 confirm = typer.confirm(
-                    f"Delete cached workspace for {repository} ({_format_size(size)})?"
+                    f"Delete cached workspace for {repository} ({_format_size(size_bytes)})?"
                 )
                 if not confirm:
                     console.print("[yellow]Cancelled[/yellow]")
                     return
 
-            try:
-                # Remove from cache_v2 system first
-                git_info = detect_git_info(workspace_dir)
-                branch = git_info.get("branch", "main")
+            # Use the workspace cache service for deletion
+            success = workspace_cache_service.delete_cached_workspace(repository)
 
-                for level in ["base", "branch", "full"]:
-                    cache_key = generate_workspace_cache_key(repository, branch, level)
-                    if cache_manager.exists(cache_key):
-                        cache_manager.delete(cache_key)
-                        logger.debug("Deleted cache_v2 entry: %s", cache_key)
-
-                # Remove filesystem directory
-                shutil.rmtree(workspace_dir)
-
+            if success:
                 icon_mode = "emoji"
                 console.print(
                     f"[green]{Icons.get_icon('SUCCESS', icon_mode)} Deleted cached workspace for {repository}[/green]"
                 )
-            except Exception as e:
-                console.print(f"[red]Failed to delete cache: {e}[/red]")
-                raise typer.Exit(1) from e
+            else:
+                console.print(
+                    f"[red]Failed to delete cached workspace for {repository}[/red]"
+                )
+                raise typer.Exit(1)
         else:
-            # Clear all workspaces (or if --all flag is used)
-            cached_workspaces = list(cache_dir.iterdir())
+            # Delete all workspaces
+            cached_workspaces = workspace_cache_service.list_cached_workspaces()
 
             if not cached_workspaces:
                 console.print("[yellow]No cached workspaces found[/yellow]")
                 return
 
             total_size = sum(
-                _get_directory_size(d) for d in cached_workspaces if d.is_dir()
+                (workspace.size_bytes or _get_directory_size(workspace.workspace_path))
+                for workspace in cached_workspaces
             )
 
             if not force:
@@ -240,34 +245,105 @@ def workspace_delete(
                     console.print("[yellow]Cancelled[/yellow]")
                     return
 
-            try:
-                # Clear all cache_v2 entries
-                for workspace_dir in cached_workspaces:
-                    if workspace_dir.is_dir():
-                        repo_name = workspace_dir.name.replace("_", "/")
-                        git_info = detect_git_info(workspace_dir)
-                        branch = git_info.get("branch", "main")
+            # Delete each workspace using the service
+            deleted_count = 0
+            for workspace in cached_workspaces:
+                if workspace_cache_service.delete_cached_workspace(
+                    workspace.repository
+                ):
+                    deleted_count += 1
 
-                        for level in ["base", "branch", "full"]:
-                            cache_key = generate_workspace_cache_key(
-                                repo_name, branch, level
-                            )
-                            if cache_manager.exists(cache_key):
-                                cache_manager.delete(cache_key)
-
-                # Remove filesystem directory
-                shutil.rmtree(cache_dir)
-
+            if deleted_count > 0:
                 icon_mode = "emoji"
                 console.print(
-                    f"[green]{Icons.get_icon('SUCCESS', icon_mode)} Deleted all cached workspaces ({_format_size(total_size)})[/green]"
+                    f"[green]{Icons.get_icon('SUCCESS', icon_mode)} Deleted {deleted_count} cached workspaces ({_format_size(total_size)})[/green]"
                 )
-            except Exception as e:
-                console.print(f"[red]Failed to delete cache: {e}[/red]")
-                raise typer.Exit(1) from e
+            else:
+                console.print("[red]Failed to delete any cached workspaces[/red]")
+                raise typer.Exit(1)
 
     except Exception as e:
         logger.error("Failed to delete workspace cache: %s", e)
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1) from e
+
+
+@workspace_app.command(name="cleanup")
+def workspace_cleanup(
+    max_age_days: Annotated[
+        float,
+        typer.Option(
+            "--max-age",
+            help="Clean up workspaces older than specified days (default: 7 days)",
+        ),
+    ] = 7.0,
+    force: Annotated[
+        bool,
+        typer.Option("--force", "-f", help="Force cleanup without confirmation"),
+    ] = False,
+) -> None:
+    """Clean up stale cached workspaces using ZmkWorkspaceCacheService."""
+    try:
+        cache_manager, workspace_cache_service, user_config = (
+            _get_cache_manager_and_service()
+        )
+
+        max_age_hours = max_age_days * 24
+
+        # List workspaces that would be cleaned up
+        cached_workspaces = workspace_cache_service.list_cached_workspaces()
+        stale_workspaces = [
+            workspace
+            for workspace in cached_workspaces
+            if workspace.age_hours > max_age_hours
+        ]
+
+        if not stale_workspaces:
+            console.print(
+                f"[green]No workspaces older than {max_age_days} days found[/green]"
+            )
+            return
+
+        total_stale_size = sum(
+            (workspace.size_bytes or _get_directory_size(workspace.workspace_path))
+            for workspace in stale_workspaces
+        )
+
+        console.print(
+            f"[yellow]Found {len(stale_workspaces)} stale workspaces ({_format_size(total_stale_size)})[/yellow]"
+        )
+
+        if not force:
+            console.print("\n[bold]Workspaces to be cleaned up:[/bold]")
+            for workspace in stale_workspaces:
+                age_days = workspace.age_hours / 24
+                size_bytes = workspace.size_bytes or _get_directory_size(
+                    workspace.workspace_path
+                )
+                console.print(
+                    f"  • {workspace.repository}@{workspace.branch}: {_format_size(size_bytes)} (age: {age_days:.1f}d)"
+                )
+
+            confirm = typer.confirm(
+                f"\nClean up these {len(stale_workspaces)} workspaces?"
+            )
+            if not confirm:
+                console.print("[yellow]Cancelled[/yellow]")
+                return
+
+        # Perform cleanup using the service
+        cleaned_count = workspace_cache_service.cleanup_stale_entries(max_age_hours)
+
+        if cleaned_count > 0:
+            icon_mode = "emoji"
+            console.print(
+                f"[green]{Icons.get_icon('SUCCESS', icon_mode)} Cleaned up {cleaned_count} stale workspaces ({_format_size(total_stale_size)})[/green]"
+            )
+        else:
+            console.print("[yellow]No workspaces were cleaned up[/yellow]")
+
+    except Exception as e:
+        logger.error("Failed to cleanup workspace cache: %s", e)
         console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(1) from e
 
@@ -294,14 +370,19 @@ def cache_show(
         console.print("[bold]Glovebox Cache System Overview[/bold]")
         console.print("=" * 50)
 
-        # Show workspace cache information
+        # Show workspace cache information using the service
         console.print("\n[bold cyan]1. Workspace Cache (ZMK Workspaces)[/bold cyan]")
-        cache_dir = get_workspace_cache_dir()
+        cache_manager, workspace_cache_service, user_config = (
+            _get_cache_manager_and_service()
+        )
 
-        if cache_dir.exists():
-            cached_workspaces = [d for d in cache_dir.iterdir() if d.is_dir()]
+        cache_dir = workspace_cache_service.get_cache_directory()
+        cached_workspaces = workspace_cache_service.list_cached_workspaces()
+
+        if cached_workspaces:
             total_workspace_size = sum(
-                _get_directory_size(d) for d in cached_workspaces
+                (workspace.size_bytes or _get_directory_size(workspace.workspace_path))
+                for workspace in cached_workspaces
             )
 
             console.print(f"[bold]Location:[/bold] {cache_dir}")
@@ -309,35 +390,46 @@ def cache_show(
             console.print(
                 f"[bold]Total Size:[/bold] {_format_size(total_workspace_size)}"
             )
-            console.print("[bold]Managed by:[/bold] glovebox/core/cache_v2")
+            console.print("[bold]Managed by:[/bold] ZmkWorkspaceCacheService")
 
-            if cached_workspaces and not module:
+            if not module:
                 console.print("\n[bold]Workspace Details:[/bold]")
                 start_idx = offset or 0
                 end_idx = start_idx + (limit or len(cached_workspaces))
 
-                for workspace_dir in sorted(cached_workspaces)[start_idx:end_idx]:
-                    repo_name = workspace_dir.name.replace("_", "/")
-                    size = _get_directory_size(workspace_dir)
+                for workspace in sorted(cached_workspaces, key=lambda x: x.repository)[
+                    start_idx:end_idx
+                ]:
+                    size_bytes = workspace.size_bytes or _get_directory_size(
+                        workspace.workspace_path
+                    )
 
-                    # Check cache levels
-                    git_info = detect_git_info(workspace_dir)
-                    branch = git_info.get("branch", "main")
-                    cache_levels = []
-                    for level in ["base", "branch", "full"]:
-                        cache_key = generate_workspace_cache_key(
-                            repo_name, branch, level
-                        )
-                        if cache_manager.exists(cache_key):
-                            cache_levels.append(level)
+                    # Format age
+                    age_str = f"{workspace.age_hours:.1f}h"
+                    if workspace.age_hours > 24:
+                        age_str = f"{workspace.age_hours / 24:.1f}d"
 
-                    level_str = "/".join(cache_levels) if cache_levels else "legacy"
+                    auto_detected_marker = " [auto]" if workspace.auto_detected else ""
+                    components_str = (
+                        f" [{'/'.join(workspace.cached_components)}]"
+                        if workspace.cached_components
+                        else ""
+                    )
+
+                    # Handle cache_level safely
+                    cache_level_str = (
+                        workspace.cache_level.value
+                        if hasattr(workspace.cache_level, "value")
+                        else str(workspace.cache_level)
+                    )
+
                     console.print(
-                        f"  • {repo_name}@{branch}: {_format_size(size)} [{level_str}]"
+                        f"  • {workspace.repository}@{workspace.branch}: {_format_size(size_bytes)} "
+                        f"(level: {cache_level_str}, age: {age_str}){auto_detected_marker}{components_str}"
                     )
         else:
-            console.print("[yellow]No workspace cache directory found[/yellow]")
-            console.print(f"[dim]Would be located at: {cache_dir}[/dim]")
+            console.print("[yellow]No cached workspaces found[/yellow]")
+            console.print(f"[dim]Cache directory: {cache_dir}[/dim]")
 
         # Show DiskCache information
         console.print("\n[bold cyan]2. DiskCache System (Modules)[/bold cyan]")
@@ -397,6 +489,7 @@ def cache_show(
         console.print("  • glovebox cache workspace show")
         console.print("  • glovebox cache workspace add <path>")
         console.print("  • glovebox cache workspace delete [repository]")
+        console.print("  • glovebox cache workspace cleanup [--max-age <days>]")
         console.print("[dim]Module cache:[/dim]")
         console.print("  • glovebox cache clear -m <module>")
         console.print("  • glovebox cache clear --max-age <days>")
@@ -446,7 +539,7 @@ def workspace_add(
             source_path=workspace_path, repository=repository, force=force
         )
 
-        if result.success:
+        if result.success and result.metadata:
             # Display success information with enhanced metadata
             metadata = result.metadata
 
@@ -468,7 +561,13 @@ def workspace_add(
                     f"[bold]Components cached:[/bold] {', '.join(metadata.cached_components)}"
                 )
 
-            console.print(f"[bold]Cache level:[/bold] {metadata.cache_level.value}")
+            # Handle cache_level safely
+            cache_level_str = (
+                metadata.cache_level.value
+                if hasattr(metadata.cache_level, "value")
+                else str(metadata.cache_level)
+            )
+            console.print(f"[bold]Cache level:[/bold] {cache_level_str}")
 
             if metadata.auto_detected:
                 console.print(
@@ -477,6 +576,11 @@ def workspace_add(
 
             console.print(
                 f"\n[dim]Future builds using '{metadata.repository}' will now use this cache![/dim]"
+            )
+        elif result.success:
+            # Success but no metadata (shouldn't happen, but handle gracefully)
+            console.print(
+                f"\n[green]{Icons.format_with_icon('SUCCESS', 'Successfully added workspace cache', icon_mode)}[/green]"
             )
         else:
             console.print(

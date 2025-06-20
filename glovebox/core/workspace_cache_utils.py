@@ -104,7 +104,7 @@ def generate_workspace_cache_key(
     return CacheKey.from_parts(*key_parts)
 
 
-def get_workspace_cache_dir(user_config=None) -> Path:
+def get_workspace_cache_dir(user_config: Any = None) -> Path:
     """Get workspace cache directory from user config or default location.
 
     Args:
@@ -119,13 +119,13 @@ def get_workspace_cache_dir(user_config=None) -> Path:
         and hasattr(user_config._config, "cache_path")
     ):
         # Use user-configured cache path
-        return user_config._config.cache_path / "workspaces"
+        return user_config._config.cache_path / "workspaces"  # type: ignore[no-any-return]
 
     # Fall back to default location for backward compatibility
     return Path.home() / ".cache" / "glovebox" / "workspaces"
 
 
-def get_workspace_cache_ttls(user_config=None) -> dict[str, int]:
+def get_workspace_cache_ttls(user_config: Any = None) -> dict[str, int]:
     """Get workspace cache TTL values from user config or defaults.
 
     Args:
@@ -140,7 +140,7 @@ def get_workspace_cache_ttls(user_config=None) -> dict[str, int]:
         and hasattr(user_config._config, "cache_ttls")
     ):
         # Use user-configured TTL values
-        return user_config._config.cache_ttls.get_workspace_ttls()
+        return user_config._config.cache_ttls.get_workspace_ttls()  # type: ignore[no-any-return]
 
     # Fall back to default values for backward compatibility
     return {

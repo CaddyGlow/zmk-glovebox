@@ -125,7 +125,7 @@ class UserConfigData(BaseSettings):
 
     # Comprehensive cache TTL configuration
     cache_ttls: CacheTTLConfig = Field(
-        default_factory=lambda: CacheTTLConfig(),
+        default_factory=lambda: CacheTTLConfig(),  # type: ignore[call-arg]
         description="TTL configuration for all cache types across domains",
     )
 
