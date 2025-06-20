@@ -374,14 +374,15 @@ class TestUserConfigHelperMethods:
 class TestUserConfigFactory:
     """Tests for the create_user_config factory function."""
 
-    @pytest.mark.skip(reason="Config state isolation issue")
-    def test_factory_function(self, clean_environment):
+    def test_factory_function(self, isolated_config):
         """Test create_user_config factory function."""
-        config = create_user_config()
+        # Use the isolated config to get the CLI config path for proper isolation
+        config = create_user_config(cli_config_path=isolated_config.config_file_path)
 
         assert isinstance(config, UserConfig)
-        assert config._config.profile == "glove80/v26.0"
-        assert config._config.log_level == "WARNING"
+        # Should use values from the isolated environment
+        assert config._config.profile == "test_keyboard/v1.0"  # From isolated config
+        assert config._config.log_level == "INFO"  # Default value
 
     def test_factory_with_cli_path(self, clean_environment, temp_config_dir: Path):
         """Test factory function with CLI config path."""
