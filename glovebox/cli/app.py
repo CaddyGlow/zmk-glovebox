@@ -67,7 +67,18 @@ class AppContext:
         if self.no_emoji:
             # CLI flag overrides config
             return False
-        return self.user_config._config.emoji_mode
+
+        # Try new icon_mode field first, fall back to emoji_mode for compatibility
+        if hasattr(self.user_config._config, "icon_mode"):
+            icon_mode = self.user_config._config.icon_mode
+            return str(icon_mode) == "emoji" if icon_mode is not None else True
+        else:
+            # Legacy fallback
+            if hasattr(self.user_config._config, "emoji_mode"):
+                emoji_mode = self.user_config._config.emoji_mode
+                return bool(emoji_mode) if emoji_mode is not None else True
+            else:
+                return True  # Default to True if neither field exists
 
     @property
     def icon_mode(self) -> str:
@@ -84,10 +95,16 @@ class AppContext:
 
         # Try new icon_mode field first, fall back to emoji_mode for compatibility
         if hasattr(self.user_config._config, "icon_mode"):
-            return self.user_config._config.icon_mode
+            icon_mode = self.user_config._config.icon_mode
+            return str(icon_mode) if icon_mode is not None else "emoji"
         else:
             # Legacy fallback
-            return "emoji" if self.user_config._config.emoji_mode else "text"
+            if hasattr(self.user_config._config, "emoji_mode"):
+                emoji_mode = self.user_config._config.emoji_mode
+                emoji_enabled = bool(emoji_mode) if emoji_mode is not None else True
+                return "emoji" if emoji_enabled else "text"
+            else:
+                return "emoji"  # Default to emoji if neither field exists
 
 
 # Create a custom exception handler that will print stack traces

@@ -233,7 +233,7 @@ def _print_keyboard_config_table(
         table.add_row(*row_data)
 
     # Print header with icon
-    header_icon = Icons.get_icon("KEYBOARD", app_ctx.use_emoji)
+    header_icon = Icons.get_icon("KEYBOARD", app_ctx.icon_mode)
     console.print(
         Panel(f"{header_icon} Keyboard Configuration Details", border_style="cyan")
     )
@@ -446,13 +446,15 @@ def _build_keyboard_config_data(
 
 
 def _print_keyboard_details_rich(
-    config_data: dict[str, Any], use_emoji: bool = True, console: Console | None = None
+    config_data: dict[str, Any],
+    icon_mode: str = "emoji",
+    console: Console | None = None,
 ) -> None:
     """Print keyboard configuration details using rich formatting.
 
     Args:
         config_data: Keyboard configuration data
-        use_emoji: Whether to use emoji icons
+        icon_mode: Icon mode for display
         console: Rich console instance
     """
     if console is None:
@@ -460,7 +462,7 @@ def _print_keyboard_details_rich(
 
     # Header panel
     keyboard_name = config_data.get("keyboard", "Unknown")
-    keyboard_icon = Icons.get_icon("KEYBOARD", use_emoji)
+    keyboard_icon = Icons.get_icon("KEYBOARD", icon_mode)
     header = Text(f"Keyboard Configuration: {keyboard_name}", style="bold magenta")
     console.print(
         Panel(header, title=f"{keyboard_icon} Keyboard Details", border_style="blue")
@@ -469,7 +471,7 @@ def _print_keyboard_details_rich(
 
     # Basic information table
     basic_table = Table(
-        title=f"{Icons.get_icon('INFO', use_emoji)} Basic Information",
+        title=f"{Icons.get_icon('INFO', icon_mode)} Basic Information",
         show_header=True,
         header_style="bold green",
     )
@@ -494,7 +496,7 @@ def _print_keyboard_details_rich(
     flash_methods = config_data.get("flash_methods", [])
     if flash_methods:
         flash_table = Table(
-            title=f"{Icons.get_icon('FLASH', use_emoji)} Flash Methods",
+            title=f"{Icons.get_icon('FLASH', icon_mode)} Flash Methods",
             show_header=True,
             header_style="bold yellow",
         )
@@ -525,7 +527,7 @@ def _print_keyboard_details_rich(
     compile_methods = config_data.get("compile_methods", [])
     if compile_methods:
         compile_table = Table(
-            title=f"{Icons.get_icon('BUILD', use_emoji)} Compile Methods",
+            title=f"{Icons.get_icon('BUILD', icon_mode)} Compile Methods",
             show_header=True,
             header_style="bold blue",
         )
@@ -556,7 +558,7 @@ def _print_keyboard_details_rich(
     firmwares = config_data.get("firmwares", {})
     if firmwares:
         firmware_table = Table(
-            title=f"{Icons.get_icon('FIRMWARE', use_emoji)} Available Firmwares ({len(firmwares)})",
+            title=f"{Icons.get_icon('FIRMWARE', icon_mode)} Available Firmwares ({len(firmwares)})",
             show_header=True,
             header_style="bold magenta",
         )
@@ -578,7 +580,7 @@ def _print_keyboard_details_rich(
         fw_details = config_data.get("firmware_details", {})
         if fw_details:
             selected_table = Table(
-                title=f"{Icons.get_icon('STAR', use_emoji)} Selected Firmware: {selected_fw}",
+                title=f"{Icons.get_icon('STAR', icon_mode)} Selected Firmware: {selected_fw}",
                 show_header=True,
                 header_style="bold magenta",
             )
@@ -594,7 +596,7 @@ def _print_keyboard_details_rich(
 
             console.print(selected_table)
         elif config_data.get("firmware_error"):
-            error_icon = Icons.get_icon("ERROR", use_emoji)
+            error_icon = Icons.get_icon("ERROR", icon_mode)
             console.print(
                 f"\n[bold red]{error_icon} {config_data['firmware_error']}[/bold red]\n"
             )
@@ -650,7 +652,7 @@ def list_keyboards(
 
     if verbose:
         # Create header panel
-        keyboard_icon = Icons.get_icon("KEYBOARD", app_ctx.use_emoji)
+        keyboard_icon = Icons.get_icon("KEYBOARD", app_ctx.icon_mode)
         header = Text(
             f"Available Keyboard Configurations ({len(keyboards)})",
             style="bold magenta",
@@ -715,7 +717,7 @@ def list_keyboards(
                     keyboard_name, description, vendor, key_count, firmware_display
                 )
             except Exception as e:
-                error_icon = Icons.get_icon("ERROR", app_ctx.use_emoji)
+                error_icon = Icons.get_icon("ERROR", app_ctx.icon_mode)
                 table.add_row(
                     keyboard_name, f"{error_icon} {str(e)}", "Error", "Error", "Error"
                 )
@@ -723,13 +725,13 @@ def list_keyboards(
         console.print(table)
     else:
         # Simple list format with rich styling
-        keyboard_icon = Icons.get_icon("KEYBOARD", app_ctx.use_emoji)
+        keyboard_icon = Icons.get_icon("KEYBOARD", app_ctx.icon_mode)
         console.print(
             f"\n[bold cyan]{keyboard_icon} Available keyboard configurations ({len(keyboards)}):[/bold cyan]\n"
         )
 
         for keyboard in keyboards:
-            bullet_icon = Icons.get_icon("BULLET", app_ctx.use_emoji)
+            bullet_icon = Icons.get_icon("BULLET", app_ctx.icon_mode)
             console.print(f"  {bullet_icon} [cyan]{keyboard}[/cyan]")
 
 
@@ -849,7 +851,7 @@ def show_keyboard(
             )
         else:
             _print_keyboard_details_rich(
-                config_data, app_ctx.use_emoji, console=Console()
+                config_data, app_ctx.icon_mode, console=Console()
             )
     else:
         # For non-text formats, add sources and defaults to config_data if requested

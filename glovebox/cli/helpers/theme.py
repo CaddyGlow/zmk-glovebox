@@ -640,15 +640,19 @@ def get_icon_mode_from_config(user_config: Any = None) -> str:
 
     # Try new icon_mode field first
     if hasattr(user_config, "_config") and hasattr(user_config._config, "icon_mode"):
-        return user_config._config.icon_mode
+        icon_mode = user_config._config.icon_mode
+        return str(icon_mode) if icon_mode is not None else "emoji"
     elif hasattr(user_config, "icon_mode"):
-        return user_config.icon_mode
+        icon_mode = user_config.icon_mode
+        return str(icon_mode) if icon_mode is not None else "emoji"
 
     # Fall back to legacy emoji_mode for backward compatibility
     if hasattr(user_config, "_config") and hasattr(user_config._config, "emoji_mode"):
-        return "emoji" if user_config._config.emoji_mode else "text"
+        emoji_mode = user_config._config.emoji_mode
+        return "emoji" if bool(emoji_mode) else "text"
     elif hasattr(user_config, "emoji_mode"):
-        return "emoji" if user_config.emoji_mode else "text"
+        emoji_mode = user_config.emoji_mode
+        return "emoji" if bool(emoji_mode) else "text"
 
     # Default fallback
     return "emoji"

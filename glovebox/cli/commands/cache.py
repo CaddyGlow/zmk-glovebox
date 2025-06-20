@@ -94,18 +94,18 @@ def inject_base_deps_command(
             cache_root=cache_root,
         )
 
-        # Note: This function doesn't have ctx parameter, using default emoji mode
-        use_emoji = True
+        # Note: This function doesn't have ctx parameter, using default icon mode
+        icon_mode = "emoji"
         typer.echo(
             Icons.format_with_icon(
-                "SUCCESS", "Base dependencies cache injected successfully!", use_emoji
+                "SUCCESS", "Base dependencies cache injected successfully!", icon_mode
             )
         )
         typer.echo(f"Cache key: {cache_key}")
 
     except Exception as e:
         logger.error("Failed to inject base dependencies cache: %s", e)
-        typer.echo(Icons.format_with_icon("ERROR", f"Error: {e}", use_emoji), err=True)
+        typer.echo(Icons.format_with_icon("ERROR", f"Error: {e}", icon_mode), err=True)
         raise typer.Exit(1) from e
 
 
@@ -151,28 +151,28 @@ def list_base_deps_command(
 
                         from glovebox.cli.helpers.theme import Icons
 
-                        # Note: This function doesn't have ctx parameter, using default emoji mode
-                        use_emoji = True
+                        # Note: This function doesn't have ctx parameter, using default icon mode
+                        icon_mode = "emoji"
                         typer.echo(
-                            f"  {Icons.get_icon('BUILD', use_emoji)} {entry.name}"
+                            f"  {Icons.get_icon('BUILD', icon_mode)} {entry.name}"
                         )
                         typer.echo(f"     ZMK: {zmk_repo}@{zmk_revision}")
                         typer.echo(f"     Created: {created_at}")
                         typer.echo()
                     except Exception:
                         typer.echo(
-                            f"  {Icons.get_icon('BUILD', use_emoji)} {entry.name} (metadata unavailable)"
+                            f"  {Icons.get_icon('BUILD', icon_mode)} {entry.name} (metadata unavailable)"
                         )
                         typer.echo()
                 else:
                     typer.echo(
-                        f"  {Icons.get_icon('BUILD', use_emoji)} {entry.name} (no metadata)"
+                        f"  {Icons.get_icon('BUILD', icon_mode)} {entry.name} (no metadata)"
                     )
                     typer.echo()
 
     except Exception as e:
         logger.error("Failed to list base dependencies cache: %s", e)
-        typer.echo(Icons.format_with_icon("ERROR", f"Error: {e}", use_emoji), err=True)
+        typer.echo(Icons.format_with_icon("ERROR", f"Error: {e}", icon_mode), err=True)
         raise typer.Exit(1) from e
 
 
@@ -194,9 +194,9 @@ def list_workspaces() -> None:
     from glovebox.cli.helpers.theme import Icons
 
     # Note: We can't get app context here since this function doesn't have ctx parameter
-    # Using emoji=True as fallback for this case
+    # Using emoji icon mode as fallback for this case
     table = Table(
-        title=f"{Icons.get_icon('BUILD', True)} Cached ZMK Workspaces",
+        title=f"{Icons.get_icon('BUILD', 'emoji')} Cached ZMK Workspaces",
         show_header=True,
         header_style="bold green",
     )
@@ -272,10 +272,10 @@ def clear_workspace(
             shutil.rmtree(workspace_dir)
             from glovebox.cli.helpers.theme import Icons
 
-            # Note: This function doesn't have ctx parameter, using default emoji mode
-            use_emoji = True
+            # Note: This function doesn't have ctx parameter, using default icon mode
+            icon_mode = "emoji"
             console.print(
-                f"[green]{Icons.get_icon('SUCCESS', use_emoji)} Cleared cached workspace for {repository}[/green]"
+                f"[green]{Icons.get_icon('SUCCESS', icon_mode)} Cleared cached workspace for {repository}[/green]"
             )
         except Exception as e:
             console.print(f"[red]Failed to clear cache: {e}[/red]")
@@ -303,7 +303,7 @@ def clear_workspace(
         try:
             shutil.rmtree(cache_dir)
             console.print(
-                f"[green]{Icons.get_icon('SUCCESS', use_emoji)} Cleared all cached workspaces ({_format_size(total_size)})[/green]"
+                f"[green]{Icons.get_icon('SUCCESS', icon_mode)} Cleared all cached workspaces ({_format_size(total_size)})[/green]"
             )
         except Exception as e:
             console.print(f"[red]Failed to clear cache: {e}[/red]")
@@ -442,14 +442,14 @@ def import_workspace(
             total_size += dir_size
             from glovebox.cli.helpers.theme import Icons
 
-            # Note: This function doesn't have ctx parameter, using default emoji mode
-            use_emoji = True
+            # Note: This function doesn't have ctx parameter, using default icon mode
+            icon_mode = "emoji"
             console.print(
-                f"    {Icons.get_icon('SUCCESS', use_emoji)} {dir_name}: {_format_size(dir_size)}"
+                f"    {Icons.get_icon('SUCCESS', icon_mode)} {dir_name}: {_format_size(dir_size)}"
             )
 
         console.print(
-            f"\n[green]{Icons.format_with_icon('SUCCESS', f'Successfully imported workspace cache for {repository}', use_emoji)}[/green]"
+            f"\n[green]{Icons.format_with_icon('SUCCESS', f'Successfully imported workspace cache for {repository}', icon_mode)}[/green]"
         )
         console.print(f"[bold]Cache location:[/bold] {target_cache_dir}")
         console.print(f"[bold]Total size:[/bold] {_format_size(total_size)}")
@@ -491,15 +491,15 @@ def cleanup_command(
         base_cache.cleanup_cache(max_age_days=max_age_days)
         from glovebox.cli.helpers.theme import Icons
 
-        # Note: This function doesn't have ctx parameter, using default emoji mode
-        use_emoji = True
+        # Note: This function doesn't have ctx parameter, using default icon mode
+        icon_mode = "emoji"
         typer.echo(
-            Icons.format_with_icon("SUCCESS", "Cache cleanup completed.", use_emoji)
+            Icons.format_with_icon("SUCCESS", "Cache cleanup completed.", icon_mode)
         )
 
     except Exception as e:
         logger.error("Failed to cleanup cache: %s", e)
-        typer.echo(Icons.format_with_icon("ERROR", f"Error: {e}", use_emoji), err=True)
+        typer.echo(Icons.format_with_icon("ERROR", f"Error: {e}", icon_mode), err=True)
         raise typer.Exit(1) from e
 
 
@@ -552,9 +552,9 @@ def clear_diskcache_command(
 
             try:
                 shutil.rmtree(module_cache_dir)
-                use_emoji = True
+                icon_mode = "emoji"
                 console.print(
-                    f"[green]{Icons.get_icon('SUCCESS', use_emoji)} Cleared cache for module '{module}'[/green]"
+                    f"[green]{Icons.get_icon('SUCCESS', icon_mode)} Cleared cache for module '{module}'[/green]"
                 )
             except Exception as e:
                 console.print(f"[red]Failed to clear module cache: {e}[/red]")
@@ -581,9 +581,9 @@ def clear_diskcache_command(
                 for cache_dir in cache_subdirs:
                     shutil.rmtree(cache_dir)
 
-                use_emoji = True
+                icon_mode = "emoji"
                 console.print(
-                    f"[green]{Icons.get_icon('SUCCESS', use_emoji)} Cleared all cache directories ({_format_size(total_size)})[/green]"
+                    f"[green]{Icons.get_icon('SUCCESS', icon_mode)} Cleared all cache directories ({_format_size(total_size)})[/green]"
                 )
             except Exception as e:
                 console.print(f"[red]Failed to clear cache: {e}[/red]")
@@ -591,8 +591,8 @@ def clear_diskcache_command(
 
     except Exception as e:
         logger.error("Failed to clear diskcache: %s", e)
-        use_emoji = True
-        typer.echo(Icons.format_with_icon("ERROR", f"Error: {e}", use_emoji), err=True)
+        icon_mode = "emoji"
+        typer.echo(Icons.format_with_icon("ERROR", f"Error: {e}", icon_mode), err=True)
         raise typer.Exit(1) from e
 
 
@@ -634,6 +634,6 @@ def info_diskcache_command() -> None:
 
     except Exception as e:
         logger.error("Failed to get diskcache info: %s", e)
-        use_emoji = True
-        typer.echo(Icons.format_with_icon("ERROR", f"Error: {e}", use_emoji), err=True)
+        icon_mode = "emoji"
+        typer.echo(Icons.format_with_icon("ERROR", f"Error: {e}", icon_mode), err=True)
         raise typer.Exit(1) from e

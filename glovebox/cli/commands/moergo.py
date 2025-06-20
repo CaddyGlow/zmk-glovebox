@@ -73,8 +73,8 @@ def login(
 
         from glovebox.cli.helpers.theme import Icons
 
-        # Note: This function doesn't have ctx parameter, so we'll use default emoji mode
-        use_emoji = True  # Default behavior for this command
+        # Note: This function doesn't have ctx parameter, so we'll use default icon mode
+        icon_mode = "emoji"  # Default behavior for this command
 
         if keyring_available:
             storage_method = "OS keyring"
@@ -82,14 +82,14 @@ def login(
                 Icons.format_with_icon(
                     "SUCCESS",
                     f"Successfully logged in and stored credentials using {storage_method}",
-                    use_emoji,
+                    icon_mode,
                 )
             )
             typer.echo(
                 Icons.format_with_icon(
                     "INFO",
                     "Your credentials are securely stored in your system keyring",
-                    use_emoji,
+                    icon_mode,
                 )
             )
         else:
@@ -98,24 +98,24 @@ def login(
                 Icons.format_with_icon(
                     "SUCCESS",
                     f"Successfully logged in and stored credentials using {storage_method}",
-                    use_emoji,
+                    icon_mode,
                 )
             )
             typer.echo(
                 Icons.format_with_icon(
                     "WARNING",
                     "For better security, consider installing the keyring package:",
-                    use_emoji,
+                    icon_mode,
                 )
             )
             typer.echo("   pip install keyring")
             typer.echo("   Then login again to use secure keyring storage")
 
     except AuthenticationError as e:
-        typer.echo(Icons.format_with_icon("ERROR", f"Login failed: {e}", use_emoji))
+        typer.echo(Icons.format_with_icon("ERROR", f"Login failed: {e}", icon_mode))
         raise typer.Exit(1) from None
     except Exception as e:
-        typer.echo(Icons.format_with_icon("ERROR", f"Unexpected error: {e}", use_emoji))
+        typer.echo(Icons.format_with_icon("ERROR", f"Unexpected error: {e}", icon_mode))
         raise typer.Exit(1) from None
 
 
@@ -127,16 +127,16 @@ def logout() -> None:
         client.logout()
         from glovebox.cli.helpers.theme import Icons
 
-        use_emoji = True  # Default behavior for this command
+        icon_mode = "emoji"  # Default behavior for this command
         typer.echo(
             Icons.format_with_icon(
-                "SUCCESS", "Successfully logged out and cleared credentials", use_emoji
+                "SUCCESS", "Successfully logged out and cleared credentials", icon_mode
             )
         )
 
     except Exception as e:
         typer.echo(
-            Icons.format_with_icon("ERROR", f"Error during logout: {e}", use_emoji)
+            Icons.format_with_icon("ERROR", f"Error during logout: {e}", icon_mode)
         )
         raise typer.Exit(1) from None
 
@@ -162,12 +162,12 @@ def download_layout(
         if not client.validate_authentication():
             from glovebox.cli.helpers.theme import Icons
 
-            use_emoji = True  # Default behavior for this command
+            icon_mode = "emoji"  # Default behavior for this command
             typer.echo(
                 Icons.format_with_icon(
                     "ERROR",
                     "Authentication failed. Please run 'glovebox moergo login' first.",
-                    use_emoji,
+                    icon_mode,
                 )
             )
             raise typer.Exit(1)
@@ -187,7 +187,7 @@ def download_layout(
                 Icons.format_with_icon(
                     "ERROR",
                     f"File {output} already exists. Use --force to overwrite.",
-                    use_emoji,
+                    icon_mode,
                 )
             )
             raise typer.Exit(1)
@@ -213,7 +213,7 @@ def download_layout(
             Icons.format_with_icon(
                 "SUCCESS",
                 f"Layout '{layout.layout_meta.title}' saved to {output}",
-                use_emoji,
+                icon_mode,
             )
         )
         typer.echo(f"   Creator: {layout.layout_meta.creator}")
@@ -227,16 +227,16 @@ def download_layout(
 
     except AuthenticationError as e:
         typer.echo(
-            Icons.format_with_icon("ERROR", f"Authentication error: {e}", use_emoji)
+            Icons.format_with_icon("ERROR", f"Authentication error: {e}", icon_mode)
         )
         typer.echo("Try running 'glovebox moergo login' first.")
         raise typer.Exit(1) from None
     except NetworkError as e:
-        typer.echo(Icons.format_with_icon("ERROR", f"Network error: {e}", use_emoji))
+        typer.echo(Icons.format_with_icon("ERROR", f"Network error: {e}", icon_mode))
         raise typer.Exit(1) from None
     except Exception as e:
         typer.echo(
-            Icons.format_with_icon("ERROR", f"Error downloading layout: {e}", use_emoji)
+            Icons.format_with_icon("ERROR", f"Error downloading layout: {e}", icon_mode)
         )
         if logger.isEnabledFor(logging.DEBUG):
             logger.exception("Full error details")
@@ -249,9 +249,9 @@ def status(ctx: typer.Context) -> None:
     from glovebox.cli.app import AppContext
     from glovebox.cli.helpers.theme import Icons
 
-    # Get emoji mode from app context
+    # Get icon mode from app context
     app_ctx: AppContext = ctx.obj
-    use_emoji = app_ctx.use_emoji
+    icon_mode = app_ctx.icon_mode
 
     try:
         client = create_moergo_client()
@@ -262,9 +262,9 @@ def status(ctx: typer.Context) -> None:
         # Check authentication status
         is_auth = client.is_authenticated()
         auth_status = (
-            Icons.format_with_icon("SUCCESS", "Yes", use_emoji)
+            Icons.format_with_icon("SUCCESS", "Yes", icon_mode)
             if is_auth
-            else Icons.format_with_icon("ERROR", "No", use_emoji)
+            else Icons.format_with_icon("ERROR", "No", icon_mode)
         )
         typer.echo(f"  Authenticated: {auth_status}")
 
@@ -282,7 +282,7 @@ def status(ctx: typer.Context) -> None:
 
                     if token_info.get("needs_renewal", False):
                         warning_msg = Icons.format_with_icon(
-                            "WARNING", "Token needs renewal soon", use_emoji
+                            "WARNING", "Token needs renewal soon", icon_mode
                         )
                         typer.echo(f"  {warning_msg}")
             except Exception:
@@ -295,9 +295,9 @@ def status(ctx: typer.Context) -> None:
         )
 
         creds_status = (
-            Icons.format_with_icon("SUCCESS", "Yes", use_emoji)
+            Icons.format_with_icon("SUCCESS", "Yes", icon_mode)
             if has_creds
-            else Icons.format_with_icon("ERROR", "No", use_emoji)
+            else Icons.format_with_icon("ERROR", "No", icon_mode)
         )
         typer.echo(f"  Credentials stored: {creds_status}")
         if has_creds:
@@ -305,9 +305,9 @@ def status(ctx: typer.Context) -> None:
 
         keyring_available = info.get("keyring_available")
         keyring_status = (
-            Icons.format_with_icon("SUCCESS", "Yes", use_emoji)
+            Icons.format_with_icon("SUCCESS", "Yes", icon_mode)
             if keyring_available
-            else Icons.format_with_icon("ERROR", "No", use_emoji)
+            else Icons.format_with_icon("ERROR", "No", icon_mode)
         )
         typer.echo(f"  Keyring available: {keyring_status}")
         typer.echo(f"  Platform: {info.get('platform', 'Unknown')}")
@@ -316,7 +316,7 @@ def status(ctx: typer.Context) -> None:
             typer.echo(f"  Keyring backend: {info['keyring_backend']}")
 
         if not is_auth and not has_creds:
-            info_msg = Icons.format_with_icon("INFO", "To authenticate:", use_emoji)
+            info_msg = Icons.format_with_icon("INFO", "To authenticate:", icon_mode)
             typer.echo(f"\n{info_msg}")
             typer.echo("   Interactive: glovebox moergo login")
             typer.echo(
@@ -325,7 +325,7 @@ def status(ctx: typer.Context) -> None:
 
     except Exception as e:
         error_msg = Icons.format_with_icon(
-            "ERROR", f"Error checking status: {e}", use_emoji
+            "ERROR", f"Error checking status: {e}", icon_mode
         )
         typer.echo(error_msg)
         raise typer.Exit(1) from None
@@ -340,8 +340,8 @@ def keystore_info() -> None:
 
         from glovebox.cli.helpers.theme import Icons
 
-        use_emoji = True  # Default behavior for this command
-        typer.echo(f"{Icons.get_icon('KEYSTORE', use_emoji)} Keystore Information")
+        icon_mode = "emoji"  # Default behavior for this command
+        typer.echo(f"{Icons.get_icon('KEYSTORE', icon_mode)} Keystore Information")
         typer.echo("=" * 40)
 
         # Platform info
@@ -352,7 +352,7 @@ def keystore_info() -> None:
         keyring_available = info.get("keyring_available", False)
         if keyring_available:
             typer.echo(
-                Icons.format_with_icon("SUCCESS", "OS Keyring: Available", use_emoji)
+                Icons.format_with_icon("SUCCESS", "OS Keyring: Available", icon_mode)
             )
             backend = info.get("keyring_backend", "Unknown")
             typer.echo(f"   Backend: {backend}")
@@ -361,22 +361,22 @@ def keystore_info() -> None:
             platform_name = info.get("platform", "")
             if platform_name == "Darwin":
                 typer.echo(
-                    f"   {Icons.get_icon('INFO', use_emoji)} Using macOS Keychain"
+                    f"   {Icons.get_icon('INFO', icon_mode)} Using macOS Keychain"
                 )
             elif platform_name == "Windows":
                 typer.echo(
-                    f"   {Icons.get_icon('INFO', use_emoji)} Using Windows Credential Manager"
+                    f"   {Icons.get_icon('INFO', icon_mode)} Using Windows Credential Manager"
                 )
             elif platform_name == "Linux":
                 typer.echo(
-                    f"   {Icons.get_icon('INFO', use_emoji)} Using Linux keyring (secretstorage/keyctl)"
+                    f"   {Icons.get_icon('INFO', icon_mode)} Using Linux keyring (secretstorage/keyctl)"
                 )
         else:
             typer.echo(
-                Icons.format_with_icon("ERROR", "OS Keyring: Not available", use_emoji)
+                Icons.format_with_icon("ERROR", "OS Keyring: Not available", icon_mode)
             )
             typer.echo(
-                f"   {Icons.get_icon('INFO', use_emoji)} Install keyring package for better security:"
+                f"   {Icons.get_icon('INFO', icon_mode)} Install keyring package for better security:"
             )
             typer.echo("   pip install keyring")
 
@@ -387,46 +387,46 @@ def keystore_info() -> None:
                 "OS keyring" if keyring_available else "file with obfuscation"
             )
             typer.echo(
-                f"\n{Icons.get_icon('CONFIG', use_emoji)} Current storage method: {storage_method}"
+                f"\n{Icons.get_icon('CONFIG', icon_mode)} Current storage method: {storage_method}"
             )
 
             if not keyring_available:
                 typer.echo(
-                    f"   {Icons.format_with_icon('WARNING', 'File storage provides basic obfuscation only', use_emoji)}"
+                    f"   {Icons.format_with_icon('WARNING', 'File storage provides basic obfuscation only', icon_mode)}"
                 )
                 typer.echo(
-                    f"   {Icons.get_icon('INFO', use_emoji)} For better security, install keyring package"
+                    f"   {Icons.get_icon('INFO', icon_mode)} For better security, install keyring package"
                 )
         else:
             typer.echo(
-                f"\n{Icons.get_icon('INFO', use_emoji)} No credentials currently stored"
+                f"\n{Icons.get_icon('INFO', icon_mode)} No credentials currently stored"
             )
 
         # Security recommendations
-        typer.echo(f"\n{Icons.get_icon('INFO', use_emoji)} Security Recommendations:")
+        typer.echo(f"\n{Icons.get_icon('INFO', icon_mode)} Security Recommendations:")
         if keyring_available:
             typer.echo(
-                f"   {Icons.format_with_icon('SUCCESS', 'Your credentials are stored securely in OS keyring', use_emoji)}"
+                f"   {Icons.format_with_icon('SUCCESS', 'Your credentials are stored securely in OS keyring', icon_mode)}"
             )
         else:
             typer.echo(
-                f"   {Icons.get_icon('BULLET', use_emoji)} Install 'keyring' package for secure credential storage"
+                f"   {Icons.get_icon('BULLET', icon_mode)} Install 'keyring' package for secure credential storage"
             )
             typer.echo(
-                f"   {Icons.get_icon('BULLET', use_emoji)} File storage uses basic obfuscation (not encryption)"
+                f"   {Icons.get_icon('BULLET', icon_mode)} File storage uses basic obfuscation (not encryption)"
             )
 
         typer.echo(
-            f"   {Icons.get_icon('BULLET', use_emoji)} Use 'glovebox moergo logout' to clear stored credentials"
+            f"   {Icons.get_icon('BULLET', icon_mode)} Use 'glovebox moergo logout' to clear stored credentials"
         )
         typer.echo(
-            f"   {Icons.get_icon('BULLET', use_emoji)} Credentials are stored per-user with restricted permissions"
+            f"   {Icons.get_icon('BULLET', icon_mode)} Credentials are stored per-user with restricted permissions"
         )
 
     except Exception as e:
         typer.echo(
             Icons.format_with_icon(
-                "ERROR", f"Error getting keystore info: {e}", use_emoji
+                "ERROR", f"Error getting keystore info: {e}", icon_mode
             )
         )
         raise typer.Exit(1) from None

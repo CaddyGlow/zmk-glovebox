@@ -374,23 +374,23 @@ def export_config(
         from glovebox.cli.helpers.theme import Icons
 
         app_context: AppContext = ctx.obj
-        use_emoji = app_context.use_emoji
-        print(f"{Icons.get_icon('CONFIG', use_emoji)} Format: {format.upper()}")
+        icon_mode = app_context.icon_mode
+        print(f"{Icons.get_icon('CONFIG', icon_mode)} Format: {format.upper()}")
         print(
-            f"{Icons.get_icon('CONFIG', use_emoji)} Options exported: {total_options}"
+            f"{Icons.get_icon('CONFIG', icon_mode)} Options exported: {total_options}"
         )
         print(
-            f"{Icons.get_icon('INFO', use_emoji)} Include defaults: {include_defaults}"
+            f"{Icons.get_icon('INFO', icon_mode)} Include defaults: {include_defaults}"
         )
 
         if include_descriptions and format.lower() == "yaml":
             print(
                 Icons.format_with_icon(
-                    "INFO", "Descriptions included as comments", use_emoji
+                    "INFO", "Descriptions included as comments", icon_mode
                 )
             )
         elif format.lower() == "toml":
-            print(Icons.format_with_icon("INFO", "TOML format exported", use_emoji))
+            print(Icons.format_with_icon("INFO", "TOML format exported", icon_mode))
 
     except Exception as e:
         print_error_message(f"Failed to export configuration: {e}")
@@ -419,7 +419,7 @@ def import_config(
 
     # Get app context with user config
     app_ctx: AppContext = ctx.obj
-    use_emoji = app_ctx.use_emoji
+    icon_mode = app_ctx.icon_mode
     config_path = Path(config_file)
 
     if not config_path.exists():
@@ -459,7 +459,7 @@ def import_config(
         if "_metadata" in config_data:
             metadata = config_data.pop("_metadata")
             print(
-                f"{Icons.get_icon('INFO', use_emoji)} Imported config generated at: {metadata.get('generated_at', 'unknown')}"
+                f"{Icons.get_icon('INFO', icon_mode)} Imported config generated at: {metadata.get('generated_at', 'unknown')}"
             )
 
         # Flatten the configuration for setting
@@ -482,7 +482,7 @@ def import_config(
         if not settings_to_apply:
             print(
                 Icons.format_with_icon(
-                    "WARNING", "No configuration settings found to import", use_emoji
+                    "WARNING", "No configuration settings found to import", icon_mode
                 )
             )
             return
@@ -491,7 +491,7 @@ def import_config(
             Icons.format_with_icon(
                 "INFO",
                 f"Found {len(settings_to_apply)} configuration settings to import",
-                use_emoji,
+                icon_mode,
             )
         )
 
@@ -510,7 +510,7 @@ def import_config(
             console.print(table)
             print(
                 Icons.format_with_icon(
-                    "INFO", "Dry run complete - no changes made", use_emoji
+                    "INFO", "Dry run complete - no changes made", icon_mode
                 )
             )
             return
@@ -521,7 +521,7 @@ def import_config(
                 f"Apply {len(settings_to_apply)} configuration changes?"
             )
             if not confirm:
-                print(Icons.format_with_icon("ERROR", "Import cancelled", use_emoji))
+                print(Icons.format_with_icon("ERROR", "Import cancelled", icon_mode))
                 return
 
         # Create backup if requested
@@ -540,12 +540,12 @@ def import_config(
                 # Export current config as backup
                 export_config(ctx, str(backup_file), "yaml", True, False)
                 print(
-                    f"{Icons.get_icon('SAVE', use_emoji)} Backup saved to: {backup_file}"
+                    f"{Icons.get_icon('SAVE', icon_mode)} Backup saved to: {backup_file}"
                 )
             except Exception as e:
                 print(
                     Icons.format_with_icon(
-                        "WARNING", f"Failed to create backup: {e}", use_emoji
+                        "WARNING", f"Failed to create backup: {e}", icon_mode
                     )
                 )
                 if not force:
@@ -553,7 +553,7 @@ def import_config(
                     if not confirm_continue:
                         print(
                             Icons.format_with_icon(
-                                "ERROR", "Import cancelled", use_emoji
+                                "ERROR", "Import cancelled", icon_mode
                             )
                         )
                         return
@@ -582,14 +582,14 @@ def import_config(
             print_success_message("Configuration imported successfully!")
             print(
                 Icons.format_with_icon(
-                    "SUCCESS", f"Applied: {successful_changes} settings", use_emoji
+                    "SUCCESS", f"Applied: {successful_changes} settings", icon_mode
                 )
             )
 
             if failed_changes:
                 print(
                     Icons.format_with_icon(
-                        "WARNING", f"Failed: {len(failed_changes)} settings", use_emoji
+                        "WARNING", f"Failed: {len(failed_changes)} settings", icon_mode
                     )
                 )
                 for key, error in failed_changes:

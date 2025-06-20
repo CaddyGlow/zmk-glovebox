@@ -357,7 +357,7 @@ class LayoutDisplayFormatter(OutputFormatter):
             return self.format(layout_data, format_type)
 
     def _print_layout_table(
-        self, layout_data: dict[str, Any], icon_mode="emoji"
+        self, layout_data: dict[str, Any], icon_mode: str = "emoji"
     ) -> None:
         """Print layout as enhanced Rich table."""
         from glovebox.cli.helpers.theme import Icons

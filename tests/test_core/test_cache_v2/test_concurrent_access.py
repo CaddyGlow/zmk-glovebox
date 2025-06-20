@@ -3,6 +3,7 @@
 import multiprocessing
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -10,7 +11,9 @@ from glovebox.core.cache_v2.diskcache_manager import DiskCacheManager
 from glovebox.core.cache_v2.models import DiskCacheConfig
 
 
-def worker_process(cache_path: Path, worker_id: int, num_operations: int) -> dict:
+def worker_process(
+    cache_path: Path, worker_id: int, num_operations: int
+) -> dict[str, Any]:
     """Worker process for concurrent cache testing.
 
     Args:
