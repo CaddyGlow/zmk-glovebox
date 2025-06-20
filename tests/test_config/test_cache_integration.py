@@ -8,87 +8,46 @@ from unittest.mock import patch
 import pytest
 
 from glovebox.config.models.user import UserConfigData
-from glovebox.core.cache import create_cache_from_user_config, create_default_cache
-from glovebox.core.cache.filesystem_cache import FilesystemCache
-from glovebox.core.cache.memory_cache import MemoryCache
+from glovebox.core.cache_v2 import create_cache_from_user_config, create_default_cache
+from glovebox.core.cache_v2.disabled_cache import DisabledCache
+from glovebox.core.cache_v2.diskcache_manager import DiskCacheManager
 
 
 class TestCacheUserConfigIntegration:
-    """Test cache integration with user configuration."""
+    """Test cache integration with user configuration using DiskCache."""
 
     def test_default_cache_configuration(self):
         """Test default cache configuration from user config."""
         config = UserConfigData()
 
         assert config.cache_strategy == "shared"
-        assert config.cache_file_locking is True
 
         cache = create_cache_from_user_config(config)
-        assert isinstance(cache, FilesystemCache)
-        assert cache.use_file_locking is True
-
-    def test_user_config_cache_strategy_process_isolated(self):
-        """Test process isolated cache strategy."""
-        config = UserConfigData(cache_strategy="process_isolated")
-        cache = create_cache_from_user_config(config)
-
-        assert isinstance(cache, FilesystemCache)
-        # Should contain process ID in path
-        assert f"proc_{os.getpid()}" in str(cache.cache_root)
+        assert isinstance(cache, DiskCacheManager)
 
     def test_user_config_cache_strategy_shared(self):
         """Test shared cache strategy."""
         config = UserConfigData(cache_strategy="shared")
         cache = create_cache_from_user_config(config)
 
-        assert isinstance(cache, FilesystemCache)
-        # Should NOT contain process ID in path
-        assert f"proc_{os.getpid()}" not in str(cache.cache_root)
+        assert isinstance(cache, DiskCacheManager)
 
     def test_user_config_cache_strategy_disabled(self):
-        """Test disabled cache strategy falls back to memory cache."""
+        """Test disabled cache strategy returns DisabledCache."""
         config = UserConfigData(cache_strategy="disabled")
         cache = create_cache_from_user_config(config)
 
-        assert isinstance(cache, MemoryCache)
+        assert isinstance(cache, DisabledCache)
 
-    def test_user_config_file_locking_enabled(self):
-        """Test file locking enabled configuration."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            config = UserConfigData(
-                cache_strategy="shared",  # Use shared to avoid process isolation
-                cache_file_locking=True,
-            )
-            cache = create_cache_from_user_config(config)
+    def test_cache_with_tag(self):
+        """Test cache creation with tag creates subdirectory."""
+        config = UserConfigData(cache_strategy="shared")
+        cache = create_cache_from_user_config(config, tag="test_module")
 
-            # Manually set cache root to avoid default behavior
-            from glovebox.core.cache.models import CacheConfig
-
-            cache_config = CacheConfig(
-                cache_root=Path(temp_dir),
-                use_file_locking=True,
-            )
-            fs_cache = FilesystemCache(cache_config)
-            assert fs_cache.use_file_locking is True
-
-    def test_user_config_file_locking_disabled(self):
-        """Test file locking disabled configuration."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            config = UserConfigData(
-                cache_strategy="shared",
-                cache_file_locking=False,
-            )
-            cache = create_cache_from_user_config(config)
-
-            # Manually set cache root to avoid default behavior
-            from glovebox.core.cache.models import CacheConfig
-
-            cache_config = CacheConfig(
-                cache_root=Path(temp_dir),
-                use_file_locking=False,
-            )
-            fs_cache = FilesystemCache(cache_config)
-            assert fs_cache.use_file_locking is False
+        assert isinstance(cache, DiskCacheManager)
+        # Verify tag creates subdirectory
+        expected_path = config.cache_path / "test_module"
+        assert expected_path.exists()
 
     def test_environment_variable_override(self):
         """Test that environment variables override user config defaults."""
@@ -96,58 +55,77 @@ class TestCacheUserConfigIntegration:
             os.environ,
             {
                 "GLOVEBOX_CACHE_STRATEGY": "disabled",
-                "GLOVEBOX_CACHE_FILE_LOCKING": "false",
             },
         ):
             config = UserConfigData()
 
             # Environment variables should override defaults
             assert config.cache_strategy == "disabled"
-            assert config.cache_file_locking is False
 
             cache = create_cache_from_user_config(config)
-            assert isinstance(cache, MemoryCache)
+            assert isinstance(cache, DisabledCache)
 
-    def test_direct_config_override(self):
-        """Test direct configuration overrides environment variables."""
+    def test_global_cache_disable_environment(self):
+        """Test global cache disable via environment variable."""
         with patch.dict(
             os.environ,
             {
-                "GLOVEBOX_CACHE_STRATEGY": "shared",
-                "GLOVEBOX_CACHE_FILE_LOCKING": "false",
+                "GLOVEBOX_CACHE_GLOBAL": "false",
             },
         ):
-            # Direct configuration should take precedence
-            config = UserConfigData(
-                cache_strategy="process_isolated",
-                cache_file_locking=True,
-            )
+            config = UserConfigData(cache_strategy="shared")
+            cache = create_cache_from_user_config(config)
 
-            # Should use the directly configured values, not environment
-            # Note: Pydantic settings gives env vars higher precedence
-            # So env vars will actually override direct config
-            assert config.cache_strategy == "shared"  # From env
-            assert config.cache_file_locking is False  # From env
+            # Should return disabled cache even though config says shared
+            assert isinstance(cache, DisabledCache)
+
+    def test_module_cache_disable_environment(self):
+        """Test module-specific cache disable via environment variable."""
+        with patch.dict(
+            os.environ,
+            {
+                "GLOVEBOX_CACHE_LAYOUT": "false",
+            },
+        ):
+            config = UserConfigData(cache_strategy="shared")
+
+            # Layout module should be disabled
+            layout_cache = create_cache_from_user_config(config, tag="layout")
+            assert isinstance(layout_cache, DisabledCache)
+
+            # Other modules should still work
+            compilation_cache = create_cache_from_user_config(config, tag="compilation")
+            assert isinstance(compilation_cache, DiskCacheManager)
 
     def test_cache_strategy_validation(self):
         """Test cache strategy validation."""
         with pytest.raises(ValueError, match="Cache strategy must be one of"):
             UserConfigData(cache_strategy="invalid_strategy")
 
-    def test_create_default_cache_with_user_config_args(self):
-        """Test create_default_cache with user config arguments."""
-        # Test with arguments that match user config
-        cache1 = create_default_cache(
-            cache_strategy="process_isolated",
-            cache_file_locking=True,
-        )
-        assert isinstance(cache1, FilesystemCache)
+        # process_isolated is no longer valid
+        with pytest.raises(ValueError, match="Cache strategy must be one of"):
+            UserConfigData(cache_strategy="process_isolated")
 
-        cache2 = create_default_cache(
-            cache_strategy="disabled",
-            cache_file_locking=False,
-        )
-        assert isinstance(cache2, MemoryCache)
+    def test_create_default_cache(self):
+        """Test create_default_cache function."""
+        cache = create_default_cache()
+        assert isinstance(cache, DiskCacheManager)
+
+    def test_create_default_cache_with_tag(self):
+        """Test create_default_cache with tag."""
+        cache = create_default_cache(tag="test_tag")
+        assert isinstance(cache, DiskCacheManager)
+
+    def test_xdg_cache_home_respected(self, tmp_path):
+        """Test that XDG_CACHE_HOME is respected."""
+        xdg_cache = tmp_path / "xdg_cache"
+
+        with patch.dict(os.environ, {"XDG_CACHE_HOME": str(xdg_cache)}):
+            config = UserConfigData()
+
+            # Cache path should use XDG_CACHE_HOME
+            expected_path = xdg_cache / "glovebox"
+            assert config.cache_path == expected_path
 
     def test_yaml_config_file_cache_settings(self):
         """Test loading cache settings from YAML configuration file."""
@@ -155,8 +133,7 @@ class TestCacheUserConfigIntegration:
 
         # Create temporary config file
         config_content = """
-cache_strategy: shared
-cache_file_locking: false
+cache_strategy: disabled
 profile: glove80/v25.05
 log_level: INFO
 """
@@ -169,13 +146,11 @@ log_level: INFO
             # Load configuration from file
             user_config = create_user_config(cli_config_path=config_file)
 
-            assert user_config._config.cache_strategy == "shared"
-            assert user_config._config.cache_file_locking is False
+            assert user_config._config.cache_strategy == "disabled"
 
             # Test cache creation
             cache = create_cache_from_user_config(user_config._config)
-            assert isinstance(cache, FilesystemCache)
-            assert f"proc_{os.getpid()}" not in str(cache.cache_root)
+            assert isinstance(cache, DisabledCache)
 
         finally:
             # Clean up
@@ -185,51 +160,69 @@ log_level: INFO
         """Test MoErgo client integration with user configuration."""
         from glovebox.moergo.client import create_moergo_client
 
-        config = UserConfigData(
-            cache_strategy="process_isolated",
-            cache_file_locking=True,
-        )
-
+        config = UserConfigData(cache_strategy="shared")
         client = create_moergo_client(user_config=config)
 
         # Verify client uses configured cache
         assert hasattr(client, "_cache")
-        assert isinstance(client._cache, FilesystemCache)
+        assert isinstance(client._cache, DiskCacheManager)
 
-        # Test cache functionality - verify cache is accessible
-        assert client._cache is not None
-        # Test cache basic operations
+        # Test cache functionality
         test_key = "test_key"
         test_value = {"test": "data"}
         client._cache.set(test_key, test_value)
         retrieved_value = client._cache.get(test_key)
         assert retrieved_value == test_value
 
-    def test_cache_configuration_precedence(self):
-        """Test configuration direct specification (no environment variables)."""
+    def test_cache_basic_operations(self):
+        """Test basic cache operations work with user config."""
+        config = UserConfigData(cache_strategy="shared")
+        cache = create_cache_from_user_config(config)
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            from glovebox.core.cache.models import CacheConfig
+        # Basic set/get
+        cache.set("test_key", "test_value")
+        assert cache.get("test_key") == "test_value"
 
-            # 1. Config with file locking enabled
-            config = CacheConfig(
-                cache_root=Path(temp_dir),
-                use_file_locking=True,
-            )
-            cache = FilesystemCache(config)
-            assert cache.use_file_locking is True
+        # Get with default
+        assert cache.get("missing_key", "default") == "default"
 
-            # 2. Config with file locking disabled
-            config = CacheConfig(
-                cache_root=Path(temp_dir),
-                use_file_locking=False,
-            )
-            cache = FilesystemCache(config)
-            assert cache.use_file_locking is False
+        # Exists
+        assert cache.exists("test_key") is True
+        assert cache.exists("missing_key") is False
 
-            # 3. Default configuration
-            config = CacheConfig(
-                cache_root=Path(temp_dir),
-            )
-            cache = FilesystemCache(config)
-            assert cache.use_file_locking is True  # Default is True
+        # Delete
+        assert cache.delete("test_key") is True
+        assert cache.get("test_key") is None
+
+    def test_cache_with_ttl(self):
+        """Test cache operations with TTL."""
+        config = UserConfigData(cache_strategy="shared")
+        cache = create_cache_from_user_config(config)
+
+        # Set with TTL
+        cache.set("ttl_key", "ttl_value", ttl=1)
+        assert cache.get("ttl_key") == "ttl_value"
+
+        # Wait for expiration and verify it's gone
+        import time
+
+        time.sleep(1.1)
+        assert cache.get("ttl_key") is None
+
+    def test_disabled_cache_operations(self):
+        """Test that disabled cache properly no-ops all operations."""
+        config = UserConfigData(cache_strategy="disabled")
+        cache = create_cache_from_user_config(config)
+
+        # All operations should be no-ops
+        cache.set("key", "value")
+        assert cache.get("key") is None
+        assert cache.get("key", "default") == "default"
+        assert cache.exists("key") is False
+        assert cache.delete("key") is False
+
+        # Stats should be empty
+        stats = cache.get_stats()
+        assert stats.total_entries == 0
+        assert stats.hit_count == 0
+        assert stats.miss_count == 0

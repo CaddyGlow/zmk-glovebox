@@ -4,17 +4,14 @@ import json
 import time
 import zlib
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any, Optional, cast
 from urllib.parse import urljoin
 
 import requests
 
-from glovebox.core.cache import (
-    CacheKey,
-    CacheManager,
-    create_cache_from_user_config,
-    create_default_cache,
-)
+from glovebox.core.cache_v2 import create_cache_from_user_config, create_default_cache
+from glovebox.core.cache_v2.cache_manager import CacheManager
+from glovebox.core.cache_v2.models import CacheKey
 
 from .auth import Glove80Auth
 from .credentials import CredentialManager
@@ -53,7 +50,9 @@ class MoErgoClient:
             from glovebox.config.user_config import create_user_config
 
             user_config = create_user_config()
-            self._cache = create_cache_from_user_config(user_config._config)
+            self._cache = create_cache_from_user_config(
+                user_config._config, tag="moergo"
+            )
         else:
             self._cache = cache
 
@@ -287,8 +286,25 @@ class MoErgoClient:
         if "Authorization" in self.session.headers:
             del self.session.headers["Authorization"]
 
-    def get_layout(self, layout_uuid: str) -> MoErgoLayout:
-        """Get layout configuration by UUID."""
+    def get_layout(self, layout_uuid: str, use_cache: bool = True) -> MoErgoLayout:
+        """Get layout configuration by UUID.
+
+        Args:
+            layout_uuid: UUID of the layout to retrieve
+            use_cache: Whether to use cached results (default: True)
+
+        Returns:
+            Layout configuration data
+        """
+        # Generate cache key for this request
+        cache_key = CacheKey.from_parts("layout_config", layout_uuid)
+
+        # Try cache first if enabled
+        if use_cache:
+            cached_data = self._cache.get(cache_key)
+            if cached_data is not None:
+                return MoErgoLayout(**cached_data)
+
         self._ensure_authenticated()
 
         endpoint = f"layouts/v1/{layout_uuid}/config"
@@ -296,6 +312,10 @@ class MoErgoClient:
             response = self.session.get(self._get_full_url(endpoint))
             data = self._handle_response(response)
             layout = MoErgoLayout(**data)
+
+            # Cache the result for 30 days - layouts are immutable
+            if use_cache:
+                self._cache.set(cache_key, data, ttl=3600 * 24 * 30)
 
             return layout
         except requests.exceptions.RequestException as e:
@@ -329,9 +349,9 @@ class MoErgoClient:
             response = self.session.get(self._get_full_url(endpoint))
             data = self._handle_response(response)
 
-            # Cache the result for 1 hour (layout metadata doesn't change often)
+            # Cache the result for 30 days layout are immutalbe
             if use_cache:
-                self._cache.set(cache_key, data, ttl=3600)
+                self._cache.set(cache_key, data, ttl=3600 * 24 * 30)
 
             return data  # type: ignore[no-any-return]
         except requests.exceptions.RequestException as e:
@@ -391,6 +411,10 @@ class MoErgoClient:
         self, layout_uuid: str, layout_meta: dict[str, Any]
     ) -> dict[str, Any]:
         """Create or update layout using PUT endpoint.
+
+        TODO: this is not working a layout_uuid is immutable
+        we can only update wih a new uuid and we can set
+        the parend_uuid = layout_uuid if we want to have them link.
 
         Args:
             layout_uuid: UUID for the layout (client-generated for new layouts)
@@ -579,7 +603,10 @@ class MoErgoClient:
 
             # Cache the result for 10 minutes (public layouts list can change)
             if use_cache:
-                self._cache.set(cache_key, data, ttl=600)
+                ttl = 600
+                if tags and "glove80-standard" in tags:
+                    ttl = 3600 * 2
+                self._cache.set(cache_key, data, ttl=ttl)
 
             return data  # type: ignore[no-any-return]
 
@@ -785,7 +812,10 @@ class MoErgoClient:
         raise TimeoutError("Unexpected end of retry loop") from last_timeout_error
 
     def download_firmware(
-        self, firmware_location: str, output_path: str | None = None
+        self,
+        firmware_location: str,
+        output_path: str | None = None,
+        use_cache: bool = True,
     ) -> bytes:
         """
         Download compiled firmware from MoErgo servers.
@@ -793,10 +823,28 @@ class MoErgoClient:
         Args:
             firmware_location: Location path from compile response
             output_path: Optional local file path to save firmware
+            use_cache: Whether to use cached results (default: True)
 
         Returns:
             Firmware content as bytes (decompressed if .gz file)
         """
+        # Generate cache key for this firmware
+        cache_key = CacheKey.from_parts("firmware_download", firmware_location)
+
+        # Try cache first if enabled
+        if use_cache:
+            cached_data = self._cache.get(cache_key)
+            if cached_data is not None and isinstance(cached_data, bytes):
+                # Save to file if path provided
+                if output_path:
+                    from pathlib import Path
+
+                    output_file = Path(output_path)
+                    output_file.parent.mkdir(parents=True, exist_ok=True)
+                    output_file.write_bytes(cached_data)
+
+                return cast(bytes, cached_data)
+
         # Construct full download URL
         download_url = urljoin("https://my.glove80.com/", firmware_location)
 
@@ -822,6 +870,10 @@ class MoErgoClient:
                     firmware_data = zlib.decompress(firmware_data)
                 except zlib.error as e:
                     raise APIError(f"Failed to decompress firmware data: {e}") from e
+
+            # Cache the firmware data for 30 days - firmware builds are immutable
+            if use_cache:
+                self._cache.set(cache_key, firmware_data, ttl=3600 * 24 * 30)
 
             # Save to file if path provided
             if output_path:

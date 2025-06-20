@@ -21,26 +21,14 @@ def _get_cached_profile_data() -> tuple[list[str], dict[str, list[str]]]:
             get_available_firmwares,
             get_available_keyboards,
         )
-        from glovebox.core.cache import create_default_cache
+        from glovebox.core.cache_v2 import create_default_cache
 
         # Get user config and create appropriate cache
         user_config = create_user_config()
 
-        # Create cache using shared strategy for profile completion performance
-        # Even if user has disabled general caching, we use a lightweight shared cache
-        # for profile completion to ensure fast tab completion across CLI invocations
-        cache_strategy = user_config.get("cache_strategy") or "shared"
-        if cache_strategy == "disabled":
-            # Override to use shared cache for profile completion only
-            cache_strategy = "shared"
-            logger.debug(
-                "Using shared cache for profile completion despite disabled general cache"
-            )
-
-        cache = create_default_cache(
-            cache_strategy=cache_strategy,
-            cache_file_locking=user_config.get("cache_file_locking", True),
-        )
+        # Create cache using default settings for profile completion performance
+        # Tab completion always uses cache for performance, even if general caching is disabled
+        cache = create_default_cache(tag="cli_completion")
 
         # Try to get cached data first
         cached_data = cache.get(PROFILE_COMPLETION_CACHE_KEY)

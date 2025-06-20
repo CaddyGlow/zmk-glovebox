@@ -216,6 +216,7 @@ class TestConfigExportImportRoundTrip:
 
             # Verify TOML structure
             import tomlkit
+
             with export_file.open() as f:
                 data = tomlkit.load(f)
             assert "profile" in data
@@ -289,7 +290,9 @@ class TestConfigExportImportRoundTrip:
             )
             assert import_result.exit_code == 0
 
-    def test_round_trip_without_defaults(self, cli_runner, configured_context, tmp_path):
+    def test_round_trip_without_defaults(
+        self, cli_runner, configured_context, tmp_path
+    ):
         """Test round-trip without defaults."""
         export_file = tmp_path / "no_defaults.yaml"
 
@@ -381,4 +384,3 @@ class TestConfigExportImportRoundTrip:
                 app, ["config", "import", str(export_file), "--force"]
             )
             assert import_result.exit_code == 0
-

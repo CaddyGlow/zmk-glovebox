@@ -9,47 +9,55 @@ from glovebox.models.results import BaseResult
 
 
 def print_success_message(
-    message: str, use_rich: bool = True, use_emoji: bool = True
+    message: str,
+    use_rich: bool = True,
+    use_emoji: bool = True,
+    icon_mode: str | None = None,
 ) -> None:
     """Print a success message with a checkmark.
 
     Args:
         message: The message to print
         use_rich: Whether to use Rich formatting (default: True)
-        use_emoji: Whether to use emoji icons (default: True)
+        use_emoji: Whether to use emoji icons (default: True) - legacy parameter
+        icon_mode: Icon mode override ("emoji", "nerdfont", "text")
     """
+    # Determine icon mode - prefer explicit icon_mode over legacy use_emoji
+    if icon_mode is None:
+        icon_mode = "emoji" if use_emoji else "text"
+
     if use_rich:
-        console = get_themed_console(use_emoji=use_emoji)
+        console = get_themed_console(icon_mode=icon_mode)
         console.print_success(message)
     else:
         from glovebox.cli.helpers.theme import Icons
 
-        icon = Icons.get_icon("CHECKMARK", use_emoji)
+        icon = Icons.get_icon("CHECKMARK", icon_mode)
         print(f"{icon} {message}")
 
 
 def print_error_message(
-    message: str, use_rich: bool = True, use_emoji: bool = True
+    message: str, use_rich: bool = True, icon_mode: str = "emoji"
 ) -> None:
     """Print an error message with an X symbol.
 
     Args:
         message: The message to print
         use_rich: Whether to use Rich formatting (default: True)
-        use_emoji: Whether to use emoji icons (default: True)
+        icon_mode: Icon mode ("emoji", "nerdfont", "text")
     """
     if use_rich:
-        console = get_themed_console(use_emoji=use_emoji)
+        console = get_themed_console(icon_mode=icon_mode)
         console.print_error(message)
     else:
         from glovebox.cli.helpers.theme import Icons
 
-        icon = Icons.get_icon("CROSS", use_emoji)
+        icon = Icons.get_icon("CROSS", icon_mode)
         print(f"{icon} {message}")
 
 
 def print_list_item(
-    item: str, indent: int = 1, use_rich: bool = True, use_emoji: bool = True
+    item: str, indent: int = 1, use_rich: bool = True, icon_mode: str = "emoji"
 ) -> None:
     """Print a list item with bullet and indentation.
 
@@ -57,88 +65,88 @@ def print_list_item(
         item: The list item to print
         indent: Number of indentation levels (default: 1)
         use_rich: Whether to use Rich formatting (default: True)
-        use_emoji: Whether to use emoji icons (default: True)
+        icon_mode: Icon mode ("emoji", "nerdfont", "text")
     """
     if use_rich:
-        console = get_themed_console(use_emoji=use_emoji)
+        console = get_themed_console(icon_mode=icon_mode)
         console.print_list_item(item, indent)
     else:
         from glovebox.cli.helpers.theme import Icons
 
-        bullet = Icons.get_icon("BULLET", use_emoji)
+        bullet = Icons.get_icon("BULLET", icon_mode)
         print(f"{' ' * (indent * 2)}{bullet} {item}")
 
 
-def print_result(result: BaseResult, use_emoji: bool = True) -> None:
+def print_result(result: BaseResult, icon_mode: str = "emoji") -> None:
     """Print operation result with appropriate formatting.
 
     Args:
         result: The operation result object
-        use_emoji: Whether to use emoji icons
+        icon_mode: Icon mode ("emoji", "nerdfont", "text")
     """
     if result.success:
-        print_success_message("Operation completed successfully", use_emoji=use_emoji)
+        print_success_message("Operation completed successfully", icon_mode=icon_mode)
 
         # Print any messages
         if hasattr(result, "messages") and result.messages:
             for message in result.messages:
-                print_list_item(message, use_emoji=use_emoji)
+                print_list_item(message, icon_mode=icon_mode)
 
         # Print any output files
         if hasattr(result, "get_output_files") and callable(result.get_output_files):
             output_files = result.get_output_files()
             if output_files:
                 for file_type, file_path in output_files.items():
-                    print_list_item(f"{file_type}: {file_path}", use_emoji=use_emoji)
+                    print_list_item(f"{file_type}: {file_path}", icon_mode=icon_mode)
     else:
-        print_error_message("Operation failed", use_emoji=use_emoji)
+        print_error_message("Operation failed", icon_mode=icon_mode)
         for error in result.errors:
-            print_list_item(error, use_emoji=use_emoji)
+            print_list_item(error, icon_mode=icon_mode)
 
 
 # Rich-enhanced helper functions
 def print_info_message(
-    message: str, use_rich: bool = True, use_emoji: bool = True
+    message: str, use_rich: bool = True, icon_mode: str = "emoji"
 ) -> None:
     """Print an info message with icon.
 
     Args:
         message: The message to print
         use_rich: Whether to use Rich formatting (default: True)
-        use_emoji: Whether to use emoji icons (default: True)
+        icon_mode: Icon mode ("emoji", "nerdfont", "text")
     """
     if use_rich:
-        console = get_themed_console(use_emoji=use_emoji)
+        console = get_themed_console(icon_mode=icon_mode)
         console.print_info(message)
     else:
         from glovebox.cli.helpers.theme import Icons
 
-        icon = Icons.get_icon("INFO", use_emoji)
+        icon = Icons.get_icon("INFO", icon_mode)
         print(f"{icon} {message}")
 
 
 def print_warning_message(
-    message: str, use_rich: bool = True, use_emoji: bool = True
+    message: str, use_rich: bool = True, icon_mode: str = "emoji"
 ) -> None:
     """Print a warning message with icon.
 
     Args:
         message: The message to print
         use_rich: Whether to use Rich formatting (default: True)
-        use_emoji: Whether to use emoji icons (default: True)
+        icon_mode: Icon mode ("emoji", "nerdfont", "text")
     """
     if use_rich:
-        console = get_themed_console(use_emoji=use_emoji)
+        console = get_themed_console(icon_mode=icon_mode)
         console.print_warning(message)
     else:
         from glovebox.cli.helpers.theme import Icons
 
-        icon = Icons.get_icon("WARNING", use_emoji)
+        icon = Icons.get_icon("WARNING", icon_mode)
         print(f"{icon} {message}")
 
 
 def print_header_panel(
-    title: str, subtitle: str = "", icon: str = "", use_emoji: bool = True
+    title: str, subtitle: str = "", icon: str = "", icon_mode: str = "emoji"
 ) -> None:
     """Print a styled header panel using Rich.
 
@@ -146,39 +154,39 @@ def print_header_panel(
         title: Main title
         subtitle: Optional subtitle
         icon: Optional icon
-        use_emoji: Whether to use emoji icons
+        icon_mode: Icon mode ("emoji", "nerdfont", "text")
     """
     from glovebox.cli.helpers.theme import PanelStyles
 
     console = Console()
-    panel = PanelStyles.create_header_panel(title, subtitle, icon, use_emoji)
+    panel = PanelStyles.create_header_panel(title, subtitle, icon, icon_mode)
     console.print(panel)
 
 
-def print_device_table(devices: list[dict[str, Any]], use_emoji: bool = True) -> None:
+def print_device_table(devices: list[dict[str, Any]], icon_mode: str = "emoji") -> None:
     """Print devices in a formatted Rich table.
 
     Args:
         devices: List of device dictionaries
-        use_emoji: Whether to use emoji icons
+        icon_mode: Icon mode ("emoji", "nerdfont", "text")
     """
     from glovebox.cli.helpers.output_formatter import DeviceListFormatter
 
     formatter = DeviceListFormatter()
-    formatter.format_device_list(devices, "table", use_emoji=use_emoji)
+    formatter.format_device_list(devices, "table", icon_mode=icon_mode)
 
 
-def print_status_table(status_data: dict[str, Any], use_emoji: bool = True) -> None:
+def print_status_table(status_data: dict[str, Any], icon_mode: str = "emoji") -> None:
     """Print status information in a formatted Rich table.
 
     Args:
         status_data: Status data dictionary
-        use_emoji: Whether to use emoji icons
+        icon_mode: Icon mode ("emoji", "nerdfont", "text")
     """
     from glovebox.cli.helpers.theme import TableStyles
 
     console = Console()
-    table = TableStyles.create_status_table(use_emoji)
+    table = TableStyles.create_status_table(icon_mode)
 
     for component, details in status_data.items():
         if isinstance(details, dict):
@@ -194,18 +202,18 @@ def print_status_table(status_data: dict[str, Any], use_emoji: bool = True) -> N
 
 
 def print_configuration_table(
-    config_data: dict[str, Any], use_emoji: bool = True
+    config_data: dict[str, Any], icon_mode: str = "emoji"
 ) -> None:
     """Print configuration in a formatted Rich table.
 
     Args:
         config_data: Configuration data dictionary
-        use_emoji: Whether to use emoji icons
+        icon_mode: Icon mode ("emoji", "nerdfont", "text")
     """
     from glovebox.cli.helpers.theme import TableStyles
 
     console = Console()
-    table = TableStyles.create_config_table(use_emoji)
+    table = TableStyles.create_config_table(icon_mode)
 
     for setting, value in config_data.items():
         if isinstance(value, list | dict):

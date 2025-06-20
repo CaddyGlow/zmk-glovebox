@@ -258,7 +258,7 @@ class TestMoErgoClient:
         mock_get.return_value = mock_response
 
         with pytest.raises(AuthenticationError):
-            client.get_layout("test-uuid-123")
+            client.get_layout("test-uuid-123", use_cache=False)
 
     def test_get_layout_network_error(self, client, mock_auth_response):
         """Test layout retrieval with network error."""
@@ -276,7 +276,7 @@ class TestMoErgoClient:
             mock_get.side_effect = requests.exceptions.ConnectionError("Network error")
 
             with pytest.raises(NetworkError):
-                client.get_layout("test-uuid-123")
+                client.get_layout("test-uuid-123", use_cache=False)
 
     @patch("requests.Session.get")
     def test_handle_empty_response(self, mock_get, client, mock_auth_response):
@@ -679,7 +679,9 @@ class TestFirmwareCompilation:
             authenticated_client.session, "get", return_value=mock_response
         ):
             with pytest.raises(APIError) as exc_info:
-                authenticated_client.download_firmware("/firmware/test.uf2.gz")
+                authenticated_client.download_firmware(
+                    "/firmware/test.uf2.gz", use_cache=False
+                )
 
             assert "Failed to decompress firmware data" in str(exc_info.value)
 
@@ -713,4 +715,6 @@ class TestFirmwareCompilation:
             mock_get.side_effect = requests.exceptions.ConnectionError("Network error")
 
             with pytest.raises(NetworkError):
-                authenticated_client.download_firmware("/firmware/test.uf2.gz")
+                authenticated_client.download_firmware(
+                    "/firmware/test.uf2.gz", use_cache=False
+                )

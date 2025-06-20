@@ -20,7 +20,8 @@ from glovebox.compilation.models.west_config import (
 from glovebox.compilation.protocols.compilation_protocols import (
     CompilationServiceProtocol,
 )
-from glovebox.core.cache import CacheKey, CacheManager
+from glovebox.core.cache_v2.cache_manager import CacheManager
+from glovebox.core.cache_v2.models import CacheKey
 from glovebox.core.errors import CompilationError
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.models.docker import DockerUserContext
