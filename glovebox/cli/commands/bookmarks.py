@@ -227,11 +227,12 @@ def clone(
 
         # Get bookmark
         bookmark = bookmark_service.get_bookmark(name)
-        if not bookmark:
-            from glovebox.cli.app import AppContext
+        from glovebox.cli.app import AppContext
 
-            app_ctx: AppContext = ctx.obj
-            icon_mode = app_ctx.icon_mode
+        app_ctx: AppContext = ctx.obj
+        icon_mode = app_ctx.icon_mode
+
+        if not bookmark:
             typer.echo(
                 Icons.format_with_icon(
                     "ERROR", f"Bookmark '{name}' not found.", icon_mode
@@ -245,11 +246,6 @@ def clone(
         # Save the config part (the actual layout data)
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(layout.config.model_dump_json(by_alias=True, indent=2))
-
-        from glovebox.cli.app import AppContext
-
-        app_ctx: AppContext = ctx.obj
-        icon_mode = app_ctx.icon_mode
 
         typer.echo(
             Icons.format_with_icon("SUCCESS", "Layout cloned successfully!", icon_mode)
@@ -267,10 +263,12 @@ def clone(
     except Exception as e:
         from glovebox.cli.app import AppContext
 
-        app_ctx: AppContext = ctx.obj
-        icon_mode = app_ctx.icon_mode
+        error_app_ctx: AppContext = ctx.obj
+        error_icon_mode = error_app_ctx.icon_mode
         typer.echo(
-            Icons.format_with_icon("ERROR", f"Error cloning bookmark: {e}", icon_mode)
+            Icons.format_with_icon(
+                "ERROR", f"Error cloning bookmark: {e}", error_icon_mode
+            )
         )
         raise typer.Exit(1) from e
 

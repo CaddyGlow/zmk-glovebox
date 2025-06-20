@@ -647,7 +647,9 @@ class TestZmkWorkspaceCaching:
         image_name = image_parts[0]
         image_tag = image_parts[1] if len(image_parts) > 1 else "latest"
 
-        from glovebox.core.cache import CacheKey
+        from glovebox.core.cache_v2.models import (
+            CacheKey,  # type: ignore[import-untyped]
+        )
 
         image_cache_key = CacheKey.from_parts("docker_image", image_name, image_tag)
         cached_verification = zmk_service.cache.get(image_cache_key)

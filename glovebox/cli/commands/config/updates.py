@@ -35,9 +35,9 @@ def check_updates(
         from glovebox.cli.helpers.theme import Icons
 
         app_ctx: AppContext = ctx.obj
-        use_emoji = app_ctx.use_emoji
+        icon_mode = app_ctx.icon_mode
         print(
-            Icons.format_with_icon("WARNING", "Version checks are disabled", use_emoji)
+            Icons.format_with_icon("WARNING", "Version checks are disabled", icon_mode)
         )
         print("   To enable: glovebox config edit --set disable_version_checks=false")
         return
@@ -47,10 +47,10 @@ def check_updates(
         from glovebox.cli.helpers.theme import Icons
 
         app_context: AppContext = ctx.obj
-        use_emoji = app_context.use_emoji
+        icon_mode = app_context.icon_mode
         print(
             Icons.format_with_icon(
-                "LOADING", "ZMK Firmware Update Available!", use_emoji
+                "LOADING", "ZMK Firmware Update Available!", icon_mode
             )
         )
         print(f"   Current: {result.current_version or 'unknown'}")
@@ -64,9 +64,9 @@ def check_updates(
         from glovebox.cli.helpers.theme import Icons
 
         app_ctx2: AppContext = ctx.obj
-        use_emoji = app_ctx2.use_emoji
+        icon_mode = app_ctx2.icon_mode
         print(
-            Icons.format_with_icon("SUCCESS", "ZMK firmware is up to date", use_emoji)
+            Icons.format_with_icon("SUCCESS", "ZMK firmware is up to date", icon_mode)
         )
 
     if result.last_check:

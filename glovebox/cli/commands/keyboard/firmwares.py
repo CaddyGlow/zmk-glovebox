@@ -93,7 +93,7 @@ def list_firmwares(
 
     if not firmwares:
         console = Console()
-        error_icon = Icons.get_icon("ERROR", app_ctx.use_emoji)
+        error_icon = Icons.get_icon("ERROR", app_ctx.icon_mode)
         console.print(
             f"\n[bold red]{error_icon} No firmwares found for {keyboard_name}[/bold red]\n"
         )
@@ -124,7 +124,7 @@ def list_firmwares(
 
     if verbose:
         # Create header panel
-        firmware_icon = Icons.get_icon("FIRMWARE", app_ctx.use_emoji)
+        firmware_icon = Icons.get_icon("FIRMWARE", app_ctx.icon_mode)
         header = Text(
             f"Available Firmware Versions for {keyboard_name} ({len(firmwares)})",
             style="bold magenta",
@@ -167,13 +167,13 @@ def list_firmwares(
         console.print(table)
     else:
         # Simple list format with rich styling
-        firmware_icon = Icons.get_icon("FIRMWARE", app_ctx.use_emoji)
+        firmware_icon = Icons.get_icon("FIRMWARE", app_ctx.icon_mode)
         console.print(
             f"\n[bold cyan]{firmware_icon} Found {len(firmwares)} firmware(s) for {keyboard_name}:[/bold cyan]\n"
         )
 
         for firmware_name in firmwares:
-            bullet_icon = Icons.get_icon("BULLET", app_ctx.use_emoji)
+            bullet_icon = Icons.get_icon("BULLET", app_ctx.icon_mode)
             console.print(f"  {bullet_icon} [cyan]{firmware_name}[/cyan]")
 
 
@@ -221,7 +221,7 @@ def show_firmware(
     console = Console()
 
     # Create header panel
-    firmware_icon = Icons.get_icon("FIRMWARE", app_ctx.use_emoji)
+    firmware_icon = Icons.get_icon("FIRMWARE", app_ctx.icon_mode)
     header = Text(
         f"Firmware: {firmware_name} for {keyboard_name}", style="bold magenta"
     )
@@ -232,7 +232,7 @@ def show_firmware(
 
     # Basic information table
     basic_table = Table(
-        title=f"{Icons.get_icon('INFO', app_ctx.use_emoji)} Basic Information",
+        title=f"{Icons.get_icon('INFO', app_ctx.icon_mode)} Basic Information",
         show_header=True,
         header_style="bold green",
     )
@@ -255,7 +255,7 @@ def show_firmware(
     build_options = firmware_config.build_options
     if build_options:
         build_table = Table(
-            title=f"{Icons.get_icon('BUILD', app_ctx.use_emoji)} Build Options",
+            title=f"{Icons.get_icon('BUILD', app_ctx.icon_mode)} Build Options",
             show_header=True,
             header_style="bold blue",
         )
@@ -276,7 +276,7 @@ def show_firmware(
     )
     if kconfig:
         kconfig_table = Table(
-            title=f"{Icons.get_icon('CONFIG', app_ctx.use_emoji)} Kconfig Options ({len(kconfig)})",
+            title=f"{Icons.get_icon('CONFIG', app_ctx.icon_mode)} Kconfig Options ({len(kconfig)})",
             show_header=True,
             header_style="bold yellow",
         )

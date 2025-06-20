@@ -133,9 +133,12 @@ def isolated_cli_environment(
     output_dir.mkdir()
 
     # Mock common environment variables
-    monkeypatch.setenv(
-        "GLOVEBOX_CONFIG_DIR", str(isolated_config.config_file_path.parent)
+    config_dir = (
+        str(isolated_config.config_file_path.parent)
+        if isolated_config.config_file_path is not None
+        else str(tmp_path / ".glovebox")
     )
+    monkeypatch.setenv("GLOVEBOX_CONFIG_DIR", config_dir)
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("TMPDIR", str(tmp_path / "tmp"))
 
