@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from .cache import CacheTTLConfig
 from .firmware import UserFirmwareConfig
 
 
@@ -120,6 +121,12 @@ class UserConfigData(BaseSettings):
     cache_strategy: str = Field(
         default="shared",
         description="Cache strategy: 'shared' (default) or 'disabled'",
+    )
+
+    # Comprehensive cache TTL configuration
+    cache_ttls: CacheTTLConfig = Field(
+        default_factory=lambda: CacheTTLConfig(),
+        description="TTL configuration for all cache types across domains",
     )
 
     # UI settings

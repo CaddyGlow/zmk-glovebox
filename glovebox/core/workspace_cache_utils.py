@@ -104,21 +104,45 @@ def generate_workspace_cache_key(
     return CacheKey.from_parts(*key_parts)
 
 
-def get_workspace_cache_dir() -> Path:
-    """Get standard workspace cache directory location.
+def get_workspace_cache_dir(user_config=None) -> Path:
+    """Get workspace cache directory from user config or default location.
+
+    Args:
+        user_config: Optional UserConfig instance to get cache path from
 
     Returns:
         Path to workspace cache directory
     """
+    if (
+        user_config
+        and hasattr(user_config, "_config")
+        and hasattr(user_config._config, "cache_path")
+    ):
+        # Use user-configured cache path
+        return user_config._config.cache_path / "workspaces"
+
+    # Fall back to default location for backward compatibility
     return Path.home() / ".cache" / "glovebox" / "workspaces"
 
 
-def get_workspace_cache_ttls() -> dict[str, int]:
-    """Get standard TTL values for different cache levels.
+def get_workspace_cache_ttls(user_config=None) -> dict[str, int]:
+    """Get workspace cache TTL values from user config or defaults.
+
+    Args:
+        user_config: Optional UserConfig instance to get TTL values from
 
     Returns:
         Dictionary mapping cache levels to TTL in seconds
     """
+    if (
+        user_config
+        and hasattr(user_config, "_config")
+        and hasattr(user_config._config, "cache_ttls")
+    ):
+        # Use user-configured TTL values
+        return user_config._config.cache_ttls.get_workspace_ttls()
+
+    # Fall back to default values for backward compatibility
     return {
         "base": 30 * 24 * 3600,  # 30 days
         "branch": 24 * 3600,  # 1 day
