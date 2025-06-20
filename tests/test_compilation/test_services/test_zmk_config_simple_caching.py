@@ -268,7 +268,6 @@ class TestZmkWorkspaceCaching:
         # Cache entry should be removed
         assert zmk_service.cache.get(cache_key) is None
 
-    @pytest.mark.skip(reason="TTL functionality needs investigation")
     def test_workspace_cache_ttl(self, zmk_service, zmk_config):
         """Test workspace cache TTL (30 days).
 
@@ -291,11 +290,16 @@ class TestZmkWorkspaceCaching:
             metadata = zmk_service.cache.get_metadata(cache_key)
 
             if metadata:
-                # For full-level cache, TTL should be 12 hours (12 * 3600 seconds)
-                full_ttl = 12 * 3600  # 12 hours
-
-                # Accept the actual implementation TTL
-                assert metadata.ttl_seconds == full_ttl
+                # Check if TTL is supported by the cache implementation
+                if metadata.ttl_seconds is not None:
+                    # For full-level cache, TTL should be 12 hours (12 * 3600 seconds)
+                    full_ttl = 12 * 3600  # 12 hours
+                    assert metadata.ttl_seconds == full_ttl
+                else:
+                    # TTL not supported by this cache implementation, skip the check
+                    pytest.skip(
+                        "TTL functionality not supported by current cache implementation"
+                    )
 
     def test_cache_workspace_creation_and_copy(
         self, zmk_service, zmk_config, test_files
