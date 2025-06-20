@@ -1,5 +1,6 @@
 """Unit tests for bookmark service."""
 
+import logging
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -186,11 +187,15 @@ class TestBookmarkService:
         # Mock metadata failure
         mock_moergo_client.get_layout_meta.side_effect = Exception("API Error")
 
-        bookmark = bookmark_service.add_bookmark(
-            uuid="12345678-1234-1234-1234-123456789012",
-            name="test-layout",
-            fetch_metadata=True,
-        )
+        # Set the logger level to WARNING to capture the log message
+        with caplog.at_level(
+            logging.WARNING, logger="glovebox.moergo.bookmark_service"
+        ):
+            bookmark = bookmark_service.add_bookmark(
+                uuid="12345678-1234-1234-1234-123456789012",
+                name="test-layout",
+                fetch_metadata=True,
+            )
 
         # Should still create bookmark without metadata
         assert bookmark.uuid == "12345678-1234-1234-1234-123456789012"
@@ -199,8 +204,21 @@ class TestBookmarkService:
         assert bookmark.description is None
         assert bookmark.tags == []
 
-        # Should log the warning
-        assert "Failed to fetch metadata" in caplog.text
+        # Should log the warning - check both caplog.text and records
+        log_messages = [record.message for record in caplog.records]
+        warning_logged = "Failed to fetch metadata" in caplog.text or any(
+            "Failed to fetch metadata" in msg for msg in log_messages
+        )
+        if not warning_logged:
+            print(f"Debug: caplog.text = '{caplog.text}'")
+            print(f"Debug: log messages = {log_messages}")
+            print(
+                f"Debug: caplog records = {[(r.levelname, r.message) for r in caplog.records]}"
+            )
+
+        assert warning_logged, (
+            "Expected 'Failed to fetch metadata' warning to be logged"
+        )
 
     def test_remove_bookmark_exists(self, bookmark_service, mock_moergo_client):
         """Test removing an existing bookmark."""
@@ -227,11 +245,30 @@ class TestBookmarkService:
         # Mock the get_bookmarks to return empty collection
         mock_moergo_client.list_public_layouts.return_value = []
 
-        # Try to remove non-existent bookmark
-        success = bookmark_service.remove_bookmark("nonexistent")
+        # Set the logger level to WARNING to capture the log message
+        with caplog.at_level(
+            logging.WARNING, logger="glovebox.moergo.bookmark_service"
+        ):
+            # Try to remove non-existent bookmark
+            success = bookmark_service.remove_bookmark("nonexistent")
 
         assert not success
-        assert "Bookmark not found: nonexistent" in caplog.text
+
+        # Should log the warning - check both caplog.text and records
+        log_messages = [record.message for record in caplog.records]
+        warning_logged = "Bookmark not found: nonexistent" in caplog.text or any(
+            "Bookmark not found: nonexistent" in msg for msg in log_messages
+        )
+        if not warning_logged:
+            print(f"Debug: caplog.text = '{caplog.text}'")
+            print(f"Debug: log messages = {log_messages}")
+            print(
+                f"Debug: caplog records = {[(r.levelname, r.message) for r in caplog.records]}"
+            )
+
+        assert warning_logged, (
+            "Expected 'Bookmark not found: nonexistent' warning to be logged"
+        )
 
     def test_get_bookmark_exists(self, bookmark_service, mock_moergo_client):
         """Test getting an existing bookmark."""
