@@ -17,7 +17,7 @@ class TestProfileCompletionCaching:
     """Test the caching functionality for profile completion."""
 
     @patch("glovebox.config.create_user_config")
-    @patch("glovebox.core.cache.create_default_cache")
+    @patch("glovebox.core.cache_v2.create_default_cache")
     @patch("glovebox.config.keyboard_profile.get_available_keyboards")
     @patch("glovebox.config.keyboard_profile.get_available_firmwares")
     def test_get_cached_profile_data_cache_miss(
@@ -83,7 +83,7 @@ class TestProfileCompletionCaching:
         )
 
     @patch("glovebox.config.create_user_config")
-    @patch("glovebox.core.cache.create_default_cache")
+    @patch("glovebox.core.cache_v2.create_default_cache")
     def test_get_cached_profile_data_cache_hit(
         self, mock_create_cache, mock_create_user_config
     ):
@@ -125,7 +125,7 @@ class TestProfileCompletionCaching:
         assert not mock_cache.set.called
 
     @patch("glovebox.config.create_user_config")
-    @patch("glovebox.core.cache.create_default_cache")
+    @patch("glovebox.core.cache_v2.create_default_cache")
     @patch("glovebox.config.keyboard_profile.get_available_keyboards")
     @patch("glovebox.config.keyboard_profile.get_available_firmwares")
     def test_get_cached_profile_data_firmware_error_handling(
@@ -176,7 +176,7 @@ class TestProfileCompletionCaching:
         }
 
     @patch("glovebox.config.create_user_config")
-    @patch("glovebox.core.cache.create_default_cache")
+    @patch("glovebox.core.cache_v2.create_default_cache")
     def test_get_cached_profile_data_disabled_cache_override(
         self, mock_create_cache, mock_create_user_config
     ):
@@ -207,11 +207,8 @@ class TestProfileCompletionCaching:
 
             _get_cached_profile_data()
 
-        # Verify cache was created with "shared" strategy despite user config being "disabled"
-        mock_create_cache.assert_called_once_with(
-            cache_strategy="shared",  # Should override "disabled"
-            cache_file_locking=True,
-        )
+        # Verify cache was created with the cli_completion tag
+        mock_create_cache.assert_called_once_with(tag="cli_completion")
 
     def test_get_cached_profile_data_complete_failure(self):
         """Test complete failure scenario returns empty data."""
@@ -476,7 +473,7 @@ class TestProfileCompletionLogging:
     """Test logging behavior in profile completion."""
 
     @patch("glovebox.config.create_user_config")
-    @patch("glovebox.core.cache.create_default_cache")
+    @patch("glovebox.core.cache_v2.create_default_cache")
     @patch("glovebox.config.keyboard_profile.get_available_keyboards")
     @patch("glovebox.config.keyboard_profile.get_available_firmwares")
     def test_logging_on_cache_miss(
@@ -509,11 +506,15 @@ class TestProfileCompletionLogging:
 
         # Check for expected log messages
         log_messages = [record.message for record in caplog.records]
+        if not any("Profile completion cache miss" in msg for msg in log_messages):
+            print(
+                f"Expected 'Profile completion cache miss' in log messages: {log_messages}"
+            )
         assert any("Profile completion cache miss" in msg for msg in log_messages)
         assert any("Profile completion data cached" in msg for msg in log_messages)
 
     @patch("glovebox.config.create_user_config")
-    @patch("glovebox.core.cache.create_default_cache")
+    @patch("glovebox.core.cache_v2.create_default_cache")
     def test_logging_on_cache_hit(
         self, mock_create_cache, mock_create_user_config, caplog
     ):
@@ -544,7 +545,7 @@ class TestProfileCompletionLogging:
         assert any("Profile completion cache hit" in msg for msg in log_messages)
 
     @patch("glovebox.config.create_user_config")
-    @patch("glovebox.core.cache.create_default_cache")
+    @patch("glovebox.core.cache_v2.create_default_cache")
     @patch("glovebox.config.keyboard_profile.get_available_keyboards")
     @patch("glovebox.config.keyboard_profile.get_available_firmwares")
     def test_logging_on_firmware_error(
@@ -582,7 +583,7 @@ class TestProfileCompletionLogging:
         )
 
     @patch("glovebox.config.create_user_config")
-    @patch("glovebox.core.cache.create_default_cache")
+    @patch("glovebox.core.cache_v2.create_default_cache")
     def test_logging_on_disabled_cache_override(
         self, mock_create_cache, mock_create_user_config, caplog
     ):
@@ -613,19 +614,17 @@ class TestProfileCompletionLogging:
 
             _get_cached_profile_data()
 
-        # Check for cache override log message
+        # Check that cache operations occurred (cache miss and cache set)
         log_messages = [record.message for record in caplog.records]
-        assert any(
-            "shared cache for profile completion despite disabled" in msg
-            for msg in log_messages
-        )
+        assert any("Profile completion cache miss" in msg for msg in log_messages)
+        assert any("Profile completion data cached" in msg for msg in log_messages)
 
 
 class TestProfileCompletionIntegration:
     """Integration tests for profile completion functionality."""
 
     @patch("glovebox.config.create_user_config")
-    @patch("glovebox.core.cache.create_default_cache")
+    @patch("glovebox.core.cache_v2.create_default_cache")
     @patch("glovebox.config.keyboard_profile.get_available_keyboards")
     @patch("glovebox.config.keyboard_profile.get_available_firmwares")
     def test_full_completion_workflow(
