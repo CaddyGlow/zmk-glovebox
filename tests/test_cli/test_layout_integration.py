@@ -99,7 +99,9 @@ def layout_components_dir(tmp_path, complex_layout):
 class TestLayoutEditIntegration:
     """Integration tests for the unified edit command."""
 
-    @pytest.mark.skip(reason="Integration test needs complex service mocking - covered by unit tests")
+    @pytest.mark.skip(
+        reason="Integration test needs complex service mocking - covered by unit tests"
+    )
     def test_complex_batch_edit_workflow(self, cli_runner, tmp_path, complex_layout):
         """Test a complex batch editing workflow."""
         # Create layout file
@@ -192,7 +194,9 @@ class TestLayoutEditIntegration:
             assert "get:version" in json_output["results"]
             assert "layers" in json_output["results"]
 
-    @pytest.mark.skip(reason="Integration test needs import source resolution - covered by unit tests")
+    @pytest.mark.skip(
+        reason="Integration test needs import source resolution - covered by unit tests"
+    )
     def test_edit_with_import_sources(self, cli_runner, tmp_path, complex_layout):
         """Test edit command with --from import sources."""
         # Create main layout file
@@ -324,7 +328,9 @@ class TestLayoutFileOperationsIntegration:
             assert merge_result.exit_code == 0
             assert "Components merged into layout" in merge_result.output
 
-    @pytest.mark.skip(reason="Integration test needs layer import/export service implementation - covered by unit tests")
+    @pytest.mark.skip(
+        reason="Integration test needs layer import/export service implementation - covered by unit tests"
+    )
     def test_export_import_layer_workflow(self, cli_runner, tmp_path, complex_layout):
         """Test exporting a layer and importing it into another layout."""
         # Create source layout
@@ -433,7 +439,9 @@ class TestLayoutFileOperationsIntegration:
 class TestLayoutVersionsIntegration:
     """Integration tests for version management."""
 
-    @pytest.mark.skip(reason="Integration test needs version manager service implementation - covered by unit tests")
+    @pytest.mark.skip(
+        reason="Integration test needs version manager service implementation - covered by unit tests"
+    )
     def test_master_import_list_workflow(self, cli_runner, tmp_path, complex_layout):
         """Test importing master versions and listing them."""
         master_file = tmp_path / "master_v42.json"
@@ -477,7 +485,9 @@ class TestLayoutVersionsIntegration:
             assert "Master versions for glove80:" in list_result.output
             assert "v42 - Glorious Master v42" in list_result.output
 
-    @pytest.mark.skip(reason="Integration test needs upgrade service implementation - covered by unit tests")
+    @pytest.mark.skip(
+        reason="Integration test needs upgrade service implementation - covered by unit tests"
+    )
     def test_upgrade_workflow_with_preservation(
         self, cli_runner, tmp_path, complex_layout
     ):
@@ -521,7 +531,9 @@ class TestLayoutVersionsIntegration:
 class TestLayoutComparisonIntegration:
     """Integration tests for layout comparison operations."""
 
-    @pytest.mark.skip(reason="Integration test needs layout data structure fixes and comparison service - covered by unit tests")
+    @pytest.mark.skip(
+        reason="Integration test needs layout data structure fixes and comparison service - covered by unit tests"
+    )
     def test_diff_patch_roundtrip(self, cli_runner, tmp_path, complex_layout):
         """Test creating a diff and applying it as a patch."""
         # Create original layout
@@ -610,7 +622,9 @@ class TestLayoutComparisonIntegration:
 class TestLayoutWorkflowIntegration:
     """End-to-end workflow integration tests."""
 
-    @pytest.mark.skip(reason="Integration test needs complex multi-service coordination - covered by unit tests")
+    @pytest.mark.skip(
+        reason="Integration test needs complex multi-service coordination - covered by unit tests"
+    )
     def test_complete_layout_development_workflow(
         self, cli_runner, tmp_path, complex_layout
     ):
@@ -722,7 +736,9 @@ class TestLayoutWorkflowIntegration:
             )
             assert compile_result.exit_code == 0
 
-    @pytest.mark.skip(reason="Integration test needs version management service implementation - covered by unit tests")
+    @pytest.mark.skip(
+        reason="Integration test needs version management service implementation - covered by unit tests"
+    )
     def test_version_management_workflow(self, cli_runner, tmp_path, complex_layout):
         """Test version management workflow."""
         # Create master layout
@@ -867,7 +883,9 @@ class TestLayoutErrorHandlingIntegration:
         assert result.exit_code == 1
         assert "Keyboard configuration not found" in result.output
 
-    @pytest.mark.skip(reason="Integration test needs refined service mocking for read-only operations")
+    @pytest.mark.skip(
+        reason="Integration test needs refined service mocking for read-only operations"
+    )
     def test_concurrent_command_safety(self, cli_runner, tmp_path, complex_layout):
         """Test that commands handle concurrent access safely."""
         layout_file = tmp_path / "layout.json"

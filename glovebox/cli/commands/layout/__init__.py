@@ -2,6 +2,8 @@
 
 import typer
 
+# Note: cloud and bookmarks commands have been moved to main commands directory
+
 # Import comparison commands
 from .comparison import diff, patch
 
@@ -13,10 +15,6 @@ from .edit import edit
 
 # Import file operations
 from .file_operations import export, import_layout, merge, split
-
-# Import new cloud and bookmark commands
-from .cloud import register_commands as register_cloud_commands
-from .bookmarks import register_commands as register_bookmarks_commands
 
 # Import upgrade command
 from .upgrade import upgrade
@@ -57,9 +55,9 @@ Comparison:
   diff        - Compare layouts with optional patch creation
   patch       - Apply JSON diff patch to layout
 
-Cloud Integration:
-  cloud       - Essential cloud operations (upload, download, list, browse, delete)
-  bookmarks   - Bookmark management for easy access to saved layouts
+Note: Cloud and bookmark operations have been moved to top-level commands:
+  glovebox cloud       - Essential cloud operations (upload, download, list, browse, delete)
+  glovebox bookmarks   - Bookmark management for easy access to saved layouts
 """,
     no_args_is_help=True,
     rich_markup_mode="rich",
@@ -89,9 +87,7 @@ layout_app.command()(patch)
 # Register version management subcommand group
 layout_app.add_typer(versions_app, name="versions")
 
-# Register cloud and bookmark commands
-register_cloud_commands(layout_app)
-register_bookmarks_commands(layout_app)
+# Note: cloud and bookmarks commands are now registered at the top level
 
 
 def register_commands(app: typer.Typer) -> None:

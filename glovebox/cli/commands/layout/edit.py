@@ -389,4 +389,3 @@ def _parse_import_source(source: str) -> tuple[str | None, str | None]:
         file_part, layer_part = source.split(":", 1)
         return file_part, layer_part
     return source, None
-

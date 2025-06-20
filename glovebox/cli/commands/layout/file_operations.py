@@ -423,4 +423,3 @@ def import_layout(
 
     except Exception as e:
         command.handle_service_error(e, "import layout")
-

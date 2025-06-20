@@ -88,4 +88,3 @@ def upgrade(
 
     except Exception as e:
         command.handle_service_error(e, "upgrade layout")
-

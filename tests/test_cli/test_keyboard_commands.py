@@ -98,7 +98,9 @@ class TestKeyboardList:
             assert result.exit_code == 0
             assert "Keyboard Configurations" in result.output  # Rich header
             assert "test_keyboard" in result.output
-            assert "Test keyboard" in result.output and "description" in result.output  # May be split across lines
+            assert (
+                "Test keyboard" in result.output and "description" in result.output
+            )  # May be split across lines
             assert "Test Vendor" in result.output
 
     def test_list_keyboards_json_format(self, cli_runner):
@@ -173,7 +175,10 @@ class TestKeyboardList:
 
             assert result.exit_code == 0
             assert "broken_keyboard" in result.output
-            assert ("Configuration file not found" in result.output or "Error" in result.output)
+            assert (
+                "Configuration file not found" in result.output
+                or "Error" in result.output
+            )
 
 
 class TestKeyboardEdit:
@@ -416,7 +421,9 @@ class TestKeyboardShow:
 
             assert result.exit_code == 0
             assert "test_keyboard" in result.output
-            assert "v1.0" in result.output  # Firmware version should appear in rich output
+            assert (
+                "v1.0" in result.output
+            )  # Firmware version should appear in rich output
 
     def test_show_keyboard_with_positional_firmware(
         self, cli_runner, mock_keyboard_config
@@ -433,7 +440,9 @@ class TestKeyboardShow:
 
             assert result.exit_code == 0
             assert "test_keyboard" in result.output
-            assert "v2.0" in result.output  # Firmware version should appear in rich output
+            assert (
+                "v2.0" in result.output
+            )  # Firmware version should appear in rich output
 
     def test_show_keyboard_profile_and_positional_conflict(self, cli_runner):
         """Test keyboard show with both --profile and positional arguments (should fail)."""
@@ -466,7 +475,7 @@ class TestKeyboardShow:
             assert "test_keyboard" in result.output
             assert "nonexistent" in result.output  # Firmware name should appear
             # Rich output may show this differently, so check for general error indication
-            assert ("not found" in result.output or "error" in result.output.lower())
+            assert "not found" in result.output or "error" in result.output.lower()
 
     def test_show_keyboard_json_format(self, cli_runner, mock_keyboard_config):
         """Test keyboard show with JSON format."""
@@ -561,9 +570,14 @@ class TestKeyboardShow:
             assert result.exit_code == 0
             assert "test_keyboard" in result.output
             assert "Default Value" in result.output  # Column header in table
-            assert "Default values shown are from Pydantic model field definitions" in result.output
+            assert (
+                "Default values shown are from Pydantic model field definitions"
+                in result.output
+            )
 
-    def test_show_keyboard_with_sources_and_defaults_flags(self, cli_runner, mock_keyboard_config):
+    def test_show_keyboard_with_sources_and_defaults_flags(
+        self, cli_runner, mock_keyboard_config
+    ):
         """Test keyboard show with both --sources and --defaults flags."""
         with patch(
             "glovebox.cli.commands.keyboard.info.load_keyboard_config"
@@ -578,7 +592,9 @@ class TestKeyboardShow:
             assert "test_keyboard" in result.output
             assert "Source" in result.output  # Column header in table
             assert "Default Value" in result.output  # Column header in table
-            assert "include system" in result.output  # Should mention the include system
+            assert (
+                "include system" in result.output
+            )  # Should mention the include system
 
     def test_show_keyboard_sources_json_format(self, cli_runner, mock_keyboard_config):
         """Test keyboard show with --sources in JSON format includes metadata."""
@@ -588,7 +604,8 @@ class TestKeyboardShow:
             mock_load_config.return_value = mock_keyboard_config
 
             result = cli_runner.invoke(
-                app, ["keyboard", "show", "test_keyboard", "--sources", "--format", "json"]
+                app,
+                ["keyboard", "show", "test_keyboard", "--sources", "--format", "json"],
             )
 
             assert result.exit_code == 0
@@ -605,7 +622,8 @@ class TestKeyboardShow:
             mock_load_config.return_value = mock_keyboard_config
 
             result = cli_runner.invoke(
-                app, ["keyboard", "show", "test_keyboard", "--defaults", "--format", "json"]
+                app,
+                ["keyboard", "show", "test_keyboard", "--defaults", "--format", "json"],
             )
 
             assert result.exit_code == 0
