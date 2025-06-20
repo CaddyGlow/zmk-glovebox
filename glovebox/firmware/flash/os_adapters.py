@@ -66,16 +66,18 @@ def windows_to_wsl_path(windows_path: str) -> str:
             drive_letter = windows_path[0].lower()
             fallback_path = f"/mnt/{drive_letter}/"
             logger.debug(
-                f"wslpath failed for {windows_path}, trying fallback: {fallback_path}"
+                "wslpath failed for %s, trying fallback: %s", windows_path, fallback_path
             )
 
             # Test if the fallback path exists
             if Path(fallback_path).exists():
-                logger.debug(f"Fallback path {fallback_path} exists, using it")
+                logger.debug("Fallback path %s exists, using it", fallback_path)
                 return fallback_path
             else:
-                logger.debug(f"Fallback path {fallback_path} does not exist")
+                logger.debug("Fallback path %s does not exist", fallback_path)
 
+        exc_info = logger.isEnabledFor(logging.DEBUG)
+        logger.error("Failed to convert Windows path %s: %s", windows_path, e, exc_info=exc_info)
         raise OSError(f"Failed to convert Windows path {windows_path}: {e}") from e
 
 
@@ -168,11 +170,15 @@ class LinuxFlashOS:
                             mount_points.append(mount_point)
 
             if not mount_points:
-                logger.warning(f"Could not mount device {device_path}")
+                logger.warning("Could not mount device %s", device_path)
 
         except subprocess.TimeoutExpired as e:
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("Timeout mounting device %s: %s", device_path, e, exc_info=exc_info)
             raise OSError(f"Timeout mounting device {device_path}") from e
         except Exception as e:
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("Failed to mount device %s: %s", device_path, e, exc_info=exc_info)
             raise OSError(f"Failed to mount device {device_path}: {e}") from e
 
         return mount_points
@@ -260,11 +266,12 @@ class LinuxFlashOS:
         """Copy firmware file to mounted device on Linux."""
         try:
             dest_path = Path(mount_point) / firmware_file.name
-            logger.info(f"Copying {firmware_file} to {dest_path}")
+            logger.info("Copying %s to %s", firmware_file, dest_path)
             shutil.copy2(firmware_file, mount_point)
             return True
         except Exception as e:
-            logger.error(f"Failed to copy firmware file: {e}")
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("Failed to copy firmware file: %s", e, exc_info=exc_info)
             return False
 
     def sync_filesystem(self, mount_point: str) -> bool:

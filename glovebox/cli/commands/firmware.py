@@ -32,16 +32,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _setup_verbose_logging(verbose: bool) -> None:
-    """Setup verbose logging if requested."""
-    if verbose:
-        logging.getLogger("glovebox.compilation").setLevel(logging.DEBUG)
-        logging.getLogger("glovebox.adapters.docker").setLevel(logging.DEBUG)
-        logger.info("Verbose mode enabled - detailed logging activated")
-
-
 def _resolve_compilation_type(
-    keyboard_profile: "KeyboardProfile", strategy: str | None, verbose: bool
+    keyboard_profile: "KeyboardProfile", strategy: str | None
 ) -> tuple[str, CompilationConfigUnion]:
     """Resolve compilation type and config from profile."""
     # Get the appropriate compile method config from the keyboard profile
@@ -83,21 +75,6 @@ def _resolve_compilation_type(
     # At this point, compile_config is guaranteed to be not None
     compilation_strategy = compile_config.strategy
 
-    if verbose:
-        logger.info("Compile config type: %s", type(compile_config).__name__)
-        logger.info("Docker image: %s", compile_config.image)
-        logger.info("Repository: %s", getattr(compile_config, "repository", "N/A"))
-        logger.info("Branch: %s", getattr(compile_config, "branch", "N/A"))
-        if isinstance(compile_config, ZmkCompilationConfig):
-            build_matrix = compile_config.build_matrix
-            logger.info("Boards: %s", getattr(build_matrix, "board", []))
-            logger.info("Shields: %s", getattr(build_matrix, "shield", []))
-        elif isinstance(compile_config, MoergoCompilationConfig):
-            logger.info("Repository: %s", compile_config.repository)
-            logger.info("Branch: %s", compile_config.branch)
-    else:
-        logger.info("Using compilation strategy: %r", type(compile_config).__name__)
-
     return compilation_strategy, compile_config
 
 
@@ -107,16 +84,10 @@ def _update_config_from_profile(
 ) -> None:
     """Update compile config with firmware settings from profile."""
     if keyboard_profile.firmware_config is not None:
-        # Update repository and branch - unified models have these directly
         compile_config.branch = keyboard_profile.firmware_config.build_options.branch
         compile_config.repository = (
             keyboard_profile.firmware_config.build_options.repository
         )
-
-        # For ZMK configs, also update workspace settings
-        if isinstance(compile_config, ZmkCompilationConfig):
-            compile_config.workspace.branch = compile_config.branch
-            compile_config.workspace.repository = compile_config.repository
 
 
 def _execute_compilation_service(
@@ -243,9 +214,6 @@ def firmware_compile(
         ),
     ] = None,
     output_format: OutputFormatOption = "text",
-    verbose: Annotated[
-        bool, typer.Option("--verbose", "-v", help="Enable verbose build output")
-    ] = False,
 ) -> None:
     """Build ZMK firmware from keymap/config files or JSON layout.
 
@@ -280,18 +248,10 @@ def firmware_compile(
         # JSON output for automation
         glovebox firmware compile layout.json --profile glove80/v25.05 --output-format json
     """
-    # Setup verbose logging
-    _setup_verbose_logging(verbose)
 
     # Get profile and user config
     keyboard_profile = get_keyboard_profile_from_context(ctx)
     user_config = get_user_config_from_context(ctx)
-
-    if verbose:
-        logger.info("KeyboardProfile: %s", keyboard_profile.keyboard_name)
-        logger.info("Profile path: %s", keyboard_profile)
-    else:
-        logger.info("KeyboardProfile available in context: %r", keyboard_profile)
 
     # Detect input file type and validate arguments
     is_json_input = input_file.suffix.lower() == ".json"
@@ -312,7 +272,7 @@ def firmware_compile(
     try:
         # Resolve compilation strategy and configuration
         compilation_type, compile_config = _resolve_compilation_type(
-            keyboard_profile, strategy, verbose
+            keyboard_profile, strategy
         )
 
         # Update config with profile firmware settings

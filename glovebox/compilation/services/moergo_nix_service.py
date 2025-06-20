@@ -77,7 +77,8 @@ class MoergoNixService(CompilationServiceProtocol):
             )
 
         except Exception as e:
-            self.logger.error("Compilation failed: %s", e)
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("Compilation failed: %s", e, exc_info=exc_info)
             return BuildResult(success=False, errors=[str(e)])
 
     def compile_from_json(
@@ -138,7 +139,8 @@ class MoergoNixService(CompilationServiceProtocol):
                 )
 
         except Exception as e:
-            self.logger.error("JSON compilation failed: %s", e)
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("JSON compilation failed: %s", e, exc_info=exc_info)
             return BuildResult(success=False, errors=[str(e)])
 
     def validate_config(self, config: CompilationConfigUnion) -> bool:
@@ -176,7 +178,8 @@ class MoergoNixService(CompilationServiceProtocol):
             (config_dir / "default.nix").write_text(default_nix_content)
             return workspace_path
         except Exception as e:
-            self.logger.error("Workspace setup failed: %s", e)
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("Workspace setup failed: %s", e, exc_info=exc_info)
             return None
 
     def _run_compilation(

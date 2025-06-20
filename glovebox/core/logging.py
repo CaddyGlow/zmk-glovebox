@@ -10,6 +10,11 @@ def get_logger(name: str) -> logging.Logger:
 
     Returns:
         A logger instance
+
+    Note: For exception logging with debug stack traces, use this pattern:
+        except Exception as e:
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("Operation failed: %s", e, exc_info=exc_info)
     """
     return logging.getLogger(name)
 

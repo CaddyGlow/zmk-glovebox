@@ -104,7 +104,8 @@ class FlashService:
                 show_progress=show_progress,
             )
         except Exception as e:
-            logger.error("Error preparing flash operation: %s", e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("Error preparing flash operation: %s", e, exc_info=exc_info)
             result = FlashResult(success=False)
             result.add_error(f"Flash preparation failed: {str(e)}")
             return result
@@ -240,7 +241,8 @@ class FlashService:
                 result.add_message(f"Successfully flashed {devices_flashed} device(s)")
 
         except Exception as e:
-            logger.error("Flash operation failed: %s", e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("Flash operation failed: %s", e, exc_info=exc_info)
             result.success = False
             result.add_error(f"Flash operation failed: {str(e)}")
 
