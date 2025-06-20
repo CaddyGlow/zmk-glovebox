@@ -1,5 +1,7 @@
 """Unified theme system for consistent Rich styling across CLI commands."""
 
+from typing import Any
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -106,6 +108,69 @@ class Icons:
     FACTORY = "🏭"
     CLONE = "📋"
 
+    # Nerd Font icons for terminal environments with font support
+    _NERDFONT_ICONS = {
+        # Status indicators
+        "SUCCESS": "\uf058",  # nf-fa-check_circle
+        "ERROR": "\uf057",  # nf-fa-times_circle
+        "WARNING": "\uf071",  # nf-fa-warning
+        "INFO": "\uf05a",  # nf-fa-info_circle
+        # Action indicators
+        "CHECKMARK": "\uf00c",  # nf-fa-check
+        "CROSS": "\uf00d",  # nf-fa-times
+        "BULLET": "\uf111",  # nf-fa-circle
+        "ARROW": "\uf061",  # nf-fa-arrow_right
+        # Category icons
+        "DEVICE": "\uf1e6",  # nf-fa-plug
+        "KEYBOARD": "\uf11c",  # nf-fa-keyboard_o
+        "FIRMWARE": "\uf2db",  # nf-fa-microchip
+        "LAYOUT": "\uf00a",  # nf-fa-th
+        "DOCKER": "\uf395",  # nf-fa-docker
+        "SYSTEM": "\uf108",  # nf-fa-desktop
+        "CONFIG": "\uf013",  # nf-fa-cog
+        "USB": "\uf287",  # nf-fa-usb
+        "FLASH": "\uf0e7",  # nf-fa-bolt
+        "BUILD": "\uf6e3",  # nf-fa-hammer
+        # Process indicators
+        "LOADING": "\uf021",  # nf-fa-refresh
+        "COMPLETED": "\uf14a",  # nf-fa-check_square
+        "RUNNING": "\uf04b",  # nf-fa-play
+        "STOPPED": "\uf04d",  # nf-fa-stop
+        # Additional icons
+        "UPLOAD": "\uf093",  # nf-fa-upload
+        "DOWNLOAD": "\uf019",  # nf-fa-download
+        "DOCUMENT": "\uf0f6",  # nf-fa-file_text_o
+        "LINK": "\uf0c1",  # nf-fa-link
+        "CALENDAR": "\uf073",  # nf-fa-calendar
+        "USER": "\uf007",  # nf-fa-user
+        "TAG": "\uf02b",  # nf-fa-tag
+        "EYE": "\uf06e",  # nf-fa-eye
+        "SEARCH": "\uf002",  # nf-fa-search
+        "FAMILY": "\uf0c0",  # nf-fa-users
+        "STATS": "\uf080",  # nf-fa-bar_chart
+        "TREE": "\uf1bb",  # nf-fa-tree
+        "CROWN": "\uf521",  # nf-fa-crown
+        "SCROLL": "\uf70e",  # nf-fa-scroll
+        "STAR": "\uf005",  # nf-fa-star
+        "TRASH": "\uf1f8",  # nf-fa-trash
+        "QUESTION": "\uf059",  # nf-fa-question_circle
+        "GLOBE": "\uf0ac",  # nf-fa-globe
+        "SAVE": "\uf0c7",  # nf-fa-save
+        "CLIPBOARD": "\uf328",  # nf-fa-clipboard
+        "APPLE": "\uf179",  # nf-fa-apple
+        "WINDOWS": "\uf17a",  # nf-fa-windows
+        "LINUX": "\uf17c",  # nf-fa-linux
+        "FOLDER": "\uf07b",  # nf-fa-folder
+        "MAILBOX": "\uf01c",  # nf-fa-inbox
+        "SHIELD": "\uf132",  # nf-fa-shield
+        "DIAMOND": "\uf219",  # nf-fa-diamond
+        "LOCK": "\uf023",  # nf-fa-lock
+        "KEYSTORE": "\uf084",  # nf-fa-key
+        "BOOKMARK": "\uf02e",  # nf-fa-bookmark
+        "FACTORY": "\uf275",  # nf-fa-industry
+        "CLONE": "\uf24d",  # nf-fa-clone
+    }
+
     # Text fallbacks for emoji-disabled mode
     _TEXT_FALLBACKS = {
         # Status indicators - use minimal or no prefix for clean output
@@ -170,24 +235,63 @@ class Icons:
     }
 
     @classmethod
-    def get_icon(cls, icon_name: str, use_emoji: bool = True) -> str:
-        """Get icon with emoji or text fallback based on preference.
+    def get_icon(cls, icon_name: str, icon_mode: str = "emoji") -> str:
+        """Get icon based on the specified mode.
 
         Args:
             icon_name: Name of the icon (e.g., "SUCCESS", "ERROR")
-            use_emoji: Whether to use emoji or text fallback
+            icon_mode: Icon mode - "emoji", "nerdfont", or "text"
 
         Returns:
-            The emoji icon or text fallback
+            The appropriate icon based on mode
         """
-        if use_emoji:
+        if icon_mode == "nerdfont":
+            return cls._NERDFONT_ICONS.get(icon_name, "")
+        elif icon_mode == "emoji":
             return getattr(cls, icon_name, "")
-        else:
+        else:  # text mode
             return cls._TEXT_FALLBACKS.get(icon_name, f"[{icon_name}]")
 
     @classmethod
-    def format_with_icon(cls, icon_name: str, text: str, use_emoji: bool = True) -> str:
+    def format_with_icon(
+        cls, icon_name: str, text: str, icon_mode: str = "emoji"
+    ) -> str:
         """Format text with icon, handling empty icons gracefully.
+
+        Args:
+            icon_name: Name of the icon
+            text: Text to format
+            icon_mode: Icon mode - "emoji", "nerdfont", or "text"
+
+        Returns:
+            Formatted string with proper spacing
+        """
+        icon = cls.get_icon(icon_name, icon_mode)
+        if icon:
+            return f"{icon} {text}"
+        else:
+            return text
+
+    # Legacy methods for backward compatibility
+    @classmethod
+    def get_icon_legacy(cls, icon_name: str, use_emoji: bool = True) -> str:
+        """Legacy method for backward compatibility.
+
+        Args:
+            icon_name: Name of the icon
+            use_emoji: Whether to use emoji or text fallback
+
+        Returns:
+            The icon based on legacy boolean preference
+        """
+        icon_mode = "emoji" if use_emoji else "text"
+        return cls.get_icon(icon_name, icon_mode)
+
+    @classmethod
+    def format_with_icon_legacy(
+        cls, icon_name: str, text: str, use_emoji: bool = True
+    ) -> str:
+        """Legacy method for backward compatibility.
 
         Args:
             icon_name: Name of the icon
@@ -197,11 +301,8 @@ class Icons:
         Returns:
             Formatted string with proper spacing
         """
-        icon = cls.get_icon(icon_name, use_emoji)
-        if icon:
-            return f"{icon} {text}"
-        else:
-            return text
+        icon_mode = "emoji" if use_emoji else "text"
+        return cls.format_with_icon(icon_name, text, icon_mode)
 
 
 # Rich theme configuration
@@ -229,39 +330,39 @@ GLOVEBOX_THEME = Theme(
 class ThemedConsole:
     """Console wrapper with Glovebox theme applied."""
 
-    def __init__(self, use_emoji: bool = True) -> None:
+    def __init__(self, icon_mode: str = "emoji") -> None:
         """Initialize themed console.
 
         Args:
-            use_emoji: Whether to use emoji icons or text fallbacks
+            icon_mode: Icon mode - "emoji", "nerdfont", or "text"
         """
         self.console = Console(theme=GLOVEBOX_THEME)
-        self.use_emoji = use_emoji
+        self.icon_mode = icon_mode
 
     def print_success(self, message: str) -> None:
         """Print success message with icon and styling."""
-        icon = Icons.get_icon("SUCCESS", self.use_emoji)
+        icon = Icons.get_icon("SUCCESS", self.icon_mode)
         self.console.print(f"{icon} {message}", style="success")
 
     def print_error(self, message: str) -> None:
         """Print error message with icon and styling."""
-        icon = Icons.get_icon("ERROR", self.use_emoji)
+        icon = Icons.get_icon("ERROR", self.icon_mode)
         self.console.print(f"{icon} {message}", style="error")
 
     def print_warning(self, message: str) -> None:
         """Print warning message with icon and styling."""
-        icon = Icons.get_icon("WARNING", self.use_emoji)
+        icon = Icons.get_icon("WARNING", self.icon_mode)
         self.console.print(f"{icon} {message}", style="warning")
 
     def print_info(self, message: str) -> None:
         """Print info message with icon and styling."""
-        icon = Icons.get_icon("INFO", self.use_emoji)
+        icon = Icons.get_icon("INFO", self.icon_mode)
         self.console.print(f"{icon} {message}", style="info")
 
     def print_list_item(self, message: str, indent: int = 1) -> None:
         """Print list item with bullet and styling."""
         spacing = "  " * indent
-        bullet = Icons.get_icon("BULLET", self.use_emoji)
+        bullet = Icons.get_icon("BULLET", self.icon_mode)
         self.console.print(f"{spacing}{bullet} {message}", style="primary")
 
 
@@ -270,22 +371,22 @@ class TableStyles:
 
     @staticmethod
     def create_basic_table(
-        title: str = "", icon: str = "", use_emoji: bool = True
+        title: str = "", icon: str = "", icon_mode: str = "emoji"
     ) -> Table:
         """Create a basic styled table.
 
         Args:
             title: Table title
             icon: Icon to include in title
-            use_emoji: Whether to use emoji or text fallbacks
+            icon_mode: Icon mode - "emoji", "nerdfont", or "text"
 
         Returns:
             Configured Table instance
         """
         if icon and title:
-            # Get the appropriate icon based on emoji mode
+            # Get the appropriate icon based on mode
             display_icon = (
-                Icons.get_icon(icon.upper(), use_emoji)
+                Icons.get_icon(icon.upper(), icon_mode)
                 if hasattr(Icons, icon.upper())
                 else icon
             )
@@ -300,9 +401,9 @@ class TableStyles:
         )
 
     @staticmethod
-    def create_device_table(use_emoji: bool = True) -> Table:
+    def create_device_table(icon_mode: str = "emoji") -> Table:
         """Create table for device listings."""
-        table = TableStyles.create_basic_table("USB Devices", "DEVICE", use_emoji)
+        table = TableStyles.create_basic_table("USB Devices", "DEVICE", icon_mode)
         table.add_column("Device", style=Colors.PRIMARY, no_wrap=True)
         table.add_column("Serial", style=Colors.ACCENT)
         table.add_column("Path", style=Colors.MUTED)
@@ -310,26 +411,26 @@ class TableStyles:
         return table
 
     @staticmethod
-    def create_status_table(use_emoji: bool = True) -> Table:
+    def create_status_table(icon_mode: str = "emoji") -> Table:
         """Create table for status information."""
-        table = TableStyles.create_basic_table("System Status", "SYSTEM", use_emoji)
+        table = TableStyles.create_basic_table("System Status", "SYSTEM", icon_mode)
         table.add_column("Component", style=Colors.PRIMARY, no_wrap=True)
         table.add_column("Status", style="bold")
         table.add_column("Details", style=Colors.MUTED)
         return table
 
     @staticmethod
-    def create_config_table(use_emoji: bool = True) -> Table:
+    def create_config_table(icon_mode: str = "emoji") -> Table:
         """Create table for configuration display."""
-        table = TableStyles.create_basic_table("Configuration", "CONFIG", use_emoji)
+        table = TableStyles.create_basic_table("Configuration", "CONFIG", icon_mode)
         table.add_column("Setting", style=Colors.PRIMARY, no_wrap=True)
         table.add_column("Value", style=Colors.NORMAL)
         return table
 
     @staticmethod
-    def create_keyboard_table(use_emoji: bool = True) -> Table:
+    def create_keyboard_table(icon_mode: str = "emoji") -> Table:
         """Create table for keyboard listings."""
-        table = TableStyles.create_basic_table("Keyboards", "KEYBOARD", use_emoji)
+        table = TableStyles.create_basic_table("Keyboards", "KEYBOARD", icon_mode)
         table.add_column("Keyboard", style=Colors.PRIMARY, no_wrap=True)
         table.add_column("Firmwares", style=Colors.ACCENT)
         table.add_column("Description", style=Colors.MUTED)
@@ -341,7 +442,7 @@ class PanelStyles:
 
     @staticmethod
     def create_header_panel(
-        title: str, subtitle: str = "", icon: str = "", use_emoji: bool = True
+        title: str, subtitle: str = "", icon: str = "", icon_mode: str = "emoji"
     ) -> Panel:
         """Create styled header panel.
 
@@ -349,14 +450,14 @@ class PanelStyles:
             title: Main title
             subtitle: Optional subtitle
             icon: Icon to include
-            use_emoji: Whether to use emoji or text fallbacks
+            icon_mode: Icon mode - "emoji", "nerdfont", or "text"
 
         Returns:
             Configured Panel instance
         """
         if icon:
             display_icon = (
-                Icons.get_icon(icon.upper(), use_emoji)
+                Icons.get_icon(icon.upper(), icon_mode)
                 if hasattr(Icons, icon.upper())
                 else icon
             )
@@ -378,10 +479,10 @@ class PanelStyles:
 
     @staticmethod
     def create_info_panel(
-        content: str, title: str = "Information", use_emoji: bool = True
+        content: str, title: str = "Information", icon_mode: str = "emoji"
     ) -> Panel:
         """Create styled information panel."""
-        icon = Icons.get_icon("INFO", use_emoji)
+        icon = Icons.get_icon("INFO", icon_mode)
         return Panel(
             content,
             title=f"{icon} {title}",
@@ -391,10 +492,10 @@ class PanelStyles:
 
     @staticmethod
     def create_error_panel(
-        content: str, title: str = "Error", use_emoji: bool = True
+        content: str, title: str = "Error", icon_mode: str = "emoji"
     ) -> Panel:
         """Create styled error panel."""
-        icon = Icons.get_icon("ERROR", use_emoji)
+        icon = Icons.get_icon("ERROR", icon_mode)
         return Panel(
             Text(content, style=Colors.ERROR),
             title=f"{icon} {title}",
@@ -404,10 +505,10 @@ class PanelStyles:
 
     @staticmethod
     def create_success_panel(
-        content: str, title: str = "Success", use_emoji: bool = True
+        content: str, title: str = "Success", icon_mode: str = "emoji"
     ) -> Panel:
         """Create styled success panel."""
-        icon = Icons.get_icon("SUCCESS", use_emoji)
+        icon = Icons.get_icon("SUCCESS", icon_mode)
         return Panel(
             Text(content, style=Colors.SUCCESS),
             title=f"{icon} {title}",
@@ -461,8 +562,20 @@ class StatusIndicators:
 
 
 # Utility functions for quick access
-def get_themed_console(use_emoji: bool = True) -> ThemedConsole:
+def get_themed_console(icon_mode: str = "emoji") -> ThemedConsole:
     """Get a themed console instance.
+
+    Args:
+        icon_mode: Icon mode - "emoji", "nerdfont", or "text"
+
+    Returns:
+        Configured ThemedConsole instance
+    """
+    return ThemedConsole(icon_mode=icon_mode)
+
+
+def get_themed_console_legacy(use_emoji: bool = True) -> ThemedConsole:
+    """Legacy function for backward compatibility.
 
     Args:
         use_emoji: Whether to use emoji icons or text fallbacks
@@ -470,7 +583,8 @@ def get_themed_console(use_emoji: bool = True) -> ThemedConsole:
     Returns:
         Configured ThemedConsole instance
     """
-    return ThemedConsole(use_emoji=use_emoji)
+    icon_mode = "emoji" if use_emoji else "text"
+    return ThemedConsole(icon_mode=icon_mode)
 
 
 def create_status_indicator(status: str, status_type: str = "general") -> str:
@@ -510,3 +624,31 @@ def apply_glovebox_theme(console: Console) -> Console:
     """
     # Create a new console with the theme instead of modifying internal attributes
     return Console(theme=GLOVEBOX_THEME)
+
+
+def get_icon_mode_from_config(user_config: Any = None) -> str:
+    """Get icon mode from user configuration with fallback logic.
+
+    Args:
+        user_config: User configuration object
+
+    Returns:
+        Icon mode string: "emoji", "nerdfont", or "text"
+    """
+    if user_config is None:
+        return "emoji"
+
+    # Try new icon_mode field first
+    if hasattr(user_config, "_config") and hasattr(user_config._config, "icon_mode"):
+        return user_config._config.icon_mode
+    elif hasattr(user_config, "icon_mode"):
+        return user_config.icon_mode
+
+    # Fall back to legacy emoji_mode for backward compatibility
+    if hasattr(user_config, "_config") and hasattr(user_config._config, "emoji_mode"):
+        return "emoji" if user_config._config.emoji_mode else "text"
+    elif hasattr(user_config, "emoji_mode"):
+        return "emoji" if user_config.emoji_mode else "text"
+
+    # Default fallback
+    return "emoji"

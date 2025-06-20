@@ -203,4 +203,3 @@ class TestConfigInvalidFormat:
 
             # Should handle gracefully
             assert result.exit_code != 0 or "not found" in result.output.lower()
-

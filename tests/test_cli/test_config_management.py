@@ -152,6 +152,7 @@ class TestConfigExport:
 
             # Verify TOML content
             import tomlkit
+
             with export_file.open() as f:
                 exported_data = tomlkit.load(f)
             assert exported_data is not None
@@ -198,7 +199,9 @@ class TestConfigExport:
             assert result.exit_code == 0
             assert "Configuration exported" in result.output
 
-    def test_export_include_descriptions(self, cli_runner, mock_export_context, tmp_path):
+    def test_export_include_descriptions(
+        self, cli_runner, mock_export_context, tmp_path
+    ):
         """Test export with descriptions."""
         export_file = tmp_path / "export_with_desc.yaml"
 
@@ -330,6 +333,7 @@ class TestConfigImport:
         }
 
         import tomlkit
+
         with import_file.open("w") as f:
             tomlkit.dump(import_data, f)
 
@@ -432,9 +436,7 @@ class TestConfigImport:
         with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
             mock_ctx.return_value.obj = mock_import_context
 
-            result = cli_runner.invoke(
-                app, ["config", "import", str(import_file)]
-            )
+            result = cli_runner.invoke(app, ["config", "import", str(import_file)])
 
             assert result.exit_code == 1
             assert "Unsupported file format" in result.output
@@ -447,9 +449,7 @@ class TestConfigImport:
         with patch("glovebox.cli.commands.config.typer.Context") as mock_ctx:
             mock_ctx.return_value.obj = mock_import_context
 
-            result = cli_runner.invoke(
-                app, ["config", "import", str(import_file)]
-            )
+            result = cli_runner.invoke(app, ["config", "import", str(import_file)])
 
             assert result.exit_code == 1
             assert "Failed to import configuration" in result.output
@@ -479,4 +479,3 @@ class TestConfigImport:
             assert result.exit_code == 0
             assert "Configuration imported successfully" in result.output
             assert "Imported config generated at" in result.output
-

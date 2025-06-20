@@ -1,14 +1,61 @@
-"""Cache data models and types."""
+"""Data models for DiskCache-based cache system."""
 
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Union
+
+
+@dataclass
+class DiskCacheConfig:
+    """Configuration for DiskCache manager.
+
+    Args:
+        cache_path: Directory for cache storage
+        max_size_bytes: Maximum cache size in bytes (default: 2GB)
+        timeout: Operation timeout in seconds (default: 30)
+        eviction_policy: Eviction policy, always 'least-recently-stored' for DiskCache
+    """
+
+    cache_path: Path | str
+    max_size_bytes: int = 2 * 1024 * 1024 * 1024  # 2GB default
+    timeout: int = 30
+    eviction_policy: str = "least-recently-stored"  # DiskCache default
+
+    def __post_init__(self) -> None:
+        """Ensure cache_path is a Path object."""
+        if isinstance(self.cache_path, str):
+            object.__setattr__(self, "cache_path", Path(self.cache_path))
+
+
+@dataclass
+class CacheStats:
+    """Cache performance statistics compatible with old cache interface."""
+
+    total_entries: int
+    total_size_bytes: int
+    hit_count: int
+    miss_count: int
+    eviction_count: int
+    error_count: int = 0
+
+    @property
+    def hit_rate(self) -> float:
+        """Calculate cache hit rate as percentage."""
+        total_requests = self.hit_count + self.miss_count
+        if total_requests == 0:
+            return 0.0
+        return (self.hit_count / total_requests) * 100.0
+
+    @property
+    def miss_rate(self) -> float:
+        """Calculate cache miss rate as percentage."""
+        return 100.0 - self.hit_rate
 
 
 @dataclass
 class CacheMetadata:
-    """Metadata for cached entries."""
+    """Cache entry metadata compatible with old cache interface."""
 
     key: str
     size_bytes: int
@@ -34,63 +81,6 @@ class CacheMetadata:
         """Update last accessed time and increment access count."""
         self.last_accessed = time.time()
         self.access_count += 1
-
-
-@dataclass
-class CacheEntry:
-    """Complete cache entry with data and metadata."""
-
-    data: Any
-    metadata: CacheMetadata
-
-    @property
-    def is_expired(self) -> bool:
-        """Check if cache entry has expired."""
-        return self.metadata.is_expired
-
-    def touch(self) -> None:
-        """Update access metadata."""
-        self.metadata.touch()
-
-
-@dataclass
-class CacheStats:
-    """In memory cache performance statistics."""
-
-    total_entries: int
-    total_size_bytes: int
-    hit_count: int
-    miss_count: int
-    eviction_count: int
-    error_count: int
-
-    @property
-    def hit_rate(self) -> float:
-        """Calculate cache hit rate as percentage."""
-        total_requests = self.hit_count + self.miss_count
-        if total_requests == 0:
-            return 0.0
-        return (self.hit_count / total_requests) * 100.0
-
-    @property
-    def miss_rate(self) -> float:
-        """Calculate cache miss rate as percentage."""
-        return 100.0 - self.hit_rate
-
-
-@dataclass
-class CacheConfig:
-    """Configuration for cache instances."""
-
-    max_size_bytes: int | None = None
-    max_entries: int | None = None
-    default_ttl_seconds: int | None = None
-    eviction_policy: str = "lru"  # "lru", "lfu", "fifo", "ttl"
-    cleanup_interval_seconds: int = 300  # 5 minutes
-    enable_statistics: bool = True
-    cache_root: Path | None = None
-    use_file_locking: bool = True
-    cache_strategy: str = "disabled"
 
 
 class CacheKey:

@@ -5,7 +5,9 @@ from typing import Any, Optional
 
 from glovebox.config.models.user import UserConfigData
 from glovebox.config.user_config import create_user_config
-from glovebox.core.cache import CacheKey, CacheManager, create_cache_from_user_config
+from glovebox.core.cache_v2 import create_cache_from_user_config
+from glovebox.core.cache_v2.cache_manager import CacheManager
+from glovebox.core.cache_v2.models import CacheKey
 from glovebox.layout.models.bookmarks import (
     BookmarkCollection,
     BookmarkSource,
@@ -30,7 +32,9 @@ class BookmarkService:
         """Initialize bookmark service."""
         self._client = moergo_client
         self._user_config = user_config
-        self._cache = cache or create_cache_from_user_config(user_config)
+        self._cache = cache or create_cache_from_user_config(
+            user_config, tag="bookmarks"
+        )
         self._bookmarks: BookmarkCollection | None = None
 
     def get_bookmarks(self) -> BookmarkCollection:
@@ -63,7 +67,7 @@ class BookmarkService:
             )
 
             factory_bookmarks = []
-            for uuid in public_uuids[:10]:  # Limit to first 10 factory defaults
+            for uuid in public_uuids:
                 try:
                     # Get layout metadata efficiently
                     meta_response = self._client.get_layout_meta(uuid, use_cache=True)

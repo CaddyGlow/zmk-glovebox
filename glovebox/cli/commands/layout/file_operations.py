@@ -80,11 +80,15 @@ def split(
                     },
                 )
         else:
+            from glovebox.cli.app import AppContext
             from glovebox.cli.helpers import print_error_message, print_list_item
 
-            print_error_message("Layout split failed")
+            app_ctx: AppContext = ctx.obj
+            icon_mode = app_ctx.icon_mode
+
+            print_error_message("Layout split failed", icon_mode=icon_mode)
             for error in result.errors:
-                print_list_item(error)
+                print_list_item(error, icon_mode=icon_mode)
             raise typer.Exit(1)
 
     except Exception as e:
@@ -159,11 +163,15 @@ def merge(
                     },
                 )
         else:
+            from glovebox.cli.app import AppContext
             from glovebox.cli.helpers import print_error_message, print_list_item
 
-            print_error_message("Layout merge failed")
+            app_ctx: AppContext = ctx.obj
+            icon_mode = app_ctx.icon_mode
+
+            print_error_message("Layout merge failed", icon_mode=icon_mode)
             for error in result.errors:
-                print_list_item(error)
+                print_list_item(error, icon_mode=icon_mode)
             raise typer.Exit(1)
 
     except Exception as e:
@@ -417,8 +425,10 @@ def import_layout(
                         f"✓ Imported {result['component']} from {result['source']}"
                     )
                 elif result["status"] == "not_implemented":
+                    from glovebox.cli.helpers.theme import Icons
+
                     print_list_item(
-                        f"⚠ {result['component']} import not yet implemented"
+                        f"{Icons.get_icon('WARNING', 'emoji')} {result['component']} import not yet implemented"
                     )
 
     except Exception as e:

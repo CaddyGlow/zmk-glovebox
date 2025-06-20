@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from glovebox.config.models.user import UserConfigData
-from glovebox.core.cache import CacheManager
+from glovebox.core.cache_v2.cache_manager import CacheManager
 from glovebox.layout.models.bookmarks import (
     BookmarkCollection,
     BookmarkSource,
@@ -524,6 +524,13 @@ def test_create_bookmark_service_defaults(
 
     mock_user_config_manager = Mock()
     mock_user_config = Mock()
+    # Mock cache_path to support Path operations
+    mock_cache_path = Mock()
+    mock_cache_path.__truediv__ = Mock(
+        return_value=mock_cache_path
+    )  # Support / operator
+    mock_user_config.cache_path = mock_cache_path
+    mock_user_config.cache_strategy = "shared"
     mock_user_config_manager._config = mock_user_config
     mock_create_user_config.return_value = mock_user_config_manager
 

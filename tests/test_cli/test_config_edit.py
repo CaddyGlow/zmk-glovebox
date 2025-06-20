@@ -434,4 +434,3 @@ class TestConfigSet:
             assert "Set log_level = DEBUG" in result.output
             # Should not show "Configuration saved"
             assert "Configuration saved" not in result.output
-

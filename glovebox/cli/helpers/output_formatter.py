@@ -271,31 +271,31 @@ class DeviceListFormatter(OutputFormatter):
         self,
         devices: list[dict[str, Any]],
         format_type: str = "text",
-        use_emoji: bool = True,
+        icon_mode: str = "emoji",
     ) -> str:
         """Format device list with enhanced presentation.
 
         Args:
             devices: List of device dictionaries
             format_type: Output format
-            use_emoji: Whether to use emoji icons
+            icon_mode: Whether to use emoji icons
 
         Returns:
             Formatted device list
         """
         if format_type.lower() == "table":
-            self._print_device_table(devices, use_emoji)
+            self._print_device_table(devices, icon_mode)
             return ""
         else:
             return self.format(devices, format_type)
 
     def _print_device_table(
-        self, devices: list[dict[str, Any]], use_emoji: bool = True
+        self, devices: list[dict[str, Any]], icon_mode: str = "emoji"
     ) -> None:
         """Print devices as enhanced Rich table."""
         from glovebox.cli.helpers.theme import Icons
 
-        device_icon = Icons.get_icon("DEVICE", use_emoji)
+        device_icon = Icons.get_icon("DEVICE", icon_mode)
         table = Table(
             title=f"{device_icon} USB Devices",
             show_header=True,
@@ -314,16 +314,16 @@ class DeviceListFormatter(OutputFormatter):
 
             # Color-code status with configurable icons
             if status == "available":
-                icon = Icons.get_icon("SUCCESS", use_emoji)
+                icon = Icons.get_icon("SUCCESS", icon_mode)
                 status_display = f"{icon} Available"
             elif status == "busy":
-                icon = Icons.get_icon("LOADING", use_emoji)
+                icon = Icons.get_icon("LOADING", icon_mode)
                 status_display = f"{icon} Busy"
             elif status == "error":
-                icon = Icons.get_icon("ERROR", use_emoji)
+                icon = Icons.get_icon("ERROR", icon_mode)
                 status_display = f"{icon} Error"
             else:
-                icon = Icons.get_icon("WARNING", use_emoji)
+                icon = Icons.get_icon("WARNING", icon_mode)
                 status_display = f"{icon} Unknown"
 
             table.add_row(name, serial, path, status_display)
@@ -357,7 +357,7 @@ class LayoutDisplayFormatter(OutputFormatter):
             return self.format(layout_data, format_type)
 
     def _print_layout_table(
-        self, layout_data: dict[str, Any], use_emoji: bool = True
+        self, layout_data: dict[str, Any], icon_mode="emoji"
     ) -> None:
         """Print layout as enhanced Rich table."""
         from glovebox.cli.helpers.theme import Icons
@@ -365,7 +365,7 @@ class LayoutDisplayFormatter(OutputFormatter):
         # Create header panel
         title = layout_data.get("name", "Keyboard Layout")
         header = Text(title, style="bold magenta")
-        keyboard_icon = Icons.get_icon("KEYBOARD", use_emoji)
+        keyboard_icon = Icons.get_icon("KEYBOARD", icon_mode)
         self.console.print(
             Panel(header, title=f"{keyboard_icon} Layout Display", border_style="blue")
         )

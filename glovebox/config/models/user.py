@@ -119,17 +119,13 @@ class UserConfigData(BaseSettings):
     )
     cache_strategy: str = Field(
         default="shared",
-        description="Cache strategy: 'shared' (default), 'process_isolated', or 'disabled'",
-    )
-    cache_file_locking: bool = Field(
-        default=True,
-        description="Enable file locking for cache operations to prevent race conditions",
+        description="Cache strategy: 'shared' (default) or 'disabled'",
     )
 
     # UI settings
-    emoji_mode: bool = Field(
-        default=True,
-        description="Enable emoji icons in CLI output",
+    icon_mode: str = Field(
+        default="emoji",
+        description="Icon display mode: 'emoji' (default), 'nerdfont', or 'text'",
     )
 
     # Editor settings
@@ -217,11 +213,22 @@ class UserConfigData(BaseSettings):
     @classmethod
     def validate_cache_strategy(cls, v: str) -> str:
         """Validate cache strategy is a recognized value."""
-        valid_strategies = ["process_isolated", "shared", "disabled"]
+        valid_strategies = ["shared", "disabled"]
         # Strip whitespace and convert to lowercase
         lower_v = v.strip().lower()
         if lower_v not in valid_strategies:
             raise ValueError(f"Cache strategy must be one of {valid_strategies}")
+        return lower_v  # Always normalize to lowercase
+
+    @field_validator("icon_mode")
+    @classmethod
+    def validate_icon_mode(cls, v: str) -> str:
+        """Validate icon mode is a recognized value."""
+        valid_modes = ["emoji", "nerdfont", "text"]
+        # Strip whitespace and convert to lowercase
+        lower_v = v.strip().lower()
+        if lower_v not in valid_modes:
+            raise ValueError(f"Icon mode must be one of {valid_modes}")
         return lower_v  # Always normalize to lowercase
 
 

@@ -25,7 +25,8 @@ from glovebox.compilation.services.zmk_west_service import (
     create_zmk_west_service,
 )
 from glovebox.config.profile import KeyboardProfile
-from glovebox.core.cache import CacheManager, create_default_cache
+from glovebox.core.cache_v2 import create_default_cache
+from glovebox.core.cache_v2.cache_manager import CacheManager
 from glovebox.firmware.models import BuildResult
 from glovebox.models.docker import DockerUserContext
 from glovebox.protocols import DockerAdapterProtocol

@@ -501,3 +501,139 @@ def cleanup_command(
         logger.error("Failed to cleanup cache: %s", e)
         typer.echo(Icons.format_with_icon("ERROR", f"Error: {e}", use_emoji), err=True)
         raise typer.Exit(1) from e
+
+
+@cache_app.command(name="clear-diskcache")
+def clear_diskcache_command(
+    module: Annotated[
+        str | None,
+        typer.Option(
+            "--module",
+            help="Specific module cache to clear (e.g., 'layout', 'compilation', 'moergo')",
+        ),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option("--force", "-f", help="Force deletion without confirmation"),
+    ] = False,
+) -> None:
+    """Clear DiskCache directories.
+
+    This clears the new DiskCache-based cache system used for layout compilation,
+    MoErgo API responses, and other cached data.
+    """
+    try:
+        from glovebox.config.user_config import create_user_config
+
+        user_config = create_user_config()
+        cache_root = user_config._config.cache_path
+
+        if not cache_root.exists():
+            console.print("[yellow]No cache directory found[/yellow]")
+            console.print(f"[dim]Cache directory would be: {cache_root}[/dim]")
+            return
+
+        if module:
+            # Clear specific module cache
+            module_cache_dir = cache_root / module
+
+            if not module_cache_dir.exists():
+                console.print(f"[yellow]No cache found for module '{module}'[/yellow]")
+                return
+
+            if not force:
+                size = _get_directory_size(module_cache_dir)
+                confirm = typer.confirm(
+                    f"Clear cache for module '{module}' ({_format_size(size)})?"
+                )
+                if not confirm:
+                    console.print("[yellow]Cancelled[/yellow]")
+                    return
+
+            try:
+                shutil.rmtree(module_cache_dir)
+                use_emoji = True
+                console.print(
+                    f"[green]{Icons.get_icon('SUCCESS', use_emoji)} Cleared cache for module '{module}'[/green]"
+                )
+            except Exception as e:
+                console.print(f"[red]Failed to clear module cache: {e}[/red]")
+                raise typer.Exit(1) from e
+        else:
+            # Clear all DiskCache directories
+            cache_subdirs = [d for d in cache_root.iterdir() if d.is_dir()]
+
+            if not cache_subdirs:
+                console.print("[yellow]No cache directories found[/yellow]")
+                return
+
+            total_size = sum(_get_directory_size(d) for d in cache_subdirs)
+
+            if not force:
+                confirm = typer.confirm(
+                    f"Clear ALL cache directories ({len(cache_subdirs)} modules, {_format_size(total_size)})?"
+                )
+                if not confirm:
+                    console.print("[yellow]Cancelled[/yellow]")
+                    return
+
+            try:
+                for cache_dir in cache_subdirs:
+                    shutil.rmtree(cache_dir)
+
+                use_emoji = True
+                console.print(
+                    f"[green]{Icons.get_icon('SUCCESS', use_emoji)} Cleared all cache directories ({_format_size(total_size)})[/green]"
+                )
+            except Exception as e:
+                console.print(f"[red]Failed to clear cache: {e}[/red]")
+                raise typer.Exit(1) from e
+
+    except Exception as e:
+        logger.error("Failed to clear diskcache: %s", e)
+        use_emoji = True
+        typer.echo(Icons.format_with_icon("ERROR", f"Error: {e}", use_emoji), err=True)
+        raise typer.Exit(1) from e
+
+
+@cache_app.command(name="info-diskcache")
+def info_diskcache_command() -> None:
+    """Show DiskCache information and statistics."""
+    try:
+        from glovebox.config.user_config import create_user_config
+
+        user_config = create_user_config()
+        cache_root = user_config._config.cache_path
+
+        if not cache_root.exists():
+            console.print("[yellow]No cache directory found[/yellow]")
+            console.print(f"[dim]Cache directory would be: {cache_root}[/dim]")
+            return
+
+        cache_subdirs = [d for d in cache_root.iterdir() if d.is_dir()]
+        total_size = sum(_get_directory_size(d) for d in cache_subdirs)
+
+        console.print(f"[bold]Cache Directory:[/bold] {cache_root}")
+        console.print(
+            f"[bold]Cache Strategy:[/bold] {user_config._config.cache_strategy}"
+        )
+        console.print(f"[bold]Cached Modules:[/bold] {len(cache_subdirs)}")
+        console.print(f"[bold]Total Size:[/bold] {_format_size(total_size)}")
+
+        if cache_subdirs:
+            console.print("\n[bold]Module Caches:[/bold]")
+            for cache_dir in sorted(cache_subdirs):
+                module_name = cache_dir.name
+                size = _get_directory_size(cache_dir)
+                console.print(f"  • {module_name}: {_format_size(size)}")
+
+        console.print("\n[dim]To clear cache: glovebox cache clear-diskcache[/dim]")
+        console.print(
+            "[dim]To clear specific module: glovebox cache clear-diskcache --module <name>[/dim]"
+        )
+
+    except Exception as e:
+        logger.error("Failed to get diskcache info: %s", e)
+        use_emoji = True
+        typer.echo(Icons.format_with_icon("ERROR", f"Error: {e}", use_emoji), err=True)
+        raise typer.Exit(1) from e

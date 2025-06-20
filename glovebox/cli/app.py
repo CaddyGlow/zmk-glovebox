@@ -69,6 +69,26 @@ class AppContext:
             return False
         return self.user_config._config.emoji_mode
 
+    @property
+    def icon_mode(self) -> str:
+        """Get icon mode based on CLI flag and config.
+
+        CLI --no-emoji flag takes precedence over config file setting.
+
+        Returns:
+            Icon mode string: "emoji", "nerdfont", or "text"
+        """
+        if self.no_emoji:
+            # CLI flag overrides config
+            return "text"
+
+        # Try new icon_mode field first, fall back to emoji_mode for compatibility
+        if hasattr(self.user_config._config, "icon_mode"):
+            return self.user_config._config.icon_mode
+        else:
+            # Legacy fallback
+            return "emoji" if self.user_config._config.emoji_mode else "text"
+
 
 # Create a custom exception handler that will print stack traces
 def exception_callback(e: Exception) -> None:
