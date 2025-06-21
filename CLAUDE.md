@@ -409,14 +409,14 @@ The codebase is organized into self-contained domains:
 - **Purpose**: Direct compilation strategies with intelligent caching
 - **Factory Functions**: `create_compilation_service(strategy)`, `create_zmk_west_service()`, `create_moergo_nix_service()`
 - **Subdomains**:
-  - `cache/`: Base dependencies cache, cache injection
+  - `cache/`: **Shared cache coordination** with domain-specific factories, workspace cache service
   - `models/`: Build matrix, compilation config, west config
   - `protocols/`: Compilation protocols
   - `services/`: Strategy-specific services (ZMK West, MoErgo Nix)
 - **Key Features**:
   - **Direct Strategy Selection**: Clean service selection pattern
   - **Build Matrix Support**: GitHub Actions style build matrices
-  - **Cache Integration**: Domain-agnostic caching system
+  - **Shared Cache Integration**: Uses `create_compilation_cache_service()` for coordinated caching
 
 #### Configuration System (`glovebox/config/`)
 - **Purpose**: Type-safe configuration management, keyboard profiles, user settings
@@ -439,8 +439,12 @@ The codebase is organized into self-contained domains:
 
 #### Core Infrastructure (`glovebox/core/`)
 - **Purpose**: Core application infrastructure and shared services
-- **Cache Subdomain**: Generic cache system (`CacheManager`, `FilesystemCache`, `MemoryCache`)
-- **Factory Functions**: `create_default_cache()`, `create_filesystem_cache()`, `create_memory_cache()`
+- **Cache v2 Subdomain**: DiskCache-based system with **shared coordination** (`glovebox/core/cache_v2/`)
+  - **Shared Coordination**: Single cache instances across domains with proper isolation
+  - **Factory Functions**: `create_default_cache()`, `create_cache_from_user_config()`, `get_shared_cache_instance()`
+  - **Domain Isolation**: Uses tags (compilation, metrics, layout, etc.) for namespace separation
+  - **Test Safety**: `reset_shared_cache_instances()` for complete test isolation
+  - **Cache Manager**: `DiskCacheManager` with SQLite backend for thread/process safety
 - **Components**: Error handling, logging setup, startup services, version checking
 
 #### MoErgo Domain (`glovebox/moergo/`)
@@ -461,6 +465,85 @@ The codebase is organized into self-contained domains:
 3. **Protocol-Based Interfaces**: Type-safe abstractions with runtime checking
 4. **Domain Ownership**: Each domain owns its models, services, and business logic
 5. **Clean Imports**: No backward compatibility layers - single source of truth for imports
+6. **Shared Cache Coordination**: Single cache instances across domains with proper isolation
+
+### Shared Cache Coordination System
+
+**COMPLETED**: The cache system has been refactored to use shared coordination across all domains while maintaining proper isolation and following CLAUDE.md factory function patterns.
+
+#### Architecture Overview
+
+The shared cache coordination system eliminates multiple independent cache instances by:
+- **Coordinating cache instances** across domains using a central registry
+- **Domain isolation** through cache tags (compilation, metrics, layout, etc.)
+- **CLAUDE.md compliance** using factory functions (no singletons)
+- **Test safety** with automatic cache reset between tests
+
+#### Core Components
+
+1. **Cache Coordinator** (`glovebox/core/cache_v2/cache_coordinator.py`):
+   ```python
+   def get_shared_cache_instance(
+       cache_root: Path,
+       tag: str | None = None,
+       enabled: bool = True,
+       max_size_gb: int = 2,
+       timeout: int = 30,
+   ) -> CacheManager:
+       """Get shared cache instance, creating if needed."""
+   ```
+
+2. **Updated Factory Functions**:
+   ```python
+   # Domain-agnostic cache creation with shared coordination
+   cache = create_default_cache(tag="compilation")  # Shared instance
+   cache2 = create_default_cache(tag="compilation") # Same instance
+   cache3 = create_default_cache(tag="metrics")     # Different instance
+   ```
+
+3. **Domain-Specific Factories**:
+   ```python
+   # Compilation domain uses shared coordination
+   from glovebox.compilation.cache import create_compilation_cache_service
+   
+   cache_manager, workspace_service = create_compilation_cache_service(user_config)
+   ```
+
+#### Cache Coordination Benefits
+
+- **Single Cache Instances**: Same tag → same cache instance across all domains
+- **Domain Isolation**: Different tags → separate cache instances with isolated namespaces
+- **Memory Efficiency**: Eliminates duplicate cache managers and reduces memory usage
+- **Thread/Process Safety**: DiskCache with SQLite backend supports concurrent access
+- **Test Isolation**: `reset_shared_cache_instances()` ensures clean state between tests
+
+#### Implementation Patterns
+
+1. **Tag-Based Isolation**:
+   ```python
+   # Each domain gets its own isolated cache namespace
+   compilation_cache = create_default_cache(tag="compilation")
+   metrics_cache = create_default_cache(tag="metrics")
+   layout_cache = create_default_cache(tag="layout")
+   ```
+
+2. **Service Integration**:
+   ```python
+   # Services use domain-specific cache factories
+   def create_zmk_west_service() -> CompilationServiceProtocol:
+       cache, workspace_service = create_compilation_cache_service(user_config)
+       return create_zmk_west_service(docker_adapter, user_config, cache, workspace_service)
+   ```
+
+3. **Test Safety**:
+   ```python
+   # Automatic cache reset fixture (autouse=True)
+   @pytest.fixture(autouse=True)
+   def reset_shared_cache() -> Generator[None, None, None]:
+       reset_shared_cache_instances()  # Before test
+       yield
+       reset_shared_cache_instances()  # After test
+   ```
 
 ### CLI Structure
 
@@ -620,8 +703,13 @@ from glovebox.config import create_keyboard_profile, create_user_config
 from glovebox.moergo.bookmark_service import create_bookmark_service
 from glovebox.moergo.client import create_moergo_client
 
-# Core infrastructure
-from glovebox.core.cache import create_default_cache, create_filesystem_cache
+# Core infrastructure with shared cache coordination
+from glovebox.core.cache_v2 import (
+    create_default_cache, 
+    create_cache_from_user_config,
+    get_shared_cache_instance,
+    reset_shared_cache_instances
+)
 from glovebox.adapters import create_docker_adapter, create_file_adapter
 ```
 
