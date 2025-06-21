@@ -131,8 +131,20 @@ Layout Editor → JSON File → ZMK Files → Firmware → Flash
    - **ALL public functions/methods/classes MUST have comprehensive tests**
    - **Minimum 90% code coverage** for all new code
    - **NO CODE can be merged without tests** - this is NON-NEGOTIABLE
-   - ALL tests should pass mypy
-   - See `docs/dev/testing.md` for complete testing standards and requirements
+   - **ALL decorators MUST have comprehensive test coverage** including:
+     - Basic functionality testing
+     - Context extraction testing  
+     - Dependency injection testing
+     - Error handling testing
+     - Performance impact testing
+   - **ALL metrics functionality MUST be tested** including:
+     - Model validation and serialization
+     - Service layer operations with mocking
+     - Context manager behavior and timing
+     - CLI integration with isolation fixtures
+     - End-to-end workflows and error scenarios
+   - ALL tests should pass mypy type checking
+   - See `docs/dev/testing.md` for complete testing standards and methodology
 
 ## CRITICAL: Test Isolation and Anti-Pollution Rules
 

@@ -525,13 +525,19 @@ class MetricsService:
         return ErrorCategory.UNKNOWN_ERROR
 
 
-def create_metrics_service() -> MetricsServiceProtocol:
-    """Create metrics service with default storage backend.
+def create_metrics_service(
+    storage: MetricsStorageProtocol | None = None,
+) -> MetricsServiceProtocol:
+    """Create metrics service with optional storage backend dependency injection.
+
+    Args:
+        storage: Optional storage backend instance. If None, creates default storage.
 
     Returns:
         MetricsServiceProtocol: Configured metrics service
     """
-    storage = create_metrics_storage()
+    if storage is None:
+        storage = create_metrics_storage()
     return MetricsService(storage)
 
 

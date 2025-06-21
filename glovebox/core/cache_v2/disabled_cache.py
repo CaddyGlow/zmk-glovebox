@@ -52,6 +52,10 @@ class DisabledCache(CacheManager):
         """Return 0 (nothing to clean up)."""
         return 0
 
+    def keys(self) -> list[str]:
+        """Always return empty list (no keys)."""
+        return []
+
     def close(self) -> None:
         """No-op close operation."""
         pass

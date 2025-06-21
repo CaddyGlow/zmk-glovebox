@@ -16,10 +16,13 @@ from glovebox.cli.helpers import (
 from glovebox.cli.helpers.parameters import OutputFormatOption, ProfileOption
 from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
 from glovebox.layout.service import create_layout_service
+from glovebox.metrics.context_extractors import extract_cli_context
+from glovebox.metrics.decorators import track_layout_operation
 
 
 @handle_errors
 @with_profile()
+@track_layout_operation(extract_context=extract_cli_context)
 def compile_layout(
     ctx: typer.Context,
     json_file: Annotated[

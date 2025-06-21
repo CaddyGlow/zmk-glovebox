@@ -352,11 +352,17 @@ class MetricsStorage:
             )
 
 
-def create_metrics_storage() -> MetricsStorageProtocol:
-    """Create metrics storage with default cache backend.
+def create_metrics_storage(
+    cache: CacheManager | None = None,
+) -> MetricsStorageProtocol:
+    """Create metrics storage with optional cache backend dependency injection.
+
+    Args:
+        cache: Optional cache manager instance. If None, creates default cache.
 
     Returns:
         MetricsStorageProtocol: Configured metrics storage
     """
-    cache = create_default_cache(tag="metrics")
+    if cache is None:
+        cache = create_default_cache(tag="metrics")
     return MetricsStorage(cache)

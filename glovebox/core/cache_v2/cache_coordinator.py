@@ -78,6 +78,7 @@ def reset_shared_cache_instances() -> None:
     Follows the testing isolation requirements from CLAUDE.md.
     """
     import shutil
+
     global _shared_cache_instances
 
     logger.debug("Resetting %d shared cache instances", len(_shared_cache_instances))
@@ -101,7 +102,9 @@ def reset_shared_cache_instances() -> None:
         workspace_cache_dir = Path.home() / ".cache" / "glovebox" / "workspace"
         if workspace_cache_dir.exists():
             shutil.rmtree(workspace_cache_dir, ignore_errors=True)
-            logger.debug("Cleaned up workspace cache directory: %s", workspace_cache_dir)
+            logger.debug(
+                "Cleaned up workspace cache directory: %s", workspace_cache_dir
+            )
     except Exception as e:
         exc_info = logger.isEnabledFor(logging.DEBUG)
         logger.warning(

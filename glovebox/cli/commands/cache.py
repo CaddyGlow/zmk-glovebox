@@ -4,7 +4,7 @@ import contextlib
 import logging
 import shutil
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.console import Console
@@ -88,6 +88,239 @@ def _get_cache_manager() -> CacheManager:
     """Get cache manager using user config (backward compatibility)."""
     cache_manager, _, _ = _get_cache_manager_and_service()
     return cache_manager
+
+
+def _show_cache_entries_by_level(
+    cache_manager: CacheManager,
+    workspace_cache_service: ZmkWorkspaceCacheService,
+    user_config: UserConfig,
+    json_output: bool = False,
+) -> None:
+    """Show all cache entries grouped by cache level with TTL information."""
+    import json
+    from datetime import datetime
+
+    from glovebox.core.workspace_cache_utils import generate_workspace_cache_key
+
+    if not json_output:
+        console.print("[bold]ZMK Workspace Cache Entries by Level[/bold]")
+        console.print("=" * 60)
+
+    # Get TTL configuration
+    ttl_config = workspace_cache_service.get_ttls_for_cache_levels()
+    cache_dir = workspace_cache_service.get_cache_directory()
+
+    # Define cache levels in hierarchy order
+    cache_levels = ["base", "branch", "full", "build"]
+
+    # Collect all cache entries by scanning the cache
+    all_entries: dict[str, list[dict[str, Any]]] = {level: [] for level in cache_levels}
+
+    try:
+        # Get all known repositories and branches from filesystem scan
+        repositories_branches = set()
+
+        if cache_dir.exists():
+            for cache_item in cache_dir.iterdir():
+                if cache_item.is_file():
+                    continue
+
+                # Try to get metadata from cache
+                cache_key = cache_item.name
+                cached_data = cache_manager.get(cache_key)
+
+                if cached_data and isinstance(cached_data, dict):
+                    repo = cached_data.get("repository", "unknown")
+                    branch = cached_data.get("branch", "main")
+                    repositories_branches.add((repo, branch))
+                else:
+                    # Try to auto-detect from directory structure
+                    actual_path = cache_item
+                    if cache_item.is_symlink():
+                        try:
+                            actual_path = cache_item.resolve()
+                        except (OSError, RuntimeError):
+                            continue
+
+                    if actual_path.is_dir():
+                        from glovebox.core.workspace_cache_utils import detect_git_info
+
+                        git_info = detect_git_info(actual_path)
+                        repo = git_info.get("repository", "unknown")
+                        branch = git_info.get("branch", "main")
+                        repositories_branches.add((repo, branch))
+
+        # Now check each level for each repository/branch combination
+        for repo, branch in sorted(repositories_branches):
+            for level in cache_levels:
+                cache_key = generate_workspace_cache_key(repo, branch, level)
+                cached_data = cache_manager.get(cache_key)
+
+                if cached_data:
+                    # Calculate remaining TTL
+                    metadata = cache_manager.get_metadata(cache_key)
+                    ttl_seconds = ttl_config.get(level, 3600)
+
+                    if metadata:
+                        # Calculate remaining TTL from creation time
+                        import time
+
+                        current_time = time.time()
+                        age_seconds = current_time - metadata.created_at
+                        remaining_ttl = max(0, ttl_seconds - age_seconds)
+                    else:
+                        # Fallback if metadata not available
+                        remaining_ttl = ttl_seconds
+
+                    # Format remaining TTL
+                    if remaining_ttl > 0:
+                        if remaining_ttl >= 86400:  # >= 1 day
+                            ttl_str = f"{remaining_ttl / 86400:.1f}d"
+                        elif remaining_ttl >= 3600:  # >= 1 hour
+                            ttl_str = f"{remaining_ttl / 3600:.1f}h"
+                        elif remaining_ttl >= 60:  # >= 1 minute
+                            ttl_str = f"{remaining_ttl / 60:.1f}m"
+                        else:
+                            ttl_str = f"{remaining_ttl:.0f}s"
+                    else:
+                        ttl_str = "EXPIRED"
+
+                    # Get workspace path from cache directory
+                    workspace_path = cache_dir / cache_key
+                    if workspace_path.is_symlink():
+                        try:
+                            actual_path = workspace_path.resolve()
+                            path_display = f"{workspace_path} → {actual_path}"
+                        except (OSError, RuntimeError):
+                            path_display = f"{workspace_path} → [BROKEN]"
+                    else:
+                        path_display = str(workspace_path)
+
+                    # Calculate size
+                    try:
+                        if workspace_path.exists():
+                            size_bytes = _get_directory_size(workspace_path)
+                            size_display = _format_size(size_bytes)
+                        else:
+                            size_display = "N/A"
+                    except Exception:
+                        size_display = "N/A"
+
+                    entry = {
+                        "repository": repo,
+                        "branch": branch,
+                        "cache_key": cache_key,
+                        "ttl_remaining": ttl_str,
+                        "size": size_display,
+                        "path": path_display,
+                    }
+
+                    all_entries[level].append(entry)
+
+        # Output results
+        if json_output:
+            # Create structured JSON output
+            output_data: dict[str, Any] = {
+                "cache_directory": str(cache_dir),
+                "ttl_configuration": {
+                    level: {
+                        "seconds": ttl_config.get(level, 3600),
+                        "human_readable": f"{ttl_config.get(level, 3600) / 86400:.1f} days"
+                        if ttl_config.get(level, 3600) >= 86400
+                        else f"{ttl_config.get(level, 3600) / 3600:.1f} hours",
+                    }
+                    for level in cache_levels
+                },
+                "cache_levels": {},
+                "summary": {
+                    "total_entries": sum(
+                        len(entries) for entries in all_entries.values()
+                    ),
+                    "levels_with_entries": [
+                        level for level, entries in all_entries.items() if entries
+                    ],
+                    "timestamp": datetime.now().isoformat(),
+                },
+            }
+
+            # Add entries for each level
+            for level in cache_levels:
+                level_entries = all_entries[level]
+                ttl_total_seconds = ttl_config.get(level, 3600)
+
+                output_data["cache_levels"][level] = {
+                    "ttl_seconds": ttl_total_seconds,
+                    "ttl_human_readable": f"{ttl_total_seconds / 86400:.1f} days"
+                    if ttl_total_seconds >= 86400
+                    else f"{ttl_total_seconds / 3600:.1f} hours",
+                    "entry_count": len(level_entries),
+                    "entries": sorted(
+                        level_entries, key=lambda x: (x["repository"], x["branch"])
+                    ),
+                }
+
+            # Output JSON to stdout
+            print(json.dumps(output_data, indent=2, ensure_ascii=False))
+
+        else:
+            # Display entries grouped by level (original format)
+            for level in cache_levels:
+                level_entries = all_entries[level]
+                ttl_total_hours = ttl_config.get(level, 3600) / 3600
+
+                if ttl_total_hours >= 24:
+                    ttl_display = f"{ttl_total_hours / 24:.1f} days"
+                else:
+                    ttl_display = f"{ttl_total_hours:.1f} hours"
+
+                console.print(
+                    f"\n[bold cyan]📦 Cache Level: {level.upper()}[/bold cyan]"
+                )
+                console.print(
+                    f"[dim]TTL: {ttl_display} | Entries: {len(level_entries)}[/dim]"
+                )
+
+                if level_entries:
+                    table = Table(show_header=True, header_style="bold green")
+                    table.add_column("Repository", style="cyan")
+                    table.add_column("Branch", style="yellow")
+                    table.add_column("TTL Remaining", style="magenta")
+                    table.add_column("Size", style="white")
+                    table.add_column("Cache Key", style="dim")
+                    table.add_column("Workspace Path", style="blue")
+
+                    for entry in sorted(
+                        level_entries, key=lambda x: (x["repository"], x["branch"])
+                    ):
+                        table.add_row(
+                            entry["repository"],
+                            entry["branch"],
+                            entry["ttl_remaining"],
+                            entry["size"],
+                            entry["cache_key"],
+                            entry["path"],
+                        )
+
+                    console.print(table)
+                else:
+                    console.print("[dim]  No entries at this level[/dim]")
+
+            console.print(f"\n[bold]Cache Directory:[/bold] {cache_dir}")
+            console.print(
+                "[dim]Use 'glovebox cache workspace show' for workspace-focused view[/dim]"
+            )
+
+    except Exception as e:
+        if json_output:
+            error_output = {
+                "error": str(e),
+                "cache_directory": str(cache_dir) if "cache_dir" in locals() else None,
+                "timestamp": datetime.now().isoformat(),
+            }
+            print(json.dumps(error_output, indent=2))
+        else:
+            logger.error("Failed to list cache entries by level: %s", e)
+            console.print(f"[red]Error listing cache entries: {e}[/red]")
 
 
 @cache_app.command(name="debug")
@@ -218,72 +451,267 @@ def cache_debug() -> None:
 
 
 @workspace_app.command(name="show")
-def workspace_show() -> None:
-    """Show all cached ZMK workspaces with enhanced metadata."""
+def workspace_show(
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Output all cache entries in JSON format"),
+    ] = False,
+    filter_repository: Annotated[
+        str | None,
+        typer.Option("--repo", help="Filter by repository name (partial match)"),
+    ] = None,
+    filter_branch: Annotated[
+        str | None,
+        typer.Option("--branch", help="Filter by branch name (partial match)"),
+    ] = None,
+    filter_level: Annotated[
+        str | None,
+        typer.Option(
+            "--level", help="Filter by cache level (base, branch, full, build)"
+        ),
+    ] = None,
+) -> None:
+    """Show all cached ZMK workspace entries in a simple flat format."""
     try:
         cache_manager, workspace_cache_service, user_config = (
             _get_cache_manager_and_service()
         )
 
-        # Get cached workspaces using the new service
-        cached_workspaces = workspace_cache_service.list_cached_workspaces()
+        # Get cache directory and TTL configuration
+        cache_dir = workspace_cache_service.get_cache_directory()
+        ttl_config = workspace_cache_service.get_ttls_for_cache_levels()
 
-        if not cached_workspaces:
-            console.print("[yellow]No cached workspaces found[/yellow]")
-            cache_dir = workspace_cache_service.get_cache_directory()
-            console.print(f"[dim]Cache directory: {cache_dir}[/dim]")
-            return
+        # Define cache levels in hierarchy order
+        cache_levels = ["base", "branch", "full", "build"]
 
-        # Create table with enhanced metadata
-        table = Table(
-            title=f"{Icons.get_icon('BUILD', 'emoji')} Cached ZMK Workspaces (Enhanced)",
-            show_header=True,
-            header_style="bold green",
-        )
-        table.add_column("Repository", style="cyan")
-        table.add_column("Branch", style="yellow")
-        table.add_column("Cache Level", style="magenta")
-        table.add_column("Size", style="white")
-        table.add_column("Age", style="blue")
-        table.add_column("Components", style="green")
-        table.add_column("Auto-Detected", style="dim")
+        # Collect all cache entries by scanning the cache manager directly
+        all_entries: list[dict[str, Any]] = []
 
-        total_size = 0
+        try:
+            # Get all cache keys and iterate through them
+            all_keys = cache_manager.keys()
 
-        for metadata in sorted(cached_workspaces, key=lambda x: x.repository):
-            size_bytes = metadata.size_bytes or _get_directory_size(
-                metadata.workspace_path
-            )
-            total_size += size_bytes
+            for cache_key in all_keys:
+                # Get cached data for this key
+                cached_data = cache_manager.get(cache_key)
+                if not cached_data:
+                    continue
 
-            # Format age
-            age_str = f"{metadata.age_hours:.1f}h"
-            if metadata.age_hours > 24:
-                age_str = f"{metadata.age_hours / 24:.1f}d"
+                # Only process workspace-related cache entries
+                # Skip entries that don't have workspace metadata
+                if not isinstance(cached_data, dict):
+                    continue
+                
+                # Skip non-workspace cache entries (e.g., build results, other compilation caches)
+                if "workspace_path" not in cached_data and "repository" not in cached_data:
+                    continue
+                
+                # Skip build-level caches as they represent compiled artifacts, not workspaces
+                cache_level_value = cached_data.get("cache_level", "")
+                if isinstance(cache_level_value, dict):
+                    cache_level_value = cache_level_value.get("value", "")
+                if cache_level_value == "build":
+                    continue
 
-            # Handle cache_level safely - could be string or enum
-            cache_level_str = (
-                metadata.cache_level.value
-                if hasattr(metadata.cache_level, "value")
-                else str(metadata.cache_level)
-            )
+                # Extract metadata if available
+                repo = cached_data.get("repository", "unknown")
+                branch = cached_data.get("branch", "unknown")
+                level = cached_data.get("cache_level", "unknown")
+                if isinstance(level, dict) and "value" in level:
+                    level = level["value"]
 
-            table.add_row(
-                metadata.repository,
-                metadata.branch,
-                cache_level_str,
-                _format_size(size_bytes),
-                age_str,
-                ", ".join(metadata.cached_components)
-                if metadata.cached_components
-                else "unknown",
-                "✓" if metadata.auto_detected else "",
-            )
+                # Get cache metadata for timing information
+                metadata = cache_manager.get_metadata(cache_key)
+                age_seconds = 0.0
+                ttl_remaining_seconds = 0.0
 
-        console.print(table)
-        console.print(f"\n[bold]Total cache size:[/bold] {_format_size(total_size)}")
-        console.print(f"[bold]Total workspaces:[/bold] {len(cached_workspaces)}")
-        console.print("[dim]Cache managed by:[/dim] ZmkWorkspaceCacheService")
+                if metadata:
+                    import time
+
+                    current_time = time.time()
+                    age_seconds = current_time - metadata.created_at
+
+                    # Determine TTL for this level
+                    ttl_seconds = ttl_config.get(level, 3600)
+                    ttl_remaining_seconds = max(0, ttl_seconds - age_seconds)
+
+                # Format remaining TTL
+                if ttl_remaining_seconds > 0:
+                    if ttl_remaining_seconds >= 86400:  # >= 1 day
+                        ttl_str = f"{ttl_remaining_seconds / 86400:.1f}d"
+                    elif ttl_remaining_seconds >= 3600:  # >= 1 hour
+                        ttl_str = f"{ttl_remaining_seconds / 3600:.1f}h"
+                    elif ttl_remaining_seconds >= 60:  # >= 1 minute
+                        ttl_str = f"{ttl_remaining_seconds / 60:.1f}m"
+                    else:
+                        ttl_str = f"{ttl_remaining_seconds:.0f}s"
+                else:
+                    ttl_str = "EXPIRED"
+
+                # Get workspace path from cache directory
+                workspace_path = cache_dir / cache_key
+                path_display = str(workspace_path)
+                if workspace_path.is_symlink():
+                    try:
+                        actual_path = workspace_path.resolve()
+                        path_display = f"{workspace_path} → {actual_path}"
+                    except (OSError, RuntimeError):
+                        path_display = f"{workspace_path} → [BROKEN]"
+
+                # Calculate size
+                try:
+                    if workspace_path.exists():
+                        size_bytes = _get_directory_size(workspace_path)
+                        size_display = _format_size(size_bytes)
+                    else:
+                        size_display = "N/A"
+                except Exception:
+                    size_display = "N/A"
+
+                # Format age
+                if age_seconds >= 86400:  # >= 1 day
+                    age_str = f"{age_seconds / 86400:.1f}d"
+                elif age_seconds >= 3600:  # >= 1 hour
+                    age_str = f"{age_seconds / 3600:.1f}h"
+                elif age_seconds >= 60:  # >= 1 minute
+                    age_str = f"{age_seconds / 60:.1f}m"
+                else:
+                    age_str = f"{age_seconds:.0f}s"
+
+                entry = {
+                    "cache_key": cache_key,
+                    "repository": repo,
+                    "branch": branch,
+                    "cache_level": level,
+                    "age": age_str,
+                    "ttl_remaining": ttl_str,
+                    "size": size_display,
+                    "workspace_path": path_display,
+                }
+
+                all_entries.append(entry)
+
+            # Apply filters
+            filtered_entries = all_entries
+
+            if filter_repository:
+                filtered_entries = [
+                    entry
+                    for entry in filtered_entries
+                    if filter_repository.lower() in entry["repository"].lower()
+                ]
+
+            if filter_branch:
+                filtered_entries = [
+                    entry
+                    for entry in filtered_entries
+                    if filter_branch.lower() in entry["branch"].lower()
+                ]
+
+            if filter_level:
+                filtered_entries = [
+                    entry
+                    for entry in filtered_entries
+                    if entry["cache_level"].lower() == filter_level.lower()
+                ]
+
+            # Check if any entries found
+            if not filtered_entries:
+                if not all_entries:
+                    console.print("[yellow]No cached workspaces found[/yellow]")
+                else:
+                    console.print(
+                        "[yellow]No cache entries match the specified filters[/yellow]"
+                    )
+                console.print(f"[dim]Cache directory: {cache_dir}[/dim]")
+                return
+
+            # Output results
+            if json_output:
+                # Create structured JSON output
+                import json
+                from datetime import datetime
+
+                output_data: dict[str, Any] = {
+                    "cache_directory": str(cache_dir),
+                    "ttl_configuration": {
+                        level: {
+                            "seconds": ttl_config.get(level, 3600),
+                            "human_readable": f"{ttl_config.get(level, 3600) / 86400:.1f} days"
+                            if ttl_config.get(level, 3600) >= 86400
+                            else f"{ttl_config.get(level, 3600) / 3600:.1f} hours",
+                        }
+                        for level in cache_levels
+                    },
+                    "entries": sorted(
+                        filtered_entries,
+                        key=lambda x: (x["repository"], x["branch"], x["cache_level"]),
+                    ),
+                    "summary": {
+                        "total_entries": len(filtered_entries),
+                        "cache_levels_present": list(
+                            {entry["cache_level"] for entry in filtered_entries}
+                        ),
+                        "repositories_present": list(
+                            {entry["repository"] for entry in filtered_entries}
+                        ),
+                        "timestamp": datetime.now().isoformat(),
+                    },
+                }
+
+                # Output JSON to stdout
+                print(json.dumps(output_data, indent=2, ensure_ascii=False))
+
+            else:
+                # Display entries in a simple table format
+                console.print("[bold]All Cached Workspace Entries[/bold]")
+                console.print("=" * 80)
+
+                table = Table(show_header=True, header_style="bold green")
+                table.add_column("Cache Key", style="dim")
+                table.add_column("Repository", style="cyan")
+                table.add_column("Branch", style="yellow")
+                table.add_column("Level", style="magenta")
+                table.add_column("Age", style="blue")
+                table.add_column("TTL Remaining", style="green")
+                table.add_column("Size", style="white")
+                table.add_column("Workspace Path", style="dim")
+
+                # Sort entries by repository, branch, then cache level
+                sorted_entries = sorted(
+                    filtered_entries,
+                    key=lambda x: (x["repository"], x["branch"], x["cache_level"]),
+                )
+
+                for entry in sorted_entries:
+                    table.add_row(
+                        entry["cache_key"],
+                        entry["repository"],
+                        entry["branch"],
+                        entry["cache_level"],
+                        entry["age"],
+                        entry["ttl_remaining"],
+                        entry["size"],
+                        entry["workspace_path"],
+                    )
+
+                console.print(table)
+                console.print(f"\n[bold]Total entries:[/bold] {len(filtered_entries)}")
+                console.print(f"[bold]Cache directory:[/bold] {cache_dir}")
+
+        except Exception as e:
+            if json_output:
+                import json
+
+                error_output = {
+                    "error": str(e),
+                    "cache_directory": str(cache_dir),
+                    "entries": [],
+                }
+                print(json.dumps(error_output, indent=2))
+            else:
+                console.print(f"[red]Error reading cache entries: {e}[/red]")
+            raise
 
     except Exception as e:
         logger.error("Failed to show workspace cache: %s", e)
@@ -492,16 +920,67 @@ def cache_show(
         int | None,
         typer.Option("-o", "--offset", help="Offset for pagination"),
     ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option("-v", "--verbose", help="Show detailed cache entry information"),
+    ] = False,
+    keys: Annotated[
+        bool,
+        typer.Option("--keys", help="Show individual cache keys and metadata"),
+    ] = False,
+    stats: Annotated[
+        bool,
+        typer.Option("--stats", help="Show detailed performance statistics"),
+    ] = False,
 ) -> None:
-    """Show unified cache information and statistics from both workspace and DiskCache systems."""
+    """Show detailed cache information and statistics with enhanced details."""
     try:
         cache_manager = _get_cache_manager()
 
         console.print("[bold]Glovebox Cache System Overview[/bold]")
-        console.print("=" * 50)
+        console.print("=" * 60)
+
+        # Show performance statistics if requested or in verbose mode
+        if stats or verbose:
+            console.print("\n[bold cyan]📊 Cache Performance Statistics[/bold cyan]")
+            cache_stats = cache_manager.get_stats()
+
+            table = Table(show_header=True, header_style="bold blue")
+            table.add_column("Metric", style="cyan")
+            table.add_column("Value", style="white")
+            table.add_column("Details", style="dim")
+
+            table.add_row(
+                "Total Entries",
+                str(cache_stats.total_entries),
+                "Number of cached items",
+            )
+            table.add_row(
+                "Total Size",
+                _format_size(cache_stats.total_size_bytes),
+                "Disk space used",
+            )
+            table.add_row(
+                "Hit Count", str(cache_stats.hit_count), "Successful cache retrievals"
+            )
+            table.add_row("Miss Count", str(cache_stats.miss_count), "Cache misses")
+            table.add_row(
+                "Hit Rate", f"{cache_stats.hit_rate:.1f}%", "Cache effectiveness"
+            )
+            table.add_row(
+                "Miss Rate", f"{cache_stats.miss_rate:.1f}%", "Cache inefficiency"
+            )
+            table.add_row(
+                "Evictions", str(cache_stats.eviction_count), "Entries removed by LRU"
+            )
+            table.add_row(
+                "Errors", str(cache_stats.error_count), "Cache operation failures"
+            )
+
+            console.print(table)
 
         # Show workspace cache information using the service
-        console.print("\n[bold cyan]1. Workspace Cache (ZMK Workspaces)[/bold cyan]")
+        console.print("\n[bold cyan]🏗️  Workspace Cache (ZMK Compilation)[/bold cyan]")
         cache_manager, workspace_cache_service, user_config = (
             _get_cache_manager_and_service()
         )
@@ -522,47 +1001,115 @@ def cache_show(
             )
             console.print("[bold]Managed by:[/bold] ZmkWorkspaceCacheService")
 
+            # Get TTL information
+            ttl_config = workspace_cache_service.get_ttls_for_cache_levels()
+            console.print("\n[bold]Cache Level TTLs:[/bold]")
+            for level, ttl_seconds in ttl_config.items():
+                ttl_hours = ttl_seconds / 3600
+                if ttl_hours >= 24:
+                    ttl_str = f"{ttl_hours / 24:.1f} days"
+                else:
+                    ttl_str = f"{ttl_hours:.1f} hours"
+                console.print(f"  • {level}: {ttl_str}")
+
             if not module:
                 console.print("\n[bold]Workspace Details:[/bold]")
                 start_idx = offset or 0
                 end_idx = start_idx + (limit or len(cached_workspaces))
 
-                for workspace in sorted(cached_workspaces, key=lambda x: x.repository)[
-                    start_idx:end_idx
-                ]:
-                    size_bytes = workspace.size_bytes or _get_directory_size(
-                        workspace.workspace_path
-                    )
+                # Create detailed table for verbose mode
+                if verbose:
+                    table = Table(show_header=True, header_style="bold green")
+                    table.add_column("Repository", style="cyan")
+                    table.add_column("Branch", style="yellow")
+                    table.add_column("Level", style="magenta")
+                    table.add_column("Size", style="white")
+                    table.add_column("Age", style="blue")
+                    table.add_column("Components", style="green")
+                    table.add_column("Path", style="dim")
+                    table.add_column("Status", style="white")
 
-                    # Format age
-                    age_str = f"{workspace.age_hours:.1f}h"
-                    if workspace.age_hours > 24:
-                        age_str = f"{workspace.age_hours / 24:.1f}d"
+                    for workspace in sorted(
+                        cached_workspaces, key=lambda x: x.repository
+                    )[start_idx:end_idx]:
+                        size_bytes = workspace.size_bytes or _get_directory_size(
+                            workspace.workspace_path
+                        )
 
-                    auto_detected_marker = " [auto]" if workspace.auto_detected else ""
-                    components_str = (
-                        f" [{'/'.join(workspace.cached_components)}]"
-                        if workspace.cached_components
-                        else ""
-                    )
+                        # Format age
+                        age_str = f"{workspace.age_hours:.1f}h"
+                        if workspace.age_hours > 24:
+                            age_str = f"{workspace.age_hours / 24:.1f}d"
 
-                    # Handle cache_level safely
-                    cache_level_str = (
-                        workspace.cache_level.value
-                        if hasattr(workspace.cache_level, "value")
-                        else str(workspace.cache_level)
-                    )
+                        # Handle cache_level safely
+                        cache_level_str = (
+                            workspace.cache_level.value
+                            if hasattr(workspace.cache_level, "value")
+                            else str(workspace.cache_level)
+                        )
 
-                    console.print(
-                        f"  • {workspace.repository}@{workspace.branch}: {_format_size(size_bytes)} "
-                        f"(level: {cache_level_str}, age: {age_str}){auto_detected_marker}{components_str}"
-                    )
+                        # Status indicators
+                        status_parts = []
+                        if workspace.auto_detected:
+                            status_parts.append("auto")
+                        if workspace.workspace_path.is_symlink():
+                            status_parts.append("symlink")
+                        status = ", ".join(status_parts) if status_parts else "direct"
+
+                        table.add_row(
+                            workspace.repository,
+                            workspace.branch,
+                            cache_level_str,
+                            _format_size(size_bytes),
+                            age_str,
+                            ", ".join(workspace.cached_components)
+                            if workspace.cached_components
+                            else "unknown",
+                            str(workspace.workspace_path),
+                            status,
+                        )
+
+                    console.print(table)
+                else:
+                    # Simple list format
+                    for workspace in sorted(
+                        cached_workspaces, key=lambda x: x.repository
+                    )[start_idx:end_idx]:
+                        size_bytes = workspace.size_bytes or _get_directory_size(
+                            workspace.workspace_path
+                        )
+
+                        # Format age
+                        age_str = f"{workspace.age_hours:.1f}h"
+                        if workspace.age_hours > 24:
+                            age_str = f"{workspace.age_hours / 24:.1f}d"
+
+                        auto_detected_marker = (
+                            " [auto]" if workspace.auto_detected else ""
+                        )
+                        components_str = (
+                            f" [{'/'.join(workspace.cached_components)}]"
+                            if workspace.cached_components
+                            else ""
+                        )
+
+                        # Handle cache_level safely
+                        cache_level_str = (
+                            workspace.cache_level.value
+                            if hasattr(workspace.cache_level, "value")
+                            else str(workspace.cache_level)
+                        )
+
+                        console.print(
+                            f"  • {workspace.repository}@{workspace.branch}: {_format_size(size_bytes)} "
+                            f"(level: {cache_level_str}, age: {age_str}){auto_detected_marker}{components_str}"
+                        )
         else:
             console.print("[yellow]No cached workspaces found[/yellow]")
             console.print(f"[dim]Cache directory: {cache_dir}[/dim]")
 
         # Show DiskCache information
-        console.print("\n[bold cyan]2. DiskCache System (Modules)[/bold cyan]")
+        console.print("\n[bold cyan]💾 DiskCache System (Domain Modules)[/bold cyan]")
         try:
             user_config = create_user_config()
             diskcache_root = user_config._config.cache_path
@@ -588,12 +1135,42 @@ def cache_show(
                         module_dir = diskcache_root / module
                         if module_dir.exists():
                             module_size = _get_directory_size(module_dir)
+                            file_count = len(list(module_dir.rglob("*")))
+
                             console.print(f"\n[bold]Module '{module}' Details:[/bold]")
                             console.print(f"  • Location: {module_dir}")
                             console.print(f"  • Size: {_format_size(module_size)}")
-                            console.print(
-                                f"  • Files: {len(list(module_dir.rglob('*')))}"
-                            )
+                            console.print(f"  • Files: {file_count}")
+
+                            # Try to get cache manager for this module
+                            try:
+                                from glovebox.core.cache_v2 import create_default_cache
+
+                                module_cache = create_default_cache(tag=module)
+                                module_stats = module_cache.get_stats()
+
+                                console.print(
+                                    f"  • Cache Entries: {module_stats.total_entries}"
+                                )
+                                console.print(
+                                    f"  • Hit Rate: {module_stats.hit_rate:.1f}%"
+                                )
+
+                                # Show individual cache keys if requested
+                                if keys and verbose:
+                                    console.print(
+                                        f"\n[bold]Cache Keys in '{module}':[/bold]"
+                                    )
+                                    # Note: DiskCache doesn't expose key iteration easily
+                                    # This would require additional implementation
+                                    console.print(
+                                        "[dim]Key enumeration not yet implemented for DiskCache[/dim]"
+                                    )
+
+                            except Exception as e:
+                                console.print(
+                                    f"  • [yellow]Could not access cache stats: {e}[/yellow]"
+                                )
                         else:
                             console.print(
                                 f"[yellow]Module '{module}' not found in cache[/yellow]"
@@ -603,18 +1180,83 @@ def cache_show(
                         start_idx = offset or 0
                         end_idx = start_idx + (limit or len(cache_subdirs))
 
-                        for cache_dir in sorted(cache_subdirs)[start_idx:end_idx]:
-                            module_name = cache_dir.name
-                            size = _get_directory_size(cache_dir)
-                            console.print(f"  • {module_name}: {_format_size(size)}")
+                        if verbose:
+                            # Detailed table view
+                            table = Table(show_header=True, header_style="bold blue")
+                            table.add_column("Module", style="cyan")
+                            table.add_column("Size", style="white")
+                            table.add_column("Files", style="blue")
+                            table.add_column("Entries", style="green")
+                            table.add_column("Hit Rate", style="yellow")
+                            table.add_column("Path", style="dim")
+
+                            for cache_dir in sorted(cache_subdirs)[start_idx:end_idx]:
+                                module_name = cache_dir.name
+                                size = _get_directory_size(cache_dir)
+                                file_count = len(list(cache_dir.rglob("*")))
+
+                                # Try to get cache stats for this module
+                                try:
+                                    from glovebox.core.cache_v2 import (
+                                        create_default_cache,
+                                    )
+
+                                    module_cache = create_default_cache(tag=module_name)
+                                    module_stats = module_cache.get_stats()
+                                    entries = str(module_stats.total_entries)
+                                    hit_rate = f"{module_stats.hit_rate:.1f}%"
+                                except Exception:
+                                    entries = "N/A"
+                                    hit_rate = "N/A"
+
+                                table.add_row(
+                                    module_name,
+                                    _format_size(size),
+                                    str(file_count),
+                                    entries,
+                                    hit_rate,
+                                    str(cache_dir),
+                                )
+
+                            console.print(table)
+                        else:
+                            # Simple list view
+                            for cache_dir in sorted(cache_subdirs)[start_idx:end_idx]:
+                                module_name = cache_dir.name
+                                size = _get_directory_size(cache_dir)
+                                console.print(
+                                    f"  • {module_name}: {_format_size(size)}"
+                                )
             else:
                 console.print("[yellow]No DiskCache directory found[/yellow]")
                 console.print(f"[dim]Would be located at: {diskcache_root}[/dim]")
         except Exception as e:
             console.print(f"[red]Error accessing DiskCache info: {e}[/red]")
 
+        # Show cache coordination information if verbose
+        if verbose:
+            console.print("\n[bold cyan]🔗 Cache Coordination System[/bold cyan]")
+            try:
+                from glovebox.core.cache_v2 import (
+                    get_cache_instance_count,
+                    get_cache_instance_keys,
+                )
+
+                instance_count = get_cache_instance_count()
+                instance_keys = get_cache_instance_keys()
+
+                console.print(f"[bold]Active Cache Instances:[/bold] {instance_count}")
+                console.print("[bold]Instance Keys:[/bold]")
+                for key in sorted(instance_keys):
+                    console.print(f"  • {key}")
+
+            except Exception as e:
+                console.print(
+                    f"[yellow]Could not access coordination info: {e}[/yellow]"
+                )
+
         # Show usage instructions
-        console.print("\n[bold cyan]3. Cache Management Commands[/bold cyan]")
+        console.print("\n[bold cyan]🛠️  Cache Management Commands[/bold cyan]")
         console.print("[dim]Workspace cache:[/dim]")
         console.print("  • glovebox cache workspace show")
         console.print("  • glovebox cache workspace add <path>")
@@ -623,7 +1265,10 @@ def cache_show(
         console.print("[dim]Module cache:[/dim]")
         console.print("  • glovebox cache clear -m <module>")
         console.print("  • glovebox cache clear --max-age <days>")
-        console.print("  • glovebox cache show -m <module>")
+        console.print("  • glovebox cache show -m <module> --verbose")
+        console.print("[dim]Advanced:[/dim]")
+        console.print("  • glovebox cache show --stats --verbose --keys")
+        console.print("  • glovebox cache debug")
 
     except Exception as e:
         logger.error("Failed to show cache info: %s", e)

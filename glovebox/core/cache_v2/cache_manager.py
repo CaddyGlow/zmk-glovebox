@@ -87,3 +87,11 @@ class CacheManager(Protocol):
             Number of entries removed
         """
         ...
+
+    def keys(self) -> list[str]:
+        """Get all cache keys.
+
+        Returns:
+            List of all cache keys (excluding expired entries)
+        """
+        ...
