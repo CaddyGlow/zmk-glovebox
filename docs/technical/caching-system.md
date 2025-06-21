@@ -1,248 +1,366 @@
 # Glovebox Caching System
 
-Glovebox includes a sophisticated **2-tier caching system** that dramatically reduces ZMK firmware compilation times by reusing shared dependencies across builds.
+Glovebox includes a **shared cache coordination system** that provides efficient, domain-isolated caching across all application components while maintaining proper test isolation.
 
-## Overview
+## Architecture Overview
 
-The caching system operates on two levels:
+The caching system has been refactored to eliminate multiple independent cache instances by:
+- **Coordinating cache instances** across domains using a central registry
+- **Domain isolation** through cache tags (compilation, metrics, layout, etc.)
+- **CLAUDE.md compliance** using factory functions (no singletons)
+- **Thread/process safety** with DiskCache SQLite backend
+- **Test safety** with automatic cache reset between tests
 
 ```
-Tier 1: Base ZMK Dependencies Cache
-├── Zephyr RTOS repositories and modules
-├── ZMK firmware repository (per branch/version)
-└── Shared build tools and dependencies
+Shared Cache Coordination System
+├── Cache Coordinator (glovebox/core/cache_v2/cache_coordinator.py)
+│   ├── get_shared_cache_instance() - Central coordination function
+│   ├── reset_shared_cache_instances() - Test isolation utility
+│   └── Instance registry with cache key coordination
+├── Domain-Specific Factories
+│   ├── create_compilation_cache_service() - Compilation domain
+│   ├── create_default_cache(tag="metrics") - Metrics domain
+│   └── create_default_cache(tag="layout") - Layout domain
+└── Updated Factory Functions
+    ├── create_default_cache() - Uses shared coordination
+    └── create_cache_from_user_config() - Uses shared coordination
+```
 
-Tier 2: Keyboard Configuration Cache  
-├── Keyboard-specific build.yaml configurations
-├── Shield and board combinations
-└── ZMK workspace configurations per keyboard profile
+## Core Components
+
+### 1. Cache Coordinator
+
+Central coordination function that manages shared cache instances:
+
+```python
+def get_shared_cache_instance(
+    cache_root: Path,
+    tag: str | None = None,
+    enabled: bool = True,
+    max_size_gb: int = 2,
+    timeout: int = 30,
+) -> CacheManager:
+    """Get shared cache instance, creating if needed."""
+```
+
+**Key Features:**
+- **Instance Registry**: Maps cache keys to active cache instances
+- **Tag-Based Isolation**: Different tags create separate cache instances
+- **Resource Efficiency**: Same tag returns same instance across the application
+- **Graceful Degradation**: Returns DisabledCache when caching is disabled
+
+### 2. Domain-Specific Cache Factories
+
+Each domain has dedicated factory functions for cache coordination:
+
+```python
+# Compilation Domain
+from glovebox.compilation.cache import create_compilation_cache_service
+
+def create_compilation_cache_service(
+    user_config: UserConfig,
+) -> tuple[CacheManager, ZmkWorkspaceCacheService]:
+    """Factory function for compilation cache service with shared coordination."""
+    cache_manager = create_cache_from_user_config(
+        user_config._config, tag="compilation"
+    )
+    workspace_service = create_zmk_workspace_cache_service(user_config, cache_manager)
+    return cache_manager, workspace_service
+```
+
+### 3. Updated Factory Functions
+
+Core cache factory functions now use shared coordination:
+
+```python
+# Core cache factories (glovebox/core/cache_v2/)
+def create_default_cache(tag: str | None = None) -> CacheManager:
+    """Create default cache with shared coordination."""
+    return get_shared_cache_instance(
+        cache_root=Path.home() / ".cache" / "glovebox",
+        tag=tag,
+        enabled=True
+    )
+
+def create_cache_from_user_config(
+    user_config: Any, tag: str | None = None
+) -> CacheManager:
+    """Create cache from user configuration with shared coordination."""
+    return get_shared_cache_instance(
+        cache_root=getattr(user_config, "cache_path", Path.home() / ".cache" / "glovebox"),
+        tag=tag,
+        enabled=getattr(user_config, "cache_strategy", "enabled") != "disabled"
+    )
+```
+
+## Cache Coordination Benefits
+
+### 1. Single Cache Instances
+
+Same tag → same cache instance across all domains:
+
+```python
+# These return the same cache instance
+compilation_cache = create_default_cache(tag="compilation")
+compilation_cache2 = create_default_cache(tag="compilation")
+assert compilation_cache is compilation_cache2  # True
+```
+
+### 2. Domain Isolation
+
+Different tags → separate cache instances with isolated namespaces:
+
+```python
+# These return different cache instances
+compilation_cache = create_default_cache(tag="compilation")
+metrics_cache = create_default_cache(tag="metrics")
+layout_cache = create_default_cache(tag="layout")
+
+assert compilation_cache is not metrics_cache  # True
+assert compilation_cache is not layout_cache   # True
+```
+
+### 3. Memory Efficiency
+
+- **Eliminates duplicate cache managers** across domains
+- **Reduces memory usage** by sharing instances
+- **Optimizes resource utilization** in multi-domain operations
+
+### 4. Thread/Process Safety
+
+- **DiskCache with SQLite backend** supports concurrent access
+- **Atomic operations** prevent cache corruption
+- **Process isolation** allows safe multi-process usage
+
+## Implementation Patterns
+
+### 1. Service Integration
+
+Services use domain-specific cache factories:
+
+```python
+# ZMK West Service uses compilation cache coordination
+def create_zmk_west_service() -> CompilationServiceProtocol:
+    docker_adapter = create_docker_adapter()
+    user_config = create_user_config()
+    
+    # Use shared cache coordination via domain-specific factory
+    cache, workspace_service = create_compilation_cache_service(user_config)
+    
+    return create_zmk_west_service(
+        docker_adapter, user_config, cache, workspace_service
+    )
+```
+
+### 2. Tag-Based Isolation
+
+Each domain gets its own isolated cache namespace:
+
+```python
+# Domain-specific cache creation
+compilation_cache = create_default_cache(tag="compilation")  # For ZMK builds
+metrics_cache = create_default_cache(tag="metrics")          # For usage tracking  
+layout_cache = create_default_cache(tag="layout")            # For layout processing
+moergo_cache = create_default_cache(tag="moergo")            # For MoErgo API
+```
+
+### 3. Configuration-Based Cache Management
+
+Cache behavior respects user configuration:
+
+```python
+# Cache disabled globally
+os.environ["GLOVEBOX_CACHE_GLOBAL"] = "disabled"
+cache = create_default_cache()  # Returns DisabledCache
+
+# Cache disabled for specific domain
+os.environ["GLOVEBOX_CACHE_COMPILATION"] = "disabled"
+cache = create_default_cache(tag="compilation")  # Returns DisabledCache
+
+# User config cache strategy
+user_config.cache_strategy = "disabled"
+cache = create_cache_from_user_config(user_config)  # Returns DisabledCache
+```
+
+## Test Isolation
+
+### Automatic Cache Reset
+
+Complete test isolation through automatic cache reset:
+
+```python
+# tests/conftest.py
+@pytest.fixture(autouse=True)
+def reset_shared_cache() -> Generator[None, None, None]:
+    """Reset shared cache instances before each test for isolation."""
+    reset_shared_cache_instances()  # Before test
+    yield
+    reset_shared_cache_instances()  # After test
+```
+
+### Test Safety Features
+
+- **Automatic cleanup** of all shared cache instances between tests
+- **Workspace cache cleanup** for filesystem-based caches
+- **No test pollution** - each test starts with clean cache state
+- **Debug utilities** for cache instance monitoring
+
+```python
+# Debug cache state in tests
+def test_cache_coordination(shared_cache_stats):
+    cache1 = create_default_cache(tag="test")
+    cache2 = create_default_cache(tag="test")
+    
+    stats = shared_cache_stats()
+    assert stats["instance_count"] == 1
+    assert cache1 is cache2
+```
+
+## Cache Operations
+
+### Basic Operations
+
+All cache operations use the standard CacheManager interface:
+
+```python
+# Get cache instance for domain
+cache = create_default_cache(tag="compilation")
+
+# Standard cache operations
+cache.set("build_key", build_data, ttl=3600)
+cached_data = cache.get("build_key", default=None)
+exists = cache.exists("build_key")
+cache.delete("build_key")
+cache.clear()  # Clear all entries
+
+# Metadata and statistics
+metadata = cache.get_metadata("build_key")
+stats = cache.get_stats()
+cleaned_count = cache.cleanup()  # Remove expired entries
+```
+
+### Cache Configuration
+
+Cache behavior can be configured through environment variables:
+
+```bash
+# Global cache control
+export GLOVEBOX_CACHE_GLOBAL=disabled      # Disable all caching
+export GLOVEBOX_CACHE_GLOBAL=enabled       # Enable all caching (default)
+
+# Domain-specific cache control
+export GLOVEBOX_CACHE_COMPILATION=disabled # Disable compilation caching
+export GLOVEBOX_CACHE_METRICS=disabled     # Disable metrics caching
+export GLOVEBOX_CACHE_LAYOUT=disabled      # Disable layout caching
+
+# Cache directory customization
+export XDG_CACHE_HOME=/custom/cache        # Custom cache root
 ```
 
 ## Performance Benefits
 
-- **First Build**: Downloads and caches ZMK dependencies (~5-10 minutes)
-- **Subsequent Builds**: Reuses cached dependencies (~30 seconds - 2 minutes)
-- **Cross-Keyboard Reuse**: Same ZMK version shared across all keyboard configurations
-- **Version Isolation**: Different ZMK versions maintain separate cache entries
+### ZMK Compilation Caching
 
-## How It Works
+The compilation domain uses workspace caching for ZMK builds:
 
-### Automatic Operation
+```python
+# Compilation service with workspace caching
+cache_manager, workspace_service = create_compilation_cache_service(user_config)
 
-Caching is **enabled by default** and requires no configuration:
-
-```bash
-# First build for any keyboard using ZMK main branch
-glovebox firmware compile layout.keymap config.conf --profile corne/main
-# → Creates base cache for zmkfirmware/zmk@main
-# → Creates keyboard cache for corne + nice_nano_v2
-
-# Second build for different keyboard using same ZMK version  
-glovebox firmware compile layout.keymap config.conf --profile glove80/v25.05
-# → Reuses base cache (if same ZMK version)
-# → Creates new keyboard cache for glove80 + glove80_lh/glove80_rh
-
-# Third build for original keyboard
-glovebox firmware compile updated_layout.keymap config.conf --profile corne/main
-# → Reuses both base and keyboard caches
-# → Only copies user files and compiles firmware
+# Workspace cache operations
+cached_workspace = workspace_service.get_cached_workspace(config)
+workspace_service.cache_workspace(workspace_path, config)
 ```
 
-### Cache Key Generation
-
-**Base Dependencies Cache Keys** based on:
-- ZMK repository URL (e.g., `zmkfirmware/zmk`, `moergo-sc/zmk`)
-- ZMK branch/revision (e.g., `main`, `v25.05`)
-
-**Keyboard Configuration Cache Keys** based on:
-- Keyboard profile name
-- Shield name
-- Board name  
-- ZMK repository details
+**Performance Improvements:**
+- **First Build**: Downloads and caches ZMK dependencies (~5-10 minutes)
+- **Subsequent Builds**: Reuses cached workspace (~30 seconds - 2 minutes)
+- **Cross-Build Reuse**: Same ZMK repository shared across builds
+- **Version Isolation**: Different ZMK versions maintain separate workspaces
 
 ### Cache Locations
 
 ```bash
-# Default cache locations
-~/.glovebox/cache/base_deps/          # Base ZMK dependencies
-~/.glovebox/cache/keyboard_config/    # Keyboard-specific configurations
-
-# Cache structure example
-~/.glovebox/cache/
-├── base_deps/
-│   ├── a1b2c3d4e5f6g7h8/            # zmkfirmware/zmk@main
-│   └── f1e2d3c4b5a6g7h8/            # moergo-sc/zmk@main
-└── keyboard_config/
-    ├── a1b2c3d4e5f6g7h8_x1y2z3w4/  # corne + nice_nano_v2
-    └── f1e2d3c4b5a6g7h8_p1q2r3s4/  # glove80 + glove80_lh/rh
-```
-
-## Cache Management
-
-### Viewing Cache Activity
-
-```bash
-# Enable verbose output to see cache operations
-glovebox -v firmware compile layout.keymap config.conf --profile corne/main
-
-# Example output:
-# INFO - Using cached approach - base: a1b2c3d4, keyboard: x1y2z3w4
-# INFO - Found valid keyboard config cache: ~/.glovebox/cache/keyboard_config/a1b2c3d4_x1y2z3w4
-# INFO - Using cached keyboard workspace: ~/.glovebox/cache/keyboard_config/a1b2c3d4_x1y2z3w4
-# INFO - Dynamic ZMK config workspace initialized successfully using cache
-```
-
-### Pre-populating Cache
-
-You can pre-populate the base cache from existing ZMK workspaces:
-
-```bash
-# Generate base cache from existing workspace
-python scripts/generate_base_cache.py --workspace /path/to/existing/zmk-config
-
-# Auto-detect ZMK repository info
-python scripts/generate_base_cache.py --workspace /path/to/workspace --verbose
-
-# Specify ZMK repository manually
-python scripts/generate_base_cache.py --workspace /path/to/workspace \
-  --zmk-repo moergo-sc/zmk --zmk-revision main
-
-# See scripts/README.md for complete usage guide
-```
-
-### Cache Validation
-
-The system automatically validates cache integrity:
-
-**Base Dependencies Cache Validation:**
-- Presence of `.west/`, `zephyr/`, `zmk/` directories
-- Cache metadata file with repository information
-- West workspace integrity
-
-**Keyboard Configuration Cache Validation:**
-- All base dependencies validation requirements
-- Presence of `config/` directory and `build.yaml`
-- Keyboard-specific metadata consistency
-- Base cache key matching
-
-### Cache Cleanup
-
-```bash
-# Automatic cleanup (configurable)
-# - Base cache: 30 days retention by default
-# - Keyboard cache: 30 days retention by default
-
-# Manual cleanup (if needed)
-rm -rf ~/.glovebox/cache/base_deps/old_cache_key
-rm -rf ~/.glovebox/cache/keyboard_config/old_combined_key
-```
-
-## Architecture Details
-
-### Workspace Manager Integration
-
-The caching system is fully integrated with `ZmkConfigWorkspaceManager`:
-
-```python
-# Cached workspace initialization
-if self.base_dependencies_cache and self.keyboard_config_cache:
-    return self._initialize_dynamic_workspace_cached(...)
-else:
-    return self._initialize_dynamic_workspace_direct(...)  # Fallback
-```
-
-### Fallback Mechanism
-
-If caching fails at any stage, the system gracefully falls back to direct workspace creation:
-
-1. **Cache Miss**: Creates new cache entries
-2. **Cache Corruption**: Falls back to direct creation
-3. **Cache Disabled**: Uses direct creation only
-
-### Error Handling
-
-- **Workspace Validation Failures**: Fall back to direct creation
-- **Permission Issues**: Log warnings and continue with direct method
-- **Disk Space Issues**: Automatic cleanup of old cache entries
-
-## Configuration Options
-
-### Disabling Caching
-
-```python
-# Disable caching programmatically
-workspace_manager = create_zmk_config_workspace_manager(enable_caching=False)
-```
-
-### Custom Cache Locations
-
-```python
-# Custom cache directories
-base_cache = create_base_dependencies_cache(
-    cache_root=Path("/custom/cache/base")
-)
-keyboard_cache = create_keyboard_config_cache(
-    base_cache=base_cache,
-    cache_root=Path("/custom/cache/keyboard")
-)
+# Default cache locations (XDG compliant)
+~/.cache/glovebox/
+├── default/                    # Default cache namespace
+├── compilation/               # Compilation domain cache
+│   ├── cache.db              # DiskCache SQLite database
+│   └── workspace/            # ZMK workspace cache
+├── metrics/                  # Metrics domain cache
+├── layout/                   # Layout domain cache
+└── moergo/                   # MoErgo domain cache
 ```
 
 ## Troubleshooting
 
+### Cache Debugging
+
+Enable debug logging to see cache coordination activity:
+
+```bash
+# Enable debug logging
+glovebox --debug layout compile input.json output/
+
+# Look for cache coordination messages:
+# DEBUG - Creating new shared cache instance: /home/user/.cache/glovebox:compilation
+# DEBUG - Reusing existing shared cache instance: /home/user/.cache/glovebox:compilation
+```
+
+### Cache Instance Monitoring
+
+Monitor cache instances during development:
+
+```python
+from glovebox.core.cache_v2 import (
+    get_cache_instance_count,
+    get_cache_instance_keys,
+    cleanup_shared_cache_instances
+)
+
+# Check active cache instances
+print(f"Active instances: {get_cache_instance_count()}")
+print(f"Instance keys: {get_cache_instance_keys()}")
+
+# Cleanup expired entries across all instances
+cleanup_results = cleanup_shared_cache_instances()
+print(f"Cleanup results: {cleanup_results}")
+```
+
 ### Common Issues
 
-**Cache not being used:**
-```bash
-# Check verbose output for cache activity
-glovebox -v firmware compile layout.keymap config.conf --profile corne/main
+**Cache not being shared:**
+- Check that the same tag is used across cache creation calls
+- Verify cache coordination is enabled (not globally disabled)
 
-# Look for messages like:
-# "Using cached approach - base: ..., keyboard: ..."
-# "Found valid keyboard config cache: ..."
+**Memory usage concerns:**
+- Each domain uses separate cache instances (by design)
+- Use `reset_shared_cache_instances()` to clear all instances
+- Monitor instance count with `get_cache_instance_count()`
+
+**Test isolation problems:**
+- Ensure tests use `isolated_config` fixture
+- Verify `reset_shared_cache` fixture is working (`autouse=True`)
+- Check for proper cleanup in test fixtures
+
+## Migration from Previous System
+
+The shared cache coordination system replaces the previous independent cache approach:
+
+**Before (Multiple Independent Caches):**
+```python
+# Each domain created its own cache instances
+compilation_cache = create_diskcache_manager(cache_root / "compilation")
+metrics_cache = create_diskcache_manager(cache_root / "metrics")
+# No coordination, potential resource duplication
 ```
 
-**Cache corruption:**
-```bash
-# Clear specific cache entry
-rm -rf ~/.glovebox/cache/base_deps/corrupted_key
-rm -rf ~/.glovebox/cache/keyboard_config/corrupted_key
-
-# Clear all cache
-rm -rf ~/.glovebox/cache/
+**After (Shared Coordination):**
+```python
+# Coordinated cache instances with proper isolation
+compilation_cache = create_default_cache(tag="compilation")
+metrics_cache = create_default_cache(tag="metrics")
+# Same tag = same instance, different tags = different instances
 ```
 
-**Permission issues:**
-```bash
-# Ensure cache directories are writable
-chmod -R u+w ~/.glovebox/cache/
-```
-
-### Debug Information
-
-```bash
-# Enable debug logging for cache operations
-glovebox --debug firmware compile layout.keymap config.conf --profile corne/main
-
-# Look for detailed cache validation and operation logs
-```
-
-## Performance Metrics
-
-Typical performance improvements with caching:
-
-| Build Type | Without Cache | With Cache | Improvement |
-|------------|---------------|------------|-------------|
-| First build (any keyboard) | 5-10 minutes | 5-10 minutes | Baseline |
-| Same keyboard, different layout | 5-10 minutes | 30-120 seconds | **85-95% faster** |
-| Different keyboard, same ZMK version | 5-10 minutes | 60-180 seconds | **70-90% faster** |
-| Different keyboard, different ZMK version | 5-10 minutes | 3-7 minutes | **30-50% faster** |
-
-## Future Enhancements
-
-Potential future improvements to the caching system:
-
-- **Compressed Cache Storage**: Reduce disk usage with compressed cache entries
-- **Distributed Caching**: Share cache entries across development teams
-- **Smart Invalidation**: Detect when ZMK dependencies have been updated
-- **Cache Statistics**: Detailed metrics on cache hit rates and storage usage
-- **Build Artifact Caching**: Cache compiled firmware for identical configurations
+All existing cache operations continue to work unchanged - only the underlying coordination mechanism has been enhanced for better resource utilization and test safety.

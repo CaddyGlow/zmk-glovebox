@@ -187,6 +187,8 @@ class TestZmkWorkspaceCaching:
             mock_docker_adapter, isolated_config, cache_manager
         )
         profile = Mock(spec=KeyboardProfile)
+        profile.keyboard_name = "test_keyboard"
+        profile.firmware_version = "v25.05"
 
         with tempfile.TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir)
@@ -426,6 +428,8 @@ class TestZmkWorkspaceCaching:
                 mock_docker_adapter, isolated_config, cache_manager
             )
             profile = Mock(spec=KeyboardProfile)
+            profile.keyboard_name = "test_keyboard"
+            profile.firmware_version = "v25.05"
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 output_dir = Path(temp_dir)

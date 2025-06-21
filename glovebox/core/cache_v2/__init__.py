@@ -11,6 +11,7 @@ from typing import Any
 from glovebox.core.cache_v2.cache_coordinator import (
     cleanup_shared_cache_instances,
     get_cache_instance_count,
+    get_cache_instance_keys,
     get_shared_cache_instance,
     reset_shared_cache_instances,
 )
@@ -151,5 +152,6 @@ __all__ = [
     "get_shared_cache_instance",
     "reset_shared_cache_instances",
     "get_cache_instance_count",
+    "get_cache_instance_keys",
     "cleanup_shared_cache_instances",
 ]
