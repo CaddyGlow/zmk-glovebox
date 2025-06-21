@@ -162,7 +162,11 @@ class ZmkWorkspaceCacheService:
             if isinstance(cached_data, str):
                 workspace_path = Path(cached_data)
                 if not workspace_path.exists():
-                    # Remove stale cache entry
+                    # Workspace path no longer exists - treat as cache miss
+                    self.logger.info(
+                        "Cached workspace path no longer exists: %s (treating as cache miss)",
+                        workspace_path,
+                    )
                     self.cache_manager.delete(cache_key)
                     return WorkspaceCacheResult(
                         success=False,
@@ -188,7 +192,11 @@ class ZmkWorkspaceCacheService:
 
                 # Verify workspace still exists
                 if not metadata.workspace_path.exists():
-                    # Remove stale cache entry
+                    # Workspace path no longer exists - treat as cache miss
+                    self.logger.info(
+                        "Cached workspace path no longer exists: %s (treating as cache miss)",
+                        metadata.workspace_path,
+                    )
                     self.cache_manager.delete(cache_key)
                     return WorkspaceCacheResult(
                         success=False,
@@ -281,9 +289,9 @@ class ZmkWorkspaceCacheService:
             # Get TTL values
             ttls = self.get_ttls_for_cache_levels()
 
-            # Store cache entries for each requested level
+            # Store cache entries for each requested level independently
             stored_levels = []
-            cached_workspace_path = None
+            first_cached_path = None
 
             for cache_level in cache_levels:
                 try:
@@ -296,62 +304,40 @@ class ZmkWorkspaceCacheService:
                     cache_base_dir = self.get_cache_directory()
                     level_cache_dir = cache_base_dir / cache_key
 
-                    # Only copy data for the first level to avoid duplication
-                    if cached_workspace_path is None:
-                        # Copy workspace data to cache directory
-                        level_cache_dir.mkdir(parents=True, exist_ok=True)
+                    # Each cache level gets its own independent copy of the workspace
+                    level_cache_dir.mkdir(parents=True, exist_ok=True)
 
-                        # Copy each component directory
-                        for component in detected_components:
-                            src_component = workspace_path / component
-                            dest_component = level_cache_dir / component
+                    # Copy each component directory to this level's cache
+                    for component in detected_components:
+                        src_component = workspace_path / component
+                        dest_component = level_cache_dir / component
 
-                            # Remove existing if it exists
-                            if dest_component.exists():
-                                shutil.rmtree(dest_component)
+                        # Remove existing if it exists
+                        if dest_component.exists():
+                            shutil.rmtree(dest_component)
 
-                            # Copy component directory
-                            shutil.copytree(src_component, dest_component)
-                            self.logger.debug(
-                                "Copied component %s to %s", component, dest_component
-                            )
-
-                        cached_workspace_path = level_cache_dir
-                        self.logger.info(
-                            "Copied workspace data to cache directory: %s",
-                            cached_workspace_path,
+                        # Copy component directory
+                        shutil.copytree(src_component, dest_component)
+                        self.logger.debug(
+                            "Copied component %s to %s for cache level %s",
+                            component,
+                            dest_component,
+                            cache_level,
                         )
-                    else:
-                        # For subsequent levels, create symlink to avoid duplication
-                        try:
-                            if level_cache_dir.exists():
-                                if level_cache_dir.is_symlink():
-                                    level_cache_dir.unlink()
-                                else:
-                                    shutil.rmtree(level_cache_dir)
 
-                            # Create symlink using absolute path to avoid issues
-                            level_cache_dir.symlink_to(
-                                cached_workspace_path.resolve(),
-                                target_is_directory=True,
-                            )
-                            self.logger.debug(
-                                "Created symlink from %s to %s",
-                                level_cache_dir,
-                                cached_workspace_path,
-                            )
-                        except Exception as e:
-                            self.logger.warning(
-                                "Failed to create symlink for cache level %s: %s",
-                                cache_level,
-                                e,
-                            )
-                            # Continue with other cache levels even if symlink fails
-                            continue
+                    # Track the first cache path for return value
+                    if first_cached_path is None:
+                        first_cached_path = level_cache_dir
 
-                    # Create metadata for this cache level pointing to the cached data
+                    self.logger.info(
+                        "Copied workspace data to %s cache level: %s",
+                        cache_level,
+                        level_cache_dir,
+                    )
+
+                    # Create metadata for this cache level pointing to its own data
                     metadata = WorkspaceCacheMetadata(  # type: ignore[call-arg]
-                        workspace_path=cached_workspace_path,
+                        workspace_path=level_cache_dir,
                         repository=repository,
                         branch=branch,
                         cache_level=CacheLevel(cache_level),
@@ -379,7 +365,7 @@ class ZmkWorkspaceCacheService:
                         branch,
                         cache_level,
                         ttl,
-                        cached_workspace_path,
+                        level_cache_dir,
                     )
 
                 except Exception as e:
@@ -402,7 +388,7 @@ class ZmkWorkspaceCacheService:
 
             return WorkspaceCacheResult(
                 success=True,
-                workspace_path=cached_workspace_path,
+                workspace_path=first_cached_path,
                 metadata=metadata,
                 created_new=True,
             )

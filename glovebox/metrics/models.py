@@ -80,6 +80,9 @@ class OperationMetrics(GloveboxBaseModel):
         default=None, description="Whether operation used cached results"
     )
     cache_key: str | None = Field(default=None, description="Cache key used")
+    cache_details: dict[str, Any] | None = Field(
+        default=None, description="Detailed cache hit/miss information by cache type"
+    )
 
     @model_validator(mode="after")
     def compute_duration(self) -> "OperationMetrics":
@@ -119,6 +122,15 @@ class LayoutMetrics(OperationMetrics):
     generation_time_seconds: float | None = Field(
         default=None, description="Time spent generating output"
     )
+    config_generation_time_seconds: float | None = Field(
+        default=None, description="Time spent generating config file"
+    )
+    keymap_generation_time_seconds: float | None = Field(
+        default=None, description="Time spent generating keymap file"
+    )
+    json_saving_time_seconds: float | None = Field(
+        default=None, description="Time spent saving JSON file"
+    )
 
 
 class FirmwareMetrics(OperationMetrics):
@@ -147,6 +159,21 @@ class FirmwareMetrics(OperationMetrics):
     )
     artifact_collection_time_seconds: float | None = Field(
         default=None, description="Time collecting artifacts"
+    )
+    cache_check_time_seconds: float | None = Field(
+        default=None, description="Time spent checking cache"
+    )
+    workspace_setup_time_seconds: float | None = Field(
+        default=None, description="Time spent setting up workspace"
+    )
+    compilation_time_seconds: float | None = Field(
+        default=None, description="Time spent compiling firmware"
+    )
+    workspace_caching_time_seconds: float | None = Field(
+        default=None, description="Time spent caching workspace"
+    )
+    result_caching_time_seconds: float | None = Field(
+        default=None, description="Time spent caching results"
     )
 
     # Build results

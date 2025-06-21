@@ -145,13 +145,15 @@ class ZmkWestService(CompilationServiceProtocol):
                 keymap_file, config_file, config
             )
             if cached_result:
-                metrics.set_cache_info(cache_hit=True, cache_key="build_result")
+                metrics.record_cache_event(
+                    "build_result", cache_hit=True, cache_key="build_result"
+                )
                 self.logger.info(
                     "Returning cached build result - compilation skipped entirely"
                 )
                 return cached_result
 
-            metrics.set_cache_info(cache_hit=False)
+            metrics.record_cache_event("build_result", cache_hit=False)
 
         # Try to use cached workspace
         with metrics.time_operation("workspace_setup"):
@@ -161,6 +163,14 @@ class ZmkWestService(CompilationServiceProtocol):
             if not workspace_path:
                 self.logger.error("Workspace setup failed")
                 return BuildResult(success=False, errors=["Workspace setup failed"])
+
+            # Record workspace cache event
+            if cache_level:
+                metrics.record_cache_event(
+                    "workspace", cache_hit=True, cache_key=cache_level
+                )
+            else:
+                metrics.record_cache_event("workspace", cache_hit=False)
 
             metrics.set_context(workspace_path=workspace_path)
 

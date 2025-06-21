@@ -36,6 +36,7 @@ class MetricsCollector:
         self._timings: dict[str, float] = {}
         self._cache_hit: bool | None = None
         self._cache_key: str | None = None
+        self._cache_details: dict[str, Any] = {}
         self._exception_occurred = False
         self._start_time: float | None = None
 
@@ -97,6 +98,8 @@ class MetricsCollector:
                 results["cache_hit"] = self._cache_hit
             if self._cache_key is not None:
                 results["cache_key"] = self._cache_key
+            if self._cache_details:
+                results["cache_details"] = self._cache_details
 
             # Add sub-operation timings
             for timing_name, duration in self._timings.items():
@@ -154,6 +157,38 @@ class MetricsCollector:
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.error("Failed to set cache info: %s", e, exc_info=exc_info)
+
+    def record_cache_event(
+        self, cache_type: str, cache_hit: bool, cache_key: str | None = None
+    ) -> None:
+        """Record a cache event for detailed cache tracking.
+
+        Args:
+            cache_type: Type of cache (e.g., 'build_result', 'workspace', 'docker_image')
+            cache_hit: Whether this cache was hit or missed
+            cache_key: Optional cache key used
+        """
+        try:
+            self._cache_details[cache_type] = {
+                "hit": cache_hit,
+                "key": cache_key,
+            }
+
+            # Update overall cache hit if this is the primary cache
+            if cache_type in ["build_result", "compilation_result"]:
+                self._cache_hit = cache_hit
+                if cache_key:
+                    self._cache_key = cache_key
+
+            self.logger.debug(
+                "Recorded cache event: type=%s, hit=%s, key=%s",
+                cache_type,
+                cache_hit,
+                cache_key,
+            )
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("Failed to record cache event: %s", e, exc_info=exc_info)
 
     def record_timing(self, operation_name: str, duration_seconds: float) -> None:
         """Record timing for a sub-operation.
@@ -244,12 +279,12 @@ def create_metrics_collector(
     operation_id: str | None = None,
     metrics_service: MetricsServiceProtocol | None = None,
 ) -> MetricsCollector:
-    """Create a metrics collector for automatic operation tracking.
+    """Create a metrics collector for automatic operation tracking with dependency injection.
 
     Args:
         operation_type: Type of operation to track
         operation_id: Operation ID (generates one if None)
-        metrics_service: Metrics service instance (creates default if None)
+        metrics_service: Optional metrics service instance. If None, creates default service.
 
     Returns:
         MetricsCollector: Configured metrics collector

@@ -1,0 +1,114 @@
+keyboard: "planck"
+description: "Planck 47-key ortholinear keyboard"
+vendor: "olkb"
+key_count: 47
+
+# Include all component configurations
+includes:
+  - "config/all.yaml" # All shared config files
+  - "config/firmware/zmk.yaml" # All shared config files
+
+compile_methods:
+  - strategy: zmk_config
+    repository: "zmkfirmware/zmk"
+    branch: "main" # Default, overridden by firmware config
+    build_config:
+      board: ["planck_rev6"]
+      # No shield needed for integrated board
+
+# Flash method configurations
+flash_methods:
+  - method_type: usb
+    device_query: "vendor=OLKB and product=Planck and removable=true"
+    mount_timeout: 30
+    copy_timeout: 60
+    sync_after_copy: true
+
+firmwares:
+  main:
+    version: "main"
+    description: "Latest ZMK firmware main branch"
+    build_options:
+      repository: "zmkfirmware/zmk"
+      branch: "main"
+
+  v3.5:
+    version: "v3.5"
+    description: "Stable ZMK firmware v3.5"
+    build_options:
+      repository: "zmkfirmware/zmk"
+      branch: "v3.5"
+
+keymap:
+  header_includes:
+    - "dt-bindings/zmk/bt.h"
+  formatting:
+    key_gap: "  "
+    base_indent: ""
+    rows:
+      # Top row (Q row)
+      - [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+      # Home row (A row)
+      - [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+      # Bottom row (Z row)
+      - [24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35]
+      # Bottom modifiers row
+      - [36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, -1]
+
+  keymap_dtsi_file: "config/templates/keymap.dtsi.j2"
+
+  key_position_header: |
+    // Top row
+    #define POS_Q 0
+    #define POS_W 1
+    #define POS_E 2
+    #define POS_R 3
+    #define POS_T 4
+    #define POS_Y 5
+    #define POS_U 6
+    #define POS_I 7
+    #define POS_O 8
+    #define POS_P 9
+    #define POS_LBKT 10
+    #define POS_RBKT 11
+    
+    // Home row
+    #define POS_A 12
+    #define POS_S 13
+    #define POS_D 14
+    #define POS_F 15
+    #define POS_G 16
+    #define POS_H 17
+    #define POS_J 18
+    #define POS_K 19
+    #define POS_L 20
+    #define POS_SEMI 21
+    #define POS_SQT 22
+    #define POS_RET 23
+    
+    // Bottom row
+    #define POS_Z 24
+    #define POS_X 25
+    #define POS_C 26
+    #define POS_V 27
+    #define POS_B 28
+    #define POS_N 29
+    #define POS_M 30
+    #define POS_COMMA 31
+    #define POS_DOT 32
+    #define POS_FSLH 33
+    #define POS_UP 34
+    #define POS_DEL 35
+    
+    // Modifier row
+    #define POS_TAB 36
+    #define POS_ESC 37
+    #define POS_GUI 38
+    #define POS_SPC 39
+    #define POS_BSPC 40
+    #define POS_ENT 41
+    #define POS_RALT 42
+    #define POS_LEFT 43
+    #define POS_DOWN 44
+    #define POS_RIGHT 45
+    #define POS_LSFT 46

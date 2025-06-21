@@ -253,6 +253,21 @@ class DiskCacheManager(CacheManager):
             self.logger.warning("Cache cleanup error: %s", e)
             return 0
 
+    def keys(self) -> list[str]:
+        """Get all cache keys.
+
+        Returns:
+            List of all cache keys (excluding expired entries)
+        """
+        try:
+            # DiskCache provides an iterator over all non-expired keys
+            return list(self._cache.iterkeys())
+
+        except Exception as e:
+            self._stats.error_count += 1
+            self.logger.warning("Cache keys error: %s", e)
+            return []
+
     def close(self) -> None:
         """Close the cache and release resources."""
         try:

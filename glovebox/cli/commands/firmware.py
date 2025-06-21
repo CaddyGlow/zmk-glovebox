@@ -24,6 +24,8 @@ from glovebox.compilation.models import (
 )
 from glovebox.firmware.flash import create_flash_service
 from glovebox.layout.firmware_tracker import create_firmware_tracker
+from glovebox.metrics.context_extractors import extract_cli_context
+from glovebox.metrics.decorators import track_firmware_operation, track_flash_operation
 
 
 if TYPE_CHECKING:
@@ -196,6 +198,7 @@ cmake, make, and ninja build systems for custom keyboards.""",
 @firmware_app.command(name="compile")
 @handle_errors
 @with_profile()
+@track_firmware_operation(extract_context=extract_cli_context)
 def firmware_compile(
     ctx: typer.Context,
     input_file: Annotated[
@@ -322,6 +325,7 @@ def firmware_compile(
 @firmware_app.command()
 @handle_errors
 @with_profile()
+@track_flash_operation(extract_context=extract_cli_context)
 def flash(
     ctx: typer.Context,
     firmware_file: Annotated[Path, typer.Argument(help="Path to firmware (.uf2) file")],
