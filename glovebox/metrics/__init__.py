@@ -37,7 +37,9 @@ if TYPE_CHECKING:
     from glovebox.metrics.storage import MetricsStorage
 
     # Context extractor type definition
-    ContextExtractor = Callable[[Callable[..., Any], tuple[Any, ...], dict[str, Any]], dict[str, Any]]
+    ContextExtractor = Callable[
+        [Callable[..., Any], tuple[Any, ...], dict[str, Any]], dict[str, Any]
+    ]
 
 
 def create_metrics_service(

@@ -413,7 +413,9 @@ class TestDecoratorIntegration:
 
         # This is an edge case test - normally you wouldn't do this
         @track_operation(OperationType.LAYOUT_COMPILATION, metrics_service=mock_service)
-        @track_operation(OperationType.FIRMWARE_COMPILATION, metrics_service=mock_service)
+        @track_operation(
+            OperationType.FIRMWARE_COMPILATION, metrics_service=mock_service
+        )
         def double_tracked_function():
             return "double_tracked"
 

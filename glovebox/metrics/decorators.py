@@ -16,7 +16,9 @@ F = TypeVar("F", bound=Callable[..., Any])
 AF = TypeVar("AF", bound=Callable[..., Awaitable[Any]])
 
 # Context extractor type
-ContextExtractor = Callable[[Callable[..., Any], tuple[Any, ...], dict[str, Any]], dict[str, Any]]
+ContextExtractor = Callable[
+    [Callable[..., Any], tuple[Any, ...], dict[str, Any]], dict[str, Any]
+]
 
 
 def track_operation(
@@ -97,7 +99,10 @@ def track_operation(
                 # Log error but re-raise to maintain original behavior
                 exc_info = logger.isEnabledFor(logging.DEBUG)
                 logger.error(
-                    "Error in tracked operation %s: %s", func.__name__, e, exc_info=exc_info
+                    "Error in tracked operation %s: %s",
+                    func.__name__,
+                    e,
+                    exc_info=exc_info,
                 )
                 raise
 
@@ -137,7 +142,10 @@ def track_operation(
                 # Log error but re-raise to maintain original behavior
                 exc_info = logger.isEnabledFor(logging.DEBUG)
                 logger.error(
-                    "Error in tracked operation %s: %s", func.__name__, e, exc_info=exc_info
+                    "Error in tracked operation %s: %s",
+                    func.__name__,
+                    e,
+                    exc_info=exc_info,
                 )
                 raise
 
@@ -253,4 +261,3 @@ def create_operation_tracker(
         extract_context=extract_context,
         metrics_service=metrics_service,
     )
-

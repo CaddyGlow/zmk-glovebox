@@ -470,8 +470,12 @@ def workspace_show(
             "--level", help="Filter by cache level (base, branch, full, build)"
         ),
     ] = None,
+    entries: Annotated[
+        bool,
+        typer.Option("--entries", help="Show entries grouped by cache level"),
+    ] = False,
 ) -> None:
-    """Show all cached ZMK workspace entries in a simple flat format."""
+    """Show all cached ZMK workspace entries including orphaned directories."""
     try:
         cache_manager, workspace_cache_service, user_config = (
             _get_cache_manager_and_service()
@@ -481,241 +485,204 @@ def workspace_show(
         cache_dir = workspace_cache_service.get_cache_directory()
         ttl_config = workspace_cache_service.get_ttls_for_cache_levels()
 
-        # Define cache levels in hierarchy order
-        cache_levels = ["base", "branch", "full", "build"]
+        # Use the workspace cache service to list all workspaces (handles orphaned dirs)
+        cached_workspaces = workspace_cache_service.list_cached_workspaces()
 
-        # Collect all cache entries by scanning the cache manager directly
+        # Convert workspace metadata to entry format
         all_entries: list[dict[str, Any]] = []
 
-        try:
-            # Get all cache keys and iterate through them
-            all_keys = cache_manager.keys()
+        for workspace_metadata in cached_workspaces:
+            # Extract cache level
+            cache_level_value = (
+                workspace_metadata.cache_level.value
+                if hasattr(workspace_metadata.cache_level, "value")
+                else str(workspace_metadata.cache_level)
+            )
 
-            for cache_key in all_keys:
-                # Get cached data for this key
-                cached_data = cache_manager.get(cache_key)
-                if not cached_data:
-                    continue
+            # Skip build-level caches as they represent compiled artifacts, not workspaces
+            if cache_level_value == "build":
+                continue
 
-                # Only process workspace-related cache entries
-                # Skip entries that don't have workspace metadata
-                if not isinstance(cached_data, dict):
-                    continue
-                
-                # Skip non-workspace cache entries (e.g., build results, other compilation caches)
-                if "workspace_path" not in cached_data and "repository" not in cached_data:
-                    continue
-                
-                # Skip build-level caches as they represent compiled artifacts, not workspaces
-                cache_level_value = cached_data.get("cache_level", "")
-                if isinstance(cache_level_value, dict):
-                    cache_level_value = cache_level_value.get("value", "")
-                if cache_level_value == "build":
-                    continue
+            # Format age and TTL
+            age_hours = workspace_metadata.age_hours
+            if age_hours >= 24:  # >= 1 day
+                age_str = f"{age_hours / 24:.1f}d"
+            elif age_hours >= 1:  # >= 1 hour
+                age_str = f"{age_hours:.1f}h"
+            else:  # < 1 hour
+                age_str = f"{age_hours * 60:.1f}m"
 
-                # Extract metadata if available
-                repo = cached_data.get("repository", "unknown")
-                branch = cached_data.get("branch", "unknown")
-                level = cached_data.get("cache_level", "unknown")
-                if isinstance(level, dict) and "value" in level:
-                    level = level["value"]
+            # Calculate TTL remaining
+            ttl_seconds = ttl_config.get(cache_level_value, 3600)
+            age_seconds = age_hours * 3600
+            ttl_remaining_seconds = max(0, ttl_seconds - age_seconds)
 
-                # Get cache metadata for timing information
-                metadata = cache_manager.get_metadata(cache_key)
-                age_seconds = 0.0
-                ttl_remaining_seconds = 0.0
-
-                if metadata:
-                    import time
-
-                    current_time = time.time()
-                    age_seconds = current_time - metadata.created_at
-
-                    # Determine TTL for this level
-                    ttl_seconds = ttl_config.get(level, 3600)
-                    ttl_remaining_seconds = max(0, ttl_seconds - age_seconds)
-
-                # Format remaining TTL
-                if ttl_remaining_seconds > 0:
-                    if ttl_remaining_seconds >= 86400:  # >= 1 day
-                        ttl_str = f"{ttl_remaining_seconds / 86400:.1f}d"
-                    elif ttl_remaining_seconds >= 3600:  # >= 1 hour
-                        ttl_str = f"{ttl_remaining_seconds / 3600:.1f}h"
-                    elif ttl_remaining_seconds >= 60:  # >= 1 minute
-                        ttl_str = f"{ttl_remaining_seconds / 60:.1f}m"
-                    else:
-                        ttl_str = f"{ttl_remaining_seconds:.0f}s"
+            # Format remaining TTL
+            if ttl_remaining_seconds > 0:
+                if ttl_remaining_seconds >= 86400:  # >= 1 day
+                    ttl_str = f"{ttl_remaining_seconds / 86400:.1f}d"
+                elif ttl_remaining_seconds >= 3600:  # >= 1 hour
+                    ttl_str = f"{ttl_remaining_seconds / 3600:.1f}h"
+                elif ttl_remaining_seconds >= 60:  # >= 1 minute
+                    ttl_str = f"{ttl_remaining_seconds / 60:.1f}m"
                 else:
-                    ttl_str = "EXPIRED"
-
-                # Get workspace path from cache directory
-                workspace_path = cache_dir / cache_key
-                path_display = str(workspace_path)
-                if workspace_path.is_symlink():
-                    try:
-                        actual_path = workspace_path.resolve()
-                        path_display = f"{workspace_path} → {actual_path}"
-                    except (OSError, RuntimeError):
-                        path_display = f"{workspace_path} → [BROKEN]"
-
-                # Calculate size
-                try:
-                    if workspace_path.exists():
-                        size_bytes = _get_directory_size(workspace_path)
-                        size_display = _format_size(size_bytes)
-                    else:
-                        size_display = "N/A"
-                except Exception:
-                    size_display = "N/A"
-
-                # Format age
-                if age_seconds >= 86400:  # >= 1 day
-                    age_str = f"{age_seconds / 86400:.1f}d"
-                elif age_seconds >= 3600:  # >= 1 hour
-                    age_str = f"{age_seconds / 3600:.1f}h"
-                elif age_seconds >= 60:  # >= 1 minute
-                    age_str = f"{age_seconds / 60:.1f}m"
-                else:
-                    age_str = f"{age_seconds:.0f}s"
-
-                entry = {
-                    "cache_key": cache_key,
-                    "repository": repo,
-                    "branch": branch,
-                    "cache_level": level,
-                    "age": age_str,
-                    "ttl_remaining": ttl_str,
-                    "size": size_display,
-                    "workspace_path": path_display,
-                }
-
-                all_entries.append(entry)
-
-            # Apply filters
-            filtered_entries = all_entries
-
-            if filter_repository:
-                filtered_entries = [
-                    entry
-                    for entry in filtered_entries
-                    if filter_repository.lower() in entry["repository"].lower()
-                ]
-
-            if filter_branch:
-                filtered_entries = [
-                    entry
-                    for entry in filtered_entries
-                    if filter_branch.lower() in entry["branch"].lower()
-                ]
-
-            if filter_level:
-                filtered_entries = [
-                    entry
-                    for entry in filtered_entries
-                    if entry["cache_level"].lower() == filter_level.lower()
-                ]
-
-            # Check if any entries found
-            if not filtered_entries:
-                if not all_entries:
-                    console.print("[yellow]No cached workspaces found[/yellow]")
-                else:
-                    console.print(
-                        "[yellow]No cache entries match the specified filters[/yellow]"
-                    )
-                console.print(f"[dim]Cache directory: {cache_dir}[/dim]")
-                return
-
-            # Output results
-            if json_output:
-                # Create structured JSON output
-                import json
-                from datetime import datetime
-
-                output_data: dict[str, Any] = {
-                    "cache_directory": str(cache_dir),
-                    "ttl_configuration": {
-                        level: {
-                            "seconds": ttl_config.get(level, 3600),
-                            "human_readable": f"{ttl_config.get(level, 3600) / 86400:.1f} days"
-                            if ttl_config.get(level, 3600) >= 86400
-                            else f"{ttl_config.get(level, 3600) / 3600:.1f} hours",
-                        }
-                        for level in cache_levels
-                    },
-                    "entries": sorted(
-                        filtered_entries,
-                        key=lambda x: (x["repository"], x["branch"], x["cache_level"]),
-                    ),
-                    "summary": {
-                        "total_entries": len(filtered_entries),
-                        "cache_levels_present": list(
-                            {entry["cache_level"] for entry in filtered_entries}
-                        ),
-                        "repositories_present": list(
-                            {entry["repository"] for entry in filtered_entries}
-                        ),
-                        "timestamp": datetime.now().isoformat(),
-                    },
-                }
-
-                # Output JSON to stdout
-                print(json.dumps(output_data, indent=2, ensure_ascii=False))
-
+                    ttl_str = f"{ttl_remaining_seconds:.0f}s"
             else:
-                # Display entries in a simple table format
-                console.print("[bold]All Cached Workspace Entries[/bold]")
-                console.print("=" * 80)
+                ttl_str = "EXPIRED"
 
-                table = Table(show_header=True, header_style="bold green")
-                table.add_column("Cache Key", style="dim")
-                table.add_column("Repository", style="cyan")
-                table.add_column("Branch", style="yellow")
-                table.add_column("Level", style="magenta")
-                table.add_column("Age", style="blue")
-                table.add_column("TTL Remaining", style="green")
-                table.add_column("Size", style="white")
-                table.add_column("Workspace Path", style="dim")
+            # Generate cache key for display (matches the directory name)
+            cache_key = generate_workspace_cache_key(
+                workspace_metadata.repository,
+                workspace_metadata.branch,
+                cache_level_value
+            )
 
-                # Sort entries by repository, branch, then cache level
-                sorted_entries = sorted(
+            # Calculate size
+            try:
+                if workspace_metadata.workspace_path.exists():
+                    size_bytes = _get_directory_size(workspace_metadata.workspace_path)
+                    size_display = _format_size(size_bytes)
+                else:
+                    size_display = "N/A"
+            except Exception:
+                size_display = "N/A"
+
+            # Check for symlinks
+            path_display = str(workspace_metadata.workspace_path)
+            if workspace_metadata.workspace_path.is_symlink():
+                try:
+                    actual_path = workspace_metadata.workspace_path.resolve()
+                    path_display = f"{workspace_metadata.workspace_path} → {actual_path}"
+                except (OSError, RuntimeError):
+                    path_display = f"{workspace_metadata.workspace_path} → [BROKEN]"
+
+            entry = {
+                "cache_key": cache_key,
+                "repository": workspace_metadata.repository,
+                "branch": workspace_metadata.branch,
+                "cache_level": cache_level_value,
+                "age": age_str,
+                "ttl_remaining": ttl_str,
+                "size": size_display,
+                "workspace_path": path_display,
+                "notes": workspace_metadata.notes or "",
+            }
+
+            all_entries.append(entry)
+
+        # Apply filters
+        filtered_entries = all_entries
+
+        if filter_repository:
+            filtered_entries = [
+                entry
+                for entry in filtered_entries
+                if filter_repository.lower() in entry["repository"].lower()
+            ]
+
+        if filter_branch:
+            filtered_entries = [
+                entry
+                for entry in filtered_entries
+                if filter_branch.lower() in entry["branch"].lower()
+            ]
+
+        if filter_level:
+            filtered_entries = [
+                entry
+                for entry in filtered_entries
+                if entry["cache_level"].lower() == filter_level.lower()
+            ]
+
+        # Check if any entries found
+        if not filtered_entries:
+            if not all_entries:
+                console.print("[yellow]No cached workspaces found[/yellow]")
+            else:
+                console.print(
+                    "[yellow]No cache entries match the specified filters[/yellow]"
+                )
+            console.print(f"[dim]Cache directory: {cache_dir}[/dim]")
+            return
+
+        # Output results
+        if json_output:
+            # Create structured JSON output
+            import json
+            from datetime import datetime
+
+            cache_levels = ["base", "branch", "full", "build"]
+            output_data: dict[str, Any] = {
+                "cache_directory": str(cache_dir),
+                "ttl_configuration": {
+                    level: {
+                        "seconds": ttl_config.get(level, 3600),
+                        "human_readable": f"{ttl_config.get(level, 3600) / 86400:.1f} days"
+                        if ttl_config.get(level, 3600) >= 86400
+                        else f"{ttl_config.get(level, 3600) / 3600:.1f} hours",
+                    }
+                    for level in cache_levels
+                },
+                "entries": sorted(
                     filtered_entries,
                     key=lambda x: (x["repository"], x["branch"], x["cache_level"]),
+                ),
+                "summary": {
+                    "total_entries": len(filtered_entries),
+                    "cache_levels_present": list(
+                        {entry["cache_level"] for entry in filtered_entries}
+                    ),
+                    "repositories_present": list(
+                        {entry["repository"] for entry in filtered_entries}
+                    ),
+                    "timestamp": datetime.now().isoformat(),
+                },
+            }
+
+            # Output JSON to stdout
+            print(json.dumps(output_data, indent=2, ensure_ascii=False))
+
+        else:
+            # Display entries in a simple table format
+            console.print("[bold]All Cached Workspace Entries[/bold]")
+            console.print("=" * 80)
+
+            table = Table(show_header=True, header_style="bold green")
+            table.add_column("Cache Key", style="dim")
+            table.add_column("Repository", style="cyan")
+            table.add_column("Branch", style="yellow")
+            table.add_column("Level", style="magenta")
+            table.add_column("Age", style="blue")
+            table.add_column("TTL Remaining", style="green")
+            table.add_column("Size", style="white")
+            table.add_column("Notes", style="dim")
+
+            # Sort entries by repository, branch, then cache level
+            sorted_entries = sorted(
+                filtered_entries,
+                key=lambda x: (x["repository"], x["branch"], x["cache_level"]),
+            )
+
+            for entry in sorted_entries:
+                table.add_row(
+                    entry["cache_key"],
+                    entry["repository"],
+                    entry["branch"],
+                    entry["cache_level"],
+                    entry["age"],
+                    entry["ttl_remaining"],
+                    entry["size"],
+                    entry["notes"],
                 )
 
-                for entry in sorted_entries:
-                    table.add_row(
-                        entry["cache_key"],
-                        entry["repository"],
-                        entry["branch"],
-                        entry["cache_level"],
-                        entry["age"],
-                        entry["ttl_remaining"],
-                        entry["size"],
-                        entry["workspace_path"],
-                    )
-
-                console.print(table)
-                console.print(f"\n[bold]Total entries:[/bold] {len(filtered_entries)}")
-                console.print(f"[bold]Cache directory:[/bold] {cache_dir}")
-
-        except Exception as e:
-            if json_output:
-                import json
-
-                error_output = {
-                    "error": str(e),
-                    "cache_directory": str(cache_dir),
-                    "entries": [],
-                }
-                print(json.dumps(error_output, indent=2))
-            else:
-                console.print(f"[red]Error reading cache entries: {e}[/red]")
-            raise
+            console.print(table)
+            console.print(f"\n[bold]Total entries:[/bold] {len(filtered_entries)}")
+            console.print(f"[dim]Cache directory: {cache_dir}[/dim]")
 
     except Exception as e:
-        logger.error("Failed to show workspace cache: %s", e)
-        console.print(f"[red]Error: {e}[/red]")
+        exc_info = logger.isEnabledFor(logging.DEBUG)
+        logger.error("Error in workspace_show: %s", e, exc_info=exc_info)
+        console.print(f"[red]Error displaying workspace cache: {e}[/red]")
         raise typer.Exit(1) from e
 
 
