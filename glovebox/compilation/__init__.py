@@ -51,10 +51,16 @@ def create_zmk_west_service() -> CompilationServiceProtocol:
     # Use shared cache coordination via domain-specific factory
     from glovebox.compilation.cache import create_compilation_cache_service
 
-    cache, workspace_service = create_compilation_cache_service(user_config)
+    cache, workspace_service, build_service = create_compilation_cache_service(
+        user_config
+    )
 
     return create_zmk_west_service(
-        docker_adapter, user_config, cache, workspace_service
+        docker_adapter=docker_adapter,
+        user_config=user_config,
+        cache_manager=cache,
+        workspace_cache_service=workspace_service,
+        build_cache_service=build_service,
     )
 
 

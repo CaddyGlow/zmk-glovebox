@@ -150,9 +150,9 @@ class TestMetricsDependencyInjection:
         )
 
         # Both should have the same types and structure
-        assert type(default_storage) == type(injected_storage)
-        assert type(default_service) == type(injected_service)
-        assert type(default_collector) == type(injected_collector)
+        assert isinstance(default_storage, type(injected_storage))
+        assert isinstance(default_service, type(injected_service))
+        assert isinstance(default_collector, type(injected_collector))
 
         # Both should have proper dependencies
         assert default_service.storage is not None
@@ -191,9 +191,9 @@ class TestMetricsDependencyInjection:
         collector_default = create_metrics_collector(OperationType.LAYOUT_COMPILATION)
 
         # Should have same types and proper initialization
-        assert type(service_none) == type(service_default)
-        assert type(storage_none) == type(storage_default)
-        assert type(collector_none) == type(collector_default)
+        assert isinstance(service_none, type(service_default))
+        assert isinstance(storage_none, type(storage_default))
+        assert isinstance(collector_none, type(collector_default))
 
         assert service_none.storage is not None
         assert storage_none.cache is not None

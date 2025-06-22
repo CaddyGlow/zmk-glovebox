@@ -142,7 +142,10 @@ class TestMetricsDecorators:
             return f"result: {param}"
 
         assert documented_function.__name__ == "documented_function"
-        assert "well-documented function" in documented_function.__doc__
+        assert (
+            documented_function.__doc__ is not None
+            and "well-documented function" in documented_function.__doc__
+        )
         # Wrapped function should preserve metadata
 
     def test_decorator_with_missing_metrics_service(self):
@@ -208,7 +211,7 @@ class TestContextExtractors:
             pass
 
         args = (Mock(spec=typer.Context), Path("/input/layout.json"), "/output/prefix")
-        kwargs = {}
+        kwargs: dict[str, str] = {}
 
         context = extract_cli_context(mock_cli_function, args, kwargs)
 

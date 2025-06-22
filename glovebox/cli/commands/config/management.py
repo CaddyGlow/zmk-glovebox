@@ -236,10 +236,18 @@ def export_config(
                     if hasattr(parent_obj, parts[1]):
                         nested_obj = getattr(parent_obj, parts[1])
                         if hasattr(nested_obj, parts[2]):
-                            return getattr(nested_obj, parts[2])
+                            value = getattr(nested_obj, parts[2])
+                            # Convert Pydantic models to dict for serialization
+                            if hasattr(value, "model_dump"):
+                                return value.model_dump(mode="json")
+                            return value
                 return None
             else:
-                return app_ctx.user_config.get(key)
+                value = app_ctx.user_config.get(key)
+                # Convert Pydantic models to dict for serialization
+                if hasattr(value, "model_dump"):
+                    return value.model_dump(mode="json")
+                return value
         except Exception:
             return None
 
@@ -265,7 +273,7 @@ def export_config(
 
             # Decide whether to include this field
             if include_defaults or current_value != default_val:
-                # Convert Path objects to strings for serialization
+                # Convert complex objects for serialization
                 if isinstance(current_value, Path):
                     current_value = str(current_value)
                 elif isinstance(current_value, list):
@@ -273,6 +281,9 @@ def export_config(
                         str(item) if isinstance(item, Path) else item
                         for item in current_value
                     ]
+                elif hasattr(current_value, "model_dump"):
+                    # Handle Pydantic models
+                    current_value = current_value.model_dump(mode="json")
 
                 config_data[field_name] = current_value
 

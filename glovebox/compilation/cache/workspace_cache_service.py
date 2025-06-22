@@ -1,4 +1,4 @@
-"""ZMK Workspace Cache Service with comprehensive cache management and auto-detection."""
+"""Simplified ZMK workspace cache service with repo and repo+branch caching."""
 
 import logging
 import shutil
@@ -6,52 +6,25 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from glovebox.compilation.cache.models import (
+    WorkspaceCacheMetadata,
+    WorkspaceCacheResult,
+)
 from glovebox.config.models.cache import CacheLevel
 from glovebox.config.user_config import UserConfig
 from glovebox.core.cache_v2.cache_manager import CacheManager
-from glovebox.core.workspace_cache_utils import (
-    detect_git_info,
-    generate_workspace_cache_key,
-)
-from glovebox.models.base import GloveboxBaseModel
-
-from .models import WorkspaceCacheMetadata
-
-
-class WorkspaceCacheResult(GloveboxBaseModel):
-    """Result of workspace cache operations."""
-
-    success: bool
-    workspace_path: Path | None = None
-    metadata: WorkspaceCacheMetadata | None = None
-    error_message: str | None = None
-    created_new: bool = False
-
-
-class WorkspaceAutoDetectionResult(GloveboxBaseModel):
-    """Result of workspace auto-detection operations."""
-
-    success: bool
-    repository: str | None = None
-    branch: str | None = None
-    commit_hash: str | None = None
-    detected_components: list[str] = []
-    workspace_path: Path | None = None
-    error_message: str | None = None
+from glovebox.core.cache_v2.models import CacheKey
 
 
 class ZmkWorkspaceCacheService:
-    """Centralized service for ZMK workspace cache operations with auto-detection.
+    """Simplified ZMK workspace cache service with two cache levels.
 
-    Provides comprehensive workspace cache management including:
-    - Rich metadata storage with git information
-    - Auto-detection of repository and branch information
-    - Tiered cache level support (base, branch, full, build)
-    - Integration with UserConfig for TTL management
-    - Cache cleanup and maintenance operations
+    Provides two cache levels:
+    1. Repo-only: Includes .git folders for branch fetching (longer TTL)
+    2. Repo+branch: Excludes .git folders for static branch state (shorter TTL)
     """
 
-    def __init__(self, user_config: UserConfig, cache_manager: CacheManager):
+    def __init__(self, user_config: UserConfig, cache_manager: CacheManager) -> None:
         """Initialize the workspace cache service.
 
         Args:
@@ -63,7 +36,7 @@ class ZmkWorkspaceCacheService:
         self.logger = logging.getLogger(__name__)
 
     def get_cache_directory(self) -> Path:
-        """Get the workspace cache directory from user config.
+        """Get the workspace cache directory.
 
         Returns:
             Path to the workspace cache directory
@@ -71,7 +44,7 @@ class ZmkWorkspaceCacheService:
         return self.user_config._config.cache_path / "workspace"
 
     def get_ttls_for_cache_levels(self) -> dict[str, int]:
-        """Get TTL values for all workspace cache levels.
+        """Get TTL values for workspace cache levels.
 
         Returns:
             Dictionary mapping cache levels to TTL values in seconds
@@ -79,154 +52,124 @@ class ZmkWorkspaceCacheService:
         cache_ttls = self.user_config._config.cache_ttls
         return cache_ttls.get_workspace_ttls()
 
-    def auto_detect_workspace_info(
-        self, workspace_path: Path
-    ) -> WorkspaceAutoDetectionResult:
-        """Auto-detect git repository and branch information from workspace.
-
-        Args:
-            workspace_path: Path to the workspace directory to analyze
-
-        Returns:
-            WorkspaceAutoDetectionResult with detected information
-        """
-        try:
-            workspace_path = workspace_path.resolve()
-
-            if not workspace_path.exists() or not workspace_path.is_dir():
-                return WorkspaceAutoDetectionResult(
-                    success=False,
-                    error_message=f"Workspace path does not exist or is not a directory: {workspace_path}",
-                )
-
-            # Use existing git detection logic
-            git_info = detect_git_info(workspace_path)
-
-            # Detect ZMK workspace components
-            required_components = ["zmk", "zephyr", "modules"]
-            detected_components = []
-
-            for component in required_components:
-                component_path = workspace_path / component
-                if component_path.exists() and component_path.is_dir():
-                    detected_components.append(component)
-
-            if not detected_components:
-                return WorkspaceAutoDetectionResult(
-                    success=False,
-                    error_message=f"No ZMK workspace components found in {workspace_path}. Expected: {required_components}",
-                )
-
-            return WorkspaceAutoDetectionResult(
-                success=True,
-                repository=git_info.get("repository"),
-                branch=git_info.get("branch"),
-                commit_hash=git_info.get("commit_hash"),
-                detected_components=detected_components,
-                workspace_path=workspace_path,
-            )
-
-        except Exception as e:
-            exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error(
-                "Failed to auto-detect workspace info: %s", e, exc_info=exc_info
-            )
-            return WorkspaceAutoDetectionResult(
-                success=False, error_message=f"Auto-detection failed: {e}"
-            )
-
-    def get_cached_workspace(
-        self, repository: str, branch: str, cache_level: str
-    ) -> WorkspaceCacheResult:
-        """Retrieve cached workspace metadata and path.
+    def _generate_cache_key(self, repository: str, branch: str | None) -> str:
+        """Generate cache key for workspace.
 
         Args:
             repository: Git repository name (e.g., 'zmkfirmware/zmk')
+            branch: Git branch name (None for repo-only caching)
+
+        Returns:
+            Generated cache key string
+        """
+        repo_part = repository.replace("/", "_")
+
+        if branch is None:
+            # Repo-only cache key
+            parts_hash = CacheKey.from_parts(repo_part)
+            return f"workspace_repo_{parts_hash}"
+        else:
+            # Repo+branch cache key
+            parts_hash = CacheKey.from_parts(repo_part, branch)
+            return f"workspace_repo_branch_{parts_hash}"
+
+    def cache_workspace_repo_only(
+        self, workspace_path: Path, repository: str
+    ) -> WorkspaceCacheResult:
+        """Cache workspace for repository-only (includes .git folders).
+
+        Args:
+            workspace_path: Path to the workspace to cache
+            repository: Git repository name
+
+        Returns:
+            WorkspaceCacheResult with operation results
+        """
+        return self._cache_workspace_internal(
+            workspace_path=workspace_path,
+            repository=repository,
+            branch=None,
+            cache_level=CacheLevel.REPO,
+            include_git=True,
+        )
+
+    def cache_workspace_repo_branch(
+        self, workspace_path: Path, repository: str, branch: str
+    ) -> WorkspaceCacheResult:
+        """Cache workspace for repository+branch (excludes .git folders).
+
+        Args:
+            workspace_path: Path to the workspace to cache
+            repository: Git repository name
             branch: Git branch name
-            cache_level: Cache level to retrieve ('base', 'branch', 'full', 'build')
+
+        Returns:
+            WorkspaceCacheResult with operation results
+        """
+        return self._cache_workspace_internal(
+            workspace_path=workspace_path,
+            repository=repository,
+            branch=branch,
+            cache_level=CacheLevel.REPO_BRANCH,
+            include_git=False,
+        )
+
+    def get_cached_workspace(
+        self, repository: str, branch: str | None = None
+    ) -> WorkspaceCacheResult:
+        """Get cached workspace if available.
+
+        Args:
+            repository: Git repository name
+            branch: Git branch name (None for repo-only lookup)
 
         Returns:
             WorkspaceCacheResult with cached workspace information
         """
         try:
-            cache_key = generate_workspace_cache_key(repository, branch, cache_level)
+            cache_key = self._generate_cache_key(repository, branch)
             cached_data = self.cache_manager.get(cache_key)
 
             if cached_data is None:
+                cache_type = "repo+branch" if branch else "repo-only"
                 return WorkspaceCacheResult(
                     success=False,
-                    error_message=f"No cached workspace found for {repository}@{branch} (level: {cache_level})",
+                    error_message=f"No cached workspace found for {repository} ({cache_type})",
                 )
 
-            # Handle legacy cache entries (simple path strings)
-            if isinstance(cached_data, str):
-                workspace_path = Path(cached_data)
-                if not workspace_path.exists():
-                    # Workspace path no longer exists - treat as cache miss
-                    self.logger.info(
-                        "Cached workspace path no longer exists: %s (treating as cache miss)",
-                        workspace_path,
-                    )
-                    self.cache_manager.delete(cache_key)
-                    return WorkspaceCacheResult(
-                        success=False,
-                        error_message=f"Cached workspace path no longer exists: {workspace_path}",
-                    )
+            # Parse metadata
+            metadata = WorkspaceCacheMetadata.from_cache_value(cached_data)
 
-                # Create metadata for legacy entry
-                metadata = WorkspaceCacheMetadata(  # type: ignore[call-arg]
-                    workspace_path=workspace_path,
-                    repository=repository,
-                    branch=branch,
-                    cache_level=CacheLevel(cache_level),
-                    notes="Migrated from legacy cache entry",
+            # Verify workspace still exists
+            if not metadata.workspace_path.exists():
+                self.logger.info(
+                    "Cached workspace path no longer exists: %s (treating as cache miss)",
+                    metadata.workspace_path,
                 )
-
-                return WorkspaceCacheResult(
-                    success=True, workspace_path=workspace_path, metadata=metadata
-                )
-
-            # Handle rich metadata entries
-            elif isinstance(cached_data, dict):
-                metadata = WorkspaceCacheMetadata.from_cache_value(cached_data)
-
-                # Verify workspace still exists
-                if not metadata.workspace_path.exists():
-                    # Workspace path no longer exists - treat as cache miss
-                    self.logger.info(
-                        "Cached workspace path no longer exists: %s (treating as cache miss)",
-                        metadata.workspace_path,
-                    )
-                    self.cache_manager.delete(cache_key)
-                    return WorkspaceCacheResult(
-                        success=False,
-                        error_message=f"Cached workspace path no longer exists: {metadata.workspace_path}",
-                    )
-
-                # Update access time
-                metadata.update_access_time()
-
-                # Update cache with new access time
-                ttls = self.get_ttls_for_cache_levels()
-                ttl = ttls.get(cache_level, 3600)  # Default 1 hour
-                self.cache_manager.set(cache_key, metadata.to_cache_value(), ttl=ttl)
-
-                return WorkspaceCacheResult(
-                    success=True,
-                    workspace_path=metadata.workspace_path,
-                    metadata=metadata,
-                )
-
-            else:
-                self.logger.warning(
-                    "Unknown cache data format for key %s: %s",
-                    cache_key,
-                    type(cached_data),
-                )
+                self.cache_manager.delete(cache_key)
                 return WorkspaceCacheResult(
                     success=False,
-                    error_message=f"Unknown cache data format for {repository}@{branch}",
+                    error_message=f"Cached workspace path no longer exists: {metadata.workspace_path}",
                 )
+
+            # Update access time
+            metadata.update_access_time()
+
+            # Update cache with new access time
+            ttls = self.get_ttls_for_cache_levels()
+            cache_level_str = (
+                metadata.cache_level.value
+                if hasattr(metadata.cache_level, "value")
+                else str(metadata.cache_level)
+            )
+            ttl = ttls.get(cache_level_str, 24 * 3600)  # Default 1 day
+            self.cache_manager.set(cache_key, metadata.to_cache_value(), ttl=ttl)
+
+            return WorkspaceCacheResult(
+                success=True,
+                workspace_path=metadata.workspace_path,
+                metadata=metadata,
+            )
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
@@ -237,32 +180,15 @@ class ZmkWorkspaceCacheService:
                 success=False, error_message=f"Failed to retrieve cached workspace: {e}"
             )
 
-    def cache_workspace(
-        self,
-        workspace_path: Path,
-        repository: str,
-        branch: str,
-        cache_levels: list[str],
-        auto_detected: bool = False,
-        auto_detected_source: str | None = None,
-        build_profile: str | None = None,
-        keymap_path: Path | None = None,
-        config_path: Path | None = None,
+    def inject_existing_workspace(
+        self, workspace_path: Path, repository: str, branch: str | None = None
     ) -> WorkspaceCacheResult:
-        """Cache workspace with rich metadata across multiple cache levels.
-
-        Copies workspace data to {cache_path}/workspace/{key} directories and stores metadata.
+        """Inject an existing workspace into cache.
 
         Args:
-            workspace_path: Path to the workspace to cache
+            workspace_path: Path to existing workspace directory
             repository: Git repository name
-            branch: Git branch name
-            cache_levels: List of cache levels to store ('base', 'branch', 'full', 'build')
-            auto_detected: Whether workspace was auto-detected
-            auto_detected_source: Source path if auto-detected
-            build_profile: Optional build profile used
-            keymap_path: Optional keymap file for hash calculation
-            config_path: Optional config file for hash calculation
+            branch: Git branch name (None for repo-only injection)
 
         Returns:
             WorkspaceCacheResult with operation results
@@ -270,521 +196,74 @@ class ZmkWorkspaceCacheService:
         try:
             workspace_path = workspace_path.resolve()
 
-            if not workspace_path.exists():
+            if not workspace_path.exists() or not workspace_path.is_dir():
                 return WorkspaceCacheResult(
                     success=False,
-                    error_message=f"Workspace path does not exist: {workspace_path}",
+                    error_message=f"Workspace path does not exist or is not a directory: {workspace_path}",
                 )
 
-            # Detect workspace components
-            detected_components = []
-            for component in ["zmk", "zephyr", "modules"]:
-                component_path = workspace_path / component
-                if component_path.exists() and component_path.is_dir():
-                    detected_components.append(component)
+            # Determine cache level and git inclusion
+            if branch is None:
+                cache_level = CacheLevel.REPO
+                include_git = True
+            else:
+                cache_level = CacheLevel.REPO_BRANCH
+                include_git = False
 
-            # Calculate workspace size
-            workspace_size = self._calculate_directory_size(workspace_path)
-
-            # Get TTL values
-            ttls = self.get_ttls_for_cache_levels()
-
-            # Store cache entries for each requested level independently
-            stored_levels = []
-            first_cached_path = None
-
-            for cache_level in cache_levels:
-                try:
-                    # Generate cache key for this level
-                    cache_key = generate_workspace_cache_key(
-                        repository, branch, cache_level
-                    )
-
-                    # Create cache directory path: {cache_path}/workspace/{cache_key}
-                    cache_base_dir = self.get_cache_directory()
-                    level_cache_dir = cache_base_dir / cache_key
-
-                    # Each cache level gets its own independent copy of the workspace
-                    level_cache_dir.mkdir(parents=True, exist_ok=True)
-
-                    # Copy each component directory to this level's cache
-                    for component in detected_components:
-                        src_component = workspace_path / component
-                        dest_component = level_cache_dir / component
-
-                        # Remove existing if it exists
-                        if dest_component.exists():
-                            shutil.rmtree(dest_component)
-
-                        # Copy component directory
-                        shutil.copytree(src_component, dest_component)
-                        self.logger.debug(
-                            "Copied component %s to %s for cache level %s",
-                            component,
-                            dest_component,
-                            cache_level,
-                        )
-
-                    # Track the first cache path for return value
-                    if first_cached_path is None:
-                        first_cached_path = level_cache_dir
-
-                    self.logger.info(
-                        "Copied workspace data to %s cache level: %s",
-                        cache_level,
-                        level_cache_dir,
-                    )
-
-                    # Create metadata for this cache level pointing to its own data
-                    metadata = WorkspaceCacheMetadata(  # type: ignore[call-arg]
-                        workspace_path=level_cache_dir,
-                        repository=repository,
-                        branch=branch,
-                        cache_level=CacheLevel(cache_level),
-                        auto_detected=auto_detected,
-                        auto_detected_source=auto_detected_source,
-                        build_profile=build_profile,
-                        cached_components=detected_components.copy(),
-                        size_bytes=workspace_size,
-                    )
-
-                    # Update file hashes if provided
-                    if keymap_path or config_path:
-                        metadata.update_file_hashes(keymap_path, config_path)
-
-                    # Store metadata in cache manager
-                    ttl = ttls.get(cache_level, 3600)  # Default 1 hour
-                    self.cache_manager.set(
-                        cache_key, metadata.to_cache_value(), ttl=ttl
-                    )
-                    stored_levels.append(cache_level)
-
-                    self.logger.debug(
-                        "Cached workspace %s@%s (level: %s) with TTL %d seconds, data at %s",
-                        repository,
-                        branch,
-                        cache_level,
-                        ttl,
-                        level_cache_dir,
-                    )
-
-                except Exception as e:
-                    self.logger.warning(
-                        "Failed to cache workspace at level %s: %s", cache_level, e
-                    )
-
-            if not stored_levels:
-                return WorkspaceCacheResult(
-                    success=False,
-                    error_message="Failed to cache workspace at any requested level",
-                )
-
-            # Return metadata for the first successfully stored level
-            cache_key = generate_workspace_cache_key(
-                repository, branch, stored_levels[0]
+            # Cache the workspace by copying it
+            return self._cache_workspace_internal(
+                workspace_path=workspace_path,
+                repository=repository,
+                branch=branch,
+                cache_level=cache_level,
+                include_git=include_git,
             )
-            cached_data = self.cache_manager.get(cache_key)
-            metadata = WorkspaceCacheMetadata.from_cache_value(cached_data)
-
-            return WorkspaceCacheResult(
-                success=True,
-                workspace_path=first_cached_path,
-                metadata=metadata,
-                created_new=True,
-            )
-
-        except Exception as e:
-            exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Failed to cache workspace: %s", e, exc_info=exc_info)
-            return WorkspaceCacheResult(
-                success=False, error_message=f"Failed to cache workspace: {e}"
-            )
-
-    def add_external_workspace(
-        self, source_path: Path, repository: str | None = None, force: bool = False
-    ) -> WorkspaceCacheResult:
-        """Add an external workspace to cache with auto-detection support.
-
-        Args:
-            source_path: Path to existing workspace directory
-            repository: Optional repository name (auto-detected if not provided)
-            force: Whether to overwrite existing cache entries
-
-        Returns:
-            WorkspaceCacheResult with operation results
-        """
-        try:
-            # Auto-detect workspace information
-            detection_result = self.auto_detect_workspace_info(source_path)
-
-            if not detection_result.success:
-                return WorkspaceCacheResult(
-                    success=False, error_message=detection_result.error_message
-                )
-
-            # Use provided repository or auto-detected
-            final_repository = repository or detection_result.repository
-            final_branch = detection_result.branch or "main"
-
-            if not final_repository:
-                return WorkspaceCacheResult(
-                    success=False,
-                    error_message="Could not determine repository name (provide manually or ensure git remote is configured)",
-                )
-
-            # Check if already cached
-            if not force:
-                base_cache = self.get_cached_workspace(
-                    final_repository, final_branch, "base"
-                )
-                if base_cache.success:
-                    return WorkspaceCacheResult(
-                        success=False,
-                        error_message=f"Workspace already cached for {final_repository}@{final_branch} (use --force to overwrite)",
-                    )
-
-            # Cache the workspace directly from source - cache_workspace will handle copying
-            cache_result = self.cache_workspace(
-                workspace_path=source_path,
-                repository=final_repository,
-                branch=final_branch,
-                cache_levels=["base", "branch", "full"],
-                auto_detected=True,
-                auto_detected_source=str(source_path),
-            )
-
-            if cache_result.success:
-                self.logger.info(
-                    "Successfully added external workspace %s@%s from %s",
-                    final_repository,
-                    final_branch,
-                    source_path,
-                )
-
-            return cache_result
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.error(
-                "Failed to add external workspace: %s", e, exc_info=exc_info
+                "Failed to inject existing workspace: %s", e, exc_info=exc_info
             )
             return WorkspaceCacheResult(
-                success=False, error_message=f"Failed to add external workspace: {e}"
+                success=False, error_message=f"Failed to inject existing workspace: {e}"
             )
-
-    def list_cached_workspaces(self) -> list[WorkspaceCacheMetadata]:
-        """List all cached workspaces with their metadata.
-
-        Scans both cache metadata and filesystem to discover all cached workspaces.
-        When multiple cache levels exist for the same workspace, shows the highest level.
-
-        Returns:
-            List of WorkspaceCacheMetadata for all cached workspaces
-        """
-        workspaces: dict[
-            tuple[str, str], WorkspaceCacheMetadata
-        ] = {}  # (repo, branch) -> metadata
-        seen_cache_keys = set()  # Track cache keys to avoid duplicates
-
-        # Define cache level priority (higher number = higher priority)
-        cache_level_priority = {"base": 1, "branch": 2, "full": 3, "build": 4}
-
-        try:
-            # Method 1: Get workspaces from cache metadata
-            cache_dir = self.get_cache_directory()
-            if cache_dir.exists():
-                # Scan cache directory for both workspace subdirectories and symlinks
-                for cache_item in cache_dir.iterdir():
-                    # Skip files (like cache.db)
-                    if cache_item.is_file():
-                        continue
-
-                    # Handle both directories and symlinks
-                    cache_key = cache_item.name
-
-                    # Skip if we've already processed this cache key
-                    if cache_key in seen_cache_keys:
-                        continue
-
-                    # Try to get metadata from cache manager
-                    cached_data = self.cache_manager.get(cache_key)
-                    if cached_data:
-                        try:
-                            if isinstance(cached_data, dict):
-                                metadata = WorkspaceCacheMetadata.from_cache_value(
-                                    cached_data
-                                )
-                                workspace_key = (metadata.repository, metadata.branch)
-
-                                # For symlinks, resolve to actual workspace path
-                                actual_workspace_path = metadata.workspace_path
-                                if cache_item.is_symlink():
-                                    try:
-                                        actual_workspace_path = cache_item.resolve()
-                                    except (OSError, RuntimeError):
-                                        # Broken symlink, skip this entry
-                                        self.logger.debug(
-                                            "Skipping broken symlink: %s", cache_item
-                                        )
-                                        continue
-
-                                # Verify workspace directory still exists
-                                if actual_workspace_path.exists():
-                                    # Update metadata to point to actual path if needed
-                                    if actual_workspace_path != metadata.workspace_path:
-                                        metadata.workspace_path = actual_workspace_path
-
-                                    # Verify git repository info matches metadata
-                                    # For ZMK workspaces, check the zmk subdirectory for git info
-                                    zmk_path = actual_workspace_path / "zmk"
-                                    if (
-                                        zmk_path.exists()
-                                        and (zmk_path / ".git").exists()
-                                    ):
-                                        git_info = detect_git_info(zmk_path)
-                                    else:
-                                        git_info = detect_git_info(
-                                            actual_workspace_path
-                                        )
-
-                                    actual_repo = git_info.get("repository", "unknown")
-                                    actual_branch = git_info.get("branch", "main")
-
-                                    # If metadata doesn't match actual git info, update it
-                                    if actual_repo != "unknown" and (
-                                        actual_repo != metadata.repository
-                                        or actual_branch != metadata.branch
-                                    ):
-                                        self.logger.debug(
-                                            "Correcting metadata mismatch for %s: %s@%s -> %s@%s",
-                                            cache_key,
-                                            metadata.repository,
-                                            metadata.branch,
-                                            actual_repo,
-                                            actual_branch,
-                                        )
-                                        metadata.repository = actual_repo
-                                        metadata.branch = actual_branch
-                                        metadata.notes = (
-                                            "Auto-corrected metadata from git info"
-                                        )
-
-                                        # Update workspace_key with corrected info
-                                        workspace_key = (
-                                            metadata.repository,
-                                            metadata.branch,
-                                        )
-
-                                    # Check if we should add or update this workspace entry
-                                    cache_level_str = (
-                                        metadata.cache_level.value
-                                        if hasattr(metadata.cache_level, "value")
-                                        else str(metadata.cache_level)
-                                    )
-                                    current_priority = cache_level_priority.get(
-                                        cache_level_str, 0
-                                    )
-
-                                    if workspace_key in workspaces:
-                                        # Compare priority with existing entry
-                                        existing_metadata = workspaces[workspace_key]
-                                        existing_level_str = (
-                                            existing_metadata.cache_level.value
-                                            if hasattr(
-                                                existing_metadata.cache_level, "value"
-                                            )
-                                            else str(existing_metadata.cache_level)
-                                        )
-                                        existing_priority = cache_level_priority.get(
-                                            existing_level_str, 0
-                                        )
-
-                                        # Replace if current has higher priority
-                                        if current_priority > existing_priority:
-                                            workspaces[workspace_key] = metadata
-                                    else:
-                                        # First entry for this workspace
-                                        workspaces[workspace_key] = metadata
-
-                                    seen_cache_keys.add(cache_key)
-                                else:
-                                    # Clean up stale cache entry
-                                    self.cache_manager.delete(cache_key)
-                                    self.logger.debug(
-                                        "Cleaned up stale cache entry: %s",
-                                        cache_key,
-                                    )
-                        except Exception as e:
-                            self.logger.warning(
-                                "Failed to parse cached metadata for %s: %s",
-                                cache_key,
-                                e,
-                            )
-
-            # Method 2: Scan filesystem for orphaned workspace directories
-            # This catches workspaces that exist on disk but have no cache metadata
-            if cache_dir.exists():
-                for workspace_item in cache_dir.iterdir():
-                    # Skip files and items we've already processed
-                    if (
-                        workspace_item.is_file()
-                        or workspace_item.name in seen_cache_keys
-                    ):
-                        continue
-
-                    # Resolve actual workspace directory (handle symlinks)
-                    actual_workspace_dir = workspace_item
-                    if workspace_item.is_symlink():
-                        try:
-                            actual_workspace_dir = workspace_item.resolve()
-                        except (OSError, RuntimeError):
-                            # Broken symlink, skip
-                            continue
-
-                    # Must be a directory to be a valid workspace
-                    if not actual_workspace_dir.is_dir():
-                        continue
-
-                    # Try to detect git info for directories not found in cache metadata
-                    git_info = detect_git_info(actual_workspace_dir)
-                    repository = git_info.get("repository")
-                    branch = git_info.get("branch", "main")
-
-                    if repository:
-                        workspace_key = (repository, branch)
-                        if workspace_key not in workspaces:
-                            # Create metadata for orphaned workspace
-                            metadata = WorkspaceCacheMetadata(  # type: ignore[call-arg]
-                                workspace_path=actual_workspace_dir,
-                                repository=repository,
-                                branch=branch,
-                                cache_level=CacheLevel.BASE,
-                                notes="Orphaned workspace directory (metadata missing)",
-                            )
-                            workspaces[workspace_key] = metadata
-                            self.logger.debug(
-                                "Found orphaned workspace: %s@%s at %s",
-                                repository,
-                                branch,
-                                actual_workspace_dir,
-                            )
-
-        except Exception as e:
-            exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error(
-                "Failed to list cached workspaces: %s", e, exc_info=exc_info
-            )
-
-        return list(workspaces.values())
 
     def delete_cached_workspace(
         self, repository: str, branch: str | None = None
     ) -> bool:
-        """Delete cached workspace for a repository and optional branch.
-
-        Deletes both cache metadata and workspace data directories.
+        """Delete cached workspace.
 
         Args:
-            repository: Repository name to delete
-            branch: Optional specific branch (deletes all branches if None)
+            repository: Git repository name
+            branch: Git branch name (None for repo-only deletion)
 
         Returns:
-            True if workspace was deleted successfully
+            True if deletion was successful, False otherwise
         """
         try:
-            deleted_any = False
-            cache_dir = self.get_cache_directory()
+            cache_key = self._generate_cache_key(repository, branch)
 
-            # Special handling for orphaned workspaces (unknown repositories)
-            if repository == "unknown":
-                # For orphaned workspaces, scan cache directory and delete directories
-                # that don't have corresponding cache metadata
-                for cache_subdir in cache_dir.iterdir():
-                    if not cache_subdir.is_dir() or cache_subdir.is_symlink():
-                        continue
-
-                    cache_key = cache_subdir.name
-
-                    # Check if this directory has corresponding metadata
-                    cached_data = self.cache_manager.get(cache_key)
-                    if not cached_data:
-                        # This is an orphaned directory - delete it
-                        try:
-                            shutil.rmtree(cache_subdir)
-                            deleted_any = True
-                            self.logger.debug(
-                                "Deleted orphaned workspace directory: %s", cache_subdir
-                            )
-                        except Exception as e:
-                            self.logger.warning(
-                                "Failed to delete orphaned directory %s: %s",
-                                cache_subdir,
-                                e,
-                            )
-
-                return deleted_any
-
-            # Normal deletion for known repositories
-            levels = ["base", "branch", "full", "build"]
-            branches_to_delete = (
-                [branch] if branch else ["main", "master", "develop", "dev"]
-            )
-            workspace_dirs_to_remove = set()
-
-            # Delete cache entries and collect workspace paths
-            for branch_name in branches_to_delete:
-                for level in levels:
-                    cache_key = generate_workspace_cache_key(
-                        repository, branch_name, level
+            # Get workspace path before deleting metadata
+            cached_data = self.cache_manager.get(cache_key)
+            if cached_data:
+                metadata = WorkspaceCacheMetadata.from_cache_value(cached_data)
+                if metadata.workspace_path.exists():
+                    shutil.rmtree(metadata.workspace_path)
+                    self.logger.debug(
+                        "Deleted workspace directory: %s", metadata.workspace_path
                     )
 
-                    # Get workspace path before deleting metadata
-                    cached_data = self.cache_manager.get(cache_key)
-                    if cached_data:
-                        try:
-                            if isinstance(cached_data, dict):
-                                metadata = WorkspaceCacheMetadata.from_cache_value(
-                                    cached_data
-                                )
-                                workspace_dirs_to_remove.add(metadata.workspace_path)
-                            elif isinstance(cached_data, str):
-                                # Legacy cache entry
-                                workspace_dirs_to_remove.add(Path(cached_data))
-                        except Exception as e:
-                            self.logger.warning(
-                                "Failed to parse cached metadata: %s", e
-                            )
+            # Delete cache entry
+            result = self.cache_manager.delete(cache_key)
+            if result:
+                cache_type = "repo+branch" if branch else "repo-only"
+                self.logger.info(
+                    "Successfully deleted cached workspace: %s (%s)",
+                    repository,
+                    cache_type,
+                )
 
-                    # Delete cache entry
-                    if self.cache_manager.exists(cache_key):
-                        self.cache_manager.delete(cache_key)
-                        deleted_any = True
-                        self.logger.debug("Deleted cache entry: %s", cache_key)
-
-                        # Also add the expected cache directory path
-                        expected_cache_dir = cache_dir / cache_key
-                        workspace_dirs_to_remove.add(expected_cache_dir)
-
-            # Delete workspace directories
-            for workspace_dir in workspace_dirs_to_remove:
-                if workspace_dir.exists():
-                    try:
-                        # Handle symlinks and regular directories
-                        if workspace_dir.is_symlink():
-                            workspace_dir.unlink()
-                            self.logger.debug("Removed symlink: %s", workspace_dir)
-                        else:
-                            shutil.rmtree(workspace_dir)
-                            self.logger.debug(
-                                "Deleted workspace directory: %s", workspace_dir
-                            )
-                        deleted_any = True
-                    except Exception as e:
-                        self.logger.warning(
-                            "Failed to delete directory %s: %s", workspace_dir, e
-                        )
-
-            return deleted_any
+            return result
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
@@ -792,6 +271,48 @@ class ZmkWorkspaceCacheService:
                 "Failed to delete cached workspace: %s", e, exc_info=exc_info
             )
             return False
+
+    def list_cached_workspaces(self) -> list[WorkspaceCacheMetadata]:
+        """List all cached workspaces.
+
+        Returns:
+            List of WorkspaceCacheMetadata for all cached workspaces
+        """
+        try:
+            all_keys = self.cache_manager.keys()
+            workspace_keys = [
+                key
+                for key in all_keys
+                if key.startswith("workspace_repo_")
+                or key.startswith("workspace_repo_branch_")
+            ]
+
+            workspaces = []
+            for key in workspace_keys:
+                try:
+                    cached_data = self.cache_manager.get(key)
+                    if cached_data:
+                        metadata = WorkspaceCacheMetadata.from_cache_value(cached_data)
+                        # Verify workspace still exists
+                        if metadata.workspace_path.exists():
+                            workspaces.append(metadata)
+                        else:
+                            # Clean up stale entry
+                            self.cache_manager.delete(key)
+                            self.logger.debug("Cleaned up stale cache entry: %s", key)
+                except Exception as e:
+                    self.logger.warning(
+                        "Failed to parse cached metadata for %s: %s", key, e
+                    )
+
+            return workspaces
+
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error(
+                "Failed to list cached workspaces: %s", e, exc_info=exc_info
+            )
+            return []
 
     def cleanup_stale_entries(self, max_age_hours: float = 24 * 7) -> int:
         """Clean up stale cache entries older than specified age.
@@ -804,8 +325,6 @@ class ZmkWorkspaceCacheService:
         """
         try:
             cleaned_count = 0
-            current_time = datetime.now()
-
             workspaces = self.list_cached_workspaces()
 
             for metadata in workspaces:
@@ -820,6 +339,11 @@ class ZmkWorkspaceCacheService:
                         metadata.age_hours,
                     )
 
+            if cleaned_count > 0:
+                self.logger.info(
+                    "Cleaned up %d stale workspace cache entries", cleaned_count
+                )
+
             return cleaned_count
 
         except Exception as e:
@@ -828,6 +352,142 @@ class ZmkWorkspaceCacheService:
                 "Failed to cleanup stale entries: %s", e, exc_info=exc_info
             )
             return 0
+
+    def _cache_workspace_internal(
+        self,
+        workspace_path: Path,
+        repository: str,
+        branch: str | None,
+        cache_level: CacheLevel,
+        include_git: bool,
+    ) -> WorkspaceCacheResult:
+        """Internal method to cache workspace with specified options.
+
+        Args:
+            workspace_path: Path to the workspace to cache
+            repository: Git repository name
+            branch: Git branch name (can be None)
+            cache_level: Cache level enum value
+            include_git: Whether to include .git folders
+
+        Returns:
+            WorkspaceCacheResult with operation results
+        """
+        try:
+            workspace_path = workspace_path.resolve()
+
+            if not workspace_path.exists() or not workspace_path.is_dir():
+                return WorkspaceCacheResult(
+                    success=False,
+                    error_message=f"Workspace path does not exist or is not a directory: {workspace_path}",
+                )
+
+            # Generate cache key and directory
+            cache_key = self._generate_cache_key(repository, branch)
+            cache_base_dir = self.get_cache_directory()
+            cached_workspace_dir = cache_base_dir / cache_key
+            cached_workspace_dir.mkdir(parents=True, exist_ok=True)
+
+            # Detect workspace components
+            detected_components = []
+            for component in ["zmk", "zephyr", "modules"]:
+                component_path = workspace_path / component
+                if component_path.exists() and component_path.is_dir():
+                    detected_components.append(component)
+
+            # Copy workspace components
+            for component in detected_components:
+                src_component = workspace_path / component
+                dest_component = cached_workspace_dir / component
+
+                # Remove existing if it exists
+                if dest_component.exists():
+                    shutil.rmtree(dest_component)
+
+                # Copy component directory
+                self._copy_directory(src_component, dest_component, include_git)
+                self.logger.debug(
+                    "Copied component %s to %s (include_git=%s)",
+                    component,
+                    dest_component,
+                    include_git,
+                )
+
+            # Calculate workspace size
+            workspace_size = self._calculate_directory_size(cached_workspace_dir)
+
+            # Create metadata
+            metadata = WorkspaceCacheMetadata(
+                workspace_path=cached_workspace_dir,
+                repository=repository,
+                branch=branch,
+                cache_level=cache_level,
+                cached_components=detected_components.copy(),
+                size_bytes=workspace_size,
+                notes=f"Cached with include_git={include_git}",
+                # Explicitly provide optional fields to satisfy mypy
+                commit_hash=None,
+                keymap_hash=None,
+                config_hash=None,
+                auto_detected=False,
+                auto_detected_source=None,
+                build_id=None,
+                build_profile=None,
+                # Explicitly set datetime fields to satisfy mypy
+                created_at=datetime.now(),
+                last_accessed=datetime.now(),
+            )
+
+            # Store metadata in cache manager
+            ttls = self.get_ttls_for_cache_levels()
+            cache_level_str = (
+                cache_level.value if hasattr(cache_level, "value") else str(cache_level)
+            )
+            ttl = ttls.get(cache_level_str, 24 * 3600)  # Default 1 day
+
+            self.cache_manager.set(cache_key, metadata.to_cache_value(), ttl=ttl)
+
+            cache_type = "repo+branch" if branch else "repo-only"
+            self.logger.info(
+                "Successfully cached workspace %s (%s) with TTL %d seconds, data at %s",
+                repository,
+                cache_type,
+                ttl,
+                cached_workspace_dir,
+            )
+
+            return WorkspaceCacheResult(
+                success=True,
+                workspace_path=cached_workspace_dir,
+                metadata=metadata,
+                created_new=True,
+            )
+
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("Failed to cache workspace: %s", e, exc_info=exc_info)
+            return WorkspaceCacheResult(
+                success=False, error_message=f"Failed to cache workspace: {e}"
+            )
+
+    def _copy_directory(self, src: Path, dest: Path, include_git: bool) -> None:
+        """Copy directory with optional .git exclusion.
+
+        Args:
+            src: Source directory
+            dest: Destination directory
+            include_git: Whether to include .git folders
+        """
+
+        def ignore_patterns(src_dir: str, names: list[str]) -> list[str]:
+            """Ignore function for shutil.copytree."""
+            ignored = []
+            if not include_git and ".git" in names:
+                # Exclude .git directories when include_git=False
+                ignored.append(".git")
+            return ignored
+
+        shutil.copytree(src, dest, ignore=ignore_patterns)
 
     def _calculate_directory_size(self, directory: Path) -> int:
         """Calculate total size of directory in bytes.
@@ -846,18 +506,3 @@ class ZmkWorkspaceCacheService:
         except (OSError, PermissionError):
             pass
         return total
-
-
-def create_zmk_workspace_cache_service(
-    user_config: UserConfig, cache_manager: CacheManager
-) -> ZmkWorkspaceCacheService:
-    """Factory function to create ZmkWorkspaceCacheService instance.
-
-    Args:
-        user_config: User configuration instance
-        cache_manager: Cache manager instance
-
-    Returns:
-        Configured ZmkWorkspaceCacheService
-    """
-    return ZmkWorkspaceCacheService(user_config, cache_manager)

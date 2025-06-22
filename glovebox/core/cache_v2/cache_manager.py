@@ -46,6 +46,17 @@ class CacheManager(Protocol):
         """
         ...
 
+    def delete_many(self, keys: list[str]) -> int:
+        """Remove multiple values from cache.
+
+        Args:
+            keys: List of cache keys to remove
+
+        Returns:
+            Number of keys successfully deleted
+        """
+        ...
+
     def clear(self) -> None:
         """Clear all entries from cache."""
         ...

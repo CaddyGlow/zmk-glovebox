@@ -580,10 +580,10 @@ class TestUSBFlasherPrivateMethods:
 
         # Test with None device - we need to use type ignore for this edge case test
         is_valid = flasher._validate_inputs(
-            None,
+            None,  # type: ignore[arg-type]
             firmware_file,
             sample_usb_config,
-            result,  # type: ignore[arg-type]
+            result,
         )
 
         assert is_valid is False

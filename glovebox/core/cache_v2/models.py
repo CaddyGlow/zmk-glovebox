@@ -106,10 +106,24 @@ class CacheKey:
 
     @staticmethod
     def from_path(path: Path) -> str:
-        """Generate cache key from file path and modification time."""
+        """Generate cache key from file content hash.
+
+        Args:
+            path: Path to the file to hash
+
+        Returns:
+            Content-based hash of the file
+        """
+        import hashlib
+
         try:
-            stat = path.stat()
-            return CacheKey.from_parts(str(path), str(stat.st_mtime), str(stat.st_size))
+            # Use actual file content hash for more reliable caching
+            with path.open("rb") as f:
+                file_hash = hashlib.sha256()
+                # Read file in chunks to handle large files efficiently
+                for chunk in iter(lambda: f.read(8192), b""):
+                    file_hash.update(chunk)
+                return file_hash.hexdigest()[:16]
         except OSError:
-            # File doesn't exist or can't be accessed
+            # File doesn't exist or can't be accessed - use path as fallback
             return CacheKey.from_parts(str(path))
