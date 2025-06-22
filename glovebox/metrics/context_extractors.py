@@ -8,7 +8,9 @@ from typing import Any
 import typer
 
 
-def extract_cli_context(func: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
+def extract_cli_context(
+    func: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> dict[str, Any]:
     """Extract context information from CLI command function arguments.
 
     This extractor is designed to work with typer-based CLI commands and
@@ -41,7 +43,11 @@ def extract_cli_context(func: Callable[..., Any], args: tuple[Any, ...], kwargs:
         # Extract typer context if available
         if "ctx" in kwargs and isinstance(kwargs["ctx"], typer.Context):
             typer_ctx = kwargs["ctx"]
-            if hasattr(typer_ctx, "params") and "profile_name" not in context and "profile" in typer_ctx.params:
+            if (
+                hasattr(typer_ctx, "params")
+                and "profile_name" not in context
+                and "profile" in typer_ctx.params
+            ):
                 # Extract profile from context params if not in kwargs
                 profile = typer_ctx.params["profile"]
                 if profile:
@@ -117,7 +123,11 @@ def extract_cli_context(func: Callable[..., Any], args: tuple[Any, ...], kwargs:
                     if isinstance(arg, str | Path) and str(arg) != "-":
                         if param_name in ["json_file", "layout_file", "input_file"]:
                             context["input_file"] = str(arg)
-                        elif param_name in ["output_dir", "output_file_prefix", "output"]:
+                        elif param_name in [
+                            "output_dir",
+                            "output_file_prefix",
+                            "output",
+                        ]:
                             context["output_directory"] = str(arg)
 
         except Exception:
@@ -132,7 +142,9 @@ def extract_cli_context(func: Callable[..., Any], args: tuple[Any, ...], kwargs:
     return context
 
 
-def extract_service_context(func: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
+def extract_service_context(
+    func: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> dict[str, Any]:
     """Extract context information from service method arguments.
 
     This extractor works with service classes and extracts common service
@@ -166,7 +178,9 @@ def extract_service_context(func: Callable[..., Any], args: tuple[Any, ...], kwa
                 context["profile_name"] = profile.keyboard_name
                 if hasattr(profile, "firmware_version") and profile.firmware_version:
                     context["firmware_version"] = profile.firmware_version
-                    context["profile_name"] = f"{profile.keyboard_name}/{profile.firmware_version}"
+                    context["profile_name"] = (
+                        f"{profile.keyboard_name}/{profile.firmware_version}"
+                    )
 
         # Extract keyboard profile from positional args (common pattern)
         if args and len(args) > 1:
@@ -175,9 +189,14 @@ def extract_service_context(func: Callable[..., Any], args: tuple[Any, ...], kwa
             if hasattr(profile_arg, "keyboard_name"):
                 context["keyboard_name"] = profile_arg.keyboard_name
                 context["profile_name"] = profile_arg.keyboard_name
-                if hasattr(profile_arg, "firmware_version") and profile_arg.firmware_version:
+                if (
+                    hasattr(profile_arg, "firmware_version")
+                    and profile_arg.firmware_version
+                ):
                     context["firmware_version"] = profile_arg.firmware_version
-                    context["profile_name"] = f"{profile_arg.keyboard_name}/{profile_arg.firmware_version}"
+                    context["profile_name"] = (
+                        f"{profile_arg.keyboard_name}/{profile_arg.firmware_version}"
+                    )
 
         # Extract file paths from common service parameters
         file_params = [
@@ -219,7 +238,9 @@ def extract_service_context(func: Callable[..., Any], args: tuple[Any, ...], kwa
         # Extract configuration information
         if "config" in kwargs and kwargs["config"]:
             config = kwargs["config"]
-            if hasattr(config, "build_matrix") and hasattr(config.build_matrix, "board"):
+            if hasattr(config, "build_matrix") and hasattr(
+                config.build_matrix, "board"
+            ):
                 context["board_targets"] = config.build_matrix.board
 
     except Exception:
@@ -229,7 +250,9 @@ def extract_service_context(func: Callable[..., Any], args: tuple[Any, ...], kwa
     return context
 
 
-def extract_compilation_context(func: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
+def extract_compilation_context(
+    func: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> dict[str, Any]:
     """Extract context information from compilation service arguments.
 
     This extractor is specialized for compilation operations and extracts
@@ -312,7 +335,9 @@ def extract_compilation_context(func: Callable[..., Any], args: tuple[Any, ...],
     return context
 
 
-def extract_flash_context(func: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
+def extract_flash_context(
+    func: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> dict[str, Any]:
     """Extract context information from firmware flashing operations.
 
     This extractor is specialized for firmware flashing and extracts
@@ -357,7 +382,12 @@ def extract_flash_context(func: Callable[..., Any], args: tuple[Any, ...], kwarg
                 context["device_path"] = str(kwargs[param])
 
         # Extract USB device information
-        usb_params = ["vendor_id", "product_id", "device_vendor_id", "device_product_id"]
+        usb_params = [
+            "vendor_id",
+            "product_id",
+            "device_vendor_id",
+            "device_product_id",
+        ]
         for param in usb_params:
             if param in kwargs and kwargs[param]:
                 if "vendor" in param:
@@ -376,4 +406,3 @@ def extract_flash_context(func: Callable[..., Any], args: tuple[Any, ...], kwarg
         pass
 
     return context
-
