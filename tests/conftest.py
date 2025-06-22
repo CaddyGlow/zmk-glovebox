@@ -3,7 +3,7 @@
 import json
 import os
 import tempfile
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import Any
 from unittest.mock import Mock, patch
@@ -179,7 +179,7 @@ def reset_shared_cache() -> Generator[None, None, None]:
 
 
 @pytest.fixture
-def shared_cache_stats() -> Generator[callable, None, None]:
+def shared_cache_stats() -> Generator[Callable[[], dict[str, Any]], None, None]:
     """Provide access to shared cache statistics for testing.
 
     Returns:

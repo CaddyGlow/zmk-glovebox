@@ -21,6 +21,10 @@ class CacheLevel(str, Enum):
     MOERGO = "moergo"
     CORE = "core"
 
+    # New simplified workspace cache levels
+    REPO = "repo"  # Repository-only cache (includes .git for branch fetching)
+    REPO_BRANCH = "repo_branch"  # Repository + branch cache (excludes .git)
+
 
 class CacheTTLConfig(GloveboxBaseModel):
     """Comprehensive TTL configuration covering all cache types across domains.

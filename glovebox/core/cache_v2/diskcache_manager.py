@@ -128,6 +128,23 @@ class DiskCacheManager(CacheManager):
             self.logger.warning("Cache delete error for key %s: %s", key, e)
             return False
 
+    def delete_many(self, keys: list[str]) -> int:
+        """Remove multiple values from cache.
+
+        Args:
+            keys: List of cache keys to remove
+
+        Returns:
+            Number of keys successfully deleted
+        """
+        deleted_count = 0
+        for key in keys:
+            if self.delete(key):
+                deleted_count += 1
+
+        self.logger.debug("Deleted %d/%d cache keys", deleted_count, len(keys))
+        return deleted_count
+
     def clear(self) -> None:
         """Clear all entries from cache."""
         try:

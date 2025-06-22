@@ -206,8 +206,8 @@ class TestBookmarkService:
 
         # Should log the warning - check both caplog.text and records
         log_messages = [record.message for record in caplog.records]
-        warning_logged = "Failed to fetch metadata" in caplog.text or any(
-            "Failed to fetch metadata" in msg for msg in log_messages
+        warning_logged = "Failed to fetch metadata for" in caplog.text or any(
+            "Failed to fetch metadata for" in msg for msg in log_messages
         )
         if not warning_logged:
             print(f"Debug: caplog.text = '{caplog.text}'")
@@ -217,7 +217,7 @@ class TestBookmarkService:
             )
 
         assert warning_logged, (
-            "Expected 'Failed to fetch metadata' warning to be logged"
+            "Expected 'Failed to fetch metadata for' warning to be logged"
         )
 
     def test_remove_bookmark_exists(self, bookmark_service, mock_moergo_client):

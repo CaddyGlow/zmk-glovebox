@@ -151,7 +151,7 @@ class TestMoergoNixServiceBasicMethods:
 
     def test_check_available_no_adapter(self):
         """Test availability check with None adapter."""
-        service = MoergoNixService(None)
+        service = MoergoNixService(None)  # type: ignore[arg-type]
 
         result = service.check_available()
 

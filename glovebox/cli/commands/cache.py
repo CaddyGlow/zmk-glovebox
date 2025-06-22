@@ -3,6 +3,7 @@
 import contextlib
 import logging
 import shutil
+import time
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -11,9 +12,9 @@ from rich.console import Console
 from rich.table import Table
 
 from glovebox.cli.helpers.theme import Icons
-from glovebox.compilation.cache import create_compilation_cache_service
-from glovebox.compilation.cache.workspace_cache_service import (
+from glovebox.compilation.cache import (
     ZmkWorkspaceCacheService,
+    create_compilation_cache_service,
 )
 from glovebox.config.user_config import UserConfig, create_user_config
 from glovebox.core.cache_v2.cache_manager import CacheManager
@@ -63,8 +64,8 @@ def _get_cache_manager_and_service() -> tuple[
     try:
         user_config = create_user_config()
         # Use domain-specific factory with shared cache coordination
-        cache_manager, workspace_cache_service = create_compilation_cache_service(
-            user_config
+        cache_manager, workspace_cache_service, build_cache_service = (
+            create_compilation_cache_service(user_config)
         )
         return cache_manager, workspace_cache_service, user_config
     except Exception:
@@ -74,9 +75,7 @@ def _get_cache_manager_and_service() -> tuple[
         cache_manager = create_default_cache(tag="compilation")
         # Create a minimal user config for fallback
         user_config = create_user_config()
-        from glovebox.compilation.cache.workspace_cache_service import (
-            create_zmk_workspace_cache_service,
-        )
+        from glovebox.compilation.cache import create_zmk_workspace_cache_service
 
         workspace_cache_service = create_zmk_workspace_cache_service(
             user_config, cache_manager
@@ -533,8 +532,8 @@ def workspace_show(
             # Generate cache key for display (matches the directory name)
             cache_key = generate_workspace_cache_key(
                 workspace_metadata.repository,
-                workspace_metadata.branch,
-                cache_level_value
+                workspace_metadata.branch or "main",
+                cache_level_value,
             )
 
             # Calculate size
@@ -552,7 +551,9 @@ def workspace_show(
             if workspace_metadata.workspace_path.is_symlink():
                 try:
                     actual_path = workspace_metadata.workspace_path.resolve()
-                    path_display = f"{workspace_metadata.workspace_path} → {actual_path}"
+                    path_display = (
+                        f"{workspace_metadata.workspace_path} → {actual_path}"
+                    )
                 except (OSError, RuntimeError):
                     path_display = f"{workspace_metadata.workspace_path} → [BROKEN]"
 
@@ -1128,11 +1129,33 @@ def cache_show(
                                     console.print(
                                         f"\n[bold]Cache Keys in '{module}':[/bold]"
                                     )
-                                    # Note: DiskCache doesn't expose key iteration easily
-                                    # This would require additional implementation
-                                    console.print(
-                                        "[dim]Key enumeration not yet implemented for DiskCache[/dim]"
-                                    )
+                                    try:
+                                        cache_keys = module_cache.keys()
+                                        if cache_keys:
+                                            for cache_key in sorted(cache_keys):
+                                                # Get metadata for each key
+                                                metadata = module_cache.get_metadata(
+                                                    cache_key
+                                                )
+                                                if metadata:
+                                                    size_str = _format_size(
+                                                        metadata.size_bytes
+                                                    )
+                                                    console.print(
+                                                        f"  • {cache_key} ({size_str})"
+                                                    )
+                                                else:
+                                                    console.print(
+                                                        f"  • {cache_key} (metadata unavailable)"
+                                                    )
+                                        else:
+                                            console.print(
+                                                "[dim]  No cache keys found[/dim]"
+                                            )
+                                    except Exception as e:
+                                        console.print(
+                                            f"[dim]  Error listing keys: {e}[/dim]"
+                                        )
 
                             except Exception as e:
                                 console.print(
@@ -1233,8 +1256,14 @@ def cache_show(
         console.print("  • glovebox cache clear -m <module>")
         console.print("  • glovebox cache clear --max-age <days>")
         console.print("  • glovebox cache show -m <module> --verbose")
+        console.print('  • glovebox cache delete -m <module> --keys "key1,key2"')
+        console.print('  • glovebox cache delete -m <module> --pattern "build"')
         console.print("[dim]Advanced:[/dim]")
         console.print("  • glovebox cache show --stats --verbose --keys")
+        console.print("  • glovebox cache keys -m <module> --metadata")
+        console.print("  • glovebox cache keys -m <module> --values")
+        console.print("  • glovebox cache keys --pattern <substring> --json")
+        console.print("  • glovebox cache delete -m <module> --json-file cache.json")
         console.print("  • glovebox cache debug")
 
     except Exception as e:
@@ -1277,8 +1306,14 @@ def workspace_add(
         icon_mode = "emoji"  # Default icon mode
 
         # Use the new workspace cache service for adding external workspace
-        result = workspace_cache_service.add_external_workspace(
-            source_path=workspace_path, repository=repository, force=force
+        if not repository:
+            typer.echo(
+                "Error: Repository must be specified when injecting workspace", err=True
+            )
+            raise typer.Exit(1)
+
+        result = workspace_cache_service.inject_existing_workspace(
+            workspace_path=workspace_path, repository=repository
         )
 
         if result.success and result.metadata:
@@ -1332,6 +1367,493 @@ def workspace_add(
 
     except Exception as e:
         logger.error("Failed to add workspace to cache: %s", e)
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1) from e
+
+
+@cache_app.command(name="keys")
+def cache_keys(
+    module: Annotated[
+        str | None,
+        typer.Option(
+            "-m",
+            "--module",
+            help="Show keys for specific module (e.g., 'layout', 'compilation', 'metrics')",
+        ),
+    ] = None,
+    pattern: Annotated[
+        str | None,
+        typer.Option(
+            "--pattern",
+            help="Filter keys by pattern (case-insensitive substring match)",
+        ),
+    ] = None,
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", help="Limit number of keys displayed"),
+    ] = None,
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Output keys in JSON format"),
+    ] = False,
+    metadata: Annotated[
+        bool,
+        typer.Option("--metadata", help="Include metadata for each key"),
+    ] = False,
+    values: Annotated[
+        bool,
+        typer.Option("--values", help="Include actual cached values for each key"),
+    ] = False,
+) -> None:
+    """List cache keys with optional filtering, metadata, and actual cached values."""
+    import json
+    from datetime import datetime
+
+    try:
+        if module:
+            # Show keys for specific module
+            from glovebox.core.cache_v2 import create_default_cache
+
+            try:
+                module_cache = create_default_cache(tag=module)
+                cache_keys = module_cache.keys()
+
+                # Apply pattern filtering
+                if pattern:
+                    cache_keys = [
+                        key for key in cache_keys if pattern.lower() in key.lower()
+                    ]
+
+                # Apply limit
+                if limit:
+                    cache_keys = cache_keys[:limit]
+
+                if json_output:
+                    # JSON output format
+                    output_data: dict[str, Any] = {
+                        "module": module,
+                        "total_keys": len(cache_keys),
+                        "pattern_filter": pattern,
+                        "limit_applied": limit,
+                        "timestamp": datetime.now().isoformat(),
+                        "keys": [],
+                    }
+
+                    for key in sorted(cache_keys):
+                        key_data: dict[str, Any] = {"key": key}
+
+                        if metadata:
+                            key_metadata = module_cache.get_metadata(key)
+                            if key_metadata:
+                                key_data.update(
+                                    {
+                                        "size_bytes": key_metadata.size_bytes,
+                                        "created_at": key_metadata.created_at,
+                                        "last_accessed": key_metadata.last_accessed,
+                                        "access_count": key_metadata.access_count,
+                                        "ttl_seconds": key_metadata.ttl_seconds,
+                                    }
+                                )
+
+                        if values:
+                            try:
+                                cached_value = module_cache.get(key)
+                                # Handle different types of cached values safely
+                                if cached_value is not None:
+                                    if isinstance(
+                                        cached_value,
+                                        dict | list | str | int | float | bool,
+                                    ):
+                                        key_data["value"] = cached_value
+                                    else:
+                                        # For complex objects, show string representation
+                                        key_data["value"] = str(cached_value)
+                                        key_data["value_type"] = type(
+                                            cached_value
+                                        ).__name__
+                                else:
+                                    key_data["value"] = None
+                            except Exception as e:
+                                key_data["value_error"] = str(e)
+
+                        output_data["keys"].append(key_data)
+
+                    print(json.dumps(output_data, indent=2, ensure_ascii=False))
+                else:
+                    # Human-readable output
+                    if cache_keys:
+                        console.print(f"[bold]Cache Keys in '{module}' Module[/bold]")
+                        if pattern:
+                            console.print(
+                                f"[dim]Filtered by pattern: '{pattern}'[/dim]"
+                            )
+                        console.print("=" * 60)
+
+                        if metadata or values:
+                            # Table format with metadata and/or values
+                            table = Table(show_header=True, header_style="bold green")
+                            table.add_column("Cache Key", style="cyan")
+
+                            if metadata:
+                                table.add_column("Size", style="white")
+                                table.add_column("Age", style="blue")
+                                table.add_column("Accesses", style="yellow")
+                                table.add_column("TTL", style="magenta")
+
+                            if values:
+                                table.add_column("Cached Value", style="green")
+
+                            for key in sorted(cache_keys):
+                                row_data = [key]
+
+                                if metadata:
+                                    key_metadata = module_cache.get_metadata(key)
+                                    if key_metadata:
+                                        # Calculate age
+                                        age_seconds = (
+                                            time.time() - key_metadata.created_at
+                                        )
+                                        if age_seconds >= 86400:
+                                            age_str = f"{age_seconds / 86400:.1f}d"
+                                        elif age_seconds >= 3600:
+                                            age_str = f"{age_seconds / 3600:.1f}h"
+                                        elif age_seconds >= 60:
+                                            age_str = f"{age_seconds / 60:.1f}m"
+                                        else:
+                                            age_str = f"{age_seconds:.0f}s"
+
+                                        # Format TTL
+                                        ttl_str = (
+                                            f"{key_metadata.ttl_seconds}s"
+                                            if key_metadata.ttl_seconds
+                                            else "None"
+                                        )
+
+                                        row_data.extend(
+                                            [
+                                                _format_size(key_metadata.size_bytes),
+                                                age_str,
+                                                str(key_metadata.access_count),
+                                                ttl_str,
+                                            ]
+                                        )
+                                    else:
+                                        row_data.extend(["N/A", "N/A", "N/A", "N/A"])
+
+                                if values:
+                                    try:
+                                        cached_value = module_cache.get(key)
+                                        if cached_value is not None:
+                                            # Truncate very long values for display
+                                            value_str = str(cached_value)
+                                            if len(value_str) > 100:
+                                                value_display = value_str[:97] + "..."
+                                            else:
+                                                value_display = value_str
+                                            row_data.append(value_display)
+                                        else:
+                                            row_data.append("[dim]None[/dim]")
+                                    except Exception as e:
+                                        row_data.append(f"[red]Error: {e}[/red]")
+
+                                table.add_row(*row_data)
+
+                            console.print(table)
+                        else:
+                            # Simple list format
+                            for i, key in enumerate(sorted(cache_keys), 1):
+                                if values:
+                                    try:
+                                        cached_value = module_cache.get(key)
+                                        if cached_value is not None:
+                                            # For simple format, show a brief preview of the value
+                                            value_str = str(cached_value)
+                                            if len(value_str) > 50:
+                                                value_preview = value_str[:47] + "..."
+                                            else:
+                                                value_preview = value_str
+                                            console.print(f"{i:3d}. {key}")
+                                            console.print(
+                                                f"     [green]Value:[/green] {value_preview}"
+                                            )
+                                        else:
+                                            console.print(f"{i:3d}. {key}")
+                                            console.print("     [dim]Value: None[/dim]")
+                                    except Exception as e:
+                                        console.print(f"{i:3d}. {key}")
+                                        console.print(
+                                            f"     [red]Value Error: {e}[/red]"
+                                        )
+                                else:
+                                    console.print(f"{i:3d}. {key}")
+
+                        console.print(f"\n[bold]Total keys:[/bold] {len(cache_keys)}")
+                        if limit and len(cache_keys) == limit:
+                            console.print(f"[dim]Limited to first {limit} keys[/dim]")
+                    else:
+                        if pattern:
+                            console.print(
+                                f"[yellow]No cache keys found in '{module}' matching pattern '{pattern}'[/yellow]"
+                            )
+                        else:
+                            console.print(
+                                f"[yellow]No cache keys found in '{module}' module[/yellow]"
+                            )
+
+            except Exception as e:
+                console.print(
+                    f"[red]Error accessing cache for module '{module}': {e}[/red]"
+                )
+                raise typer.Exit(1) from e
+        else:
+            # Show keys for all modules
+            user_config = create_user_config()
+            diskcache_root = user_config._config.cache_path
+
+            if not diskcache_root.exists():
+                console.print("[yellow]No cache directory found[/yellow]")
+                return
+
+            cache_subdirs = [d.name for d in diskcache_root.iterdir() if d.is_dir()]
+
+            if not cache_subdirs:
+                console.print("[yellow]No cache modules found[/yellow]")
+                return
+
+            if json_output:
+                # JSON output for all modules
+                all_modules_data: dict[str, Any] = {
+                    "total_modules": len(cache_subdirs),
+                    "pattern_filter": pattern,
+                    "timestamp": datetime.now().isoformat(),
+                    "modules": {},
+                }
+
+                for module_name in sorted(cache_subdirs):
+                    try:
+                        from glovebox.core.cache_v2 import create_default_cache
+
+                        module_cache = create_default_cache(tag=module_name)
+                        cache_keys = module_cache.keys()
+
+                        # Apply pattern filtering
+                        if pattern:
+                            cache_keys = [
+                                key
+                                for key in cache_keys
+                                if pattern.lower() in key.lower()
+                            ]
+
+                        all_modules_data["modules"][module_name] = {
+                            "total_keys": len(cache_keys),
+                            "keys": sorted(cache_keys),
+                        }
+                    except Exception:
+                        all_modules_data["modules"][module_name] = {
+                            "total_keys": 0,
+                            "keys": [],
+                            "error": "Unable to access cache",
+                        }
+
+                print(json.dumps(all_modules_data, indent=2, ensure_ascii=False))
+            else:
+                # Human-readable output for all modules
+                console.print("[bold]Cache Keys by Module[/bold]")
+                if pattern:
+                    console.print(f"[dim]Filtered by pattern: '{pattern}'[/dim]")
+                console.print("=" * 60)
+
+                total_keys = 0
+                for module_name in sorted(cache_subdirs):
+                    try:
+                        from glovebox.core.cache_v2 import create_default_cache
+
+                        module_cache = create_default_cache(tag=module_name)
+                        cache_keys = module_cache.keys()
+
+                        # Apply pattern filtering
+                        if pattern:
+                            cache_keys = [
+                                key
+                                for key in cache_keys
+                                if pattern.lower() in key.lower()
+                            ]
+
+                        console.print(
+                            f"\n[bold cyan]📦 {module_name}[/bold cyan] ({len(cache_keys)} keys)"
+                        )
+
+                        if cache_keys:
+                            if limit:
+                                display_keys = cache_keys[:limit]
+                            else:
+                                display_keys = cache_keys
+
+                            for key in sorted(display_keys):
+                                console.print(f"  • {key}")
+
+                            if limit and len(cache_keys) > limit:
+                                console.print(
+                                    f"  [dim]... and {len(cache_keys) - limit} more keys[/dim]"
+                                )
+                        else:
+                            if pattern:
+                                console.print(
+                                    f"  [dim]No keys matching pattern '{pattern}'[/dim]"
+                                )
+                            else:
+                                console.print("  [dim]No keys found[/dim]")
+
+                        total_keys += len(cache_keys)
+
+                    except Exception as e:
+                        console.print(
+                            f"\n[bold cyan]📦 {module_name}[/bold cyan] [red](Error: {e})[/red]"
+                        )
+
+                console.print(
+                    f"\n[bold]Total keys across all modules:[/bold] {total_keys}"
+                )
+
+    except Exception as e:
+        logger.error("Failed to list cache keys: %s", e)
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1) from e
+
+
+@cache_app.command(name="delete")
+def cache_delete(
+    module: Annotated[
+        str,
+        typer.Option("-m", "--module", help="Module to delete keys from"),
+    ],
+    keys: Annotated[
+        str | None,
+        typer.Option("--keys", help="Comma-separated cache keys to delete"),
+    ] = None,
+    json_file: Annotated[
+        Path | None,
+        typer.Option("--json-file", help="JSON file with keys to delete"),
+    ] = None,
+    pattern: Annotated[
+        str | None,
+        typer.Option("--pattern", help="Delete all keys matching pattern"),
+    ] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Show what would be deleted without actually deleting"),
+    ] = False,
+    force: Annotated[
+        bool,
+        typer.Option("--force", "-f", help="Force deletion without confirmation"),
+    ] = False,
+) -> None:
+    """Delete specific cache keys from a module."""
+    import json
+
+    try:
+        from glovebox.core.cache_v2 import create_default_cache
+
+        module_cache = create_default_cache(tag=module)
+
+        keys_to_delete: list[str] = []
+
+        if keys:
+            # Parse comma-separated keys
+            keys_to_delete = [k.strip() for k in keys.split(",") if k.strip()]
+        elif json_file:
+            # Load keys from JSON file
+            try:
+                with json_file.open() as f:
+                    data = json.load(f)
+                    if isinstance(data, dict) and "keys" in data:
+                        # Handle format from cache keys --json command
+                        if isinstance(data["keys"], list):
+                            keys_to_delete = [
+                                item["key"] if isinstance(item, dict) else str(item)
+                                for item in data["keys"]
+                            ]
+                    elif isinstance(data, list):
+                        # Handle simple list of keys
+                        keys_to_delete = [str(key) for key in data]
+                    else:
+                        console.print(f"[red]Invalid JSON format in {json_file}[/red]")
+                        raise typer.Exit(1)
+            except Exception as e:
+                console.print(f"[red]Error reading JSON file: {e}[/red]")
+                raise typer.Exit(1) from e
+        elif pattern:
+            # Find keys matching pattern
+            all_keys = module_cache.keys()
+            keys_to_delete = [k for k in all_keys if pattern.lower() in k.lower()]
+        else:
+            console.print("[red]Must specify --keys, --json-file, or --pattern[/red]")
+            console.print("[dim]Examples:[/dim]")
+            console.print('  glovebox cache delete -m compilation --keys "key1,key2"')
+            console.print('  glovebox cache delete -m compilation --pattern "build"')
+            console.print(
+                "  glovebox cache delete -m compilation --json-file cache_dump.json"
+            )
+            raise typer.Exit(1)
+
+        if not keys_to_delete:
+            console.print("[yellow]No keys found to delete[/yellow]")
+            return
+
+        # Show what will be deleted
+        console.print(f"[yellow]Keys to delete from '{module}' module:[/yellow]")
+        for i, key in enumerate(keys_to_delete, 1):
+            console.print(f"  {i:3d}. {key}")
+
+        if dry_run:
+            # Dry run mode - show what would be deleted without actually deleting
+            console.print(f"\n[cyan]DRY RUN: Would delete {len(keys_to_delete)} cache keys from '{module}' module[/cyan]")
+            
+            # Check which keys actually exist
+            existing_keys = []
+            missing_keys = []
+            for key in keys_to_delete:
+                if module_cache.exists(key):
+                    existing_keys.append(key)
+                else:
+                    missing_keys.append(key)
+            
+            if existing_keys:
+                console.print(f"[green]Would delete {len(existing_keys)} existing keys[/green]")
+            if missing_keys:
+                console.print(f"[yellow]Would skip {len(missing_keys)} missing keys[/yellow]")
+            
+            return
+
+        if not force:
+            confirm = typer.confirm(f"Delete {len(keys_to_delete)} cache keys?")
+            if not confirm:
+                console.print("[yellow]Cancelled[/yellow]")
+                return
+
+        # Delete the keys
+        deleted_count = module_cache.delete_many(keys_to_delete)
+
+        icon_mode = "emoji"
+        if deleted_count == len(keys_to_delete):
+            console.print(
+                f"[green]{Icons.get_icon('SUCCESS', icon_mode)} Deleted all {deleted_count} cache keys from '{module}'[/green]"
+            )
+        elif deleted_count > 0:
+            console.print(
+                f"[green]{Icons.get_icon('SUCCESS', icon_mode)} Deleted {deleted_count}/{len(keys_to_delete)} cache keys from '{module}'[/green]"
+            )
+            console.print(
+                f"[yellow]{len(keys_to_delete) - deleted_count} keys were not found[/yellow]"
+            )
+        else:
+            console.print(
+                f"[yellow]No keys were deleted (all {len(keys_to_delete)} keys not found)[/yellow]"
+            )
+
+    except Exception as e:
+        exc_info = logger.isEnabledFor(logging.DEBUG)
+        logger.error("Failed to delete cache keys: %s", e, exc_info=exc_info)
         console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(1) from e
 

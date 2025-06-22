@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 class MetricsStorageProtocol(Protocol):
     """Protocol for metrics storage backends."""
 
+    cache: Any  # Cache manager instance
+
     def store_operation_metrics(self, metrics: "OperationMetrics") -> None:
         """Store operation metrics data.
 
@@ -84,6 +86,8 @@ class MetricsStorageProtocol(Protocol):
 @runtime_checkable
 class MetricsServiceProtocol(Protocol):
     """Protocol for metrics service implementations."""
+
+    storage: MetricsStorageProtocol  # Storage backend instance
 
     def record_operation_start(
         self,

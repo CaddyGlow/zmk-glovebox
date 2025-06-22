@@ -11,6 +11,16 @@ from glovebox.config.models.cache import CacheLevel
 from glovebox.models.base import GloveboxBaseModel
 
 
+class WorkspaceCacheResult(GloveboxBaseModel):
+    """Result of workspace cache operations."""
+
+    success: bool
+    workspace_path: Path | None = None
+    metadata: "WorkspaceCacheMetadata | None" = None
+    error_message: str | None = None
+    created_new: bool = False
+
+
 class WorkspaceCacheMetadata(GloveboxBaseModel):
     """Rich metadata for workspace cache entries replacing simple path strings.
 
@@ -29,7 +39,11 @@ class WorkspaceCacheMetadata(GloveboxBaseModel):
     ]
 
     branch: Annotated[
-        str, Field(description="Git branch name for the cached workspace")
+        str | None,
+        Field(
+            default=None,
+            description="Git branch name for the cached workspace (None for repo-only cache)",
+        ),
     ]
 
     commit_hash: Annotated[
@@ -138,11 +152,13 @@ class WorkspaceCacheMetadata(GloveboxBaseModel):
             if hasattr(self.cache_level, "value")
             else str(self.cache_level)
         )
-        return {
+        components = {
             "repository": self.repository,
-            "branch": self.branch,
             "cache_level": cache_level_value,
         }
+        if self.branch is not None:
+            components["branch"] = self.branch
+        return components
 
     @property
     def age_hours(self) -> float:

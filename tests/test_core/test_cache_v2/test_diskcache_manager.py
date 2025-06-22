@@ -80,6 +80,61 @@ class TestDiskCacheManager:
         result = cache_manager.delete("missing_key")
         assert result is False
 
+    def test_delete_many_existing_keys(self, cache_manager):
+        """Test deleting multiple existing keys."""
+        # Set up test data
+        cache_manager.set("delete_key1", "value1")
+        cache_manager.set("delete_key2", "value2")
+        cache_manager.set("delete_key3", "value3")
+
+        # Verify keys exist
+        assert cache_manager.get("delete_key1") == "value1"
+        assert cache_manager.get("delete_key2") == "value2"
+        assert cache_manager.get("delete_key3") == "value3"
+
+        # Delete multiple keys
+        deleted_count = cache_manager.delete_many(
+            ["delete_key1", "delete_key2", "delete_key3"]
+        )
+        assert deleted_count == 3
+
+        # Verify keys are deleted
+        assert cache_manager.get("delete_key1") is None
+        assert cache_manager.get("delete_key2") is None
+        assert cache_manager.get("delete_key3") is None
+
+    def test_delete_many_mixed_keys(self, cache_manager):
+        """Test deleting mix of existing and missing keys."""
+        # Set up test data
+        cache_manager.set("existing_key1", "value1")
+        cache_manager.set("existing_key2", "value2")
+
+        # Delete mix of existing and missing keys
+        keys_to_delete = [
+            "existing_key1",
+            "missing_key1",
+            "existing_key2",
+            "missing_key2",
+        ]
+        deleted_count = cache_manager.delete_many(keys_to_delete)
+
+        # Should delete 2 existing keys, skip 2 missing keys
+        assert deleted_count == 2
+
+        # Verify existing keys are deleted
+        assert cache_manager.get("existing_key1") is None
+        assert cache_manager.get("existing_key2") is None
+
+    def test_delete_many_empty_list(self, cache_manager):
+        """Test deleting empty list of keys."""
+        deleted_count = cache_manager.delete_many([])
+        assert deleted_count == 0
+
+    def test_delete_many_all_missing_keys(self, cache_manager):
+        """Test deleting all missing keys."""
+        deleted_count = cache_manager.delete_many(["missing1", "missing2", "missing3"])
+        assert deleted_count == 0
+
     def test_exists_with_existing_key(self, cache_manager):
         """Test exists with existing key."""
         cache_manager.set("exists_key", "exists_value")
