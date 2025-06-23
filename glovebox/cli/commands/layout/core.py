@@ -1,6 +1,7 @@
 """Core layout CLI commands (compile, decompose, compose, validate, show)."""
 
 import json
+import logging
 from pathlib import Path
 from typing import Annotated
 
@@ -15,7 +16,10 @@ from glovebox.cli.helpers import (
 )
 from glovebox.cli.helpers.parameters import OutputFormatOption, ProfileOption
 from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
+from glovebox.layout.formatting import ViewMode
 from glovebox.layout.service import create_layout_service
+
+logger = logging.getLogger(__name__)
 
 
 @handle_errors
@@ -174,10 +178,17 @@ def show(
     ] = None,
     layout: Annotated[
         str | None,
-        typer.Option("--layout", "-l", help="Layout name to use for display"),
+        typer.Option(
+            "--layout",
+            "-l",
+            help="Layout name to use for display (NotImplementedError)",
+        ),
     ] = None,
     layer: Annotated[
-        int | None, typer.Option("--layer", help="Show only specific layer index")
+        int | None,
+        typer.Option(
+            "--layer", help="Show only specific layer index (NotImplementedError)"
+        ),
     ] = None,
     profile: ProfileOption = None,
     output_format: OutputFormatOption = "text",
@@ -199,11 +210,22 @@ def show(
             layout_data = json.loads(json_file.read_text())
             command.format_output(layout_data, output_format)
         else:
+            view_mode_typed = ViewMode.NORMAL
+
+            try:
+                if view_mode is not None:
+                    view_mode_typed = ViewMode(view_mode.lower())
+            except ValueError:
+                logger.warning(
+                    "Invalid view mode: %s", view_mode.lower() if view_mode else "None"
+                )
+
             # For text format, use the existing show method
             result = keymap_service.show_from_file(
                 json_file_path=json_file,
                 profile=keyboard_profile,
                 key_width=key_width,
+                view_mode=view_mode_typed,
             )
             # The show method returns a string
             typer.echo(result)

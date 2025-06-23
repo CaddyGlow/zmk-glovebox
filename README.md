@@ -6,6 +6,7 @@ A comprehensive tool for ZMK keyboard firmware management, supporting multiple k
 
 - **Multi-Keyboard Support**: Extensible modular architecture with YAML-based configuration system
 - **Keymap Building**: Convert JSON layouts to ZMK keymap and configuration files
+- **Variable Substitution System**: Define reusable variables in layouts for consistency and maintainability
 - **Keymap Version Management**: Upgrade custom layouts while preserving customizations when new master versions are released
 - **Advanced Compilation Strategies**: Multiple compilation methods (zmk_config, west, cmake, make, ninja, custom)
 - **Dynamic ZMK Config Generation**: Create complete ZMK config workspaces on-the-fly without external repositories
@@ -135,6 +136,84 @@ glovebox layout list-masters glove80
 - Automated layout manipulation and batch operations
 - Detailed comparison including custom DTSI behaviors and device tree code
 - Merge-tool compatible patches for version control workflows
+
+#### Variable Substitution System (NEW)
+```bash
+# Create layouts with reusable variables for consistency and maintainability
+# Define variables once, use throughout the layout
+
+# List all variables in a layout
+glovebox layout variables my-layout.json --list
+
+# Show variables with their resolved values
+glovebox layout variables my-layout.json --list-resolved
+
+# Show where each variable is used in the layout
+glovebox layout variables my-layout.json --list-usage
+
+# Get specific variable values
+glovebox layout variables my-layout.json --get timing --get flavor
+
+# Set multiple variables in one command
+glovebox layout variables my-layout.json --set timing=150 --set flavor=balanced
+
+# Validate all variable references are properly defined
+glovebox layout variables my-layout.json --validate
+
+# Flatten layout (resolve all variables and remove variables section)
+glovebox layout variables my-layout.json --flatten --output final-layout.json
+
+# Batch operations with dry run preview
+glovebox layout variables my-layout.json --set timing=150 --remove old_timing --dry-run
+```
+
+**Example Layout with Variables:**
+```json
+{
+  "keyboard": "glove80",
+  "title": "My Layout",
+  "variables": {
+    "fast_timing": 130,
+    "normal_timing": 190,
+    "common_flavor": "tap-preferred",
+    "positions": [0, 1, 2, 3]
+  },
+  "holdTaps": [
+    {
+      "name": "&fast_ht",
+      "tappingTermMs": "${fast_timing}",
+      "flavor": "${common_flavor}",
+      "bindings": ["&kp", "&mo"]
+    }
+  ],
+  "combos": [
+    {
+      "name": "esc_combo",
+      "timeoutMs": "${fast_timing}",
+      "keyPositions": "${positions}",
+      "binding": {"value": "&kp", "params": [{"value": "ESC"}]}
+    }
+  ]
+}
+```
+
+**Variable Features:**
+- **Basic Substitution**: `${variable_name}` → resolved value
+- **Default Values**: `${optional_var:default_value}` → fallback if variable undefined  
+- **Nested Properties**: `${timing.fast}` → access object properties
+- **Type Preservation**: Automatic coercion (strings → numbers/booleans)
+- **Recursive Resolution**: Variables can reference other variables
+- **Circular Reference Detection**: Prevents infinite loops
+- **Usage Tracking**: See exactly where each variable is used
+- **Layout Flattening**: Export final layouts with variables resolved
+
+**Perfect for:**
+- **Consistent Timing Values**: Define timing once, use across all behaviors
+- **Theming**: Common colors, flavors, and settings
+- **Bulk Updates**: Change one variable to update multiple behaviors
+- **Template Layouts**: Create reusable layout templates
+- **A/B Testing**: Easy switching between different configurations
+- **Sharing**: Flatten variables for final distribution
 
 ## Supported Keyboards
 
@@ -394,6 +473,66 @@ glovebox layout export-layer [OPTIONS] LAYOUT_FILE LAYER_NAME
 - `--format`: Export format (bindings, layer, full)
 - `--output`: Output file path
 
+#### Variable Management Commands (NEW)
+
+##### `glovebox layout variables`
+Unified variable management command with batch operations support.
+
+```bash
+glovebox layout variables [OPTIONS] LAYOUT_FILE
+```
+
+**Variable Display Options:**
+- `--list`: List all variables in the layout
+- `--list-resolved`: List variables with their resolved values
+- `--list-usage`: Show where each variable is used in the layout
+- `--get VAR_NAME`: Get specific variable value(s) (can be used multiple times)
+
+**Variable Modification Options:**
+- `--set VAR=VALUE`: Set variable value (can be used multiple times)
+- `--remove VAR_NAME`: Remove variable(s) by name (can be used multiple times)
+
+**Variable Operations:**
+- `--validate`: Validate all variable references can be resolved
+- `--flatten`: Resolve all variables and remove variables section
+
+**General Options:**
+- `--output, -o`: Output file (required for --flatten, optional for modifications)
+- `--output-format`: Output format (text, json, markdown, table)
+- `--force`: Overwrite existing files
+- `--save/--no-save`: Save changes to file (default: save)
+- `--dry-run`: Show what would be done without making changes
+
+**Examples:**
+```bash
+# List all variables
+glovebox layout variables layout.json --list
+
+# Show variables with resolved values
+glovebox layout variables layout.json --list-resolved
+
+# Get specific variable values
+glovebox layout variables layout.json --get timing --get flavor
+
+# Set multiple variables
+glovebox layout variables layout.json --set timing=150 --set flavor=balanced
+
+# Batch operations with validation
+glovebox layout variables layout.json --set timing=150 --remove old_timing --validate
+
+# Flatten layout (resolve variables, remove variables section)
+glovebox layout variables layout.json --flatten --output final-layout.json
+
+# Dry run to preview changes
+glovebox layout variables layout.json --set timing=150 --dry-run
+```
+
+**Variable Syntax in JSON:**
+- **Basic**: `"${variable_name}"` → resolved to variable value
+- **Default**: `"${variable_name:default_value}"` → uses default if variable undefined
+- **Nested**: `"${object.property}"` → access nested object properties
+- **Type Coercion**: Strings automatically converted to numbers/booleans when appropriate
+
 #### Patch Operations (NEW)
 
 ##### `glovebox layout patch`
@@ -425,6 +564,7 @@ Creates structure:
 ```
 output_dir/
 ├── metadata.json       # Keymap metadata configuration
+├── behaviors.json      # Behavior definitions (holdTaps, combos, macros, variables)
 ├── device.dtsi         # Custom device tree (if present)
 ├── keymap.dtsi         # Custom behaviors (if present)
 └── layers/

@@ -105,14 +105,18 @@ class LayoutDisplayService:
                 "layers": layers,
             }
 
-            # Get layout structure from configuration
-            layout_structure = display_config.layout_structure
+            # Determine row structure with priority order:
+            # 1. Profile keymap.formatting.rows (highest priority)
+            # 2. Display layout_structure.rows
+            # 3. Default layout (fallback)
+            keymap_formatting = keyboard_config.keymap.formatting
 
-            # Flatten the structure to get all row indices
-            if layout_structure is None:
-                logger.info("No layout structure configured, using default")
-                all_rows = self._get_default_layout_rows()
-            else:
+            if keymap_formatting.rows is not None:
+                logger.debug("Using keymap.formatting.rows from profile")
+                all_rows = keymap_formatting.rows
+            elif display_config.layout_structure is not None:
+                logger.debug("Using layout_structure.rows from display config")
+                layout_structure = display_config.layout_structure
                 # Handle LayoutStructure: dict[str, list[list[int]]]
                 all_rows = []
                 for row_segments in layout_structure.rows.values():
@@ -129,6 +133,9 @@ class LayoutDisplayService:
                         for segment in row_segments:
                             row.extend(segment)
                         all_rows.append(row)
+            else:
+                logger.info("No row structure configured, using default")
+                all_rows = self._get_default_layout_rows()
 
             # Create a layout config
             layout_metadata = LayoutMetadata(
@@ -144,7 +151,6 @@ class LayoutDisplayService:
 
             # Create the layout config using display and keymap formatting options
             display_formatting = display_config.formatting
-            keymap_formatting = keyboard_config.keymap.formatting
             layout_config = LayoutConfig(
                 keyboard_name=keyboard_name,
                 key_width=display_formatting.key_width,

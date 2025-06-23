@@ -68,7 +68,7 @@ keymap:
     #define POS_L3 3
     #define POS_L4 4
     #define POS_L5 5
-    
+
     // Left hand top row
     #define POS_L6 12
     #define POS_L7 13
@@ -76,7 +76,7 @@ keymap:
     #define POS_L9 15
     #define POS_L10 16
     #define POS_L11 17
-    
+
     // Left hand home row
     #define POS_L12 24
     #define POS_L13 25
@@ -84,7 +84,7 @@ keymap:
     #define POS_L15 27
     #define POS_L16 28
     #define POS_L17 29
-    
+
     // Left hand bottom row
     #define POS_L18 36
     #define POS_L19 37
@@ -93,7 +93,7 @@ keymap:
     #define POS_L22 40
     #define POS_L23 41
     #define POS_L24 42
-    
+
     // Left hand thumb cluster
     #define POS_L25 50
     #define POS_L26 51
@@ -107,7 +107,7 @@ keymap:
     #define POS_R3 9
     #define POS_R4 10
     #define POS_R5 11
-    
+
     // Right hand top row
     #define POS_R6 18
     #define POS_R7 19
@@ -115,7 +115,7 @@ keymap:
     #define POS_R9 21
     #define POS_R10 22
     #define POS_R11 23
-    
+
     // Right hand home row
     #define POS_R12 30
     #define POS_R13 31
@@ -123,7 +123,7 @@ keymap:
     #define POS_R15 33
     #define POS_R16 34
     #define POS_R17 35
-    
+
     // Right hand bottom row
     #define POS_R18 43
     #define POS_R19 44
@@ -132,9 +132,10 @@ keymap:
     #define POS_R22 47
     #define POS_R23 48
     #define POS_R24 49
-    
+
     // Right hand thumb cluster
     #define POS_R25 54
     #define POS_R26 55
     #define POS_R27 56
     #define POS_R28 57
+
