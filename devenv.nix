@@ -15,6 +15,7 @@ in
     #   pkgs.tcl
     #   pkgs.tclx
     pkgs.udev
+    pkgs.bashInteractive
   ];
 
   # env.LD_LIBRARY_PATH = lib.makeLibraryPath [
@@ -40,6 +41,7 @@ in
     };
   };
   enterShell = '''';
+
   # git-hooks.hooks = {
   #   ruff.enable = true;
   #   rustfmt.enable = true;

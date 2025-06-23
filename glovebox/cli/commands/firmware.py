@@ -214,7 +214,9 @@ def firmware_compile(
     ctx: typer.Context,
     input_file: Annotated[
         Path | None,
-        typer.Argument(help="Path to keymap (.keymap) or layout (.json) file. Can use GLOVEBOX_JSON_FILE env var for JSON files.")
+        typer.Argument(
+            help="Path to keymap (.keymap) or layout (.json) file. Can use GLOVEBOX_JSON_FILE env var for JSON files."
+        ),
     ] = None,
     config_file: Annotated[
         Path | None,
@@ -303,7 +305,9 @@ def firmware_compile(
             user_config = get_user_config_from_context(ctx)
 
             # Resolve input file path (supports environment variable for JSON files)
-            resolved_input_file = resolve_json_file_path(input_file, "GLOVEBOX_JSON_FILE")
+            resolved_input_file = resolve_json_file_path(
+                input_file, "GLOVEBOX_JSON_FILE"
+            )
 
             if resolved_input_file is None:
                 print_error_message(
@@ -380,7 +384,9 @@ def firmware_compile(
                         if keyboard_profile.firmware_version
                         else keyboard_profile.keyboard_name
                     )
-                    _track_firmware_build(resolved_input_file, build_output_dir, profile_string)
+                    _track_firmware_build(
+                        resolved_input_file, build_output_dir, profile_string
+                    )
                 except Exception as e:
                     logger.warning("Failed to track firmware build: %s", e)
 

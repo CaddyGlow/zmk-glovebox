@@ -11,7 +11,11 @@ from glovebox.cli.helpers.auto_profile import (
     resolve_json_file_path,
     resolve_profile_with_auto_detection,
 )
-from glovebox.cli.helpers.parameters import OutputFormatOption, ProfileOption
+from glovebox.cli.helpers.parameters import (
+    JsonFileArgument,
+    OutputFormatOption,
+    ProfileOption,
+)
 from glovebox.cli.helpers.profile import (
     create_profile_from_option,
     get_keyboard_profile_from_context,
@@ -25,9 +29,7 @@ from glovebox.layout.service import create_layout_service
 def split(
     ctx: typer.Context,
     output_dir: Annotated[Path, typer.Argument(help="Directory to save split files")],
-    layout_file: Annotated[
-        str | None, typer.Argument(help="Path to layout JSON file. Can use GLOVEBOX_JSON_FILE env var.")
-    ] = None,
+    layout_file: JsonFileArgument = None,
     profile: ProfileOption = None,
     no_auto: Annotated[
         bool,
@@ -75,6 +77,7 @@ def split(
 
     if resolved_layout_file is None:
         from glovebox.cli.helpers import print_error_message
+
         print_error_message(
             "Layout file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
         )

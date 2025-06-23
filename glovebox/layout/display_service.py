@@ -43,6 +43,7 @@ class LayoutDisplayService:
         keymap_data: LayoutData,
         profile: "KeyboardProfile",
         view_mode: ViewMode = ViewMode.NORMAL,
+        layer_index: int | None = None,
     ) -> str:
         """Generate formatted layout display text.
 
@@ -50,6 +51,7 @@ class LayoutDisplayService:
             keymap_data: Keymap data model
             profile: Keyboard profile containing layout configuration
             view_mode: Display mode (normal, compact, split)
+            layer_index: Optional specific layer to display
 
         Returns:
             Formatted string representation of the keyboard layout
@@ -94,16 +96,15 @@ class LayoutDisplayService:
             keyboard_name = keyboard_config.keyboard
             display_config = keyboard_config.display
 
-            # Prepare keymap data for the generator
-            display_data = {
-                "title": title,
-                "creator": creator,
-                "locale": locale,
-                "notes": notes,
-                "keyboard": keyboard_name,
-                "layer_names": layer_names,
-                "layers": layers,
-            }
+            # Use the LayoutData object directly instead of converting to dict
+            # Update the keyboard field to use the profile's keyboard name if available
+            if keyboard_name and keyboard_name != keymap_data.keyboard:
+                # Create a copy with updated keyboard field if needed
+                from dataclasses import replace
+
+                display_data = replace(keymap_data, keyboard=keyboard_name)
+            else:
+                display_data = keymap_data
 
             # Determine row structure with priority order:
             # 1. Profile keymap.formatting.rows (highest priority)
@@ -168,7 +169,7 @@ class LayoutDisplayService:
 
             # Generate the layout display
             return self._layout_generator.format_keymap_display(
-                display_data, layout_config, view_mode
+                display_data, layout_config, view_mode, layer_index
             )
 
         except Exception as e:
