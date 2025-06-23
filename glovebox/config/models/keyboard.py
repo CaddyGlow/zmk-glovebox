@@ -37,6 +37,7 @@ class FormattingConfig(GloveboxBaseModel):
     key_gap: str = Field(default=" ")
     base_indent: str = ""
     rows: list[list[int]] | None = None
+    vertical_split_threshold: float = Field(default=0.85, description="Console width threshold (0.0-1.0) for triggering vertical split display")
 
     @field_validator("key_gap")
     @classmethod
