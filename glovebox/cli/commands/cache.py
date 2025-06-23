@@ -26,8 +26,6 @@ from glovebox.compilation.cache import (
 )
 from glovebox.config.user_config import UserConfig, create_user_config
 from glovebox.core.cache_v2.cache_manager import CacheManager
-from glovebox.metrics.context_extractors import extract_cli_context
-from glovebox.metrics.decorators import track_cache_operation
 
 
 logger = logging.getLogger(__name__)
@@ -308,7 +306,6 @@ def _show_cache_entries_by_level(
 
 
 @cache_app.command(name="debug")
-@track_cache_operation(extract_context=extract_cli_context)
 def cache_debug() -> None:
     """Debug cache state - show filesystem vs cache database entries."""
     try:
@@ -436,7 +433,6 @@ def cache_debug() -> None:
 
 
 @workspace_app.command(name="show")
-@track_cache_operation(extract_context=extract_cli_context)
 def workspace_show(
     json_output: Annotated[
         bool,
@@ -594,7 +590,6 @@ def workspace_show(
 
 
 @workspace_app.command(name="delete")
-@track_cache_operation(extract_context=extract_cli_context)
 def workspace_delete(
     repository: Annotated[
         str | None,
@@ -1779,7 +1774,6 @@ def cache_delete(
 
 
 @cache_app.command(name="clear")
-@track_cache_operation(extract_context=extract_cli_context)
 def cache_clear(
     module: Annotated[
         str | None,
@@ -1829,6 +1823,13 @@ def cache_clear(
                     return
 
             try:
+                # Clear the specific module's cache instance
+                from glovebox.core.cache_v2 import create_default_cache
+
+                module_cache = create_default_cache(tag=module)
+                module_cache.clear()
+
+                # Also remove the filesystem directory to ensure complete cleanup
                 shutil.rmtree(module_cache_dir)
 
                 icon_mode = "emoji"
@@ -1899,9 +1900,29 @@ def cache_clear(
                     return
 
             try:
-                # Clear cache_v2 system
-                cache_manager = _get_cache_manager()
-                cache_manager.clear()
+                # Clear all module-specific cache instances
+                from glovebox.core.cache_v2 import (
+                    create_default_cache,
+                    reset_shared_cache_instances,
+                )
+
+                cleared_modules = []
+                for cache_dir in cache_subdirs:
+                    module_name = cache_dir.name
+                    try:
+                        # Clear the cache instance for this module
+                        module_cache = create_default_cache(tag=module_name)
+                        module_cache.clear()
+                        cleared_modules.append(module_name)
+                    except Exception as e:
+                        logger.warning(
+                            "Failed to clear cache instance for module '%s': %s",
+                            module_name,
+                            e,
+                        )
+
+                # Reset shared cache coordination to clean up instance registry
+                reset_shared_cache_instances()
 
                 # Clear filesystem directories
                 for cache_dir in cache_subdirs:
@@ -1911,7 +1932,11 @@ def cache_clear(
                 console.print(
                     f"[green]{Icons.get_icon('SUCCESS', icon_mode)} Cleared all cache directories ({_format_size(total_size)})[/green]"
                 )
-                console.print("[green]Cleared cache_v2 system entries[/green]")
+                if cleared_modules:
+                    console.print(
+                        f"[green]Cleared cache instances for modules: {', '.join(cleared_modules)}[/green]"
+                    )
+                console.print("[green]Reset shared cache coordination[/green]")
             except Exception as e:
                 console.print(f"[red]Failed to clear cache: {e}[/red]")
                 raise typer.Exit(1) from e

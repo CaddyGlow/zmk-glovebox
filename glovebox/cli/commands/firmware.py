@@ -24,8 +24,6 @@ from glovebox.compilation.models import (
 )
 from glovebox.firmware.flash import create_flash_service
 from glovebox.layout.firmware_tracker import create_firmware_tracker
-from glovebox.metrics.context_extractors import extract_cli_context
-from glovebox.metrics.decorators import track_firmware_operation, track_flash_operation
 
 
 if TYPE_CHECKING:
@@ -198,7 +196,6 @@ cmake, make, and ninja build systems for custom keyboards.""",
 @firmware_app.command(name="compile")
 @handle_errors
 @with_profile()
-@track_firmware_operation(extract_context=extract_cli_context)
 def firmware_compile(
     ctx: typer.Context,
     input_file: Annotated[
@@ -252,71 +249,102 @@ def firmware_compile(
         glovebox firmware compile layout.json --profile glove80/v25.05 --output-format json
     """
 
-    # Get profile and user config
-    keyboard_profile = get_keyboard_profile_from_context(ctx)
-    user_config = get_user_config_from_context(ctx)
+    # Access session metrics from CLI context
+    from glovebox.cli.app import AppContext
 
-    # Detect input file type and validate arguments
-    is_json_input = input_file.suffix.lower() == ".json"
+    app_ctx: AppContext = ctx.obj
+    metrics = app_ctx.session_metrics
 
-    if not is_json_input and config_file is None:
-        print_error_message("Config file is required when input is a .keymap file")
-        raise typer.Exit(1)
-
-    if is_json_input and config_file is not None:
-        logger.info(
-            "Config file provided for JSON input will be ignored (generated automatically)"
-        )
-
-    # Set default output directory to 'build'
-    build_output_dir = Path("build")
-    build_output_dir.mkdir(parents=True, exist_ok=True)
+    # Track firmware compilation metrics
+    firmware_counter = metrics.Counter(
+        "firmware_operations_total",
+        "Total firmware operations",
+        ["operation", "status"],
+    )
+    firmware_duration = metrics.Histogram(
+        "firmware_operation_duration_seconds", "Firmware operation duration"
+    )
 
     try:
-        # Resolve compilation strategy and configuration
-        compilation_type, compile_config = _resolve_compilation_type(
-            keyboard_profile, strategy
-        )
+        with firmware_duration.time():
+            # Get profile and user config
+            keyboard_profile = get_keyboard_profile_from_context(ctx)
+            user_config = get_user_config_from_context(ctx)
 
-        # Update config with profile firmware settings
-        _update_config_from_profile(compile_config, keyboard_profile)
+            # Detect input file type and validate arguments
+            is_json_input = input_file.suffix.lower() == ".json"
 
-        # Execute compilation based on input type
-        if is_json_input:
-            result = _execute_compilation_from_json(
-                compilation_type,
-                input_file,
-                build_output_dir,
-                compile_config,
-                keyboard_profile,
-            )
-        else:
-            assert config_file is not None  # Already validated above
-            result = _execute_compilation_service(
-                compilation_type,
-                input_file,  # keymap_file
-                config_file,  # kconfig_file
-                build_output_dir,
-                compile_config,
-                keyboard_profile,
-            )
-
-        # Track firmware build if compilation was successful and input was JSON
-        if result.success and is_json_input:
-            try:
-                profile_string = (
-                    f"{keyboard_profile.keyboard_name}/{keyboard_profile.firmware_version}"
-                    if keyboard_profile.firmware_version
-                    else keyboard_profile.keyboard_name
+            if not is_json_input and config_file is None:
+                print_error_message(
+                    "Config file is required when input is a .keymap file"
                 )
-                _track_firmware_build(input_file, build_output_dir, profile_string)
-            except Exception as e:
-                logger.warning("Failed to track firmware build: %s", e)
+                raise typer.Exit(1)
 
-        # Format and display results
-        _format_compilation_output(result, output_format, build_output_dir)
+            if is_json_input and config_file is not None:
+                logger.info(
+                    "Config file provided for JSON input will be ignored (generated automatically)"
+                )
+
+            # Set default output directory to 'build'
+            build_output_dir = Path("build")
+            build_output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Resolve compilation strategy and configuration
+            compilation_type, compile_config = _resolve_compilation_type(
+                keyboard_profile, strategy
+            )
+
+            # Update config with profile firmware settings
+            _update_config_from_profile(compile_config, keyboard_profile)
+
+            # Execute compilation based on input type
+            if is_json_input:
+                result = _execute_compilation_from_json(
+                    compilation_type,
+                    input_file,
+                    build_output_dir,
+                    compile_config,
+                    keyboard_profile,
+                )
+            else:
+                assert config_file is not None  # Already validated above
+                result = _execute_compilation_service(
+                    compilation_type,
+                    input_file,  # keymap_file
+                    config_file,  # kconfig_file
+                    build_output_dir,
+                    compile_config,
+                    keyboard_profile,
+                )
+
+            # Track firmware build if compilation was successful and input was JSON
+            if result.success and is_json_input:
+                try:
+                    profile_string = (
+                        f"{keyboard_profile.keyboard_name}/{keyboard_profile.firmware_version}"
+                        if keyboard_profile.firmware_version
+                        else keyboard_profile.keyboard_name
+                    )
+                    _track_firmware_build(input_file, build_output_dir, profile_string)
+                except Exception as e:
+                    logger.warning("Failed to track firmware build: %s", e)
+
+        if result.success:
+            # Track successful compilation
+            firmware_counter.labels("compile", "success").inc()
+
+            # Format and display results
+            _format_compilation_output(result, output_format, build_output_dir)
+        else:
+            # Track failed compilation
+            firmware_counter.labels("compile", "failure").inc()
+
+            # Format and display results
+            _format_compilation_output(result, output_format, build_output_dir)
 
     except Exception as e:
+        # Track exception errors
+        firmware_counter.labels("compile", "error").inc()
         print_error_message(f"Firmware compilation failed: {str(e)}")
         logger.exception("Compilation error details")
         raise typer.Exit(1) from None
@@ -325,7 +353,6 @@ def firmware_compile(
 @firmware_app.command()
 @handle_errors
 @with_profile()
-@track_flash_operation(extract_context=extract_cli_context)
 def flash(
     ctx: typer.Context,
     firmware_file: Annotated[Path, typer.Argument(help="Path to firmware (.uf2) file")],
@@ -406,71 +433,99 @@ def flash(
                 show_progress: true
     """
 
-    keyboard_profile = get_keyboard_profile_from_context(ctx)
+    # Access session metrics from CLI context
+    from glovebox.cli.app import AppContext
 
-    # Get user config from context (already loaded)
-    user_config = get_user_config_from_context(ctx)
+    app_ctx: AppContext = ctx.obj
+    metrics = app_ctx.session_metrics
 
-    # Apply user config defaults for flash parameters
-    # CLI values override config values when explicitly provided
-    if user_config:
-        effective_timeout = (
-            timeout if timeout != 60 else user_config._config.firmware.flash.timeout
-        )
-        effective_count = (
-            count if count != 2 else user_config._config.firmware.flash.count
-        )
-        effective_track_flashed = (
-            not no_track
-            if no_track
-            else user_config._config.firmware.flash.track_flashed
-        )
-        effective_skip_existing = (
-            skip_existing or user_config._config.firmware.flash.skip_existing
-        )
+    # Track firmware flash metrics
+    flash_counter = metrics.Counter(
+        "firmware_operations_total",
+        "Total firmware operations",
+        ["operation", "status"],
+    )
+    flash_duration = metrics.Histogram(
+        "firmware_operation_duration_seconds", "Firmware operation duration"
+    )
 
-        # NEW: Wait-related settings with precedence
-        effective_wait = (
-            wait if wait is not None else user_config._config.firmware.flash.wait
-        )
-        effective_poll_interval = (
-            poll_interval
-            if poll_interval is not None
-            else user_config._config.firmware.flash.poll_interval
-        )
-        effective_show_progress = (
-            show_progress
-            if show_progress is not None
-            else user_config._config.firmware.flash.show_progress
-        )
-    else:
-        # Fallback to CLI values if user config not available
-        effective_timeout = timeout
-        effective_count = count
-        effective_track_flashed = not no_track
-        effective_skip_existing = skip_existing
-        effective_wait = wait if wait is not None else False
-        effective_poll_interval = poll_interval if poll_interval is not None else 0.5
-        effective_show_progress = show_progress if show_progress is not None else True
-
-    # Use the new file-based method which handles file existence checks
-    flash_service = create_flash_service()
     try:
-        result = flash_service.flash_from_file(
-            firmware_file_path=firmware_file,
-            profile=keyboard_profile,
-            query=query,  # query parameter will override profile's query if provided
-            timeout=effective_timeout,
-            count=effective_count,
-            track_flashed=effective_track_flashed,
-            skip_existing=effective_skip_existing,
-            # NEW: Add wait parameters
-            wait=effective_wait,
-            poll_interval=effective_poll_interval,
-            show_progress=effective_show_progress,
-        )
+        with flash_duration.time():
+            keyboard_profile = get_keyboard_profile_from_context(ctx)
+
+            # Get user config from context (already loaded)
+            user_config = get_user_config_from_context(ctx)
+
+            # Apply user config defaults for flash parameters
+            # CLI values override config values when explicitly provided
+            if user_config:
+                effective_timeout = (
+                    timeout
+                    if timeout != 60
+                    else user_config._config.firmware.flash.timeout
+                )
+                effective_count = (
+                    count if count != 2 else user_config._config.firmware.flash.count
+                )
+                effective_track_flashed = (
+                    not no_track
+                    if no_track
+                    else user_config._config.firmware.flash.track_flashed
+                )
+                effective_skip_existing = (
+                    skip_existing or user_config._config.firmware.flash.skip_existing
+                )
+
+                # NEW: Wait-related settings with precedence
+                effective_wait = (
+                    wait
+                    if wait is not None
+                    else user_config._config.firmware.flash.wait
+                )
+                effective_poll_interval = (
+                    poll_interval
+                    if poll_interval is not None
+                    else user_config._config.firmware.flash.poll_interval
+                )
+                effective_show_progress = (
+                    show_progress
+                    if show_progress is not None
+                    else user_config._config.firmware.flash.show_progress
+                )
+            else:
+                # Fallback to CLI values if user config not available
+                effective_timeout = timeout
+                effective_count = count
+                effective_track_flashed = not no_track
+                effective_skip_existing = skip_existing
+                effective_wait = wait if wait is not None else False
+                effective_poll_interval = (
+                    poll_interval if poll_interval is not None else 0.5
+                )
+                effective_show_progress = (
+                    show_progress if show_progress is not None else True
+                )
+
+            # Use the new file-based method which handles file existence checks
+            flash_service = create_flash_service()
+            result = flash_service.flash_from_file(
+                firmware_file_path=firmware_file,
+                profile=keyboard_profile,
+                query=query,  # query parameter will override profile's query if provided
+                timeout=effective_timeout,
+                count=effective_count,
+                track_flashed=effective_track_flashed,
+                skip_existing=effective_skip_existing,
+                # NEW: Add wait parameters
+                wait=effective_wait,
+                poll_interval=effective_poll_interval,
+                show_progress=effective_show_progress,
+            )
 
         if result.success:
+            # Track successful flash
+            flash_counter.labels("flash", "success").inc()
+
             if output_format.lower() == "json":
                 # JSON output for automation
                 result_data = {
@@ -492,6 +547,9 @@ def flash(
                         if device["status"] == "success":
                             print_list_item(f"{device['name']}: SUCCESS")
         else:
+            # Track failed flash
+            flash_counter.labels("flash", "failure").inc()
+
             print_error_message(
                 f"Flash completed with {result.devices_failed} failure(s)"
             )
@@ -501,7 +559,10 @@ def flash(
                         error_msg = device.get("error", "Unknown error")
                         print_list_item(f"{device['name']}: FAILED - {error_msg}")
             raise typer.Exit(1)
+
     except Exception as e:
+        # Track exception errors
+        flash_counter.labels("flash", "error").inc()
         print_error_message(f"Flash operation failed: {str(e)}")
         raise typer.Exit(1) from None
 

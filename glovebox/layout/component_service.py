@@ -5,7 +5,12 @@ from pathlib import Path
 from typing import Any, TypeAlias
 
 from glovebox.core.errors import LayoutError
-from glovebox.layout.models import LayoutData, LayoutMetadata, LayoutResult
+from glovebox.layout.models import (
+    BehaviorData,
+    LayoutData,
+    LayoutMetadata,
+    LayoutResult,
+)
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.services.base_service import BaseService
 
@@ -58,6 +63,7 @@ class LayoutComponentService(BaseService):
             # Extract components directly using the Pydantic model
             # Our helper methods already support handling LayoutData objects
             self._extract_dtsi_snippets(layout, output_dir)
+            self._extract_behavior_data(layout, output_dir)
             self._extract_metadata_config(layout, output_dir)
             self._extract_individual_layers(layout, output_layer_dir)
 
@@ -109,6 +115,9 @@ class LayoutComponentService(BaseService):
         parent_dir = layers_dir.parent
         self._add_dtsi_content_from_files(combined_layout, parent_dir)
 
+        # Add behavior data from behaviors.json if it exists
+        self._add_behavior_data_from_file(combined_layout, parent_dir)
+
         logger.info("Successfully combined %d layers", len(combined_layout.layers))
 
         return combined_layout
@@ -136,6 +145,31 @@ class LayoutComponentService(BaseService):
             self._file_adapter.write_text(keymap_dtsi_path, behaviors_dtsi)
             logger.info("Extracted custom_defined_behaviors to %s", keymap_dtsi_path)
 
+    def _extract_behavior_data(self, layout: LayoutData, output_dir: Path) -> None:
+        """Extract behavior data to behaviors.json.
+
+        Args:
+            layout: Layout data model
+            output_dir: Directory to write behavior data
+        """
+        # Extract behavior fields from the layout
+        behavior_data = BehaviorData(
+            variables=layout.variables,
+            holdTaps=layout.hold_taps,
+            combos=layout.combos,
+            macros=layout.macros,
+            inputListeners=layout.input_listeners,
+            config_parameters=layout.config_parameters,
+        )
+
+        # Only write behaviors.json if there are actual behaviors defined
+        if not behavior_data.is_empty():
+            behaviors_file = output_dir / "behaviors.json"
+            self._file_adapter.write_json(behaviors_file, behavior_data.to_dict())
+            logger.info("Extracted behavior definitions to %s", behaviors_file)
+        else:
+            logger.debug("No behavior definitions found, skipping behaviors.json")
+
     def _extract_metadata_config(self, layout: LayoutData, output_dir: Path) -> None:
         """Extract metadata configuration to metadata.json.
 
@@ -143,9 +177,23 @@ class LayoutComponentService(BaseService):
             layout: Keymap data model
             output_dir: Directory to write metadata configuration
         """
-        # We use model_dump with include to only get the LayoutMetadata fields
+        # Get all LayoutMetadata fields but exclude behavior-related fields that go to behaviors.json
+        behavior_fields = {
+            "variables",
+            "holdTaps",
+            "combos",
+            "macros",
+            "inputListeners",
+            "config_parameters",
+            "hold_taps",
+            "input_listeners",  # Include both alias and field names
+        }
+
+        metadata_fields = set(LayoutMetadata.model_fields.keys()) - behavior_fields
+
+        # Use model_dump with include to only get the non-behavior metadata fields
         metadata_dict = layout.model_dump(
-            mode="json", by_alias=True, include=set(LayoutMetadata.model_fields.keys())
+            mode="json", by_alias=True, include=metadata_fields
         )
 
         # Save with proper serialization
@@ -364,6 +412,46 @@ class LayoutComponentService(BaseService):
             logger.info("Restored custom_defined_behaviors from keymap.dtsi.")
         else:
             combined_layout.custom_defined_behaviors = ""
+
+    def _add_behavior_data_from_file(
+        self, combined_layout: LayoutData, input_dir: Path
+    ) -> None:
+        """Add behavior data from behaviors.json file to combined layout.
+
+        Args:
+            combined_layout: Layout data model to which behavior data will be added
+            input_dir: Directory containing behaviors.json file
+        """
+        behaviors_file = input_dir / "behaviors.json"
+
+        if self._file_adapter.is_file(behaviors_file):
+            try:
+                behavior_dict = self._file_adapter.read_json(behaviors_file)
+                behavior_data = BehaviorData.model_validate(behavior_dict)
+
+                # Apply behavior data to the combined layout
+                combined_layout.variables = behavior_data.variables
+                combined_layout.hold_taps = behavior_data.hold_taps
+                combined_layout.combos = behavior_data.combos
+                combined_layout.macros = behavior_data.macros
+                combined_layout.input_listeners = behavior_data.input_listeners
+                combined_layout.config_parameters = behavior_data.config_parameters
+
+                logger.info("Restored behavior definitions from behaviors.json")
+            except Exception as e:
+                logger.error(
+                    "Failed to load behavior data from %s: %s", behaviors_file, e
+                )
+                # Continue without behavior data rather than failing
+        else:
+            logger.debug("No behaviors.json file found, using empty behavior data")
+            # Initialize with empty behavior data
+            combined_layout.variables = {}
+            combined_layout.hold_taps = []
+            combined_layout.combos = []
+            combined_layout.macros = []
+            combined_layout.input_listeners = []
+            combined_layout.config_parameters = []
 
 
 def create_layout_component_service(

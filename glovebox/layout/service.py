@@ -404,6 +404,83 @@ class LayoutService(BaseService):
             logger.error("Keymap data validation failed: %s", e)
             raise LayoutError(f"Keymap validation failed: {e}") from e
 
+    def flatten_layout_from_file(
+        self,
+        json_file_path: Path,
+        output_file_path: Path,
+    ) -> None:
+        """Flatten a layout file by resolving all variables and removing variables section.
+
+        Args:
+            json_file_path: Path to the input layout JSON file with variables
+            output_file_path: Path to write the flattened layout JSON file
+
+        Raises:
+            LayoutError: If file processing fails
+        """
+        logger.info("Flattening layout from %s to %s", json_file_path, output_file_path)
+
+        def flatten_process(keymap_data: LayoutData) -> None:
+            # Get the flattened data
+            flattened_data = keymap_data.to_flattened_dict()
+
+            # Write the flattened JSON
+            self._file_adapter.write_json(output_file_path, flattened_data)
+            logger.info("Layout flattened successfully to %s", output_file_path)
+
+        process_json_file(
+            json_file_path,
+            "Layout flattening",
+            flatten_process,
+            self._file_adapter,
+        )
+
+    def validate_variables_from_file(
+        self,
+        json_file_path: Path,
+    ) -> list[str]:
+        """Validate all variable references in a layout file.
+
+        Args:
+            json_file_path: Path to the layout JSON file to validate
+
+        Returns:
+            List of validation error messages (empty if all valid)
+
+        Raises:
+            LayoutError: If file processing fails
+        """
+        logger.info("Validating variables in %s", json_file_path)
+
+        def validate_process(keymap_data: LayoutData) -> list[str]:
+            # If no variables, return empty error list
+            if not keymap_data.variables:
+                return []
+
+            # Get the original JSON data to validate variable usage
+            json_data = self._file_adapter.read_json(json_file_path)
+
+            from glovebox.layout.utils.variable_resolver import VariableResolver
+
+            resolver = VariableResolver(keymap_data.variables)
+            errors = resolver.validate_variables(json_data)
+
+            if errors:
+                logger.warning("Variable validation found %d issues", len(errors))
+                for error in errors:
+                    logger.warning("  - %s", error)
+            else:
+                logger.info("All variables validated successfully")
+
+            return errors
+
+        return process_json_file(
+            json_file_path,
+            "Variable validation",
+            validate_process,
+            self._file_adapter,
+        )
+
 
 def create_layout_service(
     file_adapter: FileAdapterProtocol | None = None,

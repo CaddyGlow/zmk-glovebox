@@ -26,6 +26,7 @@ from glovebox.layout.behavior.models import (
 )
 from glovebox.models.base import GloveboxBaseModel
 
+from .behavior_data import BehaviorData
 from .bookmarks import BookmarkCollection, BookmarkSource, LayoutBookmark
 
 
@@ -267,6 +268,12 @@ class LayoutMetadata(GloveboxBaseModel):
     notes: str = Field(default="")
     tags: list[str] = Field(default_factory=list)
 
+    # Variables for substitution
+    variables: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Global variables for substitution using ${variable_name} syntax",
+    )
+
     # layers order and name
     layer_names: list[str] = Field(default_factory=list, alias="layer_names")
 
@@ -311,6 +318,32 @@ class LayoutData(LayoutMetadata):
     custom_defined_behaviors: str = Field(default="", alias="custom_defined_behaviors")
     custom_devicetree: str = Field(default="", alias="custom_devicetree")
 
+    @model_validator(mode="before")
+    @classmethod
+    def resolve_variables(cls, data: Any) -> Any:
+        """Resolve all variables before field validation."""
+        if (
+            not isinstance(data, dict)
+            or "variables" not in data
+            or not data["variables"]
+        ):
+            return data
+
+        # Import here to avoid circular imports
+        from glovebox.layout.utils.variable_resolver import VariableResolver
+
+        try:
+            resolver = VariableResolver(data["variables"])
+            resolved_data = resolver.resolve_object(data)
+            return resolved_data
+        except Exception as e:
+            # Log the error but don't fail validation - let individual field validation handle it
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning("Variable resolution failed: %s", e)
+            return data
+
     @model_serializer(mode="wrap")
     def serialize_with_sorted_fields(
         self, serializer: Any, info: Any
@@ -330,6 +363,7 @@ class LayoutData(LayoutMetadata):
             "title",
             "notes",
             "tags",
+            "variables",
             # Added fields for the layout master feature
             "version",
             "base_version",
@@ -412,6 +446,25 @@ class LayoutData(LayoutMetadata):
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary with proper field names and JSON serialization."""
         return self.model_dump(mode="json", by_alias=True, exclude_unset=True)
+
+    def to_flattened_dict(self) -> dict[str, Any]:
+        """Export layout with variables resolved and variables section removed.
+
+        Returns:
+            Dictionary representation with all variables resolved and variables section removed
+        """
+        # Get the original dict representation
+        data = self.model_dump(mode="json", by_alias=True, exclude_unset=True)
+
+        # If we have variables, resolve and remove them
+        if "variables" in data and data["variables"]:
+            from glovebox.layout.utils.variable_resolver import VariableResolver
+
+            resolver = VariableResolver(data["variables"])
+            return resolver.flatten_layout(data)
+
+        # No variables to resolve, just return without variables section
+        return {k: v for k, v in data.items() if k != "variables"}
 
 
 # Layout result models
@@ -543,6 +596,7 @@ __all__ = [
     "LayoutData",
     "LayoutMetadata",
     # Behavior models
+    "BehaviorData",
     "HoldTapBehavior",
     "ComboBehavior",
     "MacroBehavior",
