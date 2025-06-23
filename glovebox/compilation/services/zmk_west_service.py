@@ -612,18 +612,6 @@ class ZmkWestService(CompilationServiceProtocol):
                 )
         else:
             self.logger.debug("Cache lookup (repo+branch) failed or no workspace path")
-            # # Check if repo+branch cache has complete dependencies (west update marker)
-            # west_marker = cache_result.workspace_path / ".west_last_update"
-            # if west_marker.exists():
-            #     self.logger.info(
-            #         "Using cached workspace (repo+branch) with complete dependencies: %s",
-            #         cache_result.workspace_path,
-            #     )
-            #     return cache_result.workspace_path, True, "repo_branch"
-            # else:
-            #     self.logger.info(
-            #         "Repo+branch cache found but incomplete (no west marker), checking repo-only cache"
-            #     )
 
         # Try repo-only lookup (includes .git for west operations)
         cache_result = self.workspace_cache_service.get_cached_workspace(
