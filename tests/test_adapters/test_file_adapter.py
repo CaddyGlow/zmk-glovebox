@@ -889,15 +889,15 @@ class TestFileAdapterExtended:
         # Create mock Path objects for files and directories
         file1 = Mock(spec=Path)
         file1.is_file.return_value = True
-        file1.__str__ = Mock(return_value="/test/directory/file1.txt")
+        file1.configure_mock(**{"__str__.return_value": "/test/directory/file1.txt"})
 
         file2 = Mock(spec=Path)
         file2.is_file.return_value = True
-        file2.__str__ = Mock(return_value="/test/directory/file2.txt")
+        file2.configure_mock(**{"__str__.return_value": "/test/directory/file2.txt"})
 
         subdir = Mock(spec=Path)
         subdir.is_file.return_value = False
-        subdir.__str__ = Mock(return_value="/test/directory/subdir")
+        subdir.configure_mock(**{"__str__.return_value": "/test/directory/subdir"})
 
         mock_files = [file1, file2, subdir]
 

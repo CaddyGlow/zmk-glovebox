@@ -17,7 +17,8 @@ from glovebox.cli.helpers.parameters import OutputFormatOption, ProfileOption
 from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
 from glovebox.layout.service import create_layout_service
 from glovebox.metrics.context_extractors import extract_cli_context
-from glovebox.metrics.decorators import track_layout_operation
+from glovebox.metrics.decorators import track_cli_operation, track_layout_operation
+from glovebox.metrics.models import OperationType
 
 
 @handle_errors
@@ -139,7 +140,7 @@ def validate(
 
 @handle_errors
 @with_profile(default_profile="glove80/v25.05")
-@track_layout_operation(extract_context=extract_cli_context)
+@track_cli_operation(OperationType.LAYOUT_DISPLAY, extract_context=extract_cli_context)
 def show(
     ctx: typer.Context,
     json_file: Annotated[

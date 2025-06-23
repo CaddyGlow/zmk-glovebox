@@ -22,6 +22,35 @@ __version__ = distribution("glovebox").version
 
 logger = logging.getLogger(__name__)
 
+# Global reference to session metrics for exit code capture
+_global_session_metrics = None
+
+
+def _set_global_session_metrics(session_metrics):
+    """Set global reference to session metrics for exit code capture."""
+    global _global_session_metrics
+    _global_session_metrics = session_metrics
+
+
+def _set_exit_code_in_session_metrics(exit_code: int):
+    """Set exit code in global session metrics if available."""
+    global _global_session_metrics
+    if _global_session_metrics:
+        try:
+            _global_session_metrics.set_exit_code(exit_code)
+        except Exception as e:
+            logger.debug("Failed to set exit code in session metrics: %s", e)
+
+
+def _set_cli_args_in_session_metrics(cli_args: list[str]):
+    """Set CLI args in global session metrics if available."""
+    global _global_session_metrics
+    if _global_session_metrics:
+        try:
+            _global_session_metrics.set_cli_args(cli_args)
+        except Exception as e:
+            logger.debug("Failed to set CLI args in session metrics: %s", e)
+
 
 # Context object for sharing state
 class AppContext:
@@ -57,6 +86,12 @@ class AppContext:
 
         self.user_config = create_user_config(cli_config_path=config_file)
         self.keyboard_profile = None
+
+        # Initialize SessionMetrics for prometheus_client-compatible metrics
+        from glovebox.metrics import create_session_metrics
+
+        # Create session metrics with cache-based storage using session UUID
+        self.session_metrics = create_session_metrics(self.session_id)
 
     @property
     def use_emoji(self) -> bool:
@@ -108,6 +143,11 @@ class AppContext:
                 return "emoji" if emoji_enabled else "text"
             else:
                 return "emoji"  # Default to emoji if neither field exists
+
+    def save_session_metrics(self) -> None:
+        """Save session metrics to file."""
+        if hasattr(self, "session_metrics"):
+            self.session_metrics.save()
 
 
 # Create a custom exception handler that will print stack traces
@@ -203,6 +243,37 @@ def main_callback(
     # Run startup checks (version updates, etc.)
     _run_startup_checks(app_context)
 
+    # Set session_id in thread-local context for metrics tracking
+    if ctx.invoked_subcommand is not None:
+        try:
+            from glovebox.metrics.context import set_current_session_id
+
+            set_current_session_id(app_context.session_id)
+        except Exception as e:
+            # Don't let session setup break the CLI
+            logger.debug("Failed to set session_id in thread-local context: %s", e)
+
+        # Set up auto-save for session metrics when CLI exits
+        import atexit
+
+        def save_metrics_on_exit():
+            """Save session metrics when CLI exits."""
+            try:
+                app_context.save_session_metrics()
+            except Exception as e:
+                # Don't let metrics saving break CLI exit
+                logger.debug("Failed to save session metrics on exit: %s", e)
+
+        atexit.register(save_metrics_on_exit)
+
+        # Set global reference for exit code capture
+        _set_global_session_metrics(app_context.session_metrics)
+
+        # Capture CLI args for this session
+        import sys
+
+        app_context.session_metrics.set_cli_args(sys.argv)
+
 
 def _run_startup_checks(app_context: AppContext) -> None:
     """Run application startup checks using the startup service."""
@@ -219,20 +290,40 @@ def _run_startup_checks(app_context: AppContext) -> None:
 
 def main() -> int:
     """Main CLI entry point."""
+    exit_code = 0
+
     try:
         # Initialize and run the app
         from glovebox.cli.commands import register_all_commands
+        from glovebox.cli.interceptor import create_cli_interceptor
 
         register_all_commands(app)
+
+        # Set up automatic CLI command tracking
+        # The session_id will be available from thread-local storage during execution
+        interceptor = create_cli_interceptor()
+        interceptor.setup_global_interceptor(app)
+
         app()
-        return 0
+        exit_code = 0
+
+    except SystemExit as e:
+        # Capture SystemExit code (normal CLI exit)
+        exit_code = e.code if e.code is not None else 0
+
     except Exception as e:
         logger.exception(f"Unexpected error: {e}")
 
         # Check if we should print stack trace (verbosity level)
         print_stack_trace_if_verbose()
 
-        return 1
+        exit_code = 1
+
+    finally:
+        # Set exit code in global session metrics for this session
+        _set_exit_code_in_session_metrics(exit_code)
+
+    return exit_code
 
 
 if __name__ == "__main__":

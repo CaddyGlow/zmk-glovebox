@@ -124,9 +124,11 @@ def show_metrics(
             return
 
         # Create table
-        table = Table(title=f"Recent Operation Metrics ({len(metrics)} records)")
+        table = Table(
+            title=f"Recent Operation Metrics ({len(metrics)} records)", expand=True
+        )
         table.add_column("Operation", style="cyan")
-        table.add_column("Type", style="blue")
+        table.add_column("Command", style="blue", min_width=20)
         table.add_column("Status", style="green")
         table.add_column("Duration", style="magenta")
         table.add_column("Profile", style="yellow")
@@ -149,13 +151,11 @@ def show_metrics(
             status_style = "green" if status_value == "success" else "red"
 
             # Format session ID
-            session_display = (
-                metric.session_id[:8] + "..." if metric.session_id else "N/A"
-            )
+            session_display = metric.session_id + "..." if metric.session_id else "N/A"
 
             table.add_row(
                 metric.operation_id[:8] + "...",
-                operation_type_value,
+                metric.command_display,
                 f"[{status_style}]{status_value}[/{status_style}]",
                 format_duration(metric.duration_seconds),
                 metric.profile_name or "N/A",

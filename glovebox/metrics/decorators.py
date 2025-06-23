@@ -89,6 +89,11 @@ def track_operation(
                 # Set session_id in thread-local context for services to access
                 if session_id:
                     set_current_session_id(session_id)
+                    logger.info(
+                        "Starting %s operation with session ID: %s",
+                        operation_type.value,
+                        session_id,
+                    )
 
                 try:
                     # Create metrics collector with dependency injection and session_id
@@ -147,6 +152,11 @@ def track_operation(
                 # Set session_id in thread-local context for services to access
                 if session_id:
                     set_current_session_id(session_id)
+                    logger.info(
+                        "Starting %s operation with session ID: %s",
+                        operation_type.value,
+                        session_id,
+                    )
 
                 try:
                     # Create metrics collector with dependency injection and session_id
@@ -346,6 +356,40 @@ def track_validation_operation(
     """
     return track_operation(
         operation_type=OperationType.VALIDATION_OPERATION,
+        extract_context=extract_context,
+        metrics_service=metrics_service,
+        operation_id=operation_id,
+    )
+
+
+def track_cli_operation(
+    operation_type: OperationType,
+    extract_context: ContextExtractor | None = None,
+    metrics_service: MetricsServiceProtocol | None = None,
+    operation_id: str | None = None,
+) -> Callable[[F], F]:
+    """Decorator for tracking generic CLI operations with enhanced context.
+
+    This decorator is designed for CLI commands that don't fit into specific
+    operation categories (compilation, flash, etc.) and provides enhanced
+    context extraction including command name and arguments.
+
+    Args:
+        operation_type: Type of operation being tracked
+        extract_context: Optional function to extract context from args/kwargs
+        metrics_service: Optional metrics service instance for dependency injection
+        operation_id: Optional operation ID (generates unique one if None)
+
+    Returns:
+        Decorated function that tracks CLI operation metrics
+
+    Example:
+        >>> @track_cli_operation(OperationType.BOOKMARK_OPERATION)
+        ... def list_bookmarks(ctx, factory_only=False):
+        ...     pass
+    """
+    return track_operation(
+        operation_type=operation_type,
         extract_context=extract_context,
         metrics_service=metrics_service,
         operation_id=operation_id,

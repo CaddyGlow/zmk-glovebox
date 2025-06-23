@@ -27,10 +27,13 @@ class OperationType(str, Enum):
     FIRMWARE_FLASH = "firmware_flash"
     LAYOUT_VALIDATION = "layout_validation"
     LAYOUT_GENERATION = "layout_generation"
+    LAYOUT_DISPLAY = "layout_display"
     CONFIG_OPERATION = "config_operation"
     CACHE_OPERATION = "cache_operation"
     FILE_OPERATION = "file_operation"
     VALIDATION_OPERATION = "validation_operation"
+    CLI_OPERATION = "cli_operation"
+    BOOKMARK_OPERATION = "bookmark_operation"
 
 
 class ErrorCategory(str, Enum):
@@ -74,6 +77,18 @@ class OperationMetrics(GloveboxBaseModel):
     keyboard_name: str | None = Field(default=None, description="Keyboard name")
     firmware_version: str | None = Field(default=None, description="Firmware version")
 
+    # CLI-specific information
+    command: str | None = Field(
+        default=None, description="CLI command name (e.g., 'list', 'show', 'compile')"
+    )
+    command_path: str | None = Field(
+        default=None,
+        description="Full CLI command path (e.g., 'layout compile', 'firmware flash')",
+    )
+    cli_args: dict[str, Any] | None = Field(
+        default=None, description="CLI arguments and flags passed to command"
+    )
+
     # Error information
     error_message: str | None = Field(
         default=None, description="Error message if operation failed"
@@ -100,6 +115,58 @@ class OperationMetrics(GloveboxBaseModel):
         if self.duration_seconds is None and self.start_time and self.end_time:
             self.duration_seconds = (self.end_time - self.start_time).total_seconds()
         return self
+
+    @property
+    def command_display(self) -> str:
+        """Get a display-friendly representation of the command.
+
+        Returns:
+            String representation showing the command with key arguments
+
+        Examples:
+            "layout compile (profile: glove80/v25.05)"
+            "status --format json"
+            "metrics show --limit 5"
+            "firmware flash"
+        """
+        if not self.command_path and not self.command:
+            return self.operation_type.value
+
+        # Start with command path or command name
+        base_command = self.command_path or self.command or ""
+
+        # Add key arguments if available
+        if self.cli_args:
+            key_args = []
+
+            # Add profile if available
+            if "profile" in self.cli_args and self.cli_args["profile"]:
+                key_args.append(f"profile: {self.cli_args['profile']}")
+            elif self.profile_name:
+                key_args.append(f"profile: {self.profile_name}")
+
+            # Add format if specified
+            if "format" in self.cli_args and self.cli_args["format"]:
+                key_args.append(f"--format {self.cli_args['format']}")
+
+            # Add limit if specified
+            if "limit" in self.cli_args and self.cli_args["limit"]:
+                key_args.append(f"--limit {self.cli_args['limit']}")
+
+            # Add other important flags
+            for flag in ["force", "verbose", "dry_run", "no_cache"]:
+                if flag in self.cli_args and self.cli_args[flag]:
+                    key_args.append(f"--{flag.replace('_', '-')}")
+
+            if key_args:
+                if any("--" in arg for arg in key_args):
+                    # Mix of flags and values - use space separation
+                    return f"{base_command} {' '.join(key_args)}"
+                else:
+                    # Only values - use parentheses
+                    return f"{base_command} ({', '.join(key_args)})"
+
+        return base_command
 
 
 class LayoutMetrics(OperationMetrics):

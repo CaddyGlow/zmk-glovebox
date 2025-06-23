@@ -10,6 +10,9 @@ from typing import Annotated
 import typer
 
 from glovebox.layout.models.bookmarks import BookmarkSource
+from glovebox.metrics.context_extractors import extract_cli_context
+from glovebox.metrics.decorators import track_cli_operation
+from glovebox.metrics.models import OperationType
 from glovebox.moergo.bookmark_service import create_bookmark_service
 
 
@@ -107,6 +110,9 @@ def add(
 
 
 @bookmarks_app.command()
+@track_cli_operation(
+    OperationType.BOOKMARK_OPERATION, extract_context=extract_cli_context
+)
 def list(
     ctx: typer.Context,
     factory_only: Annotated[
