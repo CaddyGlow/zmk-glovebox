@@ -10,6 +10,7 @@ from typing import Any
 
 from glovebox.core.cache_v2.cache_coordinator import (
     cleanup_shared_cache_instances,
+    get_aggregated_cache_stats,
     get_cache_instance_count,
     get_cache_instance_keys,
     get_shared_cache_instance,
@@ -55,13 +56,14 @@ def create_diskcache_manager(
 
 
 def create_cache_from_user_config(
-    user_config: Any, tag: str | None = None
+    user_config: Any, tag: str | None = None, session_metrics: Any = None
 ) -> CacheManager:
     """Create a cache manager using user configuration with shared coordination.
 
     Args:
         user_config: User configuration object with cache settings
         tag: Optional tag for cache isolation
+        session_metrics: Optional SessionMetrics instance for metrics integration
 
     Returns:
         Configured cache manager (shared instance when possible)
@@ -87,14 +89,18 @@ def create_cache_from_user_config(
         cache_root=cache_root,
         tag=tag,
         enabled=True,
+        session_metrics=session_metrics,
     )
 
 
-def create_default_cache(tag: str | None = None) -> CacheManager:
+def create_default_cache(
+    tag: str | None = None, session_metrics: Any = None
+) -> CacheManager:
     """Create a default cache manager for general use with shared coordination.
 
     Args:
         tag: Optional tag for cache isolation
+        session_metrics: Optional SessionMetrics instance for metrics integration
 
     Returns:
         Default configured cache manager (shared instance when possible)
@@ -118,6 +124,7 @@ def create_default_cache(tag: str | None = None) -> CacheManager:
         enabled=True,
         max_size_gb=2,
         timeout=30,
+        session_metrics=session_metrics,
     )
 
 
@@ -154,4 +161,5 @@ __all__ = [
     "get_cache_instance_count",
     "get_cache_instance_keys",
     "cleanup_shared_cache_instances",
+    "get_aggregated_cache_stats",
 ]

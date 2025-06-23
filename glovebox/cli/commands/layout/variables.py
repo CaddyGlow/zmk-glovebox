@@ -226,7 +226,7 @@ def variables(
 
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 def _display_variables_list(variables_dict: dict[str, Any], output_format: str) -> None:

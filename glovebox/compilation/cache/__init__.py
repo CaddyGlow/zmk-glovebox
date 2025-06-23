@@ -56,47 +56,53 @@ from .workspace_cache_service import ZmkWorkspaceCacheService  # noqa: E402
 
 
 def create_zmk_workspace_cache_service(
-    user_config: "UserConfig", cache_manager: CacheManager | None = None
+    user_config: "UserConfig",
+    cache_manager: CacheManager | None = None,
+    session_metrics: Any = None,
 ) -> ZmkWorkspaceCacheService:
     """Factory function for ZMK workspace cache service.
 
     Args:
         user_config: User configuration instance
         cache_manager: Optional cache manager (will create if not provided)
+        session_metrics: Optional SessionMetrics instance for metrics integration
 
     Returns:
         ZmkWorkspaceCacheService instance
     """
     if cache_manager is None:
         cache_manager = create_cache_from_user_config(
-            user_config._config, tag="compilation"
+            user_config._config, tag="compilation", session_metrics=session_metrics
         )
 
     return ZmkWorkspaceCacheService(user_config, cache_manager)
 
 
 def create_compilation_build_cache_service(
-    user_config: "UserConfig", cache_manager: CacheManager | None = None
+    user_config: "UserConfig",
+    cache_manager: CacheManager | None = None,
+    session_metrics: Any = None,
 ) -> CompilationBuildCacheService:
     """Factory function for compilation build cache service.
 
     Args:
         user_config: User configuration instance
         cache_manager: Optional cache manager (will create if not provided)
+        session_metrics: Optional SessionMetrics instance for metrics integration
 
     Returns:
         CompilationBuildCacheService instance
     """
     if cache_manager is None:
         cache_manager = create_cache_from_user_config(
-            user_config._config, tag="compilation"
+            user_config._config, tag="compilation", session_metrics=session_metrics
         )
 
     return CompilationBuildCacheService(user_config, cache_manager)
 
 
 def create_compilation_cache_service(
-    user_config: "UserConfig",
+    user_config: "UserConfig", session_metrics: Any = None
 ) -> tuple[CacheManager, ZmkWorkspaceCacheService, CompilationBuildCacheService]:
     """Factory function for compilation cache service with shared coordination.
 
@@ -106,18 +112,23 @@ def create_compilation_cache_service(
 
     Args:
         user_config: User configuration instance
+        session_metrics: Optional SessionMetrics instance for metrics integration
 
     Returns:
         Tuple of (cache_manager, workspace_cache_service, build_cache_service) using shared coordination
     """
     # Use shared cache coordination for compilation domain
     cache_manager = create_cache_from_user_config(
-        user_config._config, tag="compilation"
+        user_config._config, tag="compilation", session_metrics=session_metrics
     )
 
     # Create both cache services with shared cache
-    workspace_service = create_zmk_workspace_cache_service(user_config, cache_manager)
-    build_service = create_compilation_build_cache_service(user_config, cache_manager)
+    workspace_service = create_zmk_workspace_cache_service(
+        user_config, cache_manager, session_metrics
+    )
+    build_service = create_compilation_build_cache_service(
+        user_config, cache_manager, session_metrics
+    )
 
     return cache_manager, workspace_service, build_service
 

@@ -38,6 +38,10 @@ class CacheStats:
     miss_count: int
     eviction_count: int
     error_count: int = 0
+    # Metrics-specific fields
+    operation_count: int = 0
+    total_operation_time: float = 0.0
+    tag: str | None = None
 
     @property
     def hit_rate(self) -> float:
@@ -51,6 +55,30 @@ class CacheStats:
     def miss_rate(self) -> float:
         """Calculate cache miss rate as percentage."""
         return 100.0 - self.hit_rate
+
+    @property
+    def avg_operation_time(self) -> float:
+        """Calculate average operation time in seconds."""
+        if self.operation_count == 0:
+            return 0.0
+        return self.total_operation_time / self.operation_count
+
+    def to_metrics_dict(self) -> dict[str, Any]:
+        """Convert stats to metrics dictionary for SessionMetrics."""
+        return {
+            "total_entries": self.total_entries,
+            "total_size_bytes": self.total_size_bytes,
+            "hit_count": self.hit_count,
+            "miss_count": self.miss_count,
+            "eviction_count": self.eviction_count,
+            "error_count": self.error_count,
+            "operation_count": self.operation_count,
+            "total_operation_time": self.total_operation_time,
+            "hit_rate": self.hit_rate,
+            "miss_rate": self.miss_rate,
+            "avg_operation_time": self.avg_operation_time,
+            "tag": self.tag,
+        }
 
 
 @dataclass

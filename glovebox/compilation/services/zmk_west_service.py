@@ -4,9 +4,8 @@ import logging
 import shutil
 import tempfile
 from collections.abc import Callable
-from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import yaml
 
@@ -35,6 +34,7 @@ from glovebox.core.errors import CompilationError
 from glovebox.core.file_operations.enums import CopyStrategy
 from glovebox.core.file_operations.service import FileCopyService, create_copy_service
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
+from glovebox.metrics.session_metrics import SessionMetrics
 from glovebox.models.docker import DockerUserContext
 from glovebox.protocols import DockerAdapterProtocol
 from glovebox.utils.stream_process import DefaultOutputMiddleware
@@ -47,10 +47,16 @@ if TYPE_CHECKING:
 class WorkspaceSetup:
     """Helper class for ZMK workspace setup operations."""
 
-    def __init__(self, logger: logging.Logger, copy_service: FileCopyService) -> None:
+    def __init__(
+        self,
+        logger: logging.Logger,
+        copy_service: FileCopyService,
+        session_metrics: SessionMetrics | None = None,
+    ) -> None:
         """Initialize with logger."""
         self.logger = logger
         self.copy_service = copy_service
+        self.session_metrics = session_metrics
 
     def get_or_create_workspace(
         self,
@@ -66,21 +72,26 @@ class WorkspaceSetup:
         Returns:
             Tuple of (workspace_path, cache_was_used, cache_type) or (None, False, None) if failed
         """
-        # Import metrics here to avoid circular dependencies
-        try:
-            from glovebox.metrics.collector import compilation_metrics
+        # Use SessionMetrics if available
+        if self.session_metrics:
+            workspace_operations = self.session_metrics.Counter(
+                "workspace_operations_total",
+                "Total workspace operations",
+                ["repository", "branch", "operation"],
+            )
+            workspace_duration = self.session_metrics.Histogram(
+                "workspace_operation_duration_seconds", "Workspace operation duration"
+            )
 
-            with compilation_metrics() as metrics:
-                metrics.set_context(
-                    repository=config.repository,
-                    branch=config.branch,
-                    operation="get_or_create_workspace",
-                )
+            workspace_operations.labels(
+                config.repository, config.branch, "get_or_create_workspace"
+            ).inc()
 
+            with workspace_duration.time():
                 return self._get_or_create_workspace_internal(
-                    keymap_file, config_file, config, get_cached_workspace_func, metrics
+                    keymap_file, config_file, config, get_cached_workspace_func
                 )
-        except ImportError:
+        else:
             return self._get_or_create_workspace_internal(
                 keymap_file, config_file, config, get_cached_workspace_func
             )
@@ -93,12 +104,25 @@ class WorkspaceSetup:
         get_cached_workspace_func: Callable[
             [ZmkCompilationConfig], tuple[Path | None, bool, str | None]
         ],
-        metrics: Any = None,
     ) -> tuple[Path | None, bool, str | None]:
-        """Internal method for workspace creation with optional metrics."""
+        """Internal method for workspace creation."""
+        # Track cache operations with SessionMetrics
+        cache_operations = None
+        cache_duration = None
+        if self.session_metrics:
+            cache_operations = self.session_metrics.Counter(
+                "workspace_cache_operations_total",
+                "Total workspace cache operations",
+                ["operation", "result"],
+            )
+            cache_duration = self.session_metrics.Histogram(
+                "workspace_cache_operation_duration_seconds",
+                "Workspace cache operation duration",
+            )
+
         # Try to use cached workspace
-        if metrics:
-            with metrics.time_operation("cache_lookup"):
+        if cache_duration:
+            with cache_duration.time():
                 cached_workspace, cache_used, cache_type = get_cached_workspace_func(
                     config
                 )
@@ -112,15 +136,18 @@ class WorkspaceSetup:
             try:
                 self.logger.info("Copying cached workspace from: %s", cached_workspace)
 
-                if metrics:
-                    with metrics.time_operation("workspace_restoration"):
+                if self.session_metrics:
+                    workspace_restoration_duration = self.session_metrics.Histogram(
+                        "workspace_restoration_duration_seconds",
+                        "Workspace restoration duration",
+                    )
+                    with workspace_restoration_duration.time():
                         self._restore_cached_workspace(cached_workspace, workspace_path)
                         self.setup_workspace(
                             keymap_file, config_file, config, workspace_path
                         )
-                        metrics.record_cache_event(
-                            "workspace", cache_hit=True, cache_key=cache_type
-                        )
+                    if cache_operations:
+                        cache_operations.labels("restoration", "success").inc()
                 else:
                     self._restore_cached_workspace(cached_workspace, workspace_path)
                     self.setup_workspace(
@@ -135,12 +162,16 @@ class WorkspaceSetup:
                     "Failed to use cached workspace: %s", e, exc_info=exc_info
                 )
                 shutil.rmtree(workspace_path, ignore_errors=True)
-                if metrics:
-                    metrics.record_cache_event("workspace", cache_hit=False)
+                if cache_operations:
+                    cache_operations.labels("restoration", "failed").inc()
 
         # Create fresh workspace
-        if metrics:
-            with metrics.time_operation("fresh_workspace_setup"):
+        if self.session_metrics:
+            fresh_workspace_duration = self.session_metrics.Histogram(
+                "fresh_workspace_setup_duration_seconds",
+                "Fresh workspace setup duration",
+            )
+            with fresh_workspace_duration.time():
                 self.setup_workspace(keymap_file, config_file, config, workspace_path)
         else:
             self.setup_workspace(keymap_file, config_file, config, workspace_path)
@@ -235,17 +266,19 @@ class ZmkWestService(CompilationServiceProtocol):
         workspace_cache_service: ZmkWorkspaceCacheService | None = None,
         build_cache_service: CompilationBuildCacheService | None = None,
         copy_service: FileCopyService | None = None,
+        session_metrics: SessionMetrics | None = None,
     ) -> None:
-        """Initialize with Docker adapter, user config, and both cache services."""
+        """Initialize with Docker adapter, user config, cache services, and metrics."""
         self.docker_adapter = docker_adapter
         self.user_config = user_config
         self.cache_manager = cache_manager
+        self.session_metrics = session_metrics
         self.logger = logging.getLogger(__name__)
         self.copy_service = copy_service or create_copy_service(user_config)
 
         # Initialize workspace setup helper
         self.workspace_setup = WorkspaceSetup(
-            self.logger, copy_service=self.copy_service
+            self.logger, copy_service=self.copy_service, session_metrics=session_metrics
         )
 
         # Create cache services if not provided
@@ -278,34 +311,26 @@ class ZmkWestService(CompilationServiceProtocol):
         """Execute ZMK compilation."""
         self.logger.info("Starting ZMK config compilation")
 
-        # Import metrics here to avoid circular dependencies
-        try:
-            from glovebox.metrics.collector import firmware_metrics
+        # Initialize compilation metrics if SessionMetrics available
+        if self.session_metrics:
+            compilation_operations = self.session_metrics.Counter(
+                "compilation_operations_total",
+                "Total compilation operations",
+                ["keyboard_name", "firmware_version", "strategy"],
+            )
+            compilation_duration = self.session_metrics.Histogram(
+                "compilation_duration_seconds", "Compilation operation duration"
+            )
 
-            metrics_enabled = True
-        except ImportError:
-            metrics_enabled = False
+            compilation_operations.labels(
+                keyboard_profile.keyboard_name,
+                keyboard_profile.firmware_version or "unknown",
+                "zmk_config",
+            ).inc()
 
-        if metrics_enabled:
-            with firmware_metrics() as metrics:
-                metrics.set_context(
-                    profile_name=f"{keyboard_profile.keyboard_name}/{keyboard_profile.firmware_version}"
-                    if keyboard_profile.firmware_version
-                    else keyboard_profile.keyboard_name,
-                    keyboard_name=keyboard_profile.keyboard_name,
-                    firmware_version=keyboard_profile.firmware_version,
-                    compilation_strategy="zmk_config",
-                    board_targets=config.build_matrix.board
-                    if isinstance(config, ZmkCompilationConfig)
-                    else None,
-                )
+            with compilation_duration.time():
                 return self._compile_internal(
-                    keymap_file,
-                    config_file,
-                    output_dir,
-                    config,
-                    keyboard_profile,
-                    metrics,
+                    keymap_file, config_file, output_dir, config, keyboard_profile
                 )
         else:
             return self._compile_internal(
@@ -319,85 +344,83 @@ class ZmkWestService(CompilationServiceProtocol):
         output_dir: Path,
         config: CompilationConfigUnion,
         keyboard_profile: "KeyboardProfile",
-        metrics: Any | None = None,
     ) -> BuildResult:
-        """Execute ZMK compilation with optional metrics collection."""
+        """Execute ZMK compilation."""
         try:
             if not isinstance(config, ZmkCompilationConfig):
                 return BuildResult(
                     success=False, errors=["Invalid config type for ZMK compilation"]
                 )
 
+            # Initialize cache metrics
+            cache_operations = None
+            cache_duration = None
+            if self.session_metrics:
+                cache_operations = self.session_metrics.Counter(
+                    "build_cache_operations_total",
+                    "Total build cache operations",
+                    ["operation", "result"],
+                )
+                cache_duration = self.session_metrics.Histogram(
+                    "build_cache_operation_duration_seconds",
+                    "Build cache operation duration",
+                )
+
             # Try to use cached build result first (most specific cache)
-            if metrics:
-                with metrics.time_operation("cache_check"):
+            if cache_duration:
+                with cache_duration.time():
                     cached_build_path = self._get_cached_build_result(
                         keymap_file, config_file, config
                     )
-                    if cached_build_path:
-                        metrics.record_cache_event(
-                            "build_result", cache_hit=True, cache_key="build_result"
-                        )
-                        self.logger.info(
-                            "Found cached build - copying artifacts and skipping compilation"
-                        )
-                        output_files = self._collect_files(
-                            cached_build_path, output_dir
-                        )
-                        return BuildResult(
-                            success=True,
-                            output_files=output_files,
-                            messages=["Used cached build result"],
-                        )
-                    metrics.record_cache_event("build_result", cache_hit=False)
             else:
                 cached_build_path = self._get_cached_build_result(
                     keymap_file, config_file, config
                 )
-                if cached_build_path:
-                    self.logger.info(
-                        "Found cached build - copying artifacts and skipping compilation"
-                    )
-                    output_files = self._collect_files(cached_build_path, output_dir)
-                    return BuildResult(
-                        success=True,
-                        output_files=output_files,
-                        messages=["Used cached build result"],
-                    )
+
+            if cached_build_path:
+                if cache_operations:
+                    cache_operations.labels("lookup", "hit").inc()
+                self.logger.info(
+                    "Found cached build - copying artifacts and skipping compilation"
+                )
+                output_files = self._collect_files(cached_build_path, output_dir)
+                return BuildResult(
+                    success=True,
+                    output_files=output_files,
+                    messages=["Used cached build result"],
+                )
+
+            if cache_operations:
+                cache_operations.labels("lookup", "miss").inc()
 
             # Try to use cached workspace
-            if metrics:
-                with metrics.time_operation("workspace_setup"):
-                    workspace_path, cache_used, cache_type = (
-                        self.workspace_setup.get_or_create_workspace(
-                            keymap_file, config_file, config, self._get_cached_workspace
-                        )
-                    )
-                    if not workspace_path:
-                        self.logger.error("Workspace setup failed")
-                        return BuildResult(
-                            success=False, errors=["Workspace setup failed"]
-                        )
-
-                    # Record workspace cache event
-                    metrics.record_cache_event("workspace", cache_hit=cache_used)
-                    metrics.set_context(workspace_path=workspace_path)
-            else:
-                workspace_path, cache_used, cache_type = (
-                    self.workspace_setup.get_or_create_workspace(
-                        keymap_file, config_file, config, self._get_cached_workspace
-                    )
+            workspace_path, cache_used, cache_type = (
+                self.workspace_setup.get_or_create_workspace(
+                    keymap_file, config_file, config, self._get_cached_workspace
                 )
-                if not workspace_path:
-                    self.logger.error("Workspace setup failed")
-                    return BuildResult(success=False, errors=["Workspace setup failed"])
+            )
+            if not workspace_path:
+                self.logger.error("Workspace setup failed")
+                return BuildResult(success=False, errors=["Workspace setup failed"])
 
             # Run compilation
-            if metrics:
-                with metrics.time_operation("compilation"):
+            if self.session_metrics:
+                docker_operations = self.session_metrics.Counter(
+                    "docker_operations_total",
+                    "Total Docker operations",
+                    ["operation", "result"],
+                )
+                docker_duration = self.session_metrics.Histogram(
+                    "docker_operation_duration_seconds", "Docker operation duration"
+                )
+                with docker_duration.time():
                     compilation_success = self._run_compilation(
                         workspace_path, config, cache_used, cache_type
                     )
+                if compilation_success:
+                    docker_operations.labels("compilation", "success").inc()
+                else:
+                    docker_operations.labels("compilation", "failed").inc()
             else:
                 compilation_success = self._run_compilation(
                     workspace_path, config, cache_used, cache_type
@@ -406,53 +429,31 @@ class ZmkWestService(CompilationServiceProtocol):
             # Cache workspace dependencies if it was created fresh (not from cache)
             # As per user request: "we never update the two cache once they are created"
             if not cache_used:
-                if metrics:
-                    with metrics.time_operation("workspace_caching"):
-                        self._cache_workspace(workspace_path, config)
-                else:
-                    self._cache_workspace(workspace_path, config)
+                self._cache_workspace(workspace_path, config)
             elif cache_type == "repo_only" and self.workspace_cache_service:
-                if metrics:
-                    with metrics.time_operation("workspace_caching"):
-                        cache_result = (
-                            self.workspace_cache_service.cache_workspace_repo_branch(
-                                workspace_path, config.repository, config.branch
-                            )
-                        )
-                        if cache_result.success:
-                            self.logger.info(
-                                "Cached workspace (repo+branch) for %s@%s: %s",
-                                config.repository,
-                                config.branch,
-                                cache_result.workspace_path,
-                            )
-                        else:
-                            self.logger.warning(
-                                "Failed to cache workspace (repo+branch): %s",
-                                cache_result.error_message,
-                            )
-                else:
-                    cache_result = (
-                        self.workspace_cache_service.cache_workspace_repo_branch(
-                            workspace_path, config.repository, config.branch
-                        )
+                cache_result = self.workspace_cache_service.cache_workspace_repo_branch(
+                    workspace_path, config.repository, config.branch
+                )
+                if cache_result.success:
+                    self.logger.info(
+                        "Cached workspace (repo+branch) for %s@%s: %s",
+                        config.repository,
+                        config.branch,
+                        cache_result.workspace_path,
                     )
-                    if cache_result.success:
-                        self.logger.info(
-                            "Cached workspace (repo+branch) for %s@%s: %s",
-                            config.repository,
-                            config.branch,
-                            cache_result.workspace_path,
-                        )
-                    else:
-                        self.logger.warning(
-                            "Failed to cache workspace (repo+branch): %s",
-                            cache_result.error_message,
-                        )
+                else:
+                    self.logger.warning(
+                        "Failed to cache workspace (repo+branch): %s",
+                        cache_result.error_message,
+                    )
 
             # Always try to collect artifacts, even on build failure (for debugging)
-            if metrics:
-                with metrics.time_operation("artifact_collection"):
+            if self.session_metrics:
+                artifact_duration = self.session_metrics.Histogram(
+                    "artifact_collection_duration_seconds",
+                    "Artifact collection duration",
+                )
+                with artifact_duration.time():
                     output_files = self._collect_files(workspace_path, output_dir)
             else:
                 output_files = self._collect_files(workspace_path, output_dir)
@@ -476,24 +477,20 @@ class ZmkWestService(CompilationServiceProtocol):
             )
 
             # Cache the successful build result
-            if metrics:
-                with metrics.time_operation("result_caching"):
-                    self._cache_build_result(
-                        keymap_file, config_file, config, workspace_path
-                    )
-            else:
-                self._cache_build_result(
-                    keymap_file, config_file, config, workspace_path
+            self._cache_build_result(keymap_file, config_file, config, workspace_path)
+
+            # Record final compilation metrics
+            if self.session_metrics:
+                artifacts_generated = self.session_metrics.Gauge(
+                    "artifacts_generated", "Number of artifacts generated"
+                )
+                firmware_size = self.session_metrics.Gauge(
+                    "firmware_size_bytes", "Firmware file size in bytes"
                 )
 
-            # Set final metrics context if metrics enabled
-            if metrics:
-                metrics.set_context(
-                    artifacts_generated=1 if output_files.main_uf2 else 0,
-                    firmware_size_bytes=output_files.main_uf2.stat().st_size
-                    if output_files.main_uf2 and output_files.main_uf2.exists()
-                    else None,
-                )
+                artifacts_generated.set(1 if output_files.main_uf2 else 0)
+                if output_files.main_uf2 and output_files.main_uf2.exists():
+                    firmware_size.set(output_files.main_uf2.stat().st_size)
 
             self.logger.info("ZMK compilation completed successfully")
             return build_result
@@ -671,28 +668,25 @@ class ZmkWestService(CompilationServiceProtocol):
         if not config.use_cache or not self.workspace_cache_service:
             return
 
-        # Import metrics here to avoid circular dependencies
-        try:
-            from glovebox.metrics.collector import compilation_metrics
+        # Use SessionMetrics if available
+        if self.session_metrics:
+            cache_operations = self.session_metrics.Counter(
+                "workspace_cache_storage_total",
+                "Total workspace cache storage operations",
+                ["repository", "branch", "operation"],
+            )
+            cache_operations.labels(
+                config.repository, config.branch, "cache_workspace"
+            ).inc()
 
-            with compilation_metrics() as metrics:
-                metrics.set_context(
-                    repository=config.repository,
-                    branch=config.branch,
-                    operation="cache_workspace",
-                )
-
-                self._cache_workspace_internal(workspace_path, config, metrics)
-        except ImportError:
-            self._cache_workspace_internal(workspace_path, config)
+        self._cache_workspace_internal(workspace_path, config)
 
     def _cache_workspace_internal(
         self,
         workspace_path: Path,
         config: ZmkCompilationConfig,
-        metrics: Any = None,
     ) -> None:
-        """Internal method for workspace caching with optional metrics."""
+        """Internal method for workspace caching."""
         if not self.workspace_cache_service:
             self.logger.warning("Workspace cache service not available")
             return
@@ -702,17 +696,9 @@ class ZmkWestService(CompilationServiceProtocol):
             # and repo-only (less specific, includes .git for branch fetching)
 
             # Cache repo+branch level first (most commonly used)
-            if metrics:
-                with metrics.time_operation("cache_repo_branch"):
-                    cache_result = (
-                        self.workspace_cache_service.cache_workspace_repo_branch(
-                            workspace_path, config.repository, config.branch
-                        )
-                    )
-            else:
-                cache_result = self.workspace_cache_service.cache_workspace_repo_branch(
-                    workspace_path, config.repository, config.branch
-                )
+            cache_result = self.workspace_cache_service.cache_workspace_repo_branch(
+                workspace_path, config.repository, config.branch
+            )
 
             if cache_result.success:
                 self.logger.info(
@@ -721,8 +707,14 @@ class ZmkWestService(CompilationServiceProtocol):
                     config.branch,
                     cache_result.workspace_path,
                 )
-                if metrics:
-                    metrics.set_context(cached_repo_branch=True)
+                # Track successful cache operation
+                if self.session_metrics:
+                    cache_success = self.session_metrics.Counter(
+                        "workspace_cache_success_total",
+                        "Successful workspace cache operations",
+                        ["cache_type"],
+                    )
+                    cache_success.labels("repo_branch").inc()
             else:
                 self.logger.warning(
                     "Failed to cache workspace (repo+branch): %s",
@@ -730,17 +722,9 @@ class ZmkWestService(CompilationServiceProtocol):
                 )
 
             # Cache repo-only level (for branch fetching scenarios)
-            if metrics:
-                with metrics.time_operation("cache_repo_only"):
-                    cache_result = (
-                        self.workspace_cache_service.cache_workspace_repo_only(
-                            workspace_path, config.repository
-                        )
-                    )
-            else:
-                cache_result = self.workspace_cache_service.cache_workspace_repo_only(
-                    workspace_path, config.repository
-                )
+            cache_result = self.workspace_cache_service.cache_workspace_repo_only(
+                workspace_path, config.repository
+            )
 
             if cache_result.success:
                 self.logger.info(
@@ -748,8 +732,14 @@ class ZmkWestService(CompilationServiceProtocol):
                     config.repository,
                     cache_result.workspace_path,
                 )
-                if metrics:
-                    metrics.set_context(cached_repo_only=True)
+                # Track successful cache operation
+                if self.session_metrics:
+                    cache_success = self.session_metrics.Counter(
+                        "workspace_cache_success_total",
+                        "Successful workspace cache operations",
+                        ["cache_type"],
+                    )
+                    cache_success.labels("repo_only").inc()
             else:
                 self.logger.warning(
                     "Failed to cache workspace (repo-only): %s",
@@ -1154,8 +1144,9 @@ def create_zmk_west_service(
     cache_manager: CacheManager | None = None,
     workspace_cache_service: ZmkWorkspaceCacheService | None = None,
     build_cache_service: CompilationBuildCacheService | None = None,
+    session_metrics: SessionMetrics | None = None,
 ) -> ZmkWestService:
-    """Create ZMK West service with dual cache management.
+    """Create ZMK West service with dual cache management and metrics.
 
     Args:
         docker_adapter: Docker adapter for container operations
@@ -1163,6 +1154,7 @@ def create_zmk_west_service(
         cache_manager: Optional cache manager instance for both cache services
         workspace_cache_service: Optional workspace cache service
         build_cache_service: Optional build cache service
+        session_metrics: Optional session metrics for tracking operations
 
     Returns:
         Configured ZmkWestService instance
@@ -1173,4 +1165,5 @@ def create_zmk_west_service(
         cache_manager=cache_manager,
         workspace_cache_service=workspace_cache_service,
         build_cache_service=build_cache_service,
+        session_metrics=session_metrics,
     )

@@ -29,6 +29,7 @@ def get_shared_cache_instance(
     enabled: bool = True,
     max_size_gb: int = 2,
     timeout: int = 30,
+    session_metrics: Any | None = None,
 ) -> CacheManager:
     """Get shared cache instance, creating if needed.
 
@@ -42,6 +43,7 @@ def get_shared_cache_instance(
         enabled: Whether caching is enabled
         max_size_gb: Maximum cache size in GB
         timeout: Cache operation timeout in seconds
+        session_metrics: Optional SessionMetrics instance for metrics integration
 
     Returns:
         Shared cache manager instance
@@ -64,7 +66,9 @@ def get_shared_cache_instance(
             max_size_bytes=max_size_gb * 1024 * 1024 * 1024,
             timeout=timeout,
         )
-        _shared_cache_instances[cache_key] = DiskCacheManager(config)
+        _shared_cache_instances[cache_key] = DiskCacheManager(
+            config, tag=tag, session_metrics=session_metrics
+        )
     else:
         logger.debug("Reusing existing shared cache instance: %s", cache_key)
 
@@ -159,3 +163,70 @@ def cleanup_shared_cache_instances() -> dict[str, int]:
             cleanup_results[cache_key] = 0
 
     return cleanup_results
+
+
+def get_aggregated_cache_stats() -> dict[str, Any]:
+    """Get aggregated cache statistics across all shared cache instances.
+
+    Returns:
+        Dictionary with aggregated cache statistics and per-tag breakdown
+    """
+    aggregated_stats: dict[str, Any] = {
+        "total_instances": len(_shared_cache_instances),
+        "total_entries": 0,
+        "total_size_bytes": 0,
+        "total_hit_count": 0,
+        "total_miss_count": 0,
+        "total_eviction_count": 0,
+        "total_error_count": 0,
+        "total_operation_count": 0,
+        "total_operation_time": 0.0,
+        "overall_hit_rate": 0.0,
+        "overall_avg_operation_time": 0.0,
+        "by_tag": {},
+    }
+
+    for cache_key, cache_instance in _shared_cache_instances.items():
+        try:
+            if hasattr(cache_instance, "get_stats"):
+                stats = cache_instance.get_stats()
+
+                # Add to totals
+                aggregated_stats["total_entries"] += stats.total_entries
+                aggregated_stats["total_size_bytes"] += stats.total_size_bytes
+                aggregated_stats["total_hit_count"] += stats.hit_count
+                aggregated_stats["total_miss_count"] += stats.miss_count
+                aggregated_stats["total_eviction_count"] += stats.eviction_count
+                aggregated_stats["total_error_count"] += stats.error_count
+                aggregated_stats["total_operation_count"] += stats.operation_count
+                aggregated_stats["total_operation_time"] += stats.total_operation_time
+
+                # Store per-tag breakdown
+                tag = stats.tag or "default"
+                aggregated_stats["by_tag"][tag] = stats.to_metrics_dict()
+
+        except Exception as e:
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.warning(
+                "Error getting stats from cache instance %s: %s",
+                cache_key,
+                e,
+                exc_info=exc_info,
+            )
+
+    # Calculate overall rates
+    total_requests = (
+        aggregated_stats["total_hit_count"] + aggregated_stats["total_miss_count"]
+    )
+    if total_requests > 0:
+        aggregated_stats["overall_hit_rate"] = (
+            aggregated_stats["total_hit_count"] / total_requests
+        ) * 100.0
+
+    if aggregated_stats["total_operation_count"] > 0:
+        aggregated_stats["overall_avg_operation_time"] = (
+            aggregated_stats["total_operation_time"]
+            / aggregated_stats["total_operation_count"]
+        )
+
+    return aggregated_stats
