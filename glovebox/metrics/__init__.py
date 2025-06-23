@@ -22,6 +22,16 @@ from glovebox.metrics.models import (
     OperationType,
 )
 
+# Import and re-export SessionMetrics for prometheus_client-compatible API
+from glovebox.metrics.session_metrics import (
+    SessionCounter,
+    SessionGauge,
+    SessionHistogram,
+    SessionMetrics,
+    SessionSummary,
+    create_session_metrics,
+)
+
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -150,4 +160,11 @@ __all__ = [
     "create_metrics_storage",
     "create_metrics_collector",
     "create_operation_tracker",
+    # SessionMetrics (prometheus_client-compatible)
+    "SessionMetrics",
+    "SessionCounter",
+    "SessionGauge",
+    "SessionHistogram",
+    "SessionSummary",
+    "create_session_metrics",
 ]

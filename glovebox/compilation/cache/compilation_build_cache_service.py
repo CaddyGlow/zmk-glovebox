@@ -277,6 +277,9 @@ class CompilationBuildCacheService:
             )
             return 0
 
+    def _copy_directory(self, source_dir: Path, target_dir: Path) -> None:
+        pass
+
     def _copy_build_artifacts(self, source_dir: Path, target_dir: Path) -> None:
         """Copy build artifacts from source to target directory.
 

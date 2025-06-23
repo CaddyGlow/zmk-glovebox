@@ -114,7 +114,9 @@ class TestZmkWestServiceIntegration:
             output_dir = Path(temp_dir)
 
             # Should not use cache when disabled
-            cached_workspace, cache_used = service._get_cached_workspace(config)
+            cached_workspace, cache_used, cache_type = service._get_cached_workspace(
+                config
+            )
             assert cached_workspace is None
             assert cache_used is False
 
@@ -135,7 +137,9 @@ class TestZmkWestServiceIntegration:
         )
 
         # First call should be cache miss
-        cached_workspace, cache_used = service._get_cached_workspace(zmk_config)
+        cached_workspace, cache_used, cache_type = service._get_cached_workspace(
+            zmk_config
+        )
         assert cached_workspace is None
         assert cache_used is False
 
@@ -158,7 +162,9 @@ class TestZmkWestServiceIntegration:
             service._cache_workspace(workspace_path, zmk_config)
 
             # Second call should be cache hit
-            cached_workspace, cache_used = service._get_cached_workspace(zmk_config)
+            cached_workspace, cache_used, cache_type = service._get_cached_workspace(
+                zmk_config
+            )
             assert cached_workspace is not None
             assert cache_used is True
             assert cached_workspace.exists()

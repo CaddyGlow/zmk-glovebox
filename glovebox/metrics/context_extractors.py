@@ -37,22 +37,35 @@ def extract_cli_context(
     context: dict[str, Any] = {}
 
     try:
-        # Extract session ID from CLI context if available
-        if "ctx" in kwargs and isinstance(kwargs["ctx"], typer.Context):
-            typer_ctx = kwargs["ctx"]
-            if (
-                hasattr(typer_ctx, "obj")
-                and typer_ctx.obj
-                and hasattr(typer_ctx.obj, "session_id")
+        # Extract session ID from thread-local context
+        try:
+            from glovebox.metrics.context import get_current_session_id
+
+            session_id = get_current_session_id()
+            if session_id:
+                context["session_id"] = session_id
+        except Exception:
+            # Fallback to extracting from CLI context if thread-local fails
+            if "ctx" in kwargs and (
+                isinstance(kwargs["ctx"], typer.Context)
+                or hasattr(kwargs["ctx"], "obj")
             ):
-                context["session_id"] = typer_ctx.obj.session_id
+                typer_ctx = kwargs["ctx"]
+                if (
+                    hasattr(typer_ctx, "obj")
+                    and typer_ctx.obj
+                    and hasattr(typer_ctx.obj, "session_id")
+                ):
+                    context["session_id"] = typer_ctx.obj.session_id
 
         # Extract profile information
         if "profile" in kwargs and kwargs["profile"]:
             context["profile_name"] = str(kwargs["profile"])
 
         # Extract typer context if available
-        if "ctx" in kwargs and isinstance(kwargs["ctx"], typer.Context):
+        if "ctx" in kwargs and (
+            isinstance(kwargs["ctx"], typer.Context) or hasattr(kwargs["ctx"], "params")
+        ):
             typer_ctx = kwargs["ctx"]
             if (
                 hasattr(typer_ctx, "params")
@@ -116,6 +129,69 @@ def extract_cli_context(
         for param in numeric_params:
             if param in kwargs and kwargs[param] is not None:
                 context[param] = int(kwargs[param])
+
+        # Extract command name and path from Typer context and function name
+        command_name = None
+        command_path = None
+
+        # Try to extract full command path from Typer context first
+        if "ctx" in kwargs and hasattr(kwargs["ctx"], "info_name"):
+            typer_ctx = kwargs["ctx"]
+            command_parts: list[str] = []
+
+            # Walk up the context chain to build full command path
+            current_ctx = typer_ctx
+            while current_ctx:
+                if hasattr(current_ctx, "info_name") and current_ctx.info_name:
+                    command_parts.insert(0, current_ctx.info_name)
+                current_ctx = getattr(current_ctx, "parent", None)
+
+            if command_parts:
+                # Remove the root app name (glovebox) to get clean command path
+                if command_parts[0] == "glovebox":
+                    command_parts = command_parts[1:]
+
+                if command_parts:
+                    command_path = " ".join(command_parts)
+                    command_name = command_parts[-1]  # Last part is the actual command
+
+        # Fallback to function name extraction if context extraction failed
+        if not command_name and func is not None and hasattr(func, "__name__"):
+            func_name = func.__name__
+            if func_name.startswith(
+                ("list_", "show_", "add_", "remove_", "delete_", "export_", "import_")
+            ):
+                # Extract command verb from function name
+                command_name = func_name.split("_")[0]
+            else:
+                command_name = func_name
+
+        # Store command information
+        if command_name:
+            context["command"] = command_name
+        if command_path:
+            context["command_path"] = command_path
+
+        # Capture CLI arguments for debugging (sanitize sensitive data)
+        cli_args: dict[str, str | None] = {}
+        for key, value in kwargs.items():
+            if key == "ctx":
+                continue  # Skip context object
+            # Sanitize potentially sensitive parameters
+            if any(
+                sensitive in key.lower()
+                for sensitive in ["password", "token", "secret", "api_key", "auth_key"]
+            ):
+                cli_args[key] = "[REDACTED]"
+            elif isinstance(value, str | int | float | bool) or value is None:
+                cli_args[key] = str(value) if value is not None else None
+            elif isinstance(value, Path):
+                cli_args[key] = str(value)
+            else:
+                cli_args[key] = str(type(value).__name__)
+
+        if cli_args:
+            context["cli_args"] = cli_args
 
         # Try to extract from positional arguments if function signature is available
         try:

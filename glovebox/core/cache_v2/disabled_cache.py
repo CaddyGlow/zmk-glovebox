@@ -25,6 +25,10 @@ class DisabledCache(CacheManager):
         """Always return False (nothing to delete)."""
         return False
 
+    def delete_many(self, keys: list[str]) -> int:
+        """Always return 0 (nothing to delete)."""
+        return 0
+
     def clear(self) -> None:
         """No-op clear operation."""
         pass

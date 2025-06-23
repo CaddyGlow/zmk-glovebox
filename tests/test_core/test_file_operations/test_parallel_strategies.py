@@ -303,6 +303,7 @@ class TestParallelCopyStrategy:
         result = single_worker_strategy.copy_directory(src_dir, dst_dir)
 
         assert result.success is True
+        assert result.strategy_used is not None
         assert "1 threads" in result.strategy_used
         assert (dst_dir / "file.txt").read_text() == "single worker test"
 
@@ -322,6 +323,7 @@ class TestParallelCopyStrategy:
         result = many_workers_strategy.copy_directory(src_dir, dst_dir)
 
         assert result.success is True
+        assert result.strategy_used is not None
         assert "16 threads" in result.strategy_used
 
         # Verify all files copied

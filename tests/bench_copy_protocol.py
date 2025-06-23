@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Protocol, runtime_checkable
+from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
 import psutil
 
@@ -30,7 +30,7 @@ class CopyContext:
     cache_dir: Path
     components: list[str]
     verbose: bool = False
-    metadata: dict[str, any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -41,7 +41,7 @@ class CopyResult:
     elapsed_time: float
     success: bool
     error: str | None = None
-    metadata: dict[str, any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
     def speed_mbps(self) -> float:
@@ -428,7 +428,7 @@ def create_parallel_strategies(
     base_strategies: list[CopyStrategyProtocol], worker_counts: list[int]
 ) -> list[CopyStrategyProtocol]:
     """Factory function to create parallel versions of strategies."""
-    strategies = []
+    strategies: list[CopyStrategyProtocol] = []
     for base in base_strategies:
         for workers in worker_counts:
             strategies.append(ParallelCopyStrategy(workers, base))
@@ -490,7 +490,7 @@ class BenchmarkRunner:
 
     def run_benchmarks(
         self, workspace_path: Path, config: BenchmarkConfig
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Run benchmarks according to configuration."""
         # Discover components
         components = self._discover_components(workspace_path)
@@ -513,6 +513,8 @@ class BenchmarkRunner:
 
             for strategy_id in strategies:
                 strategy = self.registry.get_strategy(strategy_id)
+                if strategy is None:
+                    continue
                 result = self._run_single_benchmark(
                     strategy, workspace_path, components, config
                 )
@@ -557,7 +559,7 @@ class BenchmarkRunner:
         workspace_path: Path,
         components: list[str],
         config: BenchmarkConfig,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Run a single benchmark."""
         print(f"\n{'=' * 50}")
         print(f"Testing: {strategy.name}")
@@ -623,7 +625,7 @@ class BenchmarkRunner:
         pass
 
 
-def print_summary(results: list[dict]):
+def print_summary(results: list[dict[str, Any]]):
     """Print benchmark summary."""
     print(f"\n{'=' * 70}")
     print("SUMMARY - SORTED BY PERFORMANCE")
@@ -662,6 +664,7 @@ if __name__ == "__main__":
             print(f"  {category.value}: {len(strategies)} strategies")
             for s_id in strategies[:3]:  # Show first 3
                 strategy = STRATEGY_REGISTRY.get_strategy(s_id)
-                print(f"    - {strategy.name}")
+                if strategy is not None:
+                    print(f"    - {strategy.name}")
             if len(strategies) > 3:
                 print(f"    ... and {len(strategies) - 3} more")

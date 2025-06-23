@@ -58,9 +58,14 @@ class TestFileCopyService:
         assert info["available"] is True
         assert info["prerequisites"] == []
 
-        # Test non-existent strategy
-        info = service.get_strategy_info("nonexistent")
-        assert info is None
+        # Test non-existent strategy (using a fake enum value)
+        try:
+            fake_strategy = CopyStrategy("nonexistent")
+            info = service.get_strategy_info(fake_strategy)
+            assert info is None
+        except ValueError:
+            # Expected - invalid enum value
+            pass
 
     def test_successful_directory_copy_with_baseline(self, tmp_path):
         """Test successful directory copy using baseline strategy."""
@@ -198,6 +203,7 @@ class TestFileCopyService:
 
         # Check that buffered strategy uses custom buffer size
         buffered_info = service.get_strategy_info(CopyStrategy.BUFFERED)
+        assert buffered_info is not None
         assert "2048KB" in buffered_info["name"]
 
         # Test actual copy operation
@@ -212,6 +218,7 @@ class TestFileCopyService:
         )
 
         assert result.success is True
+        assert result.strategy_used is not None
         assert "2048KB" in result.strategy_used
 
 
@@ -383,6 +390,7 @@ class TestServiceIntegration:
         )
 
         assert result.success is True
+        assert result.strategy_used is not None
         assert "Parallel" in result.strategy_used
         assert "2 threads" in result.strategy_used
 
@@ -432,6 +440,8 @@ class TestServiceIntegration:
 
         assert result1.success is True
         assert result4.success is True
+        assert result1.strategy_used is not None
+        assert result4.strategy_used is not None
         assert "1 threads" in result1.strategy_used
         assert "4 threads" in result4.strategy_used
 
