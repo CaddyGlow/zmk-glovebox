@@ -1741,7 +1741,9 @@ def cache_delete(
     ] = None,
     dry_run: Annotated[
         bool,
-        typer.Option("--dry-run", help="Show what would be deleted without actually deleting"),
+        typer.Option(
+            "--dry-run", help="Show what would be deleted without actually deleting"
+        ),
     ] = False,
     force: Annotated[
         bool,
@@ -1790,9 +1792,14 @@ def cache_delete(
             console.print("[red]Must specify --keys, --json-file, or --pattern[/red]")
             console.print("[dim]Examples:[/dim]")
             console.print('  glovebox cache delete -m compilation --keys "key1,key2"')
-            console.print('  glovebox cache delete -m compilation --pattern "build"')
+            console.print(
+                '  glovebox cache delete -m compilation --pattern "build" --dry-run'
+            )
             console.print(
                 "  glovebox cache delete -m compilation --json-file cache_dump.json"
+            )
+            console.print(
+                '  glovebox cache delete -m compilation --keys "key1,key2" --dry-run'
             )
             raise typer.Exit(1)
 
@@ -1807,8 +1814,10 @@ def cache_delete(
 
         if dry_run:
             # Dry run mode - show what would be deleted without actually deleting
-            console.print(f"\n[cyan]DRY RUN: Would delete {len(keys_to_delete)} cache keys from '{module}' module[/cyan]")
-            
+            console.print(
+                f"\n[cyan]DRY RUN: Would delete {len(keys_to_delete)} cache keys from '{module}' module[/cyan]"
+            )
+
             # Check which keys actually exist
             existing_keys = []
             missing_keys = []
@@ -1817,12 +1826,16 @@ def cache_delete(
                     existing_keys.append(key)
                 else:
                     missing_keys.append(key)
-            
+
             if existing_keys:
-                console.print(f"[green]Would delete {len(existing_keys)} existing keys[/green]")
+                console.print(
+                    f"[green]Would delete {len(existing_keys)} existing keys[/green]"
+                )
             if missing_keys:
-                console.print(f"[yellow]Would skip {len(missing_keys)} missing keys[/yellow]")
-            
+                console.print(
+                    f"[yellow]Would skip {len(missing_keys)} missing keys[/yellow]"
+                )
+
             return
 
         if not force:

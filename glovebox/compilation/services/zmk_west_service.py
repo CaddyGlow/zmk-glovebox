@@ -182,6 +182,26 @@ class ZmkWestService(CompilationServiceProtocol):
         if not cache_used:
             with metrics.time_operation("workspace_caching"):
                 self._cache_workspace(workspace_path, config)
+        elif cache_type == "repo_only" and self.workspace_cache_service:
+            with metrics.time_operation("workspace_caching"):
+                # self._cache_workspace(workspace_path, config)
+                #
+                cache_result = self.workspace_cache_service.cache_workspace_repo_branch(
+                    workspace_path, config.repository, config.branch
+                )
+
+                if cache_result.success:
+                    self.logger.info(
+                        "Cached workspace (repo+branch) for %s@%s: %s",
+                        config.repository,
+                        config.branch,
+                        cache_result.workspace_path,
+                    )
+                else:
+                    self.logger.warning(
+                        "Failed to cache workspace (repo+branch): %s",
+                        cache_result.error_message,
+                    )
 
         # Always try to collect artifacts, even on build failure (for debugging)
         with metrics.time_operation("artifact_collection"):
@@ -391,18 +411,19 @@ class ZmkWestService(CompilationServiceProtocol):
             and cache_result.workspace_path
             and (cache_result.workspace_path / "zmk").exists()
         ):
-            # Check if repo+branch cache has complete dependencies (west update marker)
-            west_marker = cache_result.workspace_path / ".west_last_update"
-            if west_marker.exists():
-                self.logger.info(
-                    "Using cached workspace (repo+branch) with complete dependencies: %s",
-                    cache_result.workspace_path,
-                )
-                return cache_result.workspace_path, True, "repo_branch"
-            else:
-                self.logger.info(
-                    "Repo+branch cache found but incomplete (no west marker), checking repo-only cache"
-                )
+            return cache_result.workspace_path, True, "repo_branch"
+            # # Check if repo+branch cache has complete dependencies (west update marker)
+            # west_marker = cache_result.workspace_path / ".west_last_update"
+            # if west_marker.exists():
+            #     self.logger.info(
+            #         "Using cached workspace (repo+branch) with complete dependencies: %s",
+            #         cache_result.workspace_path,
+            #     )
+            #     return cache_result.workspace_path, True, "repo_branch"
+            # else:
+            #     self.logger.info(
+            #         "Repo+branch cache found but incomplete (no west marker), checking repo-only cache"
+            #     )
 
         # Try repo-only lookup (includes .git for west operations)
         cache_result = self.workspace_cache_service.get_cached_workspace(
@@ -423,7 +444,9 @@ class ZmkWestService(CompilationServiceProtocol):
         return None, False, None
 
     def _cache_workspace(
-        self, workspace_path: Path, config: ZmkCompilationConfig
+        self,
+        workspace_path: Path,
+        config: ZmkCompilationConfig,
     ) -> None:
         """Cache workspace for future use with new dual-level strategy."""
         if not config.use_cache or not self.workspace_cache_service:
@@ -551,7 +574,7 @@ class ZmkWestService(CompilationServiceProtocol):
             # Create temporary workspace and copy from cache
             try:
                 # Copy cached workspace
-                for subdir in ["modules", "zephyr", "zmk"]:
+                for subdir in ["modules", "zephyr", "zmk", ".west"]:
                     if (cached_workspace / subdir).exists():
                         shutil.copytree(
                             cached_workspace / subdir, workspace_path / subdir
@@ -641,11 +664,11 @@ class ZmkWestService(CompilationServiceProtocol):
             self.logger.info("Running west update for fresh workspace")
             return True
 
-        # Check if workspace has an update marker - if not, always run update regardless of cache type
-        west_marker = workspace_path / ".west_last_update"
-        if not west_marker.exists():
-            self.logger.info("No west update marker found, running west update")
-            return True
+        # # Check if workspace has an update marker - if not, always run update regardless of cache type
+        # west_marker = workspace_path / ".west_last_update"
+        # if not west_marker.exists():
+        #     self.logger.info("No west update marker found, running west update")
+        #     return True
 
         # For repo+branch cache with marker, skip update (static snapshot, dependencies complete)
         if cache_type == "repo_branch":
@@ -694,16 +717,18 @@ class ZmkWestService(CompilationServiceProtocol):
                 return False
 
             # Build base commands with conditional west update
-            base_commands = ["cd /workspace", "west init -l config"]
+            base_commands = ["cd /workspace"]
 
             # Only run west update if needed based on cache usage and type
-            if self._should_run_west_update(workspace_path, cache_was_used, cache_type):
+            if cache_type == "repo_only":
+                base_commands.append("west init -l config")
+
+            if not cache_was_used:
                 base_commands.append("west update")
-                # Create update marker after successful update
-                base_commands.append("touch /workspace/.west_last_update")
+
+            base_commands.append("west zephyr-export")
 
             # Always run west zephyr-export to set up Zephyr environment variables
-            base_commands.append("west zephyr-export")
 
             all_commands = base_commands + build_commands
 
@@ -717,7 +742,7 @@ class ZmkWestService(CompilationServiceProtocol):
                     image=config.image,
                     command=["sh", "-c", " && ".join(all_commands)],
                     volumes=[(str(workspace_path), "/workspace")],
-                    environment={"JOBS": "4"},
+                    environment={},  # {"JOBS": "4"},
                     user_context=user_context,
                 )
             )
