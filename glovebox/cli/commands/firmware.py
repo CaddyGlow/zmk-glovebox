@@ -12,8 +12,13 @@ from glovebox.cli.helpers import (
     print_list_item,
     print_success_message,
 )
+from glovebox.cli.helpers.auto_profile import (
+    resolve_json_file_path,
+    resolve_profile_with_auto_detection,
+)
 from glovebox.cli.helpers.parameters import OutputFormatOption, ProfileOption
 from glovebox.cli.helpers.profile import (
+    create_profile_from_option,
     get_keyboard_profile_from_context,
     get_user_config_from_context,
 )
@@ -116,78 +121,8 @@ def _execute_compilation_service(
     )
 
 
-def _extract_keyboard_from_json(json_file: Path) -> str | None:
-    """Extract keyboard field from JSON layout file for auto-profile detection.
-
-    Args:
-        json_file: Path to the JSON layout file
-
-    Returns:
-        Keyboard name if found, None otherwise
-    """
-    try:
-        import json
-
-        with json_file.open() as f:
-            data = json.load(f)
-
-        keyboard = data.get("keyboard")
-        if keyboard and isinstance(keyboard, str):
-            logger.debug("Auto-detected keyboard from JSON: %s", keyboard)
-            return str(keyboard).strip()
-        else:
-            logger.debug("No keyboard field found in JSON or invalid type")
-            return None
-
-    except Exception as e:
-        logger.warning("Failed to extract keyboard from JSON: %s", e)
-        return None
-
-
-def _get_auto_profile_from_json(
-    json_file: Path, user_config: Any = None
-) -> str | None:
-    """Get auto-detected profile from JSON layout file.
-
-    Args:
-        json_file: Path to the JSON layout file
-        user_config: User configuration for default firmware lookup
-
-    Returns:
-        Auto-detected profile string or None if detection fails
-    """
-    keyboard = _extract_keyboard_from_json(json_file)
-    if not keyboard:
-        return None
-
-    # Try to create a keyboard-only profile first to see if the keyboard exists
-    try:
-        from glovebox.config.keyboard_profile import create_keyboard_profile
-
-        # Create keyboard-only profile to validate keyboard exists
-        keyboard_profile = create_keyboard_profile(keyboard, None, user_config)
-
-        # If user config has a default firmware for this keyboard, use it
-        if user_config:
-            try:
-                default_firmware = user_config._config.profile
-                if default_firmware and "/" in default_firmware:
-                    default_keyboard, firmware = default_firmware.split("/", 1)
-                    if default_keyboard == keyboard:
-                        auto_profile = f"{keyboard}/{firmware}"
-                        logger.debug("Auto-detected profile with user config firmware: %s", auto_profile)
-                        return auto_profile
-            except AttributeError:
-                pass
-
-        # Fall back to keyboard-only profile
-        auto_profile = keyboard
-        logger.debug("Auto-detected keyboard-only profile: %s", auto_profile)
-        return auto_profile
-
-    except Exception as e:
-        logger.debug("Auto-profile detection failed for keyboard '%s': %s", keyboard, e)
-        return None
+# Auto-profile detection functions moved to glovebox.cli.helpers.auto_profile
+# for shared use between firmware and layout commands
 
 
 def _execute_compilation_from_json(
@@ -278,8 +213,9 @@ cmake, make, and ninja build systems for custom keyboards.""",
 def firmware_compile(
     ctx: typer.Context,
     input_file: Annotated[
-        Path, typer.Argument(help="Path to keymap (.keymap) or layout (.json) file")
-    ],
+        Path | None,
+        typer.Argument(help="Path to keymap (.keymap) or layout (.json) file. Can use GLOVEBOX_JSON_FILE env var for JSON files.")
+    ] = None,
     config_file: Annotated[
         Path | None,
         typer.Argument(help="Path to kconfig (.conf) file (optional for JSON input)"),
@@ -366,27 +302,30 @@ def firmware_compile(
             # Get user config first for auto-profile detection
             user_config = get_user_config_from_context(ctx)
 
-            # Handle profile detection with auto-detection support
-            effective_profile = profile  # Start with CLI profile option
+            # Resolve input file path (supports environment variable for JSON files)
+            resolved_input_file = resolve_json_file_path(input_file, "GLOVEBOX_JSON_FILE")
 
-            # If no CLI profile and auto-detection is enabled and input is JSON
-            if not profile and not no_auto and input_file.suffix.lower() == ".json":
-                auto_profile = _get_auto_profile_from_json(input_file, user_config)
-                if auto_profile:
-                    effective_profile = auto_profile
-                    logger.info("Auto-detected profile from JSON: %s", auto_profile)
-                else:
-                    logger.debug("Auto-profile detection failed, falling back to defaults")
+            if resolved_input_file is None:
+                print_error_message(
+                    "Input file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
+                )
+                raise typer.Exit(1)
+
+            # Handle profile detection with auto-detection support
+            effective_profile = resolve_profile_with_auto_detection(
+                profile, resolved_input_file, no_auto, user_config
+            )
 
             # Create keyboard profile using effective profile
-            from glovebox.cli.helpers.profile import create_profile_from_option
-            keyboard_profile = create_profile_from_option(effective_profile, user_config)
+            keyboard_profile = create_profile_from_option(
+                effective_profile, user_config
+            )
 
             # Store in context for consistency with other commands
             app_ctx.keyboard_profile = keyboard_profile
 
             # Detect input file type and validate arguments
-            is_json_input = input_file.suffix.lower() == ".json"
+            is_json_input = resolved_input_file.suffix.lower() == ".json"
 
             if not is_json_input and config_file is None:
                 print_error_message(
@@ -415,7 +354,7 @@ def firmware_compile(
             if is_json_input:
                 result = _execute_compilation_from_json(
                     compilation_type,
-                    input_file,
+                    resolved_input_file,
                     build_output_dir,
                     compile_config,
                     keyboard_profile,
@@ -425,7 +364,7 @@ def firmware_compile(
                 assert config_file is not None  # Already validated above
                 result = _execute_compilation_service(
                     compilation_type,
-                    input_file,  # keymap_file
+                    resolved_input_file,  # keymap_file
                     config_file,  # kconfig_file
                     build_output_dir,
                     compile_config,
@@ -441,7 +380,7 @@ def firmware_compile(
                         if keyboard_profile.firmware_version
                         else keyboard_profile.keyboard_name
                     )
-                    _track_firmware_build(input_file, build_output_dir, profile_string)
+                    _track_firmware_build(resolved_input_file, build_output_dir, profile_string)
                 except Exception as e:
                     logger.warning("Failed to track firmware build: %s", e)
 

@@ -7,19 +7,35 @@ import typer
 
 from glovebox.cli.commands.layout.base import LayoutOutputCommand
 from glovebox.cli.decorators import handle_errors, with_profile
+from glovebox.cli.helpers.auto_profile import (
+    resolve_json_file_path,
+    resolve_profile_with_auto_detection,
+)
 from glovebox.cli.helpers.parameters import OutputFormatOption, ProfileOption
-from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
+from glovebox.cli.helpers.profile import (
+    create_profile_from_option,
+    get_keyboard_profile_from_context,
+    get_user_config_from_context,
+)
 from glovebox.layout.layer import create_layout_layer_service
 from glovebox.layout.service import create_layout_service
 
 
 @handle_errors
-@with_profile()
 def split(
     ctx: typer.Context,
-    layout_file: Annotated[Path, typer.Argument(help="Path to layout JSON file")],
     output_dir: Annotated[Path, typer.Argument(help="Directory to save split files")],
+    layout_file: Annotated[
+        str | None, typer.Argument(help="Path to layout JSON file. Can use GLOVEBOX_JSON_FILE env var.")
+    ] = None,
     profile: ProfileOption = None,
+    no_auto: Annotated[
+        bool,
+        typer.Option(
+            "--no-auto",
+            help="Disable automatic profile detection from JSON keyboard field",
+        ),
+    ] = False,
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
@@ -33,28 +49,54 @@ def split(
     - behaviors.dtsi (custom behaviors, if any)
     - devicetree.dtsi (custom device tree, if any)
 
-    This was previously called 'decompose' but renamed for clarity.
+    \b
+    Profile precedence (highest to lowest):
+    1. CLI --profile flag (overrides all)
+    2. Auto-detection from JSON keyboard field (unless --no-auto)
+    3. GLOVEBOX_PROFILE environment variable
+    4. User config default profile
+    5. Hardcoded fallback profile
 
     Examples:
-        # Split layout into components
+        # Split layout into components with auto-profile detection
         glovebox layout split my-layout.json ./components/
 
-        # Force overwrite existing files
-        glovebox layout split layout.json ./split/ --force
+        # Use environment variable for JSON file
+        GLOVEBOX_JSON_FILE=layout.json glovebox layout split ./components/
 
-        # Specify keyboard profile
-        glovebox layout split layout.json ./out/ --profile glove80/v25.05
+        # Disable auto-detection and specify profile
+        glovebox layout split layout.json ./out/ --no-auto --profile glove80/v25.05
     """
+    # Get user config for auto-profile detection
+    user_config = get_user_config_from_context(ctx)
+
+    # Resolve JSON file path (supports environment variable)
+    resolved_layout_file = resolve_json_file_path(layout_file, "GLOVEBOX_JSON_FILE")
+
+    if resolved_layout_file is None:
+        from glovebox.cli.helpers import print_error_message
+        print_error_message(
+            "Layout file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
+        )
+        raise typer.Exit(1)
+
     command = LayoutOutputCommand()
-    command.validate_layout_file(layout_file)
+    command.validate_layout_file(resolved_layout_file)
 
     try:
+        # Handle profile detection with auto-detection support
+        effective_profile = resolve_profile_with_auto_detection(
+            profile, resolved_layout_file, no_auto, user_config
+        )
+
+        # Create keyboard profile using effective profile
+        keyboard_profile = create_profile_from_option(effective_profile, user_config)
+
         layout_service = create_layout_service()
-        keyboard_profile = get_keyboard_profile_from_context(ctx)
 
         result = layout_service.decompose_components_from_file(
             profile=keyboard_profile,
-            json_file_path=layout_file,
+            json_file_path=resolved_layout_file,
             output_dir=output_dir,
             force=force,
         )
@@ -63,7 +105,7 @@ def split(
             if output_format.lower() == "json":
                 result_data = {
                     "success": True,
-                    "source_file": str(layout_file),
+                    "source_file": str(resolved_layout_file),
                     "output_directory": str(output_dir),
                     "components_created": result.messages
                     if hasattr(result, "messages")
@@ -74,7 +116,7 @@ def split(
                 command.print_operation_success(
                     "Layout split into components",
                     {
-                        "source": layout_file,
+                        "source": resolved_layout_file,
                         "output_directory": output_dir,
                         "components": "metadata.json, layers/, behaviors, devicetree",
                     },

@@ -194,19 +194,23 @@ def test_firmware_compile_auto_profile_detection(cli_runner, tmp_path):
     register_all_commands(app)
 
     # Create a test JSON file with keyboard field
-    test_json = {
-        "keyboard": "corne",
-        "title": "Test Layout",
-        "layers": []
-    }
+    test_json = {"keyboard": "corne", "title": "Test Layout", "layers": []}
     json_file = tmp_path / "test_layout.json"
     json_file.write_text(json.dumps(test_json))
 
     with (
-        patch("glovebox.cli.commands.firmware._get_auto_profile_from_json") as mock_auto_profile,
-        patch("glovebox.cli.helpers.profile.create_profile_from_option") as mock_create_profile,
-        patch("glovebox.cli.commands.firmware._execute_compilation_from_json") as mock_compile,
-        patch("glovebox.cli.helpers.profile.get_user_config_from_context") as mock_get_user_config,
+        patch(
+            "glovebox.cli.commands.firmware._get_auto_profile_from_json"
+        ) as mock_auto_profile,
+        patch(
+            "glovebox.cli.helpers.profile.create_profile_from_option"
+        ) as mock_create_profile,
+        patch(
+            "glovebox.cli.commands.firmware._execute_compilation_from_json"
+        ) as mock_compile,
+        patch(
+            "glovebox.cli.helpers.profile.get_user_config_from_context"
+        ) as mock_get_user_config,
     ):
         # Mock auto-profile detection
         mock_auto_profile.return_value = "corne"
@@ -223,6 +227,7 @@ def test_firmware_compile_auto_profile_detection(cli_runner, tmp_path):
 
         # Mock compilation result
         from glovebox.firmware.models import BuildResult
+
         mock_result = BuildResult(success=True)
         mock_result.messages = ["Compilation successful"]
         mock_compile.return_value = mock_result
@@ -259,19 +264,23 @@ def test_firmware_compile_no_auto_flag_disables_detection(cli_runner, tmp_path):
     register_all_commands(app)
 
     # Create a test JSON file with keyboard field
-    test_json = {
-        "keyboard": "corne",
-        "title": "Test Layout",
-        "layers": []
-    }
+    test_json = {"keyboard": "corne", "title": "Test Layout", "layers": []}
     json_file = tmp_path / "test_layout.json"
     json_file.write_text(json.dumps(test_json))
 
     with (
-        patch("glovebox.cli.commands.firmware._get_auto_profile_from_json") as mock_auto_profile,
-        patch("glovebox.cli.helpers.profile.create_profile_from_option") as mock_create_profile,
-        patch("glovebox.cli.commands.firmware._execute_compilation_from_json") as mock_compile,
-        patch("glovebox.cli.helpers.profile.get_user_config_from_context") as mock_get_user_config,
+        patch(
+            "glovebox.cli.commands.firmware._get_auto_profile_from_json"
+        ) as mock_auto_profile,
+        patch(
+            "glovebox.cli.helpers.profile.create_profile_from_option"
+        ) as mock_create_profile,
+        patch(
+            "glovebox.cli.commands.firmware._execute_compilation_from_json"
+        ) as mock_compile,
+        patch(
+            "glovebox.cli.helpers.profile.get_user_config_from_context"
+        ) as mock_get_user_config,
     ):
         # Mock profile creation
         mock_profile = Mock()
@@ -285,6 +294,7 @@ def test_firmware_compile_no_auto_flag_disables_detection(cli_runner, tmp_path):
 
         # Mock compilation result
         from glovebox.firmware.models import BuildResult
+
         mock_result = BuildResult(success=True)
         mock_result.messages = ["Compilation successful"]
         mock_compile.return_value = mock_result
@@ -292,7 +302,14 @@ def test_firmware_compile_no_auto_flag_disables_detection(cli_runner, tmp_path):
         # Run command with --no-auto flag
         cmd_result = cli_runner.invoke(
             app,
-            ["firmware", "compile", str(json_file), "--no-auto", "--profile", "glove80/v25.05"],
+            [
+                "firmware",
+                "compile",
+                str(json_file),
+                "--no-auto",
+                "--profile",
+                "glove80/v25.05",
+            ],
             catch_exceptions=False,
         )
 
@@ -315,19 +332,23 @@ def test_firmware_compile_cli_profile_overrides_auto_detection(cli_runner, tmp_p
     register_all_commands(app)
 
     # Create a test JSON file with keyboard field
-    test_json = {
-        "keyboard": "corne",
-        "title": "Test Layout",
-        "layers": []
-    }
+    test_json = {"keyboard": "corne", "title": "Test Layout", "layers": []}
     json_file = tmp_path / "test_layout.json"
     json_file.write_text(json.dumps(test_json))
 
     with (
-        patch("glovebox.cli.commands.firmware._get_auto_profile_from_json") as mock_auto_profile,
-        patch("glovebox.cli.helpers.profile.create_profile_from_option") as mock_create_profile,
-        patch("glovebox.cli.commands.firmware._execute_compilation_from_json") as mock_compile,
-        patch("glovebox.cli.helpers.profile.get_user_config_from_context") as mock_get_user_config,
+        patch(
+            "glovebox.cli.commands.firmware._get_auto_profile_from_json"
+        ) as mock_auto_profile,
+        patch(
+            "glovebox.cli.helpers.profile.create_profile_from_option"
+        ) as mock_create_profile,
+        patch(
+            "glovebox.cli.commands.firmware._execute_compilation_from_json"
+        ) as mock_compile,
+        patch(
+            "glovebox.cli.helpers.profile.get_user_config_from_context"
+        ) as mock_get_user_config,
     ):
         # Mock profile creation
         mock_profile = Mock()
@@ -341,6 +362,7 @@ def test_firmware_compile_cli_profile_overrides_auto_detection(cli_runner, tmp_p
 
         # Mock compilation result
         from glovebox.firmware.models import BuildResult
+
         mock_result = BuildResult(success=True)
         mock_result.messages = ["Compilation successful"]
         mock_compile.return_value = mock_result
@@ -379,10 +401,18 @@ def test_firmware_compile_auto_detection_only_for_json_files(cli_runner, tmp_pat
     conf_file.write_text("CONFIG_TEST=y")
 
     with (
-        patch("glovebox.cli.commands.firmware._get_auto_profile_from_json") as mock_auto_profile,
-        patch("glovebox.cli.helpers.profile.create_profile_from_option") as mock_create_profile,
-        patch("glovebox.cli.commands.firmware._execute_compilation_service") as mock_compile,
-        patch("glovebox.cli.helpers.profile.get_user_config_from_context") as mock_get_user_config,
+        patch(
+            "glovebox.cli.commands.firmware._get_auto_profile_from_json"
+        ) as mock_auto_profile,
+        patch(
+            "glovebox.cli.helpers.profile.create_profile_from_option"
+        ) as mock_create_profile,
+        patch(
+            "glovebox.cli.commands.firmware._execute_compilation_service"
+        ) as mock_compile,
+        patch(
+            "glovebox.cli.helpers.profile.get_user_config_from_context"
+        ) as mock_get_user_config,
     ):
         # Mock profile creation
         mock_profile = Mock()
@@ -396,6 +426,7 @@ def test_firmware_compile_auto_detection_only_for_json_files(cli_runner, tmp_pat
 
         # Mock compilation result
         from glovebox.firmware.models import BuildResult
+
         mock_result = BuildResult(success=True)
         mock_result.messages = ["Compilation successful"]
         mock_compile.return_value = mock_result
@@ -403,7 +434,14 @@ def test_firmware_compile_auto_detection_only_for_json_files(cli_runner, tmp_pat
         # Run command with .keymap file (should NOT auto-detect)
         cmd_result = cli_runner.invoke(
             app,
-            ["firmware", "compile", str(keymap_file), str(conf_file), "--profile", "glove80/v25.05"],
+            [
+                "firmware",
+                "compile",
+                str(keymap_file),
+                str(conf_file),
+                "--profile",
+                "glove80/v25.05",
+            ],
             catch_exceptions=False,
         )
 
