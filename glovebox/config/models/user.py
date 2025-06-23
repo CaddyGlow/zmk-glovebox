@@ -144,6 +144,20 @@ class UserConfigData(BaseSettings):
     # Firmware settings
     firmware: UserFirmwareConfig = Field(default_factory=UserFirmwareConfig)
 
+    # File copy optimization settings
+    copy_strategy: str = Field(
+        default="auto",
+        description="File copy strategy: 'auto' (default), 'baseline', 'buffered', 'sendfile', or 'parallel'",
+    )
+    copy_buffer_size_kb: int = Field(
+        default=1024,
+        description="Buffer size in KB for buffered copy operations (default: 1024)",
+    )
+    copy_max_workers: int = Field(
+        default=4,
+        description="Maximum number of worker threads for parallel copy operations (default: 4)",
+    )
+
     # Layout bookmarks
     layout_bookmarks: "BookmarkCollection | None" = Field(
         default=None, description="Collection of saved layout bookmarks for easy access"

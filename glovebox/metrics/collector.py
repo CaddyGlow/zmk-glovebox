@@ -5,6 +5,7 @@ import time
 from typing import Any, Optional
 
 from glovebox.core.logging import get_logger
+from glovebox.metrics.context import get_current_session_id
 from glovebox.metrics.models import OperationType
 from glovebox.metrics.protocols import MetricsServiceProtocol
 from glovebox.metrics.service import create_metrics_service, generate_operation_id
@@ -18,6 +19,7 @@ class MetricsCollector:
         operation_type: OperationType,
         metrics_service: MetricsServiceProtocol | None = None,
         operation_id: str | None = None,
+        session_id: str | None = None,
     ) -> None:
         """Initialize metrics collector.
 
@@ -25,6 +27,7 @@ class MetricsCollector:
             operation_type: Type of operation to track
             metrics_service: Metrics service instance (creates default if None)
             operation_id: Operation ID (generates one if None)
+            session_id: Session ID to associate with this operation
         """
         self.operation_type = operation_type
         self.metrics_service = metrics_service or create_metrics_service()
@@ -39,6 +42,10 @@ class MetricsCollector:
         self._cache_details: dict[str, Any] = {}
         self._exception_occurred = False
         self._start_time: float | None = None
+
+        # Set session_id in context if provided
+        if session_id:
+            self._context["session_id"] = session_id
 
     def __enter__(self) -> "MetricsCollector":
         """Enter the metrics collection context.
@@ -278,6 +285,7 @@ def create_metrics_collector(
     operation_type: OperationType,
     operation_id: str | None = None,
     metrics_service: MetricsServiceProtocol | None = None,
+    session_id: str | None = None,
 ) -> MetricsCollector:
     """Create a metrics collector for automatic operation tracking with dependency injection.
 
@@ -285,6 +293,7 @@ def create_metrics_collector(
         operation_type: Type of operation to track
         operation_id: Operation ID (generates one if None)
         metrics_service: Optional metrics service instance. If None, creates default service.
+        session_id: Session ID to associate with this operation
 
     Returns:
         MetricsCollector: Configured metrics collector
@@ -293,14 +302,18 @@ def create_metrics_collector(
         operation_type=operation_type,
         operation_id=operation_id,
         metrics_service=metrics_service,
+        session_id=session_id,
     )
 
 
-def layout_metrics(operation_id: str | None = None) -> MetricsCollector:
+def layout_metrics(
+    operation_id: str | None = None, session_id: str | None = None
+) -> MetricsCollector:
     """Create a metrics collector for layout operations.
 
     Args:
         operation_id: Operation ID (generates one if None)
+        session_id: Session ID to associate with this operation (uses thread-local if None)
 
     Returns:
         MetricsCollector configured for layout operations
@@ -308,14 +321,18 @@ def layout_metrics(operation_id: str | None = None) -> MetricsCollector:
     return create_metrics_collector(
         operation_type=OperationType.LAYOUT_COMPILATION,
         operation_id=operation_id,
+        session_id=session_id or get_current_session_id(),
     )
 
 
-def firmware_metrics(operation_id: str | None = None) -> MetricsCollector:
+def firmware_metrics(
+    operation_id: str | None = None, session_id: str | None = None
+) -> MetricsCollector:
     """Create a metrics collector for firmware operations.
 
     Args:
         operation_id: Operation ID (generates one if None)
+        session_id: Session ID to associate with this operation (uses thread-local if None)
 
     Returns:
         MetricsCollector configured for firmware operations
@@ -323,14 +340,18 @@ def firmware_metrics(operation_id: str | None = None) -> MetricsCollector:
     return create_metrics_collector(
         operation_type=OperationType.FIRMWARE_COMPILATION,
         operation_id=operation_id,
+        session_id=session_id or get_current_session_id(),
     )
 
 
-def flash_metrics(operation_id: str | None = None) -> MetricsCollector:
+def flash_metrics(
+    operation_id: str | None = None, session_id: str | None = None
+) -> MetricsCollector:
     """Create a metrics collector for flash operations.
 
     Args:
         operation_id: Operation ID (generates one if None)
+        session_id: Session ID to associate with this operation (uses thread-local if None)
 
     Returns:
         MetricsCollector configured for flash operations
@@ -338,4 +359,24 @@ def flash_metrics(operation_id: str | None = None) -> MetricsCollector:
     return create_metrics_collector(
         operation_type=OperationType.FIRMWARE_FLASH,
         operation_id=operation_id,
+        session_id=session_id or get_current_session_id(),
+    )
+
+
+def compilation_metrics(
+    operation_id: str | None = None, session_id: str | None = None
+) -> MetricsCollector:
+    """Create a metrics collector for compilation operations.
+
+    Args:
+        operation_id: Operation ID (generates one if None)
+        session_id: Session ID to associate with this operation (uses thread-local if None)
+
+    Returns:
+        MetricsCollector configured for compilation operations
+    """
+    return create_metrics_collector(
+        operation_type=OperationType.FIRMWARE_COMPILATION,
+        operation_id=operation_id,
+        session_id=session_id or get_current_session_id(),
     )

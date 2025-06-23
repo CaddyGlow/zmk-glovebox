@@ -27,6 +27,10 @@ class OperationType(str, Enum):
     FIRMWARE_FLASH = "firmware_flash"
     LAYOUT_VALIDATION = "layout_validation"
     LAYOUT_GENERATION = "layout_generation"
+    CONFIG_OPERATION = "config_operation"
+    CACHE_OPERATION = "cache_operation"
+    FILE_OPERATION = "file_operation"
+    VALIDATION_OPERATION = "validation_operation"
 
 
 class ErrorCategory(str, Enum):
@@ -47,6 +51,12 @@ class OperationMetrics(GloveboxBaseModel):
     operation_id: str = Field(description="Unique identifier for the operation")
     operation_type: OperationType = Field(description="Type of operation")
     status: OperationStatus = Field(description="Final status of the operation")
+
+    # Session information
+    session_id: str | None = Field(
+        default=None,
+        description="Session identifier for grouping operations from single execution",
+    )
 
     # Timing information
     start_time: datetime = Field(description="When the operation started")

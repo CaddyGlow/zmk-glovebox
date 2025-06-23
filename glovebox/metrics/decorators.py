@@ -7,6 +7,7 @@ from typing import Any, TypeVar, Union
 
 from glovebox.core.logging import get_logger
 from glovebox.metrics.collector import create_metrics_collector
+from glovebox.metrics.context import clear_metrics_context, set_current_session_id
 from glovebox.metrics.models import OperationType
 from glovebox.metrics.protocols import MetricsServiceProtocol
 
@@ -69,31 +70,46 @@ def track_operation(
             logger = get_logger(__name__)
 
             try:
-                # Create metrics collector with dependency injection
-                collector = create_metrics_collector(
-                    operation_type=operation_type,
-                    operation_id=operation_id,
-                    metrics_service=metrics_service,
-                )
+                # Extract context first to get session_id if available
+                session_id = None
+                context = {}
+                if extract_context:
+                    try:
+                        context = extract_context(func, args, kwargs)
+                        session_id = context.get("session_id")
+                    except Exception as e:
+                        exc_info = logger.isEnabledFor(logging.DEBUG)
+                        logger.warning(
+                            "Failed to extract context for %s: %s",
+                            func.__name__,
+                            e,
+                            exc_info=exc_info,
+                        )
 
-                with collector as metrics:
-                    # Extract and set context if extractor provided
-                    if extract_context:
-                        try:
-                            context = extract_context(func, args, kwargs)
-                            if context:
-                                metrics.set_context(**context)
-                        except Exception as e:
-                            exc_info = logger.isEnabledFor(logging.DEBUG)
-                            logger.warning(
-                                "Failed to extract context for %s: %s",
-                                func.__name__,
-                                e,
-                                exc_info=exc_info,
-                            )
+                # Set session_id in thread-local context for services to access
+                if session_id:
+                    set_current_session_id(session_id)
 
-                    # Execute the wrapped function
-                    return func(*args, **kwargs)
+                try:
+                    # Create metrics collector with dependency injection and session_id
+                    collector = create_metrics_collector(
+                        operation_type=operation_type,
+                        operation_id=operation_id,
+                        metrics_service=metrics_service,
+                        session_id=session_id,
+                    )
+
+                    with collector as metrics:
+                        # Set remaining context if available
+                        if context:
+                            metrics.set_context(**context)
+
+                        # Execute the wrapped function
+                        return func(*args, **kwargs)
+                finally:
+                    # Clear thread-local context after execution
+                    if session_id:
+                        clear_metrics_context()
 
             except Exception as e:
                 # Log error but re-raise to maintain original behavior
@@ -112,31 +128,46 @@ def track_operation(
             logger = get_logger(__name__)
 
             try:
-                # Create metrics collector with dependency injection
-                collector = create_metrics_collector(
-                    operation_type=operation_type,
-                    operation_id=operation_id,
-                    metrics_service=metrics_service,
-                )
+                # Extract context first to get session_id if available
+                session_id = None
+                context = {}
+                if extract_context:
+                    try:
+                        context = extract_context(func, args, kwargs)
+                        session_id = context.get("session_id")
+                    except Exception as e:
+                        exc_info = logger.isEnabledFor(logging.DEBUG)
+                        logger.warning(
+                            "Failed to extract context for %s: %s",
+                            func.__name__,
+                            e,
+                            exc_info=exc_info,
+                        )
 
-                with collector as metrics:
-                    # Extract and set context if extractor provided
-                    if extract_context:
-                        try:
-                            context = extract_context(func, args, kwargs)
-                            if context:
-                                metrics.set_context(**context)
-                        except Exception as e:
-                            exc_info = logger.isEnabledFor(logging.DEBUG)
-                            logger.warning(
-                                "Failed to extract context for %s: %s",
-                                func.__name__,
-                                e,
-                                exc_info=exc_info,
-                            )
+                # Set session_id in thread-local context for services to access
+                if session_id:
+                    set_current_session_id(session_id)
 
-                    # Execute the wrapped async function
-                    return await func(*args, **kwargs)
+                try:
+                    # Create metrics collector with dependency injection and session_id
+                    collector = create_metrics_collector(
+                        operation_type=operation_type,
+                        operation_id=operation_id,
+                        metrics_service=metrics_service,
+                        session_id=session_id,
+                    )
+
+                    with collector as metrics:
+                        # Set remaining context if available
+                        if context:
+                            metrics.set_context(**context)
+
+                        # Execute the wrapped async function
+                        return await func(*args, **kwargs)
+                finally:
+                    # Clear thread-local context after execution
+                    if session_id:
+                        clear_metrics_context()
 
             except Exception as e:
                 # Log error but re-raise to maintain original behavior
@@ -223,6 +254,98 @@ def track_flash_operation(
     """
     return track_operation(
         operation_type=OperationType.FIRMWARE_FLASH,
+        extract_context=extract_context,
+        metrics_service=metrics_service,
+        operation_id=operation_id,
+    )
+
+
+def track_config_operation(
+    extract_context: ContextExtractor | None = None,
+    metrics_service: MetricsServiceProtocol | None = None,
+    operation_id: str | None = None,
+) -> Callable[[F], F]:
+    """Convenience decorator for configuration operations.
+
+    Args:
+        extract_context: Optional function to extract context from args/kwargs
+        metrics_service: Optional metrics service instance for dependency injection
+        operation_id: Optional operation ID (generates unique one if None)
+
+    Returns:
+        Decorated function that tracks configuration operation metrics
+    """
+    return track_operation(
+        operation_type=OperationType.CONFIG_OPERATION,
+        extract_context=extract_context,
+        metrics_service=metrics_service,
+        operation_id=operation_id,
+    )
+
+
+def track_cache_operation(
+    extract_context: ContextExtractor | None = None,
+    metrics_service: MetricsServiceProtocol | None = None,
+    operation_id: str | None = None,
+) -> Callable[[F], F]:
+    """Convenience decorator for cache operations.
+
+    Args:
+        extract_context: Optional function to extract context from args/kwargs
+        metrics_service: Optional metrics service instance for dependency injection
+        operation_id: Optional operation ID (generates unique one if None)
+
+    Returns:
+        Decorated function that tracks cache operation metrics
+    """
+    return track_operation(
+        operation_type=OperationType.CACHE_OPERATION,
+        extract_context=extract_context,
+        metrics_service=metrics_service,
+        operation_id=operation_id,
+    )
+
+
+def track_file_operation(
+    extract_context: ContextExtractor | None = None,
+    metrics_service: MetricsServiceProtocol | None = None,
+    operation_id: str | None = None,
+) -> Callable[[F], F]:
+    """Convenience decorator for file operations.
+
+    Args:
+        extract_context: Optional function to extract context from args/kwargs
+        metrics_service: Optional metrics service instance for dependency injection
+        operation_id: Optional operation ID (generates unique one if None)
+
+    Returns:
+        Decorated function that tracks file operation metrics
+    """
+    return track_operation(
+        operation_type=OperationType.FILE_OPERATION,
+        extract_context=extract_context,
+        metrics_service=metrics_service,
+        operation_id=operation_id,
+    )
+
+
+def track_validation_operation(
+    extract_context: ContextExtractor | None = None,
+    metrics_service: MetricsServiceProtocol | None = None,
+    operation_id: str | None = None,
+) -> Callable[[F], F]:
+    """Convenience decorator for validation operations.
+
+    Args:
+        extract_context: Optional function to extract context from args/kwargs
+        metrics_service: Optional metrics service instance for dependency injection
+        operation_id: Optional operation ID (generates unique one if None)
+
+    Returns:
+        Decorated function that tracks validation operation metrics
+    """
+    return track_operation(
+        operation_type=OperationType.VALIDATION_OPERATION,
         extract_context=extract_context,
         metrics_service=metrics_service,
         operation_id=operation_id,

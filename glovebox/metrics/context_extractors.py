@@ -30,12 +30,23 @@ def extract_cli_context(
             "input_file": "/path/to/layout.json",
             "output_directory": "/path/to/output",
             "force": True,
-            "output_format": "json"
+            "output_format": "json",
+            "session_id": "abc-123-def"
         }
     """
     context: dict[str, Any] = {}
 
     try:
+        # Extract session ID from CLI context if available
+        if "ctx" in kwargs and isinstance(kwargs["ctx"], typer.Context):
+            typer_ctx = kwargs["ctx"]
+            if (
+                hasattr(typer_ctx, "obj")
+                and typer_ctx.obj
+                and hasattr(typer_ctx.obj, "session_id")
+            ):
+                context["session_id"] = typer_ctx.obj.session_id
+
         # Extract profile information
         if "profile" in kwargs and kwargs["profile"]:
             context["profile_name"] = str(kwargs["profile"])

@@ -88,6 +88,9 @@ def show_metrics(
     days: int | None = typer.Option(
         None, "--days", "-d", help="Show metrics from last N days"
     ),
+    session_id: str | None = typer.Option(
+        None, "--session", "-s", help="Filter by session ID"
+    ),
     json_output: bool = typer.Option(False, "--json", help="Output in JSON format"),
 ) -> None:
     """Show recent operation metrics."""
@@ -106,6 +109,10 @@ def show_metrics(
             limit=limit,
         )
 
+        # Filter by session ID if provided
+        if session_id:
+            metrics = [m for m in metrics if m.session_id == session_id]
+
         if json_output:
             # Output as JSON
             metrics_data = [metric.to_dict() for metric in metrics]
@@ -123,6 +130,7 @@ def show_metrics(
         table.add_column("Status", style="green")
         table.add_column("Duration", style="magenta")
         table.add_column("Profile", style="yellow")
+        table.add_column("Session", style="bright_black")
         table.add_column("Started", style="dim")
 
         for metric in metrics:
@@ -140,12 +148,18 @@ def show_metrics(
 
             status_style = "green" if status_value == "success" else "red"
 
+            # Format session ID
+            session_display = (
+                metric.session_id[:8] + "..." if metric.session_id else "N/A"
+            )
+
             table.add_row(
                 metric.operation_id[:8] + "...",
                 operation_type_value,
                 f"[{status_style}]{status_value}[/{status_style}]",
                 format_duration(metric.duration_seconds),
                 metric.profile_name or "N/A",
+                session_display,
                 format_datetime(metric.start_time),
             )
 
@@ -163,6 +177,9 @@ def show_summary(
     days: int | None = typer.Option(
         7, "--days", "-d", help="Show summary for last N days"
     ),
+    session_id: str | None = typer.Option(
+        None, "--session", "-s", help="Show summary for specific session"
+    ),
     json_output: bool = typer.Option(False, "--json", help="Output in JSON format"),
 ) -> None:
     """Show metrics summary statistics."""
@@ -173,20 +190,46 @@ def show_summary(
         end_time = datetime.now()
         start_time = end_time - timedelta(days=days) if days else None
 
-        # Generate summary
+        # Get all metrics first
+        all_metrics = metrics_service.get_operation_metrics(
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+        # Filter by session ID if provided
+        if session_id:
+            all_metrics = [m for m in all_metrics if m.session_id == session_id]
+
+        # Generate summary from filtered metrics
         summary = metrics_service.generate_summary(
             start_time=start_time,
             end_time=end_time,
         )
 
         if json_output:
-            console.print(json.dumps(summary.to_dict(), indent=2, default=str))
+            summary_data = summary.to_dict()
+            if session_id:
+                summary_data["session_id"] = session_id
+            console.print(json.dumps(summary_data, indent=2, default=str))
             return
 
         # Display summary table
-        table = Table(title=f"Metrics Summary (Last {days} days)")
+        title = f"Metrics Summary (Last {days} days)"
+        if session_id:
+            title = f"Session Metrics Summary ({session_id[:8]}...)"
+
+        table = Table(title=title)
         table.add_column("Metric", style="cyan")
         table.add_column("Value", style="green")
+
+        if session_id:
+            table.add_row("Session ID", session_id)
+            table.add_row("Session Operations", str(len(all_metrics)))
+
+            # Count unique sessions for context
+            unique_sessions = {m.session_id for m in all_metrics if m.session_id}
+            if len(unique_sessions) > 1:
+                table.add_row("Note", f"Found in {len(unique_sessions)} sessions")
 
         table.add_row("Total Operations", str(summary.total_operations))
         table.add_row("Successful Operations", str(summary.successful_operations))
@@ -239,6 +282,39 @@ def show_summary(
             )
 
         console.print(table)
+
+        # Show session breakdown if not filtering by session
+        if not session_id and all_metrics:
+            # Group metrics by session
+            from collections import defaultdict
+
+            sessions = defaultdict(list)
+            for metric in all_metrics:
+                sessions[metric.session_id or "no-session"].append(metric)
+
+            if len(sessions) > 1:
+                console.print("\n")
+                session_table = Table(title="Sessions Breakdown")
+                session_table.add_column("Session ID", style="bright_black")
+                session_table.add_column("Operations", style="yellow")
+                session_table.add_column("Success Rate", style="green")
+
+                for sess_id, sess_metrics in sessions.items():
+                    session_display = (
+                        sess_id[:8] + "..." if sess_id != "no-session" else "N/A"
+                    )
+                    successful = sum(
+                        1 for m in sess_metrics if str(m.status) == "success"
+                    )
+                    success_rate = successful / len(sess_metrics) if sess_metrics else 0
+
+                    session_table.add_row(
+                        session_display,
+                        str(len(sess_metrics)),
+                        format_success_rate(success_rate),
+                    )
+
+                console.print(session_table)
 
         # Show error breakdown if there are errors
         if summary.error_breakdown:
@@ -388,6 +464,112 @@ def show_count() -> None:
     except Exception as e:
         exc_info = logger.isEnabledFor(logging.DEBUG)
         logger.error("Failed to get metrics count: %s", e, exc_info=exc_info)
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1) from e
+
+
+@metrics_app.command("sessions")
+def show_sessions(
+    days: int | None = typer.Option(
+        7, "--days", "-d", help="Show sessions from last N days"
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Output in JSON format"),
+) -> None:
+    """Show recent sessions with their operation counts."""
+    try:
+        metrics_service = create_metrics_service()
+
+        # Calculate time filter
+        start_time = None
+        if days is not None:
+            start_time = datetime.now() - timedelta(days=days)
+
+        # Get all metrics
+        all_metrics = metrics_service.get_operation_metrics(
+            start_time=start_time,
+        )
+
+        if not all_metrics:
+            console.print("[yellow]No metrics found matching the criteria.[/yellow]")
+            return
+
+        # Group by session
+        from collections import defaultdict
+
+        sessions = defaultdict(list)
+        for metric in all_metrics:
+            sessions[metric.session_id or "no-session"].append(metric)
+
+        if json_output:
+            # Output as JSON
+            sessions_data = {}
+            for sess_id, sess_metrics in sessions.items():
+                successful = sum(1 for m in sess_metrics if str(m.status) == "success")
+                sessions_data[sess_id] = {
+                    "session_id": sess_id,
+                    "total_operations": len(sess_metrics),
+                    "successful_operations": successful,
+                    "failed_operations": len(sess_metrics) - successful,
+                    "success_rate": successful / len(sess_metrics)
+                    if sess_metrics
+                    else 0,
+                    "first_operation": min(
+                        m.start_time for m in sess_metrics
+                    ).isoformat(),
+                    "last_operation": max(
+                        m.start_time for m in sess_metrics
+                    ).isoformat(),
+                }
+            console.print(json.dumps(list(sessions_data.values()), indent=2))
+            return
+
+        # Create table
+        table = Table(
+            title=f"Recent Sessions ({len(sessions)} sessions, {len(all_metrics)} operations)"
+        )
+        table.add_column("Session ID", style="bright_black")
+        table.add_column("Operations", style="yellow")
+        table.add_column("Success", style="green")
+        table.add_column("Failed", style="red")
+        table.add_column("Success Rate", style="magenta")
+        table.add_column("First Operation", style="dim")
+        table.add_column("Duration", style="cyan")
+
+        # Sort sessions by first operation time (most recent first)
+        sorted_sessions = sorted(
+            sessions.items(),
+            key=lambda x: max(m.start_time for m in x[1]),
+            reverse=True,
+        )
+
+        for sess_id, sess_metrics in sorted_sessions:
+            session_display = sess_id[:8] + "..." if sess_id != "no-session" else "N/A"
+
+            successful = sum(1 for m in sess_metrics if str(m.status) == "success")
+            failed = len(sess_metrics) - successful
+            success_rate = successful / len(sess_metrics) if sess_metrics else 0
+
+            first_op = min(m.start_time for m in sess_metrics)
+            last_op = max(m.start_time for m in sess_metrics)
+            session_duration = (last_op - first_op).total_seconds()
+
+            table.add_row(
+                session_display,
+                str(len(sess_metrics)),
+                str(successful),
+                str(failed),
+                format_success_rate(success_rate),
+                format_datetime(first_op),
+                format_duration(session_duration)
+                if session_duration > 0
+                else "instant",
+            )
+
+        console.print(table)
+
+    except Exception as e:
+        exc_info = logger.isEnabledFor(logging.DEBUG)
+        logger.error("Failed to show sessions: %s", e, exc_info=exc_info)
         console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(1) from e
 
