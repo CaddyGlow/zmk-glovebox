@@ -20,12 +20,15 @@ from glovebox.config.models.firmware import (
     FirmwareFlashConfig,
 )
 from glovebox.config.models.user import UserConfigData
+from glovebox.metrics.context_extractors import extract_cli_context
+from glovebox.metrics.decorators import track_config_operation
 
 
 logger = logging.getLogger(__name__)
 
 
 @handle_errors
+@track_config_operation(extract_context=extract_cli_context)
 def list_config(
     ctx: typer.Context,
     show_sources: Annotated[
@@ -200,6 +203,7 @@ def list_config(
 
 
 @handle_errors
+@track_config_operation(extract_context=extract_cli_context)
 def export_config(
     ctx: typer.Context,
     output_file: str = typer.Option(
@@ -409,6 +413,7 @@ def export_config(
 
 
 @handle_errors
+@track_config_operation(extract_context=extract_cli_context)
 def import_config(
     ctx: typer.Context,
     config_file: str = typer.Argument(..., help="Configuration file to import"),

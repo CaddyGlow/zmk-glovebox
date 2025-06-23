@@ -107,6 +107,7 @@ def compile_layout(
 
 @handle_errors
 @with_profile(default_profile="glove80/v25.05")
+@track_layout_operation(extract_context=extract_cli_context)
 def validate(
     ctx: typer.Context,
     json_file: Annotated[Path, typer.Argument(help="Path to keymap JSON file")],
@@ -138,6 +139,7 @@ def validate(
 
 @handle_errors
 @with_profile(default_profile="glove80/v25.05")
+@track_layout_operation(extract_context=extract_cli_context)
 def show(
     ctx: typer.Context,
     json_file: Annotated[

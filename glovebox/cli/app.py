@@ -44,10 +44,13 @@ class AppContext:
             config_file: Path to configuration file
             no_emoji: Whether to disable emoji icons
         """
+        import uuid
+
         self.verbose = verbose
         self.log_file = log_file
         self.config_file = config_file
         self.no_emoji = no_emoji
+        self.session_id = str(uuid.uuid4())
 
         # Initialize user config with CLI-provided config file
         from glovebox.config.user_config import create_user_config

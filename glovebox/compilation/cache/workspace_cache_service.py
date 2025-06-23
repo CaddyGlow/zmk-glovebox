@@ -14,6 +14,8 @@ from glovebox.config.models.cache import CacheLevel
 from glovebox.config.user_config import UserConfig
 from glovebox.core.cache_v2.cache_manager import CacheManager
 from glovebox.core.cache_v2.models import CacheKey
+from glovebox.core.file_operations import create_copy_service
+from glovebox.core.file_operations.enums import CopyStrategy
 
 
 class ZmkWorkspaceCacheService:
@@ -34,6 +36,7 @@ class ZmkWorkspaceCacheService:
         self.user_config = user_config
         self.cache_manager = cache_manager
         self.logger = logging.getLogger(__name__)
+        self.copy_service = create_copy_service(user_config)
 
     def get_cache_directory(self) -> Path:
         """Get the workspace cache directory.
@@ -85,13 +88,34 @@ class ZmkWorkspaceCacheService:
         Returns:
             WorkspaceCacheResult with operation results
         """
-        return self._cache_workspace_internal(
-            workspace_path=workspace_path,
-            repository=repository,
-            branch=None,
-            cache_level=CacheLevel.REPO,
-            include_git=True,
-        )
+        # Import metrics here to avoid circular dependencies
+        try:
+            from glovebox.metrics.collector import compilation_metrics
+
+            with compilation_metrics() as metrics:
+                metrics.set_context(
+                    repository=repository,
+                    branch=None,
+                    cache_level="repo",
+                    operation="cache_workspace_repo_only",
+                )
+
+                with metrics.time_operation("workspace_caching"):
+                    return self._cache_workspace_internal(
+                        workspace_path=workspace_path,
+                        repository=repository,
+                        branch=None,
+                        cache_level=CacheLevel.REPO,
+                        include_git=True,
+                    )
+        except ImportError:
+            return self._cache_workspace_internal(
+                workspace_path=workspace_path,
+                repository=repository,
+                branch=None,
+                cache_level=CacheLevel.REPO,
+                include_git=True,
+            )
 
     def cache_workspace_repo_branch(
         self, workspace_path: Path, repository: str, branch: str
@@ -106,13 +130,34 @@ class ZmkWorkspaceCacheService:
         Returns:
             WorkspaceCacheResult with operation results
         """
-        return self._cache_workspace_internal(
-            workspace_path=workspace_path,
-            repository=repository,
-            branch=branch,
-            cache_level=CacheLevel.REPO_BRANCH,
-            include_git=True,
-        )
+        # Import metrics here to avoid circular dependencies
+        try:
+            from glovebox.metrics.collector import compilation_metrics
+
+            with compilation_metrics() as metrics:
+                metrics.set_context(
+                    repository=repository,
+                    branch=branch,
+                    cache_level="repo_branch",
+                    operation="cache_workspace_repo_branch",
+                )
+
+                with metrics.time_operation("workspace_caching"):
+                    return self._cache_workspace_internal(
+                        workspace_path=workspace_path,
+                        repository=repository,
+                        branch=branch,
+                        cache_level=CacheLevel.REPO_BRANCH,
+                        include_git=True,
+                    )
+        except ImportError:
+            return self._cache_workspace_internal(
+                workspace_path=workspace_path,
+                repository=repository,
+                branch=branch,
+                cache_level=CacheLevel.REPO_BRANCH,
+                include_git=True,
+            )
 
     def get_cached_workspace(
         self, repository: str, branch: str | None = None
@@ -126,12 +171,39 @@ class ZmkWorkspaceCacheService:
         Returns:
             WorkspaceCacheResult with cached workspace information
         """
+        # Import metrics here to avoid circular dependencies
+        try:
+            from glovebox.metrics.collector import compilation_metrics
+
+            with compilation_metrics() as metrics:
+                metrics.set_context(
+                    repository=repository,
+                    branch=branch,
+                    cache_level="repo_branch" if branch else "repo",
+                    operation="get_cached_workspace",
+                )
+
+                return self._get_cached_workspace_internal(repository, branch, metrics)
+        except ImportError:
+            return self._get_cached_workspace_internal(repository, branch)
+
+    def _get_cached_workspace_internal(
+        self, repository: str, branch: str | None = None, metrics: Any = None
+    ) -> WorkspaceCacheResult:
+        """Internal method to get cached workspace with optional metrics."""
         try:
             cache_key = self._generate_cache_key(repository, branch)
-            cached_data = self.cache_manager.get(cache_key)
+
+            if metrics:
+                with metrics.time_operation("cache_lookup"):
+                    cached_data = self.cache_manager.get(cache_key)
+            else:
+                cached_data = self.cache_manager.get(cache_key)
 
             if cached_data is None:
                 cache_type = "repo+branch" if branch else "repo-only"
+                if metrics:
+                    metrics.record_cache_event("workspace", cache_hit=False)
                 return WorkspaceCacheResult(
                     success=False,
                     error_message=f"No cached workspace found for {repository} ({cache_type})",
@@ -147,6 +219,8 @@ class ZmkWorkspaceCacheService:
                     metadata.workspace_path,
                 )
                 self.cache_manager.delete(cache_key)
+                if metrics:
+                    metrics.record_cache_event("workspace", cache_hit=False)
                 return WorkspaceCacheResult(
                     success=False,
                     error_message=f"Cached workspace path no longer exists: {metadata.workspace_path}",
@@ -163,7 +237,21 @@ class ZmkWorkspaceCacheService:
                 else str(metadata.cache_level)
             )
             ttl = ttls.get(cache_level_str, 24 * 3600)  # Default 1 day
-            self.cache_manager.set(cache_key, metadata.to_cache_value(), ttl=ttl)
+
+            if metrics:
+                with metrics.time_operation("cache_update"):
+                    self.cache_manager.set(
+                        cache_key, metadata.to_cache_value(), ttl=ttl
+                    )
+                    metrics.record_cache_event("workspace", cache_hit=True)
+                    workspace_size_mb = (
+                        metadata.size_bytes / (1024 * 1024)
+                        if metadata.size_bytes
+                        else 0.0
+                    )
+                    metrics.set_context(workspace_size_mb=workspace_size_mb)
+            else:
+                self.cache_manager.set(cache_key, metadata.to_cache_value(), ttl=ttl)
 
             return WorkspaceCacheResult(
                 success=True,
@@ -471,23 +559,31 @@ class ZmkWorkspaceCacheService:
             )
 
     def _copy_directory(self, src: Path, dest: Path, include_git: bool) -> None:
-        """Copy directory with optional .git exclusion.
+        """Copy directory with optional .git exclusion using optimized copy service.
 
         Args:
             src: Source directory
             dest: Destination directory
             include_git: Whether to include .git folders
         """
+        # Use the copy service with git exclusion
+        result = self.copy_service.copy_directory(
+            src=src,
+            dst=dest,
+            exclude_git=(not include_git),
+            strategy=CopyStrategy.PIPELINE,
+        )
 
-        def ignore_patterns(src_dir: str, names: list[str]) -> list[str]:
-            """Ignore function for shutil.copytree."""
-            ignored = []
-            if not include_git and ".git" in names:
-                # Exclude .git directories when include_git=False
-                ignored.append(".git")
-            return ignored
+        if not result.success:
+            raise RuntimeError(f"Copy operation failed: {result.error}")
 
-        shutil.copytree(src, dest, ignore=ignore_patterns)
+        self.logger.debug(
+            "Directory copy completed using strategy '%s': %.1f MB in %.2f seconds (%.1f MB/s)",
+            result.strategy_used,
+            result.bytes_copied / (1024 * 1024),
+            result.elapsed_time,
+            result.speed_mbps,
+        )
 
     def _calculate_directory_size(self, directory: Path) -> int:
         """Calculate total size of directory in bytes.
