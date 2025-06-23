@@ -16,14 +16,10 @@ from glovebox.cli.helpers import (
 from glovebox.cli.helpers.parameters import OutputFormatOption, ProfileOption
 from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
 from glovebox.layout.service import create_layout_service
-from glovebox.metrics.context_extractors import extract_cli_context
-from glovebox.metrics.decorators import track_cli_operation, track_layout_operation
-from glovebox.metrics.models import OperationType
 
 
 @handle_errors
 @with_profile()
-@track_layout_operation(extract_context=extract_cli_context)
 def compile_layout(
     ctx: typer.Context,
     json_file: Annotated[
@@ -55,21 +51,39 @@ def compile_layout(
     """
     command = LayoutOutputCommand()
 
+    # Access session metrics from CLI context
+    from glovebox.cli.app import AppContext
+
+    app_ctx: AppContext = ctx.obj
+    metrics = app_ctx.session_metrics
+
+    # Track layout compilation metrics
+    layout_counter = metrics.Counter(
+        "layout_operations_total", "Total layout operations", ["operation", "status"]
+    )
+    layout_duration = metrics.Histogram(
+        "layout_operation_duration_seconds", "Layout operation duration"
+    )
+
     try:
-        # Generate keymap using the file-based service method
-        keymap_service = create_layout_service()
+        with layout_duration.time():
+            # Generate keymap using the file-based service method
+            keymap_service = create_layout_service()
 
-        # The @with_profile decorator injects keyboard_profile parameter
-        keyboard_profile = get_keyboard_profile_from_context(ctx)
+            # The @with_profile decorator injects keyboard_profile parameter
+            keyboard_profile = get_keyboard_profile_from_context(ctx)
 
-        result = keymap_service.generate_from_file(
-            profile=keyboard_profile,
-            json_file_path=Path(json_file),
-            output_file_prefix=output_file_prefix,
-            force=force,
-        )
+            result = keymap_service.generate_from_file(
+                profile=keyboard_profile,
+                json_file_path=Path(json_file),
+                output_file_prefix=output_file_prefix,
+                force=force,
+            )
 
         if result.success:
+            # Track successful compilation
+            layout_counter.labels("compile", "success").inc()
+
             if output_format.lower() == "json":
                 # JSON output for automation
                 output_files = result.get_output_files()
@@ -97,18 +111,22 @@ def compile_layout(
                     for file_type, file_path in output_files.items():
                         print_list_item(f"{file_type}: {file_path}")
         else:
+            # Track failed compilation
+            layout_counter.labels("compile", "failure").inc()
+
             print_error_message("Layout generation failed")
             for error in result.errors:
                 print_list_item(error)
             raise typer.Exit(1)
 
     except Exception as e:
+        # Track exception errors
+        layout_counter.labels("compile", "error").inc()
         command.handle_service_error(e, "compile layout")
 
 
 @handle_errors
 @with_profile(default_profile="glove80/v25.05")
-@track_layout_operation(extract_context=extract_cli_context)
 def validate(
     ctx: typer.Context,
     json_file: Annotated[Path, typer.Argument(help="Path to keymap JSON file")],
@@ -140,7 +158,6 @@ def validate(
 
 @handle_errors
 @with_profile(default_profile="glove80/v25.05")
-@track_cli_operation(OperationType.LAYOUT_DISPLAY, extract_context=extract_cli_context)
 def show(
     ctx: typer.Context,
     json_file: Annotated[

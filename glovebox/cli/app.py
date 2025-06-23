@@ -243,16 +243,8 @@ def main_callback(
     # Run startup checks (version updates, etc.)
     _run_startup_checks(app_context)
 
-    # Set session_id in thread-local context for metrics tracking
+    # CLI session setup for metrics
     if ctx.invoked_subcommand is not None:
-        try:
-            from glovebox.metrics.context import set_current_session_id
-
-            set_current_session_id(app_context.session_id)
-        except Exception as e:
-            # Don't let session setup break the CLI
-            logger.debug("Failed to set session_id in thread-local context: %s", e)
-
         # Set up auto-save for session metrics when CLI exits
         import atexit
 
@@ -295,14 +287,8 @@ def main() -> int:
     try:
         # Initialize and run the app
         from glovebox.cli.commands import register_all_commands
-        from glovebox.cli.interceptor import create_cli_interceptor
 
         register_all_commands(app)
-
-        # Set up automatic CLI command tracking
-        # The session_id will be available from thread-local storage during execution
-        interceptor = create_cli_interceptor()
-        interceptor.setup_global_interceptor(app)
 
         app()
         exit_code = 0

@@ -20,8 +20,6 @@ from glovebox.config.models.firmware import (
     FirmwareFlashConfig,
 )
 from glovebox.config.models.user import UserConfigData
-from glovebox.metrics.context_extractors import extract_cli_context
-from glovebox.metrics.decorators import track_config_operation
 
 
 logger = logging.getLogger(__name__)
@@ -166,7 +164,6 @@ def _convert_value(value: str, field_type: type) -> Any:
 
 
 @handle_errors
-@track_config_operation(extract_context=extract_cli_context)
 def edit(
     ctx: typer.Context,
     get: Annotated[

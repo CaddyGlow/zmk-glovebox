@@ -6,7 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from . import field_parser, json_operations, validation
+from . import field_parser, json_operations, validation, variable_resolver
 
 
 if TYPE_CHECKING:
@@ -51,6 +51,7 @@ __all__ = [
     "field_parser",
     "json_operations",
     "validation",
+    "variable_resolver",
     # Backward compatibility exports
     "build_template_context",
     "convert_keymap_section_from_dict",

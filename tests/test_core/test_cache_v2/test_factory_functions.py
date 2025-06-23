@@ -221,3 +221,152 @@ class TestEnvironmentVariables:
         with patch.dict(os.environ, {"GLOVEBOX_CACHE_LAYOUT": "DISABLED"}):
             cache = create_default_cache(tag="layout")
             assert isinstance(cache, DisabledCache)
+
+
+class TestCacheIsolation:
+    """Test cache isolation between different modules/tags."""
+
+    def test_different_tags_create_separate_instances(self, tmp_path):
+        """Test that different tags create separate cache instances."""
+        from glovebox.core.cache_v2.cache_coordinator import (
+            reset_shared_cache_instances,
+        )
+
+        # Reset to ensure clean state
+        reset_shared_cache_instances()
+
+        cache1 = create_default_cache(tag="module1")
+        cache2 = create_default_cache(tag="module2")
+
+        assert cache1 is not cache2
+
+        cache1.close()
+        cache2.close()
+        reset_shared_cache_instances()
+
+    def test_same_tag_reuses_instance(self, tmp_path):
+        """Test that same tag reuses the same cache instance."""
+        from glovebox.core.cache_v2.cache_coordinator import (
+            reset_shared_cache_instances,
+        )
+
+        # Reset to ensure clean state
+        reset_shared_cache_instances()
+
+        cache1 = create_default_cache(tag="same_module")
+        cache2 = create_default_cache(tag="same_module")
+
+        assert cache1 is cache2
+
+        cache1.close()
+        reset_shared_cache_instances()
+
+    def test_cache_data_isolation(self, tmp_path):
+        """Test that data stored in one cache doesn't affect another."""
+        from glovebox.core.cache_v2.cache_coordinator import (
+            reset_shared_cache_instances,
+        )
+
+        # Reset to ensure clean state
+        reset_shared_cache_instances()
+
+        # Create separate cache instances for different modules
+        metrics_cache = create_default_cache(tag="metrics")
+        layout_cache = create_default_cache(tag="layout")
+        compilation_cache = create_default_cache(tag="compilation")
+
+        # Store different data in each cache
+        metrics_cache.set("test_key", "metrics_data")
+        layout_cache.set("test_key", "layout_data")
+        compilation_cache.set("test_key", "compilation_data")
+
+        # Verify each cache has its own data
+        assert metrics_cache.get("test_key") == "metrics_data"
+        assert layout_cache.get("test_key") == "layout_data"
+        assert compilation_cache.get("test_key") == "compilation_data"
+
+        # Clean up
+        metrics_cache.close()
+        layout_cache.close()
+        compilation_cache.close()
+        reset_shared_cache_instances()
+
+    def test_cache_clear_isolation(self, tmp_path):
+        """Test that clearing one cache doesn't affect others."""
+        from glovebox.core.cache_v2.cache_coordinator import (
+            reset_shared_cache_instances,
+        )
+
+        # Reset to ensure clean state
+        reset_shared_cache_instances()
+
+        # Create separate cache instances for different modules
+        metrics_cache = create_default_cache(tag="metrics")
+        layout_cache = create_default_cache(tag="layout")
+        compilation_cache = create_default_cache(tag="compilation")
+
+        # Store test data in each cache
+        test_data = {"key1": "value1", "key2": "value2", "key3": "value3"}
+
+        for key, value in test_data.items():
+            metrics_cache.set(key, f"metrics_{value}")
+            layout_cache.set(key, f"layout_{value}")
+            compilation_cache.set(key, f"compilation_{value}")
+
+        # Verify all caches have data
+        for key in test_data:
+            assert metrics_cache.get(key) == f"metrics_{test_data[key]}"
+            assert layout_cache.get(key) == f"layout_{test_data[key]}"
+            assert compilation_cache.get(key) == f"compilation_{test_data[key]}"
+
+        # Clear only the metrics cache
+        metrics_cache.clear()
+
+        # Verify metrics cache is cleared
+        for key in test_data:
+            assert metrics_cache.get(key) is None
+
+        # Verify other caches are NOT affected
+        for key in test_data:
+            assert layout_cache.get(key) == f"layout_{test_data[key]}"
+            assert compilation_cache.get(key) == f"compilation_{test_data[key]}"
+
+        # Clean up
+        layout_cache.clear()
+        compilation_cache.clear()
+        metrics_cache.close()
+        layout_cache.close()
+        compilation_cache.close()
+        reset_shared_cache_instances()
+
+    def test_cache_filesystem_isolation(self, tmp_path):
+        """Test that different tags use separate filesystem directories."""
+        from glovebox.core.cache_v2.cache_coordinator import (
+            reset_shared_cache_instances,
+        )
+
+        # Reset to ensure clean state
+        reset_shared_cache_instances()
+
+        # Use temporary directory as cache root
+        with patch.dict(os.environ, {"XDG_CACHE_HOME": str(tmp_path)}):
+            metrics_cache = create_default_cache(tag="metrics")
+            layout_cache = create_default_cache(tag="layout")
+
+            # Store some data to ensure directories are created
+            metrics_cache.set("test", "metrics_data")
+            layout_cache.set("test", "layout_data")
+
+            # Verify separate directories exist
+            glovebox_cache = tmp_path / "glovebox"
+            metrics_dir = glovebox_cache / "metrics"
+            layout_dir = glovebox_cache / "layout"
+
+            assert metrics_dir.exists()
+            assert layout_dir.exists()
+            assert metrics_dir != layout_dir
+
+            # Clean up
+            metrics_cache.close()
+            layout_cache.close()
+            reset_shared_cache_instances()
