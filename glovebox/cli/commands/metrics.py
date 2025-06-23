@@ -26,9 +26,9 @@ console = Console()
 metrics_app = typer.Typer(help="Metrics management commands")
 
 
-def _get_metrics_cache_manager() -> CacheManager:
+def _get_metrics_cache_manager(session_metrics=None) -> CacheManager:
     """Get cache manager for metrics using shared cache coordination."""
-    return create_default_cache(tag="metrics")
+    return create_default_cache(tag="metrics", session_metrics=session_metrics)
 
 
 def _format_duration(seconds: float) -> str:

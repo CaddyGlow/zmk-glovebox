@@ -2,8 +2,9 @@
 
 import logging
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import diskcache  # type: ignore[import-untyped]
 
@@ -21,13 +22,22 @@ class DiskCacheManager(CacheManager):
     concurrency control and eviction policies.
     """
 
-    def __init__(self, config: DiskCacheConfig) -> None:
+    def __init__(
+        self,
+        config: DiskCacheConfig,
+        tag: str | None = None,
+        session_metrics: Any | None = None,
+    ) -> None:
         """Initialize DiskCache manager.
 
         Args:
             config: Cache configuration
+            tag: Optional tag for cache isolation (for metrics tracking)
+            session_metrics: Optional SessionMetrics instance for metrics integration
         """
         self.config = config
+        self.tag = tag
+        self.session_metrics = session_metrics
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
         # Create cache directory
@@ -54,9 +64,85 @@ class DiskCacheManager(CacheManager):
             miss_count=0,
             eviction_count=0,
             error_count=0,
+            operation_count=0,
+            total_operation_time=0.0,
+            tag=tag,
         )
 
-        self.logger.debug("DiskCache initialized at %s", self.config.cache_path)
+        # Setup metrics integration if available
+        self._cache_operations_counter = None
+        self._cache_operation_duration = None
+        self._cache_hit_miss_counter = None
+        self._cache_errors_counter = None
+
+        if self.session_metrics:
+            self._setup_metrics()
+
+        self.logger.debug(
+            "DiskCache initialized at %s (tag: %s, metrics: %s)",
+            self.config.cache_path,
+            tag,
+            self.session_metrics is not None,
+        )
+
+    def _setup_metrics(self) -> None:
+        """Setup SessionMetrics integration for cache operations."""
+        if not self.session_metrics:
+            return
+
+        # Cache operations counter (by operation type and tag)
+        self._cache_operations_counter = self.session_metrics.Counter(
+            "cache_operations_total",
+            "Total cache operations by type and tag",
+            ["operation", "tag", "result"],
+        )
+
+        # Cache operation duration histogram
+        self._cache_operation_duration = self.session_metrics.Histogram(
+            "cache_operation_duration_seconds",
+            "Time spent on cache operations",
+            # Custom buckets for cache operations (microseconds to seconds)
+            buckets=[0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0],
+        )
+
+        # Cache hit/miss tracking
+        self._cache_hit_miss_counter = self.session_metrics.Counter(
+            "cache_hit_miss_total", "Cache hits and misses by tag", ["tag", "result"]
+        )
+
+        # Cache error tracking
+        self._cache_errors_counter = self.session_metrics.Counter(
+            "cache_errors_total",
+            "Cache operation errors by operation and tag",
+            ["operation", "tag"],
+        )
+
+    @contextmanager
+    def _measure_operation(self, operation: str) -> Any:
+        """Context manager to measure cache operation duration and count."""
+        start_time = time.perf_counter()
+        operation_success = True
+
+        try:
+            yield
+        except Exception:
+            operation_success = False
+            raise
+        finally:
+            # Update timing stats
+            duration = time.perf_counter() - start_time
+            self._stats.operation_count += 1
+            self._stats.total_operation_time += duration
+
+            # Update metrics if available
+            if self._cache_operations_counter:
+                result = "success" if operation_success else "error"
+                self._cache_operations_counter.labels(
+                    operation=operation, tag=self.tag or "default", result=result
+                ).inc()
+
+            if self._cache_operation_duration:
+                self._cache_operation_duration.observe(duration)
 
     def get(self, key: str, default: Any = None) -> Any:
         """Retrieve value from cache.
@@ -68,23 +154,46 @@ class DiskCacheManager(CacheManager):
         Returns:
             Cached value or default
         """
-        try:
-            # DiskCache.get() returns default if key not found or expired
-            value = self._cache.get(key, default=default)
+        with self._measure_operation("get"):
+            try:
+                # DiskCache.get() returns default if key not found or expired
+                value = self._cache.get(key, default=default)
 
-            if value is not default:
-                self._stats.hit_count += 1
-                self.logger.debug("Cache hit for key: %s", key)
-            else:
-                self._stats.miss_count += 1
-                self.logger.debug("Cache miss for key: %s", key)
+                if value is not default:
+                    self._stats.hit_count += 1
+                    self.logger.debug("Cache hit for key: %s", key)
 
-            return value
+                    # Track cache hit in metrics
+                    if self._cache_hit_miss_counter:
+                        self._cache_hit_miss_counter.labels(
+                            tag=self.tag or "default", result="hit"
+                        ).inc()
+                else:
+                    self._stats.miss_count += 1
+                    self.logger.debug("Cache miss for key: %s", key)
 
-        except Exception as e:
-            self._stats.error_count += 1
-            self.logger.warning("Cache get error for key %s: %s", key, e)
-            return default
+                    # Track cache miss in metrics
+                    if self._cache_hit_miss_counter:
+                        self._cache_hit_miss_counter.labels(
+                            tag=self.tag or "default", result="miss"
+                        ).inc()
+
+                return value
+
+            except Exception as e:
+                self._stats.error_count += 1
+
+                # Track error in metrics
+                if self._cache_errors_counter:
+                    self._cache_errors_counter.labels(
+                        operation="get", tag=self.tag or "default"
+                    ).inc()
+
+                exc_info = self.logger.isEnabledFor(logging.DEBUG)
+                self.logger.warning(
+                    "Cache get error for key %s: %s", key, e, exc_info=exc_info
+                )
+                return default
 
     def set(self, key: str, value: Any, ttl: int | None = None) -> None:
         """Store value in cache.
@@ -94,19 +203,30 @@ class DiskCacheManager(CacheManager):
             value: Value to cache
             ttl: Time-to-live in seconds (None for no expiration)
         """
-        try:
-            if ttl is not None:
-                # DiskCache uses expire parameter for TTL
-                self._cache.set(key, value, expire=ttl)
-            else:
-                self._cache.set(key, value)
+        with self._measure_operation("set"):
+            try:
+                if ttl is not None:
+                    # DiskCache uses expire parameter for TTL
+                    self._cache.set(key, value, expire=ttl)
+                else:
+                    self._cache.set(key, value)
 
-            self.logger.debug("Cached value for key: %s (TTL: %s)", key, ttl)
+                self.logger.debug("Cached value for key: %s (TTL: %s)", key, ttl)
 
-        except Exception as e:
-            self._stats.error_count += 1
-            self.logger.warning("Cache set error for key %s: %s", key, e)
-            raise
+            except Exception as e:
+                self._stats.error_count += 1
+
+                # Track error in metrics
+                if self._cache_errors_counter:
+                    self._cache_errors_counter.labels(
+                        operation="set", tag=self.tag or "default"
+                    ).inc()
+
+                exc_info = self.logger.isEnabledFor(logging.DEBUG)
+                self.logger.warning(
+                    "Cache set error for key %s: %s", key, e, exc_info=exc_info
+                )
+                raise
 
     def delete(self, key: str) -> bool:
         """Remove value from cache.

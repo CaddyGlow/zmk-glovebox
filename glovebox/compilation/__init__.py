@@ -4,18 +4,27 @@ This domain provides comprehensive compilation services following the
 GitHub Actions workflow pattern for ZMK config builds.
 """
 
+from typing import TYPE_CHECKING
+
 # Defer import to avoid circular dependency
 from glovebox.compilation.protocols.compilation_protocols import (
     CompilationServiceProtocol,
 )
 
 
+if TYPE_CHECKING:
+    from glovebox.metrics.session_metrics import SessionMetrics
+
+
 # Simple factory function for direct service selection
-def create_compilation_service(strategy: str) -> CompilationServiceProtocol:
+def create_compilation_service(
+    strategy: str, session_metrics: "SessionMetrics | None" = None
+) -> CompilationServiceProtocol:
     """Create compilation service for specified strategy.
 
     Args:
         strategy: Compilation strategy
+        session_metrics: Optional SessionMetrics instance for metrics integration
 
     Returns:
         CompilationServiceProtocol: Configured compilation service
@@ -24,17 +33,20 @@ def create_compilation_service(strategy: str) -> CompilationServiceProtocol:
         ValueError: If strategy is not supported
     """
     if strategy == "zmk_config":
-        return create_zmk_west_service()
+        return create_zmk_west_service(session_metrics=session_metrics)
     elif strategy == "moergo":
-        return create_moergo_nix_service()
+        return create_moergo_nix_service(session_metrics=session_metrics)
     else:
         raise ValueError(
             f"Unknown compilation strategy: {strategy}. Supported strategies: zmk_config, moergo"
         )
 
 
-def create_zmk_west_service() -> CompilationServiceProtocol:
+def create_zmk_west_service(session_metrics: "SessionMetrics | None" = None) -> CompilationServiceProtocol:
     """Create ZMK with West compilation service using shared cache coordination.
+
+    Args:
+        session_metrics: Optional SessionMetrics instance for metrics integration
 
     Returns:
         CompilationServiceProtocol: ZMK config compilation service
@@ -52,7 +64,7 @@ def create_zmk_west_service() -> CompilationServiceProtocol:
     from glovebox.compilation.cache import create_compilation_cache_service
 
     cache, workspace_service, build_service = create_compilation_cache_service(
-        user_config
+        user_config, session_metrics=session_metrics
     )
 
     return create_zmk_west_service(
@@ -61,11 +73,15 @@ def create_zmk_west_service() -> CompilationServiceProtocol:
         cache_manager=cache,
         workspace_cache_service=workspace_service,
         build_cache_service=build_service,
+        session_metrics=session_metrics,
     )
 
 
-def create_moergo_nix_service() -> CompilationServiceProtocol:
-    r"""Create simplified Moergo compilat\ion service.
+def create_moergo_nix_service(session_metrics: "SessionMetrics | None" = None) -> CompilationServiceProtocol:
+    r"""Create simplified Moergo compilation service.
+
+    Args:
+        session_metrics: Optional SessionMetrics instance for metrics integration
 
     Returns:
         CompilationServiceProtocol: Moergo compilation service

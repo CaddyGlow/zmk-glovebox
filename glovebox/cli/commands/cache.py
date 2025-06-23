@@ -48,13 +48,13 @@ def _get_directory_size(path: Path) -> int:
     return get_directory_size(path)
 
 
-def _get_cache_manager_and_service() -> tuple[
-    CacheManager, ZmkWorkspaceCacheService, UserConfig
-]:
+def _get_cache_manager_and_service(
+    session_metrics=None,
+) -> tuple[CacheManager, ZmkWorkspaceCacheService, UserConfig]:
     """Get cache manager and workspace cache service using factory functions."""
     user_config = create_user_config()
     cache_manager, workspace_cache_service, _ = create_compilation_cache_service(
-        user_config
+        user_config, session_metrics=session_metrics
     )
     return cache_manager, workspace_cache_service, user_config
 
