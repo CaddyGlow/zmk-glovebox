@@ -97,7 +97,7 @@ def _execute_compilation_service(
     build_output_dir: Path,
     compile_config: CompilationConfigUnion,
     keyboard_profile: "KeyboardProfile",
-    session_metrics=None,
+    session_metrics: Any = None,
 ) -> Any:
     """Execute the compilation service."""
     from glovebox.compilation import create_compilation_service
@@ -116,13 +116,87 @@ def _execute_compilation_service(
     )
 
 
+def _extract_keyboard_from_json(json_file: Path) -> str | None:
+    """Extract keyboard field from JSON layout file for auto-profile detection.
+
+    Args:
+        json_file: Path to the JSON layout file
+
+    Returns:
+        Keyboard name if found, None otherwise
+    """
+    try:
+        import json
+
+        with json_file.open() as f:
+            data = json.load(f)
+
+        keyboard = data.get("keyboard")
+        if keyboard and isinstance(keyboard, str):
+            logger.debug("Auto-detected keyboard from JSON: %s", keyboard)
+            return str(keyboard).strip()
+        else:
+            logger.debug("No keyboard field found in JSON or invalid type")
+            return None
+
+    except Exception as e:
+        logger.warning("Failed to extract keyboard from JSON: %s", e)
+        return None
+
+
+def _get_auto_profile_from_json(
+    json_file: Path, user_config: Any = None
+) -> str | None:
+    """Get auto-detected profile from JSON layout file.
+
+    Args:
+        json_file: Path to the JSON layout file
+        user_config: User configuration for default firmware lookup
+
+    Returns:
+        Auto-detected profile string or None if detection fails
+    """
+    keyboard = _extract_keyboard_from_json(json_file)
+    if not keyboard:
+        return None
+
+    # Try to create a keyboard-only profile first to see if the keyboard exists
+    try:
+        from glovebox.config.keyboard_profile import create_keyboard_profile
+
+        # Create keyboard-only profile to validate keyboard exists
+        keyboard_profile = create_keyboard_profile(keyboard, None, user_config)
+
+        # If user config has a default firmware for this keyboard, use it
+        if user_config:
+            try:
+                default_firmware = user_config._config.profile
+                if default_firmware and "/" in default_firmware:
+                    default_keyboard, firmware = default_firmware.split("/", 1)
+                    if default_keyboard == keyboard:
+                        auto_profile = f"{keyboard}/{firmware}"
+                        logger.debug("Auto-detected profile with user config firmware: %s", auto_profile)
+                        return auto_profile
+            except AttributeError:
+                pass
+
+        # Fall back to keyboard-only profile
+        auto_profile = keyboard
+        logger.debug("Auto-detected keyboard-only profile: %s", auto_profile)
+        return auto_profile
+
+    except Exception as e:
+        logger.debug("Auto-profile detection failed for keyboard '%s': %s", keyboard, e)
+        return None
+
+
 def _execute_compilation_from_json(
     compilation_strategy: str,
     json_file: Path,
     build_output_dir: Path,
     compile_config: CompilationConfigUnion,
     keyboard_profile: "KeyboardProfile",
-    session_metrics=None,
+    session_metrics: Any = None,
 ) -> Any:
     """Execute compilation from JSON layout file."""
     from glovebox.compilation import create_compilation_service
@@ -201,7 +275,6 @@ cmake, make, and ninja build systems for custom keyboards.""",
 
 @firmware_app.command(name="compile")
 @handle_errors
-@with_profile()
 def firmware_compile(
     ctx: typer.Context,
     input_file: Annotated[
@@ -219,6 +292,13 @@ def firmware_compile(
             help="Compilation strategy: auto-detect by profile if not specified",
         ),
     ] = None,
+    no_auto: Annotated[
+        bool,
+        typer.Option(
+            "--no-auto",
+            help="Disable automatic profile detection from JSON keyboard field",
+        ),
+    ] = False,
     output_format: OutputFormatOption = "text",
 ) -> None:
     """Build ZMK firmware from keymap/config files or JSON layout.
@@ -229,6 +309,13 @@ def firmware_compile(
     \b
     For JSON input, the layout is automatically converted to .keymap and .conf files
     before compilation. The config_file argument is optional for JSON input.
+
+    \b
+    Profile precedence (highest to lowest):
+    1. CLI --profile flag (overrides all)
+    2. Auto-detection from JSON keyboard field (unless --no-auto)
+    3. User config default profile
+    4. Hardcoded fallback profile
 
     \b
     Supports multiple compilation strategies:
@@ -242,8 +329,11 @@ def firmware_compile(
         # Compile from keymap and config files
         glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
 
-        # Compile directly from JSON layout (NEW)
-        glovebox firmware compile layout.json --profile glove80/v25.05
+        # Compile directly from JSON layout with auto-profile detection
+        glovebox firmware compile layout.json
+
+        # Disable auto-profile detection
+        glovebox firmware compile layout.json --no-auto --profile glove80/v25.05
 
         # Specify compilation strategy explicitly
         glovebox firmware compile layout.json --profile glove80/v25.05 --strategy zmk_config
@@ -273,9 +363,27 @@ def firmware_compile(
 
     try:
         with firmware_duration.time():
-            # Get profile and user config
-            keyboard_profile = get_keyboard_profile_from_context(ctx)
+            # Get user config first for auto-profile detection
             user_config = get_user_config_from_context(ctx)
+
+            # Handle profile detection with auto-detection support
+            effective_profile = profile  # Start with CLI profile option
+
+            # If no CLI profile and auto-detection is enabled and input is JSON
+            if not profile and not no_auto and input_file.suffix.lower() == ".json":
+                auto_profile = _get_auto_profile_from_json(input_file, user_config)
+                if auto_profile:
+                    effective_profile = auto_profile
+                    logger.info("Auto-detected profile from JSON: %s", auto_profile)
+                else:
+                    logger.debug("Auto-profile detection failed, falling back to defaults")
+
+            # Create keyboard profile using effective profile
+            from glovebox.cli.helpers.profile import create_profile_from_option
+            keyboard_profile = create_profile_from_option(effective_profile, user_config)
+
+            # Store in context for consistency with other commands
+            app_ctx.keyboard_profile = keyboard_profile
 
             # Detect input file type and validate arguments
             is_json_input = input_file.suffix.lower() == ".json"

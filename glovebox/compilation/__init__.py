@@ -42,7 +42,9 @@ def create_compilation_service(
         )
 
 
-def create_zmk_west_service(session_metrics: "SessionMetrics | None" = None) -> CompilationServiceProtocol:
+def create_zmk_west_service(
+    session_metrics: "SessionMetrics | None" = None,
+) -> CompilationServiceProtocol:
     """Create ZMK with West compilation service using shared cache coordination.
 
     Args:
@@ -77,7 +79,9 @@ def create_zmk_west_service(session_metrics: "SessionMetrics | None" = None) -> 
     )
 
 
-def create_moergo_nix_service(session_metrics: "SessionMetrics | None" = None) -> CompilationServiceProtocol:
+def create_moergo_nix_service(
+    session_metrics: "SessionMetrics | None" = None,
+) -> CompilationServiceProtocol:
     r"""Create simplified Moergo compilation service.
 
     Args:
