@@ -1,9 +1,11 @@
 """Glovebox - ZMK Keyboard Management Tool."""
 
-from importlib.metadata import distribution
-
-
-__version__ = distribution(__package__ or "glovebox").version
+try:
+    from importlib.metadata import distribution
+    __version__ = distribution(__package__ or "glovebox").version
+except Exception:
+    # Fallback for development environments or when package not installed
+    __version__ = "0.0.2-dev"
 
 __all__ = [
     "__version__",

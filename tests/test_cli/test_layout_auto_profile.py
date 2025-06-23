@@ -31,16 +31,26 @@ def sample_json_layout(tmp_path):
     return json_file
 
 
-def test_layout_compile_auto_profile_detection(cli_runner, sample_json_layout, tmp_path):
+def test_layout_compile_auto_profile_detection(
+    cli_runner, sample_json_layout, tmp_path
+):
     """Test layout compile command with auto-profile detection from JSON."""
     output_dir = tmp_path / "output"
     output_dir.mkdir()
 
     with (
-        patch("glovebox.cli.commands.layout.core.resolve_profile_with_auto_detection") as mock_resolve_profile,
-        patch("glovebox.cli.commands.layout.core.create_profile_from_option") as mock_create_profile,
-        patch("glovebox.cli.commands.layout.core.create_layout_service") as mock_create_service,
-        patch("glovebox.cli.commands.layout.core.get_user_config_from_context") as mock_get_user_config,
+        patch(
+            "glovebox.cli.commands.layout.core.resolve_profile_with_auto_detection"
+        ) as mock_resolve_profile,
+        patch(
+            "glovebox.cli.commands.layout.core.create_profile_from_option"
+        ) as mock_create_profile,
+        patch(
+            "glovebox.cli.commands.layout.core.create_layout_service"
+        ) as mock_create_service,
+        patch(
+            "glovebox.cli.commands.layout.core.get_user_config_from_context"
+        ) as mock_get_user_config,
     ):
         # Mock auto-profile detection
         mock_resolve_profile.return_value = "corne"
@@ -86,16 +96,26 @@ def test_layout_compile_auto_profile_detection(cli_runner, sample_json_layout, t
         assert cmd_result.exit_code == 0
 
 
-def test_layout_compile_no_auto_flag_disables_detection(cli_runner, sample_json_layout, tmp_path):
+def test_layout_compile_no_auto_flag_disables_detection(
+    cli_runner, sample_json_layout, tmp_path
+):
     """Test that --no-auto flag disables auto-profile detection."""
     output_dir = tmp_path / "output"
     output_dir.mkdir()
 
     with (
-        patch("glovebox.cli.commands.layout.core.resolve_profile_with_auto_detection") as mock_resolve_profile,
-        patch("glovebox.cli.commands.layout.core.create_profile_from_option") as mock_create_profile,
-        patch("glovebox.cli.commands.layout.core.create_layout_service") as mock_create_service,
-        patch("glovebox.cli.commands.layout.core.get_user_config_from_context") as mock_get_user_config,
+        patch(
+            "glovebox.cli.commands.layout.core.resolve_profile_with_auto_detection"
+        ) as mock_resolve_profile,
+        patch(
+            "glovebox.cli.commands.layout.core.create_profile_from_option"
+        ) as mock_create_profile,
+        patch(
+            "glovebox.cli.commands.layout.core.create_layout_service"
+        ) as mock_create_service,
+        patch(
+            "glovebox.cli.commands.layout.core.get_user_config_from_context"
+        ) as mock_get_user_config,
     ):
         # Mock profile resolution (should not detect since no_auto=True)
         mock_resolve_profile.return_value = None
@@ -146,10 +166,18 @@ def test_layout_compile_no_auto_flag_disables_detection(cli_runner, sample_json_
 def test_layout_validate_auto_profile_detection(cli_runner, sample_json_layout):
     """Test layout validate command with auto-profile detection."""
     with (
-        patch("glovebox.cli.commands.layout.core.resolve_profile_with_auto_detection") as mock_resolve_profile,
-        patch("glovebox.cli.commands.layout.core.create_profile_from_option") as mock_create_profile,
-        patch("glovebox.cli.commands.layout.core.create_layout_service") as mock_create_service,
-        patch("glovebox.cli.commands.layout.core.get_user_config_from_context") as mock_get_user_config,
+        patch(
+            "glovebox.cli.commands.layout.core.resolve_profile_with_auto_detection"
+        ) as mock_resolve_profile,
+        patch(
+            "glovebox.cli.commands.layout.core.create_profile_from_option"
+        ) as mock_create_profile,
+        patch(
+            "glovebox.cli.commands.layout.core.create_layout_service"
+        ) as mock_create_service,
+        patch(
+            "glovebox.cli.commands.layout.core.get_user_config_from_context"
+        ) as mock_get_user_config,
     ):
         # Mock profile resolution
         mock_resolve_profile.return_value = "corne"
@@ -186,10 +214,18 @@ def test_layout_validate_auto_profile_detection(cli_runner, sample_json_layout):
 def test_layout_show_auto_profile_detection(cli_runner, sample_json_layout):
     """Test layout show command with auto-profile detection."""
     with (
-        patch("glovebox.cli.commands.layout.core.resolve_profile_with_auto_detection") as mock_resolve_profile,
-        patch("glovebox.cli.commands.layout.core.create_profile_from_option") as mock_create_profile,
-        patch("glovebox.cli.commands.layout.core.create_layout_service") as mock_create_service,
-        patch("glovebox.cli.commands.layout.core.get_user_config_from_context") as mock_get_user_config,
+        patch(
+            "glovebox.cli.commands.layout.core.resolve_profile_with_auto_detection"
+        ) as mock_resolve_profile,
+        patch(
+            "glovebox.cli.commands.layout.core.create_profile_from_option"
+        ) as mock_create_profile,
+        patch(
+            "glovebox.cli.commands.layout.core.create_layout_service"
+        ) as mock_create_service,
+        patch(
+            "glovebox.cli.commands.layout.core.get_user_config_from_context"
+        ) as mock_get_user_config,
     ):
         # Mock profile resolution
         mock_resolve_profile.return_value = "corne"
@@ -229,10 +265,18 @@ def test_layout_split_auto_profile_detection(cli_runner, sample_json_layout, tmp
     output_dir.mkdir()
 
     with (
-        patch("glovebox.cli.commands.layout.file_operations.resolve_profile_with_auto_detection") as mock_resolve_profile,
-        patch("glovebox.cli.commands.layout.file_operations.create_profile_from_option") as mock_create_profile,
-        patch("glovebox.cli.commands.layout.file_operations.create_layout_service") as mock_create_service,
-        patch("glovebox.cli.commands.layout.file_operations.get_user_config_from_context") as mock_get_user_config,
+        patch(
+            "glovebox.cli.commands.layout.file_operations.resolve_profile_with_auto_detection"
+        ) as mock_resolve_profile,
+        patch(
+            "glovebox.cli.commands.layout.file_operations.create_profile_from_option"
+        ) as mock_create_profile,
+        patch(
+            "glovebox.cli.commands.layout.file_operations.create_layout_service"
+        ) as mock_create_service,
+        patch(
+            "glovebox.cli.commands.layout.file_operations.get_user_config_from_context"
+        ) as mock_get_user_config,
     ):
         # Mock profile resolution
         mock_resolve_profile.return_value = "corne"
@@ -269,16 +313,26 @@ def test_layout_split_auto_profile_detection(cli_runner, sample_json_layout, tmp
         assert cmd_result.exit_code == 0
 
 
-def test_layout_commands_cli_profile_overrides_auto_detection(cli_runner, sample_json_layout, tmp_path):
+def test_layout_commands_cli_profile_overrides_auto_detection(
+    cli_runner, sample_json_layout, tmp_path
+):
     """Test that CLI profile flag overrides auto-detection across all layout commands."""
     output_dir = tmp_path / "output"
     output_dir.mkdir()
 
     with (
-        patch("glovebox.cli.commands.layout.core.resolve_profile_with_auto_detection") as mock_resolve_profile,
-        patch("glovebox.cli.commands.layout.core.create_profile_from_option") as mock_create_profile,
-        patch("glovebox.cli.commands.layout.core.create_layout_service") as mock_create_service,
-        patch("glovebox.cli.commands.layout.core.get_user_config_from_context") as mock_get_user_config,
+        patch(
+            "glovebox.cli.commands.layout.core.resolve_profile_with_auto_detection"
+        ) as mock_resolve_profile,
+        patch(
+            "glovebox.cli.commands.layout.core.create_profile_from_option"
+        ) as mock_create_profile,
+        patch(
+            "glovebox.cli.commands.layout.core.create_layout_service"
+        ) as mock_create_service,
+        patch(
+            "glovebox.cli.commands.layout.core.get_user_config_from_context"
+        ) as mock_get_user_config,
     ):
         # Mock profile resolution to return explicit profile
         mock_resolve_profile.return_value = "glove80/v25.05"

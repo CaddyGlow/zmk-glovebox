@@ -18,7 +18,14 @@ from glovebox.cli.helpers.auto_profile import (
     resolve_json_file_path,
     resolve_profile_with_auto_detection,
 )
-from glovebox.cli.helpers.parameters import OutputFormatOption, ProfileOption
+from glovebox.cli.helpers.parameters import (
+    JsonFileArgument,
+    KeyWidthOption,
+    LayerOption,
+    OutputFormatOption,
+    ProfileOption,
+    ViewModeOption,
+)
 from glovebox.cli.helpers.profile import (
     create_profile_from_option,
     get_keyboard_profile_from_context,
@@ -40,10 +47,7 @@ def compile_layout(
             help="Output directory and base filename (e.g., 'config/my_glove80')"
         ),
     ],
-    json_file: Annotated[
-        str | None,
-        typer.Argument(help="Path to keymap JSON file. Can use GLOVEBOX_JSON_FILE env var."),
-    ] = None,
+    json_file: JsonFileArgument = None,
     profile: ProfileOption = None,
     no_auto: Annotated[
         bool,
@@ -116,7 +120,9 @@ def compile_layout(
             )
 
             # Create keyboard profile using effective profile
-            keyboard_profile = create_profile_from_option(effective_profile, user_config)
+            keyboard_profile = create_profile_from_option(
+                effective_profile, user_config
+            )
 
             # Generate keymap using the file-based service method
             keymap_service = create_layout_service()
@@ -176,9 +182,7 @@ def compile_layout(
 @handle_errors
 def validate(
     ctx: typer.Context,
-    json_file: Annotated[
-        str | None, typer.Argument(help="Path to keymap JSON file. Can use GLOVEBOX_JSON_FILE env var.")
-    ] = None,
+    json_file: JsonFileArgument = None,
     profile: ProfileOption = None,
     no_auto: Annotated[
         bool,
@@ -241,32 +245,18 @@ def validate(
 @handle_errors
 def show(
     ctx: typer.Context,
-    json_file: Annotated[
-        str | None, typer.Argument(help="Path to keyboard layout JSON file. Can use GLOVEBOX_JSON_FILE env var.")
-    ] = None,
-    key_width: Annotated[
-        int, typer.Option("--key-width", "-w", help="Width for displaying each key")
-    ] = 10,
-    view_mode: Annotated[
-        str | None,
-        typer.Option(
-            "--view-mode", "-m", help="View mode (normal, compact, split, flat)"
-        ),
-    ] = None,
+    json_file: JsonFileArgument = None,
+    key_width: KeyWidthOption = 10,
+    view_mode: ViewModeOption = None,
     layout: Annotated[
         str | None,
         typer.Option(
             "--layout",
             "-l",
-            help="Layout name to use for display (NotImplementedError)",
+            help="Layout name to use for display",
         ),
     ] = None,
-    layer: Annotated[
-        int | None,
-        typer.Option(
-            "--layer", help="Show only specific layer index (NotImplementedError)"
-        ),
-    ] = None,
+    layer: LayerOption = None,
     profile: ProfileOption = None,
     no_auto: Annotated[
         bool,
@@ -314,10 +304,100 @@ def show(
         # Call the service
         keymap_service = create_layout_service()
 
-        # Get layout data first for formatting
-        if output_format.lower() != "text":
-            # For non-text formats, load and format the JSON data
+        # Resolve layer parameter (can be index or name)
+        resolved_layer_index = None
+        if layer is not None:
+            if layer.isdigit():
+                # Numeric input - treat as layer index
+                resolved_layer_index = int(layer)
+            else:
+                # String input - resolve layer name to index
+                import json
+                raw_layout_data = json.loads(resolved_json_file.read_text())
+                layer_names = raw_layout_data.get("layer_names", [])
+
+                # Case-insensitive search for layer name
+                layer_lower = layer.lower()
+                for i, name in enumerate(layer_names):
+                    if name.lower() == layer_lower:
+                        resolved_layer_index = i
+                        break
+
+                if resolved_layer_index is None:
+                    print_error_message(f"Layer '{layer}' not found. Available layers: {', '.join(layer_names)}")
+                    raise typer.Exit(1)
+
+        # Check if Rich format is requested
+        if output_format.lower().startswith("rich"):
+            # Use Rich formatter for enhanced display
             import json
+
+            from glovebox.layout.formatting import LayoutConfig
+
+            # Load and parse layout data into proper models
+            from glovebox.layout.models import LayoutData
+            from glovebox.layout.rich_formatter import create_rich_layout_formatter
+
+            raw_layout_data = json.loads(resolved_json_file.read_text())
+            # Parse into LayoutData model to get proper LayoutBinding objects
+            layout_data = LayoutData.model_validate(raw_layout_data)
+
+            # Create layout config from keyboard profile
+            display_config = keyboard_profile.keyboard_config.display
+            keymap_formatting = keyboard_profile.keyboard_config.keymap.formatting
+
+            # Determine row structure (same logic as display_service.py)
+            if keymap_formatting.rows is not None:
+                all_rows = keymap_formatting.rows
+            elif display_config.layout_structure is not None:
+                layout_structure = display_config.layout_structure
+                all_rows = []
+                for row_segments in layout_structure.rows.values():
+                    if len(row_segments) == 2:
+                        row = []
+                        row.extend(row_segments[0])
+                        row.extend(row_segments[1])
+                        all_rows.append(row)
+                    else:
+                        row = []
+                        for segment in row_segments:
+                            row.extend(segment)
+                        all_rows.append(row)
+            else:
+                # Default layout rows
+                all_rows = [
+                    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                    [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
+                    [22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33],
+                    [34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45],
+                ]
+
+            layout_config = LayoutConfig(
+                keyboard_name=keyboard_profile.keyboard_config.keyboard,
+                key_width=key_width,
+                key_gap=keymap_formatting.key_gap,
+                key_position_map={},
+                total_keys=keyboard_profile.keyboard_config.key_count,
+                key_count=keyboard_profile.keyboard_config.key_count,
+                rows=all_rows,
+                formatting={
+                    "key_gap": keymap_formatting.key_gap,
+                    "base_indent": keymap_formatting.base_indent,
+                },
+            )
+
+            # Create Rich formatter and render
+            rich_formatter = create_rich_layout_formatter()
+            rich_formatter.format_keymap_display(
+                layout_data,
+                layout_config,
+                format_type=output_format.lower(),
+                layer_index=resolved_layer_index,
+            )
+        elif output_format.lower() != "text":
+            # For other non-text formats, load and format the JSON data
+            import json
+
             layout_data = json.loads(resolved_json_file.read_text())
             command.format_output(layout_data, output_format)
         else:
@@ -337,9 +417,10 @@ def show(
                 profile=keyboard_profile,
                 key_width=key_width,
                 view_mode=view_mode_typed,
+                layer_index=resolved_layer_index,
             )
             # The show method returns a string
             typer.echo(result)
 
-    except NotImplementedError as e:
+    except Exception as e:
         command.handle_service_error(e, "show layout")

@@ -7,7 +7,7 @@ import shutil
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from glovebox.layout.models import LayoutBinding
+from glovebox.layout.models import LayoutBinding, LayoutData
 
 
 if TYPE_CHECKING:
@@ -170,7 +170,7 @@ class GridLayoutFormatter:
 
     def format_keymap_display(
         self,
-        keymap_data: dict[str, Any],
+        layout_data: LayoutData,
         layout_config: LayoutConfig,
         view_mode: ViewMode | None = None,
         layer_index: int | None = None,
@@ -178,7 +178,7 @@ class GridLayoutFormatter:
         """Generate a formatted keymap display using the provided layout configuration.
 
         Args:
-            keymap_data: The keymap data to format
+            layout_data: The parsed layout data to format
             layout_config: Layout configuration to use
             view_mode: Optional view mode to use
             layer_index: Optional specific layer to display
@@ -188,17 +188,17 @@ class GridLayoutFormatter:
         """
         output_lines = []
 
-        # Extract keymap data
-        title = keymap_data.get("title") or keymap_data.get("name") or "Untitled Layout"
-        creator = keymap_data.get("creator", "N/A")
-        locale = keymap_data.get("locale", "N/A")
-        notes = keymap_data.get("notes", "")
+        # Extract keymap data from LayoutData object
+        title = layout_data.title or layout_data.name or "Untitled Layout"
+        creator = layout_data.creator or "N/A"
+        locale = layout_data.locale or "N/A"
+        notes = layout_data.notes or ""
 
         # Generate header
         header_width = 80
         output_lines.append("=" * header_width)
         output_lines.append(
-            f"Keyboard: {keymap_data.get('keyboard', 'N/A')} | Title: {title}"
+            f"Keyboard: {layout_data.keyboard or 'N/A'} | Title: {title}"
         )
         output_lines.append(f"Creator: {creator} | Locale: {locale}")
         if notes:
@@ -211,8 +211,8 @@ class GridLayoutFormatter:
         output_lines.append("=" * header_width)
 
         # Process layers
-        layer_names = keymap_data.get("layer_names", [])
-        layers = keymap_data.get("layers", [])
+        layer_names = layout_data.layer_names or []
+        layers = layout_data.layers or []
 
         if not layers:
             return "No layers found in the keymap data."
@@ -264,9 +264,18 @@ class GridLayoutFormatter:
                 for j, binding in enumerate(layer):
                     if binding:
                         output_lines.append(f"Key {j}: {binding}")
+        elif view_mode == ViewMode.COMPACT:
+            # Compact mode shows layers in a condensed format
+            self._generate_compact_view(
+                output_lines,
+                indices_to_display,
+                layers_to_display,
+                layer_names_to_display,
+                layout_config,
+            )
         else:
             # Default grid view
-            # Custom grid rendering based on the keyboard layout (Glove80 in this example)
+            # Custom grid rendering based on the keyboard layout
             self._generate_grid_view(
                 output_lines,
                 indices_to_display,
@@ -695,6 +704,77 @@ class GridLayoutFormatter:
         )
 
         return should_split
+
+    def _generate_compact_view(
+        self,
+        output_lines: list[str],
+        layer_indices: list[int],
+        layers: list[list[str]],
+        layer_names: list[str],
+        layout_config: LayoutConfig,
+    ) -> None:
+        """Generate a compact view of the layout with minimal spacing.
+
+        Args:
+            output_lines: List to append output lines to
+            layer_indices: List of layer indices to display
+            layer_names: List of layer names to display
+            layers: List of layer data to display
+            layout_config: Layout configuration
+        """
+        key_width = max(4, layout_config.key_width - 2)  # Reduce key width for compactness
+        key_gap = " "  # Single space gap for compact display
+
+        # Use layout_config.rows if available, otherwise use default structure
+        if layout_config.rows:
+            row_structure = layout_config.rows
+        else:
+            # Default compact structure - fewer rows for readability
+            row_structure = [
+                [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],  # Row 0
+                [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21],  # Row 1
+                [22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33],  # Row 2
+                [34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45],  # Row 3
+                [46, 47, 48, 49, 50, 51, 58, 59, 60, 61, 62, 63],  # Row 4
+                [69, 52, 57, 74, 70, 53, 56, 73, 71, 54, 55, 72],  # Combined thumb rows
+            ]
+
+        # Iterate through layers
+        for i, (layer_idx, layer_data, layer_name) in enumerate(
+            zip(layer_indices, layers, layer_names, strict=False)
+        ):
+            if i > 0:
+                output_lines.append("")  # Single line spacing between layers
+
+            output_lines.append(f"L{layer_idx}: {layer_name}")
+
+            num_keys_in_layer = len(layer_data)
+            expected_keys = layout_config.key_count or 80
+
+            # Show fewer rows for compact display
+            for _row_idx, row_indices in enumerate(row_structure[:4]):  # Limit to first 4 rows
+                row_parts = []
+                for idx in row_indices:
+                    if idx >= 0 and idx < num_keys_in_layer:
+                        binding = self._format_key(
+                            idx, layer_data, num_keys_in_layer, key_width
+                        )
+                        row_parts.append(binding)
+                    elif idx == -1:
+                        row_parts.append(" " * (key_width // 2))  # Small gap for splits
+                    else:
+                        row_parts.append(" " * key_width)  # Empty space
+
+                # Only show non-empty rows
+                if any(part.strip() for part in row_parts):
+                    row_str = key_gap.join(row_parts)
+                    output_lines.append(f"  {row_str}")  # Small indent
+
+            # Show summary of remaining keys if any
+            total_displayed = sum(len([k for k in row if k >= 0]) for row in row_structure[:4])
+            if total_displayed < num_keys_in_layer:
+                remaining = num_keys_in_layer - total_displayed
+                output_lines.append(f"  ... +{remaining} more keys")
 
 
 def create_grid_layout_formatter() -> GridLayoutFormatter:

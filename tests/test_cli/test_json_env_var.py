@@ -43,7 +43,9 @@ def clean_env():
         os.environ["GLOVEBOX_JSON_FILE"] = original_value
 
 
-def test_layout_compile_with_json_env_var(cli_runner, sample_json_layout, tmp_path, clean_env):
+def test_layout_compile_with_json_env_var(
+    cli_runner, sample_json_layout, tmp_path, clean_env
+):
     """Test layout compile command using GLOVEBOX_JSON_FILE environment variable."""
     output_dir = tmp_path / "output"
     output_dir.mkdir()
@@ -52,9 +54,15 @@ def test_layout_compile_with_json_env_var(cli_runner, sample_json_layout, tmp_pa
     os.environ["GLOVEBOX_JSON_FILE"] = str(sample_json_layout)
 
     with (
-        patch("glovebox.cli.commands.layout.core.create_profile_from_option") as mock_create_profile,
-        patch("glovebox.cli.commands.layout.core.create_layout_service") as mock_create_service,
-        patch("glovebox.cli.commands.layout.core.get_user_config_from_context") as mock_get_user_config,
+        patch(
+            "glovebox.cli.commands.layout.core.create_profile_from_option"
+        ) as mock_create_profile,
+        patch(
+            "glovebox.cli.commands.layout.core.create_layout_service"
+        ) as mock_create_service,
+        patch(
+            "glovebox.cli.commands.layout.core.get_user_config_from_context"
+        ) as mock_get_user_config,
     ):
         # Mock profile creation
         mock_profile = Mock()
@@ -79,7 +87,13 @@ def test_layout_compile_with_json_env_var(cli_runner, sample_json_layout, tmp_pa
         # Run command without JSON file argument (should use env var)
         cmd_result = cli_runner.invoke(
             app,
-            ["layout", "compile", str(output_dir / "test"), "--profile", "glove80/v25.05"],
+            [
+                "layout",
+                "compile",
+                str(output_dir / "test"),
+                "--profile",
+                "glove80/v25.05",
+            ],
             catch_exceptions=False,
         )
 
@@ -97,9 +111,15 @@ def test_layout_validate_with_json_env_var(cli_runner, sample_json_layout, clean
     os.environ["GLOVEBOX_JSON_FILE"] = str(sample_json_layout)
 
     with (
-        patch("glovebox.cli.commands.layout.core.create_profile_from_option") as mock_create_profile,
-        patch("glovebox.cli.commands.layout.core.create_layout_service") as mock_create_service,
-        patch("glovebox.cli.commands.layout.core.get_user_config_from_context") as mock_get_user_config,
+        patch(
+            "glovebox.cli.commands.layout.core.create_profile_from_option"
+        ) as mock_create_profile,
+        patch(
+            "glovebox.cli.commands.layout.core.create_layout_service"
+        ) as mock_create_service,
+        patch(
+            "glovebox.cli.commands.layout.core.get_user_config_from_context"
+        ) as mock_get_user_config,
     ):
         # Mock profile creation
         mock_profile = Mock()
@@ -135,9 +155,15 @@ def test_layout_show_with_json_env_var(cli_runner, sample_json_layout, clean_env
     os.environ["GLOVEBOX_JSON_FILE"] = str(sample_json_layout)
 
     with (
-        patch("glovebox.cli.commands.layout.core.create_profile_from_option") as mock_create_profile,
-        patch("glovebox.cli.commands.layout.core.create_layout_service") as mock_create_service,
-        patch("glovebox.cli.commands.layout.core.get_user_config_from_context") as mock_get_user_config,
+        patch(
+            "glovebox.cli.commands.layout.core.create_profile_from_option"
+        ) as mock_create_profile,
+        patch(
+            "glovebox.cli.commands.layout.core.create_layout_service"
+        ) as mock_create_service,
+        patch(
+            "glovebox.cli.commands.layout.core.get_user_config_from_context"
+        ) as mock_get_user_config,
     ):
         # Mock profile creation
         mock_profile = Mock()
@@ -167,7 +193,9 @@ def test_layout_show_with_json_env_var(cli_runner, sample_json_layout, clean_env
         assert cmd_result.exit_code == 0
 
 
-def test_layout_split_with_json_env_var(cli_runner, sample_json_layout, tmp_path, clean_env):
+def test_layout_split_with_json_env_var(
+    cli_runner, sample_json_layout, tmp_path, clean_env
+):
     """Test layout split command using GLOVEBOX_JSON_FILE environment variable."""
     output_dir = tmp_path / "components"
     output_dir.mkdir()
@@ -176,9 +204,15 @@ def test_layout_split_with_json_env_var(cli_runner, sample_json_layout, tmp_path
     os.environ["GLOVEBOX_JSON_FILE"] = str(sample_json_layout)
 
     with (
-        patch("glovebox.cli.commands.layout.file_operations.create_profile_from_option") as mock_create_profile,
-        patch("glovebox.cli.commands.layout.file_operations.create_layout_service") as mock_create_service,
-        patch("glovebox.cli.commands.layout.file_operations.get_user_config_from_context") as mock_get_user_config,
+        patch(
+            "glovebox.cli.commands.layout.file_operations.create_profile_from_option"
+        ) as mock_create_profile,
+        patch(
+            "glovebox.cli.commands.layout.file_operations.create_layout_service"
+        ) as mock_create_service,
+        patch(
+            "glovebox.cli.commands.layout.file_operations.get_user_config_from_context"
+        ) as mock_get_user_config,
     ):
         # Mock profile creation
         mock_profile = Mock()
@@ -217,9 +251,15 @@ def test_firmware_compile_with_json_env_var(cli_runner, sample_json_layout, clea
     os.environ["GLOVEBOX_JSON_FILE"] = str(sample_json_layout)
 
     with (
-        patch("glovebox.cli.helpers.profile.create_profile_from_option") as mock_create_profile,
-        patch("glovebox.cli.commands.firmware._execute_compilation_from_json") as mock_compile,
-        patch("glovebox.cli.helpers.profile.get_user_config_from_context") as mock_get_user_config,
+        patch(
+            "glovebox.cli.helpers.profile.create_profile_from_option"
+        ) as mock_create_profile,
+        patch(
+            "glovebox.cli.commands.firmware._execute_compilation_from_json"
+        ) as mock_compile,
+        patch(
+            "glovebox.cli.helpers.profile.get_user_config_from_context"
+        ) as mock_get_user_config,
     ):
         # Mock profile creation
         mock_profile = Mock()
@@ -253,7 +293,9 @@ def test_firmware_compile_with_json_env_var(cli_runner, sample_json_layout, clea
         assert cmd_result.exit_code == 0
 
 
-def test_cli_argument_overrides_env_var(cli_runner, sample_json_layout, tmp_path, clean_env):
+def test_cli_argument_overrides_env_var(
+    cli_runner, sample_json_layout, tmp_path, clean_env
+):
     """Test that CLI argument takes precedence over GLOVEBOX_JSON_FILE environment variable."""
     # Create a different JSON file
     other_json = {
@@ -272,9 +314,15 @@ def test_cli_argument_overrides_env_var(cli_runner, sample_json_layout, tmp_path
     output_dir.mkdir()
 
     with (
-        patch("glovebox.cli.commands.layout.core.create_profile_from_option") as mock_create_profile,
-        patch("glovebox.cli.commands.layout.core.create_layout_service") as mock_create_service,
-        patch("glovebox.cli.commands.layout.core.get_user_config_from_context") as mock_get_user_config,
+        patch(
+            "glovebox.cli.commands.layout.core.create_profile_from_option"
+        ) as mock_create_profile,
+        patch(
+            "glovebox.cli.commands.layout.core.create_layout_service"
+        ) as mock_create_service,
+        patch(
+            "glovebox.cli.commands.layout.core.get_user_config_from_context"
+        ) as mock_get_user_config,
     ):
         # Mock profile creation
         mock_profile = Mock()
@@ -362,16 +410,26 @@ def test_error_when_env_var_points_to_nonexistent_file(cli_runner, tmp_path, cle
     assert "not found" in cmd_result.output.lower()
 
 
-def test_combined_env_var_and_auto_profile_detection(cli_runner, sample_json_layout, clean_env):
+def test_combined_env_var_and_auto_profile_detection(
+    cli_runner, sample_json_layout, clean_env
+):
     """Test that both GLOVEBOX_JSON_FILE and auto-profile detection work together."""
     # Set environment variable
     os.environ["GLOVEBOX_JSON_FILE"] = str(sample_json_layout)
 
     with (
-        patch("glovebox.cli.commands.layout.core.resolve_profile_with_auto_detection") as mock_resolve_profile,
-        patch("glovebox.cli.commands.layout.core.create_profile_from_option") as mock_create_profile,
-        patch("glovebox.cli.commands.layout.core.create_layout_service") as mock_create_service,
-        patch("glovebox.cli.commands.layout.core.get_user_config_from_context") as mock_get_user_config,
+        patch(
+            "glovebox.cli.commands.layout.core.resolve_profile_with_auto_detection"
+        ) as mock_resolve_profile,
+        patch(
+            "glovebox.cli.commands.layout.core.create_profile_from_option"
+        ) as mock_create_profile,
+        patch(
+            "glovebox.cli.commands.layout.core.create_layout_service"
+        ) as mock_create_service,
+        patch(
+            "glovebox.cli.commands.layout.core.get_user_config_from_context"
+        ) as mock_get_user_config,
     ):
         # Mock auto-profile detection (should detect "glove80" from sample JSON)
         mock_resolve_profile.return_value = "glove80"

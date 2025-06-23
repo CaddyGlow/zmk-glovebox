@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# mypy: ignore-errors
+# ruff: noqa
 """
 Enhanced benchmark script with buffer size optimization testing.
 Usage: python benchmark_copy_files.py /path/to/test/directory
