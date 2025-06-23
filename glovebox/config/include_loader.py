@@ -48,10 +48,7 @@ class IncludeConfigLoader:
         Raises:
             ConfigError: If the configuration cannot be found or loaded
         """
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(
-                "Loading keyboard configuration with includes: %s", keyboard_name
-            )
+        logger.debug("Loading keyboard configuration with includes: %s", keyboard_name)
 
         # Find the configuration file
         config_file = self._find_config_file(keyboard_name)
@@ -63,12 +60,11 @@ class IncludeConfigLoader:
 
         # Fix keyboard name mismatch if needed
         if raw_config.get("keyboard") != keyboard_name:
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(
-                    "Keyboard name mismatch: file has '%s', expected '%s' - fixing",
-                    raw_config.get("keyboard"),
-                    keyboard_name,
-                )
+            logger.debug(
+                "Keyboard name mismatch: file has '%s', expected '%s' - fixing",
+                raw_config.get("keyboard"),
+                keyboard_name,
+            )
             raw_config["keyboard"] = keyboard_name
 
         # Convert to typed object using Pydantic validation
@@ -77,7 +73,6 @@ class IncludeConfigLoader:
             logger.info(
                 "Loaded keyboard configuration with includes: %s", keyboard_name
             )
-            logger.debug("%r", typed_config)
             return typed_config
         except ValidationError as e:
             raise ConfigError(f"Invalid keyboard configuration format: {e}") from e
@@ -166,12 +161,10 @@ class IncludeConfigLoader:
 
         # Return cached config if available
         if config_file in self._loaded_files:
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug("Using cached config: %s", config_file)
+            logger.debug("Using cached config: %s", config_file)
             return self._loaded_files[config_file]
 
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("Loading config file: %s", config_file)
+        logger.debug("Loading config file: %s", config_file)
 
         # Add to loading stack for cycle detection
         self._loading_stack.append(config_file)
@@ -195,8 +188,7 @@ class IncludeConfigLoader:
             # Cache the processed configuration
             self._loaded_files[config_file] = raw_config
 
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug("Successfully loaded and cached config: %s", config_file)
+            logger.debug("Successfully loaded and cached config: %s", config_file)
 
             return raw_config
 
@@ -239,8 +231,7 @@ class IncludeConfigLoader:
         if not isinstance(includes, list):
             includes = [includes]
 
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("Processing %d include(s) for %s", len(includes), config_file)
+        logger.debug("Processing %d include(s) for %s", len(includes), config_file)
 
         # Use config file's directory as base path if not provided
         if base_path is None:
@@ -255,16 +246,14 @@ class IncludeConfigLoader:
             )
             included_config = self._load_config_with_includes(resolved_path, base_path)
 
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug("Merging include: %s", resolved_path)
+            logger.debug("Merging include: %s", resolved_path)
 
             merged_config = self._merge_configurations(merged_config, included_config)
 
         # Merge the current config on top of included configs
         final_config = self._merge_configurations(merged_config, config)
 
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("Completed include processing for %s", config_file)
+        logger.debug("Completed include processing for %s", config_file)
 
         return final_config
 
@@ -376,8 +365,7 @@ class IncludeConfigLoader:
     def clear_cache(self) -> None:
         """Clear the loaded file cache."""
         self._loaded_files.clear()
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("Cleared include loader cache")
+        logger.debug("Cleared include loader cache")
 
 
 def create_include_loader(search_paths: list[Path]) -> IncludeConfigLoader:

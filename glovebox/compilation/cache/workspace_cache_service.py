@@ -111,7 +111,7 @@ class ZmkWorkspaceCacheService:
             repository=repository,
             branch=branch,
             cache_level=CacheLevel.REPO_BRANCH,
-            include_git=False,
+            include_git=True,
         )
 
     def get_cached_workspace(
@@ -390,7 +390,7 @@ class ZmkWorkspaceCacheService:
 
             # Detect workspace components
             detected_components = []
-            for component in ["zmk", "zephyr", "modules"]:
+            for component in ["zmk", "zephyr", "modules", ".west"]:
                 component_path = workspace_path / component
                 if component_path.exists() and component_path.is_dir():
                     detected_components.append(component)

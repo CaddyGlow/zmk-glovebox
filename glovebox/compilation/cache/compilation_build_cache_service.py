@@ -304,9 +304,9 @@ class CompilationBuildCacheService:
                 target_file.parent.mkdir(parents=True, exist_ok=True)
 
                 shutil.copy2(artifact_file, target_file)
-                self.logger.debug(
-                    "Copied artifact: %s -> %s", artifact_file, target_file
-                )
+                # self.logger.debug(
+                #     "Copied artifact: %s -> %s", artifact_file, target_file
+                # )
 
     def _get_build_artifacts(self, build_dir: Path) -> list[str]:
         """Get list of build artifacts in a directory.
