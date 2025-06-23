@@ -4,6 +4,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from glovebox.layout.formatting import ViewMode
+
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
@@ -131,14 +133,14 @@ class LayoutService(BaseService):
         json_file_path: Path,
         profile: "KeyboardProfile",
         layer_index: int | None = None,
-        key_width: int
-        | None = None,  # Accept but ignore this parameter for CLI compatibility
+        key_width: int = 12,
+        view_mode: ViewMode = ViewMode.NORMAL,
     ) -> str:
         """Display keymap layout from a JSON file."""
         return process_json_file(
             json_file_path,
             "Layout display",
-            lambda data: self.show(data, profile, layer_index),
+            lambda data: self.show(data, profile, layer_index, view_mode),
             self._file_adapter,
         )
 
@@ -350,13 +352,14 @@ class LayoutService(BaseService):
         keymap_data: LayoutData,
         profile: "KeyboardProfile",
         layer_index: int | None = None,
+        view_mode: ViewMode = ViewMode.NORMAL,
     ) -> str:
         """Display keymap layout as formatted text."""
         logger.debug("Displaying keymap layout")
 
         try:
             # Use the layout display service to generate the layout
-            return self._layout_service.show(keymap_data, profile)
+            return self._layout_service.show(keymap_data, profile, view_mode)
         except Exception as e:
             logger.error("Layout display failed: %s", e)
             raise LayoutError(f"Failed to generate layout display: {e}") from e

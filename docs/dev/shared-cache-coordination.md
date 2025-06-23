@@ -1,4 +1,4 @@
-# Shared Cache Coordination Architecture
+#ls -t session_*_metrics.json | head -1 | xargs cat | jq '.session_info.cli_args' Shared Cache Coordination Architecture
 
 This document describes the shared cache coordination system implemented to eliminate multiple independent cache instances across Glovebox domains while maintaining proper isolation.
 
