@@ -332,12 +332,216 @@ class GridLayoutFormatter:
 
             if use_vertical_split:
                 self._render_vertical_split_layout(
-                    output_lines, row_structure, layer_data, num_keys_in_layer, key_width, key_gap
+                    output_lines,
+                    row_structure,
+                    layer_data,
+                    num_keys_in_layer,
+                    key_width,
+                    key_gap,
                 )
             else:
                 self._render_horizontal_layout(
-                    output_lines, row_structure, layer_data, num_keys_in_layer, key_width, key_gap
+                    output_lines,
+                    row_structure,
+                    layer_data,
+                    num_keys_in_layer,
+                    key_width,
+                    key_gap,
                 )
+
+    def _render_horizontal_layout(
+        self,
+        output_lines: list[str],
+        row_structure: list[list[int]],
+        layer_data: list[Any],
+        num_keys_in_layer: int,
+        key_width: int,
+        key_gap: str,
+    ) -> None:
+        """Render layout in traditional horizontal split format.
+
+        Args:
+            output_lines: List to append output lines to
+            row_structure: Row structure defining key positions
+            layer_data: Layer data containing bindings
+            num_keys_in_layer: Number of keys in the layer
+            key_width: Width for displaying each key
+            key_gap: Gap between keys
+        """
+        # Format grid lines based on row structure
+        h_spacer = " | "
+        total_width = 0
+
+        # Calculate total width based on first row structure
+        if row_structure:
+            first_split_idx = len(row_structure[0]) // 2
+            left_width = first_split_idx * (key_width + len(key_gap)) - len(key_gap)
+            right_width = (len(row_structure[0]) - first_split_idx) * (
+                key_width + len(key_gap)
+            ) - len(key_gap)
+            total_width = left_width + len(h_spacer) + right_width
+        else:
+            total_width = 80  # Default width
+
+        output_lines.append("-" * total_width)
+
+        for row_indices in row_structure:
+            # For split layouts, find the midpoint to insert the spacer
+            if len(row_indices) >= 10:  # Assuming rows with 10+ keys are split rows
+                split_idx = len(row_indices) // 2
+                left_indices = row_indices[:split_idx]
+                right_indices = row_indices[split_idx:]
+
+                left_parts = []
+                for idx in left_indices:
+                    binding = self._format_key(
+                        idx, layer_data, num_keys_in_layer, key_width
+                    )
+                    left_parts.append(binding)
+
+                right_parts = []
+                for idx in right_indices:
+                    binding = self._format_key(
+                        idx, layer_data, num_keys_in_layer, key_width
+                    )
+                    right_parts.append(binding)
+
+                left_str = key_gap.join(left_parts)
+                right_str = key_gap.join(right_parts)
+                output_lines.append(f"{left_str}{h_spacer}{right_str}")
+            else:
+                # Non-split rows (like thumb clusters)
+                row_parts = []
+                for idx in row_indices:
+                    binding = self._format_key(
+                        idx, layer_data, num_keys_in_layer, key_width
+                    )
+                    row_parts.append(binding)
+
+                # Center smaller rows
+                row_str = key_gap.join(row_parts)
+                padding = (total_width - len(row_str)) // 2
+                output_lines.append(" " * padding + row_str)
+
+        output_lines.append("-" * total_width)
+
+    def _render_vertical_split_layout(
+        self,
+        output_lines: list[str],
+        row_structure: list[list[int]],
+        layer_data: list[Any],
+        num_keys_in_layer: int,
+        key_width: int,
+        key_gap: str,
+    ) -> None:
+        """Render layout in vertical split format for narrow terminals.
+
+        This splits the keyboard into left and right halves, showing them
+        one above the other instead of side by side.
+
+        Args:
+            output_lines: List to append output lines to
+            row_structure: Row structure defining key positions
+            layer_data: Layer data containing bindings
+            num_keys_in_layer: Number of keys in the layer
+            key_width: Width for displaying each key
+            key_gap: Gap between keys
+        """
+        # Separate rows into left and right halves
+        left_rows = []
+        right_rows = []
+
+        for row_indices in row_structure:
+            if len(row_indices) >= 6:  # Split rows that have enough keys
+                # Find split point (look for -1 markers or use midpoint)
+                split_idx = self._find_split_point(row_indices)
+                left_indices = [idx for idx in row_indices[:split_idx] if idx >= 0]
+                right_indices = [idx for idx in row_indices[split_idx:] if idx >= 0]
+
+                if left_indices:
+                    left_rows.append(left_indices)
+                if right_indices:
+                    right_rows.append(right_indices)
+            else:
+                # For smaller rows (like thumb clusters), put on both sides or split
+                valid_indices = [idx for idx in row_indices if idx >= 0]
+                if len(valid_indices) >= 4:
+                    mid = len(valid_indices) // 2
+                    left_rows.append(valid_indices[:mid])
+                    right_rows.append(valid_indices[mid:])
+                elif len(valid_indices) > 0:
+                    # Add to left side for odd small rows
+                    left_rows.append(valid_indices)
+
+        # Calculate section width
+        max_left_keys = max(len(row) for row in left_rows) if left_rows else 0
+        max_right_keys = max(len(row) for row in right_rows) if right_rows else 0
+        max_keys = max(max_left_keys, max_right_keys)
+        section_width = (
+            max_keys * key_width + (max_keys - 1) * len(key_gap) if max_keys > 0 else 40
+        )
+
+        # Render left half
+        output_lines.append("Left Half:")
+        output_lines.append("-" * section_width)
+
+        for row_indices in left_rows:
+            row_parts = []
+            for idx in row_indices:
+                binding = self._format_key(
+                    idx, layer_data, num_keys_in_layer, key_width
+                )
+                row_parts.append(binding)
+
+            row_str = key_gap.join(row_parts)
+            output_lines.append(row_str)
+
+        output_lines.append("-" * section_width)
+        output_lines.append("")  # Spacing between halves
+
+        # Render right half
+        output_lines.append("Right Half:")
+        output_lines.append("-" * section_width)
+
+        for row_indices in right_rows:
+            row_parts = []
+            for idx in row_indices:
+                binding = self._format_key(
+                    idx, layer_data, num_keys_in_layer, key_width
+                )
+                row_parts.append(binding)
+
+            row_str = key_gap.join(row_parts)
+            output_lines.append(row_str)
+
+        output_lines.append("-" * section_width)
+
+    def _find_split_point(self, row_indices: list[int]) -> int:
+        """Find the optimal split point in a row.
+
+        Looks for -1 markers (gaps) to determine split, otherwise uses midpoint.
+
+        Args:
+            row_indices: List of key indices in the row
+
+        Returns:
+            Index where to split the row
+        """
+        # Look for sequences of -1 values to find natural split points
+        for i, idx in enumerate(row_indices):
+            if idx == -1 and i > 0:
+                # Found a gap, check if there are consecutive gaps
+                gap_start = i
+                gap_end = i
+                while gap_end < len(row_indices) and row_indices[gap_end] == -1:
+                    gap_end += 1
+
+                # If we found a significant gap (or any gap), split there
+                if gap_end > gap_start:
+                    return gap_end
+
+        # No obvious gap found, use midpoint
+        return len(row_indices) // 2
 
     def _format_key(
         self, idx: int, layer_data: list[Any], layer_size: int, key_width: int
@@ -423,7 +627,7 @@ class GridLayoutFormatter:
 
     def _get_console_width(self) -> int:
         """Get the current console width, with fallback to default.
-        
+
         Returns:
             Console width in characters
         """
@@ -435,33 +639,33 @@ class GridLayoutFormatter:
         except (OSError, AttributeError):
             # Fallback if terminal size detection fails
             pass
-        
+
         # Try environment variable
         try:
-            width = int(os.environ.get('COLUMNS', '80'))
+            width = int(os.environ.get("COLUMNS", "80"))
             if width > 0:
                 return width
         except (ValueError, TypeError):
             pass
-        
+
         # Final fallback
         return 80
-    
+
     def _should_use_vertical_split(self, layout_config: LayoutConfig) -> bool:
         """Determine if layout should be split vertically due to width constraints.
-        
+
         Args:
             layout_config: Layout configuration with formatting info
-            
+
         Returns:
             True if vertical split should be used
         """
         console_width = self._get_console_width()
-        
+
         # Calculate approximate layout width
         key_width = layout_config.key_width
         key_gap = layout_config.key_gap
-        
+
         # Find the longest row to estimate total width
         max_keys_per_row = 0
         if layout_config.rows:
@@ -469,22 +673,27 @@ class GridLayoutFormatter:
                 # Count non-empty keys (not -1)
                 valid_keys = len([k for k in row if k >= 0])
                 max_keys_per_row = max(max_keys_per_row, valid_keys)
-        
+
         if max_keys_per_row == 0:
             return False
-        
+
         # Estimate total width: keys + gaps + some margin
-        estimated_width = (max_keys_per_row * key_width) + ((max_keys_per_row - 1) * len(key_gap)) + 10
-        
-        # Use vertical split if estimated width exceeds 85% of console width
-        threshold = int(console_width * 0.85)
+        estimated_width = (
+            (max_keys_per_row * key_width)
+            + ((max_keys_per_row - 1) * len(key_gap))
+            + 10
+        )
+
+        # Get threshold from configuration (default 0.85 if not set)
+        threshold_ratio = layout_config.formatting.get("vertical_split_threshold", 0.85)
+        threshold = int(console_width * threshold_ratio)
         should_split = estimated_width > threshold
-        
+
         logger.debug(
             f"Console width: {console_width}, estimated layout width: {estimated_width}, "
-            f"threshold: {threshold}, will split: {should_split}"
+            f"threshold: {threshold} (ratio: {threshold_ratio}), will split: {should_split}"
         )
-        
+
         return should_split
 
 
