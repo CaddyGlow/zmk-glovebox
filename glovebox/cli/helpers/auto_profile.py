@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,7 +35,9 @@ def extract_keyboard_from_json(json_file: Path) -> str | None:
                 logger.debug("Auto-detected keyboard from JSON: %s", keyboard_stripped)
                 return keyboard_stripped
             else:
-                logger.debug("Keyboard field found but empty after stripping whitespace")
+                logger.debug(
+                    "Keyboard field found but empty after stripping whitespace"
+                )
                 return None
         else:
             logger.debug("No keyboard field found in JSON or invalid type")
@@ -45,9 +48,7 @@ def extract_keyboard_from_json(json_file: Path) -> str | None:
         return None
 
 
-def get_auto_profile_from_json(
-    json_file: Path, user_config: Any = None
-) -> str | None:
+def get_auto_profile_from_json(json_file: Path, user_config: Any = None) -> str | None:
     """Get auto-detected profile from JSON layout file.
 
     Args:
@@ -78,12 +79,15 @@ def get_auto_profile_from_json(
                     if user_keyboard == keyboard:
                         # User has matching keyboard with firmware, use full profile
                         logger.debug(
-                            "User config has matching keyboard profile: %s", user_profile
+                            "User config has matching keyboard profile: %s",
+                            user_profile,
                         )
                         return user_profile
             except AttributeError:
                 # user_config doesn't have profile attribute, fall back to keyboard-only
-                logger.debug("User config has no profile attribute, using keyboard-only")
+                logger.debug(
+                    "User config has no profile attribute, using keyboard-only"
+                )
 
         # Fall back to keyboard-only profile
         logger.debug("Using keyboard-only profile: %s", keyboard)
@@ -95,8 +99,7 @@ def get_auto_profile_from_json(
 
 
 def resolve_json_file_path(
-    json_file_arg: str | Path | None, 
-    env_var: str = "GLOVEBOX_JSON_FILE"
+    json_file_arg: str | Path | None, env_var: str = "GLOVEBOX_JSON_FILE"
 ) -> Path | None:
     """Resolve JSON file path from argument or environment variable.
 
@@ -131,16 +134,18 @@ def resolve_json_file_path(
     # Validate the resolved path
     try:
         resolved_path = resolved_path.resolve()
-        
+
         if not resolved_path.exists():
-            raise FileNotFoundError(f"JSON file not found (from {source}): {resolved_path}")
-        
+            raise FileNotFoundError(
+                f"JSON file not found (from {source}): {resolved_path}"
+            )
+
         if not resolved_path.is_file():
             raise ValueError(f"Path is not a file (from {source}): {resolved_path}")
-        
+
         logger.debug("Resolved JSON file path from %s: %s", source, resolved_path)
         return resolved_path
-        
+
     except Exception as e:
         logger.error("Invalid JSON file path from %s: %s", source, e)
         raise

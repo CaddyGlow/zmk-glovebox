@@ -2,6 +2,8 @@
 
 import enum
 import logging
+import os
+import shutil
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -312,6 +314,9 @@ class GridLayoutFormatter:
                 [71, 54, 55, 72],  # Thumb row 3
             ]
 
+        # Check if we should use vertical split layout
+        use_vertical_split = self._should_use_vertical_split(layout_config)
+
         # Iterate through layers
         for _i, (layer_idx, layer_data, layer_name) in enumerate(
             zip(layer_indices, layers, layer_names, strict=False)
@@ -325,62 +330,14 @@ class GridLayoutFormatter:
                     f"Layer '{layer_name}' has {num_keys_in_layer} keys, expected {expected_keys}. Display may be incomplete."
                 )
 
-            # Format grid lines based on row structure
-            h_spacer = " | "
-            total_width = 0
-
-            # Calculate total width based on first row structure
-            if row_structure:
-                first_split_idx = len(row_structure[0]) // 2
-                left_width = first_split_idx * (key_width + len(key_gap)) - len(key_gap)
-                right_width = (len(row_structure[0]) - first_split_idx) * (
-                    key_width + len(key_gap)
-                ) - len(key_gap)
-                total_width = left_width + len(h_spacer) + right_width
+            if use_vertical_split:
+                self._render_vertical_split_layout(
+                    output_lines, row_structure, layer_data, num_keys_in_layer, key_width, key_gap
+                )
             else:
-                total_width = 80  # Default width
-
-            output_lines.append("-" * total_width)
-
-            for row_indices in row_structure:
-                # For split layouts, find the midpoint to insert the spacer
-                if len(row_indices) >= 10:  # Assuming rows with 10+ keys are split rows
-                    split_idx = len(row_indices) // 2
-                    left_indices = row_indices[:split_idx]
-                    right_indices = row_indices[split_idx:]
-
-                    left_parts = []
-                    for idx in left_indices:
-                        binding = self._format_key(
-                            idx, layer_data, num_keys_in_layer, key_width
-                        )
-                        left_parts.append(binding)
-
-                    right_parts = []
-                    for idx in right_indices:
-                        binding = self._format_key(
-                            idx, layer_data, num_keys_in_layer, key_width
-                        )
-                        right_parts.append(binding)
-
-                    left_str = key_gap.join(left_parts)
-                    right_str = key_gap.join(right_parts)
-                    output_lines.append(f"{left_str}{h_spacer}{right_str}")
-                else:
-                    # Non-split rows (like thumb clusters)
-                    row_parts = []
-                    for idx in row_indices:
-                        binding = self._format_key(
-                            idx, layer_data, num_keys_in_layer, key_width
-                        )
-                        row_parts.append(binding)
-
-                    # Center smaller rows
-                    row_str = key_gap.join(row_parts)
-                    padding = (total_width - len(row_str)) // 2
-                    output_lines.append(" " * padding + row_str)
-
-            output_lines.append("-" * total_width)
+                self._render_horizontal_layout(
+                    output_lines, row_structure, layer_data, num_keys_in_layer, key_width, key_gap
+                )
 
     def _format_key(
         self, idx: int, layer_data: list[Any], layer_size: int, key_width: int
@@ -399,9 +356,9 @@ class GridLayoutFormatter:
         if 0 <= idx < layer_size:
             binding = layer_data[idx]
 
-            # Handle LayoutBinding objects
+            # Handle LayoutBinding objects - show full behavior with params
             if isinstance(binding, LayoutBinding):
-                binding_str = binding.value
+                binding_str = self._format_binding_display(binding)
             else:
                 binding_str = str(binding)
 
@@ -415,6 +372,120 @@ class GridLayoutFormatter:
             else:
                 return binding_str.center(key_width)
         return " " * key_width
+
+    def _format_binding_display(self, binding: LayoutBinding) -> str:
+        """Format a binding for display showing behavior and parameters.
+
+        Args:
+            binding: The LayoutBinding to format
+
+        Returns:
+            Formatted string showing behavior and key parameters
+        """
+        if not binding.params:
+            return binding.value
+
+        # For behaviors with parameters, show main parameter value
+        if binding.value == "&kp" and binding.params:
+            # Show key name for kp behaviors
+            return binding.params[0].value
+        elif binding.value == "&mo" and binding.params:
+            # Show layer number for momentary layer
+            return f"L{binding.params[0].value}"
+        elif binding.value == "&to" and binding.params:
+            # Show layer number for layer switch
+            return f"→L{binding.params[0].value}"
+        elif binding.value == "&tog" and binding.params:
+            # Show layer number for layer toggle
+            return f"⇄L{binding.params[0].value}"
+        elif binding.value == "&lt" and len(binding.params) >= 2:
+            # Show layer and tap key for layer-tap
+            return f"L{binding.params[0].value}/{binding.params[1].value}"
+        elif binding.value == "&mt" and len(binding.params) >= 2:
+            # Show modifier and tap key for mod-tap
+            return f"{binding.params[0].value}/{binding.params[1].value}"
+        elif binding.value == "&bt" and binding.params:
+            # Show bluetooth command
+            bt_cmd = binding.params[0].value
+            if len(binding.params) > 1:
+                return f"BT{binding.params[1].value}"
+            else:
+                return bt_cmd.replace("BT_", "")
+        elif binding.value == "&rgb_ug" and binding.params:
+            # Show RGB command
+            return binding.params[0].value.replace("RGB_", "")
+        else:
+            # For other behaviors, show behavior name with first param if available
+            if binding.params:
+                return f"{binding.value[1:]}({binding.params[0].value})"
+            else:
+                return binding.value
+
+    def _get_console_width(self) -> int:
+        """Get the current console width, with fallback to default.
+        
+        Returns:
+            Console width in characters
+        """
+        try:
+            # Try to get actual terminal width
+            width = shutil.get_terminal_size().columns
+            if width > 0:
+                return width
+        except (OSError, AttributeError):
+            # Fallback if terminal size detection fails
+            pass
+        
+        # Try environment variable
+        try:
+            width = int(os.environ.get('COLUMNS', '80'))
+            if width > 0:
+                return width
+        except (ValueError, TypeError):
+            pass
+        
+        # Final fallback
+        return 80
+    
+    def _should_use_vertical_split(self, layout_config: LayoutConfig) -> bool:
+        """Determine if layout should be split vertically due to width constraints.
+        
+        Args:
+            layout_config: Layout configuration with formatting info
+            
+        Returns:
+            True if vertical split should be used
+        """
+        console_width = self._get_console_width()
+        
+        # Calculate approximate layout width
+        key_width = layout_config.key_width
+        key_gap = layout_config.key_gap
+        
+        # Find the longest row to estimate total width
+        max_keys_per_row = 0
+        if layout_config.rows:
+            for row in layout_config.rows:
+                # Count non-empty keys (not -1)
+                valid_keys = len([k for k in row if k >= 0])
+                max_keys_per_row = max(max_keys_per_row, valid_keys)
+        
+        if max_keys_per_row == 0:
+            return False
+        
+        # Estimate total width: keys + gaps + some margin
+        estimated_width = (max_keys_per_row * key_width) + ((max_keys_per_row - 1) * len(key_gap)) + 10
+        
+        # Use vertical split if estimated width exceeds 85% of console width
+        threshold = int(console_width * 0.85)
+        should_split = estimated_width > threshold
+        
+        logger.debug(
+            f"Console width: {console_width}, estimated layout width: {estimated_width}, "
+            f"threshold: {threshold}, will split: {should_split}"
+        )
+        
+        return should_split
 
 
 def create_grid_layout_formatter() -> GridLayoutFormatter:
