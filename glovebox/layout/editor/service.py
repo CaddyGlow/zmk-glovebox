@@ -43,7 +43,9 @@ class LayoutEditorService:
             ValueError: If field path or array index is invalid
         """
         # Load WITHOUT variable resolution to preserve original variable references
-        layout_data = load_layout_file(layout_file, self.file_adapter, skip_variable_resolution=True)
+        layout_data = load_layout_file(
+            layout_file, self.file_adapter, skip_variable_resolution=True
+        )
         return extract_field_value_from_model(layout_data, field_path)
 
     def set_field_value(
@@ -76,7 +78,9 @@ class LayoutEditorService:
         # Wrap entire operation in variable resolution context to preserve variables
         with VariableResolutionContext(skip=True):
             # Load WITHOUT variable resolution to preserve original variable references
-            layout_data = load_layout_file(layout_file, self.file_adapter, skip_variable_resolution=True)
+            layout_data = load_layout_file(
+                layout_file, self.file_adapter, skip_variable_resolution=True
+            )
 
             # Parse and convert the value based on type
             parsed_value = parse_field_value(value, value_type)
@@ -121,7 +125,9 @@ class LayoutEditorService:
         # Wrap entire operation in variable resolution context to preserve variables
         with VariableResolutionContext(skip=True):
             # Load WITHOUT variable resolution to preserve original variable references
-            layout_data = load_layout_file(layout_file, self.file_adapter, skip_variable_resolution=True)
+            layout_data = load_layout_file(
+                layout_file, self.file_adapter, skip_variable_resolution=True
+            )
 
             # Remove the field value directly on the Pydantic model
             unset_field_value_on_model(layout_data, field_path)

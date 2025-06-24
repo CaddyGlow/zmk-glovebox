@@ -116,7 +116,7 @@ def _execute_compilation_service(
         user_config=user_config,
         docker_adapter=docker_adapter,
         file_adapter=file_adapter,
-        session_metrics=session_metrics
+        session_metrics=session_metrics,
     )
 
     # Use unified config directly - no conversion needed
@@ -153,7 +153,7 @@ def _execute_compilation_from_json(
         user_config=user_config,
         docker_adapter=docker_adapter,
         file_adapter=file_adapter,
-        session_metrics=session_metrics
+        session_metrics=session_metrics,
     )
 
     # Use the new compile_from_json method

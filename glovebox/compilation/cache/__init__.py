@@ -47,8 +47,8 @@ except ImportError:
     # Keep placeholder implementations
     pass
 
-from glovebox.core.cache_v2 import create_cache_from_user_config  # noqa: E402
-from glovebox.core.cache_v2.cache_manager import CacheManager  # noqa: E402
+from glovebox.core.cache import create_cache_from_user_config  # noqa: E402
+from glovebox.core.cache.cache_manager import CacheManager  # noqa: E402
 
 from .compilation_build_cache_service import CompilationBuildCacheService  # noqa: E402
 from .models import WorkspaceCacheMetadata, WorkspaceCacheResult  # noqa: E402

@@ -8,9 +8,9 @@ from unittest.mock import patch
 import pytest
 
 from glovebox.config.models.user import UserConfigData
-from glovebox.core.cache_v2 import create_cache_from_user_config, create_default_cache
-from glovebox.core.cache_v2.disabled_cache import DisabledCache
-from glovebox.core.cache_v2.diskcache_manager import DiskCacheManager
+from glovebox.core.cache import create_cache_from_user_config, create_default_cache
+from glovebox.core.cache.disabled_cache import DisabledCache
+from glovebox.core.cache.diskcache_manager import DiskCacheManager
 
 
 class TestCacheUserConfigIntegration:

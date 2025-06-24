@@ -6,13 +6,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from glovebox.core.cache_v2 import (
+from glovebox.core.cache import (
     create_cache_from_user_config,
     create_default_cache,
     create_diskcache_manager,
 )
-from glovebox.core.cache_v2.disabled_cache import DisabledCache
-from glovebox.core.cache_v2.diskcache_manager import DiskCacheManager
+from glovebox.core.cache.disabled_cache import DisabledCache
+from glovebox.core.cache.diskcache_manager import DiskCacheManager
 
 
 class TestCreateDiskCacheManager:
@@ -225,7 +225,7 @@ class TestCacheIsolation:
 
     def test_different_tags_create_separate_instances(self, tmp_path):
         """Test that different tags create separate cache instances."""
-        from glovebox.core.cache_v2.cache_coordinator import (
+        from glovebox.core.cache.cache_coordinator import (
             reset_shared_cache_instances,
         )
 
@@ -243,7 +243,7 @@ class TestCacheIsolation:
 
     def test_same_tag_reuses_instance(self, tmp_path):
         """Test that same tag reuses the same cache instance."""
-        from glovebox.core.cache_v2.cache_coordinator import (
+        from glovebox.core.cache.cache_coordinator import (
             reset_shared_cache_instances,
         )
 
@@ -260,7 +260,7 @@ class TestCacheIsolation:
 
     def test_cache_data_isolation(self, tmp_path):
         """Test that data stored in one cache doesn't affect another."""
-        from glovebox.core.cache_v2.cache_coordinator import (
+        from glovebox.core.cache.cache_coordinator import (
             reset_shared_cache_instances,
         )
 
@@ -290,7 +290,7 @@ class TestCacheIsolation:
 
     def test_cache_clear_isolation(self, tmp_path):
         """Test that clearing one cache doesn't affect others."""
-        from glovebox.core.cache_v2.cache_coordinator import (
+        from glovebox.core.cache.cache_coordinator import (
             reset_shared_cache_instances,
         )
 
@@ -338,7 +338,7 @@ class TestCacheIsolation:
 
     def test_cache_filesystem_isolation(self, isolated_cache_environment):
         """Test that different tags use separate filesystem directories."""
-        from glovebox.core.cache_v2.cache_coordinator import (
+        from glovebox.core.cache.cache_coordinator import (
             reset_shared_cache_instances,
         )
 

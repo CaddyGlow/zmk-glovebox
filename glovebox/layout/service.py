@@ -84,33 +84,33 @@ class LayoutService(BaseService):
         return process_json_file(
             json_file_path,
             "Keymap generation",
-            lambda data: self.generate(profile, data, output_file_prefix, force),
+            lambda data: self.compile(profile, data, output_file_prefix, force),
             self._file_adapter,
         )
 
-    def decompose_components_from_file(
+    def split_components_from_file(
         self,
         profile: "KeyboardProfile",
         json_file_path: Path,
         output_dir: Path,
         force: bool = False,
     ) -> LayoutResult:
-        """Decompose keymap components from a JSON file into separate files."""
+        """Split keymap components from a JSON file into separate files."""
         return process_json_file(
             json_file_path,
-            "Component decomposition",
-            lambda data: self.decompose_components(profile, data, output_dir, force),
+            "Component split",
+            lambda data: self.split_components(profile, data, output_dir, force),
             self._file_adapter,
         )
 
-    def generate_from_directory(
+    def compile_from_directory(
         self,
         profile: "KeyboardProfile",
         components_dir: Path,
         output_file_prefix: str | Path,
         force: bool = False,
     ) -> LayoutResult:
-        """Generate keymap components from a directory into a complete keymap."""
+        """Compile keymap components from a directory into a complete keymap."""
         # Read metadata file to get base layout structure
         metadata_file = components_dir / "metadata.json"
         if not metadata_file.exists():
@@ -119,14 +119,14 @@ class LayoutService(BaseService):
         metadata_data = self._file_adapter.read_json(metadata_file)
         base_layout = LayoutData.model_validate(metadata_data)
 
-        # Combine components using the component service
+        #  Merged components using the component service
         layers_dir = components_dir / "layers"
-        combined_layout = self._component_service.compose_components(
+        combined_layout = self._component_service.merge_components(
             base_layout, layers_dir
         )
 
         # Generate the combined keymap files using the normal generate process
-        return self.generate(profile, combined_layout, output_file_prefix, force)
+        return self.compile(profile, combined_layout, output_file_prefix, force)
 
     def show_from_file(
         self,
@@ -159,7 +159,7 @@ class LayoutService(BaseService):
 
     # Data-based public methods
 
-    def generate(
+    def compile(
         self,
         profile: "KeyboardProfile",
         keymap_data: LayoutData,
@@ -340,7 +340,7 @@ class LayoutService(BaseService):
 
         return result
 
-    def decompose_components(
+    def split_components(
         self,
         profile: "KeyboardProfile",
         keymap_data: LayoutData,
@@ -349,7 +349,7 @@ class LayoutService(BaseService):
     ) -> LayoutResult:
         """Decompose keymap components into separate files."""
         # The component service method doesn't need profile and force parameters
-        return self._component_service.decompose_components(keymap_data, output_dir)
+        return self._component_service.split_components(keymap_data, output_dir)
 
     def show(
         self,

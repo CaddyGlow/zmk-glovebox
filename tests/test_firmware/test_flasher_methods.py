@@ -96,7 +96,7 @@ class TestUSBFlasherInit:
         mock_create_usb.return_value = mock_usb
         mock_create_file.return_value = mock_file
 
-        flasher = USBFlasher()
+        flasher = USBFlasher(mock_usb, mock_file)
 
         mock_create_usb.assert_called_once()
         mock_create_file.assert_called_once()
@@ -109,7 +109,7 @@ class TestUSBFlasherInit:
         mock_usb = Mock()
         mock_create_usb.return_value = mock_usb
 
-        flasher = USBFlasher(file_adapter=mock_file_adapter)
+        flasher = USBFlasher(usb_adapter=mock_usb, file_adapter=mock_file_adapter)
 
         mock_create_usb.assert_called_once()
         assert flasher.usb_adapter is mock_usb
@@ -688,7 +688,7 @@ class TestCreateUSBFlasher:
             mock_create_usb.return_value = mock_usb
             mock_create_file.return_value = mock_file
 
-            flasher = create_usb_flasher()
+            flasher = create_usb_flasher(mock_usb, mock_file)
 
             assert isinstance(flasher, USBFlasher)
             assert flasher.usb_adapter is mock_usb

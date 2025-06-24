@@ -132,7 +132,7 @@ def split(
 
         layout_service = _create_layout_service_with_dependencies()
 
-        result = layout_service.decompose_components_from_file(
+        result = layout_service.split_components_from_file(
             profile=keyboard_profile,
             json_file_path=resolved_layout_file,
             output_dir=output_dir,
@@ -215,7 +215,7 @@ def merge(
         layout_service = _create_layout_service_with_dependencies()
         keyboard_profile = get_keyboard_profile_from_context(ctx)
 
-        result = layout_service.generate_from_directory(
+        result = layout_service.compile_from_directory(
             profile=keyboard_profile,
             components_dir=input_dir,
             output_file_prefix=output_file,

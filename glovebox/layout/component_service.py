@@ -23,10 +23,10 @@ ResultDict: TypeAlias = dict[str, Any]
 
 
 class LayoutComponentService(BaseService):
-    """Service for decomposing and composing layout components.
+    """Service for splitting's and merging layout components.
 
-    Responsible for decomposing layouts into individual layers and files,
-    and composing those files into complete layout data.
+    Responsible for splitting layouts into individual layers and files,
+    and merging those files into complete layout data.
     """
 
     def __init__(self, file_adapter: FileAdapterProtocol):
@@ -34,10 +34,8 @@ class LayoutComponentService(BaseService):
         super().__init__(service_name="LayoutComponentService", service_version="1.0.0")
         self._file_adapter = file_adapter
 
-    def decompose_components(
-        self, layout: LayoutData, output_dir: Path
-    ) -> LayoutResult:
-        """Decompose layout into individual components and layers.
+    def split_components(self, layout: LayoutData, output_dir: Path) -> LayoutResult:
+        """Split layout into individual components and layers.
 
         Args:
             layout: Layout data model
@@ -81,22 +79,22 @@ class LayoutComponentService(BaseService):
             logger.error("Layer extraction failed: %s", e)
             raise LayoutError(f"Layer extraction failed: {e}") from e
 
-    def compose_components(
+    def merge_components(
         self, metadata_layout: LayoutData, layers_dir: Path
     ) -> LayoutData:
-        """Compose extracted components into a complete layout.
+        """Merge extracted components into a complete layout.
 
         Args:
             base_layout: Base layout data model without layers
             layers_dir: Directory containing individual layer files
 
         Returns:
-            Combined layout as LayoutData model
+            Merged layout as LayoutData model
 
         Raises:
             LayoutError: If combination fails
         """
-        logger.info("Combining layers from %s", layers_dir)
+        # logger.info("Merging layers from %s", layers_dir)
 
         layers_dir = layers_dir.resolve()
 
@@ -106,21 +104,21 @@ class LayoutComponentService(BaseService):
 
         # Create a new combined layout starting with metadata
         # We'll work directly with the Pydantic model throughout the process
-        combined_layout = LayoutData.model_validate(metadata_layout)
+        merged_layout = LayoutData.model_validate(metadata_layout)
 
         # Process layers and add them to the model
-        self._process_layers_for_combination(combined_layout, layers_dir)
+        self._process_layers_for_merging(merged_layout, layers_dir)
 
         # Add DTSI content from separate files
         parent_dir = layers_dir.parent
-        self._add_dtsi_content_from_files(combined_layout, parent_dir)
+        self._add_dtsi_content_from_files(merged_layout, parent_dir)
 
         # Add behavior data from behaviors.json if it exists
-        self._add_behavior_data_from_file(combined_layout, parent_dir)
+        self._add_behavior_data_from_file(merged_layout, parent_dir)
 
-        logger.info("Successfully combined %d layers", len(combined_layout.layers))
+        logger.info("Successfully merged %d layers", len(merged_layout.layers))
 
-        return combined_layout
+        return merged_layout
 
     # Private helper methods for extraction
 
@@ -267,22 +265,22 @@ class LayoutComponentService(BaseService):
             )
             logger.info("Extracted layer '%s' to %s", layer_name, output_file)
 
-    # Helper methods for layer combination
+    # Helper methods for layer merging
 
-    def _process_layers_for_combination(
-        self, combined_layout: LayoutData, layers_dir: Path
+    def _process_layers_for_merging(
+        self, merged_layout: LayoutData, layers_dir: Path
     ) -> None:
-        """Process and combine layer files.
+        """Process and merged layer files.
 
         Args:
-            combined_layout: Base layout data model to which layers will be added
+            merged_layout: Base layout data model to which layers will be added
             layers_dir: Directory containing layer files
         """
         from glovebox.layout.models import LayoutBinding
 
         # Clear existing layers while preserving layer names
-        combined_layout.layers = []
-        layer_names = combined_layout.layer_names
+        merged_layout.layers = []
+        layer_names = merged_layout.layer_names
 
         logger.info(
             "Expecting %d layers based on metadata.json: %s",
@@ -290,8 +288,26 @@ class LayoutComponentService(BaseService):
             layer_names,
         )
 
-        # Determine expected number of keys per layer
-        num_keys = 80  # Default for Glove80
+        # Determine expected number of keys per layer from keyboard config
+        try:
+            from glovebox.config.keyboard_profile import load_keyboard_config
+
+            keyboard_config = load_keyboard_config(merged_layout.keyboard)
+            num_keys = keyboard_config.key_count
+            logger.debug(
+                "Using key count %d from keyboard config for %s",
+                num_keys,
+                merged_layout.keyboard,
+            )
+        except Exception as e:
+            # Fall back to default if keyboard config cannot be loaded
+            num_keys = 80  # Default fallback
+            logger.warning(
+                "Could not load keyboard config for %s: %s. Using default key count %d",
+                merged_layout.keyboard,
+                e,
+                num_keys,
+            )
         empty_binding = LayoutBinding(value="&none", params=[])
         empty_layer = [LayoutBinding(value="&none", params=[]) for _ in range(num_keys)]
 
@@ -309,7 +325,7 @@ class LayoutComponentService(BaseService):
                     layer_file.name,
                     layer_name,
                 )
-                combined_layout.layers.append(empty_layer)
+                merged_layout.layers.append(empty_layer)
                 continue
 
             logger.info(
@@ -357,7 +373,7 @@ class LayoutComponentService(BaseService):
                             )
                             typed_layer.append(empty_binding)
 
-                    combined_layout.layers.append(typed_layer)
+                    merged_layout.layers.append(typed_layer)
                     logger.info("Added layer '%s' (index %d)", layer_name, i)
                     found_layer_count += 1
                 else:
@@ -367,7 +383,7 @@ class LayoutComponentService(BaseService):
                         layer_file.name,
                         layer_name,
                     )
-                    combined_layout.layers.append(empty_layer)
+                    merged_layout.layers.append(empty_layer)
 
             except Exception as e:
                 logger.error(
@@ -375,7 +391,7 @@ class LayoutComponentService(BaseService):
                     layer_file.name,
                     e,
                 )
-                combined_layout.layers.append(empty_layer)
+                merged_layout.layers.append(empty_layer)
 
         logger.info(
             "Successfully processed %d out of %d expected layers.",
@@ -384,12 +400,12 @@ class LayoutComponentService(BaseService):
         )
 
     def _add_dtsi_content_from_files(
-        self, combined_layout: LayoutData, input_dir: Path
+        self, merged_layout: LayoutData, input_dir: Path
     ) -> None:
         """Add DTSI content from separate files to combined layout.
 
         Args:
-            combined_layout: Keymap data model to which DTSI content will be added
+            merged_layout: Keymap data model to which DTSI content will be added
             input_dir: Directory containing DTSI files
         """
         device_dtsi_path = input_dir / "device.dtsi"
@@ -397,29 +413,29 @@ class LayoutComponentService(BaseService):
 
         # Read device.dtsi if exists
         if self._file_adapter.is_file(device_dtsi_path):
-            combined_layout.custom_devicetree = self._file_adapter.read_text(
+            merged_layout.custom_devicetree = self._file_adapter.read_text(
                 device_dtsi_path
             )
             logger.info("Restored custom_devicetree from device.dtsi.")
         else:
-            combined_layout.custom_devicetree = ""
+            merged_layout.custom_devicetree = ""
 
         # Read keymap.dtsi if exists
         if self._file_adapter.is_file(keymap_dtsi_path):
-            combined_layout.custom_defined_behaviors = self._file_adapter.read_text(
+            merged_layout.custom_defined_behaviors = self._file_adapter.read_text(
                 keymap_dtsi_path
             )
             logger.info("Restored custom_defined_behaviors from keymap.dtsi.")
         else:
-            combined_layout.custom_defined_behaviors = ""
+            merged_layout.custom_defined_behaviors = ""
 
     def _add_behavior_data_from_file(
-        self, combined_layout: LayoutData, input_dir: Path
+        self, merged_layout: LayoutData, input_dir: Path
     ) -> None:
-        """Add behavior data from behaviors.json file to combined layout.
+        """Add behavior data from behaviors.json file to merged layout.
 
         Args:
-            combined_layout: Layout data model to which behavior data will be added
+            merged_layout: Layout data model to which behavior data will be added
             input_dir: Directory containing behaviors.json file
         """
         behaviors_file = input_dir / "behaviors.json"
@@ -430,12 +446,12 @@ class LayoutComponentService(BaseService):
                 behavior_data = BehaviorData.model_validate(behavior_dict)
 
                 # Apply behavior data to the combined layout
-                combined_layout.variables = behavior_data.variables
-                combined_layout.hold_taps = behavior_data.hold_taps
-                combined_layout.combos = behavior_data.combos
-                combined_layout.macros = behavior_data.macros
-                combined_layout.input_listeners = behavior_data.input_listeners
-                combined_layout.config_parameters = behavior_data.config_parameters
+                merged_layout.variables = behavior_data.variables
+                merged_layout.hold_taps = behavior_data.hold_taps
+                merged_layout.combos = behavior_data.combos
+                merged_layout.macros = behavior_data.macros
+                merged_layout.input_listeners = behavior_data.input_listeners
+                merged_layout.config_parameters = behavior_data.config_parameters
 
                 logger.info("Restored behavior definitions from behaviors.json")
             except Exception as e:
@@ -446,12 +462,12 @@ class LayoutComponentService(BaseService):
         else:
             logger.debug("No behaviors.json file found, using empty behavior data")
             # Initialize with empty behavior data
-            combined_layout.variables = {}
-            combined_layout.hold_taps = []
-            combined_layout.combos = []
-            combined_layout.macros = []
-            combined_layout.input_listeners = []
-            combined_layout.config_parameters = []
+            merged_layout.variables = {}
+            merged_layout.hold_taps = []
+            merged_layout.combos = []
+            merged_layout.macros = []
+            merged_layout.input_listeners = []
+            merged_layout.config_parameters = []
 
 
 def create_layout_component_service(

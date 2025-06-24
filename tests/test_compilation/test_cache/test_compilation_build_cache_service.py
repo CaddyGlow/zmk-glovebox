@@ -12,7 +12,7 @@ from glovebox.compilation.cache.compilation_build_cache_service import (
     CompilationBuildCacheService,
 )
 from glovebox.config.user_config import UserConfig
-from glovebox.core.cache_v2.cache_manager import CacheManager
+from glovebox.core.cache.cache_manager import CacheManager
 
 
 class TestCompilationBuildCacheService:
@@ -356,7 +356,7 @@ class TestCompilationBuildCacheService:
     ):
         """Integration test: cache a build and retrieve it."""
         # Use real cache manager for integration test
-        from glovebox.core.cache_v2 import create_default_cache
+        from glovebox.core.cache import create_default_cache
 
         cache_manager = create_default_cache(tag="compilation_test")
         service = CompilationBuildCacheService(isolated_config, cache_manager)

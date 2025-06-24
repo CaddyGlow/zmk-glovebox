@@ -7,8 +7,8 @@ from urllib.parse import urljoin
 
 import requests
 
-from glovebox.core.cache_v2 import create_cache_from_user_config
-from glovebox.core.cache_v2.cache_manager import CacheManager
+from glovebox.core.cache import create_cache_from_user_config
+from glovebox.core.cache.cache_manager import CacheManager
 
 from .auth import Glove80Auth
 from .credentials import CredentialManager

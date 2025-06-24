@@ -7,8 +7,8 @@ from urllib.parse import urljoin
 
 import requests
 
-from glovebox.core.cache_v2.cache_manager import CacheManager
-from glovebox.core.cache_v2.models import CacheKey
+from glovebox.core.cache.cache_manager import CacheManager
+from glovebox.core.cache.models import CacheKey
 
 from .base_client import MoErgoBaseClient
 from .credentials import CredentialManager

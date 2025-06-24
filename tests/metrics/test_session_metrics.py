@@ -20,7 +20,7 @@ from glovebox.metrics.session_metrics import (
 
 def create_test_session_metrics(session_id: str = "test-session") -> SessionMetrics:
     """Helper to create SessionMetrics for testing with cache."""
-    from glovebox.core.cache_v2 import create_default_cache
+    from glovebox.core.cache import create_default_cache
 
     cache_manager = create_default_cache(tag="test_metrics")
     return SessionMetrics(cache_manager, session_id)
@@ -350,7 +350,7 @@ class TestSessionMetricsSerialization:
 
     def test_save_metrics_to_cache(self, tmp_path):
         """Test saving metrics to cache."""
-        from glovebox.core.cache_v2 import create_default_cache
+        from glovebox.core.cache import create_default_cache
 
         cache_manager = create_default_cache(tag="test_metrics")
         session_uuid = "test-save-metrics"
@@ -476,7 +476,7 @@ class TestFactoryFunction:
 
     def test_create_session_metrics_with_cache_manager(self):
         """Test create_session_metrics with explicit cache manager."""
-        from glovebox.core.cache_v2 import create_default_cache
+        from glovebox.core.cache import create_default_cache
 
         cache_manager = create_default_cache(tag="test_metrics")
         session_uuid = "test-factory-with-cache"
@@ -492,7 +492,7 @@ class TestSessionInfo:
 
     def test_cli_args_tracking(self, tmp_path):
         """Test CLI arguments tracking functionality."""
-        from glovebox.core.cache_v2 import create_default_cache
+        from glovebox.core.cache import create_default_cache
 
         cache_manager = create_default_cache(tag="test_metrics")
         session_uuid = "test-session-cli-args"
@@ -512,7 +512,7 @@ class TestSessionInfo:
 
     def test_exit_code_tracking(self, tmp_path):
         """Test exit code tracking functionality."""
-        from glovebox.core.cache_v2 import create_default_cache
+        from glovebox.core.cache import create_default_cache
 
         cache_manager = create_default_cache(tag="test_metrics")
         session_uuid = "test-session-exit-code"
@@ -535,7 +535,7 @@ class TestSessionInfo:
 
     def test_cli_args_copy_protection(self, tmp_path):
         """Test that CLI args are copied to prevent external mutations."""
-        from glovebox.core.cache_v2 import create_default_cache
+        from glovebox.core.cache import create_default_cache
 
         cache_manager = create_default_cache(tag="test_metrics")
         session_uuid = "test-session-copy-protection"

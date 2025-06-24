@@ -370,6 +370,6 @@ class TestLayoutComponentService:
             default_adapter = Mock(spec=FileAdapterProtocol)
             mock_create.return_value = default_adapter
 
-            service = create_layout_component_service()
+            service = create_layout_component_service(default_adapter)
             assert isinstance(service, LayoutComponentService)
             assert service._file_adapter == default_adapter

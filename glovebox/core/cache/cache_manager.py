@@ -2,7 +2,7 @@
 
 from typing import Any, Protocol, runtime_checkable
 
-from glovebox.core.cache_v2.models import CacheMetadata, CacheStats
+from glovebox.core.cache.models import CacheMetadata, CacheStats
 
 
 @runtime_checkable

@@ -34,7 +34,7 @@ class VariableResolutionContext:
 def load_layout_file(
     file_path: Path,
     file_adapter: FileAdapterProtocol,
-    skip_variable_resolution: bool = False
+    skip_variable_resolution: bool = False,
 ) -> LayoutData:
     """Load and validate a layout JSON file.
 

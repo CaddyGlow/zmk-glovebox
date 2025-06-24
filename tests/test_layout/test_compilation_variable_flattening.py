@@ -9,6 +9,7 @@ This test file verifies that:
 import json
 import tempfile
 from pathlib import Path
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
@@ -22,42 +23,50 @@ class TestCompilationVariableFlattening:
     """Test that compilation properly flattens variables in JSON output."""
 
     @pytest.fixture
-    def sample_layout_with_variables(self) -> dict:
+    def sample_layout_with_variables(self) -> dict[str, Any]:
         """Sample layout with variables that should be flattened during compilation."""
         return {
             "keyboard": "test_keyboard",
             "title": "Compilation Test Layout",
             "layer_names": ["base", "sym"],
             "layers": [
-                [{"value": "&kp", "params": [{"value": "Q"}]}, {"value": "&kp", "params": [{"value": "W"}]}, {"value": "&kp", "params": [{"value": "E"}]}],
-                [{"value": "&kp", "params": [{"value": "1"}]}, {"value": "&kp", "params": [{"value": "2"}]}, {"value": "&kp", "params": [{"value": "3"}]}]
+                [
+                    {"value": "&kp", "params": [{"value": "Q"}]},
+                    {"value": "&kp", "params": [{"value": "W"}]},
+                    {"value": "&kp", "params": [{"value": "E"}]},
+                ],
+                [
+                    {"value": "&kp", "params": [{"value": "1"}]},
+                    {"value": "&kp", "params": [{"value": "2"}]},
+                    {"value": "&kp", "params": [{"value": "3"}]},
+                ],
             ],
             "variables": {
                 "tapMs": 150,
                 "holdMs": 200,
                 "flavor": "tap-preferred",
-                "quickTap": 100
+                "quickTap": 100,
             },
             "hold_taps": [
                 {
                     "name": "&ht_tap",
                     "tapping_term_ms": "${tapMs}",
                     "quick_tap_ms": "${quickTap}",
-                    "flavor": "${flavor}"
+                    "flavor": "${flavor}",
                 },
                 {
                     "name": "&ht_hold",
                     "tapping_term_ms": "${holdMs}",
                     "quick_tap_ms": "${quickTap}",
-                    "flavor": "${flavor}"
-                }
+                    "flavor": "${flavor}",
+                },
             ],
             "behaviors": {
                 "custom_tap": {
                     "type": "hold_tap",
                     "tapping_term_ms": "${tapMs}",
                     "flavor": "${flavor}",
-                    "bindings": ["&kp", "&mo"]
+                    "bindings": ["&kp", "&mo"],
                 }
             },
             "combos": [
@@ -65,7 +74,7 @@ class TestCompilationVariableFlattening:
                     "name": "esc_combo",
                     "timeout_ms": "${quickTap}",
                     "keyPositions": [0, 1],
-                    "binding": {"value": "&kp", "params": [{"value": "ESC"}]}
+                    "binding": {"value": "&kp", "params": [{"value": "ESC"}]},
                 }
             ],
             "macros": [
@@ -73,24 +82,31 @@ class TestCompilationVariableFlattening:
                     "name": "test_macro",
                     "wait_ms": "${quickTap}",
                     "tap_ms": "${tapMs}",
-                    "bindings": [{"value": "&kp", "params": [{"value": "A"}]}, {"value": "&kp", "params": [{"value": "B"}]}]
+                    "bindings": [
+                        {"value": "&kp", "params": [{"value": "A"}]},
+                        {"value": "&kp", "params": [{"value": "B"}]},
+                    ],
                 }
-            ]
+            ],
         }
 
     @pytest.fixture
     def layout_file_with_variables(self, sample_layout_with_variables) -> Path:
         """Create a temporary layout file with variables."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(sample_layout_with_variables, f, indent=2)
             return Path(f.name)
 
-    def test_to_flattened_dict_removes_variables_section(self, sample_layout_with_variables):
+    def test_to_flattened_dict_removes_variables_section(
+        self, sample_layout_with_variables
+    ):
         """Test that to_flattened_dict() removes the variables section."""
         # Load the layout with variables preserved (skip resolution)
         from glovebox.layout.utils.json_operations import _skip_variable_resolution
+
         old_skip = _skip_variable_resolution
         from glovebox.layout.utils import json_operations
+
         json_operations._skip_variable_resolution = True
 
         try:
@@ -102,12 +118,16 @@ class TestCompilationVariableFlattening:
         flattened = layout_data.to_flattened_dict()
 
         # Variables section should be completely removed
-        assert "variables" not in flattened, "Variables section should be removed in flattened output"
+        assert "variables" not in flattened, (
+            "Variables section should be removed in flattened output"
+        )
 
         # All variable references should be resolved to their values
         assert flattened["hold_taps"][0]["tapping_term_ms"] == 150  # ${tapMs} → 150
-        assert flattened["hold_taps"][0]["quick_tap_ms"] == 100     # ${quickTap} → 100
-        assert flattened["hold_taps"][0]["flavor"] == "tap-preferred"  # ${flavor} → "tap-preferred"
+        assert flattened["hold_taps"][0]["quick_tap_ms"] == 100  # ${quickTap} → 100
+        assert (
+            flattened["hold_taps"][0]["flavor"] == "tap-preferred"
+        )  # ${flavor} → "tap-preferred"
 
         assert flattened["hold_taps"][1]["tapping_term_ms"] == 200  # ${holdMs} → 200
         assert flattened["hold_taps"][1]["quick_tap_ms"] == 100
@@ -128,8 +148,10 @@ class TestCompilationVariableFlattening:
         """
         # Load the layout with variables preserved
         from glovebox.layout.utils.json_operations import _skip_variable_resolution
+
         old_skip = _skip_variable_resolution
         from glovebox.layout.utils import json_operations
+
         json_operations._skip_variable_resolution = True
 
         try:
@@ -146,7 +168,10 @@ class TestCompilationVariableFlattening:
         # Verify that all variable references are resolved
         assert flattened_for_compilation["hold_taps"][0]["tapping_term_ms"] == 150
         assert flattened_for_compilation["hold_taps"][0]["flavor"] == "tap-preferred"
-        assert flattened_for_compilation["behaviors"]["custom_tap"]["tapping_term_ms"] == 150
+        assert (
+            flattened_for_compilation["behaviors"]["custom_tap"]["tapping_term_ms"]
+            == 150
+        )
 
         # Verify JSON serialization works properly
         json_output = json.dumps(flattened_for_compilation, indent=2)
@@ -156,8 +181,10 @@ class TestCompilationVariableFlattening:
         """Test that JSON output from compilation contains no variable references."""
         # Load the layout with variables preserved
         from glovebox.layout.utils.json_operations import _skip_variable_resolution
+
         old_skip = _skip_variable_resolution
         from glovebox.layout.utils import json_operations
+
         json_operations._skip_variable_resolution = True
 
         try:
@@ -172,7 +199,9 @@ class TestCompilationVariableFlattening:
         json_str = json.dumps(flattened, indent=2)
 
         # Verify no variable reference syntax remains in the JSON
-        assert "${" not in json_str, "Flattened JSON should not contain variable references"
+        assert "${" not in json_str, (
+            "Flattened JSON should not contain variable references"
+        )
 
         # Parse back and verify all values are resolved
         parsed = json.loads(json_str)
@@ -184,12 +213,16 @@ class TestCompilationVariableFlattening:
             assert isinstance(hold_tap["flavor"], str)
             assert not hold_tap["flavor"].startswith("${")
 
-    def test_flattening_preserves_non_variable_fields(self, sample_layout_with_variables):
+    def test_flattening_preserves_non_variable_fields(
+        self, sample_layout_with_variables
+    ):
         """Test that flattening preserves all non-variable fields correctly."""
         # Load the layout with variables preserved
         from glovebox.layout.utils.json_operations import _skip_variable_resolution
+
         old_skip = _skip_variable_resolution
         from glovebox.layout.utils import json_operations
+
         json_operations._skip_variable_resolution = True
 
         try:
@@ -205,8 +238,16 @@ class TestCompilationVariableFlattening:
         assert flattened["title"] == "Compilation Test Layout"
         assert flattened["layer_names"] == ["base", "sym"]
         assert flattened["layers"] == [
-            [{"value": "&kp", "params": [{"value": "Q"}]}, {"value": "&kp", "params": [{"value": "W"}]}, {"value": "&kp", "params": [{"value": "E"}]}],
-            [{"value": "&kp", "params": [{"value": "1"}]}, {"value": "&kp", "params": [{"value": "2"}]}, {"value": "&kp", "params": [{"value": "3"}]}]
+            [
+                {"value": "&kp", "params": [{"value": "Q"}]},
+                {"value": "&kp", "params": [{"value": "W"}]},
+                {"value": "&kp", "params": [{"value": "E"}]},
+            ],
+            [
+                {"value": "&kp", "params": [{"value": "1"}]},
+                {"value": "&kp", "params": [{"value": "2"}]},
+                {"value": "&kp", "params": [{"value": "3"}]},
+            ],
         ]
 
         # Behavior structures should be preserved (only variable values resolved)
@@ -238,29 +279,35 @@ class TestCompilationVariableFlattening:
                 "fast_timing": "${base_timing}",  # Variable references another variable
                 "display_text": "Timing: ${fast_timing}ms",  # String interpolation
                 "positions": [0, 1, 2],  # Array value
-                "config": {"timeout": "${base_timing}"}  # Object value
+                "config": {"timeout": "${base_timing}"},  # Object value
             },
             "combos": [
                 {
                     "name": "test_combo",
                     "timeout_ms": "${fast_timing}",
-                    "keyPositions": [0, 1, 2],  # Direct values to avoid validation issues
-                    "binding": {"value": "&kp", "params": [{"value": "ESC"}]}
+                    "keyPositions": [
+                        0,
+                        1,
+                        2,
+                    ],  # Direct values to avoid validation issues
+                    "binding": {"value": "&kp", "params": [{"value": "ESC"}]},
                 }
             ],
             "behaviors": {
                 "test_behavior": {
                     "type": "hold_tap",
                     "tapping_term_ms": "${config.timeout}",  # Nested property access
-                    "flavor": "tap-preferred"
+                    "flavor": "tap-preferred",
                 }
-            }
+            },
         }
 
         # Load with variables preserved
         from glovebox.layout.utils.json_operations import _skip_variable_resolution
+
         old_skip = _skip_variable_resolution
         from glovebox.layout.utils import json_operations
+
         json_operations._skip_variable_resolution = True
 
         try:
@@ -275,9 +322,17 @@ class TestCompilationVariableFlattening:
         assert "variables" not in flattened
 
         # Complex variable resolution should work correctly
-        assert flattened["combos"][0]["timeout_ms"] == 200  # ${fast_timing} → ${base_timing} → 200
-        assert flattened["combos"][0]["keyPositions"] == [0, 1, 2]  # Direct values preserved
-        assert flattened["behaviors"]["test_behavior"]["tapping_term_ms"] == 200  # Nested access
+        assert (
+            flattened["combos"][0]["timeout_ms"] == 200
+        )  # ${fast_timing} → ${base_timing} → 200
+        assert flattened["combos"][0]["keyPositions"] == [
+            0,
+            1,
+            2,
+        ]  # Direct values preserved
+        assert (
+            flattened["behaviors"]["test_behavior"]["tapping_term_ms"] == 200
+        )  # Nested access
 
         # Verify no variable syntax remains
         json_str = json.dumps(flattened)
@@ -285,17 +340,26 @@ class TestCompilationVariableFlattening:
         assert "base_timing" not in json_str
         assert "fast_timing" not in json_str
 
-    def test_compilation_vs_editing_behavior_difference(self, layout_file_with_variables):
+    def test_compilation_vs_editing_behavior_difference(
+        self, layout_file_with_variables
+    ):
         """Test that compilation flattens variables while editing preserves them."""
         file_adapter = create_file_adapter()
 
         # 1. Load for editing (should preserve variables)
         from glovebox.layout.utils.json_operations import load_layout_file
-        edit_layout = load_layout_file(layout_file_with_variables, file_adapter, skip_variable_resolution=True)
-        edit_dict = edit_layout.model_dump(mode="json", by_alias=True, exclude_unset=True)
+
+        edit_layout = load_layout_file(
+            layout_file_with_variables, file_adapter, skip_variable_resolution=True
+        )
+        edit_dict = edit_layout.model_dump(
+            mode="json", by_alias=True, exclude_unset=True
+        )
 
         # 2. Load for compilation (should allow variable resolution)
-        compile_layout = load_layout_file(layout_file_with_variables, file_adapter, skip_variable_resolution=False)
+        compile_layout = load_layout_file(
+            layout_file_with_variables, file_adapter, skip_variable_resolution=False
+        )
         compile_dict = compile_layout.to_flattened_dict()
 
         # Edit version should preserve variable references

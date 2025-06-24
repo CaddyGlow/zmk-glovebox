@@ -8,7 +8,7 @@ from glovebox.compilation.cache.workspace_cache_service import (
     WorkspaceCacheMetadata,
     ZmkWorkspaceCacheService,
 )
-from glovebox.core.cache_v2.models import CacheKey
+from glovebox.core.cache.models import CacheKey
 
 
 logger = logging.getLogger(__name__)

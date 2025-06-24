@@ -165,7 +165,7 @@ class TestBehaviorDecomposition:
         """Test decomposing a layout that contains behavior definitions."""
         component_service = create_layout_component_service_for_tests()
 
-        result = component_service.decompose_components(
+        result = component_service.split_components(
             sample_layout_with_behaviors, tmp_path
         )
 
@@ -191,7 +191,7 @@ class TestBehaviorDecomposition:
         """Test decomposing a layout that has no behavior definitions."""
         component_service = create_layout_component_service_for_tests()
 
-        result = component_service.decompose_components(
+        result = component_service.split_components(
             sample_layout_without_behaviors, tmp_path
         )
 
@@ -207,7 +207,7 @@ class TestBehaviorDecomposition:
         """Test that metadata.json excludes behavior fields."""
         component_service = create_layout_component_service_for_tests()
 
-        component_service.decompose_components(sample_layout_with_behaviors, tmp_path)
+        component_service.split_components(sample_layout_with_behaviors, tmp_path)
 
         # Check metadata.json content
         metadata_file = tmp_path / "metadata.json"
@@ -239,7 +239,7 @@ class TestBehaviorDecomposition:
         """Test that decomposition creates the expected directory structure."""
         component_service = create_layout_component_service_for_tests()
 
-        component_service.decompose_components(sample_layout_with_behaviors, tmp_path)
+        component_service.split_components(sample_layout_with_behaviors, tmp_path)
 
         # Check expected files and directories
         assert (tmp_path / "metadata.json").exists()
@@ -303,7 +303,7 @@ class TestBehaviorComposition:
 
         # Load metadata and compose
         metadata_layout = LayoutData.model_validate(metadata_data)
-        composed_layout = component_service.compose_components(
+        composed_layout = component_service.merge_components(
             metadata_layout, layers_dir
         )
 
@@ -343,7 +343,7 @@ class TestBehaviorComposition:
 
         # Load metadata and compose
         metadata_layout = LayoutData.model_validate(metadata_data)
-        composed_layout = component_service.compose_components(
+        composed_layout = component_service.merge_components(
             metadata_layout, layers_dir
         )
 
@@ -359,7 +359,7 @@ class TestBehaviorComposition:
         component_service = create_layout_component_service_for_tests()
 
         # Decompose the layout
-        decompose_result = component_service.decompose_components(
+        decompose_result = component_service.split_components(
             sample_layout_with_behaviors, tmp_path
         )
         assert decompose_result.success
@@ -372,7 +372,7 @@ class TestBehaviorComposition:
 
         # Compose the layout back
         layers_dir = tmp_path / "layers"
-        composed_layout = component_service.compose_components(
+        composed_layout = component_service.merge_components(
             metadata_layout, layers_dir
         )
 
@@ -425,7 +425,7 @@ class TestBehaviorComposition:
 
         # Load metadata and compose - should not fail but continue without behavior data
         metadata_layout = LayoutData.model_validate(metadata_data)
-        composed_layout = component_service.compose_components(
+        composed_layout = component_service.merge_components(
             metadata_layout, layers_dir
         )
 

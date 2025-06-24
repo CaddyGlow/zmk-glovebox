@@ -12,8 +12,8 @@ from glovebox.compilation.cache.models import (
 )
 from glovebox.config.models.cache import CacheLevel
 from glovebox.config.user_config import UserConfig
-from glovebox.core.cache_v2.cache_manager import CacheManager
-from glovebox.core.cache_v2.models import CacheKey
+from glovebox.core.cache.cache_manager import CacheManager
+from glovebox.core.cache.models import CacheKey
 from glovebox.core.file_operations import create_copy_service
 from glovebox.core.file_operations.enums import CopyStrategy
 

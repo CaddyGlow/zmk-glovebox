@@ -10,8 +10,8 @@ from typer.testing import CliRunner
 
 from glovebox.cli.app import app
 from glovebox.cli.commands import register_all_commands
-from glovebox.core.cache_v2 import create_default_cache
-from glovebox.core.cache_v2.cache_coordinator import reset_shared_cache_instances
+from glovebox.core.cache import create_default_cache
+from glovebox.core.cache.cache_coordinator import reset_shared_cache_instances
 
 
 class TestCacheClearCommand:
