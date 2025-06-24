@@ -171,7 +171,7 @@ class LayoutService(BaseService):
 
         # Import metrics here to avoid circular dependencies
         try:
-            from glovebox.metrics.collector import (  # type: ignore[import-untyped]
+            from glovebox.core.metrics.collector import (  # type: ignore[import-untyped]
                 layout_metrics,
             )
 

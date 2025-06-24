@@ -90,7 +90,7 @@ class ZmkWorkspaceCacheService:
         """
         # Import metrics here to avoid circular dependencies
         try:
-            from glovebox.metrics.collector import (  # type: ignore[import-untyped]
+            from glovebox.core.metrics.collector import (  # type: ignore[import-untyped]
                 compilation_metrics,
             )
 
@@ -134,7 +134,7 @@ class ZmkWorkspaceCacheService:
         """
         # Import metrics here to avoid circular dependencies
         try:
-            from glovebox.metrics.collector import (
+            from glovebox.core.metrics.collector import (
                 compilation_metrics,
             )
 
@@ -177,7 +177,7 @@ class ZmkWorkspaceCacheService:
         """
         # Import metrics here to avoid circular dependencies
         try:
-            from glovebox.metrics.collector import (
+            from glovebox.core.metrics.collector import (
                 compilation_metrics,
             )
 

@@ -17,7 +17,7 @@ from glovebox.cli.helpers.theme import Icons
 from glovebox.config.user_config import create_user_config
 from glovebox.core.cache import create_default_cache
 from glovebox.core.cache.cache_manager import CacheManager
-from glovebox.metrics.session_metrics import create_session_metrics
+from glovebox.core.metrics.session_metrics import create_session_metrics
 
 
 logger = logging.getLogger(__name__)

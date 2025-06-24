@@ -14,7 +14,7 @@ from glovebox.compilation.protocols.compilation_protocols import (
 
 if TYPE_CHECKING:
     from glovebox.config.user_config import UserConfig
-    from glovebox.metrics.session_metrics import SessionMetrics
+    from glovebox.core.metrics.session_metrics import SessionMetrics
     from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
 
 

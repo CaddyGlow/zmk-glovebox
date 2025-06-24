@@ -33,8 +33,8 @@ from glovebox.core.cache.models import CacheKey
 from glovebox.core.errors import CompilationError
 from glovebox.core.file_operations.enums import CopyStrategy
 from glovebox.core.file_operations.service import FileCopyService, create_copy_service
+from glovebox.core.metrics.session_metrics import SessionMetrics
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
-from glovebox.metrics.session_metrics import SessionMetrics
 from glovebox.models.docker import DockerUserContext
 from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
 from glovebox.utils.stream_process import DefaultOutputMiddleware
