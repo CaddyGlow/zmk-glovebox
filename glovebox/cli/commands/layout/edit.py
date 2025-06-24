@@ -19,6 +19,7 @@ from glovebox.layout.utils.variable_resolver import VariableResolver
 
 console = Console()
 
+
 @handle_errors
 def edit(
     layout_file: Annotated[Path, typer.Argument(help="Path to layout JSON file")],
@@ -259,12 +260,12 @@ def edit(
         # Process unset operations
         if unset:
             for field_path in unset:
-                output_path = _unset_field_value(editor_service, current_file, field_path, force)
+                output_path = _unset_field_value(
+                    editor_service, current_file, field_path, force
+                )
                 current_file = output_path
                 changes_made = True
-                operations.append(
-                    {"type": "unset", "field": field_path}
-                )
+                operations.append({"type": "unset", "field": field_path})
 
         # Process layer operations
         if add_layer:
@@ -500,7 +501,8 @@ def _output_results(
                             usage_str = (
                                 "\n".join(paths)
                                 if len(paths) <= 5
-                                else "\n".join(paths[:5]) + f"\n... and {len(paths) - 5} more"
+                                else "\n".join(paths[:5])
+                                + f"\n... and {len(paths) - 5} more"
                             )
                             table.add_row(var_name, usage_str, str(len(paths)))
 
@@ -538,6 +540,7 @@ def _get_variable_usage(layout_file: Path, file_adapter: Any) -> dict[str, Any]:
         return usage
     except Exception as e:
         return {"error": str(e)}
+
 
 def _unset_field_value(
     editor_service: Any, layout_file: Path, field_path: str, force: bool
