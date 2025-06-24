@@ -27,9 +27,6 @@ class FlashOperations:
             os_adapter: Optional OS adapter, defaults to platform-specific adapter
         """
         self._os_adapter = os_adapter or create_flash_os_adapter()
-        logger.debug(
-            f"FlashOperations initialized with OS adapter: {type(self._os_adapter).__name__}"
-        )
 
     def mount_and_flash(
         self,

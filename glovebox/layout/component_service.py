@@ -465,10 +465,6 @@ def create_layout_component_service(
     Returns:
         Configured LayoutComponentService instance
     """
-    logger.debug(
-        "Creating LayoutComponentService with%s file adapter",
-        "" if file_adapter else " default",
-    )
 
     if file_adapter is None:
         from glovebox.adapters.file_adapter import create_file_adapter

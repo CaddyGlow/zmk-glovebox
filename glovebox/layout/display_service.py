@@ -202,7 +202,6 @@ def create_layout_display_service() -> LayoutDisplayService:
     Returns:
         Configured LayoutDisplayService instance
     """
-    logger.debug("Creating LayoutDisplayService")
 
     layout_generator = create_grid_layout_formatter()
     return LayoutDisplayService(layout_generator)

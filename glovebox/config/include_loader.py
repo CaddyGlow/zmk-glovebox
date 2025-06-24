@@ -48,15 +48,16 @@ class IncludeConfigLoader:
         Raises:
             ConfigError: If the configuration cannot be found or loaded
         """
-        logger.debug("Loading keyboard configuration with includes: %s", keyboard_name)
-
         # Find the configuration file
         config_file = self._find_config_file(keyboard_name)
         if not config_file:
             raise ConfigError(f"Keyboard configuration not found: {keyboard_name}")
 
+        # Track all files that will be loaded
+        loaded_files: list[Path] = []
+        
         # Load the raw configuration with includes resolved
-        raw_config = self._load_config_with_includes(config_file, base_path)
+        raw_config = self._load_config_with_includes(config_file, base_path, loaded_files)
 
         # Fix keyboard name mismatch if needed
         if raw_config.get("keyboard") != keyboard_name:
@@ -70,9 +71,8 @@ class IncludeConfigLoader:
         # Convert to typed object using Pydantic validation
         try:
             typed_config = KeyboardConfig.model_validate(raw_config)
-            logger.info(
-                "Loaded keyboard configuration with includes: %s", keyboard_name
-            )
+            file_list = " | ".join(f.name for f in loaded_files)
+            logger.debug("Loaded keyboard config %s from %d files: %s", keyboard_name, len(loaded_files), file_list)
             return typed_config
         except ValidationError as e:
             raise ConfigError(f"Invalid keyboard configuration format: {e}") from e
@@ -132,13 +132,14 @@ class IncludeConfigLoader:
         return None
 
     def _load_config_with_includes(
-        self, config_file: Path, base_path: Path | None = None
+        self, config_file: Path, base_path: Path | None = None, loaded_files: list[Path] | None = None
     ) -> dict[str, Any]:
         """Load a configuration file with include directives resolved.
 
         Args:
             config_file: Path to the configuration file
             base_path: Base path for relative include resolution
+            loaded_files: Optional list to track all loaded files
 
         Returns:
             Configuration dictionary with includes resolved
@@ -146,6 +147,10 @@ class IncludeConfigLoader:
         Raises:
             ConfigError: If there are cycles or loading errors
         """
+        # Initialize loaded_files tracker if not provided
+        if loaded_files is None:
+            loaded_files = []
+            
         # Use absolute path for consistent cache keys and cycle detection
         config_file = config_file.resolve()
 
@@ -161,10 +166,13 @@ class IncludeConfigLoader:
 
         # Return cached config if available
         if config_file in self._loaded_files:
-            logger.debug("Using cached config: %s", config_file)
+            if config_file not in loaded_files:
+                loaded_files.append(config_file)
             return self._loaded_files[config_file]
 
-        logger.debug("Loading config file: %s", config_file)
+        # Track this file as being loaded
+        if config_file not in loaded_files:
+            loaded_files.append(config_file)
 
         # Add to loading stack for cycle detection
         self._loading_stack.append(config_file)
@@ -183,12 +191,10 @@ class IncludeConfigLoader:
 
             # Process includes if present (support both "include" and "includes")
             if "include" in raw_config or "includes" in raw_config:
-                raw_config = self._process_includes(raw_config, config_file, base_path)
+                raw_config = self._process_includes(raw_config, config_file, base_path, loaded_files)
 
             # Cache the processed configuration
             self._loaded_files[config_file] = raw_config
-
-            logger.debug("Successfully loaded and cached config: %s", config_file)
 
             return raw_config
 
@@ -210,6 +216,7 @@ class IncludeConfigLoader:
         config: dict[str, Any],
         config_file: Path,
         base_path: Path | None = None,
+        loaded_files: list[Path] | None = None,
     ) -> dict[str, Any]:
         """Process include directives in a configuration.
 
@@ -231,8 +238,6 @@ class IncludeConfigLoader:
         if not isinstance(includes, list):
             includes = [includes]
 
-        logger.debug("Processing %d include(s) for %s", len(includes), config_file)
-
         # Use config file's directory as base path if not provided
         if base_path is None:
             base_path = config_file.parent
@@ -244,16 +249,11 @@ class IncludeConfigLoader:
             resolved_path = self._resolve_include_path(
                 include_path, base_path, config_file
             )
-            included_config = self._load_config_with_includes(resolved_path, base_path)
-
-            logger.debug("Merging include: %s", resolved_path)
-
+            included_config = self._load_config_with_includes(resolved_path, base_path, loaded_files)
             merged_config = self._merge_configurations(merged_config, included_config)
 
         # Merge the current config on top of included configs
         final_config = self._merge_configurations(merged_config, config)
-
-        logger.debug("Completed include processing for %s", config_file)
 
         return final_config
 

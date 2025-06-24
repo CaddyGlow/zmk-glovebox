@@ -48,7 +48,6 @@ class BaseService:
         """
         self._service_name = service_name
         self._service_version = service_version
-        logger.debug(f"Initializing {service_name} service (v{service_version})")
 
     @property
     def service_name(self) -> str:

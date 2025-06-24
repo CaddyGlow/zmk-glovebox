@@ -149,9 +149,6 @@ class KeyboardConfig(GloveboxBaseModel):
 
         # Convert compile_methods: map 'strategy' field to 'type' field
         if "compile_methods" in data and isinstance(data["compile_methods"], list):
-            logger.debug(
-                "Converting compile_methods to type field %s", data["compile_methods"]
-            )
             for i, method in enumerate(data["compile_methods"]):
                 if isinstance(method, dict) and "strategy" in method:
                     # Convert build_config to build_matrix format

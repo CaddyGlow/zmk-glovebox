@@ -43,11 +43,6 @@ class FlashService:
         self.file_adapter = file_adapter or create_file_adapter()
         self.device_wait_service = create_device_wait_service()
         self.loglevel = loglevel
-        logger.debug(
-            "FlashService v2 initialized with File adapter: %s, Log level: %s",
-            type(self.file_adapter).__name__,
-            self.loglevel,
-        )
 
     def flash_from_file(
         self,

@@ -16,7 +16,6 @@ class BehaviorRegistryImpl:
 
     def __init__(self) -> None:
         self._behaviors: dict[str, SystemBehavior] = {}
-        logger.debug("BehaviorRegistryImpl initialized")
 
     def register_behavior(self, behavior: SystemBehavior) -> None:
         """
@@ -27,8 +26,6 @@ class BehaviorRegistryImpl:
             expected_params: Number of parameters this behavior expects
             origin: Source where this behavior was defined
         """
-        logger.debug("Registering behavior %s", behavior.code)
-
         self._behaviors[behavior.code] = behavior
 
     def get_behavior_info(self, name: str) -> SystemBehavior | None:

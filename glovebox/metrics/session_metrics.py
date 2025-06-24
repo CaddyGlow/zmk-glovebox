@@ -364,11 +364,6 @@ class SessionMetrics:
         self.exit_code: int | None = None
         self.cli_args: list[str] = []
 
-        logger.debug(
-            "Initialized SessionMetrics with cache key: %s, TTL: %d seconds",
-            self.session_uuid,
-            self.ttl_seconds,
-        )
 
     def Counter(  # noqa: N802
         self, name: str, description: str, labelnames: list[str] | None = None

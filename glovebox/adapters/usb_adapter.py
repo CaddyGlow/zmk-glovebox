@@ -31,7 +31,6 @@ class USBAdapter:
         self._detector = detector or create_device_detector()
         self._flash_ops = flash_operations or create_flash_operations()
         self._lock = threading.RLock()
-        logger.debug("USBAdapter initialized")
 
     @property
     def detector(self) -> DeviceDetectorProtocol:
@@ -336,7 +335,6 @@ def create_usb_adapter(
         >>> devices = adapter.get_all_devices()
         >>> print(f"Found {len(devices)} devices")
     """
-    logger.debug("Creating USBAdapter")
 
     if flash_operations is None and os_adapter is not None:
         flash_operations = create_flash_operations(os_adapter)

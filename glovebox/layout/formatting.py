@@ -57,7 +57,6 @@ class GridLayoutFormatter:
 
     def __init__(self) -> None:
         """Initialize the layout formatter."""
-        logger.debug("GridLayoutFormatter initialized")
 
     def generate_layer_layout(
         self,

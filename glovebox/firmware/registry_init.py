@@ -20,7 +20,6 @@ def register_flash_methods() -> None:
         implementation=cast(type[FlasherProtocol], USBFlasher),
         config_type=USBFlashConfig,
     )
-    logger.debug("Registered usb flasher")
 
 
 def initialize_registries() -> None:
@@ -29,7 +28,6 @@ def initialize_registries() -> None:
     Note: Compilation methods are now handled by the compilation domain services.
     """
     register_flash_methods()
-    logger.info("Flash method registry initialized")
 
 
 # Auto-initialize when module is imported
