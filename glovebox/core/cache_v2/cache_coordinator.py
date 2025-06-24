@@ -55,7 +55,6 @@ def get_shared_cache_instance(
     cache_key = f"{cache_root.resolve()}:{tag or 'default'}"
 
     if cache_key not in _shared_cache_instances:
-
         # Create tag-specific cache directory
         cache_dir = cache_root / (tag or "default")
 

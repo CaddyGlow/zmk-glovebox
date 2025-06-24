@@ -79,7 +79,6 @@ class DiskCacheManager(CacheManager):
         if self.session_metrics:
             self._setup_metrics()
 
-
     def _setup_metrics(self) -> None:
         """Setup SessionMetrics integration for cache operations."""
         if not self.session_metrics:
@@ -204,7 +203,6 @@ class DiskCacheManager(CacheManager):
                     self._cache.set(key, value, expire=ttl)
                 else:
                     self._cache.set(key, value)
-
 
             except Exception as e:
                 self._stats.error_count += 1

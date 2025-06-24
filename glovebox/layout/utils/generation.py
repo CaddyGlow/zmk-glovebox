@@ -25,7 +25,7 @@ def generate_config_file(
     profile: "KeyboardProfile",
     keymap_data: LayoutData,
     output_path: Path,
-) -> dict[str, str]:
+) -> dict[str, str | int]:
     """Generate configuration file and return settings.
 
     Args:
@@ -42,11 +42,15 @@ def generate_config_file(
 
     # Write the config file
     file_adapter.write_text(output_path, conf_content)
-    
+
     if kconfig_settings:
         options_summary = " | ".join(f"{k}={v}" for k, v in kconfig_settings.items())
-        logger.debug("Generated Kconfig with %d options: %s", len(kconfig_settings), options_summary)
-    
+        logger.debug(
+            "Generated Kconfig with %d options: %s",
+            len(kconfig_settings),
+            options_summary,
+        )
+
     return kconfig_settings
 
 
@@ -142,7 +146,7 @@ def build_template_context(
 def generate_kconfig_conf(
     keymap_data: LayoutData,
     profile: "KeyboardProfile",
-) -> tuple[str, dict[str, str]]:
+) -> tuple[str, dict[str, str | int]]:
     """Generate kconfig content and settings from keymap data.
 
     Args:
@@ -153,7 +157,7 @@ def generate_kconfig_conf(
         Tuple of (kconfig_content, kconfig_settings)
     """
     kconfig_options = profile.kconfig_options
-    user_options: dict[str, str] = {}
+    user_options: dict[str, str | int] = {}
 
     lines = []
     lines.append("# Generated ZMK configuration")
@@ -171,7 +175,7 @@ def generate_kconfig_conf(
                 # User is setting same value as default
                 # Comment it out to allow easier firmware switching
                 comment_prefix = "# "
-            
+
             # Track user options (only non-commented ones)
             if not comment_prefix:
                 user_options[name] = opt.value

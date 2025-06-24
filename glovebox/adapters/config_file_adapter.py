@@ -112,13 +112,18 @@ class ConfigFileAdapter(Generic[T]):
                 if config_data:  # Only return if we got actual data
                     logger.debug(
                         "Found config file [%d/%d]: %s (%d keys)",
-                        i, len(search_paths), config_path, len(config_data)
+                        i,
+                        len(search_paths),
+                        config_path,
+                        len(config_data),
                     )
                     return config_data, config_path
 
             except ConfigError as e:
                 # Already logged in load_config
-                logger.debug("Config file [%d/%d] failed to load: %s", i, len(search_paths), e)
+                logger.debug(
+                    "Config file [%d/%d] failed to load: %s", i, len(search_paths), e
+                )
                 continue
 
         # No valid config files found

@@ -8,6 +8,7 @@ from click.core import Context as ClickContext
 from rich.console import Console
 from rich.table import Table
 
+from glovebox.cli.helpers.output import print_error_message
 from glovebox.config.keyboard_profile import (
     create_keyboard_profile,
     get_available_keyboards,
@@ -269,14 +270,15 @@ def create_profile_from_option(
             keyboard_name, firmware_name, user_config
         )
 
-
         return keyboard_profile
 
     except Exception as e:
         exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.error("Failed to create profile '%s': %s", effective_profile, e, exc_info=exc_info)
+        logger.error(
+            "Failed to create profile '%s': %s", effective_profile, e, exc_info=exc_info
+        )
         print_error_message(f"Failed to create profile '{effective_profile}': {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 def create_profile_from_context(

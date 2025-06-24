@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 # Simple factory function for direct service selection
 def create_compilation_service(
-    strategy: str, 
+    strategy: str,
     session_metrics: "SessionMetrics | None" = None,
     user_config: "UserConfig | None" = None,
 ) -> CompilationServiceProtocol:
@@ -37,7 +37,9 @@ def create_compilation_service(
         ValueError: If strategy is not supported
     """
     if strategy == "zmk_config":
-        return create_zmk_west_service(session_metrics=session_metrics, user_config=user_config)
+        return create_zmk_west_service(
+            session_metrics=session_metrics, user_config=user_config
+        )
     elif strategy == "moergo":
         return create_moergo_nix_service(session_metrics=session_metrics)
     else:

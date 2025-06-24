@@ -3,12 +3,12 @@
 import pytest
 
 from glovebox.config.models import (
+    BuildOptions,
     FirmwareConfig,
+    FormattingConfig,
     KConfigOption,
     KeyboardConfig,
     KeymapSection,
-    FormattingConfig,
-    BuildOptions,
 )
 from glovebox.config.models.behavior import BehaviorConfig
 from glovebox.config.models.display import DisplayConfig
@@ -80,7 +80,7 @@ def base_keyboard_config() -> KeyboardConfig:
         zmk=ZmkConfig(
             patterns=ZmkPatterns(
                 kconfig_prefix="CONFIG_",
-                layer_prefix="LAYER_",
+                layer_define="LAYER_{}",
             )
         ),
         firmwares={},
