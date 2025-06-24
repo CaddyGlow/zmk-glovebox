@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from glovebox.metrics.session_metrics import (
+from glovebox.core.metrics.session_metrics import (
     SessionCounter,
     SessionGauge,
     SessionHistogram,

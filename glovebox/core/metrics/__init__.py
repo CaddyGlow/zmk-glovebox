@@ -9,7 +9,7 @@ This domain provides comprehensive metrics collection with prometheus_client-com
 """
 
 # Import and re-export SessionMetrics for prometheus_client-compatible API
-from glovebox.metrics.session_metrics import (
+from glovebox.core.metrics.session_metrics import (
     SessionCounter,
     SessionGauge,
     SessionHistogram,

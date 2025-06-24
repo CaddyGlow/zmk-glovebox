@@ -88,7 +88,7 @@ class AppContext:
         self.keyboard_profile = None
 
         # Initialize SessionMetrics for prometheus_client-compatible metrics
-        from glovebox.metrics import create_session_metrics
+        from glovebox.core.metrics import create_session_metrics
 
         # Create session metrics with cache-based storage using session UUID
         self.session_metrics = create_session_metrics(self.session_id)

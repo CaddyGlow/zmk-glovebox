@@ -12,7 +12,7 @@ from glovebox.core.cache import (
 )
 from glovebox.core.cache.diskcache_manager import DiskCacheManager
 from glovebox.core.cache.models import CacheStats, DiskCacheConfig
-from glovebox.metrics.session_metrics import SessionMetrics, create_session_metrics
+from glovebox.core.metrics.session_metrics import SessionMetrics, create_session_metrics
 
 
 class TestCacheMetricsIntegration:

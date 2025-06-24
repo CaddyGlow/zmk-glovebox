@@ -300,8 +300,8 @@ def edit(
                     }
                 )
 
+        all_warnings = []
         if remove_layer:
-            all_warnings = []
             for layer_identifier in remove_layer:
                 result = layer_service.remove_layer(
                     layout_file=current_file,
