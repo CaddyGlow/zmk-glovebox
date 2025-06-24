@@ -2,7 +2,7 @@
 
 import pytest
 
-from glovebox.core.cache_v2.disabled_cache import DisabledCache
+from glovebox.core.cache.disabled_cache import DisabledCache
 
 
 class TestDisabledCache:

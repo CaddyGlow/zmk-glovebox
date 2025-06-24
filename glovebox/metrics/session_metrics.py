@@ -14,7 +14,7 @@ from logging import getLogger
 from pathlib import Path
 from typing import Any, Optional
 
-from glovebox.core.cache_v2.cache_manager import CacheManager
+from glovebox.core.cache.cache_manager import CacheManager
 
 
 logger = getLogger(__name__)
@@ -571,7 +571,7 @@ def create_session_metrics(
     """
     if cache_manager is None:
         # Use shared cache coordination with metrics tag
-        from glovebox.core.cache_v2 import create_default_cache
+        from glovebox.core.cache import create_default_cache
 
         cache_manager = create_default_cache(tag="metrics")
 

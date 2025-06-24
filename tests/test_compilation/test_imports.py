@@ -38,25 +38,41 @@ def test_factory_functions_exist(isolated_config):
     )
 
     # ZMK config service is implemented
-    zmk_service = create_zmk_west_service(isolated_config)
+    from tests.test_factories import (
+        create_moergo_nix_service_for_tests,
+        create_zmk_west_service_for_tests,
+    )
+
+    zmk_service = create_zmk_west_service_for_tests(user_config=isolated_config)
     assert zmk_service is not None
 
     # Moergo service is implemented
-    moergo_service = create_moergo_nix_service()
+    moergo_service = create_moergo_nix_service_for_tests()
     assert moergo_service is not None
 
     # Test compilation service factory with different strategies
-    zmk_service_via_factory = create_compilation_service("zmk_config", isolated_config)
+    from glovebox.adapters import create_docker_adapter, create_file_adapter
+
+    docker_adapter = create_docker_adapter()
+    file_adapter = create_file_adapter()
+
+    zmk_service_via_factory = create_compilation_service(
+        "zmk_config", isolated_config, docker_adapter, file_adapter
+    )
     assert zmk_service_via_factory is not None
 
     # Test that unsupported strategies raise ValueError
     with pytest.raises(
         ValueError, match="Unknown compilation strategy.*Supported strategies"
     ):
-        create_compilation_service("unsupported_strategy", isolated_config)
+        create_compilation_service(
+            "unsupported_strategy", isolated_config, docker_adapter, file_adapter
+        )
 
     # Test that moergo strategy works
-    moergo_service_via_factory = create_compilation_service("moergo", isolated_config)
+    moergo_service_via_factory = create_compilation_service(
+        "moergo", isolated_config, docker_adapter, file_adapter
+    )
     assert moergo_service_via_factory is not None
 
 

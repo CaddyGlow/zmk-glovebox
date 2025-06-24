@@ -25,7 +25,7 @@ from glovebox.compilation.cache import (
     create_compilation_cache_service,
 )
 from glovebox.config.user_config import UserConfig, create_user_config
-from glovebox.core.cache_v2.cache_manager import CacheManager
+from glovebox.core.cache.cache_manager import CacheManager
 
 
 logger = logging.getLogger(__name__)
@@ -1014,7 +1014,7 @@ def cache_show(
 
                             # Try to get cache manager for this module
                             try:
-                                from glovebox.core.cache_v2 import create_default_cache
+                                from glovebox.core.cache import create_default_cache
 
                                 module_cache = create_default_cache(tag=module)
                                 module_stats = module_cache.get_stats()
@@ -1089,7 +1089,7 @@ def cache_show(
 
                                 # Try to get cache stats for this module
                                 try:
-                                    from glovebox.core.cache_v2 import (
+                                    from glovebox.core.cache import (
                                         create_default_cache,
                                     )
 
@@ -1129,7 +1129,7 @@ def cache_show(
         if verbose:
             console.print("\n[bold cyan]🔗 Cache Coordination System[/bold cyan]")
             try:
-                from glovebox.core.cache_v2 import (
+                from glovebox.core.cache import (
                     get_cache_instance_count,
                     get_cache_instance_keys,
                 )
@@ -1314,7 +1314,7 @@ def cache_keys(
     try:
         if module:
             # Show keys for specific module
-            from glovebox.core.cache_v2 import create_default_cache
+            from glovebox.core.cache import create_default_cache
 
             try:
                 module_cache = create_default_cache(tag=module)
@@ -1533,7 +1533,7 @@ def cache_keys(
 
                 for module_name in sorted(cache_subdirs):
                     try:
-                        from glovebox.core.cache_v2 import create_default_cache
+                        from glovebox.core.cache import create_default_cache
 
                         module_cache = create_default_cache(tag=module_name)
                         cache_keys = module_cache.keys()
@@ -1568,7 +1568,7 @@ def cache_keys(
                 total_keys = 0
                 for module_name in sorted(cache_subdirs):
                     try:
-                        from glovebox.core.cache_v2 import create_default_cache
+                        from glovebox.core.cache import create_default_cache
 
                         module_cache = create_default_cache(tag=module_name)
                         cache_keys = module_cache.keys()
@@ -1656,7 +1656,7 @@ def cache_delete(
     import json
 
     try:
-        from glovebox.core.cache_v2 import create_default_cache
+        from glovebox.core.cache import create_default_cache
 
         module_cache = create_default_cache(tag=module)
 
@@ -1795,7 +1795,7 @@ def cache_clear(
     """Clear cache entries from both workspace and DiskCache systems.
 
     This unified command handles clearing of workspace caches, module caches,
-    and age-based cleanup using the cache_v2 system.
+    and age-based cleanup using the cache system.
     """
     try:
         user_config = create_user_config()
@@ -1824,7 +1824,7 @@ def cache_clear(
 
             try:
                 # Clear the specific module's cache instance
-                from glovebox.core.cache_v2 import create_default_cache
+                from glovebox.core.cache import create_default_cache
 
                 module_cache = create_default_cache(tag=module)
                 module_cache.clear()
@@ -1841,7 +1841,7 @@ def cache_clear(
                 raise typer.Exit(1) from e
 
         elif max_age_days is not None:
-            # Age-based cleanup using cache_v2 system
+            # Age-based cleanup using cache system
             try:
                 cache_manager = _get_cache_manager()
                 cache_stats = cache_manager.get_stats()
@@ -1850,7 +1850,7 @@ def cache_clear(
                     f"[blue]Cleaning up cache entries older than {max_age_days} days...[/blue]"
                 )
 
-                # Use cache_v2's built-in cleanup if available
+                # Use cache's built-in cleanup if available
                 if hasattr(cache_manager, "cleanup"):
                     cache_manager.cleanup()
 
@@ -1858,7 +1858,7 @@ def cache_clear(
                 console.print(
                     Icons.format_with_icon(
                         "SUCCESS",
-                        "Cache cleanup completed using cache_v2 system.",
+                        "Cache cleanup completed using cache system.",
                         icon_mode,
                     )
                 )
@@ -1901,7 +1901,7 @@ def cache_clear(
 
             try:
                 # Clear all module-specific cache instances
-                from glovebox.core.cache_v2 import (
+                from glovebox.core.cache import (
                     create_default_cache,
                     reset_shared_cache_instances,
                 )

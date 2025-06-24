@@ -104,10 +104,13 @@ def create_usb_adapter_for_tests(
 ) -> "USBAdapterProtocol":
     """Create a USBAdapter with test-friendly defaults."""
     from glovebox.adapters.usb_adapter import create_usb_adapter
-    from glovebox.firmware.flash.device_detector import create_device_detector
+    from glovebox.firmware.flash.device_detector import (
+        MountPointCache,
+        create_device_detector,
+    )
     from glovebox.firmware.flash.flash_operations import create_flash_operations
     from glovebox.firmware.flash.os_adapters import create_flash_os_adapter
-    from glovebox.firmware.flash.usb_monitor import MountPointCache, create_usb_monitor
+    from glovebox.firmware.flash.usb_monitor import create_usb_monitor
 
     if flash_operations is None:
         os_adapter = create_flash_os_adapter()
@@ -156,8 +159,11 @@ def create_device_detector_for_tests(
     usb_monitor=None, mount_cache=None
 ) -> "DeviceDetector":
     """Create a DeviceDetector with test-friendly defaults."""
-    from glovebox.firmware.flash.device_detector import create_device_detector
-    from glovebox.firmware.flash.usb_monitor import MountPointCache, create_usb_monitor
+    from glovebox.firmware.flash.device_detector import (
+        MountPointCache,
+        create_device_detector,
+    )
+    from glovebox.firmware.flash.usb_monitor import create_usb_monitor
 
     if usb_monitor is None:
         usb_monitor = create_usb_monitor()
@@ -225,7 +231,7 @@ def create_zmk_west_service_for_tests(
     from glovebox.adapters import create_docker_adapter, create_file_adapter
     from glovebox.compilation.services.zmk_west_service import create_zmk_west_service
     from glovebox.config import create_user_config
-    from glovebox.core.cache_v2 import create_default_cache
+    from glovebox.core.cache import create_default_cache
 
     if user_config is None:
         user_config = create_user_config()

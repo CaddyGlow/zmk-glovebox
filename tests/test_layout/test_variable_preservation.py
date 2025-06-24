@@ -9,6 +9,7 @@ This test file ensures that:
 import json
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -23,56 +24,64 @@ class TestVariablePreservation:
     """Test variable preservation during edit operations."""
 
     @pytest.fixture
-    def sample_layout_with_variables(self) -> dict:
+    def sample_layout_with_variables(self) -> dict[str, Any]:
         """Sample layout with variable references."""
         return {
             "keyboard": "test_keyboard",
             "title": "Test Variables Layout",
             "layer_names": ["base", "sym"],
             "layers": [
-                [{"value": "&kp", "params": [{"value": "Q"}]}, {"value": "&kp", "params": [{"value": "W"}]}, {"value": "&kp", "params": [{"value": "E"}]}],
-                [{"value": "&kp", "params": [{"value": "1"}]}, {"value": "&kp", "params": [{"value": "2"}]}, {"value": "&kp", "params": [{"value": "3"}]}]
+                [
+                    {"value": "&kp", "params": [{"value": "Q"}]},
+                    {"value": "&kp", "params": [{"value": "W"}]},
+                    {"value": "&kp", "params": [{"value": "E"}]},
+                ],
+                [
+                    {"value": "&kp", "params": [{"value": "1"}]},
+                    {"value": "&kp", "params": [{"value": "2"}]},
+                    {"value": "&kp", "params": [{"value": "3"}]},
+                ],
             ],
             "variables": {
                 "tapMs": 150,
                 "holdMs": 200,
                 "flavor": "tap-preferred",
-                "quickTap": 100
+                "quickTap": 100,
             },
             "hold_taps": [
                 {
                     "name": "&ht_tap",
                     "tapping_term_ms": "${tapMs}",
                     "quick_tap_ms": "${quickTap}",
-                    "flavor": "${flavor}"
+                    "flavor": "${flavor}",
                 },
                 {
                     "name": "&ht_hold",
                     "tapping_term_ms": "${holdMs}",
                     "quick_tap_ms": "${quickTap}",
-                    "flavor": "${flavor}"
-                }
+                    "flavor": "${flavor}",
+                },
             ],
             "behaviors": {
                 "custom_tap": {
                     "type": "hold_tap",
                     "tapping_term_ms": "${tapMs}",
                     "flavor": "${flavor}",
-                    "bindings": ["&kp", "&mo"]
+                    "bindings": ["&kp", "&mo"],
                 },
                 "custom_hold": {
                     "type": "hold_tap",
                     "tapping_term_ms": "${holdMs}",
                     "flavor": "${flavor}",
-                    "bindings": ["&kp", "&sl"]
-                }
+                    "bindings": ["&kp", "&sl"],
+                },
             },
             "combos": [
                 {
                     "name": "esc_combo",
                     "timeout_ms": "${quickTap}",
                     "keyPositions": [0, 1],
-                    "binding": {"value": "&kp", "params": [{"value": "ESC"}]}
+                    "binding": {"value": "&kp", "params": [{"value": "ESC"}]},
                 }
             ],
             "macros": [
@@ -80,27 +89,30 @@ class TestVariablePreservation:
                     "name": "test_macro",
                     "wait_ms": "${quickTap}",
                     "tap_ms": "${tapMs}",
-                    "bindings": [{"value": "&kp", "params": [{"value": "A"}]}, {"value": "&kp", "params": [{"value": "B"}]}]
+                    "bindings": [
+                        {"value": "&kp", "params": [{"value": "A"}]},
+                        {"value": "&kp", "params": [{"value": "B"}]},
+                    ],
                 }
-            ]
+            ],
         }
 
     @pytest.fixture
     def layout_file_with_variables(self, sample_layout_with_variables) -> Path:
         """Create a temporary layout file with variables."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(sample_layout_with_variables, f, indent=2)
             return Path(f.name)
 
-    def test_load_layout_preserves_variables_with_skip_flag(self, layout_file_with_variables):
+    def test_load_layout_preserves_variables_with_skip_flag(
+        self, layout_file_with_variables
+    ):
         """Test that loading with skip_variable_resolution=True preserves variables."""
         file_adapter = create_file_adapter()
 
         # Load with variable resolution skipped (for editing)
         layout_data = load_layout_file(
-            layout_file_with_variables,
-            file_adapter,
-            skip_variable_resolution=True
+            layout_file_with_variables, file_adapter, skip_variable_resolution=True
         )
 
         # Convert back to dict to check variables are preserved
@@ -121,7 +133,9 @@ class TestVariablePreservation:
         assert data["combos"][0]["timeout_ms"] == "${quickTap}"
         assert data["macros"][0]["wait_ms"] == "${quickTap}"
 
-    def test_load_layout_resolves_variables_without_skip_flag(self, layout_file_with_variables):
+    def test_load_layout_resolves_variables_without_skip_flag(
+        self, layout_file_with_variables
+    ):
         """Test that loading without skip flag resolves variables (normal behavior)."""
         file_adapter = create_file_adapter()
 
@@ -137,7 +151,9 @@ class TestVariablePreservation:
 
         # Variable references should be resolved to their values
         assert data["hold_taps"][0]["tapping_term_ms"] == 150  # ${tapMs} → 150
-        assert data["hold_taps"][0]["flavor"] == "tap-preferred"  # ${flavor} → "tap-preferred"
+        assert (
+            data["hold_taps"][0]["flavor"] == "tap-preferred"
+        )  # ${flavor} → "tap-preferred"
         assert data["hold_taps"][1]["tapping_term_ms"] == 200  # ${holdMs} → 200
         assert data["behaviors"]["custom_tap"]["tapping_term_ms"] == 150
         assert data["behaviors"]["custom_hold"]["tapping_term_ms"] == 200
@@ -150,7 +166,7 @@ class TestVariablePreservation:
         editor_service = create_layout_editor_service(file_adapter)
 
         # Create a temporary output file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             output_file = Path(f.name)
 
         try:
@@ -160,7 +176,7 @@ class TestVariablePreservation:
                 field_path="variables.newVar",
                 value="999",
                 output=output_file,
-                force=True
+                force=True,
             )
 
             # Read the result and verify variables are preserved
@@ -191,7 +207,7 @@ class TestVariablePreservation:
         layer_service = create_layout_layer_service(file_adapter)
 
         # Create a temporary output file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             output_file = Path(f.name)
 
         try:
@@ -200,7 +216,7 @@ class TestVariablePreservation:
                 layout_file=layout_file_with_variables,
                 layer_name="gaming",
                 output=output_file,
-                force=True
+                force=True,
             )
 
             # Read the result and verify variables are preserved
@@ -222,13 +238,15 @@ class TestVariablePreservation:
             if output_file.exists():
                 output_file.unlink()
 
-    def test_multiple_edit_operations_preserve_variables(self, layout_file_with_variables):
+    def test_multiple_edit_operations_preserve_variables(
+        self, layout_file_with_variables
+    ):
         """Test that multiple edit operations preserve variables correctly."""
         file_adapter = create_file_adapter()
         editor_service = create_layout_editor_service(file_adapter)
 
         # Create a temporary output file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             output_file = Path(f.name)
 
         try:
@@ -241,7 +259,7 @@ class TestVariablePreservation:
                 field_path="variables.newTiming",
                 value="250",
                 output=output_file,
-                force=True
+                force=True,
             )
 
             # 2. Modify an existing variable
@@ -249,7 +267,7 @@ class TestVariablePreservation:
                 layout_file=current_file,
                 field_path="variables.tapMs",
                 value="175",
-                force=True
+                force=True,
             )
 
             # 3. Add a new behavior that uses variables
@@ -258,7 +276,7 @@ class TestVariablePreservation:
                 field_path="behaviors.new_behavior",
                 value='{"type": "hold_tap", "tapping_term_ms": "${newTiming}", "flavor": "${flavor}"}',
                 value_type="json",
-                force=True
+                force=True,
             )
 
             # Read final result and verify all variables are preserved
@@ -274,7 +292,9 @@ class TestVariablePreservation:
             assert data["hold_taps"][0]["tapping_term_ms"] == "${tapMs}"
             assert data["hold_taps"][0]["flavor"] == "${flavor}"
             assert data["behaviors"]["custom_tap"]["tapping_term_ms"] == "${tapMs}"
-            assert data["behaviors"]["new_behavior"]["tapping_term_ms"] == "${newTiming}"
+            assert (
+                data["behaviors"]["new_behavior"]["tapping_term_ms"] == "${newTiming}"
+            )
             assert data["behaviors"]["new_behavior"]["flavor"] == "${flavor}"
 
         finally:
@@ -293,33 +313,36 @@ class TestVariableFlattening:
             "keyboard": "test_keyboard",
             "title": "Test Layout",
             "layer_names": ["base"],
-            "layers": [[{"value": "&kp", "params": [{"value": "Q"}]}, {"value": "&kp", "params": [{"value": "W"}]}]],
-            "variables": {
-                "tapMs": 150,
-                "holdMs": 200,
-                "flavor": "tap-preferred"
-            },
+            "layers": [
+                [
+                    {"value": "&kp", "params": [{"value": "Q"}]},
+                    {"value": "&kp", "params": [{"value": "W"}]},
+                ]
+            ],
+            "variables": {"tapMs": 150, "holdMs": 200, "flavor": "tap-preferred"},
             "hold_taps": [
                 {
                     "name": "&ht_test",
                     "tapping_term_ms": "${tapMs}",
                     "quick_tap_ms": "${holdMs}",
-                    "flavor": "${flavor}"
+                    "flavor": "${flavor}",
                 }
             ],
             "behaviors": {
                 "custom_behavior": {
                     "type": "hold_tap",
                     "tapping_term_ms": "${tapMs}",
-                    "flavor": "${flavor}"
+                    "flavor": "${flavor}",
                 }
-            }
+            },
         }
 
         # Load WITHOUT variable resolution to preserve variables
         from glovebox.layout.utils.json_operations import _skip_variable_resolution
+
         old_skip = _skip_variable_resolution
         from glovebox.layout.utils import json_operations
+
         json_operations._skip_variable_resolution = True
 
         try:
@@ -336,8 +359,10 @@ class TestVariableFlattening:
 
         # All variable references should be resolved
         assert flattened["hold_taps"][0]["tapping_term_ms"] == 150  # ${tapMs} → 150
-        assert flattened["hold_taps"][0]["quick_tap_ms"] == 200    # ${holdMs} → 200
-        assert flattened["hold_taps"][0]["flavor"] == "tap-preferred"  # ${flavor} → "tap-preferred"
+        assert flattened["hold_taps"][0]["quick_tap_ms"] == 200  # ${holdMs} → 200
+        assert (
+            flattened["hold_taps"][0]["flavor"] == "tap-preferred"
+        )  # ${flavor} → "tap-preferred"
 
         assert flattened["behaviors"]["custom_behavior"]["tapping_term_ms"] == 150
         assert flattened["behaviors"]["custom_behavior"]["flavor"] == "tap-preferred"
@@ -353,14 +378,19 @@ class TestVariableFlattening:
             "keyboard": "test_keyboard",
             "title": "Test Layout",
             "layer_names": ["base"],
-            "layers": [[{"value": "&kp", "params": [{"value": "Q"}]}, {"value": "&kp", "params": [{"value": "W"}]}]],
+            "layers": [
+                [
+                    {"value": "&kp", "params": [{"value": "Q"}]},
+                    {"value": "&kp", "params": [{"value": "W"}]},
+                ]
+            ],
             "hold_taps": [
                 {
                     "name": "&ht_test",
                     "tapping_term_ms": 150,  # Direct value, not variable
-                    "flavor": "tap-preferred"
+                    "flavor": "tap-preferred",
                 }
-            ]
+            ],
         }
 
         layout_data = LayoutData.model_validate(data)
@@ -385,29 +415,35 @@ class TestVariableFlattening:
                 "fast_timing": "${base_timing}",  # Variable references another variable
                 "display_text": "Timing: ${fast_timing}ms",  # String interpolation
                 "positions": [0, 1, 2],  # Array value
-                "config": {"timeout": "${base_timing}"}  # Object value
+                "config": {"timeout": "${base_timing}"},  # Object value
             },
             "combos": [
                 {
                     "name": "test_combo",
                     "timeout_ms": "${fast_timing}",
-                    "keyPositions": [0, 1, 2],  # Direct values to avoid validation issues
-                    "binding": {"value": "&kp", "params": [{"value": "ESC"}]}
+                    "keyPositions": [
+                        0,
+                        1,
+                        2,
+                    ],  # Direct values to avoid validation issues
+                    "binding": {"value": "&kp", "params": [{"value": "ESC"}]},
                 }
             ],
             "behaviors": {
                 "test_behavior": {
                     "type": "hold_tap",
                     "tapping_term_ms": "${config.timeout}",  # Nested property access
-                    "flavor": "tap-preferred"
+                    "flavor": "tap-preferred",
                 }
-            }
+            },
         }
 
         # Load without variable resolution to preserve the structure
         from glovebox.layout.utils.json_operations import _skip_variable_resolution
+
         old_skip = _skip_variable_resolution
         from glovebox.layout.utils import json_operations
+
         json_operations._skip_variable_resolution = True
 
         try:
@@ -421,13 +457,23 @@ class TestVariableFlattening:
         assert "variables" not in flattened
 
         # Complex variable resolution should work
-        assert flattened["combos"][0]["timeout_ms"] == 200  # ${fast_timing} → ${base_timing} → 200
-        assert flattened["combos"][0]["keyPositions"] == [0, 1, 2]  # Direct values preserved
-        assert flattened["behaviors"]["test_behavior"]["tapping_term_ms"] == 200  # Nested access
+        assert (
+            flattened["combos"][0]["timeout_ms"] == 200
+        )  # ${fast_timing} → ${base_timing} → 200
+        assert flattened["combos"][0]["keyPositions"] == [
+            0,
+            1,
+            2,
+        ]  # Direct values preserved
+        assert (
+            flattened["behaviors"]["test_behavior"]["tapping_term_ms"] == 200
+        )  # Nested access
 
     def test_normal_model_dump_preserves_variables(self, layout_data_with_variables):
         """Test that normal model_dump preserves variables (not flattened)."""
-        normal_dict = layout_data_with_variables.model_dump(mode="json", by_alias=True, exclude_unset=True)
+        normal_dict = layout_data_with_variables.model_dump(
+            mode="json", by_alias=True, exclude_unset=True
+        )
 
         # Variables section should be present
         assert "variables" in normal_dict
@@ -437,7 +483,9 @@ class TestVariableFlattening:
         # Variable references should be preserved (not resolved)
         assert normal_dict["hold_taps"][0]["tapping_term_ms"] == "${tapMs}"
         assert normal_dict["hold_taps"][0]["flavor"] == "${flavor}"
-        assert normal_dict["behaviors"]["custom_behavior"]["tapping_term_ms"] == "${tapMs}"
+        assert (
+            normal_dict["behaviors"]["custom_behavior"]["tapping_term_ms"] == "${tapMs}"
+        )
 
 
 class TestVariableEdgeCases:
@@ -455,9 +503,9 @@ class TestVariableEdgeCases:
                 {
                     "name": "&ht_test",
                     "tapping_term_ms": 150,  # Direct value
-                    "flavor": "tap-preferred"
+                    "flavor": "tap-preferred",
                 }
-            ]
+            ],
         }
 
         layout_data = LayoutData.model_validate(data)
@@ -476,28 +524,27 @@ class TestVariableEdgeCases:
             "title": "Test Layout",
             "layer_names": ["base"],
             "layers": [[{"value": "&kp", "params": [{"value": "Q"}]}]],
-            "variables": {
-                "tapMs": 150,
-                "flavor": "tap-preferred"
-            },
+            "variables": {"tapMs": 150, "flavor": "tap-preferred"},
             "hold_taps": [
                 {
                     "name": "&ht_var",
                     "tapping_term_ms": "${tapMs}",  # Variable reference
-                    "flavor": "${flavor}"           # Variable reference
+                    "flavor": "${flavor}",  # Variable reference
                 },
                 {
                     "name": "&ht_direct",
-                    "tapping_term_ms": 200,         # Direct value
-                    "flavor": "balanced"            # Direct value
-                }
-            ]
+                    "tapping_term_ms": 200,  # Direct value
+                    "flavor": "balanced",  # Direct value
+                },
+            ],
         }
 
         # Load without variable resolution
         from glovebox.layout.utils.json_operations import _skip_variable_resolution
+
         old_skip = _skip_variable_resolution
         from glovebox.layout.utils import json_operations
+
         json_operations._skip_variable_resolution = True
 
         try:
@@ -506,17 +553,27 @@ class TestVariableEdgeCases:
             json_operations._skip_variable_resolution = old_skip
 
         # Test normal dump preserves variables
-        normal_dict = layout_data.model_dump(mode="json", by_alias=True, exclude_unset=True)
+        normal_dict = layout_data.model_dump(
+            mode="json", by_alias=True, exclude_unset=True
+        )
         assert normal_dict["hold_taps"][0]["tapping_term_ms"] == "${tapMs}"  # Preserved
-        assert normal_dict["hold_taps"][1]["tapping_term_ms"] == 200         # Direct value unchanged
+        assert (
+            normal_dict["hold_taps"][1]["tapping_term_ms"] == 200
+        )  # Direct value unchanged
 
         # Test flattened resolves variables but keeps direct values
         flattened = layout_data.to_flattened_dict()
         assert "variables" not in flattened
-        assert flattened["hold_taps"][0]["tapping_term_ms"] == 150           # Variable resolved
-        assert flattened["hold_taps"][0]["flavor"] == "tap-preferred"        # Variable resolved
-        assert flattened["hold_taps"][1]["tapping_term_ms"] == 200           # Direct value unchanged
-        assert flattened["hold_taps"][1]["flavor"] == "balanced"             # Direct value unchanged
+        assert flattened["hold_taps"][0]["tapping_term_ms"] == 150  # Variable resolved
+        assert (
+            flattened["hold_taps"][0]["flavor"] == "tap-preferred"
+        )  # Variable resolved
+        assert (
+            flattened["hold_taps"][1]["tapping_term_ms"] == 200
+        )  # Direct value unchanged
+        assert (
+            flattened["hold_taps"][1]["flavor"] == "balanced"
+        )  # Direct value unchanged
 
     def test_undefined_variable_in_flattening(self):
         """Test that flattening handles undefined variables gracefully."""
@@ -532,16 +589,18 @@ class TestVariableEdgeCases:
             "hold_taps": [
                 {
                     "name": "&ht_test",
-                    "tapping_term_ms": "${tapMs}",       # Defined variable
-                    "flavor": "${undefined_flavor}"      # Undefined variable
+                    "tapping_term_ms": "${tapMs}",  # Defined variable
+                    "flavor": "${undefined_flavor}",  # Undefined variable
                 }
-            ]
+            ],
         }
 
         # Load without variable resolution
         from glovebox.layout.utils.json_operations import _skip_variable_resolution
+
         old_skip = _skip_variable_resolution
         from glovebox.layout.utils import json_operations
+
         json_operations._skip_variable_resolution = True
 
         try:
@@ -553,5 +612,7 @@ class TestVariableEdgeCases:
         # (this is the expected behavior for undefined variables)
         from glovebox.layout.utils.variable_resolver import UndefinedVariableError
 
-        with pytest.raises(UndefinedVariableError, match="Variable 'undefined_flavor' not found"):
+        with pytest.raises(
+            UndefinedVariableError, match="Variable 'undefined_flavor' not found"
+        ):
             layout_data.to_flattened_dict()

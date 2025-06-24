@@ -2,8 +2,8 @@
 
 from typing import Any
 
-from glovebox.core.cache_v2 import create_cache_from_user_config
-from glovebox.core.cache_v2.cache_manager import CacheManager
+from glovebox.core.cache import create_cache_from_user_config
+from glovebox.core.cache.cache_manager import CacheManager
 
 from .base_client import MoErgoBaseClient
 from .credentials import CredentialManager

@@ -6,8 +6,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from glovebox.core.cache_v2.diskcache_manager import DiskCacheManager
-from glovebox.core.cache_v2.models import DiskCacheConfig
+from glovebox.core.cache.diskcache_manager import DiskCacheManager
+from glovebox.core.cache.models import DiskCacheConfig
 
 
 @pytest.fixture

@@ -27,7 +27,7 @@ class TestProfileCompletionCaching:
     """Test the caching functionality for profile completion."""
 
     @patch("glovebox.config.create_user_config")
-    @patch("glovebox.core.cache_v2.create_default_cache")
+    @patch("glovebox.core.cache.create_default_cache")
     @patch("glovebox.config.keyboard_profile.get_available_keyboards")
     @patch("glovebox.config.keyboard_profile.get_available_firmwares")
     def test_get_cached_profile_data_cache_miss(
@@ -93,7 +93,7 @@ class TestProfileCompletionCaching:
         )
 
     @patch("glovebox.config.create_user_config")
-    @patch("glovebox.core.cache_v2.create_default_cache")
+    @patch("glovebox.core.cache.create_default_cache")
     def test_get_cached_profile_data_cache_hit(
         self, mock_create_cache, mock_create_user_config
     ):
@@ -135,7 +135,7 @@ class TestProfileCompletionCaching:
         assert not mock_cache.set.called
 
     @patch("glovebox.config.create_user_config")
-    @patch("glovebox.core.cache_v2.create_default_cache")
+    @patch("glovebox.core.cache.create_default_cache")
     @patch("glovebox.config.keyboard_profile.get_available_keyboards")
     @patch("glovebox.config.keyboard_profile.get_available_firmwares")
     def test_get_cached_profile_data_firmware_error_handling(
@@ -186,7 +186,7 @@ class TestProfileCompletionCaching:
         }
 
     @patch("glovebox.config.create_user_config")
-    @patch("glovebox.core.cache_v2.create_default_cache")
+    @patch("glovebox.core.cache.create_default_cache")
     def test_get_cached_profile_data_disabled_cache_override(
         self, mock_create_cache, mock_create_user_config
     ):
@@ -486,7 +486,7 @@ class TestProfileCompletionLogging:
     """Test logging behavior in profile completion."""
 
     @patch("glovebox.config.create_user_config")
-    @patch("glovebox.core.cache_v2.create_default_cache")
+    @patch("glovebox.core.cache.create_default_cache")
     @patch("glovebox.config.keyboard_profile.get_available_keyboards")
     @patch("glovebox.config.keyboard_profile.get_available_firmwares")
     def test_logging_on_cache_miss(
@@ -558,7 +558,7 @@ class TestProfileCompletionLogging:
             assert any("Profile completion data cached" in msg for msg in log_messages)
 
     @patch("glovebox.config.create_user_config")
-    @patch("glovebox.core.cache_v2.create_default_cache")
+    @patch("glovebox.core.cache.create_default_cache")
     def test_logging_on_cache_hit(
         self, mock_create_cache, mock_create_user_config, caplog
     ):
@@ -589,7 +589,7 @@ class TestProfileCompletionLogging:
         assert any("Profile completion cache hit" in msg for msg in log_messages)
 
     @patch("glovebox.config.create_user_config")
-    @patch("glovebox.core.cache_v2.create_default_cache")
+    @patch("glovebox.core.cache.create_default_cache")
     @patch("glovebox.config.keyboard_profile.get_available_keyboards")
     @patch("glovebox.config.keyboard_profile.get_available_firmwares")
     def test_logging_on_firmware_error(
@@ -627,7 +627,7 @@ class TestProfileCompletionLogging:
         )
 
     @patch("glovebox.config.create_user_config")
-    @patch("glovebox.core.cache_v2.create_default_cache")
+    @patch("glovebox.core.cache.create_default_cache")
     def test_logging_on_disabled_cache_override(
         self, mock_create_cache, mock_create_user_config, caplog
     ):
@@ -668,7 +668,7 @@ class TestProfileCompletionIntegration:
     """Integration tests for profile completion functionality."""
 
     @patch("glovebox.config.create_user_config")
-    @patch("glovebox.core.cache_v2.create_default_cache")
+    @patch("glovebox.core.cache.create_default_cache")
     @patch("glovebox.config.keyboard_profile.get_available_keyboards")
     @patch("glovebox.config.keyboard_profile.get_available_firmwares")
     def test_full_completion_workflow(
@@ -769,7 +769,7 @@ class TestProfileCompletionIntegration:
 class TestStaticCompletionCaching:
     """Test caching functionality for static completion data."""
 
-    @patch("glovebox.core.cache_v2.create_default_cache")
+    @patch("glovebox.core.cache.create_default_cache")
     def test_get_cached_static_completion_data_cache_miss(self, mock_create_cache):
         """Test cache miss scenario for static completion data."""
         mock_cache = Mock()
@@ -793,7 +793,7 @@ class TestStaticCompletionCaching:
             STATIC_COMPLETION_CACHE_KEY, result, ttl=STATIC_COMPLETION_TTL
         )
 
-    @patch("glovebox.core.cache_v2.create_default_cache")
+    @patch("glovebox.core.cache.create_default_cache")
     def test_get_cached_static_completion_data_cache_hit(self, mock_create_cache):
         """Test cache hit scenario for static completion data."""
         cached_data = {
@@ -814,7 +814,7 @@ class TestStaticCompletionCaching:
         # Verify cache was not written to
         assert not mock_cache.set.called
 
-    @patch("glovebox.core.cache_v2.create_default_cache")
+    @patch("glovebox.core.cache.create_default_cache")
     def test_get_cached_static_completion_data_cache_failure(self, mock_create_cache):
         """Test graceful fallback when cache operations fail."""
         mock_create_cache.side_effect = Exception("Cache creation failed")
@@ -1076,7 +1076,7 @@ class TestLayerNameCaching:
     @patch("pathlib.Path.exists")
     @patch("pathlib.Path.read_text")
     @patch("pathlib.Path.stat")
-    @patch("glovebox.core.cache_v2.create_default_cache")
+    @patch("glovebox.core.cache.create_default_cache")
     def test_get_cached_layer_names_cache_miss(
         self, mock_create_cache, mock_stat, mock_read_text, mock_exists
     ):
@@ -1104,7 +1104,7 @@ class TestLayerNameCaching:
 
     @patch("pathlib.Path.exists")
     @patch("pathlib.Path.stat")
-    @patch("glovebox.core.cache_v2.create_default_cache")
+    @patch("glovebox.core.cache.create_default_cache")
     def test_get_cached_layer_names_cache_hit(
         self, mock_create_cache, mock_stat, mock_exists
     ):
@@ -1155,7 +1155,7 @@ class TestLayerNameCaching:
         mock_stat.return_value = Mock(st_mtime=1234567890.0)
         mock_read_text.return_value = '{"other_field": "value"}'
 
-        with patch("glovebox.core.cache_v2.create_default_cache") as mock_create_cache:
+        with patch("glovebox.core.cache.create_default_cache") as mock_create_cache:
             mock_cache = Mock()
             mock_cache.get.return_value = None
             mock_create_cache.return_value = mock_cache
@@ -1269,7 +1269,7 @@ class TestNewParameterTypes:
 class TestCompletionIntegration:
     """Integration tests for the complete completion system."""
 
-    @patch("glovebox.core.cache_v2.create_default_cache")
+    @patch("glovebox.core.cache.create_default_cache")
     def test_completion_cache_coordination(self, mock_create_cache):
         """Test that different completion types use proper cache coordination."""
         mock_cache = Mock()
@@ -1318,7 +1318,7 @@ class TestCompletionIntegration:
 
         for func, test_input in completion_functions:
             # Each function should handle errors gracefully
-            with patch("glovebox.core.cache_v2.create_default_cache") as mock_cache:
+            with patch("glovebox.core.cache.create_default_cache") as mock_cache:
                 mock_cache.side_effect = Exception("Cache failure")
 
                 result = func(test_input)

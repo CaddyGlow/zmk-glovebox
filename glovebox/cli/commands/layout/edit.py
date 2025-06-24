@@ -558,7 +558,9 @@ def _unset_field_value(
     file_adapter = create_file_adapter()
 
     # Load the layout WITHOUT variable resolution to preserve variable references
-    layout_data = load_layout_file(layout_file, file_adapter, skip_variable_resolution=True)
+    layout_data = load_layout_file(
+        layout_file, file_adapter, skip_variable_resolution=True
+    )
 
     # Remove the field value
     unset_field_value_on_model(layout_data, field_path)

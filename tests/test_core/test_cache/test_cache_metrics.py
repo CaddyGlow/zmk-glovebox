@@ -5,13 +5,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from glovebox.core.cache_v2 import (
+from glovebox.core.cache import (
     create_default_cache,
     get_aggregated_cache_stats,
     reset_shared_cache_instances,
 )
-from glovebox.core.cache_v2.diskcache_manager import DiskCacheManager
-from glovebox.core.cache_v2.models import CacheStats, DiskCacheConfig
+from glovebox.core.cache.diskcache_manager import DiskCacheManager
+from glovebox.core.cache.models import CacheStats, DiskCacheConfig
 from glovebox.metrics.session_metrics import SessionMetrics, create_session_metrics
 
 

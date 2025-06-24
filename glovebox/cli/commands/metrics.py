@@ -15,8 +15,8 @@ from glovebox.cli.decorators import handle_errors
 from glovebox.cli.helpers import print_error_message, print_success_message
 from glovebox.cli.helpers.theme import Icons
 from glovebox.config.user_config import create_user_config
-from glovebox.core.cache_v2 import create_default_cache
-from glovebox.core.cache_v2.cache_manager import CacheManager
+from glovebox.core.cache import create_default_cache
+from glovebox.core.cache.cache_manager import CacheManager
 from glovebox.metrics.session_metrics import create_session_metrics
 
 

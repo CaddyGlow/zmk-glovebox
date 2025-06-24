@@ -9,8 +9,8 @@ from typing import Any, Optional
 
 import diskcache  # type: ignore[import-untyped]
 
-from glovebox.core.cache_v2.cache_manager import CacheManager
-from glovebox.core.cache_v2.models import CacheMetadata, CacheStats, DiskCacheConfig
+from glovebox.core.cache.cache_manager import CacheManager
+from glovebox.core.cache.models import CacheMetadata, CacheStats, DiskCacheConfig
 
 
 logger = logging.getLogger(__name__)

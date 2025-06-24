@@ -713,25 +713,27 @@ class TestLayoutEdit:
             "keyboard": "test_keyboard",
             "title": "Variable Test Layout",
             "layer_names": ["base"],
-            "layers": [[{"value": "&kp", "params": [{"value": "Q"}]}, {"value": "&kp", "params": [{"value": "W"}]}, {"value": "&kp", "params": [{"value": "E"}]}]],
-            "variables": {
-                "tapMs": 150,
-                "holdMs": 200,
-                "flavor": "tap-preferred"
-            },
+            "layers": [
+                [
+                    {"value": "&kp", "params": [{"value": "Q"}]},
+                    {"value": "&kp", "params": [{"value": "W"}]},
+                    {"value": "&kp", "params": [{"value": "E"}]},
+                ]
+            ],
+            "variables": {"tapMs": 150, "holdMs": 200, "flavor": "tap-preferred"},
             "hold_taps": [
                 {
                     "name": "&ht_test",
                     "tapping_term_ms": "${tapMs}",
                     "quick_tap_ms": "${holdMs}",
-                    "flavor": "${flavor}"
+                    "flavor": "${flavor}",
                 }
             ],
             "behaviors": {
                 "custom_tap": {
                     "type": "hold_tap",
                     "tapping_term_ms": "${tapMs}",
-                    "flavor": "${flavor}"
+                    "flavor": "${flavor}",
                 }
             },
             "combos": [
@@ -739,9 +741,9 @@ class TestLayoutEdit:
                     "name": "esc_combo",
                     "timeout_ms": "${holdMs}",
                     "keyPositions": [0, 1],
-                    "binding": {"value": "&kp", "params": [{"value": "ESC"}]}
+                    "binding": {"value": "&kp", "params": [{"value": "ESC"}]},
                 }
-            ]
+            ],
         }
 
         # Create temporary input and output files
@@ -761,7 +763,7 @@ class TestLayoutEdit:
                 "--set",
                 "variables.newVar=999",
                 "--output",
-                str(output_file)
+                str(output_file),
             ],
         )
 
@@ -784,31 +786,31 @@ class TestLayoutEdit:
         assert output_content["hold_taps"][0]["quick_tap_ms"] == "${holdMs}"
         assert output_content["hold_taps"][0]["flavor"] == "${flavor}"
 
-        assert output_content["behaviors"]["custom_tap"]["tapping_term_ms"] == "${tapMs}"
+        assert (
+            output_content["behaviors"]["custom_tap"]["tapping_term_ms"] == "${tapMs}"
+        )
         assert output_content["behaviors"]["custom_tap"]["flavor"] == "${flavor}"
 
         assert output_content["combos"][0]["timeout_ms"] == "${holdMs}"
 
-    def test_edit_unset_variable_preserves_remaining_references(self, cli_runner, isolated_cli_environment):
+    def test_edit_unset_variable_preserves_remaining_references(
+        self, cli_runner, isolated_cli_environment
+    ):
         """Test that unsetting a variable preserves remaining variable references."""
         layout_with_variables = {
             "keyboard": "test_keyboard",
             "title": "Variable Test Layout",
             "layer_names": ["base"],
             "layers": [[{"value": "&kp", "params": [{"value": "Q"}]}]],
-            "variables": {
-                "tapMs": 150,
-                "holdMs": 200,
-                "flavor": "tap-preferred"
-            },
+            "variables": {"tapMs": 150, "holdMs": 200, "flavor": "tap-preferred"},
             "hold_taps": [
                 {
                     "name": "&ht_test",
                     "tapping_term_ms": "${tapMs}",
                     "quick_tap_ms": "${holdMs}",  # This reference will become invalid
-                    "flavor": "${flavor}"
+                    "flavor": "${flavor}",
                 }
-            ]
+            ],
         }
 
         input_file = isolated_cli_environment["temp_dir"] / "input_unset.json"
@@ -826,7 +828,7 @@ class TestLayoutEdit:
                 "--unset",
                 "variables.holdMs",
                 "--output",
-                str(output_file)
+                str(output_file),
             ],
         )
 
@@ -849,25 +851,24 @@ class TestLayoutEdit:
         # The reference to removed variable should remain (this is expected behavior)
         assert output_content["hold_taps"][0]["quick_tap_ms"] == "${holdMs}"
 
-    def test_edit_multiple_operations_preserve_variables(self, cli_runner, isolated_cli_environment):
+    def test_edit_multiple_operations_preserve_variables(
+        self, cli_runner, isolated_cli_environment
+    ):
         """Test that multiple edit operations in sequence preserve variables."""
         layout_with_variables = {
             "keyboard": "test_keyboard",
             "title": "Variable Test Layout",
             "layer_names": ["base"],
             "layers": [[{"value": "&kp", "params": [{"value": "Q"}]}]],
-            "variables": {
-                "tapMs": 150,
-                "flavor": "tap-preferred"
-            },
+            "variables": {"tapMs": 150, "flavor": "tap-preferred"},
             "behaviors": {
                 "custom_tap": {
                     "type": "hold_tap",
                     "tapping_term_ms": "${tapMs}",
                     "flavor": "${flavor}",
-                    "bindings": ["&kp", "&mo"]
+                    "bindings": ["&kp", "&mo"],
                 }
-            }
+            },
         }
 
         input_file = isolated_cli_environment["temp_dir"] / "input_multi.json"
@@ -881,11 +882,16 @@ class TestLayoutEdit:
                 "layout",
                 "edit",
                 str(input_file),
-                "--set", "variables.newTiming=250",
-                "--set", "variables.tapMs=175",  # Modify existing variable
-                "--set", "title=Updated Layout",
-                "--unset", "variables.flavor",   # Remove a variable
-                "--add-layer", "gaming"
+                "--set",
+                "variables.newTiming=250",
+                "--set",
+                "variables.tapMs=175",  # Modify existing variable
+                "--set",
+                "title=Updated Layout",
+                "--unset",
+                "variables.flavor",  # Remove a variable
+                "--add-layer",
+                "gaming",
             ],
         )
 
@@ -906,7 +912,9 @@ class TestLayoutEdit:
         assert "gaming" in output_content["layer_names"]
 
         # CRITICAL: Remaining variable references should be preserved
-        assert output_content["behaviors"]["custom_tap"]["tapping_term_ms"] == "${tapMs}"
+        assert (
+            output_content["behaviors"]["custom_tap"]["tapping_term_ms"] == "${tapMs}"
+        )
 
         # Reference to removed variable should remain (expected behavior)
         assert output_content["behaviors"]["custom_tap"]["flavor"] == "${flavor}"

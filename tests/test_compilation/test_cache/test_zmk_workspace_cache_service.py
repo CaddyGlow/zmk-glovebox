@@ -15,7 +15,7 @@ from glovebox.compilation.cache.models import (
 from glovebox.compilation.cache.workspace_cache_service import ZmkWorkspaceCacheService
 from glovebox.config.models.cache import CacheLevel
 from glovebox.config.user_config import UserConfig
-from glovebox.core.cache_v2.cache_manager import CacheManager
+from glovebox.core.cache.cache_manager import CacheManager
 
 
 class TestZmkWorkspaceCacheServiceSimplified:
@@ -565,7 +565,7 @@ class TestZmkWorkspaceCacheServiceSimplified:
     ):
         """Integration test: cache a repo-only workspace and retrieve it."""
         # Use real cache manager for integration test
-        from glovebox.core.cache_v2 import create_default_cache
+        from glovebox.core.cache import create_default_cache
 
         cache_manager = create_default_cache(tag="workspace_test")
         service = ZmkWorkspaceCacheService(isolated_config, cache_manager)
@@ -594,7 +594,7 @@ class TestZmkWorkspaceCacheServiceSimplified:
     ):
         """Integration test: cache a repo+branch workspace and retrieve it."""
         # Use real cache manager for integration test
-        from glovebox.core.cache_v2 import create_default_cache
+        from glovebox.core.cache import create_default_cache
 
         cache_manager = create_default_cache(tag="workspace_test")
         service = ZmkWorkspaceCacheService(isolated_config, cache_manager)

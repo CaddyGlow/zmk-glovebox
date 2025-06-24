@@ -2,8 +2,8 @@
 
 from typing import Any
 
-from glovebox.core.cache_v2.cache_manager import CacheManager
-from glovebox.core.cache_v2.models import CacheMetadata, CacheStats
+from glovebox.core.cache.cache_manager import CacheManager
+from glovebox.core.cache.models import CacheMetadata, CacheStats
 
 
 class DisabledCache(CacheManager):

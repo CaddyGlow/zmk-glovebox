@@ -153,7 +153,7 @@ def isolated_cache_environment(
         yield cache_context
     finally:
         # Reset shared cache instances for test isolation
-        from glovebox.core.cache_v2 import reset_shared_cache_instances
+        from glovebox.core.cache import reset_shared_cache_instances
 
         reset_shared_cache_instances()
 
@@ -228,7 +228,7 @@ def reset_shared_cache() -> Generator[None, None, None]:
 
     The fixture is autouse=True to automatically reset cache between tests.
     """
-    from glovebox.core.cache_v2 import reset_shared_cache_instances
+    from glovebox.core.cache import reset_shared_cache_instances
 
     # Reset cache before test
     reset_shared_cache_instances()
@@ -246,7 +246,7 @@ def shared_cache_stats() -> Generator[Callable[[], dict[str, Any]], None, None]:
     Returns:
         Callable that returns cache instance count and keys for debugging
     """
-    from glovebox.core.cache_v2 import (
+    from glovebox.core.cache import (
         get_cache_instance_count,
         get_cache_instance_keys,
     )

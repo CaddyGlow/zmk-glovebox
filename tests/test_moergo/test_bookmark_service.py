@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from glovebox.config.models.user import UserConfigData
-from glovebox.core.cache_v2.cache_manager import CacheManager
+from glovebox.core.cache.cache_manager import CacheManager
 from glovebox.layout.models.bookmarks import (
     BookmarkCollection,
     BookmarkSource,

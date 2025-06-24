@@ -10,7 +10,7 @@ from glovebox.compilation.models import ZmkCompilationConfig
 from glovebox.compilation.models.build_matrix import BuildMatrix, BuildTarget
 from glovebox.compilation.services.zmk_west_service import create_zmk_west_service
 from glovebox.config.profile import KeyboardProfile
-from glovebox.core.cache_v2 import create_default_cache
+from glovebox.core.cache import create_default_cache
 from glovebox.firmware.models import BuildResult
 
 
@@ -71,7 +71,7 @@ class TestZmkWestServiceIntegration:
         return profile
 
     def test_service_creation_with_cache_services(
-        self, mock_docker_adapter, isolated_config
+        self, mock_docker_adapter, isolated_config, mock_file_adapter
     ):
         """Test that ZmkWestService can be created with new cache services."""
         cache_manager = create_default_cache(tag="test")
@@ -79,6 +79,7 @@ class TestZmkWestServiceIntegration:
         service = create_zmk_west_service(
             docker_adapter=mock_docker_adapter,
             user_config=isolated_config,
+            file_adapter=mock_file_adapter,
             cache_manager=cache_manager,
         )
 
@@ -88,7 +89,12 @@ class TestZmkWestServiceIntegration:
         assert service.cache_manager is cache_manager
 
     def test_cache_disabled_compilation(
-        self, mock_docker_adapter, isolated_config, test_files, keyboard_profile
+        self,
+        mock_docker_adapter,
+        isolated_config,
+        test_files,
+        keyboard_profile,
+        mock_file_adapter,
     ):
         """Test compilation with caching disabled."""
         keymap_file, config_file = test_files
@@ -107,6 +113,7 @@ class TestZmkWestServiceIntegration:
         service = create_zmk_west_service(
             docker_adapter=mock_docker_adapter,
             user_config=isolated_config,
+            file_adapter=mock_file_adapter,
             cache_manager=create_default_cache(tag="test"),
         )
 
@@ -127,12 +134,13 @@ class TestZmkWestServiceIntegration:
             assert isinstance(result, BuildResult)
 
     def test_workspace_cache_integration(
-        self, mock_docker_adapter, isolated_config, zmk_config
+        self, mock_docker_adapter, isolated_config, zmk_config, mock_file_adapter
     ):
         """Test workspace cache integration with new cache services."""
         service = create_zmk_west_service(
             docker_adapter=mock_docker_adapter,
             user_config=isolated_config,
+            file_adapter=mock_file_adapter,
             cache_manager=create_default_cache(tag="test"),
         )
 
@@ -171,7 +179,12 @@ class TestZmkWestServiceIntegration:
             assert (cached_workspace / "zmk").exists()
 
     def test_build_cache_integration(
-        self, mock_docker_adapter, isolated_config, test_files, zmk_config
+        self,
+        mock_docker_adapter,
+        isolated_config,
+        test_files,
+        zmk_config,
+        mock_file_adapter,
     ):
         """Test build cache integration with new cache services."""
         keymap_file, config_file = test_files
@@ -179,6 +192,7 @@ class TestZmkWestServiceIntegration:
         service = create_zmk_west_service(
             docker_adapter=mock_docker_adapter,
             user_config=isolated_config,
+            file_adapter=mock_file_adapter,
             cache_manager=create_default_cache(tag="test"),
         )
 

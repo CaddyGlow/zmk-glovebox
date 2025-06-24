@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from glovebox.core.cache_v2.cache_coordinator import (
+from glovebox.core.cache.cache_coordinator import (
     cleanup_shared_cache_instances,
     get_aggregated_cache_stats,
     get_cache_instance_count,
@@ -16,9 +16,9 @@ from glovebox.core.cache_v2.cache_coordinator import (
     get_shared_cache_instance,
     reset_shared_cache_instances,
 )
-from glovebox.core.cache_v2.cache_manager import CacheManager
-from glovebox.core.cache_v2.diskcache_manager import DiskCacheManager
-from glovebox.core.cache_v2.models import DiskCacheConfig
+from glovebox.core.cache.cache_manager import CacheManager
+from glovebox.core.cache.diskcache_manager import DiskCacheManager
+from glovebox.core.cache.models import DiskCacheConfig
 
 
 def create_diskcache_manager(
@@ -145,7 +145,7 @@ def _is_module_cache_disabled(module: str) -> bool:
 
 def _create_disabled_cache() -> CacheManager:
     """Create a no-op cache manager that doesn't store anything."""
-    from glovebox.core.cache_v2.disabled_cache import DisabledCache
+    from glovebox.core.cache.disabled_cache import DisabledCache
 
     return DisabledCache()
 

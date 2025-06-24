@@ -28,8 +28,8 @@ from glovebox.compilation.protocols.compilation_protocols import (
     CompilationServiceProtocol,
 )
 from glovebox.config.user_config import UserConfig
-from glovebox.core.cache_v2.cache_manager import CacheManager
-from glovebox.core.cache_v2.models import CacheKey
+from glovebox.core.cache.cache_manager import CacheManager
+from glovebox.core.cache.models import CacheKey
 from glovebox.core.errors import CompilationError
 from glovebox.core.file_operations.enums import CopyStrategy
 from glovebox.core.file_operations.service import FileCopyService, create_copy_service

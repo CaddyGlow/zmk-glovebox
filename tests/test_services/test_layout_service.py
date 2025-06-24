@@ -334,7 +334,7 @@ class TestLayoutServiceWithKeyboardConfig:
                                     )
 
                                     # Execute
-                                    result = self.service.generate(
+                                    result = self.service.compile(
                                         profile=self.mock_profile,
                                         keymap_data=keymap_data,
                                         output_file_prefix=str(
@@ -520,7 +520,7 @@ class TestLayoutServiceWithKeyboardConfig:
                                     keymap_data = LayoutData.model_validate(test_data)
 
                                     # Execute
-                                    result = self.service.generate(
+                                    result = self.service.compile(
                                         profile=self.mock_profile,
                                         keymap_data=keymap_data,
                                         output_file_prefix=str(
@@ -691,7 +691,7 @@ class TestLayoutServiceWithMockedConfig:
 
                             try:
                                 # We're only testing that the integration points don't raise exceptions
-                                result = service.generate(
+                                result = service.compile(
                                     mock_profile,
                                     keymap_data,
                                     output_file_prefix=output_file_prefix,
