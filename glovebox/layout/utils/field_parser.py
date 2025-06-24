@@ -107,8 +107,14 @@ def extract_field_value_from_model(model: Any, field_path: str) -> Any:
             except (ValueError, IndexError) as e:
                 raise ValueError(f"Invalid array index: {index_str}") from e
         else:
-            # Attribute access
-            if hasattr(current, part):
+            # Attribute/key access
+            if isinstance(current, dict):
+                # For dictionaries, access keys directly
+                if part in current:
+                    current = current[part]
+                else:
+                    raise KeyError(f"Key '{part}' not found in dictionary")
+            elif hasattr(current, part):
                 current = getattr(current, part)
             else:
                 # Check if this is a Pydantic model with field aliases
@@ -152,8 +158,13 @@ def set_field_value_on_model(model: Any, field_path: str, value: Any) -> None:
             except (ValueError, IndexError) as e:
                 raise ValueError(f"Invalid array index: {index_str}") from e
         else:
-            # Attribute access
-            if hasattr(current, part):
+            # Attribute/key access
+            if isinstance(current, dict):
+                # For dictionaries, create missing keys
+                if part not in current:
+                    current[part] = {}
+                current = current[part]
+            elif hasattr(current, part):
                 current = getattr(current, part)
             else:
                 raise KeyError(f"Field '{part}' not found")
@@ -166,6 +177,10 @@ def set_field_value_on_model(model: Any, field_path: str, value: Any) -> None:
         try:
             index = int(index_str)
             if hasattr(current, "__setitem__"):
+                # For lists, extend if index is beyond current length
+                if isinstance(current, list) and index >= len(current):
+                    # Extend list with None values up to the desired index
+                    current.extend([None] * (index - len(current) + 1))
                 current[index] = value
             else:
                 raise ValueError(
@@ -174,9 +189,94 @@ def set_field_value_on_model(model: Any, field_path: str, value: Any) -> None:
         except (ValueError, IndexError) as e:
             raise ValueError(f"Invalid array index: {index_str}") from e
     else:
-        # Attribute access - use setattr for Pydantic model field setting
-        if hasattr(current, final_part):
+        # Attribute/key access for final field
+        if isinstance(current, dict):
+            # For dictionaries, always allow creating new keys
+            current[final_part] = value
+        elif hasattr(current, final_part):
             setattr(current, final_part, value)
+        else:
+            # For Pydantic models, try to set the attribute even if it doesn't exist
+            # This handles optional fields that may not be initialized
+            try:
+                setattr(current, final_part, value)
+            except AttributeError:
+                raise KeyError(f"Field '{final_part}' not found") from None
+
+def unset_field_value_on_model(model: Any, field_path: str) -> None:
+    """Remove a field value from a Pydantic model.
+
+    Args:
+        model: Pydantic model instance
+        field_path: Field path with dot notation and array indexing
+
+    Raises:
+        KeyError: If field path is not found
+        ValueError: If array index is invalid or operation not supported
+    """
+    parts = parse_field_path(field_path)
+    current = model
+
+    # Navigate to the parent
+    for part in parts[:-1]:
+        if part.startswith("[") and part.endswith("]"):
+            # Array index access
+            index_str = part[1:-1]
+            try:
+                index = int(index_str)
+                if hasattr(current, "__getitem__"):
+                    current = current[index]
+                else:
+                    raise ValueError(
+                        f"Cannot index non-indexable value with [{index_str}]"
+                    )
+            except (ValueError, IndexError) as e:
+                raise ValueError(f"Invalid array index: {index_str}") from e
+        else:
+            # Attribute/key access
+            if isinstance(current, dict):
+                if part in current:
+                    current = current[part]
+                else:
+                    raise KeyError(f"Key '{part}' not found in dictionary")
+            elif hasattr(current, part):
+                current = getattr(current, part)
+            else:
+                raise KeyError(f"Field '{part}' not found")
+
+    # Remove the final field
+    final_part = parts[-1]
+    if final_part.startswith("[") and final_part.endswith("]"):
+        # Array index access - remove from list
+        index_str = final_part[1:-1]
+        try:
+            index = int(index_str)
+            if isinstance(current, list):
+                if 0 <= index < len(current):
+                    current.pop(index)
+                else:
+                    raise ValueError(f"Index {index} out of range for list of length {len(current)}")
+            else:
+                raise ValueError(
+                    f"Cannot remove index from non-list value with [{index_str}]"
+                )
+        except (ValueError, IndexError) as e:
+            raise ValueError(f"Invalid array index: {index_str}") from e
+    else:
+        # Attribute/key access for final field
+        if isinstance(current, dict):
+            # For dictionaries, remove the key
+            if final_part in current:
+                del current[final_part]
+            else:
+                raise KeyError(f"Key '{final_part}' not found in dictionary")
+        elif hasattr(current, final_part):
+            # For Pydantic models, try to set to None or default value
+            # This is safer than deleting attributes on Pydantic models
+            try:
+                setattr(current, final_part, None)
+            except Exception as e:
+                raise ValueError(f"Cannot unset field '{final_part}': {e}") from e
         else:
             raise KeyError(f"Field '{final_part}' not found")
 

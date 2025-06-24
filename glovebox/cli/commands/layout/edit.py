@@ -1,9 +1,12 @@
 """Unified layout editing CLI command with batch operations and JSON path support."""
 
+import json
 from pathlib import Path
 from typing import Annotated, Any
 
 import typer
+from rich.console import Console
+from rich.table import Table
 
 from glovebox.adapters import create_file_adapter
 from glovebox.cli.commands.layout.base import LayoutOutputCommand
@@ -11,7 +14,10 @@ from glovebox.cli.decorators import handle_errors
 from glovebox.cli.helpers.parameters import OutputFormatOption
 from glovebox.layout.editor import create_layout_editor_service
 from glovebox.layout.layer import create_layout_layer_service
+from glovebox.layout.utils.variable_resolver import VariableResolver
 
+
+console = Console()
 
 @handle_errors
 def edit(
@@ -26,6 +32,13 @@ def edit(
         typer.Option(
             "--set",
             help="Set field value using key=value or key=--from syntax",
+        ),
+    ] = None,
+    unset: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--unset",
+            help="Remove field or dictionary key (e.g., 'variables.myVar')",
         ),
     ] = None,
     # Layer operations
@@ -57,6 +70,9 @@ def edit(
     ] = None,
     list_layers: Annotated[
         bool, typer.Option("--list-layers", help="List all layers in the layout")
+    ] = False,
+    list_usage: Annotated[
+        bool, typer.Option("--list-usage", help="Show where each variable is used")
     ] = False,
     # Import/position options
     from_source: Annotated[
@@ -96,6 +112,7 @@ def edit(
         --get "layers[0]" --get "title"      # Get multiple fields
         --set title="New Title"              # Set field value
         --set "custom_defined_behaviors=--from other.json:behaviors"  # Import from file
+        --unset variables.oldVar             # Remove dictionary key or field
 
     Layer Operations:
         --add-layer "NewLayer"               # Add empty layer
@@ -108,6 +125,7 @@ def edit(
         --move-layer "Symbol:0"              # Move Symbol to position 0
         --copy-layer "Base:Gaming"           # Copy Base layer as Gaming
         --list-layers                        # List all layers
+        --list-usage                         # Show where each variable is used
 
     JSON Path Support:
         --from "file.json$.layers[0]"        # Import using JSON path
@@ -128,6 +146,21 @@ def edit(
 
         # Set multiple fields
         glovebox layout edit layout.json --set title="New" --set version="2.0"
+
+        # Set complex nested fields with array indexing and variables
+        glovebox layout edit layout.json --set 'hold_taps[0].tapping_term_ms="${tapMs}"'
+
+        # Create new variable entries (dict keys are created automatically)
+        glovebox layout edit layout.json --set variables.myVar=value --set variables.timing=150
+
+        # Remove variables or dictionary keys
+        glovebox layout edit layout.json --unset variables.oldVar --unset variables.unused
+
+        # Append to lists (extends list if index is beyond current length)
+        glovebox layout edit layout.json --set 'tags[5]="new-tag"'
+
+        # Remove from lists (by index)
+        glovebox layout edit layout.json --unset 'tags[2]'
 
         # Layer management
         glovebox layout edit layout.json --add-layer "Gaming" --position 3
@@ -169,9 +202,14 @@ def edit(
             layer_result = layer_service.list_layers(layout_file)
             results["layers"] = layer_result
 
+        # Process list-usage operation (read-only)
+        if list_usage:
+            usage_result = _get_variable_usage(layout_file, file_adapter)
+            results["variable_usage"] = usage_result
+
         # If only read operations, output results and return
-        if (get or list_layers) and not any(
-            [set, add_layer, remove_layer, move_layer, copy_layer]
+        if (get or list_layers or list_usage) and not any(
+            [set, unset, add_layer, remove_layer, move_layer, copy_layer]
         ):
             _output_results(command, results, output_format)
             return
@@ -216,6 +254,16 @@ def edit(
                 changes_made = True
                 operations.append(
                     {"type": "set", "field": field_path, "value": str(value)[:50]}
+                )
+
+        # Process unset operations
+        if unset:
+            for field_path in unset:
+                output_path = _unset_field_value(editor_service, current_file, field_path, force)
+                current_file = output_path
+                changes_made = True
+                operations.append(
+                    {"type": "unset", "field": field_path}
                 )
 
         # Process layer operations
@@ -379,6 +427,8 @@ def edit(
                 for op in operations:
                     if op["type"] == "set":
                         print_list_item(f"Set {op['field']}: {op['value']}")
+                    elif op["type"] == "unset":
+                        print_list_item(f"Removed {op['field']}")
                     elif op["type"] == "add_layer":
                         print_list_item(
                             f"Added layer '{op['layer']}' at position {op['position']}"
@@ -433,6 +483,30 @@ def _output_results(
                 command.print_text_list(
                     layer_lines, f"Layout has {value['total_layers']} layers:"
                 )
+            elif key == "variable_usage":
+                if "error" in value:
+                    print_list_item(f"Error getting variable usage: {value['error']}")
+                elif "message" in value:
+                    print_list_item(value["message"])
+                else:
+                    # Display the usage table
+                    if value:
+                        table = Table(title="Variable Usage")
+                        table.add_column("Variable", style="cyan")
+                        table.add_column("Used In", style="green")
+                        table.add_column("Count", style="blue")
+
+                        for var_name, paths in value.items():
+                            usage_str = (
+                                "\n".join(paths)
+                                if len(paths) <= 5
+                                else "\n".join(paths[:5]) + f"\n... and {len(paths) - 5} more"
+                            )
+                            table.add_row(var_name, usage_str, str(len(paths)))
+
+                        console.print(table)
+                    else:
+                        print_list_item("No variable usage found")
 
 
 def _resolve_import_source(import_source: str, target_field: str) -> Any:
@@ -448,3 +522,69 @@ def _parse_import_source(source: str) -> tuple[str | None, str | None]:
         file_part, layer_part = source.split(":", 1)
         return file_part, layer_part
     return source, None
+
+
+def _get_variable_usage(layout_file: Path, file_adapter: Any) -> dict[str, Any]:
+    """Get variable usage information from a layout file."""
+    try:
+        json_data = file_adapter.read_json(layout_file)
+        variables_dict = json_data.get("variables", {})
+
+        if not variables_dict:
+            return {"message": "No variables found in layout"}
+
+        resolver = VariableResolver(variables_dict)
+        usage = resolver.get_variable_usage(json_data)
+        return usage
+    except Exception as e:
+        return {"error": str(e)}
+
+def _unset_field_value(
+    editor_service: Any, layout_file: Path, field_path: str, force: bool
+) -> Path:
+    """Remove a field value from a layout file."""
+    from glovebox.adapters import create_file_adapter
+    from glovebox.layout.utils.field_parser import unset_field_value_on_model
+    from glovebox.layout.utils.json_operations import load_layout_file, save_layout_file
+
+    file_adapter = create_file_adapter()
+
+    # Load the layout
+    layout_data = load_layout_file(layout_file, file_adapter)
+
+    # Remove the field value
+    unset_field_value_on_model(layout_data, field_path)
+
+    # Save the modified layout
+    save_layout_file(layout_data, layout_file, file_adapter)
+
+    return layout_file
+
+
+def _display_variables_usage(
+    json_data: dict[str, Any], resolver: VariableResolver, output_format: str
+) -> None:
+    """Display where each variable is used."""
+    usage = resolver.get_variable_usage(json_data)
+
+    if output_format == "json":
+        console.print(json.dumps(usage, indent=2))
+    else:
+        if not usage:
+            console.print("[yellow]No variable usage found[/yellow]")
+            return
+
+        table = Table(title="Variable Usage")
+        table.add_column("Variable", style="cyan")
+        table.add_column("Used In", style="green")
+        table.add_column("Count", style="blue")
+
+        for var_name, paths in usage.items():
+            usage_str = (
+                "\n".join(paths)
+                if len(paths) <= 5
+                else "\n".join(paths[:5]) + f"\n... and {len(paths) - 5} more"
+            )
+            table.add_row(var_name, usage_str, str(len(paths)))
+
+        console.print(table)

@@ -19,8 +19,6 @@ from .file_operations import export, import_layout, merge, split
 from .upgrade import upgrade
 
 # Import variable management command
-from .variables import variables
-
 # Import version management subcommand group
 from .versions import versions_app
 
@@ -33,7 +31,7 @@ layout_app = typer.Typer(
 Transform JSON layouts to ZMK files, edit layouts with batch operations,
 manage file operations, handle version upgrades, and compare layouts.
 
-**NEW COMMAND STRUCTURE** (9 main commands instead of 19+):
+**NEW COMMAND STRUCTURE** (8 main commands instead of 19+):
 
 Core Operations:
   compile     - Convert JSON layout to ZMK files
@@ -41,8 +39,8 @@ Core Operations:
   show        - Display layout in terminal
 
 Unified Editing:
-  edit        - Get/set fields, add/remove/move layers (batch operations)
-  variables   - Manage variables: list, set, validate, flatten (batch operations)
+  edit        - Get/set fields, add/remove/move layers, list variable usage (batch operations)
+
 
 File Operations:
   split       - Split layout into component files (was decompose)
@@ -74,8 +72,7 @@ layout_app.command()(show)
 # Register unified edit command
 layout_app.command()(edit)
 
-# Register variable management command
-layout_app.command()(variables)
+
 
 # Register file operations
 layout_app.command()(split)

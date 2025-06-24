@@ -555,6 +555,149 @@ class TestLayoutEdit:
         assert "get:title" in output_data
         assert output_data["get:title"] == "Test Layout"
 
+    def test_edit_unset_field(self, cli_runner, layout_file):
+        """Test removing a field value with --unset."""
+        with patch(
+            "glovebox.cli.commands.layout.edit._unset_field_value"
+        ) as mock_unset:
+            mock_unset.return_value = layout_file.parent / "modified_layout.json"
+
+            result = cli_runner.invoke(
+                app, ["layout", "edit", str(layout_file), "--unset", "variables.oldVar"]
+            )
+
+            assert result.exit_code == 0
+            assert "Layout edited successfully (1 operations)" in result.output
+            assert "Removed variables.oldVar" in result.output
+            mock_unset.assert_called_once()
+
+    def test_edit_unset_multiple_fields(self, cli_runner, layout_file):
+        """Test removing multiple field values with --unset."""
+        with patch(
+            "glovebox.cli.commands.layout.edit._unset_field_value"
+        ) as mock_unset:
+            mock_unset.return_value = layout_file.parent / "modified_layout.json"
+
+            result = cli_runner.invoke(
+                app,
+                [
+                    "layout",
+                    "edit",
+                    str(layout_file),
+                    "--unset",
+                    "variables.oldVar",
+                    "--unset",
+                    "variables.unused",
+                ],
+            )
+
+            assert result.exit_code == 0
+            assert "Layout edited successfully (2 operations)" in result.output
+            assert "Removed variables.oldVar" in result.output
+            assert "Removed variables.unused" in result.output
+            assert mock_unset.call_count == 2
+
+    def test_edit_list_usage(self, cli_runner, layout_file):
+        """Test listing variable usage with --list-usage."""
+        with patch(
+            "glovebox.cli.commands.layout.edit._get_variable_usage"
+        ) as mock_usage:
+            mock_usage.return_value = {
+                "tapMs": ["hold_taps[0].tapping_term_ms", "hold_taps[1].tapping_term_ms"],
+                "flavor": ["hold_taps[0].flavor"],
+            }
+
+            result = cli_runner.invoke(
+                app, ["layout", "edit", str(layout_file), "--list-usage", "--no-save"]
+            )
+
+            assert result.exit_code == 0
+            assert "Variable Usage" in result.output or "tapMs" in result.output
+            mock_usage.assert_called_once()
+
+    def test_edit_set_creates_new_variable(
+        self, cli_runner, layout_file, mock_layout_editor_service
+    ):
+        """Test that --set can create new dictionary keys."""
+        output_path = layout_file.parent / "modified_layout.json"
+        mock_layout_editor_service.set_field_value.return_value = output_path
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "layout",
+                "edit",
+                str(layout_file),
+                "--set",
+                "variables.newVar=value",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Layout edited successfully (1 operations)" in result.output
+        assert "Set variables.newVar: value" in result.output
+        mock_layout_editor_service.set_field_value.assert_called_once()
+
+    def test_edit_batch_with_unset(
+        self, cli_runner, layout_file, mock_layout_editor_service
+    ):
+        """Test batch operations including unset."""
+        output_path = layout_file.parent / "modified_layout.json"
+        mock_layout_editor_service.set_field_value.return_value = output_path
+
+        with patch(
+            "glovebox.cli.commands.layout.edit._unset_field_value"
+        ) as mock_unset:
+            mock_unset.return_value = output_path
+
+            result = cli_runner.invoke(
+                app,
+                [
+                    "layout",
+                    "edit",
+                    str(layout_file),
+                    "--set",
+                    "variables.newVar=value",
+                    "--unset",
+                    "variables.oldVar",
+                ],
+            )
+
+            assert result.exit_code == 0
+            assert "Layout edited successfully (2 operations)" in result.output
+            assert "Set variables.newVar: value" in result.output
+            assert "Removed variables.oldVar" in result.output
+            mock_layout_editor_service.set_field_value.assert_called_once()
+            mock_unset.assert_called_once()
+
+    def test_edit_complex_nested_set(
+        self, cli_runner, layout_file, mock_layout_editor_service
+    ):
+        """Test setting complex nested fields with array indexing."""
+        output_path = layout_file.parent / "modified_layout.json"
+        mock_layout_editor_service.set_field_value.return_value = output_path
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "layout",
+                "edit",
+                str(layout_file),
+                "--set",
+                'hold_taps[0].tapping_term_ms="${tapMs}"',
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Layout edited successfully (1 operations)" in result.output
+        assert "Set hold_taps[0].tapping_term_ms" in result.output
+        mock_layout_editor_service.set_field_value.assert_called_once()
+
+        # Verify the correct field path and value were passed
+        call_args = mock_layout_editor_service.set_field_value.call_args[1]
+        assert call_args["field_path"] == "hold_taps[0].tapping_term_ms"
+        assert call_args["value"] == "${tapMs}"
+
 
 class TestLayoutFileOperations:
     """Test file operation commands (split, merge, export, import)."""
