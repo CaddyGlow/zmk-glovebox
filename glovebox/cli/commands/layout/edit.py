@@ -260,8 +260,11 @@ def edit(
         # Process unset operations
         if unset:
             for field_path in unset:
-                output_path = _unset_field_value(
-                    editor_service, current_file, field_path, force
+                output_path = editor_service.unset_field_value(
+                    layout_file=current_file,
+                    field_path=field_path,
+                    output=output if not changes_made else None,
+                    force=force,
                 )
                 current_file = output_path
                 changes_made = True
@@ -529,6 +532,8 @@ def _parse_import_source(source: str) -> tuple[str | None, str | None]:
 def _get_variable_usage(layout_file: Path, file_adapter: Any) -> dict[str, Any]:
     """Get variable usage information from a layout file."""
     try:
+        # For variable usage analysis, we need to read the raw JSON
+        # to see the actual variable references before resolution
         json_data = file_adapter.read_json(layout_file)
         variables_dict = json_data.get("variables", {})
 
@@ -552,8 +557,8 @@ def _unset_field_value(
 
     file_adapter = create_file_adapter()
 
-    # Load the layout
-    layout_data = load_layout_file(layout_file, file_adapter)
+    # Load the layout WITHOUT variable resolution to preserve variable references
+    layout_data = load_layout_file(layout_file, file_adapter, skip_variable_resolution=True)
 
     # Remove the field value
     unset_field_value_on_model(layout_data, field_path)

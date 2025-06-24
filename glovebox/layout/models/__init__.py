@@ -324,13 +324,28 @@ class LayoutData(LayoutMetadata):
 
     @model_validator(mode="before")
     @classmethod
-    def resolve_variables(cls, data: Any) -> Any:
-        """Resolve all variables before field validation."""
+    def resolve_variables(cls, data: Any, info: Any = None) -> Any:
+        """Resolve all variables before field validation.
+
+        Variables are NOT resolved during edit operations to preserve original
+        variable references in the layout file. This prevents variable flattening
+        when saving edited layouts.
+        """
+
         if (
             not isinstance(data, dict)
             or "variables" not in data
             or not data["variables"]
         ):
+            return data
+
+        # Check if variable resolution should be skipped
+        # This prevents variable flattening during edit operations
+        from glovebox.layout.utils.json_operations import (
+            should_skip_variable_resolution,
+        )
+
+        if should_skip_variable_resolution():
             return data
 
         # Import here to avoid circular imports
