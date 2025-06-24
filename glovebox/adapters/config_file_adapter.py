@@ -101,11 +101,7 @@ class ConfigFileAdapter(Generic[T]):
             Tuple of (config_data, file_path) where file_path is the path of the first
             valid config file found, or None if no valid files were found
         """
-        logger.debug(
-            "Searching for config files in %d locations: %s", 
-            len(search_paths), 
-            " | ".join(str(p) for p in search_paths)
-        )
+        logger.debug("Searching for config files in %d locations", len(search_paths))
 
         for i, config_path in enumerate(search_paths, 1):
             if not config_path.exists():

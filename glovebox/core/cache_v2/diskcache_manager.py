@@ -156,7 +156,6 @@ class DiskCacheManager(CacheManager):
 
                 if value is not default:
                     self._stats.hit_count += 1
-                    self.logger.debug("Cache hit for key: %s", key)
 
                     # Track cache hit in metrics
                     if self._cache_hit_miss_counter:
@@ -206,7 +205,6 @@ class DiskCacheManager(CacheManager):
                 else:
                     self._cache.set(key, value)
 
-                self.logger.debug("Cached value for key: %s (TTL: %s)", key, ttl)
 
             except Exception as e:
                 self._stats.error_count += 1

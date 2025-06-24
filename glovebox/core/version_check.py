@@ -9,6 +9,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from glovebox.config import create_user_config
+from glovebox.config.user_config import UserConfig
 from glovebox.core.cache_v2 import create_cache_from_user_config
 from glovebox.core.cache_v2.cache_manager import CacheManager
 from glovebox.core.cache_v2.models import CacheKey
@@ -42,17 +43,16 @@ class VersionCheckResult(BaseModel):
 class ZmkVersionChecker:
     """Service to check for ZMK firmware updates."""
 
-    def __init__(self, cache: CacheManager | None = None) -> None:
-        """Initialize version checker.
+    def __init__(self, user_config: UserConfig, cache: CacheManager) -> None:
+        """Initialize version checker with required dependencies.
 
         Args:
-            cache: Optional cache manager. If None, creates from user config.
+            user_config: User configuration instance
+            cache: Cache manager instance
         """
         self.logger = logging.getLogger(__name__)
-        self._user_config = create_user_config()
-        self._cache = cache or create_cache_from_user_config(
-            self._user_config._config, tag="version_check"
-        )
+        self._user_config = user_config
+        self._cache = cache
 
     def check_for_updates(
         self, force: bool = False, include_prereleases: bool = False
@@ -262,6 +262,19 @@ class ZmkVersionChecker:
             self.logger.error("Failed to enable version checks: %s", e)
 
 
-def create_zmk_version_checker() -> ZmkVersionChecker:
-    """Factory function to create ZMK version checker."""
-    return ZmkVersionChecker()
+def create_zmk_version_checker(
+    user_config: UserConfig | None = None,
+) -> ZmkVersionChecker:
+    """Factory function to create ZMK version checker with proper dependencies.
+
+    Args:
+        user_config: Optional user configuration instance (creates new if None)
+
+    Returns:
+        Configured ZmkVersionChecker instance
+    """
+    if user_config is None:
+        user_config = create_user_config()
+
+    cache = create_cache_from_user_config(user_config._config, tag="version_check")
+    return ZmkVersionChecker(user_config, cache)

@@ -23,9 +23,11 @@ def check_updates(
     ),
 ) -> None:
     """Check for ZMK firmware updates."""
+    from glovebox.cli.helpers.profile import get_user_config_from_context
     from glovebox.core.version_check import create_zmk_version_checker
 
-    version_checker = create_zmk_version_checker()
+    user_config = get_user_config_from_context(ctx)
+    version_checker = create_zmk_version_checker(user_config)
     result = version_checker.check_for_updates(
         force=force, include_prereleases=include_prereleases
     )
@@ -76,9 +78,11 @@ def check_updates(
 @handle_errors
 def disable_updates(ctx: typer.Context) -> None:
     """Disable automatic ZMK version checks."""
+    from glovebox.cli.helpers.profile import get_user_config_from_context
     from glovebox.core.version_check import create_zmk_version_checker
 
-    version_checker = create_zmk_version_checker()
+    user_config = get_user_config_from_context(ctx)
+    version_checker = create_zmk_version_checker(user_config)
     version_checker.disable_version_checks()
     print_success_message("ZMK version checks disabled")
 
@@ -86,8 +90,10 @@ def disable_updates(ctx: typer.Context) -> None:
 @handle_errors
 def enable_updates(ctx: typer.Context) -> None:
     """Enable automatic ZMK version checks."""
+    from glovebox.cli.helpers.profile import get_user_config_from_context
     from glovebox.core.version_check import create_zmk_version_checker
 
-    version_checker = create_zmk_version_checker()
+    user_config = get_user_config_from_context(ctx)
+    version_checker = create_zmk_version_checker(user_config)
     version_checker.enable_version_checks()
     print_success_message("ZMK version checks enabled")

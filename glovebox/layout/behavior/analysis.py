@@ -146,7 +146,6 @@ def get_required_includes_for_layout(
             if behavior_includes is not None:
                 for include in behavior_includes:
                     includes.add(include)
-    logger.debug("Includes from behavior: %s", includes)
     return sorted(includes)
 
 
@@ -259,5 +258,4 @@ def register_layout_behaviors(
 
     # Summary logging
     if registered_behaviors:
-        behavior_summary = " | ".join(registered_behaviors)
-        logger.debug("Registered %d behaviors: %s", len(registered_behaviors), behavior_summary)
+        logger.debug("Registered %d behaviors", len(registered_behaviors))

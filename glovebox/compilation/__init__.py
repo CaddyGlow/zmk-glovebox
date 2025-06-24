@@ -13,18 +13,22 @@ from glovebox.compilation.protocols.compilation_protocols import (
 
 
 if TYPE_CHECKING:
+    from glovebox.config.user_config import UserConfig
     from glovebox.metrics.session_metrics import SessionMetrics
 
 
 # Simple factory function for direct service selection
 def create_compilation_service(
-    strategy: str, session_metrics: "SessionMetrics | None" = None
+    strategy: str, 
+    session_metrics: "SessionMetrics | None" = None,
+    user_config: "UserConfig | None" = None,
 ) -> CompilationServiceProtocol:
     """Create compilation service for specified strategy.
 
     Args:
         strategy: Compilation strategy
         session_metrics: Optional SessionMetrics instance for metrics integration
+        user_config: Optional UserConfig instance to reuse (creates new if None)
 
     Returns:
         CompilationServiceProtocol: Configured compilation service
@@ -33,7 +37,7 @@ def create_compilation_service(
         ValueError: If strategy is not supported
     """
     if strategy == "zmk_config":
-        return create_zmk_west_service(session_metrics=session_metrics)
+        return create_zmk_west_service(session_metrics=session_metrics, user_config=user_config)
     elif strategy == "moergo":
         return create_moergo_nix_service(session_metrics=session_metrics)
     else:
@@ -44,11 +48,13 @@ def create_compilation_service(
 
 def create_zmk_west_service(
     session_metrics: "SessionMetrics | None" = None,
+    user_config: "UserConfig | None" = None,
 ) -> CompilationServiceProtocol:
     """Create ZMK with West compilation service using shared cache coordination.
 
     Args:
         session_metrics: Optional SessionMetrics instance for metrics integration
+        user_config: Optional UserConfig instance to reuse (creates new if None)
 
     Returns:
         CompilationServiceProtocol: ZMK config compilation service
@@ -60,7 +66,8 @@ def create_zmk_west_service(
     from glovebox.config.user_config import create_user_config
 
     docker_adapter = create_docker_adapter()
-    user_config = create_user_config()
+    if user_config is None:
+        user_config = create_user_config()
 
     # Use shared cache coordination via domain-specific factory
     from glovebox.compilation.cache import create_compilation_cache_service

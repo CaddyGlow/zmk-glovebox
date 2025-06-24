@@ -121,7 +121,6 @@ class UserConfig:
             # Track sources for file-based values (including nested keys)
             self._track_file_sources(config_data, found_path.name)
 
-            logger.debug("Configuration loaded with %d file keys", len(config_data))
         else:
             logger.info(
                 "No user configuration files found. Using defaults with environment variables."
@@ -136,12 +135,7 @@ class UserConfig:
         self._track_env_var_sources()
 
         # Final debug output showing key configuration values only
-        logger.debug(
-            "Config summary - profile: %s | log_level: %s | %d keyboard_paths",
-            self._config.profile,
-            self._config.log_level,
-            len(self._config.keyboard_paths),
-        )
+        logger.debug("Config loaded: profile=%s", self._config.profile)
 
     def _track_file_sources(
         self, data: dict[str, Any], filename: str, prefix: str = ""

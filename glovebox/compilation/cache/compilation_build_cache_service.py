@@ -163,7 +163,6 @@ class CompilationBuildCacheService:
             Path to cached build directory, or None if not found
         """
         try:
-            self.logger.debug("Looking up build cache with key: %s", cache_key)
 
             cached_data = self.cache_manager.get(cache_key)
             if not cached_data:
@@ -171,7 +170,6 @@ class CompilationBuildCacheService:
                 return None
 
             cached_path = Path(cached_data["cached_path"])
-            self.logger.debug("Found cached data, path: %s", cached_path)
 
             # Verify cached build still exists
             if not cached_path.exists():

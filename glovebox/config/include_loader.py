@@ -71,7 +71,19 @@ class IncludeConfigLoader:
         # Convert to typed object using Pydantic validation
         try:
             typed_config = KeyboardConfig.model_validate(raw_config)
-            file_list = " | ".join(f.name for f in loaded_files)
+            # Show relative paths from keyboards/ folder for better context
+            def get_relative_path(file_path: Path) -> str:
+                # Try to find keyboards/ in the path and show relative to that
+                parts = file_path.parts
+                try:
+                    keyboards_idx = parts.index('keyboards')
+                    relative_parts = parts[keyboards_idx:]
+                    return "/".join(relative_parts)
+                except ValueError:
+                    # Fallback to just the name if keyboards/ not found
+                    return file_path.name
+            
+            file_list = " | ".join(get_relative_path(f) for f in loaded_files)
             logger.debug("Loaded keyboard config %s from %d files: %s", keyboard_name, len(loaded_files), file_list)
             return typed_config
         except ValidationError as e:

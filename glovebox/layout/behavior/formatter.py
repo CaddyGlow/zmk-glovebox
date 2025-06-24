@@ -481,9 +481,6 @@ class CustomBehaviorRef(Behavior):
                 # Use systematic hold-tap binding context check
                 if self._should_use_bare_reference():
                     return self.behavior_name
-                logger.debug(
-                    f"Behavior '{self.behavior_name}' (origin: {origin}) expects {expected_params} parameters but received only {num_params_received}. Appending '{MACRO_PLACEHOLDER}' for missing parameters."
-                )
                 missing_count = expected_params - num_params_received
                 formatted_params.extend([MACRO_PLACEHOLDER] * missing_count)
 
