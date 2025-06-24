@@ -1,6 +1,7 @@
 """Helper functions for working with keyboard profiles in CLI commands."""
 
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import typer
@@ -39,6 +40,7 @@ def _get_icon_mode_safe(user_config: "UserConfig | None" = None) -> str:
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
     from glovebox.config.user_config import UserConfig
+
 
 logger = logging.getLogger(__name__)
 
@@ -300,3 +302,56 @@ def create_profile_from_context(
     """
     user_config = get_user_config_from_context(ctx)
     return create_profile_from_option(profile_option, user_config)
+
+
+def resolve_and_create_profile_unified(
+    ctx: typer.Context | ClickContext,
+    profile_option: str | None = None,
+    default_profile: str | None = None,
+    json_file_path: Path | None = None,
+    no_auto: bool = False,
+) -> "KeyboardProfile":
+    """Unified profile resolution and creation function.
+
+    This function consolidates all profile handling logic used across
+    the CLI, including default resolution, auto-detection, and creation.
+
+    Args:
+        ctx: Typer context containing user config
+        profile_option: Profile option from CLI parameter (can be None)
+        default_profile: Default profile to use if none provided
+        json_file_path: JSON file path for auto-detection
+        no_auto: Disable auto-detection from JSON file
+
+    Returns:
+        KeyboardProfile instance
+
+    Raises:
+        typer.Exit: If profile creation fails
+    """
+    from glovebox.cli.helpers.auto_profile import resolve_profile_with_auto_detection
+
+    # Get user config from context
+    user_config = get_user_config_from_context(ctx)
+
+    # If we have a JSON file and auto-detection is enabled, use the unified auto-detection logic
+    if json_file_path and not no_auto:
+        effective_profile = resolve_profile_with_auto_detection(
+            profile_option, json_file_path, no_auto, user_config
+        )
+    else:
+        # Use standard profile resolution
+        if profile_option is None:
+            # Apply default profile if provided
+            profile_option = default_profile
+
+        effective_profile = get_effective_profile(profile_option, user_config)
+
+    # Create the keyboard profile
+    keyboard_profile = create_profile_from_option(effective_profile, user_config)
+
+    # Store profile in context for consistency with decorator pattern
+    if hasattr(ctx.obj, "__dict__"):
+        ctx.obj.keyboard_profile = keyboard_profile
+
+    return keyboard_profile

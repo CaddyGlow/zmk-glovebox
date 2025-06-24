@@ -16,6 +16,7 @@ from glovebox.core.cache.cache_manager import CacheManager
 from glovebox.core.cache.models import CacheKey
 from glovebox.core.file_operations import create_copy_service
 from glovebox.core.file_operations.enums import CopyStrategy
+from glovebox.protocols.metrics_protocol import MetricsProtocol
 
 
 class ZmkWorkspaceCacheService:
@@ -26,7 +27,12 @@ class ZmkWorkspaceCacheService:
     2. Repo+branch: Excludes .git folders for static branch state (shorter TTL)
     """
 
-    def __init__(self, user_config: UserConfig, cache_manager: CacheManager) -> None:
+    def __init__(
+        self,
+        user_config: UserConfig,
+        cache_manager: CacheManager,
+        session_metrics: MetricsProtocol,
+    ) -> None:
         """Initialize the workspace cache service.
 
         Args:
@@ -37,6 +43,7 @@ class ZmkWorkspaceCacheService:
         self.cache_manager = cache_manager
         self.logger = logging.getLogger(__name__)
         self.copy_service = create_copy_service(user_config)
+        self.metrics = session_metrics
 
     def get_cache_directory(self) -> Path:
         """Get the workspace cache directory.
@@ -89,28 +96,15 @@ class ZmkWorkspaceCacheService:
             WorkspaceCacheResult with operation results
         """
         # Import metrics here to avoid circular dependencies
-        try:
-            from glovebox.core.metrics.collector import (  # type: ignore[import-untyped]
-                compilation_metrics,
-            )
 
-            with compilation_metrics() as metrics:
-                metrics.set_context(
-                    repository=repository,
-                    branch=None,
-                    cache_level="repo",
-                    operation="cache_workspace_repo_only",
-                )
+        self.metrics.set_context(
+            repository=repository,
+            branch=None,
+            cache_level="repo",
+            operation="cache_workspace_repo_only",
+        )
 
-                with metrics.time_operation("workspace_caching"):
-                    return self._cache_workspace_internal(
-                        workspace_path=workspace_path,
-                        repository=repository,
-                        branch=None,
-                        cache_level=CacheLevel.REPO,
-                        include_git=True,
-                    )
-        except ImportError:
+        with self.metrics.time_operation("workspace_caching"):
             return self._cache_workspace_internal(
                 workspace_path=workspace_path,
                 repository=repository,
@@ -133,28 +127,14 @@ class ZmkWorkspaceCacheService:
             WorkspaceCacheResult with operation results
         """
         # Import metrics here to avoid circular dependencies
-        try:
-            from glovebox.core.metrics.collector import (
-                compilation_metrics,
-            )
+        self.metrics.set_context(
+            repository=repository,
+            branch=branch,
+            cache_level="repo_branch",
+            operation="cache_workspace_repo_branch",
+        )
 
-            with compilation_metrics() as metrics:
-                metrics.set_context(
-                    repository=repository,
-                    branch=branch,
-                    cache_level="repo_branch",
-                    operation="cache_workspace_repo_branch",
-                )
-
-                with metrics.time_operation("workspace_caching"):
-                    return self._cache_workspace_internal(
-                        workspace_path=workspace_path,
-                        repository=repository,
-                        branch=branch,
-                        cache_level=CacheLevel.REPO_BRANCH,
-                        include_git=True,
-                    )
-        except ImportError:
+        with self.metrics.time_operation("workspace_caching"):
             return self._cache_workspace_internal(
                 workspace_path=workspace_path,
                 repository=repository,
@@ -176,22 +156,15 @@ class ZmkWorkspaceCacheService:
             WorkspaceCacheResult with cached workspace information
         """
         # Import metrics here to avoid circular dependencies
-        try:
-            from glovebox.core.metrics.collector import (
-                compilation_metrics,
-            )
 
-            with compilation_metrics() as metrics:
-                metrics.set_context(
-                    repository=repository,
-                    branch=branch,
-                    cache_level="repo_branch" if branch else "repo",
-                    operation="get_cached_workspace",
-                )
+        self.metrics.set_context(
+            repository=repository,
+            branch=branch,
+            cache_level="repo_branch" if branch else "repo",
+            operation="get_cached_workspace",
+        )
 
-                return self._get_cached_workspace_internal(repository, branch, metrics)
-        except ImportError:
-            return self._get_cached_workspace_internal(repository, branch)
+        return self._get_cached_workspace_internal(repository, branch, self.metrics)
 
     def _get_cached_workspace_internal(
         self, repository: str, branch: str | None = None, metrics: Any = None
@@ -478,6 +451,7 @@ class ZmkWorkspaceCacheService:
 
             # Generate cache key and directory
             cache_key = self._generate_cache_key(repository, branch)
+            self.logger.debug("Generating %s", cache_key)
             cache_base_dir = self.get_cache_directory()
             cached_workspace_dir = cache_base_dir / cache_key
             cached_workspace_dir.mkdir(parents=True, exist_ok=True)

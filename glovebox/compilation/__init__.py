@@ -13,7 +13,12 @@ from glovebox.compilation.protocols.compilation_protocols import (
 
 
 if TYPE_CHECKING:
+    from glovebox.compilation.cache import (
+        CompilationBuildCacheService,
+        ZmkWorkspaceCacheService,
+    )
     from glovebox.config.user_config import UserConfig
+    from glovebox.core.cache.cache_manager import CacheManager
     from glovebox.core.metrics.session_metrics import SessionMetrics
     from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
 
@@ -24,10 +29,10 @@ def create_compilation_service(
     user_config: "UserConfig",
     docker_adapter: "DockerAdapterProtocol",
     file_adapter: "FileAdapterProtocol",
-    cache_manager: Any | None = None,
+    cache_manager: "CacheManager",
+    session_metrics: "SessionMetrics ",
     workspace_cache_service: Any | None = None,
     build_cache_service: Any | None = None,
-    session_metrics: "SessionMetrics | None" = None,
 ) -> CompilationServiceProtocol:
     """Create compilation service for specified strategy with explicit dependencies.
 
@@ -61,9 +66,9 @@ def create_compilation_service(
             docker_adapter=docker_adapter,
             file_adapter=file_adapter,
             cache_manager=cache_manager,
+            session_metrics=session_metrics,
             workspace_cache_service=workspace_cache_service,
             build_cache_service=build_cache_service,
-            session_metrics=session_metrics,
         )
     elif strategy == "moergo":
         return create_moergo_nix_service(
@@ -81,10 +86,10 @@ def create_zmk_west_service(
     user_config: "UserConfig",
     docker_adapter: "DockerAdapterProtocol",
     file_adapter: "FileAdapterProtocol",
-    cache_manager: Any,
-    workspace_cache_service: Any,
-    build_cache_service: Any,
-    session_metrics: "SessionMetrics | None" = None,
+    cache_manager: "CacheManager",
+    session_metrics: "SessionMetrics",
+    workspace_cache_service: "ZmkWorkspaceCacheService",
+    build_cache_service: "CompilationBuildCacheService",
 ) -> CompilationServiceProtocol:
     """Create ZMK with West compilation service with explicit dependencies.
 

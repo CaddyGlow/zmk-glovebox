@@ -111,11 +111,26 @@ def _execute_compilation_service(
 
     docker_adapter = create_docker_adapter()
     file_adapter = create_file_adapter()
+
+    # Create cache services if strategy requires them
+    cache_manager = None
+    workspace_cache_service = None
+    build_cache_service = None
+
+    if compilation_strategy == "zmk_config":
+        from glovebox.compilation.cache import create_compilation_cache_service
+        cache_manager, workspace_cache_service, build_cache_service = create_compilation_cache_service(
+            user_config, session_metrics
+        )
+
     compilation_service = create_compilation_service(
         compilation_strategy,
         user_config=user_config,
         docker_adapter=docker_adapter,
         file_adapter=file_adapter,
+        cache_manager=cache_manager,
+        workspace_cache_service=workspace_cache_service,
+        build_cache_service=build_cache_service,
         session_metrics=session_metrics,
     )
 
@@ -148,11 +163,26 @@ def _execute_compilation_from_json(
 
     docker_adapter = create_docker_adapter()
     file_adapter = create_file_adapter()
+
+    # Create cache services if strategy requires them
+    cache_manager = None
+    workspace_cache_service = None
+    build_cache_service = None
+
+    if compilation_strategy == "zmk_config":
+        from glovebox.compilation.cache import create_compilation_cache_service
+        cache_manager, workspace_cache_service, build_cache_service = create_compilation_cache_service(
+            user_config, session_metrics
+        )
+
     compilation_service = create_compilation_service(
         compilation_strategy,
         user_config=user_config,
         docker_adapter=docker_adapter,
         file_adapter=file_adapter,
+        cache_manager=cache_manager,
+        workspace_cache_service=workspace_cache_service,
+        build_cache_service=build_cache_service,
         session_metrics=session_metrics,
     )
 
@@ -317,9 +347,6 @@ def firmware_compile(
 
     try:
         with firmware_duration.time():
-            # Get user config first for auto-profile detection
-            user_config = get_user_config_from_context(ctx)
-
             # Resolve input file path (supports environment variable for JSON files)
             resolved_input_file = resolve_json_file_path(
                 input_file, "GLOVEBOX_JSON_FILE"
@@ -331,14 +358,17 @@ def firmware_compile(
                 )
                 raise typer.Exit(1)
 
-            # Handle profile detection with auto-detection support
-            effective_profile = resolve_profile_with_auto_detection(
-                profile, resolved_input_file, no_auto, user_config
+            # Use unified profile resolution with auto-detection support
+            from glovebox.cli.helpers.parameters import (
+                create_profile_from_param_unified,
             )
 
-            # Create keyboard profile using effective profile
-            keyboard_profile = create_profile_from_option(
-                effective_profile, user_config
+            keyboard_profile = create_profile_from_param_unified(
+                ctx=ctx,
+                profile=profile,
+                default_profile="glove80/v25.05",
+                json_file=resolved_input_file,
+                no_auto=no_auto,
             )
 
             # Store in context for consistency with other commands
@@ -379,7 +409,7 @@ def firmware_compile(
                     compile_config,
                     keyboard_profile,
                     session_metrics=ctx.obj.session_metrics,
-                    user_config=user_config,
+                    user_config=get_user_config_from_context(ctx),
                 )
             else:
                 assert config_file is not None  # Already validated above
@@ -391,7 +421,7 @@ def firmware_compile(
                     compile_config,
                     keyboard_profile,
                     session_metrics=ctx.obj.session_metrics,
-                    user_config=user_config,
+                    user_config=get_user_config_from_context(ctx),
                 )
 
             # Track firmware build if compilation was successful and input was JSON

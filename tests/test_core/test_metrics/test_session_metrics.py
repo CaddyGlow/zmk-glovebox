@@ -8,6 +8,12 @@ from unittest.mock import patch
 import pytest
 
 from glovebox.core.metrics.session_metrics import (
+    NoOpCounter,
+    NoOpGauge,
+    NoOpHistogram,
+    NoOpMetrics,
+    NoOpMetricsLabeled,
+    NoOpSummary,
     SessionCounter,
     SessionGauge,
     SessionHistogram,
@@ -16,6 +22,7 @@ from glovebox.core.metrics.session_metrics import (
     SessionSummary,
     create_session_metrics,
 )
+from glovebox.protocols.metrics_protocol import MetricsProtocol
 
 
 def create_test_session_metrics(session_id: str = "test-session") -> SessionMetrics:
@@ -447,6 +454,94 @@ class TestSessionMetricsSerialization:
         # Should only keep last 100 entries
         assert len(data["activity_log"]) == 100
 
+    def test_session_metrics_context_manager(self):
+        """Test SessionMetrics context manager functionality."""
+        metrics = create_test_session_metrics("test-context")
+
+        # Test context manager protocol
+        with metrics as ctx_metrics:
+            assert ctx_metrics is metrics
+            
+            # Use metrics inside context
+            counter = ctx_metrics.Counter("test_counter", "Test counter")
+            counter.inc()
+
+    def test_session_metrics_time_operation(self):
+        """Test SessionMetrics time_operation context manager."""
+        metrics = create_test_session_metrics("test-time-operation")
+
+        # Should work as context manager
+        with metrics.time_operation("test_operation"):
+            # Simulate some work
+            import time
+            time.sleep(0.001)
+
+        # Should have recorded the operation in activity log
+        assert len(metrics._activity_log) > 0
+        
+        # Find the timing entry
+        timing_entry = next(
+            (log for log in metrics._activity_log if log.get("operation") == "time_operation"),
+            None,
+        )
+        assert timing_entry is not None
+        assert timing_entry["operation_name"] == "test_operation"
+        assert "duration" in timing_entry
+        assert timing_entry["duration"] >= 0
+
+    def test_session_metrics_set_context(self):
+        """Test SessionMetrics set_context method."""
+        metrics = create_test_session_metrics("test-set-context")
+
+        # Set context information
+        context_data = {
+            "profile": "glove80/v25.05",
+            "keyboard": "glove80",
+            "operation": "layout_compile",
+            "layer_count": 5,
+        }
+        
+        metrics.set_context(**context_data)
+
+        # Should be recorded in activity log
+        context_entry = next(
+            (log for log in metrics._activity_log if log.get("operation") == "set_context"),
+            None,
+        )
+        assert context_entry is not None
+        assert context_entry["context"] == context_data
+
+    def test_session_metrics_record_cache_event(self):
+        """Test SessionMetrics record_cache_event method."""
+        metrics = create_test_session_metrics("test-cache-event")
+
+        # Record cache hit
+        metrics.record_cache_event("workspace", cache_hit=True)
+        
+        # Record cache miss
+        metrics.record_cache_event("build", cache_hit=False)
+
+        # Should have recorded the events in activity log
+        assert len(metrics._activity_log) >= 2
+        
+        # Find the cache events
+        cache_events = [
+            log for log in metrics._activity_log if log.get("operation") == "cache_event"
+        ]
+        assert len(cache_events) == 2
+        
+        # Check cache hit event
+        hit_event = next((e for e in cache_events if e["cache_hit"]), None)
+        assert hit_event is not None
+        assert hit_event["cache_type"] == "workspace"
+        assert hit_event["cache_hit"] is True
+        
+        # Check cache miss event
+        miss_event = next((e for e in cache_events if not e["cache_hit"]), None)
+        assert miss_event is not None
+        assert miss_event["cache_type"] == "build"
+        assert miss_event["cache_hit"] is False
+
     def test_observation_truncation(self, tmp_path):
         """Test that histogram/summary observations are truncated to last 50."""
         metrics = create_test_session_metrics()
@@ -610,3 +705,407 @@ class TestPrometheusClientCompatibility:
         with patch("time.time", return_value=1234567890.0):
             ACTIVE_CONNECTIONS.labels("server2").set_to_current_time()
             assert ACTIVE_CONNECTIONS._values[("server2",)] == 1234567890.0
+
+
+class TestNoOpMetricsLabeled:
+    """Test NoOpMetricsLabeled functionality."""
+
+    def test_noop_metrics_labeled_basic_operations(self):
+        """Test that NoOpMetricsLabeled operations do nothing safely."""
+        noop_labeled = NoOpMetricsLabeled()  # NoOpMetricsLabeled takes no arguments
+
+        # All operations should do nothing and not raise exceptions
+        noop_labeled.inc()
+        noop_labeled.inc(5)
+        noop_labeled.set(10)
+        noop_labeled.dec()
+        noop_labeled.dec(3)
+        noop_labeled.set_to_current_time()
+        noop_labeled.observe(1.5)
+
+        # Operations should return None for no-op
+        noop_labeled.inc()  # Just call it, don't assign return value
+
+    def test_noop_metrics_labeled_context_manager(self):
+        """Test that NoOpMetricsLabeled works as context manager."""
+        noop_labeled = NoOpMetricsLabeled()  # NoOpMetricsLabeled takes no arguments
+
+        # Should work as context manager without errors
+        with noop_labeled.time():
+            pass  # Should do nothing safely
+
+
+class TestNoOpCounter:
+    """Test NoOpCounter functionality."""
+
+    def test_noop_counter_basic_operations(self):
+        """Test that NoOpCounter operations do nothing safely."""
+        counter = NoOpCounter("test_counter", "Test counter")
+
+        # Operations should do nothing and not raise exceptions
+        counter.inc()
+        counter.inc(5)
+
+        # Should not maintain any state
+        assert hasattr(counter, 'name')
+        assert counter.name == "test_counter"
+        assert counter.description == "Test counter"
+
+    def test_noop_counter_with_labels(self):
+        """Test NoOpCounter with labels."""
+        counter = NoOpCounter("test_counter", "Test counter", ["method", "status"])
+
+        # Labels should return NoOpMetricsLabeled
+        labeled = counter.labels("GET", "success")
+        assert isinstance(labeled, NoOpMetricsLabeled)
+
+        # Operations on labeled counter should do nothing
+        labeled.inc()
+        labeled.inc(10)
+
+    def test_noop_counter_without_labels_error(self):
+        """Test that NoOpCounter without labels handles labels() call safely."""
+        counter = NoOpCounter("test_counter", "Test counter")
+
+        # Should raise error for labels() call when no labels defined
+        with pytest.raises(ValueError, match="Counter was not declared with labels"):
+            counter.labels("some_label")
+
+    def test_noop_counter_with_labels_error(self):
+        """Test that NoOpCounter with labels handles direct inc() safely."""
+        counter = NoOpCounter("test_counter", "Test counter", ["method"])
+
+        # Should raise error for direct inc() when labels are defined
+        with pytest.raises(ValueError, match="Counter with labels requires labels\\(\\) call"):
+            counter.inc()
+
+
+class TestNoOpGauge:
+    """Test NoOpGauge functionality."""
+
+    def test_noop_gauge_basic_operations(self):
+        """Test that NoOpGauge operations do nothing safely."""
+        gauge = NoOpGauge("test_gauge", "Test gauge")
+
+        # All operations should do nothing and not raise exceptions
+        gauge.set(10)
+        gauge.inc()
+        gauge.inc(5)
+        gauge.dec()
+        gauge.dec(3)
+        gauge.set_to_current_time()
+
+    def test_noop_gauge_with_labels(self):
+        """Test NoOpGauge with labels."""
+        gauge = NoOpGauge("test_gauge", "Test gauge", ["instance"])
+
+        labeled = gauge.labels("server1")
+        assert isinstance(labeled, NoOpMetricsLabeled)
+
+        # Operations should do nothing
+        labeled.set(100)
+        labeled.inc(50)
+        labeled.dec(25)
+
+
+class TestNoOpHistogram:
+    """Test NoOpHistogram functionality."""
+
+    def test_noop_histogram_basic_operations(self):
+        """Test that NoOpHistogram operations do nothing safely."""
+        histogram = NoOpHistogram("test_histogram", "Test histogram")
+
+        # Operations should do nothing and not raise exceptions
+        histogram.observe(0.5)
+        histogram.observe(1.0)
+        histogram.observe(2.5)
+
+        # Should maintain basic properties
+        assert histogram.name == "test_histogram"
+        assert histogram.description == "Test histogram"
+
+    def test_noop_histogram_time_context_manager(self):
+        """Test NoOpHistogram time context manager."""
+        histogram = NoOpHistogram("test_histogram", "Test histogram")
+
+        # Should work as context manager without doing anything
+        with histogram.time():
+            pass  # Should do nothing safely
+
+    def test_noop_histogram_custom_buckets(self):
+        """Test NoOpHistogram with custom buckets."""
+        custom_buckets = [0.1, 0.5, 1.0, 5.0, 10.0, float("inf")]
+        histogram = NoOpHistogram(
+            "test_histogram", "Test histogram", buckets=custom_buckets
+        )
+
+        # Should accept buckets parameter but not use them
+        histogram.observe(1.5)
+
+
+class TestNoOpSummary:
+    """Test NoOpSummary functionality."""
+
+    def test_noop_summary_basic_operations(self):
+        """Test that NoOpSummary operations do nothing safely."""
+        summary = NoOpSummary("test_summary", "Test summary")
+
+        # Operations should do nothing and not raise exceptions
+        summary.observe(0.1)
+        summary.observe(0.2)
+        summary.observe(0.3)
+
+    def test_noop_summary_time_context_manager(self):
+        """Test NoOpSummary time context manager."""
+        summary = NoOpSummary("test_summary", "Test summary")
+
+        # Should work as context manager without doing anything
+        with summary.time():
+            pass  # Should do nothing safely
+
+
+class TestNoOpMetrics:
+    """Test NoOpMetrics main registry class."""
+
+    def test_noop_metrics_creation(self):
+        """Test NoOpMetrics creation and basic functionality."""
+        metrics = NoOpMetrics("test-noop-session")
+
+        assert metrics.session_uuid == "test-noop-session"
+
+    def test_noop_create_counter(self):
+        """Test creating counter through NoOpMetrics."""
+        metrics = NoOpMetrics("test-session")
+        counter = metrics.Counter("test_counter", "Test counter")
+
+        assert isinstance(counter, NoOpCounter)
+        assert counter.name == "test_counter"
+        assert counter.description == "Test counter"
+
+        # Requesting same counter should return new instance (NoOp doesn't cache)
+        counter2 = metrics.Counter("test_counter", "Test counter")
+        assert isinstance(counter2, NoOpCounter)
+
+    def test_noop_create_gauge(self):
+        """Test creating gauge through NoOpMetrics."""
+        metrics = NoOpMetrics("test-session")
+        gauge = metrics.Gauge("test_gauge", "Test gauge", ["instance"])
+
+        assert isinstance(gauge, NoOpGauge)
+        assert gauge.name == "test_gauge"
+        assert gauge.labelnames == ["instance"]
+
+    def test_noop_create_histogram(self):
+        """Test creating histogram through NoOpMetrics."""
+        metrics = NoOpMetrics("test-session")
+        histogram = metrics.Histogram("test_histogram", "Test histogram")
+
+        assert isinstance(histogram, NoOpHistogram)
+        assert histogram.name == "test_histogram"
+
+    def test_noop_create_summary(self):
+        """Test creating summary through NoOpMetrics."""
+        metrics = NoOpMetrics("test-session")
+        summary = metrics.Summary("test_summary", "Test summary")
+
+        assert isinstance(summary, NoOpSummary)
+        assert summary.name == "test_summary"
+
+    def test_noop_context_manager_methods(self):
+        """Test NoOpMetrics context manager functionality."""
+        metrics = NoOpMetrics("test-session")
+
+        # Test context manager protocol
+        with metrics:
+            # Should do nothing safely
+            counter = metrics.Counter("test_counter", "Test counter")
+            counter.inc()
+
+    def test_noop_session_methods(self):
+        """Test NoOpMetrics session management methods."""
+        metrics = NoOpMetrics("test-session")
+
+        # All session methods should do nothing safely
+        metrics.set_context(profile="test", keyboard="glove80")
+        metrics.set_cli_args(["glovebox", "config", "list"])
+        metrics.set_exit_code(0)
+        metrics.save()
+
+        # time_operation should work as context manager
+        with metrics.time_operation("test_operation"):
+            pass  # Should do nothing safely
+
+    def test_noop_record_cache_event(self):
+        """Test NoOpMetrics record_cache_event method."""
+        metrics = NoOpMetrics("test-cache-event")
+
+        # Should not raise any exceptions
+        metrics.record_cache_event("workspace", cache_hit=True)
+        metrics.record_cache_event("build", cache_hit=False)
+
+
+class TestMetricsProtocolCompliance:
+    """Test that both SessionMetrics and NoOpMetrics implement MetricsProtocol."""
+
+    def test_session_metrics_implements_protocol(self):
+        """Test that SessionMetrics implements MetricsProtocol."""
+        metrics = create_test_session_metrics("test-protocol")
+        
+        # Should pass isinstance check
+        assert isinstance(metrics, MetricsProtocol)
+
+        # Should have all required methods
+        assert hasattr(metrics, 'set_context')
+        assert hasattr(metrics, 'time_operation')
+        assert hasattr(metrics, 'Counter')
+        assert hasattr(metrics, 'Gauge')
+        assert hasattr(metrics, 'Histogram')
+        assert hasattr(metrics, 'Summary')
+        assert hasattr(metrics, 'set_exit_code')
+        assert hasattr(metrics, 'set_cli_args')
+        assert hasattr(metrics, 'record_cache_event')
+        assert hasattr(metrics, 'save')
+        assert hasattr(metrics, '__enter__')
+        assert hasattr(metrics, '__exit__')
+
+    def test_noop_metrics_implements_protocol(self):
+        """Test that NoOpMetrics implements MetricsProtocol."""
+        metrics = NoOpMetrics("test-protocol")
+        
+        # Should pass isinstance check
+        assert isinstance(metrics, MetricsProtocol)
+
+        # Should have all required methods
+        assert hasattr(metrics, 'set_context')
+        assert hasattr(metrics, 'time_operation')
+        assert hasattr(metrics, 'Counter')
+        assert hasattr(metrics, 'Gauge')
+        assert hasattr(metrics, 'Histogram')
+        assert hasattr(metrics, 'Summary')
+        assert hasattr(metrics, 'set_exit_code')
+        assert hasattr(metrics, 'set_cli_args')
+        assert hasattr(metrics, 'record_cache_event')
+        assert hasattr(metrics, 'save')
+        assert hasattr(metrics, '__enter__')
+        assert hasattr(metrics, '__exit__')
+
+    def test_protocol_interchangeability(self):
+        """Test that SessionMetrics and NoOpMetrics can be used interchangeably."""
+        def use_metrics(metrics: MetricsProtocol) -> None:
+            """Function that accepts any MetricsProtocol implementation."""
+            metrics.set_context(profile="test")
+            
+            counter = metrics.Counter("test_counter", "Test counter")
+            counter.inc()
+            
+            with metrics.time_operation("test_operation"):
+                pass
+            
+            metrics.set_cli_args(["test"])
+            metrics.set_exit_code(0)
+            metrics.save()
+
+        # Both implementations should work with the same code
+        session_metrics = create_test_session_metrics("test-session")
+        noop_metrics = NoOpMetrics("test-noop")
+
+        # Should not raise any exceptions
+        use_metrics(session_metrics)
+        use_metrics(noop_metrics)
+
+
+
+class TestNoOpMetricsPerformance:
+    """Test that NoOpMetrics has minimal performance impact."""
+
+    def test_noop_metrics_performance(self):
+        """Test that NoOpMetrics operations are fast."""
+        import time
+        
+        metrics = NoOpMetrics("test-performance")
+        
+        # Create metrics
+        counter = metrics.Counter("test_counter", "Test counter", ["method"])
+        gauge = metrics.Gauge("test_gauge", "Test gauge")
+        histogram = metrics.Histogram("test_histogram", "Test histogram")
+        summary = metrics.Summary("test_summary", "Test summary")
+        
+        # Time a bunch of operations
+        start_time = time.perf_counter()
+        
+        for i in range(1000):
+            counter.labels("GET").inc()
+            gauge.set(i)
+            histogram.observe(i * 0.001)
+            summary.observe(i * 0.001)
+            
+            with metrics.time_operation("test_op"):
+                pass
+        
+        end_time = time.perf_counter()
+        duration = end_time - start_time
+        
+        # Should be very fast (under 100ms for 1000 operations)
+        assert duration < 0.1, f"NoOp operations took too long: {duration:.3f}s"
+
+    def test_noop_context_manager_performance(self):
+        """Test that NoOp context managers have minimal overhead."""
+        import time
+        
+        metrics = NoOpMetrics("test-context-performance")
+        histogram = metrics.Histogram("test_histogram", "Test histogram")
+        
+        start_time = time.perf_counter()
+        
+        # Test context manager overhead
+        for _i in range(1000):
+            with histogram.time():
+                pass
+            
+            with metrics.time_operation("test_op"):
+                pass
+        
+        end_time = time.perf_counter()
+        duration = end_time - start_time
+        
+        # Context managers should also be fast
+        assert duration < 0.1, f"NoOp context managers took too long: {duration:.3f}s"
+
+
+class TestNoOpMetricsErrorHandling:
+    """Test error handling in NoOpMetrics classes."""
+
+    def test_noop_counter_label_validation(self):
+        """Test that NoOpCounter maintains label validation."""
+        counter = NoOpCounter("test_counter", "Test counter", ["method", "status"])
+
+        # Should still validate labels properly
+        with pytest.raises(ValueError, match="Expected 2 label values, got 1"):
+            counter.labels("GET")
+
+        with pytest.raises(ValueError, match="Missing label values"):
+            counter.labels(method="GET")
+
+        with pytest.raises(ValueError, match="Cannot mix positional and keyword arguments"):
+            counter.labels("GET", status="success")
+
+    def test_noop_gauge_label_validation(self):
+        """Test that NoOpGauge maintains label validation."""
+        gauge = NoOpGauge("test_gauge", "Test gauge", ["instance"])
+
+        # Should validate labels
+        with pytest.raises(ValueError, match="Expected 1 label values, got 0"):
+            gauge.labels()
+
+    def test_noop_metrics_with_invalid_session_uuid(self):
+        """Test NoOpMetrics handles invalid session UUID gracefully."""
+        # Should not raise exception even with None or empty string
+        metrics1 = NoOpMetrics(None)  # type: ignore
+        metrics2 = NoOpMetrics("")
+        
+        # Should still work
+        counter1 = metrics1.Counter("test", "Test")
+        counter2 = metrics2.Counter("test", "Test")
+        
+        counter1.inc()
+        counter2.inc()

@@ -17,6 +17,7 @@ from .docker_adapter_protocol import (
 from .file_adapter_protocol import FileAdapterProtocol
 from .firmware_flasher_protocol import FirmwareFlasherProtocol
 from .flash_os_protocol import FlashOSProtocol
+from .metrics_protocol import MetricsProtocol
 from .mount_cache_protocol import MountCacheProtocol
 from .template_adapter_protocol import TemplateAdapterProtocol
 from .usb_adapter_protocol import USBAdapterProtocol
@@ -32,6 +33,7 @@ __all__ = [
     "FileAdapterProtocol",
     "FirmwareFlasherProtocol",
     "FlashOSProtocol",
+    "MetricsProtocol",
     "MountCacheProtocol",
     "TemplateAdapterProtocol",
     "USBAdapterProtocol",

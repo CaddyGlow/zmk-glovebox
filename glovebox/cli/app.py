@@ -11,6 +11,7 @@ import typer
 
 from glovebox.cli.decorators.error_handling import print_stack_trace_if_verbose
 from glovebox.config.profile import KeyboardProfile
+from glovebox.core import metrics
 from glovebox.core.logging import setup_logging
 
 
@@ -84,14 +85,16 @@ class AppContext:
         # Initialize user config with CLI-provided config file
         from glovebox.config.user_config import create_user_config
 
-        self.user_config = create_user_config(cli_config_path=config_file)
-        self.keyboard_profile = None
-
         # Initialize SessionMetrics for prometheus_client-compatible metrics
         from glovebox.core.metrics import create_session_metrics
 
         # Create session metrics with cache-based storage using session UUID
         self.session_metrics = create_session_metrics(self.session_id)
+
+        with self.session_metrics.time_operation("create_user_config"):
+            self.user_config = create_user_config(cli_config_path=config_file)
+
+        self.keyboard_profile = None
 
     @property
     def use_emoji(self) -> bool:

@@ -411,6 +411,7 @@ def flash(
                     profile=keyboard_profile,
                     json_file_path=temp_layout_path,
                     output_file_prefix=temp_output,
+                    session_metrics=app_ctx.session_metrics,
                     force=True,
                 )
 

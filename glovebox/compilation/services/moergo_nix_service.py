@@ -133,10 +133,17 @@ class MoergoNixService(CompilationServiceProtocol):
                 output_prefix = temp_path / "layout"
 
                 # Generate keymap and config files from JSON
+                # Create NoOp metrics for layout service (MoergoNixService doesn't track metrics yet)
+                from glovebox.core.metrics.session_metrics import (
+                    create_noop_session_metrics,
+                )
+                layout_session_metrics = create_noop_session_metrics("moergo_nix_service")
+
                 layout_result = layout_service.generate_from_file(
                     profile=keyboard_profile,
                     json_file_path=json_file,
                     output_file_prefix=str(output_prefix),
+                    session_metrics=layout_session_metrics,
                     force=True,
                 )
 

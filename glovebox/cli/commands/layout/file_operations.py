@@ -104,9 +104,6 @@ def split(
         # Disable auto-detection and specify profile
         glovebox layout split layout.json ./out/ --no-auto --profile glove80/v25.05
     """
-    # Get user config for auto-profile detection
-    user_config = get_user_config_from_context(ctx)
-
     # Resolve JSON file path (supports environment variable)
     resolved_layout_file = resolve_json_file_path(layout_file, "GLOVEBOX_JSON_FILE")
 
@@ -122,13 +119,16 @@ def split(
     command.validate_layout_file(resolved_layout_file)
 
     try:
-        # Handle profile detection with auto-detection support
-        effective_profile = resolve_profile_with_auto_detection(
-            profile, resolved_layout_file, no_auto, user_config
-        )
+        # Use unified profile resolution with auto-detection support
+        from glovebox.cli.helpers.parameters import create_profile_from_param_unified
 
-        # Create keyboard profile using effective profile
-        keyboard_profile = create_profile_from_option(effective_profile, user_config)
+        keyboard_profile = create_profile_from_param_unified(
+            ctx=ctx,
+            profile=profile,
+            default_profile="glove80/v25.05",
+            json_file=resolved_layout_file,
+            no_auto=no_auto,
+        )
 
         layout_service = _create_layout_service_with_dependencies()
 
@@ -215,10 +215,16 @@ def merge(
         layout_service = _create_layout_service_with_dependencies()
         keyboard_profile = get_keyboard_profile_from_context(ctx)
 
+        # Get session metrics from context
+        from glovebox.cli.app import AppContext
+        app_ctx: AppContext = ctx.obj
+        session_metrics = app_ctx.session_metrics
+
         result = layout_service.compile_from_directory(
             profile=keyboard_profile,
             components_dir=input_dir,
             output_file_prefix=output_file,
+            session_metrics=session_metrics,
             force=force,
         )
 
@@ -243,10 +249,8 @@ def merge(
                     },
                 )
         else:
-            from glovebox.cli.app import AppContext
             from glovebox.cli.helpers import print_error_message, print_list_item
 
-            app_ctx: AppContext = ctx.obj
             icon_mode = app_ctx.icon_mode
 
             print_error_message("Layout merge failed", icon_mode=icon_mode)
