@@ -172,7 +172,7 @@ class MoErgoFirmwareClient(MoErgoBaseClient):
         cache_key = CacheKey.from_parts("firmware_download", firmware_location)
 
         # Try cache first if enabled
-        if use_cache:
+        if use_cache and self._cache:
             cached_data = self._cache.get(cache_key)
             if cached_data is not None and isinstance(cached_data, bytes):
                 # Save to file if path provided
@@ -212,7 +212,7 @@ class MoErgoFirmwareClient(MoErgoBaseClient):
                     raise APIError(f"Failed to decompress firmware data: {e}") from e
 
             # Cache the firmware data for 30 days - firmware builds are immutable
-            if use_cache:
+            if use_cache and self._cache:
                 self._cache.set(cache_key, firmware_data, ttl=3600 * 24 * 30)
 
             # Save to file if path provided

@@ -31,7 +31,7 @@ class MoErgoLayoutClient(MoErgoBaseClient):
         cache_key = CacheKey.from_parts("layout_config", layout_uuid)
 
         # Try cache first if enabled
-        if use_cache:
+        if use_cache and self._cache:
             cached_data = self._cache.get(cache_key)
             if cached_data is not None:
                 return MoErgoLayout(**cached_data)
@@ -45,7 +45,7 @@ class MoErgoLayoutClient(MoErgoBaseClient):
             layout = MoErgoLayout(**data)
 
             # Cache the result for 30 days - layouts are immutable
-            if use_cache:
+            if use_cache and self._cache:
                 self._cache.set(cache_key, data, ttl=3600 * 24 * 30)
 
             return layout
@@ -68,7 +68,7 @@ class MoErgoLayoutClient(MoErgoBaseClient):
         cache_key = CacheKey.from_parts("layout_meta", layout_uuid)
 
         # Try cache first if enabled
-        if use_cache:
+        if use_cache and self._cache:
             cached_data = self._cache.get(cache_key)
             if cached_data is not None:
                 return cached_data  # type: ignore[no-any-return]
@@ -81,7 +81,7 @@ class MoErgoLayoutClient(MoErgoBaseClient):
             data = self._handle_response(response)
 
             # Cache the result for 30 days layout are immutalbe
-            if use_cache:
+            if use_cache and self._cache:
                 self._cache.set(cache_key, data, ttl=3600 * 24 * 30)
 
             return data  # type: ignore[no-any-return]
@@ -296,7 +296,7 @@ class MoErgoLayoutClient(MoErgoBaseClient):
         cache_key = CacheKey.from_parts("public_layouts", tags_key)
 
         # Try cache first if enabled (cache for 10 minutes since this list can change)
-        if use_cache:
+        if use_cache and self._cache:
             cached_data = self._cache.get(cache_key)
             if cached_data is not None:
                 return cached_data  # type: ignore[no-any-return]
@@ -331,7 +331,7 @@ class MoErgoLayoutClient(MoErgoBaseClient):
             data = self._handle_response(response)
 
             # Cache the result for 10 minutes (public layouts list can change)
-            if use_cache:
+            if use_cache and self._cache:
                 ttl = 600
                 if tags and "glove80-standard" in tags:
                     ttl = 3600 * 2

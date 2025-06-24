@@ -24,7 +24,10 @@ bookmarks_app = typer.Typer(
 def complete_bookmark_name(incomplete: str) -> builtins.list[str]:
     """Tab completion for bookmark names."""
     try:
-        bookmark_service = create_bookmark_service()
+        from glovebox.config import create_user_config
+
+        user_config = create_user_config()
+        bookmark_service = create_bookmark_service(user_config._config)
         bookmarks = bookmark_service.list_bookmarks()
         return [
             bookmark.name
@@ -53,7 +56,11 @@ def add(
     icon_mode = app_ctx.icon_mode
 
     try:
-        bookmark_service = create_bookmark_service()
+        from glovebox.cli.helpers.profile import get_user_config_from_context
+        from glovebox.config import create_user_config
+
+        user_config = get_user_config_from_context(ctx) or create_user_config()
+        bookmark_service = create_bookmark_service(user_config._config)
 
         # Check if bookmark already exists
         existing = bookmark_service.get_bookmark(name)
@@ -124,7 +131,11 @@ def list(
     icon_mode = app_ctx.icon_mode
 
     try:
-        bookmark_service = create_bookmark_service()
+        from glovebox.cli.helpers.profile import get_user_config_from_context
+        from glovebox.config import create_user_config
+
+        user_config = get_user_config_from_context(ctx) or create_user_config()
+        bookmark_service = create_bookmark_service(user_config._config)
 
         # Determine source filter
         source_filter = None
@@ -223,7 +234,11 @@ def clone(
     from glovebox.cli.helpers.theme import Icons
 
     try:
-        bookmark_service = create_bookmark_service()
+        from glovebox.cli.helpers.profile import get_user_config_from_context
+        from glovebox.config import create_user_config
+
+        user_config = get_user_config_from_context(ctx) or create_user_config()
+        bookmark_service = create_bookmark_service(user_config._config)
 
         # Get bookmark
         bookmark = bookmark_service.get_bookmark(name)
@@ -294,7 +309,11 @@ def flash(
     icon_mode = app_ctx.icon_mode
 
     try:
-        bookmark_service = create_bookmark_service()
+        from glovebox.cli.helpers.profile import get_user_config_from_context
+        from glovebox.config import create_user_config
+
+        user_config = get_user_config_from_context(ctx) or create_user_config()
+        bookmark_service = create_bookmark_service(user_config._config)
 
         # Get bookmark
         bookmark = bookmark_service.get_bookmark(name)
@@ -479,7 +498,11 @@ def remove(
     icon_mode = app_ctx.icon_mode
 
     try:
-        bookmark_service = create_bookmark_service()
+        from glovebox.cli.helpers.profile import get_user_config_from_context
+        from glovebox.config import create_user_config
+
+        user_config = get_user_config_from_context(ctx) or create_user_config()
+        bookmark_service = create_bookmark_service(user_config._config)
 
         # Check if bookmark exists
         bookmark = bookmark_service.get_bookmark(name)
@@ -542,7 +565,11 @@ def info(
     icon_mode = app_ctx.icon_mode
 
     try:
-        bookmark_service = create_bookmark_service()
+        from glovebox.cli.helpers.profile import get_user_config_from_context
+        from glovebox.config import create_user_config
+
+        user_config = get_user_config_from_context(ctx) or create_user_config()
+        bookmark_service = create_bookmark_service(user_config._config)
 
         # Get bookmark info
         bookmark = bookmark_service.get_bookmark(name)
@@ -605,7 +632,11 @@ def refresh(
     icon_mode = app_ctx.icon_mode
 
     try:
-        bookmark_service = create_bookmark_service()
+        from glovebox.cli.helpers.profile import get_user_config_from_context
+        from glovebox.config import create_user_config
+
+        user_config = get_user_config_from_context(ctx) or create_user_config()
+        bookmark_service = create_bookmark_service(user_config._config)
 
         # Ask for confirmation unless --force is used
         if not force:

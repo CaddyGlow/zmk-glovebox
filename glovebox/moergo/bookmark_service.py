@@ -215,18 +215,12 @@ class BookmarkService:
 
 
 def create_bookmark_service(
+    user_config: UserConfigData,
     moergo_client: MoErgoClient | None = None,
-    user_config: UserConfigData | None = None,
     cache: CacheManager | None = None,
 ) -> BookmarkService:
     """Factory function to create a bookmark service."""
     if moergo_client is None:
         moergo_client = create_moergo_client()
-
-    if user_config is None:
-        from glovebox.config.user_config import create_user_config
-
-        user_config_manager = create_user_config()
-        user_config = user_config_manager._config
 
     return BookmarkService(moergo_client, user_config, cache)

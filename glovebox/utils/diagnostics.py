@@ -270,7 +270,7 @@ def collect_usb_flash_diagnostics() -> dict[str, Any]:
 
 
 def collect_config_diagnostics(
-    user_config: "UserConfig | None" = None,
+    user_config: "UserConfig",
 ) -> dict[str, Any]:
     """Collect configuration loading and validation diagnostics.
 
@@ -301,10 +301,6 @@ def collect_config_diagnostics(
 
     # User config loading
     try:
-        if user_config is None:
-            from glovebox.config.user_config import create_user_config
-
-            user_config = create_user_config()
         diagnostics["user_config"]["validation_status"] = "valid"
         diagnostics["user_config"]["found_config"] = (
             str(user_config._main_config_path)
@@ -435,6 +431,11 @@ def collect_all_diagnostics(user_config: "UserConfig | None" = None) -> dict[str
     Returns:
         Complete diagnostic data dictionary with all subsystems.
     """
+    if user_config is None:
+        from glovebox.config.user_config import create_user_config
+
+        user_config = create_user_config()
+
     from importlib.metadata import distribution
 
     diagnostics: dict[str, Any] = {

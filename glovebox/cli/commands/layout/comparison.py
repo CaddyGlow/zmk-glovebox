@@ -13,6 +13,7 @@ from glovebox.layout.comparison import create_layout_comparison_service
 
 @handle_errors
 def diff(
+    ctx: typer.Context,
     layout1: Annotated[Path, typer.Argument(help="First layout file to compare")],
     layout2: Annotated[Path, typer.Argument(help="Second layout file to compare")],
     output_format: Annotated[
@@ -90,7 +91,11 @@ def diff(
     command.validate_layout_file(layout2)
 
     try:
-        comparison_service = create_layout_comparison_service()
+        from glovebox.cli.helpers.profile import get_user_config_from_context
+        from glovebox.config import create_user_config
+
+        user_config = get_user_config_from_context(ctx) or create_user_config()
+        comparison_service = create_layout_comparison_service(user_config)
         result = comparison_service.compare_layouts(
             layout1_path=layout1,
             layout2_path=layout2,
@@ -125,7 +130,6 @@ def diff(
         # Create patch file if requested
         if output_patch:
             try:
-                comparison_service = create_layout_comparison_service()
                 patch_result = comparison_service.create_dtsi_patch(
                     layout1_path=layout1,
                     layout2_path=layout2,
@@ -161,6 +165,7 @@ def diff(
 
 @handle_errors
 def patch(
+    ctx: typer.Context,
     source_layout: Annotated[Path, typer.Argument(help="Source layout file to patch")],
     patch_file: Annotated[
         Path,
@@ -200,7 +205,11 @@ def patch(
     command.validate_layout_file(source_layout)
 
     try:
-        comparison_service = create_layout_comparison_service()
+        from glovebox.cli.helpers.profile import get_user_config_from_context
+        from glovebox.config import create_user_config
+
+        user_config = get_user_config_from_context(ctx) or create_user_config()
+        comparison_service = create_layout_comparison_service(user_config)
         result = comparison_service.apply_patch(
             source_layout_path=source_layout,
             patch_file_path=patch_file,

@@ -109,7 +109,7 @@ def _execute_compilation_service(
     from glovebox.compilation import create_compilation_service
 
     compilation_service = create_compilation_service(
-        compilation_strategy, session_metrics=session_metrics, user_config=user_config
+        compilation_strategy, user_config=user_config, session_metrics=session_metrics
     )
 
     # Use unified config directly - no conversion needed
@@ -139,7 +139,7 @@ def _execute_compilation_from_json(
     from glovebox.compilation import create_compilation_service
 
     compilation_service = create_compilation_service(
-        compilation_strategy, session_metrics=session_metrics, user_config=user_config
+        compilation_strategy, user_config=user_config, session_metrics=session_metrics
     )
 
     # Use the new compile_from_json method
