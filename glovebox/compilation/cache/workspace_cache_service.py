@@ -90,7 +90,9 @@ class ZmkWorkspaceCacheService:
         """
         # Import metrics here to avoid circular dependencies
         try:
-            from glovebox.metrics.collector import compilation_metrics
+            from glovebox.metrics.collector import (  # type: ignore[import-untyped]
+                compilation_metrics,
+            )
 
             with compilation_metrics() as metrics:
                 metrics.set_context(
@@ -132,7 +134,9 @@ class ZmkWorkspaceCacheService:
         """
         # Import metrics here to avoid circular dependencies
         try:
-            from glovebox.metrics.collector import compilation_metrics
+            from glovebox.metrics.collector import (
+                compilation_metrics,
+            )
 
             with compilation_metrics() as metrics:
                 metrics.set_context(
@@ -173,7 +177,9 @@ class ZmkWorkspaceCacheService:
         """
         # Import metrics here to avoid circular dependencies
         try:
-            from glovebox.metrics.collector import compilation_metrics
+            from glovebox.metrics.collector import (
+                compilation_metrics,
+            )
 
             with compilation_metrics() as metrics:
                 metrics.set_context(
@@ -602,3 +608,6 @@ class ZmkWorkspaceCacheService:
         except (OSError, PermissionError):
             pass
         return total
+
+
+__all__ = ["ZmkWorkspaceCacheService", "WorkspaceCacheMetadata", "WorkspaceCacheResult"]

@@ -869,7 +869,9 @@ class TestViewModeCompletion:
 
     def test_complete_view_modes_exception_handling(self):
         """Test view mode completion exception handling."""
-        with patch("glovebox.cli.helpers.parameters._get_cached_static_completion_data") as mock_get_static_data:
+        with patch(
+            "glovebox.cli.helpers.parameters._get_cached_static_completion_data"
+        ) as mock_get_static_data:
             mock_get_static_data.side_effect = Exception("Cache failure")
 
             result = complete_view_modes("any")
@@ -917,7 +919,9 @@ class TestOutputFormatCompletion:
 
     def test_complete_output_formats_exception_handling(self):
         """Test output format completion exception handling."""
-        with patch("glovebox.cli.helpers.parameters._get_cached_static_completion_data") as mock_get_static_data:
+        with patch(
+            "glovebox.cli.helpers.parameters._get_cached_static_completion_data"
+        ) as mock_get_static_data:
             mock_get_static_data.side_effect = Exception("Cache failure")
 
             result = complete_output_formats("any")
@@ -930,12 +934,16 @@ class TestJsonFileCompletion:
     @patch("pathlib.Path.exists")
     @patch("pathlib.Path.iterdir")
     @patch("pathlib.Path.is_dir")
-    def test_complete_json_files_empty_input(self, mock_is_dir, mock_iterdir, mock_exists):
+    def test_complete_json_files_empty_input(
+        self, mock_is_dir, mock_iterdir, mock_exists
+    ):
         """Test JSON file completion with empty input."""
         result = complete_json_files("")
         assert result == ["examples/layouts/", "./", "../"]
 
-    @pytest.mark.skip(reason="Mock path testing is complex - functionality tested in integration tests")
+    @pytest.mark.skip(
+        reason="Mock path testing is complex - functionality tested in integration tests"
+    )
     def test_complete_json_files_directory_completion(self):
         """Test JSON file completion for directory contents."""
         # This test validates directory-based completion logic
@@ -943,7 +951,9 @@ class TestJsonFileCompletion:
         # and is tested via integration tests with real paths
         pass
 
-    @pytest.mark.skip(reason="Mock path testing is complex - functionality tested in integration tests")
+    @pytest.mark.skip(
+        reason="Mock path testing is complex - functionality tested in integration tests"
+    )
     def test_complete_json_files_partial_filename(self):
         """Test JSON file completion with partial filename."""
         # This test validates partial filename completion logic
@@ -968,13 +978,15 @@ class TestLayerNameCompletion:
         mock_ctx = Mock()
         mock_ctx.params = {}
 
-        with patch("glovebox.cli.helpers.parameters._extract_json_file_from_context") as mock_extract:
+        with patch(
+            "glovebox.cli.helpers.parameters._extract_json_file_from_context"
+        ) as mock_extract:
             mock_extract.return_value = None
 
             result = complete_layer_names(mock_ctx, "")
             # Should return empty list when no file is available
             assert result == []
-            
+
             # Should return empty list when there's incomplete text
             result = complete_layer_names(mock_ctx, "l")
             assert result == []
@@ -984,8 +996,12 @@ class TestLayerNameCompletion:
         mock_ctx = Mock()
 
         with (
-            patch("glovebox.cli.helpers.parameters._extract_json_file_from_context") as mock_extract,
-            patch("glovebox.cli.helpers.parameters._get_cached_layer_names") as mock_get_layers,
+            patch(
+                "glovebox.cli.helpers.parameters._extract_json_file_from_context"
+            ) as mock_extract,
+            patch(
+                "glovebox.cli.helpers.parameters._get_cached_layer_names"
+            ) as mock_get_layers,
         ):
             mock_extract.return_value = "test.json"
             mock_get_layers.return_value = ["QWERTY", "LOWER", "RAISE"]
@@ -993,7 +1009,17 @@ class TestLayerNameCompletion:
             result = complete_layer_names(mock_ctx, "")
 
             # Should include both indices and names
-            expected_items = ["0", "1", "2", "qwerty", "lower", "raise", "QWERTY", "LOWER", "RAISE"]
+            expected_items = [
+                "0",
+                "1",
+                "2",
+                "qwerty",
+                "lower",
+                "raise",
+                "QWERTY",
+                "LOWER",
+                "RAISE",
+            ]
             assert len(result) == len(set(expected_items))  # Check for unique items
             assert all(item in result for item in ["0", "1", "2"])
             assert all(item in result for item in ["qwerty", "lower", "raise"])
@@ -1003,8 +1029,12 @@ class TestLayerNameCompletion:
         mock_ctx = Mock()
 
         with (
-            patch("glovebox.cli.helpers.parameters._extract_json_file_from_context") as mock_extract,
-            patch("glovebox.cli.helpers.parameters._get_cached_layer_names") as mock_get_layers,
+            patch(
+                "glovebox.cli.helpers.parameters._extract_json_file_from_context"
+            ) as mock_extract,
+            patch(
+                "glovebox.cli.helpers.parameters._get_cached_layer_names"
+            ) as mock_get_layers,
         ):
             mock_extract.return_value = "test.json"
             mock_get_layers.return_value = ["QWERTY", "LOWER", "RAISE"]
@@ -1026,13 +1056,15 @@ class TestLayerNameCompletion:
         """Test layer completion exception handling."""
         mock_ctx = Mock()
 
-        with patch("glovebox.cli.helpers.parameters._extract_json_file_from_context") as mock_extract:
+        with patch(
+            "glovebox.cli.helpers.parameters._extract_json_file_from_context"
+        ) as mock_extract:
             mock_extract.side_effect = Exception("Context extraction failed")
 
             result = complete_layer_names(mock_ctx, "")
             # Should return empty list on error
             assert result == []
-            
+
             # Should return empty list when there's incomplete text
             result = complete_layer_names(mock_ctx, "l")
             assert result == []
@@ -1045,7 +1077,9 @@ class TestLayerNameCaching:
     @patch("pathlib.Path.read_text")
     @patch("pathlib.Path.stat")
     @patch("glovebox.core.cache_v2.create_default_cache")
-    def test_get_cached_layer_names_cache_miss(self, mock_create_cache, mock_stat, mock_read_text, mock_exists):
+    def test_get_cached_layer_names_cache_miss(
+        self, mock_create_cache, mock_stat, mock_read_text, mock_exists
+    ):
         """Test layer name caching on cache miss."""
         # Setup mocks
         mock_exists.return_value = True
@@ -1064,12 +1098,16 @@ class TestLayerNameCaching:
         # Verify cache operations
         expected_cache_key = f"{LAYER_NAMES_CACHE_KEY_PREFIX}test.json_1234567890.0"
         mock_cache.get.assert_called_once_with(expected_cache_key)
-        mock_cache.set.assert_called_once_with(expected_cache_key, ["Layer1", "Layer2"], ttl=LAYER_NAMES_TTL)
+        mock_cache.set.assert_called_once_with(
+            expected_cache_key, ["Layer1", "Layer2"], ttl=LAYER_NAMES_TTL
+        )
 
     @patch("pathlib.Path.exists")
     @patch("pathlib.Path.stat")
     @patch("glovebox.core.cache_v2.create_default_cache")
-    def test_get_cached_layer_names_cache_hit(self, mock_create_cache, mock_stat, mock_exists):
+    def test_get_cached_layer_names_cache_hit(
+        self, mock_create_cache, mock_stat, mock_exists
+    ):
         """Test layer name caching on cache hit."""
         # Setup mocks
         mock_exists.return_value = True
@@ -1109,7 +1147,9 @@ class TestLayerNameCaching:
     @patch("pathlib.Path.exists")
     @patch("pathlib.Path.read_text")
     @patch("pathlib.Path.stat")
-    def test_get_cached_layer_names_no_layer_names_field(self, mock_stat, mock_read_text, mock_exists):
+    def test_get_cached_layer_names_no_layer_names_field(
+        self, mock_stat, mock_read_text, mock_exists
+    ):
         """Test layer name caching when JSON has no layer_names field."""
         mock_exists.return_value = True
         mock_stat.return_value = Mock(st_mtime=1234567890.0)

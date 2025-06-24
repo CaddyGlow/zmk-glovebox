@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from glovebox.layout.models import LayoutData
 from glovebox.layout.utils.variable_resolver import UndefinedVariableError
@@ -167,9 +168,7 @@ class TestVariableLayoutDataIntegration:
         }
 
         # Should raise ValidationError because unresolved variable can't be parsed as int
-        with pytest.raises(
-            Exception
-        ):  # Could be ValidationError or UndefinedVariableError
+        with pytest.raises((ValidationError, UndefinedVariableError)):
             LayoutData.model_validate(data)
 
     def test_layout_data_serialization_order(self):

@@ -82,7 +82,7 @@ def get_auto_profile_from_json(json_file: Path, user_config: Any = None) -> str 
                             "User config has matching keyboard profile: %s",
                             user_profile,
                         )
-                        return user_profile
+                        return user_profile  # type: ignore[no-any-return]
             except AttributeError:
                 # user_config doesn't have profile attribute, fall back to keyboard-only
                 logger.debug(

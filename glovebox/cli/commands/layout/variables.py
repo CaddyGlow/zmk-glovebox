@@ -362,6 +362,7 @@ def _set_variables(
         # Try to parse value as JSON for proper typing
         try:
             # Handle special cases for boolean and numeric values
+            parsed_value: Any
             if value.lower() in ("true", "false"):
                 parsed_value = value.lower() == "true"
             elif value.isdigit():

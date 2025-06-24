@@ -2,6 +2,7 @@
 
 try:
     from importlib.metadata import distribution
+
     __version__ = distribution(__package__ or "glovebox").version
 except Exception:
     # Fallback for development environments or when package not installed

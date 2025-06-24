@@ -49,7 +49,7 @@ def _get_directory_size(path: Path) -> int:
 
 
 def _get_cache_manager_and_service(
-    session_metrics=None,
+    session_metrics: Any = None,
 ) -> tuple[CacheManager, ZmkWorkspaceCacheService, UserConfig]:
     """Get cache manager and workspace cache service using factory functions."""
     user_config = create_user_config()
@@ -1465,7 +1465,7 @@ def cache_keys(
                             # Simple list format
                             for i, key in enumerate(sorted(cache_keys), 1):
                                 if values:
-                                    try:
+                                    try:  # type: ignore[unreachable]
                                         cached_value = module_cache.get(key)
                                         if cached_value is not None:
                                             # For simple format, show a brief preview of the value

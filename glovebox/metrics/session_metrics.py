@@ -6,6 +6,7 @@ metrics locally during CLI sessions.
 """
 
 import json
+import logging
 import time
 from contextlib import contextmanager
 from datetime import datetime
@@ -22,7 +23,7 @@ logger = getLogger(__name__)
 class SessionMetricsLabeled:
     """Labeled metric instance that handles label-specific operations."""
 
-    def __init__(self, parent, label_values: tuple[str, ...]):
+    def __init__(self, parent: Any, label_values: tuple[str, ...]) -> None:
         self.parent = parent
         self.label_values = label_values
 
@@ -49,7 +50,7 @@ class SessionMetricsLabeled:
         self.parent._observe(self.label_values, value)
 
     @contextmanager
-    def time(self):
+    def time(self) -> Any:
         """Time a block of code (Histogram/Summary only)."""
         start = time.perf_counter()
         try:
@@ -67,8 +68,8 @@ class SessionCounter:
         name: str,
         description: str,
         labelnames: list[str] | None = None,
-        registry=None,
-    ):
+        registry: Any = None,
+    ) -> None:
         self.name = name
         self.description = description
         self.labelnames = labelnames or []
@@ -85,7 +86,7 @@ class SessionCounter:
             raise ValueError("Counter with labels requires labels() call")
         self._increment((), amount)
 
-    def labels(self, *args, **kwargs) -> SessionMetricsLabeled:
+    def labels(self, *args: Any, **kwargs: Any) -> SessionMetricsLabeled:
         """Return labeled instance - prometheus_client compatible."""
         if not self.labelnames:
             raise ValueError("Counter was not declared with labels")
@@ -134,8 +135,8 @@ class SessionGauge:
         name: str,
         description: str,
         labelnames: list[str] | None = None,
-        registry=None,
-    ):
+        registry: Any = None,
+    ) -> None:
         self.name = name
         self.description = description
         self.labelnames = labelnames or []
@@ -168,7 +169,7 @@ class SessionGauge:
         """Set gauge to current unix timestamp - identical to prometheus_client."""
         self.set(time.time())
 
-    def labels(self, *args, **kwargs) -> SessionMetricsLabeled:
+    def labels(self, *args: Any, **kwargs: Any) -> SessionMetricsLabeled:
         """Return labeled instance - prometheus_client compatible."""
         if not self.labelnames:
             raise ValueError("Gauge was not declared with labels")
@@ -234,8 +235,8 @@ class SessionHistogram:
         name: str,
         description: str,
         buckets: list[float] | None = None,
-        registry=None,
-    ):
+        registry: Any = None,
+    ) -> None:
         self.name = name
         self.description = description
         self.registry = registry
@@ -268,7 +269,7 @@ class SessionHistogram:
             self.registry._record_observation(self.name, "histogram", (), value)
 
     @contextmanager
-    def time(self):
+    def time(self) -> Any:
         """Context manager for timing - identical to prometheus_client."""
         start = time.perf_counter()
         try:
@@ -291,7 +292,7 @@ class SessionHistogram:
 class SessionSummary:
     """Summary that observes values and provides timing - prometheus_client compatible."""
 
-    def __init__(self, name: str, description: str, registry=None):
+    def __init__(self, name: str, description: str, registry: Any = None) -> None:
         self.name = name
         self.description = description
         self.registry = registry
@@ -306,7 +307,7 @@ class SessionSummary:
             self.registry._record_observation(self.name, "summary", (), value)
 
     @contextmanager
-    def time(self):
+    def time(self) -> Any:
         """Context manager for timing - identical to prometheus_client."""
         start = time.perf_counter()
         try:
@@ -343,7 +344,7 @@ class SessionMetrics:
 
     def __init__(
         self, cache_manager: CacheManager, session_uuid: str, ttl_days: int = 7
-    ):
+    ) -> None:
         self.cache_manager = cache_manager
         self.session_uuid = session_uuid
         self.ttl_seconds = ttl_days * 24 * 60 * 60  # Convert days to seconds
@@ -369,9 +370,9 @@ class SessionMetrics:
             self.ttl_seconds,
         )
 
-    def Counter(
+    def Counter(  # noqa: N802
         self, name: str, description: str, labelnames: list[str] | None = None
-    ) -> SessionCounter:  # noqa: N802
+    ) -> SessionCounter:
         """Create a Counter metric - identical to prometheus_client."""
         if name in self._counters:
             return self._counters[name]
@@ -382,9 +383,9 @@ class SessionMetrics:
         logger.debug("Created counter: %s with labels: %s", name, labelnames)
         return counter
 
-    def Gauge(
+    def Gauge(  # noqa: N802
         self, name: str, description: str, labelnames: list[str] | None = None
-    ) -> SessionGauge:  # noqa: N802
+    ) -> SessionGauge:
         """Create a Gauge metric - identical to prometheus_client."""
         if name in self._gauges:
             return self._gauges[name]
@@ -395,9 +396,9 @@ class SessionMetrics:
         logger.debug("Created gauge: %s with labels: %s", name, labelnames)
         return gauge
 
-    def Histogram(
+    def Histogram(  # noqa: N802
         self, name: str, description: str, buckets: list[float] | None = None
-    ) -> SessionHistogram:  # noqa: N802
+    ) -> SessionHistogram:
         """Create a Histogram metric - identical to prometheus_client."""
         if name in self._histograms:
             return self._histograms[name]
@@ -487,7 +488,7 @@ class SessionMetrics:
             )
 
         except Exception as e:
-            exc_info = logger.isEnabledFor(logger.DEBUG)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.error("Failed to save session metrics: %s", e, exc_info=exc_info)
 
     def _serialize_data(self) -> dict[str, Any]:
@@ -514,7 +515,7 @@ class SessionMetrics:
 
         # Serialize counters
         for name, counter in self._counters.items():
-            data["counters"][name] = {
+            data["counters"][name] = {  # type: ignore[index]
                 "description": counter.description,
                 "labelnames": counter.labelnames,
                 "values": {
@@ -524,7 +525,7 @@ class SessionMetrics:
 
         # Serialize gauges
         for name, gauge in self._gauges.items():
-            data["gauges"][name] = {
+            data["gauges"][name] = {  # type: ignore[index]
                 "description": gauge.description,
                 "labelnames": gauge.labelnames,
                 "values": {
@@ -542,7 +543,7 @@ class SessionMetrics:
                     1 for val in observations if val <= bucket
                 )
 
-            data["histograms"][name] = {
+            data["histograms"][name] = {  # type: ignore[index]
                 "description": histogram.description,
                 "buckets": histogram.buckets,
                 "bucket_counts": bucket_counts,
@@ -554,7 +555,7 @@ class SessionMetrics:
         # Serialize summaries
         for name, summary in self._summaries.items():
             observations = [obs["value"] for obs in summary._observations]
-            data["summaries"][name] = {
+            data["summaries"][name] = {  # type: ignore[index]
                 "description": summary.description,
                 "total_count": len(observations),
                 "total_sum": sum(observations) if observations else 0,

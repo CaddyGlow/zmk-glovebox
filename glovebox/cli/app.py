@@ -5,7 +5,7 @@ import sys
 
 # Import version from package metadata directly to avoid circular imports
 from importlib.metadata import distribution
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 
@@ -26,13 +26,13 @@ logger = logging.getLogger(__name__)
 _global_session_metrics = None
 
 
-def _set_global_session_metrics(session_metrics):
+def _set_global_session_metrics(session_metrics: Any) -> None:
     """Set global reference to session metrics for exit code capture."""
     global _global_session_metrics
     _global_session_metrics = session_metrics
 
 
-def _set_exit_code_in_session_metrics(exit_code: int):
+def _set_exit_code_in_session_metrics(exit_code: int) -> None:
     """Set exit code in global session metrics if available."""
     global _global_session_metrics
     if _global_session_metrics:
@@ -42,7 +42,7 @@ def _set_exit_code_in_session_metrics(exit_code: int):
             logger.debug("Failed to set exit code in session metrics: %s", e)
 
 
-def _set_cli_args_in_session_metrics(cli_args: list[str]):
+def _set_cli_args_in_session_metrics(cli_args: list[str]) -> None:
     """Set CLI args in global session metrics if available."""
     global _global_session_metrics
     if _global_session_metrics:
@@ -248,7 +248,7 @@ def main_callback(
         # Set up auto-save for session metrics when CLI exits
         import atexit
 
-        def save_metrics_on_exit():
+        def save_metrics_on_exit() -> None:
             """Save session metrics when CLI exits."""
             try:
                 app_context.save_session_metrics()
@@ -295,7 +295,7 @@ def main() -> int:
 
     except SystemExit as e:
         # Capture SystemExit code (normal CLI exit)
-        exit_code = e.code if e.code is not None else 0
+        exit_code = e.code if isinstance(e.code, int) else 0
 
     except Exception as e:
         logger.exception(f"Unexpected error: {e}")
