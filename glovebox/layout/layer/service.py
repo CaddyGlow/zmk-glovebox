@@ -1,6 +1,7 @@
 """Layout layer service for layer management operations."""
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -96,44 +97,73 @@ class LayoutLayerService:
     def remove_layer(
         self,
         layout_file: Path,
-        layer_name: str,
+        layer_identifier: str,
         output: Path | None = None,
         force: bool = False,
+        warn_on_no_match: bool = True,
     ) -> dict[str, Any]:
-        """Remove a layer from the layout.
+        """Remove layer(s) from the layout.
 
         Args:
             layout_file: Path to layout JSON file
-            layer_name: Name of layer to remove
+            layer_identifier: Layer identifier - can be:
+                - Layer name (exact match)
+                - Index (0-based, e.g., "0", "15")
+                - Regex pattern (e.g., "Mouse.*", "Mouse*", ".*Index")
             output: Output file path (defaults to input file)
             force: Whether to overwrite existing files
+            warn_on_no_match: Whether to include warnings for no matches
 
         Returns:
-            Dictionary with operation details
+            Dictionary with operation details including warnings
 
         Raises:
-            ValueError: If layer doesn't exist or output path is invalid
+            ValueError: If output path is invalid (but not for no layer matches)
         """
         layout_data = load_layout_file(layout_file)
 
-        # Validate layer exists and get position
-        layer_idx = validate_layer_exists(layout_data, layer_name)
+        # Find layers to remove based on identifier type
+        layers_to_remove = self._find_layers_to_remove(layout_data, layer_identifier)
 
-        # Remove layer name and bindings
-        layout_data.layer_names.pop(layer_idx)
-        if layer_idx < len(layout_data.layers):
-            layout_data.layers.pop(layer_idx)
+        warnings = []
+        if not layers_to_remove and warn_on_no_match:
+            warnings.append(
+                f"No layers found matching identifier '{layer_identifier}'. "
+                f"Available layers: {', '.join(layout_data.layer_names)}"
+            )
 
-        # Save the modified layout
-        output_path = output if output is not None else layout_file
-        validate_output_path(output_path, layout_file, force)
-        save_layout_file(layout_data, output_path)
+        removed_layers = []
+        if layers_to_remove:
+            # Sort by index in descending order to remove from end to start
+            # This prevents index shifting issues
+            layers_to_remove.sort(key=lambda x: x["index"], reverse=True)
+
+            for layer_info in layers_to_remove:
+                idx = layer_info["index"]
+                name = layer_info["name"]
+
+                # Remove layer name and bindings
+                layout_data.layer_names.pop(idx)
+                if idx < len(layout_data.layers):
+                    layout_data.layers.pop(idx)
+
+                removed_layers.append({"name": name, "position": idx})
+
+            # Save the modified layout only if we actually removed layers
+            output_path = output if output is not None else layout_file
+            validate_output_path(output_path, layout_file, force)
+            save_layout_file(layout_data, output_path)
+        else:
+            # No layers removed, use original file path
+            output_path = layout_file
 
         return {
             "output_path": output_path,
-            "layer_name": layer_name,
-            "position": layer_idx,
+            "removed_layers": removed_layers,
+            "removed_count": len(removed_layers),
             "remaining_layers": len(layout_data.layer_names),
+            "warnings": warnings,
+            "had_matches": len(layers_to_remove) > 0,
         }
 
     def move_layer(
@@ -374,6 +404,58 @@ class LayoutLayerService:
             else LayoutBinding(value=str(binding), params=[])
             for binding in bindings_data
         ]
+
+    def _find_layers_to_remove(
+        self, layout_data: LayoutData, layer_identifier: str
+    ) -> list[dict[str, Any]]:
+        """Find layers to remove based on identifier type.
+
+        Args:
+            layout_data: Layout data containing layers
+            layer_identifier: Identifier (name, index, or regex pattern)
+
+        Returns:
+            List of dictionaries with layer info {"name": str, "index": int}
+        """
+        layers_to_remove = []
+
+        # Try to parse as integer index first
+        try:
+            index = int(layer_identifier)
+            if 0 <= index < len(layout_data.layer_names):
+                return [{"name": layout_data.layer_names[index], "index": index}]
+            else:
+                return []
+        except ValueError:
+            # Not an integer, continue with name/pattern matching
+            pass
+
+        # Check for exact layer name match first
+        for i, layer_name in enumerate(layout_data.layer_names):
+            if layer_name == layer_identifier:
+                return [{"name": layer_name, "index": i}]
+
+        # Try regex pattern matching
+        try:
+            # Convert shell-style wildcards to regex if needed
+            pattern = layer_identifier
+            if "*" in pattern and not any(c in pattern for c in "[]{}()^$+?\\|"):
+                # Simple wildcard pattern - convert to regex
+                pattern = pattern.replace("*", ".*")
+
+            # Compile regex pattern
+            regex = re.compile(pattern)
+
+            # Find all matching layers
+            for i, layer_name in enumerate(layout_data.layer_names):
+                if regex.match(layer_name):
+                    layers_to_remove.append({"name": layer_name, "index": i})
+
+        except re.error:
+            # Invalid regex pattern - return empty list
+            return []
+
+        return layers_to_remove
 
     def _create_export_data(
         self,

@@ -106,13 +106,61 @@ def isolated_config(tmp_path: Path) -> Generator[UserConfig, None, None]:
 
 
 @pytest.fixture
+def isolated_cache_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Generator[dict[str, Any], None, None]:
+    """Create isolated cache environment for tests.
+
+    This fixture provides cache isolation by:
+    - Setting XDG_CACHE_HOME to a temporary directory
+    - Creating cache directory structure
+    - Providing cache-related paths in context
+
+    Usage:
+        def test_cache_operation(isolated_cache_environment):
+            # Cache operations isolated to temp directory
+            cache = create_default_cache(tag="test")
+            cache.set("key", "value")
+
+        # Can be combined with other fixtures:
+        def test_combined(isolated_cache_environment, isolated_config):
+            # Both cache and config isolated
+    """
+    # Create cache directory structure
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+
+    # Mock XDG_CACHE_HOME to use temporary directory
+    monkeypatch.setenv("XDG_CACHE_HOME", str(cache_dir))
+
+    # Create environment context
+    cache_context = {
+        "cache_dir": cache_dir,
+        "cache_root": cache_dir / "glovebox",
+        "temp_dir": tmp_path,
+    }
+
+    try:
+        yield cache_context
+    finally:
+        # Reset shared cache instances for test isolation
+        from glovebox.core.cache_v2 import reset_shared_cache_instances
+
+        reset_shared_cache_instances()
+
+
+@pytest.fixture
 def isolated_cli_environment(
-    isolated_config: UserConfig, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    isolated_config: UserConfig,
+    isolated_cache_environment: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> Generator[dict[str, Any], None, None]:
     """Create isolated environment for CLI command tests.
 
     This fixture provides complete CLI isolation by:
     - Using isolated_config for configuration management
+    - Using isolated_cache_environment for cache isolation
     - Setting current directory to a temporary path
     - Mocking environment variables
     - Providing a clean environment context
@@ -141,14 +189,18 @@ def isolated_cli_environment(
     monkeypatch.setenv("GLOVEBOX_CONFIG_DIR", config_dir)
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("TMPDIR", str(tmp_path / "tmp"))
+    # XDG_CACHE_HOME is already set by isolated_cache_environment
 
-    # Create environment context
+    # Create environment context combining both cache and CLI contexts
     env_context = {
         "config": isolated_config,
         "work_dir": work_dir,
         "output_dir": output_dir,
         "temp_dir": tmp_path,
         "config_file": isolated_config.config_file_path,
+        # Include cache context
+        "cache_dir": isolated_cache_environment["cache_dir"],
+        "cache_root": isolated_cache_environment["cache_root"],
     }
 
     try:

@@ -36,7 +36,9 @@ def edit(
     ] = None,
     remove_layer: Annotated[
         list[str] | None,
-        typer.Option("--remove-layer", help="Remove layer(s) by name"),
+        typer.Option(
+            "--remove-layer", help="Remove layer(s) by name, index, or regex pattern"
+        ),
     ] = None,
     move_layer: Annotated[
         list[str] | None,
@@ -98,7 +100,10 @@ def edit(
         --add-layer "NewLayer"               # Add empty layer
         --add-layer "Gaming" --position 2    # Add at specific position
         --add-layer "Symbol" --from other.json:Symbol  # Import layer
-        --remove-layer "UnusedLayer"         # Remove layer
+        --remove-layer "UnusedLayer"         # Remove layer by name
+        --remove-layer "15"                  # Remove layer by index (0-based)
+        --remove-layer "Mouse.*"             # Remove layers matching regex
+        --remove-layer "Mouse*"              # Remove layers with wildcard pattern
         --move-layer "Symbol:0"              # Move Symbol to position 0
         --copy-layer "Base:Gaming"           # Copy Base layer as Gaming
         --list-layers                        # List all layers
@@ -125,6 +130,8 @@ def edit(
 
         # Layer management
         glovebox layout edit layout.json --add-layer "Gaming" --position 3
+        glovebox layout edit layout.json --remove-layer "15"  # Remove by index
+        glovebox layout edit layout.json --remove-layer "Mouse*"  # Remove by pattern
 
         # Import from other layouts
         glovebox layout edit layout.json --add-layer "Symbol" --from other.json:Symbol
@@ -240,16 +247,41 @@ def edit(
                 )
 
         if remove_layer:
-            for layer_name in remove_layer:
+            all_warnings = []
+            for layer_identifier in remove_layer:
                 result = layer_service.remove_layer(
                     layout_file=current_file,
-                    layer_name=layer_name,
+                    layer_identifier=layer_identifier,
                     output=output if not changes_made else None,
                     force=force,
+                    warn_on_no_match=True,
                 )
-                current_file = result["output_path"]
-                changes_made = True
-                operations.append({"type": "remove_layer", "layer": layer_name})
+
+                # Collect warnings
+                if result.get("warnings"):
+                    all_warnings.extend(result["warnings"])
+
+                # Only update current file if layers were actually removed
+                if result["had_matches"]:
+                    current_file = result["output_path"]
+                    changes_made = True
+
+                # Handle multiple removed layers
+                for removed_layer in result["removed_layers"]:
+                    operations.append(
+                        {
+                            "type": "remove_layer",
+                            "layer": removed_layer["name"],
+                            "position": removed_layer["position"],
+                        }
+                    )
+
+            # Show warnings for non-matching identifiers
+            if all_warnings:
+                from glovebox.cli.helpers.output import print_warning_message
+
+                for warning in all_warnings:
+                    print_warning_message(warning)
 
         if move_layer:
             for move_spec in move_layer:
@@ -302,14 +334,32 @@ def edit(
                     {"type": "copy_layer", "source": source_layer, "new": new_layer}
                 )
 
+        # Handle case where no write operations succeeded but had warnings
+        if not changes_made and "all_warnings" in locals() and all_warnings:
+            # Only had remove operations that failed
+            if not any([set, add_layer, move_layer, copy_layer]):
+                from glovebox.cli.helpers.output import print_warning_message
+
+                print_warning_message(
+                    "No layers were removed - all identifiers failed to match"
+                )
+                return
+
         # Output results
         if changes_made:
             from glovebox.cli.helpers import print_list_item, print_success_message
 
-            print_success_message(
-                f"Layout edited successfully ({len(operations)} operations)"
-            )
-            print_list_item(f"Output: {current_file}")
+            operation_count = len(operations)
+            warning_count = len(all_warnings) if "all_warnings" in locals() else 0
+
+            if operation_count > 0:
+                success_msg = (
+                    f"Layout edited successfully ({operation_count} operations)"
+                )
+                if warning_count > 0:
+                    success_msg += f" with {warning_count} warnings"
+                print_success_message(success_msg)
+                print_list_item(f"Output: {current_file}")
 
             if output_format.lower() == "json":
                 result_data = {
@@ -317,6 +367,7 @@ def edit(
                     "output_file": str(current_file),
                     "operations": operations,
                     "results": results,
+                    "warnings": all_warnings if "all_warnings" in locals() else [],
                 }
                 command.format_output(result_data, "json")
             else:
@@ -328,7 +379,10 @@ def edit(
                             f"Added layer '{op['layer']}' at position {op['position']}"
                         )
                     elif op["type"] == "remove_layer":
-                        print_list_item(f"Removed layer '{op['layer']}'")
+                        position_info = (
+                            f" (position {op['position']})" if "position" in op else ""
+                        )
+                        print_list_item(f"Removed layer '{op['layer']}'{position_info}")
                     elif op["type"] == "move_layer":
                         print_list_item(
                             f"Moved layer '{op['layer']}' from {op['from']} to {op['to']}"

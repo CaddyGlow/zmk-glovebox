@@ -165,18 +165,15 @@ class TestCreateDefaultCache:
             assert isinstance(cache2, DiskCacheManager)
             cache2.close()
 
-    def test_xdg_cache_home_respected(self, tmp_path):
+    def test_xdg_cache_home_respected(self, isolated_cache_environment):
         """Test that XDG_CACHE_HOME is respected."""
-        xdg_cache = tmp_path / "xdg_cache"
+        cache = create_default_cache()
+        assert isinstance(cache, DiskCacheManager)
 
-        with patch.dict(os.environ, {"XDG_CACHE_HOME": str(xdg_cache)}):
-            cache = create_default_cache()
-            assert isinstance(cache, DiskCacheManager)
-
-            # Cache should be created under XDG_CACHE_HOME/glovebox
-            expected_path = xdg_cache / "glovebox"
-            assert expected_path.exists()
-            cache.close()
+        # Cache should be created under XDG_CACHE_HOME/glovebox
+        expected_path = isolated_cache_environment["cache_root"]
+        assert expected_path.exists()
+        cache.close()
 
 
 class TestEnvironmentVariables:
@@ -339,7 +336,7 @@ class TestCacheIsolation:
         compilation_cache.close()
         reset_shared_cache_instances()
 
-    def test_cache_filesystem_isolation(self, tmp_path):
+    def test_cache_filesystem_isolation(self, isolated_cache_environment):
         """Test that different tags use separate filesystem directories."""
         from glovebox.core.cache_v2.cache_coordinator import (
             reset_shared_cache_instances,
@@ -348,25 +345,24 @@ class TestCacheIsolation:
         # Reset to ensure clean state
         reset_shared_cache_instances()
 
-        # Use temporary directory as cache root
-        with patch.dict(os.environ, {"XDG_CACHE_HOME": str(tmp_path)}):
-            metrics_cache = create_default_cache(tag="metrics")
-            layout_cache = create_default_cache(tag="layout")
+        # Use isolated cache environment
+        metrics_cache = create_default_cache(tag="metrics")
+        layout_cache = create_default_cache(tag="layout")
 
-            # Store some data to ensure directories are created
-            metrics_cache.set("test", "metrics_data")
-            layout_cache.set("test", "layout_data")
+        # Store some data to ensure directories are created
+        metrics_cache.set("test", "metrics_data")
+        layout_cache.set("test", "layout_data")
 
-            # Verify separate directories exist
-            glovebox_cache = tmp_path / "glovebox"
-            metrics_dir = glovebox_cache / "metrics"
-            layout_dir = glovebox_cache / "layout"
+        # Verify separate directories exist
+        glovebox_cache = isolated_cache_environment["cache_root"]
+        metrics_dir = glovebox_cache / "metrics"
+        layout_dir = glovebox_cache / "layout"
 
-            assert metrics_dir.exists()
-            assert layout_dir.exists()
-            assert metrics_dir != layout_dir
+        assert metrics_dir.exists()
+        assert layout_dir.exists()
+        assert metrics_dir != layout_dir
 
-            # Clean up
-            metrics_cache.close()
-            layout_cache.close()
-            reset_shared_cache_instances()
+        # Clean up
+        metrics_cache.close()
+        layout_cache.close()
+        reset_shared_cache_instances()

@@ -116,16 +116,13 @@ class TestCacheUserConfigIntegration:
         cache = create_default_cache(tag="test_tag")
         assert isinstance(cache, DiskCacheManager)
 
-    def test_xdg_cache_home_respected(self, tmp_path):
+    def test_xdg_cache_home_respected(self, isolated_cli_environment):
         """Test that XDG_CACHE_HOME is respected."""
-        xdg_cache = tmp_path / "xdg_cache"
+        config = UserConfigData()
 
-        with patch.dict(os.environ, {"XDG_CACHE_HOME": str(xdg_cache)}):
-            config = UserConfigData()
-
-            # Cache path should use XDG_CACHE_HOME
-            expected_path = xdg_cache / "glovebox"
-            assert config.cache_path == expected_path
+        # Cache path should use XDG_CACHE_HOME
+        expected_path = isolated_cache_environment["cache_root"]
+        assert config.cache_path == expected_path
 
     def test_yaml_config_file_cache_settings(self):
         """Test loading cache settings from YAML configuration file."""

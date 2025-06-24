@@ -301,7 +301,14 @@ class TestLayoutEdit:
         self, cli_runner, layout_file, mock_layout_layer_service
     ):
         """Test removing a layer."""
-        mock_result = {"output_path": layout_file.parent / "modified_layout.json"}
+        mock_result = {
+            "output_path": layout_file.parent / "modified_layout.json",
+            "removed_layers": [{"name": "Symbol", "position": 1}],
+            "removed_count": 1,
+            "remaining_layers": 1,
+            "warnings": [],
+            "had_matches": True,
+        }
         mock_layout_layer_service.remove_layer.return_value = mock_result
 
         result = cli_runner.invoke(
@@ -310,7 +317,7 @@ class TestLayoutEdit:
 
         assert result.exit_code == 0
         assert "Layout edited successfully (1 operations)" in result.output
-        assert "Removed layer 'Symbol'" in result.output
+        assert "Removed layer 'Symbol' (position 1)" in result.output
         mock_layout_layer_service.remove_layer.assert_called_once()
 
     def test_edit_move_layer(self, cli_runner, layout_file, mock_layout_layer_service):
@@ -385,7 +392,12 @@ class TestLayoutEdit:
         mock_layer_result = {"output_path": output_path, "position": 2}
         mock_layout_layer_service.add_layer.return_value = mock_layer_result
         mock_layout_layer_service.remove_layer.return_value = {
-            "output_path": output_path
+            "output_path": output_path,
+            "removed_layers": [{"name": "Symbol", "position": 1}],
+            "removed_count": 1,
+            "remaining_layers": 1,
+            "warnings": [],
+            "had_matches": True,
         }
 
         result = cli_runner.invoke(
@@ -407,7 +419,78 @@ class TestLayoutEdit:
         assert "Layout edited successfully (3 operations)" in result.output
         assert "Set title: Updated Layout" in result.output
         assert "Added layer 'Gaming' at position 2" in result.output
-        assert "Removed layer 'Symbol'" in result.output
+        assert "Removed layer 'Symbol' (position 1)" in result.output
+
+    def test_edit_batch_remove_with_warnings(
+        self, cli_runner, layout_file, mock_layout_layer_service
+    ):
+        """Test batch remove operations with some successes and some warnings."""
+        # Mock successful removal for one layer, warnings for others
+        mock_layout_layer_service.remove_layer.side_effect = [
+            {
+                "output_path": layout_file.parent / "modified_layout.json",
+                "removed_layers": [{"name": "Symbol", "position": 1}],
+                "removed_count": 1,
+                "remaining_layers": 1,
+                "warnings": [],
+                "had_matches": True,
+            },
+            {
+                "output_path": layout_file,
+                "removed_layers": [],
+                "removed_count": 0,
+                "remaining_layers": 2,
+                "warnings": ["No layers found matching identifier 'NonExistent'. Available layers: Base, Symbol"],
+                "had_matches": False,
+            },
+        ]
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "layout",
+                "edit",
+                str(layout_file),
+                "--remove-layer",
+                "Symbol",
+                "--remove-layer", 
+                "NonExistent",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Layout edited successfully (1 operations) with 1 warnings" in result.output
+        assert "Removed layer 'Symbol' (position 1)" in result.output
+        assert "No layers found matching identifier 'NonExistent'" in result.output
+
+    def test_edit_remove_all_failed(
+        self, cli_runner, layout_file, mock_layout_layer_service
+    ):
+        """Test remove operations where all identifiers fail to match."""
+        # Mock all removals failing
+        mock_layout_layer_service.remove_layer.return_value = {
+            "output_path": layout_file,
+            "removed_layers": [],
+            "removed_count": 0,
+            "remaining_layers": 2,
+            "warnings": ["No layers found matching identifier 'NonExistent'. Available layers: Base, Symbol"],
+            "had_matches": False,
+        }
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "layout",
+                "edit",
+                str(layout_file),
+                "--remove-layer",
+                "NonExistent",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "No layers were removed - all identifiers failed to match" in result.output
+        assert "No layers found matching identifier 'NonExistent'" in result.output
 
     def test_edit_invalid_set_syntax(self, cli_runner, layout_file):
         """Test invalid set operation syntax."""
