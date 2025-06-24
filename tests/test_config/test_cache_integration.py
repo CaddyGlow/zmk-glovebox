@@ -121,7 +121,7 @@ class TestCacheUserConfigIntegration:
         config = UserConfigData()
 
         # Cache path should use XDG_CACHE_HOME
-        expected_path = isolated_cache_environment["cache_root"]
+        expected_path = isolated_cli_environment["cache_root"]
         assert config.cache_path == expected_path
 
     def test_yaml_config_file_cache_settings(self):

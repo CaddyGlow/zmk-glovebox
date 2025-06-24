@@ -3,6 +3,7 @@
 import json
 import logging
 from pathlib import Path
+from tempfile import gettempdir, tempdir
 from typing import Annotated
 
 import typer
@@ -41,13 +42,13 @@ logger = logging.getLogger(__name__)
 @handle_errors
 def compile_layout(
     ctx: typer.Context,
+    json_file: JsonFileArgument = None,
     output_file_prefix: Annotated[
-        str,
+        str | None,
         typer.Argument(
             help="Output directory and base filename (e.g., 'config/my_glove80')"
         ),
-    ],
-    json_file: JsonFileArgument = None,
+    ] = None,
     profile: ProfileOption = None,
     no_auto: Annotated[
         bool,
@@ -123,6 +124,11 @@ def compile_layout(
             keyboard_profile = create_profile_from_option(
                 effective_profile, user_config
             )
+            if output_file_prefix is None and json_file is not None:
+                output_file_prefix = Path(json_file).stem + "_"
+            else:
+                tmp_dir = gettempdir()
+                output_file_prefix = str(Path(tmp_dir) / keyboard_profile.keyboard_name)
 
             # Generate keymap using the file-based service method
             keymap_service = create_layout_service()

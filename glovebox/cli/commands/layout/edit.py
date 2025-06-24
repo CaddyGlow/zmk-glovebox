@@ -335,15 +335,18 @@ def edit(
                 )
 
         # Handle case where no write operations succeeded but had warnings
-        if not changes_made and "all_warnings" in locals() and all_warnings:
-            # Only had remove operations that failed
-            if not any([set, add_layer, move_layer, copy_layer]):
-                from glovebox.cli.helpers.output import print_warning_message
+        if (
+            not changes_made
+            and "all_warnings" in locals()
+            and all_warnings
+            and not any([set, add_layer, move_layer, copy_layer])
+        ):
+            from glovebox.cli.helpers.output import print_warning_message
 
-                print_warning_message(
-                    "No layers were removed - all identifiers failed to match"
-                )
-                return
+            print_warning_message(
+                "No layers were removed - all identifiers failed to match"
+            )
+            return
 
         # Output results
         if changes_made:

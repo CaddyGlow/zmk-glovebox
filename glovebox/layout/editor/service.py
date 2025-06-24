@@ -11,6 +11,7 @@ from glovebox.layout.utils.field_parser import (
 )
 from glovebox.layout.utils.json_operations import load_layout_file, save_layout_file
 from glovebox.layout.utils.validation import validate_output_path
+from glovebox.layout.utils.variable_resolver import VariableResolver
 
 
 class LayoutEditorService:

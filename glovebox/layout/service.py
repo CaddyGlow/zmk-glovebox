@@ -260,7 +260,8 @@ class LayoutService(BaseService):
         # Save original JSON file for reference
         with metrics.time_operation("json_saving"):
             self._file_adapter.write_json(
-                output_paths.json, keymap_data.model_dump(mode="json", by_alias=True)
+                output_paths.json,
+                keymap_data.model_dump(mode="json", by_alias=True, exclude_unset=True),
             )
             result.json_path = output_paths.json
 
@@ -324,7 +325,8 @@ class LayoutService(BaseService):
 
             # Save original JSON file for reference
             self._file_adapter.write_json(
-                output_paths.json, keymap_data.model_dump(mode="json", by_alias=True)
+                output_paths.json,
+                keymap_data.model_dump(mode="json", by_alias=True, exclude_unset=True),
             )
             result.json_path = output_paths.json
 

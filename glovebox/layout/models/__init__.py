@@ -33,6 +33,8 @@ from .bookmarks import BookmarkCollection, BookmarkSource, LayoutBookmark
 # Type aliases for common parameter types
 ConfigValue: TypeAlias = str | int | bool
 LayerIndex: TypeAlias = int
+# Template-aware numeric type that accepts integers or template strings
+TemplateNumeric: TypeAlias = int | str | None
 #
 # This type alias improves type safety and makes future changes easier
 LayerBindings: TypeAlias = list["LayoutBinding"]
@@ -92,13 +94,15 @@ class HoldTapBehavior(GloveboxBaseModel):
     name: str
     description: str | None = ""
     bindings: list[str] = Field(default_factory=list)
-    tapping_term_ms: int | None = Field(default=None, alias="tappingTermMs")
-    quick_tap_ms: int | None = Field(default=None, alias="quickTapMs")
+    tapping_term_ms: TemplateNumeric = Field(default=None, alias="tappingTermMs")
+    quick_tap_ms: TemplateNumeric = Field(default=None, alias="quickTapMs")
     flavor: str | None = None
     hold_trigger_on_release: bool | None = Field(
         default=None, alias="holdTriggerOnRelease"
     )
-    require_prior_idle_ms: int | None = Field(default=None, alias="requirePriorIdleMs")
+    require_prior_idle_ms: TemplateNumeric = Field(
+        default=None, alias="requirePriorIdleMs"
+    )
     hold_trigger_key_positions: list[int] | None = Field(
         default=None, alias="holdTriggerKeyPositions"
     )
@@ -168,7 +172,7 @@ class ComboBehavior(GloveboxBaseModel):
 
     name: str
     description: str | None = ""
-    timeout_ms: int | None = Field(default=None, alias="timeoutMs")
+    timeout_ms: TemplateNumeric = Field(default=None, alias="timeoutMs")
     key_positions: list[int] = Field(alias="keyPositions")
     layers: list[LayerIndex] | None = None
     binding: LayoutBinding = Field()
@@ -191,8 +195,8 @@ class MacroBehavior(GloveboxBaseModel):
 
     name: str
     description: str | None = ""
-    wait_ms: int | None = Field(default=None, alias="waitMs")
-    tap_ms: int | None = Field(default=None, alias="tapMs")
+    wait_ms: TemplateNumeric = Field(default=None, alias="waitMs")
+    tap_ms: TemplateNumeric = Field(default=None, alias="tapMs")
     bindings: list[LayoutBinding] = Field(default_factory=list)
     params: list[ParamValue] | None = None
 
@@ -586,6 +590,7 @@ __all__ = [
     # Type aliases
     "ConfigValue",
     "LayerIndex",
+    "TemplateNumeric",
     "LayerBindings",
     "BehaviorList",
     "ConfigParamList",

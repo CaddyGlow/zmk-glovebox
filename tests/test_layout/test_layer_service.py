@@ -435,10 +435,13 @@ class TestRemoveLayer:
                 layer_identifier="NonExistent",
                 warn_on_no_match=True,
             )
-            
+
             assert result["removed_count"] == 0
             assert len(result["warnings"]) == 1
-            assert "No layers found matching identifier 'NonExistent'" in result["warnings"][0]
+            assert (
+                "No layers found matching identifier 'NonExistent'"
+                in result["warnings"][0]
+            )
             assert not result["had_matches"]
 
     def test_remove_layer_no_matches_without_warnings(
@@ -456,7 +459,7 @@ class TestRemoveLayer:
                 layer_identifier="NonExistent",
                 warn_on_no_match=False,
             )
-            
+
             assert result["removed_count"] == 0
             assert len(result["warnings"]) == 0
             assert not result["had_matches"]
@@ -476,7 +479,7 @@ class TestRemoveLayer:
                 layer_identifier="10",  # Beyond bounds
                 warn_on_no_match=True,
             )
-            
+
             assert result["removed_count"] == 0
             assert len(result["warnings"]) == 1
             assert "No layers found matching identifier '10'" in result["warnings"][0]

@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import Field, field_validator
 
+from glovebox.layout.behavior.models import SystemBehavior
 from glovebox.models.base import GloveboxBaseModel
 
 
@@ -31,6 +32,7 @@ class FirmwareConfig(GloveboxBaseModel):
     description: str
     build_options: BuildOptions
     kconfig: dict[str, KConfigOption] | None = None
+    system_behaviors: list[SystemBehavior] = Field(default=[])
 
 
 class FirmwareFlashConfig(GloveboxBaseModel):

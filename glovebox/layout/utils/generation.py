@@ -1,11 +1,9 @@
-"""Utility functions for layout operations."""
+"""Layout generation utilities for configuration and keymap files."""
 
-import json
 import logging
-from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any
 
 from glovebox.layout.behavior.analysis import get_required_includes_for_layout
 
@@ -15,146 +13,11 @@ if TYPE_CHECKING:
     from glovebox.layout.zmk_generator import ZmkFileContentGenerator
 
 from glovebox.core.errors import LayoutError
-from glovebox.firmware.models import OutputPaths
 from glovebox.layout.models import LayoutData
 from glovebox.protocols import FileAdapterProtocol
 
 
 logger = logging.getLogger(__name__)
-T = TypeVar("T")
-
-
-def prepare_output_paths(
-    output_file_prefix: str | Path, profile: "KeyboardProfile | None" = None
-) -> OutputPaths:
-    """Prepare standardized output file paths.
-
-    Given an output file prefix (which can be a path and base name),
-    generates an OutputPaths object with standardized paths.
-
-    Args:
-        output_file_prefix: Base path and name for output files (str or Path)
-        profile: Optional keyboard profile for configurable file extensions
-
-    Returns:
-        OutputPaths with standardized paths for keymap, conf, and json files
-
-    Examples:
-        >>> prepare_output_paths("/tmp/my_keymap")
-        OutputPaths(
-            keymap=PosixPath('/tmp/my_keymap.keymap'),
-            conf=PosixPath('/tmp/my_keymap.conf'),
-            json=PosixPath('/tmp/my_keymap.json')
-        )
-    """
-    output_prefix_path = Path(output_file_prefix).resolve()
-    output_dir = output_prefix_path.parent
-    base_name = output_prefix_path.name
-
-    # Use configurable file extensions if profile is provided, otherwise use defaults
-    if profile:
-        extensions = profile.keyboard_config.zmk.file_extensions
-        keymap_ext = extensions.keymap
-        conf_ext = extensions.conf
-        json_ext = extensions.metadata
-    else:
-        # Default extensions for backward compatibility
-        keymap_ext = ".keymap"
-        conf_ext = ".conf"
-        json_ext = ".json"
-
-    return OutputPaths(
-        keymap=output_dir / f"{base_name}{keymap_ext}",
-        conf=output_dir / f"{base_name}{conf_ext}",
-        json=output_dir / f"{base_name}{json_ext}",
-    )
-
-
-def process_json_file(
-    file_path: Path,
-    operation_name: str,
-    process_func: Callable[[LayoutData], T],
-    file_adapter: FileAdapterProtocol,
-) -> T:
-    """Process a JSON keymap file with standard error handling and validation.
-
-    Args:
-        file_path: Path to the JSON file to process
-        operation_name: Name of the operation for logging/error messages
-        process_func: Function to call with validated LayoutData
-        file_adapter: File adapter for reading files
-
-    Returns:
-        Result from process_func
-
-    Raises:
-        LayoutError: If file processing fails
-    """
-    logger.info("%s from %s...", operation_name, file_path)
-
-    try:
-        # Check if the file exists
-        if not file_path.exists():
-            raise LayoutError(f"Input file not found: {file_path}")
-
-        # Load JSON data
-        json_data = load_json_file(file_path, file_adapter)
-
-        # Validate as LayoutData
-        keymap_data = validate_keymap_data(json_data)
-
-        # Process using the validated data
-        return process_func(keymap_data)
-
-    except Exception as e:
-        logger.error("%s failed: %s", operation_name, e)
-        raise LayoutError(f"{operation_name} failed: {e}") from e
-
-
-def load_json_file(
-    file_path: Path, file_adapter: FileAdapterProtocol
-) -> dict[str, Any]:
-    """Load and parse JSON from a file using the file adapter.
-
-    Args:
-        file_path: Path to the JSON file
-        file_adapter: File adapter for reading files
-
-    Returns:
-        Parsed JSON as dictionary
-
-    Raises:
-        LayoutError: If file loading or parsing fails
-    """
-    try:
-        result = file_adapter.read_json(file_path)
-        if not isinstance(result, dict):
-            raise LayoutError(
-                f"Expected JSON object in file {file_path}, got {type(result)}"
-            )
-        return result
-    except json.JSONDecodeError as e:
-        raise LayoutError(f"Invalid JSON in file {file_path}: {e}") from e
-    except Exception as e:
-        raise LayoutError(f"Error reading file {file_path}: {e}") from e
-
-
-def validate_keymap_data(json_data: dict[str, Any]) -> LayoutData:
-    """Validate JSON data as LayoutData.
-
-    Args:
-        json_data: Raw JSON data to validate
-
-    Returns:
-        Validated LayoutData instance
-
-    Raises:
-        LayoutError: If validation fails
-    """
-    try:
-        return LayoutData.model_validate(json_data)
-    except Exception as e:
-        raise LayoutError(f"Invalid keymap data: {e}") from e
 
 
 def generate_config_file(
@@ -226,14 +89,16 @@ def build_template_context(
     )
 
     # Generate DTSI components
+    # IMPORTANT: Generate behaviors first so they are registered before keymap generation
     layer_defines = dtsi_generator.generate_layer_defines(profile, layer_names)
-    keymap_node = dtsi_generator.generate_keymap_node(profile, layer_names, layers_data)
     behaviors_dtsi = dtsi_generator.generate_behaviors_dtsi(profile, hold_taps_data)
     combos_dtsi = dtsi_generator.generate_combos_dtsi(profile, combos_data, layer_names)
     macros_dtsi = dtsi_generator.generate_macros_dtsi(profile, macros_data)
     input_listeners_dtsi = dtsi_generator.generate_input_listeners_node(
         profile, input_listeners_data
     )
+    # Generate keymap node AFTER behaviors are registered
+    keymap_node = dtsi_generator.generate_keymap_node(profile, layer_names, layers_data)
 
     # Get template elements from the keyboard profile
     key_position_header = ""
@@ -340,52 +205,6 @@ def generate_kconfig_conf(
     return kconfig_content, user_options
 
 
-def resolve_template_file_path(keyboard_name: str, template_file: str) -> Path:
-    """Resolve a template file path relative to keyboard configuration directories.
-
-    Args:
-        keyboard_name: Name of the keyboard configuration
-        template_file: Relative path to the template file
-
-    Returns:
-        Resolved absolute path to the template file
-
-    Raises:
-        LayoutError: If the template file cannot be found
-    """
-    from glovebox.config.keyboard_profile import initialize_search_paths
-
-    # Get the standard search paths for keyboard configurations
-    search_paths = initialize_search_paths()
-    template_path_obj = Path(template_file)
-
-    # If absolute path, validate and use as-is
-    if template_path_obj.is_absolute():
-        if template_path_obj.exists():
-            return template_path_obj.resolve()
-        raise LayoutError(f"Template file not found: {template_file}")
-
-    # Try to resolve relative to keyboard configuration directories
-    for search_path in search_paths:
-        # Try relative to keyboard directory (for modular configs)
-        keyboard_dir = search_path / keyboard_name
-        if keyboard_dir.exists() and keyboard_dir.is_dir():
-            keyboard_relative = keyboard_dir / template_path_obj
-            if keyboard_relative.exists():
-                return keyboard_relative.resolve()
-
-        # Try relative to search path root
-        search_relative = search_path / template_path_obj
-        if search_relative.exists():
-            return search_relative.resolve()
-
-    raise LayoutError(
-        f"Template file not found: {template_file}. "
-        f"Searched relative to keyboard '{keyboard_name}' directories in: "
-        f"{[str(p) for p in search_paths]}"
-    )
-
-
 def generate_keymap_file(
     file_adapter: FileAdapterProtocol,
     template_adapter: Any,
@@ -428,6 +247,8 @@ def generate_keymap_file(
     elif template_file:
         logger.debug("Using template file: %s", template_file)
         # Resolve template file path
+        from .core_operations import resolve_template_file_path
+
         template_path = resolve_template_file_path(profile.keyboard_name, template_file)
         logger.debug("Resolved template path: %s", template_path)
         keymap_content = template_adapter.render_template(template_path, context)
