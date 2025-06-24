@@ -8,12 +8,41 @@ from glovebox.layout.models import LayoutData
 from glovebox.protocols import FileAdapterProtocol
 
 
-def load_layout_file(file_path: Path, file_adapter: FileAdapterProtocol) -> LayoutData:
+# Module-level flag to control variable resolution
+_skip_variable_resolution = False
+
+
+class VariableResolutionContext:
+    """Context manager for controlling variable resolution during operations."""
+
+    def __init__(self, skip: bool = True) -> None:
+        self.skip = skip
+        self.old_value: bool | None = None
+
+    def __enter__(self) -> "VariableResolutionContext":
+        global _skip_variable_resolution
+        self.old_value = _skip_variable_resolution
+        _skip_variable_resolution = self.skip
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        global _skip_variable_resolution
+        if self.old_value is not None:
+            _skip_variable_resolution = self.old_value
+
+
+def load_layout_file(
+    file_path: Path,
+    file_adapter: FileAdapterProtocol,
+    skip_variable_resolution: bool = False
+) -> LayoutData:
     """Load and validate a layout JSON file.
 
     Args:
         file_path: Path to the layout JSON file
         file_adapter: File adapter for file operations
+        skip_variable_resolution: If True, skip variable resolution to preserve
+                                  original variable references (for edit operations)
 
     Returns:
         Validated LayoutData instance
@@ -26,16 +55,33 @@ def load_layout_file(file_path: Path, file_adapter: FileAdapterProtocol) -> Layo
     if not file_adapter.check_exists(file_path):
         raise FileNotFoundError(f"Layout file not found: {file_path}")
 
+    global _skip_variable_resolution
+
     try:
         content = file_adapter.read_text(file_path)
         data = json.loads(content)
-        return LayoutData.model_validate(data)
+
+        # Set the module flag before validation
+        old_skip_value = _skip_variable_resolution
+        _skip_variable_resolution = skip_variable_resolution
+
+        try:
+            return LayoutData.model_validate(data)
+        finally:
+            # Restore the original flag value
+            _skip_variable_resolution = old_skip_value
+
     except json.JSONDecodeError as e:
         raise json.JSONDecodeError(
             f"Invalid JSON in layout file {file_path}: {e.msg}", e.doc, e.pos
         ) from e
     except Exception as e:
         raise ValueError(f"Invalid layout data in {file_path}: {e}") from e
+
+
+def should_skip_variable_resolution() -> bool:
+    """Check if variable resolution should be skipped."""
+    return _skip_variable_resolution
 
 
 def save_layout_file(

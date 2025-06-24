@@ -59,7 +59,8 @@ class LayoutLayerService:
             ValueError: If parameters are invalid or layer already exists
             FileNotFoundError: If import file doesn't exist
         """
-        layout_data = load_layout_file(layout_file, self.file_adapter)
+        # Load WITHOUT variable resolution to preserve original variable references
+        layout_data = load_layout_file(layout_file, self.file_adapter, skip_variable_resolution=True)
 
         # Validate mutually exclusive options
         source_count = sum(bool(x) for x in [copy_from, import_from])
@@ -125,7 +126,8 @@ class LayoutLayerService:
         Raises:
             ValueError: If output path is invalid (but not for no layer matches)
         """
-        layout_data = load_layout_file(layout_file, self.file_adapter)
+        # Load WITHOUT variable resolution to preserve original variable references
+        layout_data = load_layout_file(layout_file, self.file_adapter, skip_variable_resolution=True)
 
         # Find layers to remove based on identifier type
         layers_to_remove = self._find_layers_to_remove(layout_data, layer_identifier)
@@ -194,7 +196,8 @@ class LayoutLayerService:
         Raises:
             ValueError: If layer doesn't exist or positions are invalid
         """
-        layout_data = load_layout_file(layout_file, self.file_adapter)
+        # Load WITHOUT variable resolution to preserve original variable references
+        layout_data = load_layout_file(layout_file, self.file_adapter, skip_variable_resolution=True)
 
         # Validate layer exists and get current position
         current_idx = validate_layer_exists(layout_data, layer_name)
@@ -248,7 +251,8 @@ class LayoutLayerService:
         Returns:
             Dictionary with layer information
         """
-        layout_data = load_layout_file(layout_file, self.file_adapter)
+        # Load WITHOUT variable resolution to preserve original variable references
+        layout_data = load_layout_file(layout_file, self.file_adapter, skip_variable_resolution=True)
 
         layers_info = []
         for i, layer_name in enumerate(layout_data.layer_names):
@@ -291,7 +295,8 @@ class LayoutLayerService:
         Raises:
             ValueError: If layer doesn't exist or format is invalid
         """
-        layout_data = load_layout_file(layout_file, self.file_adapter)
+        # Load WITHOUT variable resolution to preserve original variable references
+        layout_data = load_layout_file(layout_file, self.file_adapter, skip_variable_resolution=True)
 
         # Validate layer exists and has bindings
         layer_idx = validate_layer_exists(layout_data, layer_name)

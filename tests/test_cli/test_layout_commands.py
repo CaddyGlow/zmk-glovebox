@@ -701,6 +701,216 @@ class TestLayoutEdit:
         assert call_args["field_path"] == "hold_taps[0].tapping_term_ms"
         assert call_args["value"] == '"${tapMs}"'
 
+    def test_edit_preserves_variables_regression_test(self, cli_runner, tmp_path):
+        """Regression test: ensure variables are preserved during edit operations.
+
+        This test specifically addresses the variable flattening issue where
+        variable references like '${tapMs}' were being resolved to their values
+        during edit operations, causing loss of variable references when saving.
+        """
+        # Create a layout with variable references
+        layout_with_variables = {
+            "keyboard": "test_keyboard",
+            "title": "Variable Test Layout",
+            "layer_names": ["base"],
+            "layers": [[{"value": "&kp", "params": [{"value": "Q"}]}, {"value": "&kp", "params": [{"value": "W"}]}, {"value": "&kp", "params": [{"value": "E"}]}]],
+            "variables": {
+                "tapMs": 150,
+                "holdMs": 200,
+                "flavor": "tap-preferred"
+            },
+            "hold_taps": [
+                {
+                    "name": "&ht_test",
+                    "tapping_term_ms": "${tapMs}",
+                    "quick_tap_ms": "${holdMs}",
+                    "flavor": "${flavor}"
+                }
+            ],
+            "behaviors": {
+                "custom_tap": {
+                    "type": "hold_tap",
+                    "tapping_term_ms": "${tapMs}",
+                    "flavor": "${flavor}"
+                }
+            },
+            "combos": [
+                {
+                    "name": "esc_combo",
+                    "timeout_ms": "${holdMs}",
+                    "keyPositions": [0, 1],
+                    "binding": {"value": "&kp", "params": [{"value": "ESC"}]}
+                }
+            ]
+        }
+
+        # Create temporary input and output files
+        input_file = tmp_path / "input_variables.json"
+        output_file = tmp_path / "output_variables.json"
+
+        # Write the layout with variables
+        input_file.write_text(json.dumps(layout_with_variables, indent=2))
+
+        # Perform an edit operation that should preserve variables
+        result = cli_runner.invoke(
+            app,
+            [
+                "layout",
+                "edit",
+                str(input_file),
+                "--set",
+                "variables.newVar=999",
+                "--output",
+                str(output_file)
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Layout edited successfully" in result.output
+
+        # Read the output and verify variables are preserved
+        output_content = json.loads(output_file.read_text())
+
+        # New variable should be added
+        assert output_content["variables"]["newVar"] == 999
+
+        # Original variables should be preserved
+        assert output_content["variables"]["tapMs"] == 150
+        assert output_content["variables"]["holdMs"] == 200
+        assert output_content["variables"]["flavor"] == "tap-preferred"
+
+        # CRITICAL: Variable references should remain as references (not resolved to values)
+        assert output_content["hold_taps"][0]["tapping_term_ms"] == "${tapMs}"
+        assert output_content["hold_taps"][0]["quick_tap_ms"] == "${holdMs}"
+        assert output_content["hold_taps"][0]["flavor"] == "${flavor}"
+
+        assert output_content["behaviors"]["custom_tap"]["tapping_term_ms"] == "${tapMs}"
+        assert output_content["behaviors"]["custom_tap"]["flavor"] == "${flavor}"
+
+        assert output_content["combos"][0]["timeout_ms"] == "${holdMs}"
+
+    def test_edit_unset_variable_preserves_remaining_references(self, cli_runner, isolated_cli_environment):
+        """Test that unsetting a variable preserves remaining variable references."""
+        layout_with_variables = {
+            "keyboard": "test_keyboard",
+            "title": "Variable Test Layout",
+            "layer_names": ["base"],
+            "layers": [[{"value": "&kp", "params": [{"value": "Q"}]}]],
+            "variables": {
+                "tapMs": 150,
+                "holdMs": 200,
+                "flavor": "tap-preferred"
+            },
+            "hold_taps": [
+                {
+                    "name": "&ht_test",
+                    "tapping_term_ms": "${tapMs}",
+                    "quick_tap_ms": "${holdMs}",  # This reference will become invalid
+                    "flavor": "${flavor}"
+                }
+            ]
+        }
+
+        input_file = isolated_cli_environment["temp_dir"] / "input_unset.json"
+        output_file = isolated_cli_environment["temp_dir"] / "output_unset.json"
+
+        input_file.write_text(json.dumps(layout_with_variables, indent=2))
+
+        # Remove the holdMs variable
+        result = cli_runner.invoke(
+            app,
+            [
+                "layout",
+                "edit",
+                str(input_file),
+                "--unset",
+                "variables.holdMs",
+                "--output",
+                str(output_file)
+            ],
+        )
+
+        assert result.exit_code == 0, f"Command failed with output: {result.output}"
+        assert "Layout edited successfully" in result.output
+
+        output_content = json.loads(output_file.read_text())
+
+        # holdMs variable should be removed
+        assert "holdMs" not in output_content["variables"]
+
+        # Remaining variables should be preserved
+        assert output_content["variables"]["tapMs"] == 150
+        assert output_content["variables"]["flavor"] == "tap-preferred"
+
+        # Variable references should remain as references
+        assert output_content["hold_taps"][0]["tapping_term_ms"] == "${tapMs}"
+        assert output_content["hold_taps"][0]["flavor"] == "${flavor}"
+
+        # The reference to removed variable should remain (this is expected behavior)
+        assert output_content["hold_taps"][0]["quick_tap_ms"] == "${holdMs}"
+
+    def test_edit_multiple_operations_preserve_variables(self, cli_runner, isolated_cli_environment):
+        """Test that multiple edit operations in sequence preserve variables."""
+        layout_with_variables = {
+            "keyboard": "test_keyboard",
+            "title": "Variable Test Layout",
+            "layer_names": ["base"],
+            "layers": [[{"value": "&kp", "params": [{"value": "Q"}]}]],
+            "variables": {
+                "tapMs": 150,
+                "flavor": "tap-preferred"
+            },
+            "behaviors": {
+                "custom_tap": {
+                    "type": "hold_tap",
+                    "tapping_term_ms": "${tapMs}",
+                    "flavor": "${flavor}",
+                    "bindings": ["&kp", "&mo"]
+                }
+            }
+        }
+
+        input_file = isolated_cli_environment["temp_dir"] / "input_multi.json"
+
+        input_file.write_text(json.dumps(layout_with_variables, indent=2))
+
+        # Perform multiple operations in a single command
+        result = cli_runner.invoke(
+            app,
+            [
+                "layout",
+                "edit",
+                str(input_file),
+                "--set", "variables.newTiming=250",
+                "--set", "variables.tapMs=175",  # Modify existing variable
+                "--set", "title=Updated Layout",
+                "--unset", "variables.flavor",   # Remove a variable
+                "--add-layer", "gaming"
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Layout edited successfully" in result.output
+
+        output_content = json.loads(input_file.read_text())
+
+        # Variables should be updated correctly
+        assert output_content["variables"]["newTiming"] == 250
+        assert output_content["variables"]["tapMs"] == 175  # Updated
+        assert "flavor" not in output_content["variables"]  # Removed
+
+        # Title should be updated
+        assert output_content["title"] == "Updated Layout"
+
+        # New layer should be added
+        assert "gaming" in output_content["layer_names"]
+
+        # CRITICAL: Remaining variable references should be preserved
+        assert output_content["behaviors"]["custom_tap"]["tapping_term_ms"] == "${tapMs}"
+
+        # Reference to removed variable should remain (expected behavior)
+        assert output_content["behaviors"]["custom_tap"]["flavor"] == "${flavor}"
+
 
 class TestLayoutFileOperations:
     """Test file operation commands (split, merge, export, import)."""
