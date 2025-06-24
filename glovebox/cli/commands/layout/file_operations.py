@@ -1,7 +1,11 @@
 """Layout file manipulation CLI commands (split, merge, export, import)."""
 
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
+
+
+if TYPE_CHECKING:
+    from glovebox.layout.service import LayoutService
 
 import typer
 
@@ -34,7 +38,7 @@ from glovebox.layout.service import create_layout_service
 from glovebox.layout.zmk_generator import ZmkFileContentGenerator
 
 
-def _create_layout_service_with_dependencies():
+def _create_layout_service_with_dependencies() -> "LayoutService":
     """Create a layout service with all required dependencies."""
     file_adapter = create_file_adapter()
     template_adapter = create_template_adapter()
@@ -297,7 +301,8 @@ def export(
     command.validate_layout_file(layout_file)
 
     try:
-        layer_service = create_layout_layer_service()
+        file_adapter = create_file_adapter()
+        layer_service = create_layout_layer_service(file_adapter)
         result = layer_service.export_layer(
             layout_file=layout_file,
             layer_name=layer_name,
@@ -400,7 +405,8 @@ def import_layout(
     try:
         # This is a more complex operation that would need a new service
         # For now, we'll implement a basic version using existing services
-        layer_service = create_layout_layer_service()
+        file_adapter = create_file_adapter()
+        layer_service = create_layout_layer_service(file_adapter)
 
         current_file = base_layout
         changes_made = False
