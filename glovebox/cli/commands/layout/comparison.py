@@ -5,6 +5,7 @@ from typing import Annotated, Any
 
 import typer
 
+from glovebox.adapters import create_file_adapter
 from glovebox.cli.commands.layout.base import LayoutOutputCommand
 from glovebox.cli.decorators import handle_errors
 from glovebox.cli.helpers.parameters import OutputFormatOption, ProfileOption
@@ -95,7 +96,8 @@ def diff(
         from glovebox.config import create_user_config
 
         user_config = get_user_config_from_context(ctx) or create_user_config()
-        comparison_service = create_layout_comparison_service(user_config)
+        file_adapter = create_file_adapter()
+        comparison_service = create_layout_comparison_service(user_config, file_adapter)
         result = comparison_service.compare_layouts(
             layout1_path=layout1,
             layout2_path=layout2,
@@ -209,7 +211,8 @@ def patch(
         from glovebox.config import create_user_config
 
         user_config = get_user_config_from_context(ctx) or create_user_config()
-        comparison_service = create_layout_comparison_service(user_config)
+        file_adapter = create_file_adapter()
+        comparison_service = create_layout_comparison_service(user_config, file_adapter)
         result = comparison_service.apply_patch(
             source_layout_path=source_layout,
             patch_file_path=patch_file,

@@ -501,11 +501,11 @@ def create_layout_service(
     dtsi_generator: ZmkFileContentGenerator,
 ) -> LayoutService:
     """Create a LayoutService instance with explicit dependency injection.
-    
+
     All dependencies are required to ensure proper dependency management.
     Use other factory functions to create the required dependencies:
     - create_file_adapter() for file_adapter
-    - create_template_adapter() for template_adapter  
+    - create_template_adapter() for template_adapter
     - create_behavior_registry() for behavior_registry
     - create_layout_component_service() for component_service
     - create_layout_display_service() for layout_service

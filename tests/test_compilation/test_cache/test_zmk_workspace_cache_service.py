@@ -3,6 +3,7 @@
 import shutil
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
@@ -16,10 +17,6 @@ from glovebox.config.models.cache import CacheLevel
 from glovebox.config.user_config import UserConfig
 from glovebox.core.cache_v2.cache_manager import CacheManager
 
-
-from typing import Any
-
-from glovebox.config.user_config import UserConfig
 
 class TestZmkWorkspaceCacheServiceSimplified:
     """Test suite for simplified ZmkWorkspaceCacheService."""

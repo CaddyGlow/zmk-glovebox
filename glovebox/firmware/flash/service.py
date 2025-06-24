@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
+    from glovebox.firmware.flash.device_wait_service import DeviceWaitService
 
 from glovebox.adapters.file_adapter import create_file_adapter
 from glovebox.config.flash_methods import USBFlashConfig

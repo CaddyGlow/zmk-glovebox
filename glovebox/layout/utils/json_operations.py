@@ -38,7 +38,9 @@ def load_layout_file(file_path: Path, file_adapter: FileAdapterProtocol) -> Layo
         raise ValueError(f"Invalid layout data in {file_path}: {e}") from e
 
 
-def save_layout_file(layout_data: LayoutData, file_path: Path, file_adapter: FileAdapterProtocol) -> None:
+def save_layout_file(
+    layout_data: LayoutData, file_path: Path, file_adapter: FileAdapterProtocol
+) -> None:
     """Save layout data to JSON file with proper formatting.
 
     Args:
@@ -61,7 +63,9 @@ def save_layout_file(layout_data: LayoutData, file_path: Path, file_adapter: Fil
         raise OSError(f"Failed to save layout file {file_path}: {e}") from e
 
 
-def load_json_data(file_path: Path, file_adapter: FileAdapterProtocol) -> dict[str, Any]:
+def load_json_data(
+    file_path: Path, file_adapter: FileAdapterProtocol
+) -> dict[str, Any]:
     """Load raw JSON data from file.
 
     Args:
@@ -90,7 +94,9 @@ def load_json_data(file_path: Path, file_adapter: FileAdapterProtocol) -> dict[s
         ) from e
 
 
-def save_json_data(data: dict[str, Any] | list[Any], file_path: Path, file_adapter: FileAdapterProtocol) -> None:
+def save_json_data(
+    data: dict[str, Any] | list[Any], file_path: Path, file_adapter: FileAdapterProtocol
+) -> None:
     """Save raw JSON data to file.
 
     Args:

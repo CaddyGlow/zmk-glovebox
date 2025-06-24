@@ -5,6 +5,7 @@ from typing import Annotated, Any
 
 import typer
 
+from glovebox.adapters import create_file_adapter
 from glovebox.cli.commands.layout.base import LayoutOutputCommand
 from glovebox.cli.decorators import handle_errors
 from glovebox.cli.helpers.parameters import OutputFormatOption
@@ -149,8 +150,9 @@ def edit(
     command.validate_layout_file(layout_file)
 
     try:
-        editor_service = create_layout_editor_service()
-        layer_service = create_layout_layer_service()
+        file_adapter = create_file_adapter()
+        editor_service = create_layout_editor_service(file_adapter)
+        layer_service = create_layout_layer_service(file_adapter)
 
         # Collect all operations
         operations: list[dict[str, Any]] = []

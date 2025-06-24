@@ -173,11 +173,11 @@ def create_usb_flasher(
     file_adapter: "FileAdapterProtocol",
 ) -> USBFlasher:
     """Create a USBFlasher instance with explicit dependency injection.
-    
+
     Args:
         usb_adapter: Required USB adapter for device operations
         file_adapter: Required file adapter for file operations
-    
+
     Returns:
         Configured USBFlasher instance
     """

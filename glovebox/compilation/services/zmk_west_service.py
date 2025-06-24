@@ -518,16 +518,16 @@ class ZmkWestService(CompilationServiceProtocol):
 
         try:
             # Convert JSON to keymap/config files first
+            from glovebox.adapters import create_file_adapter, create_template_adapter
             from glovebox.layout import (
-                create_layout_service,
+                create_behavior_registry,
+                create_grid_layout_formatter,
                 create_layout_component_service,
                 create_layout_display_service,
-                create_grid_layout_formatter,
-                create_behavior_registry,
+                create_layout_service,
             )
             from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
             from glovebox.layout.zmk_generator import ZmkFileContentGenerator
-            from glovebox.adapters import create_file_adapter, create_template_adapter
 
             # Create all dependencies for layout service
             file_adapter = create_file_adapter()
@@ -538,7 +538,7 @@ class ZmkWestService(CompilationServiceProtocol):
             layout_generator = create_grid_layout_formatter()
             component_service = create_layout_component_service(file_adapter)
             layout_display_service = create_layout_display_service(layout_generator)
-            
+
             layout_service = create_layout_service(
                 file_adapter=file_adapter,
                 template_adapter=template_adapter,

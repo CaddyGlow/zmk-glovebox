@@ -3,6 +3,7 @@
 import json
 import shutil
 from pathlib import Path
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
@@ -340,7 +341,9 @@ class TestCompilationBuildCacheService:
 
         assert result is True
         # Check that cache directory structure is created
-        expected_cache_dir = isolated_config._config.cache_path / "compilation" / "builds"
+        expected_cache_dir = (
+            isolated_config._config.cache_path / "compilation" / "builds"
+        )
         assert expected_cache_dir.exists()
 
     def test_integration_cache_and_retrieve(

@@ -1,23 +1,21 @@
 """Integration tests for file operations with workspace cache service."""
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
 
 from glovebox.compilation.cache.workspace_cache_service import ZmkWorkspaceCacheService
+from glovebox.config.user_config import UserConfig
 from glovebox.core.cache_v2.cache_manager import CacheManager
 from glovebox.core.file_operations import CopyStrategy
 
 
-from typing import Any
-
-from glovebox.config.user_config import UserConfig
-
 class TestWorkspaceCacheIntegration:
     """Test integration of file operations with workspace cache service."""
 
-        # Removed mock_user_config fixture - now using isolated_config from conftest.py
+    # Removed mock_user_config fixture - now using isolated_config from conftest.py
 
     @pytest.fixture
     def mock_cache_manager(self):

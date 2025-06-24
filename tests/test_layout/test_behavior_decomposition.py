@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_factories import create_layout_component_service_for_tests
 from glovebox.layout.models import (
     BehaviorData,
     ComboBehavior,
@@ -14,6 +13,7 @@ from glovebox.layout.models import (
     LayoutData,
     MacroBehavior,
 )
+from tests.test_factories import create_layout_component_service_for_tests
 
 
 @pytest.fixture

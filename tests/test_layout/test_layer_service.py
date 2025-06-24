@@ -6,11 +6,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from glovebox.layout.layer.service import (
-    LayoutLayerService,
-    create_layout_layer_service,
-)
+from glovebox.layout.layer.service import LayoutLayerService
 from glovebox.layout.models import LayoutBinding, LayoutData
+from tests.test_factories import create_layout_layer_service_for_tests
 
 
 @pytest.fixture
@@ -40,7 +38,7 @@ def sample_layout_data():
 @pytest.fixture
 def layer_service():
     """Create a layer service instance for testing."""
-    return LayoutLayerService()
+    return create_layout_layer_service_for_tests()
 
 
 @pytest.fixture
@@ -68,12 +66,12 @@ class TestLayoutLayerServiceInit:
 
     def test_layer_service_creation(self):
         """Test layer service can be created."""
-        service = LayoutLayerService()
+        service = create_layout_layer_service_for_tests()
         assert isinstance(service, LayoutLayerService)
 
     def test_create_layout_layer_service(self):
         """Test factory function."""
-        service = create_layout_layer_service()
+        service = create_layout_layer_service_for_tests()
         assert isinstance(service, LayoutLayerService)
 
 

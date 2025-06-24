@@ -12,8 +12,8 @@ from typing import Any
 
 import pytest
 
-from glovebox.layout.comparison import create_layout_comparison_service
 from glovebox.layout.models import LayoutBinding, LayoutData, LayoutParam
+from tests.test_factories import create_layout_comparison_service_for_tests
 
 
 class TestComparisonServiceMigration:
@@ -151,7 +151,7 @@ class TestComparisonServiceMigration:
         self, temp_layout_files, isolated_config
     ):
         """Test comparison service with summary format."""
-        service = create_layout_comparison_service(isolated_config)
+        service = create_layout_comparison_service_for_tests(isolated_config)
         result = service.compare_layouts(
             temp_layout_files["base"],
             temp_layout_files["single_change"],
@@ -184,7 +184,7 @@ class TestComparisonServiceMigration:
         self, temp_layout_files, isolated_config
     ):
         """Test comparison service with JSON format."""
-        service = create_layout_comparison_service(isolated_config)
+        service = create_layout_comparison_service_for_tests(isolated_config)
         result = service.compare_layouts(
             temp_layout_files["base"],
             temp_layout_files["multiple_changes"],
@@ -205,7 +205,7 @@ class TestComparisonServiceMigration:
 
     def test_service_apply_patch_round_trip(self, temp_layout_files, isolated_config):
         """Test that applying a patch recreates the target layout."""
-        service = create_layout_comparison_service(isolated_config)
+        service = create_layout_comparison_service_for_tests(isolated_config)
 
         # Create diff
         diff_result = service.compare_layouts(
@@ -529,7 +529,7 @@ class TestComparisonServiceMigration:
 
     def test_layer_reordering_detection(self, temp_layout_files, isolated_config):
         """Test detection of layer reordering changes."""
-        service = create_layout_comparison_service(isolated_config)
+        service = create_layout_comparison_service_for_tests(isolated_config)
         result = service.compare_layouts(
             temp_layout_files["base"],
             temp_layout_files["layer_reorder"],
@@ -546,7 +546,7 @@ class TestComparisonServiceMigration:
 
     def test_service_api_compatibility(self, temp_layout_files, isolated_config):
         """Test that the service maintains API compatibility with the old interface."""
-        service = create_layout_comparison_service(isolated_config)
+        service = create_layout_comparison_service_for_tests(isolated_config)
 
         # Test all the main methods exist and work
         result = service.compare_layouts(
