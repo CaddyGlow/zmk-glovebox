@@ -34,10 +34,13 @@ class DeviceWaitService:
         if usb_adapter is None:
             # Import here to avoid circular import when using default
             from glovebox.adapters.usb_adapter import create_usb_adapter
+            from glovebox.firmware.flash.device_detector import (
+                MountPointCache,
+                create_device_detector,
+            )
             from glovebox.firmware.flash.flash_operations import create_flash_operations
-            from glovebox.firmware.flash.device_detector import create_device_detector
-            from glovebox.firmware.flash.usb_monitor import create_usb_monitor, MountPointCache
             from glovebox.firmware.flash.os_adapters import create_linux_flash_adapter
+            from glovebox.firmware.flash.usb_monitor import create_usb_monitor
 
             # Create required dependencies for USB adapter
             os_adapter = create_linux_flash_adapter()
@@ -45,7 +48,7 @@ class DeviceWaitService:
             mount_cache = MountPointCache()
             usb_monitor = create_usb_monitor()
             detector = create_device_detector(usb_monitor, mount_cache)
-            
+
             usb_adapter = create_usb_adapter(flash_operations, detector)
 
         if usb_monitor is None:

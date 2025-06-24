@@ -19,10 +19,15 @@ from glovebox.layout.utils.validation import (
     validate_output_path,
     validate_position_index,
 )
+from glovebox.protocols import FileAdapterProtocol
 
 
 class LayoutLayerService:
     """Service for managing layout layers."""
+
+    def __init__(self, file_adapter: FileAdapterProtocol) -> None:
+        """Initialize the layer service with required dependencies."""
+        self.file_adapter = file_adapter
 
     def add_layer(
         self,
@@ -54,7 +59,7 @@ class LayoutLayerService:
             ValueError: If parameters are invalid or layer already exists
             FileNotFoundError: If import file doesn't exist
         """
-        layout_data = load_layout_file(layout_file)
+        layout_data = load_layout_file(layout_file, self.file_adapter)
 
         # Validate mutually exclusive options
         source_count = sum(bool(x) for x in [copy_from, import_from])
@@ -82,7 +87,7 @@ class LayoutLayerService:
         # Save the modified layout
         output_path = output if output is not None else layout_file
         validate_output_path(output_path, layout_file, force)
-        save_layout_file(layout_data, output_path)
+        save_layout_file(layout_data, output_path, self.file_adapter)
 
         return {
             "output_path": output_path,
@@ -120,7 +125,7 @@ class LayoutLayerService:
         Raises:
             ValueError: If output path is invalid (but not for no layer matches)
         """
-        layout_data = load_layout_file(layout_file)
+        layout_data = load_layout_file(layout_file, self.file_adapter)
 
         # Find layers to remove based on identifier type
         layers_to_remove = self._find_layers_to_remove(layout_data, layer_identifier)
@@ -152,7 +157,7 @@ class LayoutLayerService:
             # Save the modified layout only if we actually removed layers
             output_path = output if output is not None else layout_file
             validate_output_path(output_path, layout_file, force)
-            save_layout_file(layout_data, output_path)
+            save_layout_file(layout_data, output_path, self.file_adapter)
         else:
             # No layers removed, use original file path
             output_path = layout_file
@@ -189,7 +194,7 @@ class LayoutLayerService:
         Raises:
             ValueError: If layer doesn't exist or positions are invalid
         """
-        layout_data = load_layout_file(layout_file)
+        layout_data = load_layout_file(layout_file, self.file_adapter)
 
         # Validate layer exists and get current position
         current_idx = validate_layer_exists(layout_data, layer_name)
@@ -224,7 +229,7 @@ class LayoutLayerService:
         # Save the modified layout
         output_path = output if output is not None else layout_file
         validate_output_path(output_path, layout_file, force)
-        save_layout_file(layout_data, output_path)
+        save_layout_file(layout_data, output_path, self.file_adapter)
 
         return {
             "output_path": output_path,
@@ -243,7 +248,7 @@ class LayoutLayerService:
         Returns:
             Dictionary with layer information
         """
-        layout_data = load_layout_file(layout_file)
+        layout_data = load_layout_file(layout_file, self.file_adapter)
 
         layers_info = []
         for i, layer_name in enumerate(layout_data.layer_names):
@@ -286,7 +291,7 @@ class LayoutLayerService:
         Raises:
             ValueError: If layer doesn't exist or format is invalid
         """
-        layout_data = load_layout_file(layout_file)
+        layout_data = load_layout_file(layout_file, self.file_adapter)
 
         # Validate layer exists and has bindings
         layer_idx = validate_layer_exists(layout_data, layer_name)
@@ -303,7 +308,7 @@ class LayoutLayerService:
         )
 
         # Save export file
-        save_json_data(export_data, output)
+        save_json_data(export_data, output, self.file_adapter)
 
         return {
             "source_file": layout_file,
@@ -499,10 +504,15 @@ class LayoutLayerService:
             )
 
 
-def create_layout_layer_service() -> LayoutLayerService:
-    """Create a LayoutLayerService instance.
+def create_layout_layer_service(
+    file_adapter: FileAdapterProtocol,
+) -> LayoutLayerService:
+    """Create a LayoutLayerService instance with explicit dependencies.
+
+    Args:
+        file_adapter: Required FileAdapter for file operations
 
     Returns:
         LayoutLayerService instance
     """
-    return LayoutLayerService()
+    return LayoutLayerService(file_adapter)

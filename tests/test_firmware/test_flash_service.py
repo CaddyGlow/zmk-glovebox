@@ -8,9 +8,10 @@ import pytest
 
 from glovebox.config.flash_methods import USBFlashConfig
 from glovebox.firmware.flash.models import BlockDevice, FlashResult
-from glovebox.firmware.flash.service import FlashService, create_flash_service
+from glovebox.firmware.flash.service import FlashService
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.protocols.flash_protocols import FlasherProtocol
+from tests.test_factories import create_flash_service_for_tests
 
 
 @pytest.fixture
@@ -106,40 +107,48 @@ def firmware_file(tmp_path):
     return firmware_path
 
 
+@pytest.fixture
+def flash_service(mock_file_adapter, mock_device_wait_service):
+    """Create a flash service instance for testing."""
+    return FlashService(
+        file_adapter=mock_file_adapter,
+        device_wait_service=mock_device_wait_service,
+        loglevel="INFO",
+    )
+
+
 class TestFlashServiceInit:
     """Test FlashService initialization."""
 
-    def test_init_with_file_adapter(self, mock_file_adapter):
+    def test_init_with_file_adapter(self, mock_file_adapter, mock_device_wait_service):
         """Test initialization with provided file adapter."""
-        with patch(
-            "glovebox.firmware.flash.service.create_device_wait_service"
-        ) as mock_create_wait:
-            mock_wait_service = Mock()
-            mock_create_wait.return_value = mock_wait_service
+        service = FlashService(
+            file_adapter=mock_file_adapter,
+            device_wait_service=mock_device_wait_service,
+            loglevel="DEBUG",
+        )
 
-            service = FlashService(file_adapter=mock_file_adapter, loglevel="DEBUG")
-
-            assert service.file_adapter is mock_file_adapter
-            assert service.device_wait_service is mock_wait_service
-            assert service.loglevel == "DEBUG"
-            assert service._service_name == "FlashService"
-            assert service._service_version == "2.0.0"
-
-    @patch("glovebox.firmware.flash.service.create_file_adapter")
-    @patch("glovebox.firmware.flash.service.create_device_wait_service")
-    def test_init_without_file_adapter(self, mock_create_wait, mock_create_file):
-        """Test initialization creates file adapter when none provided."""
-        mock_file_adapter = Mock()
-        mock_wait_service = Mock()
-        mock_create_file.return_value = mock_file_adapter
-        mock_create_wait.return_value = mock_wait_service
-
-        service = FlashService()
-
-        mock_create_file.assert_called_once()
         assert service.file_adapter is mock_file_adapter
-        assert service.device_wait_service is mock_wait_service
-        assert service.loglevel == "INFO"  # Default
+        assert service.device_wait_service is mock_device_wait_service
+        assert service.loglevel == "DEBUG"
+        assert service._service_name == "FlashService"
+        assert service._service_version == "2.0.0"
+
+    def test_init_with_factory_function(
+        self, mock_file_adapter, mock_device_wait_service
+    ):
+        """Test initialization using factory function with explicit dependencies."""
+        from glovebox.firmware.flash import create_flash_service
+
+        service = create_flash_service(
+            file_adapter=mock_file_adapter,
+            device_wait_service=mock_device_wait_service,
+            loglevel="INFO",
+        )
+
+        assert service.file_adapter is mock_file_adapter
+        assert service.device_wait_service is mock_device_wait_service
+        assert service.loglevel == "INFO"
 
     @patch("glovebox.firmware.flash.service.create_device_wait_service")
     def test_init_default_loglevel(self, mock_create_wait, mock_file_adapter):
@@ -147,7 +156,7 @@ class TestFlashServiceInit:
         mock_wait_service = Mock()
         mock_create_wait.return_value = mock_wait_service
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         assert service.loglevel == "INFO"
 
@@ -167,7 +176,7 @@ class TestFlashServiceFlashFromFile:
         mock_wait_service = Mock()
         mock_create_wait.return_value = mock_wait_service
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         # Mock the main flash method
         expected_result = FlashResult(success=True, devices_flashed=1)
@@ -208,7 +217,7 @@ class TestFlashServiceFlashFromFile:
         mock_create_wait.return_value = mock_wait_service
         mock_file_adapter.check_exists.return_value = False
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         result = service.flash_from_file(firmware_file_path=firmware_file)
 
@@ -224,7 +233,7 @@ class TestFlashServiceFlashFromFile:
         mock_wait_service = Mock()
         mock_create_wait.return_value = mock_wait_service
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         # Mock the main flash method to raise an exception
         with patch.object(
@@ -263,7 +272,7 @@ class TestFlashServiceFlash:
         flash_result = FlashResult(success=True)
         mock_flasher.flash_device.return_value = flash_result
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         result = service.flash(
             firmware_file=firmware_file,
@@ -317,7 +326,7 @@ class TestFlashServiceFlash:
         flash_result = FlashResult(success=True)
         mock_flasher.flash_device.return_value = flash_result
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         result = service.flash(
             firmware_file=firmware_file,
@@ -359,7 +368,7 @@ class TestFlashServiceFlash:
         flash_result = FlashResult(success=True)
         mock_flasher.flash_device.return_value = flash_result
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         result = service.flash(
             firmware_file=firmware_file,
@@ -396,7 +405,7 @@ class TestFlashServiceFlash:
         flash_result = FlashResult(success=True)
         mock_flasher.flash_device.return_value = flash_result
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         # Use string path instead of Path object
         result = service.flash(
@@ -428,7 +437,7 @@ class TestFlashServiceFlash:
         mock_registry.create_method.return_value = mock_flasher
         mock_flasher.list_devices.return_value = []  # No devices
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         result = service.flash(firmware_file=firmware_file, wait=False)
 
@@ -459,7 +468,7 @@ class TestFlashServiceFlash:
         flash_result.add_error("Device flash failed")
         mock_flasher.flash_device.return_value = flash_result
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         result = service.flash(firmware_file=firmware_file, wait=False)
 
@@ -503,7 +512,7 @@ class TestFlashServiceFlash:
 
         mock_flasher.flash_device.side_effect = flash_side_effect
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         result = service.flash(
             firmware_file=firmware_file, count=0, wait=False
@@ -541,7 +550,7 @@ class TestFlashServiceFlash:
         # All devices flash successfully
         mock_flasher.flash_device.return_value = FlashResult(success=True)
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         result = service.flash(firmware_file=firmware_file, count=2, wait=False)
 
@@ -563,7 +572,7 @@ class TestFlashServiceFlash:
         # Make flasher registry raise an exception
         mock_registry.create_method.side_effect = Exception("Registry error")
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         result = service.flash(firmware_file=firmware_file)
 
@@ -595,7 +604,7 @@ class TestFlashServiceFlash:
         mock_registry.create_method.return_value = mock_flasher
         mock_flasher.flash_device.return_value = FlashResult(success=True)
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         result = service.flash(
             firmware_file=firmware_file,
@@ -633,7 +642,7 @@ class TestFlashServiceListDevices:
         mock_registry.create_method.return_value = mock_flasher
         mock_flasher.list_devices.return_value = [sample_block_device]
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         result = service.list_devices(query="model:TestKeyboard")
 
@@ -663,7 +672,7 @@ class TestFlashServiceListDevices:
         mock_registry.create_method.return_value = mock_flasher
         mock_flasher.list_devices.return_value = []
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         result = service.list_devices()
 
@@ -690,7 +699,7 @@ class TestFlashServiceListDevices:
         mock_registry.create_method.return_value = mock_flasher
         mock_flasher.list_devices.return_value = [sample_block_device]
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         result = service.list_devices(profile=sample_keyboard_profile)
 
@@ -714,7 +723,7 @@ class TestFlashServiceListDevices:
         # Make flasher registry raise an exception
         mock_registry.create_method.side_effect = Exception("Registry error")
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         result = service.list_devices()
 
@@ -737,7 +746,7 @@ class TestFlashServicePrivateMethods:
         mock_wait_service = Mock()
         mock_create_wait.return_value = mock_wait_service
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         configs = service._get_flash_method_configs(sample_keyboard_profile, "")
 
@@ -752,7 +761,7 @@ class TestFlashServicePrivateMethods:
         mock_wait_service = Mock()
         mock_create_wait.return_value = mock_wait_service
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         configs = service._get_flash_method_configs(None, "custom:query")
 
@@ -776,7 +785,7 @@ class TestFlashServicePrivateMethods:
         profile.keyboard_config = Mock()
         profile.keyboard_config.flash_methods = []
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         configs = service._get_flash_method_configs(profile, "")
 
@@ -792,7 +801,7 @@ class TestFlashServicePrivateMethods:
         mock_wait_service = Mock()
         mock_create_wait.return_value = mock_wait_service
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         query = service._get_device_query_from_profile(sample_keyboard_profile)
 
@@ -806,7 +815,7 @@ class TestFlashServicePrivateMethods:
         mock_wait_service = Mock()
         mock_create_wait.return_value = mock_wait_service
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         query = service._get_device_query_from_profile(None)
 
@@ -827,7 +836,7 @@ class TestFlashServicePrivateMethods:
         method.device_query = ""  # Empty query
         profile.keyboard_config.flash_methods = [method]
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         query = service._get_device_query_from_profile(profile)
 
@@ -846,7 +855,7 @@ class TestFlashServicePrivateMethods:
         mock_flasher.check_available.return_value = True
         mock_registry.create_method.return_value = mock_flasher
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         flasher = service._create_usb_flasher(sample_usb_config)
 
@@ -868,7 +877,7 @@ class TestFlashServicePrivateMethods:
         mock_flasher.check_available.return_value = False
         mock_registry.create_method.return_value = mock_flasher
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         with pytest.raises(RuntimeError, match="USB flasher is not available"):
             service._create_usb_flasher(sample_usb_config)
@@ -888,7 +897,7 @@ class TestFlashServicePrivateMethods:
             delattr(mock_flasher, "check_available")
         mock_registry.create_method.return_value = mock_flasher
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         # Should succeed when check_available method doesn't exist
         flasher = service._create_usb_flasher(sample_usb_config)
@@ -905,7 +914,7 @@ class TestFlashServicePrivateMethods:
 
         mock_registry.create_method.side_effect = Exception("Registry error")
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         with pytest.raises(
             RuntimeError, match="Failed to create USB flasher: Registry error"
@@ -969,7 +978,7 @@ class TestFlashServiceIntegration:
         mock_flasher.flash_device.return_value = FlashResult(success=True)
         mock_registry.create_method.return_value = mock_flasher
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         # First list devices
         list_result = service.list_devices(query="model:TestDevice")
@@ -1000,7 +1009,7 @@ class TestFlashServiceIntegration:
         mock_flasher.check_available.return_value = False
         mock_registry.create_method.return_value = mock_flasher
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         # First attempt should fail
         result = service.flash_from_file(firmware_file_path=firmware_file)
@@ -1045,7 +1054,7 @@ class TestFlashServiceEdgeCases:
         mock_flasher.list_devices.return_value = [device1, device2, device3]
         mock_flasher.flash_device.return_value = FlashResult(success=True)
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         result = service.flash(firmware_file=firmware_file, count=0, wait=False)
 
@@ -1067,7 +1076,7 @@ class TestFlashServiceEdgeCases:
         # Explicitly make hasattr return False for flash_methods
         profile.keyboard_config.flash_methods = None
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         configs = service._get_flash_method_configs(profile, "test:query")
 
@@ -1096,7 +1105,7 @@ class TestFlashServiceEdgeCases:
         mock_flasher.list_devices.return_value = [minimal_device]
         mock_flasher.flash_device.return_value = FlashResult(success=True)
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         result = service.flash(firmware_file=firmware_file, wait=False)
 
@@ -1127,7 +1136,7 @@ class TestFlashServiceEdgeCases:
 
         mock_registry.create_method.return_value = mock_flasher
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         # Mock _get_flash_method_configs to return config without query
         with patch.object(
@@ -1162,7 +1171,7 @@ class TestFlashServiceEdgeCases:
         mock_registry.create_method.return_value = mock_flasher
         mock_flasher.list_devices.return_value = []  # Empty device list
 
-        service = FlashService(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         result = service.flash(firmware_file=firmware_file, wait=False)
 

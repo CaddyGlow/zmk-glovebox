@@ -12,10 +12,15 @@ from glovebox.layout.utils.field_parser import (
 from glovebox.layout.utils.json_operations import load_layout_file, save_layout_file
 from glovebox.layout.utils.validation import validate_output_path
 from glovebox.layout.utils.variable_resolver import VariableResolver
+from glovebox.protocols import FileAdapterProtocol
 
 
 class LayoutEditorService:
     """Service for editing layout field values."""
+
+    def __init__(self, file_adapter: FileAdapterProtocol) -> None:
+        """Initialize the editor service with required dependencies."""
+        self.file_adapter = file_adapter
 
     def get_field_value(self, layout_file: Path, field_path: str) -> Any:
         """Get a specific field value from a layout file.
@@ -32,7 +37,7 @@ class LayoutEditorService:
             KeyError: If field path is not found
             ValueError: If field path or array index is invalid
         """
-        layout_data = load_layout_file(layout_file)
+        layout_data = load_layout_file(layout_file, self.file_adapter)
         return extract_field_value_from_model(layout_data, field_path)
 
     def set_field_value(
@@ -62,7 +67,7 @@ class LayoutEditorService:
             KeyError: If field path is not found
             ValueError: If field path, value, or output path is invalid
         """
-        layout_data = load_layout_file(layout_file)
+        layout_data = load_layout_file(layout_file, self.file_adapter)
 
         # Parse and convert the value based on type
         parsed_value = parse_field_value(value, value_type)
@@ -77,15 +82,20 @@ class LayoutEditorService:
         validate_output_path(output_path, layout_file, force)
 
         # Save the modified layout
-        save_layout_file(layout_data, output_path)
+        save_layout_file(layout_data, output_path, self.file_adapter)
 
         return output_path
 
 
-def create_layout_editor_service() -> LayoutEditorService:
-    """Create a LayoutEditorService instance.
+def create_layout_editor_service(
+    file_adapter: FileAdapterProtocol,
+) -> LayoutEditorService:
+    """Create a LayoutEditorService instance with explicit dependencies.
+
+    Args:
+        file_adapter: Required FileAdapter for file operations
 
     Returns:
         LayoutEditorService instance
     """
-    return LayoutEditorService()
+    return LayoutEditorService(file_adapter)

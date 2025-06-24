@@ -15,14 +15,18 @@ from glovebox.layout.diffing.patch import LayoutPatchSystem
 from glovebox.layout.models import LayoutData
 from glovebox.layout.utils.json_operations import load_layout_file, save_layout_file
 from glovebox.layout.utils.validation import validate_output_path
+from glovebox.protocols import FileAdapterProtocol
 
 
 class LayoutComparisonService:
     """Service for comparing and patching layouts using the new diffing library."""
 
-    def __init__(self, user_config: UserConfig) -> None:
-        """Initialize the comparison service with user configuration."""
+    def __init__(
+        self, user_config: UserConfig, file_adapter: FileAdapterProtocol
+    ) -> None:
+        """Initialize the comparison service with user configuration and file adapter."""
         self.user_config = user_config
+        self.file_adapter = file_adapter
         self.diff_system = LayoutDiffSystem()
         self.patch_system = LayoutPatchSystem()
 
@@ -44,8 +48,8 @@ class LayoutComparisonService:
         Returns:
             Dictionary with comparison results compatible with original API
         """
-        layout1_data = load_layout_file(layout1_path)
-        layout2_data = load_layout_file(layout2_path)
+        layout1_data = load_layout_file(layout1_path, self.file_adapter)
+        layout2_data = load_layout_file(layout2_path, self.file_adapter)
 
         # Create diff using new library
         diff = self.diff_system.create_layout_diff(layout1_data, layout2_data)
@@ -90,7 +94,7 @@ class LayoutComparisonService:
             Dictionary with patch operation details
         """
         # Load source layout and patch data
-        layout_data = load_layout_file(source_layout_path)
+        layout_data = load_layout_file(source_layout_path, self.file_adapter)
         patch_data = self._load_patch_file(patch_file_path)
 
         # Apply patch using new library
@@ -105,7 +109,7 @@ class LayoutComparisonService:
         validate_output_path(output, source_layout_path, force)
 
         # Save patched layout
-        save_layout_file(patched_data, output)
+        save_layout_file(patched_data, output, self.file_adapter)
 
         # Calculate changes applied
         total_changes = self._count_patch_changes(patch_data)
@@ -135,8 +139,8 @@ class LayoutComparisonService:
         Returns:
             Dictionary with patch creation details
         """
-        layout1_data = load_layout_file(layout1_path)
-        layout2_data = load_layout_file(layout2_path)
+        layout1_data = load_layout_file(layout1_path, self.file_adapter)
+        layout2_data = load_layout_file(layout2_path, self.file_adapter)
 
         # Determine output path
         if output is None:
@@ -507,6 +511,7 @@ class LayoutComparisonService:
 
 def create_layout_comparison_service(
     user_config: UserConfig,
+    file_adapter: FileAdapterProtocol,
 ) -> LayoutComparisonService:
-    """Factory function to create a layout comparison service."""
-    return LayoutComparisonService(user_config)
+    """Factory function to create a layout comparison service with explicit dependencies."""
+    return LayoutComparisonService(user_config, file_adapter)

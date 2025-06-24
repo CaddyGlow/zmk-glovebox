@@ -48,8 +48,14 @@ def create_compilation_service(
         ValueError: If strategy is not supported or required dependencies are missing
     """
     if strategy == "zmk_config":
-        if cache_manager is None or workspace_cache_service is None or build_cache_service is None:
-            raise ValueError("ZMK config strategy requires cache_manager, workspace_cache_service, and build_cache_service")
+        if (
+            cache_manager is None
+            or workspace_cache_service is None
+            or build_cache_service is None
+        ):
+            raise ValueError(
+                "ZMK config strategy requires cache_manager, workspace_cache_service, and build_cache_service"
+            )
         return create_zmk_west_service(
             user_config=user_config,
             docker_adapter=docker_adapter,

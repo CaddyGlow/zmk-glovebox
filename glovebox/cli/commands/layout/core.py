@@ -8,6 +8,7 @@ from typing import Annotated
 
 import typer
 
+from glovebox.adapters import create_file_adapter, create_template_adapter
 from glovebox.cli.commands.layout.base import LayoutOutputCommand
 from glovebox.cli.decorators import handle_errors, with_profile
 from glovebox.cli.helpers import (
@@ -32,15 +33,13 @@ from glovebox.cli.helpers.profile import (
     get_keyboard_profile_from_context,
     get_user_config_from_context,
 )
-from glovebox.layout.formatting import ViewMode
-from glovebox.layout.service import create_layout_service
-from glovebox.adapters import create_file_adapter, create_template_adapter
-from glovebox.layout.behavior.service import create_behavior_registry
 from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
-from glovebox.layout.zmk_generator import ZmkFileContentGenerator
+from glovebox.layout.behavior.service import create_behavior_registry
 from glovebox.layout.component_service import create_layout_component_service
 from glovebox.layout.display_service import create_layout_display_service
-from glovebox.layout.formatting import create_grid_layout_formatter
+from glovebox.layout.formatting import ViewMode, create_grid_layout_formatter
+from glovebox.layout.service import create_layout_service
+from glovebox.layout.zmk_generator import ZmkFileContentGenerator
 
 
 logger = logging.getLogger(__name__)
@@ -56,7 +55,7 @@ def _create_layout_service_with_dependencies():
     layout_generator = create_grid_layout_formatter()
     component_service = create_layout_component_service(file_adapter)
     layout_display_service = create_layout_display_service(layout_generator)
-    
+
     return create_layout_service(
         file_adapter=file_adapter,
         template_adapter=template_adapter,
@@ -66,6 +65,7 @@ def _create_layout_service_with_dependencies():
         behavior_formatter=behavior_formatter,
         dtsi_generator=dtsi_generator,
     )
+
 
 @handle_errors
 def compile_layout(
