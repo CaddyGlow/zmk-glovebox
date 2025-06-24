@@ -43,7 +43,6 @@ class TemplateAdapter:
         try:
             from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
-            logger.debug("Rendering template: %s", template_path)
 
             # Create Jinja2 environment
             env = Environment(
@@ -60,7 +59,6 @@ class TemplateAdapter:
             if output_path:
                 self._write_output(output_path, rendered_content)
 
-            logger.debug("Successfully rendered template: %s", template_path)
             return rendered_content
 
         except TemplateNotFound as e:
@@ -90,7 +88,6 @@ class TemplateAdapter:
         try:
             from jinja2 import Environment
 
-            logger.debug("Rendering template string")
 
             # Create Jinja2 environment
             from jinja2 import StrictUndefined
@@ -105,7 +102,6 @@ class TemplateAdapter:
             template = env.from_string(template_string)
             rendered_content = template.render(context)
 
-            logger.debug("Successfully rendered template string")
             return rendered_content
 
         except Exception as e:

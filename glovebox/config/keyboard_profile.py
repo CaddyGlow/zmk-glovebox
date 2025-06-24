@@ -47,6 +47,7 @@ def initialize_search_paths(user_config: Optional["UserConfig"] = None) -> list[
     ]
 
     # User configurations in ~/.config/glovebox/keyboards
+    #  TODO: FIX TO USED XDG
     user_config_dir = Path.home() / ".config" / "glovebox" / "keyboards"
 
     # Environment variable for additional configuration paths
@@ -63,7 +64,6 @@ def initialize_search_paths(user_config: Optional["UserConfig"] = None) -> list[
 
     # Filter out non-existent paths
     search_paths = [p for p in all_paths if p.exists() and p.is_dir()]
-    logger.debug("Keyboard configuration search paths: %s", search_paths)
 
     return search_paths
 
@@ -82,32 +82,30 @@ def _find_keyboard_config_file(
     """
     search_paths = initialize_search_paths(user_config)
 
-    logger.debug("Searching for keyboard '%s' configuration file", keyboard_name)
-    logger.debug("Search paths: %s", [str(p) for p in search_paths])
+    logger.debug(
+        "Searching for keyboard '%s' in %d paths: %s",
+        keyboard_name,
+        len(search_paths),
+        " | ".join(str(p) for p in search_paths),
+    )
 
     # Look for the configuration file in all search paths
-    for i, path in enumerate(search_paths, 1):
-        logger.debug("  [%d/%d] Checking directory: %s", i, len(search_paths), path)
-
+    for path in search_paths:
         # Try .yaml extension first
         yaml_file = path / f"{keyboard_name}.yaml"
-        logger.debug("    Checking: %s", yaml_file)
         if yaml_file.exists():
-            logger.debug("    ✓ Found keyboard config: %s", yaml_file)
+            logger.debug("Found keyboard config: %s", yaml_file)
             return yaml_file
 
         # Then try .yml extension
         yml_file = path / f"{keyboard_name}.yml"
-        logger.debug("    Checking: %s", yml_file)
         if yml_file.exists():
-            logger.debug("    ✓ Found keyboard config: %s", yml_file)
+            logger.debug("Found keyboard config: %s", yml_file)
             return yml_file
-
-        logger.debug("    ❌ No config files found in this directory")
 
     logger.warning("Keyboard configuration not found: %s", keyboard_name)
     logger.debug(
-        "Searched %d directories, no config file found for '%s'",
+        "Searched %d directories, no config found for '%s'",
         len(search_paths),
         keyboard_name,
     )
@@ -326,8 +324,6 @@ def load_keyboard_config_with_includes(
     """
     from glovebox.config.include_loader import create_include_loader
 
-    logger.debug("Loading keyboard configuration with includes: %s", keyboard_name)
-
     # Initialize search paths
     search_paths = initialize_search_paths(user_config)
 
@@ -361,11 +357,6 @@ def create_keyboard_profile_with_includes(
         ConfigError: If the keyboard configuration cannot be found, or if firmware
                     version is specified but not found
     """
-    logger.debug(
-        "Creating keyboard profile with includes: keyboard='%s', firmware='%s'",
-        keyboard_name,
-        firmware_version,
-    )
 
     from glovebox.config.profile import KeyboardProfile
 
@@ -375,11 +366,6 @@ def create_keyboard_profile_with_includes(
     # trying to get the latest firmware, the first in the list
     if not firmware_version and len(keyboard_config.firmwares):
         firmware_version = list(keyboard_config.firmwares.keys())[0]
-
-    if firmware_version:
-        logger.debug("  → Profile will use firmware: %s", firmware_version)
-    else:
-        logger.debug("  → Profile will be keyboard-only (no firmware)")
 
     return KeyboardProfile(
         keyboard_config=keyboard_config,

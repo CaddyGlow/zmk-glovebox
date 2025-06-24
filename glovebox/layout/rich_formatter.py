@@ -53,7 +53,6 @@ class RichLayoutFormatter:
             console: Optional Rich console instance
         """
         self.console = console or Console()
-        logger.debug("RichLayoutFormatter initialized")
 
     def format_keymap_display(
         self,

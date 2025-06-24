@@ -133,32 +133,20 @@ def get_effective_profile(
     Returns:
         Profile string to use
     """
-    logger.debug("Determining effective profile...")
-    logger.debug("  CLI profile option: %s", profile_option)
-    logger.debug("  User config available: %s", user_config is not None)
-    if user_config:
-        try:
-            logger.debug("  User config profile: %s", user_config._config.profile)
-        except AttributeError:
-            logger.debug("  User config profile: <not accessible>")
-    logger.debug("  Default fallback: %s", DEFAULT_PROFILE)
 
     # 1. CLI explicit profile has highest precedence
     if profile_option is not None:
-        logger.debug("  ✓ Using CLI profile option: %s", profile_option)
         return profile_option
 
     # 2. User config profile has middle precedence
     if user_config is not None:
         try:
             profile = user_config._config.profile
-            logger.debug("  ✓ Using user config profile: %s", profile)
             return profile
         except AttributeError:
-            logger.debug("  ⚠ User config profile not available, using fallback")
+            logger.debug("Config profile not accessible, using fallback")
 
     # 3. Hardcoded fallback has lowest precedence
-    logger.debug("  ✓ Using default fallback profile: %s", DEFAULT_PROFILE)
     return DEFAULT_PROFILE
 
 
@@ -265,55 +253,30 @@ def create_profile_from_option(
     Raises:
         typer.Exit: If profile creation fails
     """
-    logger.debug("Creating profile from option: %s", profile_option)
-
     # Get effective profile using centralized precedence logic
     effective_profile = get_effective_profile(profile_option, user_config)
-
-    logger.debug("Effective profile: %s", effective_profile)
-    logger.debug("Parsing profile format...")
 
     # Parse profile to get keyboard name and firmware version
     if "/" in effective_profile:
         keyboard_name, firmware_name = effective_profile.split("/", 1)
-        logger.debug(
-            "  ✓ Keyboard/firmware format: keyboard='%s', firmware='%s'",
-            keyboard_name,
-            firmware_name,
-        )
     else:
         keyboard_name = effective_profile
         firmware_name = None  # Keyboard-only profile
-        logger.debug("  ✓ Keyboard-only format: keyboard='%s'", keyboard_name)
 
     # Create KeyboardProfile
     try:
-        logger.debug("Creating KeyboardProfile...")
-
         keyboard_profile = create_keyboard_profile(
             keyboard_name, firmware_name, user_config
         )
 
-        if firmware_name:
-            logger.debug(
-                "  ✓ Created keyboard profile for %s/%s",
-                keyboard_name,
-                firmware_name,
-            )
-        else:
-            logger.debug("  ✓ Created keyboard-only profile for %s", keyboard_name)
+
         return keyboard_profile
+
     except Exception as e:
-        # Handle profile creation errors with helpful feedback
-        if (
-            "not found for keyboard" in str(e) or "not found in keyboard" in str(e)
-        ) and firmware_name:
-            _handle_firmware_not_found_error(keyboard_name, firmware_name, user_config)
-        elif "Keyboard configuration not found" in str(e):
-            _handle_keyboard_not_found_error(keyboard_name, user_config)
-        else:
-            _handle_general_config_error(str(e), user_config)
-        raise typer.Exit(1) from e
+        exc_info = logger.isEnabledFor(logging.DEBUG)
+        logger.error("Failed to create profile '%s': %s", effective_profile, e, exc_info=exc_info)
+        print_error_message(f"Failed to create profile '{effective_profile}': {e}")
+        raise typer.Exit(1)
 
 
 def create_profile_from_context(

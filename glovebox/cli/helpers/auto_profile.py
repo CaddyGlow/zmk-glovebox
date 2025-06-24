@@ -32,7 +32,6 @@ def extract_keyboard_from_json(json_file: Path) -> str | None:
         if keyboard and isinstance(keyboard, str):
             keyboard_stripped = str(keyboard).strip()
             if keyboard_stripped:
-                logger.debug("Auto-detected keyboard from JSON: %s", keyboard_stripped)
                 return keyboard_stripped
             else:
                 logger.debug(
@@ -143,7 +142,6 @@ def resolve_json_file_path(
         if not resolved_path.is_file():
             raise ValueError(f"Path is not a file (from {source}): {resolved_path}")
 
-        logger.debug("Resolved JSON file path from %s: %s", source, resolved_path)
         return resolved_path
 
     except Exception as e:

@@ -101,48 +101,32 @@ class ConfigFileAdapter(Generic[T]):
             Tuple of (config_data, file_path) where file_path is the path of the first
             valid config file found, or None if no valid files were found
         """
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(
-                "Searching for config files in %d locations", len(search_paths)
-            )
+        logger.debug(
+            "Searching for config files in %d locations: %s", 
+            len(search_paths), 
+            " | ".join(str(p) for p in search_paths)
+        )
 
         for i, config_path in enumerate(search_paths, 1):
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(
-                    "  [%d/%d] Checking: %s", i, len(search_paths), config_path
-                )
-
             if not config_path.exists():
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug("    ❌ File does not exist")
                 continue
 
             try:
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug("    ✓ File exists, attempting to load...")
-
                 config_data = self.load_config(config_path)
                 if config_data:  # Only return if we got actual data
-                    if logger.isEnabledFor(logging.DEBUG):
-                        logger.debug(
-                            "    ✓ Successfully loaded %d configuration keys",
-                            len(config_data),
-                        )
-                        logger.debug("    ✓ Using config file: %s", config_path)
+                    logger.debug(
+                        "Found config file [%d/%d]: %s (%d keys)",
+                        i, len(search_paths), config_path, len(config_data)
+                    )
                     return config_data, config_path
-                else:
-                    if logger.isEnabledFor(logging.DEBUG):
-                        logger.debug("    ⚠ File loaded but contains no data")
 
             except ConfigError as e:
                 # Already logged in load_config
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug("    ❌ Failed to load: %s", e)
+                logger.debug("Config file [%d/%d] failed to load: %s", i, len(search_paths), e)
                 continue
 
         # No valid config files found
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("No valid configuration files found in any search paths")
+        logger.debug("No valid configuration files found in any search paths")
         return {}, None
 
     def load_model(self, file_path: Path, model_class: type[T]) -> T:

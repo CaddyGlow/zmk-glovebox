@@ -37,14 +37,18 @@ def generate_config_file(
     Returns:
         Dictionary of kconfig settings
     """
-    logger.info("Generating Kconfig .conf file...")
-
     # Generate the config using the function
     conf_content, kconfig_settings = generate_kconfig_conf(keymap_data, profile)
 
     # Write the config file
     file_adapter.write_text(output_path, conf_content)
-    logger.info("Successfully generated config and saved to %s", output_path)
+    
+    if kconfig_settings:
+        options_summary = " | ".join(f"{k}={v}" for k, v in kconfig_settings.items())
+        logger.debug("Generated Kconfig with %d options: %s", len(kconfig_settings), options_summary)
+    else:
+        logger.debug("Generated Kconfig file (no custom options set)")
+    
     return kconfig_settings
 
 
@@ -150,8 +154,6 @@ def generate_kconfig_conf(
     Returns:
         Tuple of (kconfig_content, kconfig_settings)
     """
-    logger.info("Generating kconfig configuration")
-
     kconfig_options = profile.kconfig_options
     user_options: dict[str, str] = {}
 
@@ -171,8 +173,10 @@ def generate_kconfig_conf(
                 # User is setting same value as default
                 # Comment it out to allow easier firmware switching
                 comment_prefix = "# "
-
-            logger.debug("Using supported kconfig option: %s", opt.param_name)
+            
+            # Track user options (only non-commented ones)
+            if not comment_prefix:
+                user_options[name] = opt.value
 
         else:
             # Unsupported option - add warning and comment out
@@ -245,7 +249,6 @@ def generate_keymap_file(
         logger.debug("Using inline keymap template")
         keymap_content = template_adapter.render_string(inline_template, context)
     elif template_file:
-        logger.debug("Using template file: %s", template_file)
         # Resolve template file path
         from .core_operations import resolve_template_file_path
 
@@ -259,7 +262,6 @@ def generate_keymap_file(
         )
 
     file_adapter.write_text(output_path, keymap_content)
-    logger.info("Successfully built keymap and saved to %s", output_path)
 
 
 def convert_keymap_section_from_dict(keymap_dict: dict[str, Any]) -> Any:

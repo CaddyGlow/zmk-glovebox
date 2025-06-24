@@ -164,9 +164,13 @@ def register_layout_behaviors(
     """
     from .models import SystemBehavior
 
+    # Track registered behaviors for summary logging
+    registered_behaviors: list[str] = []
+    
     # Register system behaviors from profile
     for behavior in profile.system_behaviors:
         behavior_registry.register_behavior(behavior)
+        registered_behaviors.append(f"system:{behavior.code}")
 
     # Register custom hold-tap behaviors defined in the layout
     hold_taps = getattr(layout_data, "hold_taps", [])
@@ -197,7 +201,7 @@ def register_layout_behaviors(
             },
         )
         behavior_registry.register_behavior(ht_behavior)
-        logger.debug("Registered hold-tap behavior: %s", ht_behavior.code)
+        registered_behaviors.append(f"hold-tap:{ht_behavior.code}")
 
     # Register custom combo behaviors defined in the layout
     combos = getattr(layout_data, "combos", [])
@@ -222,7 +226,7 @@ def register_layout_behaviors(
             },
         )
         behavior_registry.register_behavior(combo_behavior)
-        logger.debug("Registered combo behavior: %s", combo_behavior.code)
+        registered_behaviors.append(f"combo:{combo_behavior.code}")
 
     # Register custom macro behaviors defined in the layout
     macros = getattr(layout_data, "macros", [])
@@ -251,4 +255,9 @@ def register_layout_behaviors(
             },
         )
         behavior_registry.register_behavior(macro_behavior)
-        logger.debug("Registered macro behavior: %s", macro_behavior.code)
+        registered_behaviors.append(f"macro:{macro_behavior.code}")
+
+    # Summary logging
+    if registered_behaviors:
+        behavior_summary = " | ".join(registered_behaviors)
+        logger.debug("Registered %d behaviors: %s", len(registered_behaviors), behavior_summary)

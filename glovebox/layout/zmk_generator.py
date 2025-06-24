@@ -474,7 +474,6 @@ class ZmkFileContentGenerator:
         if not layers_data:
             return ""
 
-        logger.info(f"Generating keymap node with {len(layers_data)} layers")
 
         # Create the keymap opening
         keymap_compatible = profile.keyboard_config.zmk.compatible_strings.keymap

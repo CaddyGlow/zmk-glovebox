@@ -501,9 +501,6 @@ def create_layout_service(
     dtsi_generator: ZmkFileContentGenerator | None = None,
 ) -> LayoutService:
     """Create a LayoutService instance with optional dependency injection."""
-    logger.debug(
-        "Creating LayoutService with dependencies (using defaults where None provided)",
-    )
 
     # Create default dependencies if not provided
     if file_adapter is None:

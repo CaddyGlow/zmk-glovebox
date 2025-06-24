@@ -243,8 +243,7 @@ def download_layout(
         typer.echo(
             Icons.format_with_icon("ERROR", f"Error downloading layout: {e}", icon_mode)
         )
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.exception("Full error details")
+        logger.debug("Full error details", exc_info=True)
         raise typer.Exit(1) from None
 
 

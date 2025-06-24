@@ -20,10 +20,8 @@ class FileAdapter:
     def read_text(self, path: Path, encoding: str = "utf-8") -> str:
         """Read text content from a file."""
         try:
-            logger.debug("Reading text file: %s", path)
             with path.open(mode="r", encoding=encoding) as f:
                 content = f.read()
-            logger.debug("Successfully read %d characters from %s", len(content), path)
             return content
         except FileNotFoundError as e:
             error = create_file_error(path, "read_text", e, {"encoding": encoding})
@@ -48,10 +46,8 @@ class FileAdapter:
             # Ensure parent directory exists
             self.create_directory(path.parent)
 
-            logger.debug("Writing text file: %s", path)
             with path.open(mode="w", encoding=encoding) as f:
                 f.write(content)
-            logger.debug("Successfully wrote %d characters to %s", len(content), path)
         except PermissionError as e:
             error = create_file_error(
                 path,
@@ -74,10 +70,8 @@ class FileAdapter:
     def read_binary(self, path: Path) -> bytes:
         """Read binary content from a file."""
         try:
-            logger.debug("Reading binary file: %s", path)
             with path.open(mode="rb") as f:
                 content = f.read()
-            logger.debug("Successfully read %d bytes from %s", len(content), path)
             return content
         except FileNotFoundError as e:
             error = create_file_error(path, "read_binary", e, {})
@@ -98,10 +92,8 @@ class FileAdapter:
             # Ensure parent directory exists
             self.create_directory(path.parent)
 
-            logger.debug("Writing binary file: %s", path)
             with path.open(mode="wb") as f:
                 f.write(content)
-            logger.debug("Successfully wrote %d bytes to %s", len(content), path)
         except PermissionError as e:
             error = create_file_error(
                 path,
@@ -129,10 +121,8 @@ class FileAdapter:
         that use field aliases.
         """
         try:
-            logger.debug("Reading JSON file: %s", path)
             content = self.read_text(path, encoding)
             data = json.loads(content)
-            logger.debug("Successfully parsed JSON from %s", path)
             return data if isinstance(data, dict) else {"data": data}
         except json.JSONDecodeError as e:
             error = create_file_error(path, "read_json", e, {"encoding": encoding})
@@ -164,12 +154,10 @@ class FileAdapter:
             encoder_cls: JSON encoder class to use for serialization
         """
         try:
-            logger.debug("Writing JSON file: %s", path)
             content = json.dumps(
                 data, indent=indent, ensure_ascii=False, cls=encoder_cls
             )
             self.write_text(path, content, encoding)
-            logger.debug("Successfully wrote JSON to %s", path)
         except TypeError as e:
             error = create_file_error(
                 path,
@@ -217,9 +205,7 @@ class FileAdapter:
     ) -> None:
         """Create a directory."""
         try:
-            logger.debug("Creating directory: %s", path)
             path.mkdir(parents=parents, exist_ok=exist_ok)
-            logger.debug("Successfully created directory: %s", path)
         except PermissionError as e:
             error = create_file_error(
                 path, "mkdir", e, {"parents": parents, "exist_ok": exist_ok}
@@ -239,9 +225,7 @@ class FileAdapter:
             # Ensure destination directory exists
             self.create_directory(dst.parent)
 
-            logger.debug("Copying file: %s -> %s", src, dst)
             shutil.copy2(src, dst)
-            logger.debug("Successfully copied file: %s -> %s", src, dst)
         except FileNotFoundError as e:
             error = create_file_error(
                 src, "copy_file", e, {"source": str(src), "destination": str(dst)}
@@ -267,7 +251,6 @@ class FileAdapter:
     def list_files(self, path: Path, pattern: str = "*") -> list[Path]:
         """List files in a directory matching a pattern."""
         try:
-            logger.debug("Listing files in %s with pattern '%s'", path, pattern)
             if not self.is_dir(path):
                 error = create_file_error(
                     path,
@@ -280,9 +263,6 @@ class FileAdapter:
 
             files = list(path.glob(pattern))
             files = [f for f in files if f.is_file()]
-            logger.debug(
-                "Found %d files matching pattern '%s' in %s", len(files), pattern, path
-            )
             return files
         except FileSystemError:
             # Let FileSystemError pass through
@@ -295,7 +275,6 @@ class FileAdapter:
     def list_directory(self, path: Path) -> list[Path]:
         """List all items in a directory."""
         try:
-            logger.debug("Listing directory contents: %s", path)
             if not self.is_dir(path):
                 error = create_file_error(
                     path, "list_directory", ValueError("Not a directory"), {}
@@ -304,7 +283,6 @@ class FileAdapter:
                 raise error
 
             items = list(path.iterdir())
-            logger.debug("Found %d items in %s", len(items), path)
             return items
         except FileSystemError:
             # Let FileSystemError pass through
@@ -335,7 +313,6 @@ class FileAdapter:
             response = "n"
 
         if response == "y":
-            logger.debug("User chose to overwrite existing files.")
             return True
         else:
             logger.warning("Operation cancelled by user (or non-interactive 'No').")
@@ -344,10 +321,8 @@ class FileAdapter:
     def remove_file(self, path: Path) -> None:
         """Remove a file. Does not raise error if file not found."""
         try:
-            logger.debug("Removing file: %s", path)
             # missing_ok=True ensures no FileNotFoundError is raised if the path doesn't exist.
             path.unlink(missing_ok=True)
-            logger.debug("Successfully removed file (or it didn't exist): %s", path)
         except PermissionError as e:
             error = create_file_error(path, "remove_file", e, {})
             logger.error("Permission denied removing file: %s", path)
@@ -371,10 +346,7 @@ class FileAdapter:
             GloveboxError: If directory cannot be removed
         """
         try:
-            logger.debug("Removing directory: %s (recursive=%s)", path, recursive)
-
             if not self.check_exists(path):
-                logger.debug("Directory does not exist, nothing to remove: %s", path)
                 return
 
             if not self.is_dir(path):
@@ -389,11 +361,9 @@ class FileAdapter:
 
             if recursive:
                 shutil.rmtree(path)
-                logger.debug("Successfully removed directory recursively: %s", path)
             else:
                 # This will only work if the directory is empty
                 path.rmdir()
-                logger.debug("Successfully removed empty directory: %s", path)
 
         except PermissionError as e:
             error = create_file_error(path, "remove_dir", e, {"recursive": recursive})
@@ -412,7 +382,6 @@ class FileAdapter:
         """Create a timestamped backup of a file."""
         try:
             if not self.is_file(file_path):
-                logger.debug("No backup created for non-existent file: %s", file_path)
                 return None
 
             from datetime import datetime
@@ -421,7 +390,6 @@ class FileAdapter:
             backup_path = file_path.with_suffix(f"{file_path.suffix}.{timestamp}.bak")
 
             self.copy_file(file_path, backup_path)
-            logger.debug("Created backup: %s", backup_path)
             return backup_path
         except Exception as e:
             error = create_file_error(file_path, "create_timestamped_backup", e, {})
@@ -441,9 +409,7 @@ class FileAdapter:
             FileSystemError: If file cannot be accessed or sized
         """
         try:
-            logger.debug("Getting file size: %s", path)
             file_size = path.stat().st_size
-            logger.debug("File size: %s = %d bytes", path, file_size)
             return file_size
         except FileNotFoundError as e:
             error = create_file_error(path, "get_file_size", e)

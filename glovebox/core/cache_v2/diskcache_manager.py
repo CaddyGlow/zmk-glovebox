@@ -79,12 +79,6 @@ class DiskCacheManager(CacheManager):
         if self.session_metrics:
             self._setup_metrics()
 
-        self.logger.debug(
-            "DiskCache initialized at %s (tag: %s, metrics: %s)",
-            self.config.cache_path,
-            tag,
-            self.session_metrics is not None,
-        )
 
     def _setup_metrics(self) -> None:
         """Setup SessionMetrics integration for cache operations."""

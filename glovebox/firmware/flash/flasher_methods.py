@@ -32,7 +32,6 @@ class USBFlasher:
 
         self.usb_adapter = usb_adapter or create_usb_adapter()
         self.file_adapter = file_adapter or create_file_adapter()
-        logger.debug("USBFlasher initialized")
 
     def flash_device(
         self,
