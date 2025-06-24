@@ -39,11 +39,11 @@ class DeviceWaitService:
                 create_device_detector,
             )
             from glovebox.firmware.flash.flash_operations import create_flash_operations
-            from glovebox.firmware.flash.os_adapters import create_linux_flash_adapter
+            from glovebox.firmware.flash.os_adapters import create_flash_os_adapter
             from glovebox.firmware.flash.usb_monitor import create_usb_monitor
 
             # Create required dependencies for USB adapter
-            os_adapter = create_linux_flash_adapter()
+            os_adapter = create_flash_os_adapter()
             flash_operations = create_flash_operations(os_adapter)
             mount_cache = MountPointCache()
             usb_monitor = create_usb_monitor()

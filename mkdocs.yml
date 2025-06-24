@@ -1,0 +1,117 @@
+site_name: Glovebox Documentation
+site_description: Comprehensive tool for ZMK keyboard firmware management
+site_url: https://glovebox.dev
+repo_url: https://github.com/moergo-sc/glovebox
+repo_name: moergo-sc/glovebox
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+  palette:
+    - scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+  - awesome-pages
+  - include-markdown
+  - gen-files:
+      scripts:
+        - docs/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [.]
+          inventories:
+            - https://docs.python.org/3/objects.inv
+            - https://docs.pydantic.dev/latest/objects.inv
+          selection:
+            new_path_syntax: true
+          rendering:
+            show_root_heading: true
+            show_root_full_path: false
+            show_object_full_path: false
+            show_category_heading: true
+            show_if_no_docstring: false
+            show_signature_annotations: true
+            show_source: true
+            members_order: source
+            separate_signature: true
+            unwrap_annotated: true
+            filters: ["!^_"]
+            merge_init_into_class: true
+            docstring_section_style: table
+            signature_crossrefs: true
+            inherited_members: true
+            docstring_style: google
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - User Guide:
+    - Getting Started: user/getting-started.md
+    - Keymap Version Management: user/keymap-version-management.md
+    - User Documentation: user/README.md
+  - Developer Guide:
+    - Overview: dev/README.md
+    - Architecture: dev/architecture/overview.md
+    - Testing: dev/testing.md
+    - Code Style: dev/conventions/code-style.md
+    - Cache Coordination: dev/shared-cache-coordination.md
+    - Domain Documentation:
+      - Layout Domain: dev/domains/layout-domain.md
+      - Firmware Domain: dev/domains/firmware-domain.md
+      - Config Domain: dev/domains/config-domain.md
+  - Technical Reference:
+    - Overview: technical/README.md
+    - Keymap Format: technical/keymap_file_format.md
+    - Caching System: technical/caching-system.md
+  - API Reference: reference/
+  - Implementation:
+    - Completed Features:
+      - Keymap Version Management: implementation/completed/keymap_version_management.md
+      - Firmware Command Refactoring: implementation/completed/firmware-command-refactoring.md
+      - Shared Cache Coordination: implementation/completed/shared-cache-coordination-system.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/moergo-sc/glovebox

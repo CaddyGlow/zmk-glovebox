@@ -32,7 +32,7 @@
         "&AS_Shifted_v1_TKZ",
         "&kp"
       ],
-      "tappingTermMs": "${tapMs}",
+      "tappingTermMs": 190,
       "flavor": "tap-preferred"
     },
     {

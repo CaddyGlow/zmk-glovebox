@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from tests.test_factories import create_moergo_nix_service_for_tests
 from glovebox.compilation.models import MoergoCompilationConfig, ZmkCompilationConfig
 from glovebox.compilation.services.moergo_nix_service import (
     MoergoNixService,
@@ -15,7 +16,7 @@ from glovebox.compilation.services.moergo_nix_service import (
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.models.docker import DockerUserContext
 from glovebox.models.docker_path import DockerPath
-from glovebox.protocols import DockerAdapterProtocol
+from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
 
 
 @pytest.fixture
@@ -26,6 +27,25 @@ def mock_docker_adapter():
     adapter.image_exists.return_value = True
     adapter.build_image.return_value = (0, [], [])
     return adapter
+
+
+@pytest.fixture
+def mock_file_adapter():
+    """Create a mock file adapter for testing."""
+    adapter = Mock(spec=FileAdapterProtocol)
+    adapter.check_exists.return_value = True
+    adapter.read_text.return_value = "mock content"
+    adapter.write_text.return_value = None
+    return adapter
+
+
+@pytest.fixture
+def moergo_service(mock_docker_adapter, mock_file_adapter):
+    """Create a MoergoNixService with mocked dependencies."""
+    return MoergoNixService(
+        docker_adapter=mock_docker_adapter,
+        file_adapter=mock_file_adapter,
+    )
 
 
 @pytest.fixture
@@ -96,16 +116,15 @@ def temp_files(tmp_path):
 class TestMoergoNixServiceInit:
     """Test MoergoNixService initialization."""
 
-    def test_service_creation(self, mock_docker_adapter):
+    def test_service_creation(self, moergo_service):
         """Test service can be created with docker adapter."""
-        service = MoergoNixService(mock_docker_adapter)
+        assert moergo_service.docker_adapter is not None
+        assert moergo_service.file_adapter is not None
+        assert isinstance(moergo_service.logger, logging.Logger)
 
-        assert service.docker_adapter is mock_docker_adapter
-        assert isinstance(service.logger, logging.Logger)
-
-    def test_create_moergo_nix_service_factory(self, mock_docker_adapter):
+    def test_create_moergo_nix_service_factory(self, mock_docker_adapter, mock_file_adapter):
         """Test factory function creates service correctly."""
-        service = create_moergo_nix_service(mock_docker_adapter)
+        service = create_moergo_nix_service(mock_docker_adapter, mock_file_adapter)
 
         assert isinstance(service, MoergoNixService)
         assert service.docker_adapter is mock_docker_adapter
@@ -115,35 +134,35 @@ class TestMoergoNixServiceBasicMethods:
     """Test basic service methods."""
 
     def test_validate_config_valid_moergo(
-        self, mock_docker_adapter, sample_moergo_config
+        self, moergo_service, sample_moergo_config
     ):
         """Test config validation with valid MoergoCompilationConfig."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         result = service.validate_config(sample_moergo_config)
 
         assert result is True
 
-    def test_validate_config_invalid_type(self, mock_docker_adapter, sample_zmk_config):
+    def test_validate_config_invalid_type(self, moergo_service, sample_zmk_config):
         """Test config validation with wrong config type."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         result = service.validate_config(sample_zmk_config)
 
         assert result is False
 
-    def test_validate_config_no_image(self, mock_docker_adapter):
+    def test_validate_config_no_image(self, moergo_service):
         """Test config validation with empty image."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
         config = MoergoCompilationConfig(image="")
 
         result = service.validate_config(config)
 
         assert result is False
 
-    def test_check_available_with_adapter(self, mock_docker_adapter):
+    def test_check_available_with_adapter(self, moergo_service):
         """Test availability check with valid adapter."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         result = service.check_available()
 
@@ -151,7 +170,11 @@ class TestMoergoNixServiceBasicMethods:
 
     def test_check_available_no_adapter(self):
         """Test availability check with None adapter."""
-        service = MoergoNixService(None)  # type: ignore[arg-type]
+        from glovebox.compilation.services.moergo_nix_service import MoergoNixService
+        service = MoergoNixService(
+            docker_adapter=None,  # type: ignore[arg-type]
+            file_adapter=None,  # type: ignore[arg-type]
+        )
 
         result = service.check_available()
 
@@ -167,7 +190,7 @@ class TestMoergoNixServiceCompile:
         self,
         mock_copy,
         mock_mkdtemp,
-        mock_docker_adapter,
+        moergo_service,
         mock_keyboard_profile,
         sample_moergo_config,
         temp_files,
@@ -175,7 +198,7 @@ class TestMoergoNixServiceCompile:
         """Test successful compilation."""
         # Setup mocks
         mock_mkdtemp.return_value = "/tmp/workspace"
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         # Mock workspace setup and compilation
         with (
@@ -208,13 +231,14 @@ class TestMoergoNixServiceCompile:
 
     def test_compile_invalid_config_type(
         self,
+        moergo_service,
         mock_docker_adapter,
         mock_keyboard_profile,
         sample_zmk_config,
         temp_files,
     ):
         """Test compilation with invalid config type."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         result = service.compile(
             keymap_file=temp_files["keymap"],
@@ -231,6 +255,7 @@ class TestMoergoNixServiceCompile:
     def test_compile_workspace_setup_failure(
         self,
         mock_mkdtemp,
+        moergo_service,
         mock_docker_adapter,
         mock_keyboard_profile,
         sample_moergo_config,
@@ -238,7 +263,7 @@ class TestMoergoNixServiceCompile:
     ):
         """Test compilation when workspace setup fails."""
         mock_mkdtemp.return_value = "/tmp/workspace"
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         with patch.object(service, "_setup_workspace") as mock_setup:
             mock_setup.return_value = None
@@ -258,6 +283,7 @@ class TestMoergoNixServiceCompile:
     def test_compile_compilation_failure_with_artifacts(
         self,
         mock_mkdtemp,
+        moergo_service,
         mock_docker_adapter,
         mock_keyboard_profile,
         sample_moergo_config,
@@ -265,7 +291,7 @@ class TestMoergoNixServiceCompile:
     ):
         """Test compilation failure but with artifact collection."""
         mock_mkdtemp.return_value = "/tmp/workspace"
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         with (
             patch.object(service, "_setup_workspace") as mock_setup,
@@ -298,13 +324,14 @@ class TestMoergoNixServiceCompile:
 
     def test_compile_exception_handling(
         self,
+        moergo_service,
         mock_docker_adapter,
         mock_keyboard_profile,
         sample_moergo_config,
         temp_files,
     ):
         """Test exception handling in compile method."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         with patch.object(service, "_setup_workspace") as mock_setup:
             mock_setup.side_effect = Exception("Setup error")
@@ -330,6 +357,7 @@ class TestMoergoNixServiceCompileFromJson:
         self,
         mock_temp_dir,
         mock_create_layout_service,
+        moergo_service,
         mock_docker_adapter,
         mock_keyboard_profile,
         sample_moergo_config,
@@ -341,7 +369,7 @@ class TestMoergoNixServiceCompileFromJson:
         mock_temp_dir.return_value.__enter__.return_value = "/tmp/json_workspace"
         mock_create_layout_service.return_value = mock_layout_service
 
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         # Mock the underlying compile method
         with patch.object(service, "compile") as mock_compile:
@@ -370,6 +398,7 @@ class TestMoergoNixServiceCompileFromJson:
         self,
         mock_temp_dir,
         mock_create_layout_service,
+        moergo_service,
         mock_docker_adapter,
         mock_keyboard_profile,
         sample_moergo_config,
@@ -387,7 +416,7 @@ class TestMoergoNixServiceCompileFromJson:
         failing_layout_service.generate_from_file.return_value = layout_result
         mock_create_layout_service.return_value = failing_layout_service
 
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         result = service.compile_from_json(
             json_file=temp_files["json"],
@@ -406,6 +435,7 @@ class TestMoergoNixServiceCompileFromJson:
         self,
         mock_temp_dir,
         mock_create_layout_service,
+        moergo_service,
         mock_docker_adapter,
         mock_keyboard_profile,
         sample_moergo_config,
@@ -427,7 +457,7 @@ class TestMoergoNixServiceCompileFromJson:
         incomplete_layout_service.generate_from_file.return_value = layout_result
         mock_create_layout_service.return_value = incomplete_layout_service
 
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         result = service.compile_from_json(
             json_file=temp_files["json"],
@@ -441,13 +471,14 @@ class TestMoergoNixServiceCompileFromJson:
 
     def test_compile_from_json_exception_handling(
         self,
+        moergo_service,
         mock_docker_adapter,
         mock_keyboard_profile,
         sample_moergo_config,
         temp_files,
     ):
         """Test exception handling in compile_from_json method."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         with patch("glovebox.layout.create_layout_service") as mock_create:
             mock_create.side_effect = Exception("Layout service error")
@@ -468,13 +499,14 @@ class TestMoergoNixServiceSetupWorkspace:
 
     def test_setup_workspace_success(
         self,
+        moergo_service,
         mock_docker_adapter,
         mock_keyboard_profile,
         temp_files,
         tmp_path,
     ):
         """Test successful workspace setup."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         # Use real temporary directory for this test
         with patch("tempfile.mkdtemp") as mock_mkdtemp:
@@ -507,6 +539,7 @@ class TestMoergoNixServiceSetupWorkspace:
     def test_setup_workspace_missing_default_nix(
         self,
         mock_mkdtemp,
+        moergo_service,
         mock_docker_adapter,
         temp_files,
     ):
@@ -517,7 +550,7 @@ class TestMoergoNixServiceSetupWorkspace:
         failing_profile = Mock()
         failing_profile.load_toolchain_file.return_value = None
 
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         workspace_path = service._setup_workspace(
             temp_files["keymap"], temp_files["config"], failing_profile
@@ -531,6 +564,7 @@ class TestMoergoNixServiceSetupWorkspace:
         self,
         mock_copy,
         mock_mkdtemp,
+        moergo_service,
         mock_docker_adapter,
         mock_keyboard_profile,
         temp_files,
@@ -539,7 +573,7 @@ class TestMoergoNixServiceSetupWorkspace:
         mock_mkdtemp.return_value = "/tmp/test_workspace"
         mock_copy.side_effect = Exception("Copy failed")
 
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         workspace_path = service._setup_workspace(
             temp_files["keymap"], temp_files["config"], mock_keyboard_profile
@@ -551,6 +585,7 @@ class TestMoergoNixServiceSetupWorkspace:
     def test_setup_workspace_mkdtemp_failure(
         self,
         mock_mkdtemp,
+        moergo_service,
         mock_docker_adapter,
         mock_keyboard_profile,
         temp_files,
@@ -558,7 +593,7 @@ class TestMoergoNixServiceSetupWorkspace:
         """Test workspace setup when temporary directory creation fails."""
         mock_mkdtemp.side_effect = Exception("Cannot create temp dir")
 
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         workspace_path = service._setup_workspace(
             temp_files["keymap"], temp_files["config"], mock_keyboard_profile
@@ -572,11 +607,12 @@ class TestMoergoNixServiceRunCompilation:
 
     def test_run_compilation_success(
         self,
+        moergo_service,
         mock_docker_adapter,
         sample_moergo_config,
     ):
         """Test successful compilation run."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
         workspace_path = DockerPath(
             host_path=Path("/tmp/workspace"),
             container_path="/workspace",
@@ -610,11 +646,12 @@ class TestMoergoNixServiceRunCompilation:
 
     def test_run_compilation_image_ensure_failure(
         self,
+        moergo_service,
         mock_docker_adapter,
         sample_moergo_config,
     ):
         """Test compilation when Docker image ensure fails."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
         workspace_path = DockerPath(
             host_path=Path("/tmp/workspace"),
             container_path="/workspace",
@@ -629,13 +666,14 @@ class TestMoergoNixServiceRunCompilation:
 
     def test_run_compilation_container_failure(
         self,
+        moergo_service,
         mock_docker_adapter,
         sample_moergo_config,
     ):
         """Test compilation when container execution fails."""
         mock_docker_adapter.run_container.return_value = (1, [], ["Build error"])
 
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
         workspace_path = DockerPath(
             host_path=Path("/tmp/workspace"),
             container_path="/workspace",
@@ -659,11 +697,12 @@ class TestMoergoNixServiceRunCompilation:
 
     def test_run_compilation_exception_handling(
         self,
+        moergo_service,
         mock_docker_adapter,
         sample_moergo_config,
     ):
         """Test compilation exception handling."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
         workspace_path = DockerPath(
             host_path=Path("/tmp/workspace"),
             container_path="/workspace",
@@ -682,11 +721,12 @@ class TestMoergoNixServiceCollectFiles:
 
     def test_collect_files_with_artifacts_directory(
         self,
+        moergo_service,
         mock_docker_adapter,
         tmp_path,
     ):
         """Test file collection when artifacts directory exists."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         # Create workspace with artifacts
         workspace_path = tmp_path / "workspace"
@@ -719,11 +759,12 @@ class TestMoergoNixServiceCollectFiles:
 
     def test_collect_files_without_artifacts_directory(
         self,
+        moergo_service,
         mock_docker_adapter,
         tmp_path,
     ):
         """Test file collection when no artifacts directory exists."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         # Create workspace without artifacts directory
         workspace_path = tmp_path / "workspace"
@@ -749,11 +790,12 @@ class TestMoergoNixServiceCollectFiles:
 
     def test_collect_files_copy_error_handling(
         self,
+        moergo_service,
         mock_docker_adapter,
         tmp_path,
     ):
         """Test file collection with copy errors."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         # Create workspace with artifacts
         workspace_path = tmp_path / "workspace"
@@ -778,11 +820,12 @@ class TestMoergoNixServiceCollectFiles:
 
     def test_collect_files_existing_output_file_replacement(
         self,
+        moergo_service,
         mock_docker_adapter,
         tmp_path,
     ):
         """Test file collection replaces existing output files."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         # Create workspace with artifacts
         workspace_path = tmp_path / "workspace"
@@ -811,13 +854,14 @@ class TestMoergoNixServiceEnsureDockerImage:
 
     def test_ensure_docker_image_already_exists(
         self,
+        moergo_service,
         mock_docker_adapter,
         sample_moergo_config,
     ):
         """Test when Docker image already exists."""
         mock_docker_adapter.image_exists.return_value = True
 
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         with patch.object(service, "_get_versioned_image_name") as mock_get_versioned:
             mock_get_versioned.return_value = ("test-image", "v1.0.0")
@@ -832,6 +876,7 @@ class TestMoergoNixServiceEnsureDockerImage:
 
     def test_ensure_docker_image_build_success(
         self,
+        moergo_service,
         mock_docker_adapter,
         sample_moergo_config,
         tmp_path,
@@ -845,7 +890,7 @@ class TestMoergoNixServiceEnsureDockerImage:
         toolchain_dir = keyboard_dir / "toolchain"
         toolchain_dir.mkdir(parents=True)
 
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         with (
             patch.object(service, "_get_versioned_image_name") as mock_get_versioned,
@@ -866,6 +911,7 @@ class TestMoergoNixServiceEnsureDockerImage:
 
     def test_ensure_docker_image_build_failure(
         self,
+        moergo_service,
         mock_docker_adapter,
         sample_moergo_config,
     ):
@@ -873,7 +919,7 @@ class TestMoergoNixServiceEnsureDockerImage:
         mock_docker_adapter.image_exists.return_value = False
         mock_docker_adapter.build_image.return_value = (1, [], ["Build failed"])
 
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         with (
             patch.object(service, "_get_versioned_image_name") as mock_get_versioned,
@@ -894,13 +940,14 @@ class TestMoergoNixServiceEnsureDockerImage:
 
     def test_ensure_docker_image_no_keyboard_profile(
         self,
+        moergo_service,
         mock_docker_adapter,
         sample_moergo_config,
     ):
         """Test when keyboard profile cannot be obtained."""
         mock_docker_adapter.image_exists.return_value = False
 
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         with (
             patch.object(service, "_get_versioned_image_name") as mock_get_versioned,
@@ -917,13 +964,14 @@ class TestMoergoNixServiceEnsureDockerImage:
 
     def test_ensure_docker_image_no_keyboard_directory(
         self,
+        moergo_service,
         mock_docker_adapter,
         sample_moergo_config,
     ):
         """Test when keyboard directory cannot be found."""
         mock_docker_adapter.image_exists.return_value = False
 
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         with (
             patch.object(service, "_get_versioned_image_name") as mock_get_versioned,
@@ -942,11 +990,12 @@ class TestMoergoNixServiceEnsureDockerImage:
 
     def test_ensure_docker_image_exception_handling(
         self,
+        moergo_service,
         mock_docker_adapter,
         sample_moergo_config,
     ):
         """Test exception handling in image ensure."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         with patch.object(service, "_get_versioned_image_name") as mock_get_versioned:
             mock_get_versioned.side_effect = Exception("Version error")
@@ -961,11 +1010,12 @@ class TestMoergoNixServiceGetVersionedImageName:
 
     def test_get_versioned_image_name_with_version(
         self,
+        moergo_service,
         mock_docker_adapter,
         sample_moergo_config,
     ):
         """Test versioned image name generation with available version."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         with patch("glovebox._version.__version__", "1.2.3"):
             image_name, tag = service._get_versioned_image_name(sample_moergo_config)
@@ -975,11 +1025,12 @@ class TestMoergoNixServiceGetVersionedImageName:
 
     def test_get_versioned_image_name_with_complex_version(
         self,
+        moergo_service,
         mock_docker_adapter,
         sample_moergo_config,
     ):
         """Test versioned image name with complex version string."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         with patch("glovebox._version.__version__", "1.2.3+dev.20241201/feature"):
             image_name, tag = service._get_versioned_image_name(sample_moergo_config)
@@ -989,11 +1040,12 @@ class TestMoergoNixServiceGetVersionedImageName:
 
     def test_get_versioned_image_name_import_error(
         self,
+        moergo_service,
         mock_docker_adapter,
         sample_moergo_config,
     ):
         """Test versioned image name when version import fails."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         with patch("builtins.__import__") as mock_import:
             mock_import.side_effect = ImportError("No version module")
@@ -1005,11 +1057,12 @@ class TestMoergoNixServiceGetVersionedImageName:
 
     def test_get_versioned_image_name_with_existing_tag(
         self,
+        moergo_service,
         mock_docker_adapter,
     ):
         """Test versioned image name strips existing tag."""
         config = MoergoCompilationConfig(image="test-image:old-tag")
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         with patch("glovebox._version.__version__", "2.0.0"):
             image_name, tag = service._get_versioned_image_name(config)
@@ -1025,10 +1078,11 @@ class TestMoergoNixServiceGetKeyboardProfileForDockerfile:
     def test_get_keyboard_profile_success(
         self,
         mock_create_profile,
+        moergo_service,
         mock_docker_adapter,
     ):
         """Test successful keyboard profile creation."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         mock_profile = Mock()
         mock_create_profile.return_value = mock_profile
@@ -1042,10 +1096,11 @@ class TestMoergoNixServiceGetKeyboardProfileForDockerfile:
     def test_get_keyboard_profile_exception(
         self,
         mock_create_profile,
+        moergo_service,
         mock_docker_adapter,
     ):
         """Test keyboard profile creation with exception."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         mock_create_profile.side_effect = Exception("Profile creation failed")
 
@@ -1063,6 +1118,7 @@ class TestMoergoNixServiceIntegration:
         self,
         mock_create_layout_service,
         mock_temp_dir,
+        moergo_service,
         mock_docker_adapter,
         mock_keyboard_profile,
         sample_moergo_config,
@@ -1093,7 +1149,7 @@ class TestMoergoNixServiceIntegration:
         mock_layout_service.generate_from_file.return_value = layout_result
         mock_create_layout_service.return_value = mock_layout_service
 
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         # Mock all the compilation steps
         with (
@@ -1134,13 +1190,14 @@ class TestMoergoNixServiceIntegration:
 
     def test_error_recovery_workflow(
         self,
+        moergo_service,
         mock_docker_adapter,
         mock_keyboard_profile,
         sample_moergo_config,
         temp_files,
     ):
         """Test error recovery and partial artifact collection."""
-        service = MoergoNixService(mock_docker_adapter)
+        service = moergo_service
 
         # Setup failing compilation but with partial artifacts
         with (

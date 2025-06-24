@@ -9,20 +9,41 @@ from glovebox.adapters.usb_adapter import USBAdapter, create_usb_adapter
 from glovebox.core.errors import USBError
 from glovebox.firmware.flash.models import BlockDevice, DiskInfo, USBDeviceInfo
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
+from tests.test_factories import create_usb_adapter_for_tests
+
+
+@pytest.fixture
+def mock_flash_operations():
+    """Create a mock flash operations."""
+    return Mock()
+
+
+@pytest.fixture
+def mock_detector():
+    """Create a mock detector."""
+    return Mock()
+
+
+@pytest.fixture
+def usb_adapter(mock_flash_operations, mock_detector):
+    """Create a USB adapter with mocked dependencies."""
+    return USBAdapter(
+        flash_operations=mock_flash_operations,
+        detector=mock_detector,
+    )
 
 
 class TestUSBAdapter:
     """Test USBAdapter class."""
 
-    def test_usb_adapter_initialization(self):
+    def test_usb_adapter_initialization(self, usb_adapter):
         """Test USBAdapter can be initialized."""
-        adapter = USBAdapter()
-        assert adapter is not None
-        assert hasattr(adapter, "detector")
+        assert usb_adapter is not None
+        assert hasattr(usb_adapter, "detector")
 
-    def test_detect_device_success(self):
+    def test_detect_device_success(self, usb_adapter):
         """Test successful device detection."""
-        adapter = USBAdapter()
+        adapter = usb_adapter
 
         mock_device = BlockDevice(
             name="sda", model="Test Device", vendor="Test Vendor", serial="12345"
@@ -36,9 +57,9 @@ class TestUSBAdapter:
         assert result == mock_device
         mock_detect.assert_called_once_with("vendor=Test", 30, None)
 
-    def test_detect_device_with_initial_devices(self):
+    def test_detect_device_with_initial_devices(self, usb_adapter):
         """Test device detection with initial devices list."""
-        adapter = USBAdapter()
+        adapter = usb_adapter
 
         mock_device = BlockDevice(name="sda")
         initial_devices = [BlockDevice(name="sdb")]
@@ -53,9 +74,9 @@ class TestUSBAdapter:
         assert result == mock_device
         mock_detect.assert_called_once_with("vendor=Test", 60, initial_devices)
 
-    def test_detect_device_exception(self):
+    def test_detect_device_exception(self, usb_adapter):
         """Test device detection handles exceptions."""
-        adapter = USBAdapter()
+        adapter = usb_adapter
 
         with (
             patch.object(
@@ -70,9 +91,9 @@ class TestUSBAdapter:
         ):
             adapter.detect_device("vendor=Test")
 
-    def test_list_matching_devices_success(self):
+    def test_list_matching_devices_success(self, usb_adapter):
         """Test successful device listing."""
-        adapter = USBAdapter()
+        adapter = usb_adapter
 
         mock_devices = [
             BlockDevice(name="sda", vendor="Test"),
@@ -87,9 +108,9 @@ class TestUSBAdapter:
         assert result == mock_devices
         mock_list.assert_called_once_with("vendor=Test")
 
-    def test_list_matching_devices_exception(self):
+    def test_list_matching_devices_exception(self, usb_adapter):
         """Test device listing handles exceptions."""
-        adapter = USBAdapter()
+        adapter = usb_adapter
 
         with (
             patch.object(
@@ -104,9 +125,9 @@ class TestUSBAdapter:
         ):
             adapter.list_matching_devices("vendor=Test")
 
-    def test_flash_device_success(self):
+    def test_flash_device_success(self, usb_adapter):
         """Test successful device flashing."""
-        adapter = USBAdapter()
+        adapter = usb_adapter
 
         mock_device = BlockDevice(name="sda")
         firmware_path = Path("/test/firmware.uf2")
@@ -122,9 +143,9 @@ class TestUSBAdapter:
         assert result is True
         mock_flash.assert_called_once_with(mock_device, firmware_path, 3, 2.0)
 
-    def test_flash_device_firmware_not_found(self):
+    def test_flash_device_firmware_not_found(self, usb_adapter):
         """Test flash_device raises error when firmware file doesn't exist."""
-        adapter = USBAdapter()
+        adapter = usb_adapter
 
         mock_device = BlockDevice(name="sda")
         firmware_path = Path("/nonexistent/firmware.uf2")
@@ -138,9 +159,9 @@ class TestUSBAdapter:
         ):
             adapter.flash_device(mock_device, firmware_path)
 
-    def test_flash_device_custom_retries(self):
+    def test_flash_device_custom_retries(self, usb_adapter):
         """Test flash_device with custom retry parameters."""
-        adapter = USBAdapter()
+        adapter = usb_adapter
 
         mock_device = BlockDevice(name="sda")
         firmware_path = Path("/test/firmware.uf2")
@@ -157,9 +178,9 @@ class TestUSBAdapter:
 
         mock_flash.assert_called_once_with(mock_device, firmware_path, 5, 1.0)
 
-    def test_flash_device_exception(self):
+    def test_flash_device_exception(self, usb_adapter):
         """Test flash_device handles exceptions."""
-        adapter = USBAdapter()
+        adapter = usb_adapter
 
         mock_device = BlockDevice(name="sda")
         firmware_path = Path("/test/firmware.uf2")
@@ -178,9 +199,9 @@ class TestUSBAdapter:
         ):
             adapter.flash_device(mock_device, firmware_path)
 
-    def test_get_all_devices_success(self):
+    def test_get_all_devices_success(self, usb_adapter):
         """Test successful retrieval of all devices."""
-        adapter = USBAdapter()
+        adapter = usb_adapter
 
         mock_devices = [BlockDevice(name="sda"), BlockDevice(name="sdb")]
 
@@ -192,9 +213,9 @@ class TestUSBAdapter:
         assert result == mock_devices
         mock_get.assert_called_once()
 
-    def test_get_all_devices_exception(self):
+    def test_get_all_devices_exception(self, usb_adapter):
         """Test get_all_devices handles exceptions."""
-        adapter = USBAdapter()
+        adapter = usb_adapter
 
         with (
             patch.object(
@@ -213,9 +234,12 @@ class TestUSBAdapter:
 class TestCreateUSBAdapter:
     """Test create_usb_adapter factory function."""
 
-    def test_create_usb_adapter(self):
+    def test_create_usb_adapter(self, mock_flash_operations, mock_detector):
         """Test factory function creates USBAdapter instance."""
-        adapter = create_usb_adapter()
+        adapter = create_usb_adapter(
+            flash_operations=mock_flash_operations,
+            detector=mock_detector,
+        )
         assert isinstance(adapter, USBAdapter)
         assert isinstance(adapter, USBAdapterProtocol)
 
@@ -223,17 +247,15 @@ class TestCreateUSBAdapter:
 class TestUSBAdapterProtocol:
     """Test USBAdapter protocol implementation."""
 
-    def test_usb_adapter_implements_protocol(self):
+    def test_usb_adapter_implements_protocol(self, usb_adapter):
         """Test that USBAdapter correctly implements USBAdapter protocol."""
-        adapter = USBAdapter()
-        assert isinstance(adapter, USBAdapterProtocol), (
+        assert isinstance(usb_adapter, USBAdapterProtocol), (
             "USBAdapter must implement USBAdapterProtocol"
         )
 
-    def test_runtime_protocol_check(self):
+    def test_runtime_protocol_check(self, usb_adapter):
         """Test that USBAdapter passes runtime protocol check."""
-        adapter = USBAdapter()
-        assert isinstance(adapter, USBAdapterProtocol), (
+        assert isinstance(usb_adapter, USBAdapterProtocol), (
             "USBAdapter should be instance of USBAdapterProtocol"
         )
 

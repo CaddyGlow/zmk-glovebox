@@ -14,6 +14,8 @@ if TYPE_CHECKING:
     from glovebox.layout.display_service import LayoutDisplayService
     from glovebox.layout.service import LayoutService
     from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
+    from glovebox.compilation.services.moergo_nix_service import MoergoNixService
+    from glovebox.compilation.services.zmk_west_service import ZmkWestService
 
 
 def create_layout_service_for_tests(
@@ -104,11 +106,11 @@ def create_usb_adapter_for_tests(
     from glovebox.adapters.usb_adapter import create_usb_adapter
     from glovebox.firmware.flash.device_detector import create_device_detector
     from glovebox.firmware.flash.flash_operations import create_flash_operations
-    from glovebox.firmware.flash.os_adapters import create_linux_flash_adapter
+    from glovebox.firmware.flash.os_adapters import create_flash_os_adapter
     from glovebox.firmware.flash.usb_monitor import MountPointCache, create_usb_monitor
 
     if flash_operations is None:
-        os_adapter = create_linux_flash_adapter()
+        os_adapter = create_flash_os_adapter()
         flash_operations = create_flash_operations(os_adapter)
 
     if detector is None:
@@ -190,3 +192,62 @@ def create_layout_layer_service_for_tests(file_adapter=None):
         file_adapter = create_file_adapter()
 
     return create_layout_layer_service(file_adapter)
+
+
+def create_moergo_nix_service_for_tests(docker_adapter=None, file_adapter=None):
+    """Create a MoergoNixService with test-friendly defaults."""
+    from glovebox.adapters import create_docker_adapter, create_file_adapter
+    from glovebox.compilation.services.moergo_nix_service import create_moergo_nix_service
+
+    if docker_adapter is None:
+        docker_adapter = create_docker_adapter()
+
+    if file_adapter is None:
+        file_adapter = create_file_adapter()
+
+    return create_moergo_nix_service(docker_adapter, file_adapter)
+
+
+def create_zmk_west_service_for_tests(
+    user_config=None,
+    docker_adapter=None,
+    file_adapter=None,
+    cache_manager=None,
+    workspace_cache_service=None,
+    build_cache_service=None,
+    session_metrics=None,
+):
+    """Create a ZmkWestService with test-friendly defaults."""
+    from unittest.mock import Mock
+    from glovebox.adapters import create_docker_adapter, create_file_adapter
+    from glovebox.config import create_user_config
+    from glovebox.core.cache_v2 import create_default_cache
+    from glovebox.compilation.services.zmk_west_service import create_zmk_west_service
+
+    if user_config is None:
+        user_config = create_user_config()
+
+    if docker_adapter is None:
+        docker_adapter = create_docker_adapter()
+
+    if file_adapter is None:
+        file_adapter = create_file_adapter()
+
+    if cache_manager is None:
+        cache_manager = create_default_cache(tag="test_compilation")
+
+    if workspace_cache_service is None:
+        workspace_cache_service = Mock()  # Mock complex service for tests
+
+    if build_cache_service is None:
+        build_cache_service = Mock()  # Mock complex service for tests
+
+    return create_zmk_west_service(
+        user_config=user_config,
+        docker_adapter=docker_adapter,
+        file_adapter=file_adapter,
+        cache_manager=cache_manager,
+        workspace_cache_service=workspace_cache_service,
+        build_cache_service=build_cache_service,
+        session_metrics=session_metrics,
+    )
