@@ -27,11 +27,11 @@ dependencies = [
 glovebox = "glovebox.cli:main"
 
 [build-system]
-# requires = ["uv"] # Keep hatchling as per original file
-# build-backend = "uv.build" # Keep hatchling as per original file
-
+# Using hatchling to used git tag for version 
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+# requires = ["uv"] 
+# build-backend = "uv.build" 
 
 [dependency-groups]
 dev = [
@@ -47,10 +47,22 @@ dev = [
   "types-requests>=2.32.4.20250611",
 ]
 
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "glovebox/_version.py"
+
 [tool.pytest.ini_options]
+addopts = "-ra -q"
 markers = [
   "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
 ]
+testpaths = ["tests"]
+
+
+[tool.coverage.run]
+include = ["glovebox", "tests"]
 
 [tool.ruff]
 target-version = "py311"
@@ -89,6 +101,7 @@ exclude = [
   "*.egg-info",
 ]
 
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
@@ -99,12 +112,13 @@ force-single-line = false
 lines-after-imports = 2
 
 [tool.ruff.lint.per-file-ignores]
-"scripts/*" = ["T201"]
-"tests/*" = ["N802", "N803"]
-# Scripts might need print statements
+# relax on scripts and tests
+"scripts/*" = ["T201"]       # check for print statements
+"tests/*" = ["N802", "N803"] # arg/function name should be lowercase
 
 [tool.mypy]
-python_version = "3.11"
+exclude_gitignore = true
+python_version = "3.12"
 show_column_numbers = true
 follow_imports = "normal"
 
@@ -127,25 +141,10 @@ disallow_subclassing_any = true
 disallow_any_unimported = true
 warn_unreachable = true
 
-# Optional: customize strict settings for your project needs
-# Uncomment these if you need to disable certain strict checks
+# if we need to disable certain strict checks
 # disallow_incomplete_defs = false
 # disallow_untyped_decorators = false
 
-# No error code exemptions
-
-#
-# [[tool.mypy.overrides]]
-# module = "rich"
-# ignore_missing_imports = true
-#
-# [[tool.mypy.overrides]]
-# module = "rich.console"
-# ignore_missing_imports = true
-#
-# [[tool.mypy.overrides]]
-# module = "rich.table"
-# ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"
@@ -153,12 +152,6 @@ module = "tests.*"
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
 disallow_untyped_calls = false
-
-[tool.hatch.version]
-source = "vcs"
-
-[tool.hatch.build.hooks.vcs]
-version-file = "glovebox/_version.py"
 
 [tool.tox]
 legacy_tox_ini = """

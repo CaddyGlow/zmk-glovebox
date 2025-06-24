@@ -285,37 +285,35 @@ class TestAddLayer:
 
 
 class TestRemoveLayer:
-    """Test remove_layer method."""
+    """Test remove_layer method with enhanced capabilities."""
 
     @patch("glovebox.layout.layer.service.load_layout_file")
     @patch("glovebox.layout.layer.service.save_layout_file")
-    @patch("glovebox.layout.layer.service.validate_layer_exists")
     @patch("glovebox.layout.layer.service.validate_output_path")
-    def test_remove_layer_basic(
+    def test_remove_layer_by_name(
         self,
         mock_validate_output,
-        mock_validate_exists,
         mock_save,
         mock_load,
         layer_service,
         sample_layout_data,
         temp_layout_file,
     ):
-        """Test basic layer removal."""
+        """Test basic layer removal by name."""
         mock_load.return_value = sample_layout_data
-        mock_validate_exists.return_value = 1
 
         result = layer_service.remove_layer(
             layout_file=temp_layout_file,
-            layer_name="Lower",
+            layer_identifier="Lower",
         )
 
-        assert result["layer_name"] == "Lower"
-        assert result["position"] == 1
+        assert result["removed_count"] == 1
+        assert len(result["removed_layers"]) == 1
+        assert result["removed_layers"][0]["name"] == "Lower"
+        assert result["removed_layers"][0]["position"] == 1
         assert result["remaining_layers"] == 2
         assert result["output_path"] == temp_layout_file
 
-        mock_validate_exists.assert_called_once_with(sample_layout_data, "Lower")
         mock_validate_output.assert_called_once_with(
             temp_layout_file, temp_layout_file, False
         )
@@ -323,12 +321,173 @@ class TestRemoveLayer:
 
     @patch("glovebox.layout.layer.service.load_layout_file")
     @patch("glovebox.layout.layer.service.save_layout_file")
-    @patch("glovebox.layout.layer.service.validate_layer_exists")
+    @patch("glovebox.layout.layer.service.validate_output_path")
+    def test_remove_layer_by_index(
+        self,
+        mock_validate_output,
+        mock_save,
+        mock_load,
+        layer_service,
+        sample_layout_data,
+        temp_layout_file,
+    ):
+        """Test layer removal by index."""
+        mock_load.return_value = sample_layout_data
+
+        result = layer_service.remove_layer(
+            layout_file=temp_layout_file,
+            layer_identifier="1",  # Remove "Lower" at index 1
+        )
+
+        assert result["removed_count"] == 1
+        assert result["removed_layers"][0]["name"] == "Lower"
+        assert result["removed_layers"][0]["position"] == 1
+        assert result["remaining_layers"] == 2
+
+    @patch("glovebox.layout.layer.service.load_layout_file")
+    @patch("glovebox.layout.layer.service.save_layout_file")
+    @patch("glovebox.layout.layer.service.validate_output_path")
+    def test_remove_layer_by_wildcard_pattern(
+        self,
+        mock_validate_output,
+        mock_save,
+        mock_load,
+        layer_service,
+        temp_layout_file,
+    ):
+        """Test layer removal by wildcard pattern."""
+        # Create layout with Mouse layers for pattern testing
+        layout_data = LayoutData(
+            keyboard="glove80",
+            title="Test Layout",
+            layer_names=["Base", "Mouse", "MouseSlow", "MouseFast", "Upper"],
+            layers=[
+                [LayoutBinding(value="&kp", params=[])],
+                [LayoutBinding(value="&trans", params=[])],
+                [LayoutBinding(value="&tog", params=[])],
+                [LayoutBinding(value="&sl", params=[])],
+                [LayoutBinding(value="&mt", params=[])],
+            ],
+        )
+        mock_load.return_value = layout_data
+
+        result = layer_service.remove_layer(
+            layout_file=temp_layout_file,
+            layer_identifier="Mouse*",
+        )
+
+        assert result["removed_count"] == 3
+        removed_names = [layer["name"] for layer in result["removed_layers"]]
+        assert "Mouse" in removed_names
+        assert "MouseSlow" in removed_names
+        assert "MouseFast" in removed_names
+        assert result["remaining_layers"] == 2
+
+    @patch("glovebox.layout.layer.service.load_layout_file")
+    @patch("glovebox.layout.layer.service.save_layout_file")
+    @patch("glovebox.layout.layer.service.validate_output_path")
+    def test_remove_layer_by_regex_pattern(
+        self,
+        mock_validate_output,
+        mock_save,
+        mock_load,
+        layer_service,
+        temp_layout_file,
+    ):
+        """Test layer removal by regex pattern."""
+        # Create layout with Index layers for regex testing
+        layout_data = LayoutData(
+            keyboard="glove80",
+            title="Test Layout",
+            layer_names=["Base", "LeftIndex", "RightIndex", "Upper"],
+            layers=[
+                [LayoutBinding(value="&kp", params=[])],
+                [LayoutBinding(value="&trans", params=[])],
+                [LayoutBinding(value="&tog", params=[])],
+                [LayoutBinding(value="&sl", params=[])],
+            ],
+        )
+        mock_load.return_value = layout_data
+
+        result = layer_service.remove_layer(
+            layout_file=temp_layout_file,
+            layer_identifier=".*Index",  # Regex pattern
+        )
+
+        assert result["removed_count"] == 2
+        removed_names = [layer["name"] for layer in result["removed_layers"]]
+        assert "LeftIndex" in removed_names
+        assert "RightIndex" in removed_names
+        assert result["remaining_layers"] == 2
+
+    def test_remove_layer_no_matches_with_warnings(
+        self,
+        layer_service,
+        sample_layout_data,
+        temp_layout_file,
+    ):
+        """Test removing layer with no matches returns warnings."""
+        with patch("glovebox.layout.layer.service.load_layout_file") as mock_load:
+            mock_load.return_value = sample_layout_data
+
+            result = layer_service.remove_layer(
+                layout_file=temp_layout_file,
+                layer_identifier="NonExistent",
+                warn_on_no_match=True,
+            )
+            
+            assert result["removed_count"] == 0
+            assert len(result["warnings"]) == 1
+            assert "No layers found matching identifier 'NonExistent'" in result["warnings"][0]
+            assert not result["had_matches"]
+
+    def test_remove_layer_no_matches_without_warnings(
+        self,
+        layer_service,
+        sample_layout_data,
+        temp_layout_file,
+    ):
+        """Test removing layer with no matches and warnings disabled."""
+        with patch("glovebox.layout.layer.service.load_layout_file") as mock_load:
+            mock_load.return_value = sample_layout_data
+
+            result = layer_service.remove_layer(
+                layout_file=temp_layout_file,
+                layer_identifier="NonExistent",
+                warn_on_no_match=False,
+            )
+            
+            assert result["removed_count"] == 0
+            assert len(result["warnings"]) == 0
+            assert not result["had_matches"]
+
+    def test_remove_layer_invalid_index(
+        self,
+        layer_service,
+        sample_layout_data,
+        temp_layout_file,
+    ):
+        """Test removing layer with invalid index returns warnings."""
+        with patch("glovebox.layout.layer.service.load_layout_file") as mock_load:
+            mock_load.return_value = sample_layout_data
+
+            result = layer_service.remove_layer(
+                layout_file=temp_layout_file,
+                layer_identifier="10",  # Beyond bounds
+                warn_on_no_match=True,
+            )
+            
+            assert result["removed_count"] == 0
+            assert len(result["warnings"]) == 1
+            assert "No layers found matching identifier '10'" in result["warnings"][0]
+            assert not result["had_matches"]
+
+    @patch("glovebox.layout.layer.service.load_layout_file")
+    @patch("glovebox.layout.layer.service.save_layout_file")
     @patch("glovebox.layout.layer.service.validate_output_path")
     def test_remove_layer_bounds_check(
         self,
         mock_validate_output,
-        mock_validate_exists,
         mock_save,
         mock_load,
         layer_service,
@@ -348,26 +507,23 @@ class TestRemoveLayer:
         )
 
         mock_load.return_value = layout_data
-        mock_validate_exists.return_value = 3  # Index beyond layers list
 
         result = layer_service.remove_layer(
             layout_file=temp_layout_file,
-            layer_name="Extra",
+            layer_identifier="Extra",
         )
 
         # Should not attempt to pop from layers list since index >= len(layers)
-        assert result["position"] == 3
+        assert result["removed_layers"][0]["position"] == 3
         assert len(layout_data.layer_names) == 3  # One removed
         assert len(layout_data.layers) == 3  # Unchanged
 
     @patch("glovebox.layout.layer.service.load_layout_file")
     @patch("glovebox.layout.layer.service.save_layout_file")
-    @patch("glovebox.layout.layer.service.validate_layer_exists")
     @patch("glovebox.layout.layer.service.validate_output_path")
     def test_remove_layer_with_output_path(
         self,
         mock_validate_output,
-        mock_validate_exists,
         mock_save,
         mock_load,
         layer_service,
@@ -377,12 +533,11 @@ class TestRemoveLayer:
     ):
         """Test removing layer with custom output path."""
         mock_load.return_value = sample_layout_data
-        mock_validate_exists.return_value = 0
 
         output_path = tmp_path / "removed_layout.json"
         result = layer_service.remove_layer(
             layout_file=temp_layout_file,
-            layer_name="Base",
+            layer_identifier="Base",
             output=output_path,
             force=True,
         )
@@ -391,6 +546,147 @@ class TestRemoveLayer:
         mock_validate_output.assert_called_once_with(
             output_path, temp_layout_file, True
         )
+
+    @patch("glovebox.layout.layer.service.load_layout_file")
+    @patch("glovebox.layout.layer.service.save_layout_file")
+    @patch("glovebox.layout.layer.service.validate_output_path")
+    def test_remove_multiple_layers_index_order(
+        self,
+        mock_validate_output,
+        mock_save,
+        mock_load,
+        layer_service,
+        temp_layout_file,
+    ):
+        """Test that multiple layers are removed in correct order (high to low index)."""
+        # Create layout with test layers
+        layout_data = LayoutData(
+            keyboard="glove80",
+            title="Test Layout",
+            layer_names=["Test1", "Test2", "Test3", "Test4"],
+            layers=[
+                [LayoutBinding(value="&kp", params=[])],
+                [LayoutBinding(value="&trans", params=[])],
+                [LayoutBinding(value="&tog", params=[])],
+                [LayoutBinding(value="&sl", params=[])],
+            ],
+        )
+        mock_load.return_value = layout_data
+
+        result = layer_service.remove_layer(
+            layout_file=temp_layout_file,
+            layer_identifier="Test*",
+        )
+
+        assert result["removed_count"] == 4
+        # Verify they were removed in descending order of original positions
+        positions = [layer["position"] for layer in result["removed_layers"]]
+        assert positions == [3, 2, 1, 0]  # High to low index order
+
+
+class TestFindLayersToRemove:
+    """Test _find_layers_to_remove helper method."""
+
+    def test_find_layers_by_index(self, layer_service, sample_layout_data):
+        """Test finding layers by valid index."""
+        layers = layer_service._find_layers_to_remove(sample_layout_data, "1")
+
+        assert len(layers) == 1
+        assert layers[0]["name"] == "Lower"
+        assert layers[0]["index"] == 1
+
+    def test_find_layers_by_invalid_index(self, layer_service, sample_layout_data):
+        """Test finding layers by invalid index returns empty list."""
+        layers = layer_service._find_layers_to_remove(sample_layout_data, "10")
+        assert layers == []
+
+    def test_find_layers_by_negative_index(self, layer_service, sample_layout_data):
+        """Test finding layers by negative index returns empty list."""
+        layers = layer_service._find_layers_to_remove(sample_layout_data, "-1")
+        assert layers == []
+
+    def test_find_layers_by_exact_name(self, layer_service, sample_layout_data):
+        """Test finding layers by exact name match."""
+        layers = layer_service._find_layers_to_remove(sample_layout_data, "Upper")
+
+        assert len(layers) == 1
+        assert layers[0]["name"] == "Upper"
+        assert layers[0]["index"] == 2
+
+    def test_find_layers_by_wildcard_pattern(self, layer_service):
+        """Test finding layers by wildcard pattern."""
+        layout_data = LayoutData(
+            keyboard="glove80",
+            title="Test Layout",
+            layer_names=["Base", "Mouse", "MouseSlow", "MouseFast", "Upper"],
+            layers=[[], [], [], [], []],
+        )
+
+        layers = layer_service._find_layers_to_remove(layout_data, "Mouse*")
+
+        assert len(layers) == 3
+        names = [layer["name"] for layer in layers]
+        assert "Mouse" in names
+        assert "MouseSlow" in names
+        assert "MouseFast" in names
+
+    def test_find_layers_by_regex_pattern(self, layer_service):
+        """Test finding layers by regex pattern."""
+        layout_data = LayoutData(
+            keyboard="glove80",
+            title="Test Layout",
+            layer_names=["Base", "LeftIndex", "RightIndex", "Upper"],
+            layers=[[], [], [], []],
+        )
+
+        layers = layer_service._find_layers_to_remove(layout_data, ".*Index")
+
+        assert len(layers) == 2
+        names = [layer["name"] for layer in layers]
+        assert "LeftIndex" in names
+        assert "RightIndex" in names
+
+    def test_find_layers_by_complex_regex(self, layer_service):
+        """Test finding layers by complex regex pattern."""
+        layout_data = LayoutData(
+            keyboard="glove80",
+            title="Test Layout",
+            layer_names=["Base", "Layer1", "Layer2", "MyLayer", "Upper"],
+            layers=[[], [], [], [], []],
+        )
+
+        layers = layer_service._find_layers_to_remove(layout_data, "Layer[0-9]+")
+
+        assert len(layers) == 2
+        names = [layer["name"] for layer in layers]
+        assert "Layer1" in names
+        assert "Layer2" in names
+        assert "MyLayer" not in names
+
+    def test_find_layers_invalid_regex(self, layer_service, sample_layout_data):
+        """Test finding layers with invalid regex returns empty list."""
+        layers = layer_service._find_layers_to_remove(sample_layout_data, "[invalid")
+        assert layers == []
+
+    def test_find_layers_no_matches(self, layer_service, sample_layout_data):
+        """Test finding layers with no matches returns empty list."""
+        layers = layer_service._find_layers_to_remove(sample_layout_data, "NonExistent")
+        assert layers == []
+
+    def test_find_layers_mixed_special_chars(self, layer_service):
+        """Test wildcard conversion doesn't affect complex regex patterns."""
+        layout_data = LayoutData(
+            keyboard="glove80",
+            title="Test Layout",
+            layer_names=["Base", "Test[1]", "Test*Real", "Upper"],
+            layers=[[], [], [], []],
+        )
+
+        # This contains both * and regex special chars, should not be converted
+        layers = layer_service._find_layers_to_remove(layout_data, "Test\\*")
+
+        assert len(layers) == 1
+        assert layers[0]["name"] == "Test*Real"
 
 
 class TestMoveLayer:
@@ -1181,13 +1477,10 @@ class TestLayerServiceIntegration:
         with (
             patch("glovebox.layout.layer.service.load_layout_file") as mock_load,
             patch("glovebox.layout.layer.service.save_layout_file") as mock_save,
-            patch(
-                "glovebox.layout.layer.service.validate_layer_exists"
-            ) as mock_validate_exists,
             patch("glovebox.layout.layer.service.validate_output_path"),
         ):
             mock_load.return_value = layout_data
-            mock_validate_exists.return_value = 0
 
             result = layer_service.remove_layer(temp_layout_file, "NewLayer")
-            assert result["layer_name"] == "NewLayer"
+            assert result["removed_count"] == 1
+            assert result["removed_layers"][0]["name"] == "NewLayer"
