@@ -33,10 +33,13 @@ from glovebox.core.cache.models import CacheKey
 from glovebox.core.errors import CompilationError
 from glovebox.core.file_operations.enums import CopyStrategy
 from glovebox.core.file_operations.service import FileCopyService, create_copy_service
-from glovebox.core.metrics.session_metrics import SessionMetrics
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.models.docker import DockerUserContext
-from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
+from glovebox.protocols import (
+    DockerAdapterProtocol,
+    FileAdapterProtocol,
+    MetricsProtocol,
+)
 from glovebox.utils.stream_process import DefaultOutputMiddleware
 
 
@@ -52,7 +55,7 @@ class WorkspaceSetup:
         logger: logging.Logger,
         copy_service: FileCopyService,
         file_adapter: FileAdapterProtocol,
-        session_metrics: SessionMetrics | None = None,
+        session_metrics: MetricsProtocol | None = None,
     ) -> None:
         """Initialize with logger."""
         self.logger = logger
@@ -264,11 +267,11 @@ class ZmkWestService(CompilationServiceProtocol):
         docker_adapter: DockerAdapterProtocol,
         user_config: UserConfig,
         file_adapter: FileAdapterProtocol,
-        cache_manager: CacheManager | None = None,
+        cache_manager: CacheManager,
+        session_metrics: MetricsProtocol,
         workspace_cache_service: ZmkWorkspaceCacheService | None = None,
         build_cache_service: CompilationBuildCacheService | None = None,
         copy_service: FileCopyService | None = None,
-        session_metrics: SessionMetrics | None = None,
     ) -> None:
         """Initialize with Docker adapter, user config, file adapter, cache services, and metrics."""
         self.docker_adapter = docker_adapter
@@ -291,7 +294,9 @@ class ZmkWestService(CompilationServiceProtocol):
         if cache_manager is not None:
             if workspace_cache_service is None:
                 self.workspace_cache_service: ZmkWorkspaceCacheService | None = (
-                    ZmkWorkspaceCacheService(user_config, cache_manager)
+                    ZmkWorkspaceCacheService(
+                        user_config, cache_manager, session_metrics
+                    )
                 )
             else:
                 self.workspace_cache_service = workspace_cache_service
@@ -555,10 +560,22 @@ class ZmkWestService(CompilationServiceProtocol):
                 output_prefix = temp_path / "layout"
 
                 # Generate keymap and config files from JSON
+                # Use session_metrics if available, otherwise create NoOp metrics
+                layout_session_metrics = self.session_metrics
+                if layout_session_metrics is None:
+                    from glovebox.core.metrics.session_metrics import (
+                        create_noop_session_metrics,
+                    )
+
+                    layout_session_metrics = create_noop_session_metrics(
+                        "zmk_west_service"
+                    )
+
                 layout_result = layout_service.generate_from_file(
                     profile=keyboard_profile,
                     json_file_path=json_file,
                     output_file_prefix=str(output_prefix),
+                    session_metrics=layout_session_metrics,
                     force=True,
                 )
 
@@ -617,7 +634,8 @@ class ZmkWestService(CompilationServiceProtocol):
 
         # Try repo+branch lookup first (more specific) - check if it has complete dependencies
         cache_result = self.workspace_cache_service.get_cached_workspace(
-            config.repository, config.branch
+            config.repository,
+            config.branch,
         )
 
         if cache_result.success and cache_result.workspace_path:
@@ -1163,10 +1181,10 @@ def create_zmk_west_service(
     docker_adapter: DockerAdapterProtocol,
     user_config: UserConfig,
     file_adapter: FileAdapterProtocol,
-    cache_manager: CacheManager | None = None,
+    cache_manager: CacheManager,
+    session_metrics: MetricsProtocol,
     workspace_cache_service: ZmkWorkspaceCacheService | None = None,
     build_cache_service: CompilationBuildCacheService | None = None,
-    session_metrics: SessionMetrics | None = None,
 ) -> ZmkWestService:
     """Create ZMK West service with dual cache management and metrics.
 
@@ -1187,7 +1205,7 @@ def create_zmk_west_service(
         user_config=user_config,
         file_adapter=file_adapter,
         cache_manager=cache_manager,
+        session_metrics=session_metrics,
         workspace_cache_service=workspace_cache_service,
         build_cache_service=build_cache_service,
-        session_metrics=session_metrics,
     )

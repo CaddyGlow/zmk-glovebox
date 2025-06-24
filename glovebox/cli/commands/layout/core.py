@@ -135,9 +135,6 @@ def compile_layout(
 
     try:
         with layout_duration.time():
-            # Get user config for auto-profile detection
-            user_config = get_user_config_from_context(ctx)
-
             # Resolve JSON file path (supports environment variable)
             resolved_json_file = resolve_json_file_path(json_file, "GLOVEBOX_JSON_FILE")
 
@@ -147,14 +144,17 @@ def compile_layout(
                 )
                 raise typer.Exit(1)
 
-            # Handle profile detection with auto-detection support
-            effective_profile = resolve_profile_with_auto_detection(
-                profile, resolved_json_file, no_auto, user_config
+            # Use unified profile resolution with auto-detection support
+            from glovebox.cli.helpers.parameters import (
+                create_profile_from_param_unified,
             )
 
-            # Create keyboard profile using effective profile
-            keyboard_profile = create_profile_from_option(
-                effective_profile, user_config
+            keyboard_profile = create_profile_from_param_unified(
+                ctx=ctx,
+                profile=profile,
+                default_profile="glove80/v25.05",
+                json_file=resolved_json_file,
+                no_auto=no_auto,
             )
             if output_file_prefix is None and json_file is not None:
                 output_file_prefix = Path(json_file).stem + "_"
@@ -169,6 +169,7 @@ def compile_layout(
                 profile=keyboard_profile,
                 json_file_path=resolved_json_file,
                 output_file_prefix=output_file_prefix,
+                session_metrics=metrics,
                 force=force,
             )
 
@@ -241,9 +242,6 @@ def validate(
     4. User config default profile
     5. Hardcoded fallback profile
     """
-    # Get user config for auto-profile detection
-    user_config = get_user_config_from_context(ctx)
-
     # Resolve JSON file path (supports environment variable)
     resolved_json_file = resolve_json_file_path(json_file, "GLOVEBOX_JSON_FILE")
 
@@ -257,13 +255,16 @@ def validate(
     command.validate_layout_file(resolved_json_file)
 
     try:
-        # Handle profile detection with auto-detection support
-        effective_profile = resolve_profile_with_auto_detection(
-            profile, resolved_json_file, no_auto, user_config
-        )
+        # Use unified profile resolution with auto-detection support
+        from glovebox.cli.helpers.parameters import create_profile_from_param_unified
 
-        # Create keyboard profile using effective profile
-        keyboard_profile = create_profile_from_option(effective_profile, user_config)
+        keyboard_profile = create_profile_from_param_unified(
+            ctx=ctx,
+            profile=profile,
+            default_profile="glove80/v25.05",
+            json_file=resolved_json_file,
+            no_auto=no_auto,
+        )
 
         # Validate using the file-based service method
         keymap_service = _create_layout_service_with_dependencies()
@@ -315,9 +316,6 @@ def show(
     4. User config default profile
     5. Hardcoded fallback profile
     """
-    # Get user config for auto-profile detection
-    user_config = get_user_config_from_context(ctx)
-
     # Resolve JSON file path (supports environment variable)
     resolved_json_file = resolve_json_file_path(json_file, "GLOVEBOX_JSON_FILE")
 
@@ -331,13 +329,16 @@ def show(
     command.validate_layout_file(resolved_json_file)
 
     try:
-        # Handle profile detection with auto-detection support
-        effective_profile = resolve_profile_with_auto_detection(
-            profile, resolved_json_file, no_auto, user_config
-        )
+        # Use unified profile resolution with auto-detection support
+        from glovebox.cli.helpers.parameters import create_profile_from_param_unified
 
-        # Create keyboard profile using effective profile
-        keyboard_profile = create_profile_from_option(effective_profile, user_config)
+        keyboard_profile = create_profile_from_param_unified(
+            ctx=ctx,
+            profile=profile,
+            default_profile="glove80/v25.05",
+            json_file=resolved_json_file,
+            no_auto=no_auto,
+        )
 
         # Call the service
         keymap_service = _create_layout_service_with_dependencies()

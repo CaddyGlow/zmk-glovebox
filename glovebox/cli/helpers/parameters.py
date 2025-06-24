@@ -1,9 +1,14 @@
 """Common CLI parameter definitions for reuse across commands."""
 
 import logging
-from typing import Annotated
+from pathlib import Path
+from typing import TYPE_CHECKING, Annotated
 
 import typer
+
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
 
 
 logger = logging.getLogger(__name__)
@@ -347,6 +352,40 @@ ProfileOption = Annotated[
         autocompletion=complete_profile_names,
     ),
 ]
+
+
+
+def create_profile_from_param_unified(
+    ctx: typer.Context,
+    profile: str | None,
+    default_profile: str | None = None,
+    json_file: Path | None = None,
+    no_auto: bool = False,
+) -> "KeyboardProfile":
+    """Unified function to create profile from CLI parameters.
+
+    This consolidates the profile creation logic for commands that use
+    ProfileOption parameters instead of the @with_profile decorator.
+
+    Args:
+        ctx: Typer context
+        profile: Profile parameter value from CLI
+        default_profile: Default profile to use if none provided
+        json_file: JSON file for auto-detection
+        no_auto: Disable auto-detection
+
+    Returns:
+        KeyboardProfile instance
+    """
+    from glovebox.cli.helpers.profile import resolve_and_create_profile_unified
+
+    return resolve_and_create_profile_unified(
+        ctx=ctx,
+        profile_option=profile,
+        default_profile=default_profile,
+        json_file_path=json_file,
+        no_auto=no_auto,
+    )
 
 
 # Standard output format parameter for unified output formatting

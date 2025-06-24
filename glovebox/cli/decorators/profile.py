@@ -19,8 +19,8 @@ def with_profile(
 
     This decorator simplifies CLI commands that use keyboard profiles by:
     1. Setting a default profile if none is provided
-    2. Creating the KeyboardProfile object
-    3. Adding it to the kwargs as "keyboard_profile"
+    2. Creating the KeyboardProfile object using unified logic
+    3. Storing it in the context for retrieval
     4. Handling profile creation errors
 
     The function must have a 'profile' parameter (or custom name via profile_param_name).
@@ -49,31 +49,28 @@ def with_profile(
             # Extract the profile from kwargs
             profile_option = kwargs.get(profile_param_name)
 
-            if profile_option is None:
-                # Set default profile if none provided
-                kwargs[profile_param_name] = default_profile
-
             try:
-                # Create the profile object and store it in context
-                # Use create_profile_from_context which handles user_config automatically
-                from glovebox.cli.helpers.profile import create_profile_from_context
-
-                profile_obj = create_profile_from_context(
-                    ctx, kwargs[profile_param_name]
+                # Use the unified profile resolution logic
+                from glovebox.cli.helpers.profile import (
+                    resolve_and_create_profile_unified,
                 )
 
-                # Store profile in context for functions to retrieve via get_keyboard_profile_from_context
-                ctx.obj.keyboard_profile = profile_obj
+                profile_obj = resolve_and_create_profile_unified(
+                    ctx=ctx,
+                    profile_option=profile_option,
+                    default_profile=default_profile,
+                    json_file_path=None,  # Decorator doesn't support auto-detection
+                    no_auto=True,  # Disable auto-detection for decorator usage
+                )
 
-                # Call the original function without injecting keyboard_profile parameter
+                # Profile is already stored in context by the unified function
+                # Call the original function
                 return func(*args, **kwargs)
             except typer.Exit:
                 # Profile creation already handled the error, just re-raise
                 raise
             except Exception as e:
-                logger.error(
-                    f"Error with profile {kwargs.get(profile_param_name)}: {e}"
-                )
+                logger.error("Error with profile %s: %s", profile_option, e)
                 raise typer.Exit(1) from e
 
         return wrapper

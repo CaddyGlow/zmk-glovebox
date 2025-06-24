@@ -10,49 +10,16 @@ across multiple builds and provides enhanced cache operations.
 
 from typing import TYPE_CHECKING, Any
 
+from glovebox.core.cache import create_cache_from_user_config
+from glovebox.core.cache.cache_manager import CacheManager
+
+from .compilation_build_cache_service import CompilationBuildCacheService
+from .models import WorkspaceCacheMetadata, WorkspaceCacheResult
+from .workspace_cache_service import ZmkWorkspaceCacheService
+
 
 if TYPE_CHECKING:
     from glovebox.config.user_config import UserConfig
-
-
-# Legacy cache injector support (optional dependency)
-# Define placeholder types first
-class CacheInjectorError(Exception):
-    """Cache injector error (placeholder or imported)."""
-
-    pass
-
-
-def inject_base_dependencies_cache_from_workspace(*args: Any, **kwargs: Any) -> None:
-    """Cache injector function (placeholder or imported)."""
-    raise NotImplementedError("Cache injector not available")
-
-
-_has_cache_injector = False
-
-# Try to import actual implementations
-try:
-    from glovebox.compilation.cache.cache_injector import (  # type: ignore[import-untyped]
-        CacheInjectorError as _CacheInjectorError,
-    )
-    from glovebox.compilation.cache.cache_injector import (
-        inject_base_dependencies_cache_from_workspace as _inject_func,
-    )
-
-    # Replace placeholders with actual implementations
-    CacheInjectorError = _CacheInjectorError  # type: ignore[misc]
-    inject_base_dependencies_cache_from_workspace = _inject_func
-    _has_cache_injector = True
-except ImportError:
-    # Keep placeholder implementations
-    pass
-
-from glovebox.core.cache import create_cache_from_user_config  # noqa: E402
-from glovebox.core.cache.cache_manager import CacheManager  # noqa: E402
-
-from .compilation_build_cache_service import CompilationBuildCacheService  # noqa: E402
-from .models import WorkspaceCacheMetadata, WorkspaceCacheResult  # noqa: E402
-from .workspace_cache_service import ZmkWorkspaceCacheService  # noqa: E402
 
 
 def create_zmk_workspace_cache_service(
@@ -75,7 +42,7 @@ def create_zmk_workspace_cache_service(
             user_config._config, tag="compilation", session_metrics=session_metrics
         )
 
-    return ZmkWorkspaceCacheService(user_config, cache_manager)
+    return ZmkWorkspaceCacheService(user_config, cache_manager, session_metrics)
 
 
 def create_compilation_build_cache_service(
@@ -134,8 +101,6 @@ def create_compilation_cache_service(
 
 
 __all__ = [
-    "inject_base_dependencies_cache_from_workspace",
-    "CacheInjectorError",
     "WorkspaceCacheMetadata",
     "WorkspaceCacheResult",
     "ZmkWorkspaceCacheService",

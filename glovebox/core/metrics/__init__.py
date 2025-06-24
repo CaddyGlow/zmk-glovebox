@@ -10,12 +10,20 @@ This domain provides comprehensive metrics collection with prometheus_client-com
 
 # Import and re-export SessionMetrics for prometheus_client-compatible API
 from glovebox.core.metrics.session_metrics import (
+    MetricsContextManager,
+    NoOpCounter,
+    NoOpGauge,
+    NoOpHistogram,
+    NoOpMetrics,
+    NoOpMetricsLabeled,
+    NoOpSummary,
     SessionCounter,
     SessionGauge,
     SessionHistogram,
     SessionMetrics,
     SessionMetricsLabeled,
     SessionSummary,
+    create_noop_session_metrics,
     create_session_metrics,
 )
 
@@ -29,4 +37,14 @@ __all__ = [
     "SessionSummary",
     "SessionMetricsLabeled",
     "create_session_metrics",
+    # NoOp Metrics (for when metrics are disabled)
+    "NoOpMetrics",
+    "NoOpCounter",
+    "NoOpGauge",
+    "NoOpHistogram",
+    "NoOpSummary",
+    "NoOpMetricsLabeled",
+    "create_noop_session_metrics",
+    # Context Manager
+    "MetricsContextManager",
 ]

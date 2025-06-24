@@ -350,6 +350,7 @@ class SessionMetrics:
         self.ttl_seconds = ttl_days * 24 * 60 * 60  # Convert days to seconds
         self.session_start = datetime.now()
         self.session_id = f"session_{int(time.time())}"
+        self.session_start_perf = time.perf_counter()
 
         # Metric registries
         self._counters: dict[str, SessionCounter] = {}
@@ -465,6 +466,22 @@ class SessionMetrics:
             }
         )
 
+    def record_cache_event(self, cache_type: str, cache_hit: bool) -> None:
+        """Record a cache event (hit or miss) for metrics tracking.
+        
+        Args:
+            cache_type: Type of cache (e.g., 'workspace', 'build', etc.)
+            cache_hit: True if cache hit, False if cache miss
+        """
+        self._activity_log.append(
+            {
+                "timestamp": time.time(),
+                "operation": "cache_event",
+                "cache_type": cache_type,
+                "cache_hit": cache_hit,
+            }
+        )
+
     def save(self) -> None:
         """Save all metrics data to cache."""
         try:
@@ -479,6 +496,45 @@ class SessionMetrics:
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.error("Failed to save session metrics: %s", e, exc_info=exc_info)
+
+    def checkpoint(self, name: str) -> None:
+        histogram = self.Histogram(
+            f"start_time_{name}_duration_seconds", f"{name} duration since start"
+        )
+
+        histogram.observe(time.perf_counter() - self.session_start_perf)
+
+    def set_context(self, **kwargs: Any) -> None:
+        """Set context information for metrics.
+
+        Args:
+            **kwargs: Arbitrary context key-value pairs
+        """
+        # For SessionMetrics, we could store context in activity log
+        self._activity_log.append(
+            {"timestamp": time.time(), "operation": "set_context", "context": kwargs}
+        )
+
+    @contextmanager
+    def time_operation(self, operation_name: str) -> Any:
+        """Time an operation using a histogram.
+
+        Args:
+            operation_name: Name of the operation being timed
+        """
+        histogram = self.Histogram(
+            f"{operation_name}_duration_seconds", f"{operation_name} duration"
+        )
+        with histogram.time():
+            yield
+
+    def __enter__(self) -> "SessionMetrics":
+        """Enter the context manager."""
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Exit the context manager."""
+        self.save()
 
     def _serialize_data(self) -> dict[str, Any]:
         """Serialize all metrics data to dictionary."""
@@ -554,6 +610,229 @@ class SessionMetrics:
         return data
 
 
+# ============================================================================
+# No-Op Metrics Implementation
+# ============================================================================
+
+
+class NoOpMetricsLabeled:
+    """No-op labeled metric that does nothing."""
+
+    def inc(self, amount: float = 1) -> None:
+        """No-op increment."""
+        pass
+
+    def dec(self, amount: float = 1) -> None:
+        """No-op decrement."""
+        pass
+
+    def set(self, value: float) -> None:
+        """No-op set."""
+        pass
+
+    def set_to_current_time(self) -> None:
+        """No-op set to current time."""
+        pass
+
+    def observe(self, value: float) -> None:
+        """No-op observe."""
+        pass
+
+    @contextmanager
+    def time(self) -> Any:
+        """No-op time context manager."""
+        yield
+
+
+class NoOpCounter:
+    """No-op counter that implements SessionCounter interface."""
+
+    def __init__(
+        self, name: str, description: str, labelnames: list[str] | None = None
+    ):
+        self.name = name
+        self.description = description
+        self.labelnames = labelnames or []
+
+    def inc(self, amount: float = 1) -> None:
+        """No-op increment."""
+        pass
+
+    def labels(self, *args: Any, **kwargs: Any) -> NoOpMetricsLabeled:
+        """Return no-op labeled instance."""
+        return NoOpMetricsLabeled()
+
+
+class NoOpGauge:
+    """No-op gauge that implements SessionGauge interface."""
+
+    def __init__(
+        self, name: str, description: str, labelnames: list[str] | None = None
+    ):
+        self.name = name
+        self.description = description
+        self.labelnames = labelnames or []
+
+    def inc(self, amount: float = 1) -> None:
+        """No-op increment."""
+        pass
+
+    def dec(self, amount: float = 1) -> None:
+        """No-op decrement."""
+        pass
+
+    def set(self, value: float) -> None:
+        """No-op set."""
+        pass
+
+    def set_to_current_time(self) -> None:
+        """No-op set to current time."""
+        pass
+
+    def labels(self, *args: Any, **kwargs: Any) -> NoOpMetricsLabeled:
+        """Return no-op labeled instance."""
+        return NoOpMetricsLabeled()
+
+
+class NoOpHistogram:
+    """No-op histogram that implements SessionHistogram interface."""
+
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        buckets: list[float] | None = None,
+    ):
+        self.name = name
+        self.description = description
+        self.buckets = buckets or []
+
+    def observe(self, value: float) -> None:
+        """No-op observe."""
+        pass
+
+    @contextmanager
+    def time(self) -> Any:
+        """No-op time context manager."""
+        yield
+
+
+class NoOpSummary:
+    """No-op summary that implements SessionSummary interface."""
+
+    def __init__(self, name: str, description: str):
+        self.name = name
+        self.description = description
+
+    def observe(self, value: float) -> None:
+        """No-op observe."""
+        pass
+
+    @contextmanager
+    def time(self) -> Any:
+        """No-op time context manager."""
+        yield
+
+
+class NoOpMetrics:
+    """No-op metrics that implements SessionMetrics interface."""
+
+    def __init__(self, session_uuid: str):
+        self.session_uuid = session_uuid
+
+    def Counter(  # noqa: N802
+        self, name: str, description: str, labelnames: list[str] | None = None
+    ) -> NoOpCounter:
+        """Create a no-op Counter metric."""
+        return NoOpCounter(name, description, labelnames)
+
+    def Gauge(  # noqa: N802
+        self, name: str, description: str, labelnames: list[str] | None = None
+    ) -> NoOpGauge:
+        """Create a no-op Gauge metric."""
+        return NoOpGauge(name, description, labelnames)
+
+    def Histogram(  # noqa: N802
+        self, name: str, description: str, buckets: list[float] | None = None
+    ) -> NoOpHistogram:
+        """Create a no-op Histogram metric."""
+        return NoOpHistogram(name, description, buckets)
+
+    def Summary(self, name: str, description: str) -> NoOpSummary:  # noqa: N802
+        """Create a no-op Summary metric."""
+        return NoOpSummary(name, description)
+
+    def set_exit_code(self, exit_code: int) -> None:
+        """No-op set exit code."""
+        pass
+
+    def set_cli_args(self, cli_args: list[str]) -> None:
+        """No-op set CLI args."""
+        pass
+
+    def save(self) -> None:
+        """No-op save."""
+        pass
+
+    def record_cache_event(self, cache_type: str, cache_hit: bool) -> None:
+        """No-op cache event recording."""
+        pass
+
+    def set_context(self, **kwargs: Any) -> None:
+        """No-op set context."""
+        pass
+
+    @contextmanager
+    def time_operation(self, operation_name: str) -> Any:
+        """No-op time operation context manager."""
+        yield
+
+    def __enter__(self) -> "NoOpMetrics":
+        """Enter the context manager."""
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Exit the context manager."""
+        pass
+
+
+class MetricsContextManager:
+    """Context manager for metrics that provides set_context and time_operation methods."""
+
+    def __init__(self, metrics: SessionMetrics | NoOpMetrics):
+        self._metrics = metrics
+
+    def set_context(self, **kwargs: Any) -> None:
+        """Set context information for metrics (no-op for NoOpMetrics)."""
+        pass
+
+    @contextmanager
+    def time_operation(self, operation_name: str) -> Any:
+        """Time an operation using a histogram (no-op for NoOpMetrics)."""
+        if isinstance(self._metrics, SessionMetrics):
+            histogram = self._metrics.Histogram(
+                f"{operation_name}_duration_seconds", f"{operation_name} duration"
+            )
+            with histogram.time():
+                yield
+        else:
+            yield
+
+    def __enter__(self) -> "MetricsContextManager":
+        """Enter the context manager."""
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Exit the context manager."""
+        if isinstance(self._metrics, SessionMetrics):
+            self._metrics.save()
+
+
+# ============================================================================
+# Factory Functions
+# ============================================================================
+
+
 def create_session_metrics(
     session_uuid: str,
     cache_manager: CacheManager | None = None,
@@ -576,3 +855,15 @@ def create_session_metrics(
         cache_manager = create_default_cache(tag="metrics")
 
     return SessionMetrics(cache_manager, session_uuid, ttl_days)
+
+
+def create_noop_session_metrics(session_uuid: str) -> NoOpMetrics:
+    """Factory function to create NoOpMetrics instance.
+
+    Args:
+        session_uuid: Unique identifier for this session (ignored)
+
+    Returns:
+        NoOpMetrics instance that does nothing
+    """
+    return NoOpMetrics(session_uuid)
