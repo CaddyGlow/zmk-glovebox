@@ -603,7 +603,10 @@ class TestLayoutEdit:
             "glovebox.cli.commands.layout.edit._get_variable_usage"
         ) as mock_usage:
             mock_usage.return_value = {
-                "tapMs": ["hold_taps[0].tapping_term_ms", "hold_taps[1].tapping_term_ms"],
+                "tapMs": [
+                    "hold_taps[0].tapping_term_ms",
+                    "hold_taps[1].tapping_term_ms",
+                ],
                 "flavor": ["hold_taps[0].flavor"],
             }
 
@@ -696,7 +699,7 @@ class TestLayoutEdit:
         # Verify the correct field path and value were passed
         call_args = mock_layout_editor_service.set_field_value.call_args[1]
         assert call_args["field_path"] == "hold_taps[0].tapping_term_ms"
-        assert call_args["value"] == "${tapMs}"
+        assert call_args["value"] == '"${tapMs}"'
 
 
 class TestLayoutFileOperations:

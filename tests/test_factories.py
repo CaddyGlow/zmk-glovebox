@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
+    from glovebox.compilation.services.moergo_nix_service import MoergoNixService
+    from glovebox.compilation.services.zmk_west_service import ZmkWestService
     from glovebox.firmware.flash.device_detector import DeviceDetector
     from glovebox.firmware.flash.flasher_methods import USBFlasher
     from glovebox.firmware.flash.service import FlashService
@@ -14,8 +16,6 @@ if TYPE_CHECKING:
     from glovebox.layout.display_service import LayoutDisplayService
     from glovebox.layout.service import LayoutService
     from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
-    from glovebox.compilation.services.moergo_nix_service import MoergoNixService
-    from glovebox.compilation.services.zmk_west_service import ZmkWestService
 
 
 def create_layout_service_for_tests(
@@ -197,7 +197,9 @@ def create_layout_layer_service_for_tests(file_adapter=None):
 def create_moergo_nix_service_for_tests(docker_adapter=None, file_adapter=None):
     """Create a MoergoNixService with test-friendly defaults."""
     from glovebox.adapters import create_docker_adapter, create_file_adapter
-    from glovebox.compilation.services.moergo_nix_service import create_moergo_nix_service
+    from glovebox.compilation.services.moergo_nix_service import (
+        create_moergo_nix_service,
+    )
 
     if docker_adapter is None:
         docker_adapter = create_docker_adapter()
@@ -219,10 +221,11 @@ def create_zmk_west_service_for_tests(
 ):
     """Create a ZmkWestService with test-friendly defaults."""
     from unittest.mock import Mock
+
     from glovebox.adapters import create_docker_adapter, create_file_adapter
+    from glovebox.compilation.services.zmk_west_service import create_zmk_west_service
     from glovebox.config import create_user_config
     from glovebox.core.cache_v2 import create_default_cache
-    from glovebox.compilation.services.zmk_west_service import create_zmk_west_service
 
     if user_config is None:
         user_config = create_user_config()

@@ -8,7 +8,7 @@ import pytest
 
 from glovebox.config.flash_methods import USBFlashConfig
 from glovebox.firmware.flash.models import BlockDevice, FlashResult
-from glovebox.firmware.flash.service import FlashService
+from glovebox.firmware.flash.service import FlashService, create_flash_service
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.protocols.flash_protocols import FlasherProtocol
 from tests.test_factories import create_flash_service_for_tests
@@ -926,30 +926,40 @@ class TestCreateFlashService:
     """Test the create_flash_service factory function."""
 
     @patch("glovebox.firmware.flash.service.FlashService")
-    def test_create_flash_service_default(self, mock_flash_service_class):
-        """Test creating flash service with default parameters."""
+    def test_create_flash_service_default(
+        self, mock_flash_service_class, mock_file_adapter, mock_device_wait_service
+    ):
+        """Test creating flash service with required parameters."""
         mock_service = Mock()
         mock_flash_service_class.return_value = mock_service
 
-        service = create_flash_service()
+        service = create_flash_service(mock_file_adapter, mock_device_wait_service)
 
         mock_flash_service_class.assert_called_once_with(
-            file_adapter=None, loglevel="INFO"
+            file_adapter=mock_file_adapter,
+            device_wait_service=mock_device_wait_service,
+            loglevel="INFO",
         )
         assert service is mock_service
 
     @patch("glovebox.firmware.flash.service.FlashService")
     def test_create_flash_service_with_params(
-        self, mock_flash_service_class, mock_file_adapter
+        self, mock_flash_service_class, mock_file_adapter, mock_device_wait_service
     ):
         """Test creating flash service with custom parameters."""
         mock_service = Mock()
         mock_flash_service_class.return_value = mock_service
 
-        service = create_flash_service(file_adapter=mock_file_adapter, loglevel="DEBUG")
+        service = create_flash_service(
+            file_adapter=mock_file_adapter,
+            device_wait_service=mock_device_wait_service,
+            loglevel="DEBUG",
+        )
 
         mock_flash_service_class.assert_called_once_with(
-            file_adapter=mock_file_adapter, loglevel="DEBUG"
+            file_adapter=mock_file_adapter,
+            device_wait_service=mock_device_wait_service,
+            loglevel="DEBUG",
         )
         assert service is mock_service
 

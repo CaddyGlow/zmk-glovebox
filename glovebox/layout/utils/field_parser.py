@@ -203,6 +203,7 @@ def set_field_value_on_model(model: Any, field_path: str, value: Any) -> None:
             except AttributeError:
                 raise KeyError(f"Field '{final_part}' not found") from None
 
+
 def unset_field_value_on_model(model: Any, field_path: str) -> None:
     """Remove a field value from a Pydantic model.
 
@@ -255,7 +256,9 @@ def unset_field_value_on_model(model: Any, field_path: str) -> None:
                 if 0 <= index < len(current):
                     current.pop(index)
                 else:
-                    raise ValueError(f"Index {index} out of range for list of length {len(current)}")
+                    raise ValueError(
+                        f"Index {index} out of range for list of length {len(current)}"
+                    )
             else:
                 raise ValueError(
                     f"Cannot remove index from non-list value with [{index_str}]"

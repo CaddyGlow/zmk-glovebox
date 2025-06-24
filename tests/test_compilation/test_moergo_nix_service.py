@@ -7,7 +7,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from tests.test_factories import create_moergo_nix_service_for_tests
 from glovebox.compilation.models import MoergoCompilationConfig, ZmkCompilationConfig
 from glovebox.compilation.services.moergo_nix_service import (
     MoergoNixService,
@@ -17,6 +16,7 @@ from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.models.docker import DockerUserContext
 from glovebox.models.docker_path import DockerPath
 from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
+from tests.test_factories import create_moergo_nix_service_for_tests
 
 
 @pytest.fixture
@@ -122,7 +122,9 @@ class TestMoergoNixServiceInit:
         assert moergo_service.file_adapter is not None
         assert isinstance(moergo_service.logger, logging.Logger)
 
-    def test_create_moergo_nix_service_factory(self, mock_docker_adapter, mock_file_adapter):
+    def test_create_moergo_nix_service_factory(
+        self, mock_docker_adapter, mock_file_adapter
+    ):
         """Test factory function creates service correctly."""
         service = create_moergo_nix_service(mock_docker_adapter, mock_file_adapter)
 
@@ -133,9 +135,7 @@ class TestMoergoNixServiceInit:
 class TestMoergoNixServiceBasicMethods:
     """Test basic service methods."""
 
-    def test_validate_config_valid_moergo(
-        self, moergo_service, sample_moergo_config
-    ):
+    def test_validate_config_valid_moergo(self, moergo_service, sample_moergo_config):
         """Test config validation with valid MoergoCompilationConfig."""
         service = moergo_service
 
@@ -171,6 +171,7 @@ class TestMoergoNixServiceBasicMethods:
     def test_check_available_no_adapter(self):
         """Test availability check with None adapter."""
         from glovebox.compilation.services.moergo_nix_service import MoergoNixService
+
         service = MoergoNixService(
             docker_adapter=None,  # type: ignore[arg-type]
             file_adapter=None,  # type: ignore[arg-type]

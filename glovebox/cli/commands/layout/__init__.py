@@ -73,7 +73,6 @@ layout_app.command()(show)
 layout_app.command()(edit)
 
 
-
 # Register file operations
 layout_app.command()(split)
 layout_app.command()(merge)
