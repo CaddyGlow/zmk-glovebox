@@ -1,4 +1,4 @@
-.PHONY: test lint format fmt coverage setup clean docs docs-clean docs-live help
+.PHONY: test lint format fmt coverage setup clean docs docs-clean docs-live view-docs build check-package publish publish-test help
 
 help:
 	@echo "Available commands:"
@@ -12,6 +12,10 @@ help:
 	@echo "  make docs-clean - Clean documentation build artifacts"
 	@echo "  make docs-live  - Build documentation with live reload"
 	@echo "  make view-docs - Build and open documentation in browser"
+	@echo "  make build      - Build package for distribution"
+	@echo "  make check-package - Check package metadata and readiness"
+	@echo "  make publish    - Build and publish package to PyPI"
+	@echo "  make publish-test - Build and publish package to TestPyPI"
 
 test:
 	uv run scripts/test.sh
@@ -30,7 +34,7 @@ setup:
 	./scripts/setup.sh
 
 clean:
-	rm -rf build/artifacts/* htmlcov/ .coverage .pytest_cache/ *.egg-info/
+	rm -rf build/ htmlcov/ .coverage .pytest_cache/ *.egg-info/ dist/
 
 docs:
 	uv run sphinx-build -b html docs docs/_build/html --keep-going -q
@@ -43,3 +47,20 @@ docs-live:
 
 view-docs:
 	./scripts/view-docs.sh
+
+build:
+	./scripts/build.sh
+
+check-package:
+	./scripts/check-package.sh
+
+publish: build
+	@echo "Publishing to PyPI..."
+	@echo "WARNING: This will publish to the live PyPI repository!"
+	@echo "Make sure you want to proceed with this release."
+	@read -p "Continue? (y/N): " confirm && [ "$$confirm" = "y" ] || exit 1
+	uv publish
+
+publish-test: build
+	@echo "Publishing to TestPyPI..."
+	uv publish --index-url https://test.pypi.org/legacy/
