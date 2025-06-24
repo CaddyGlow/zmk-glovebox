@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from glovebox.config import UserConfig, create_user_config
+from glovebox.config import UserConfig
 from glovebox.layout.diffing.diff import LayoutDiffSystem
 from glovebox.layout.diffing.patch import LayoutPatchSystem
 from glovebox.layout.models import LayoutData
@@ -20,9 +20,9 @@ from glovebox.layout.utils.validation import validate_output_path
 class LayoutComparisonService:
     """Service for comparing and patching layouts using the new diffing library."""
 
-    def __init__(self, user_config: UserConfig | None = None) -> None:
+    def __init__(self, user_config: UserConfig) -> None:
         """Initialize the comparison service with user configuration."""
-        self.user_config = user_config or create_user_config()
+        self.user_config = user_config
         self.diff_system = LayoutDiffSystem()
         self.patch_system = LayoutPatchSystem()
 
@@ -506,7 +506,7 @@ class LayoutComparisonService:
 
 
 def create_layout_comparison_service(
-    user_config: UserConfig | None = None,
+    user_config: UserConfig,
 ) -> LayoutComparisonService:
     """Factory function to create a layout comparison service."""
     return LayoutComparisonService(user_config)

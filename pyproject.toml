@@ -45,6 +45,12 @@ dev = [
   "tox>=4.26.0",
   "types-PyYAML>=6.0.12.12",
   "types-requests>=2.32.4.20250611",
+  "sphinx>=8.2.3",
+  "sphinx-autoapi>=3.6.0",
+  "sphinx-rtd-theme>=3.0.2",
+  "sphinx-autobuild>=2024.10.3",
+  "myst-parser>=4.0.1",
+  "linkify-it-py>=2.0.0",
 ]
 
 [tool.hatch.version]

@@ -174,8 +174,12 @@ def create_moergo_client(
     Returns:
         Configured MoErgo client
     """
-    cache = None
     if user_config is not None:
-        cache = create_cache_from_user_config(user_config)
+        cache = create_cache_from_user_config(user_config, tag="moergo")
+    else:
+        from glovebox.config import create_user_config
+
+        default_user_config = create_user_config()
+        cache = create_cache_from_user_config(default_user_config._config, tag="moergo")
 
     return MoErgoClient(credential_manager, cache)

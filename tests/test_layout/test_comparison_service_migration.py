@@ -147,9 +147,11 @@ class TestComparisonServiceMigration:
         if temp_dir.exists():
             shutil.rmtree(temp_dir)
 
-    def test_service_compare_layouts_summary_format(self, temp_layout_files):
+    def test_service_compare_layouts_summary_format(
+        self, temp_layout_files, isolated_config
+    ):
         """Test comparison service with summary format."""
-        service = create_layout_comparison_service()
+        service = create_layout_comparison_service(isolated_config)
         result = service.compare_layouts(
             temp_layout_files["base"],
             temp_layout_files["single_change"],
@@ -178,9 +180,11 @@ class TestComparisonServiceMigration:
         assert "layer_0" in layers["changed"]
         assert layers["changed"]["layer_0"]["total_key_differences"] == 1
 
-    def test_service_compare_layouts_json_format(self, temp_layout_files):
+    def test_service_compare_layouts_json_format(
+        self, temp_layout_files, isolated_config
+    ):
         """Test comparison service with JSON format."""
-        service = create_layout_comparison_service()
+        service = create_layout_comparison_service(isolated_config)
         result = service.compare_layouts(
             temp_layout_files["base"],
             temp_layout_files["multiple_changes"],
@@ -199,9 +203,9 @@ class TestComparisonServiceMigration:
         replacement_ops = [op for op in json_patch if op["op"] == "replace"]
         assert len(replacement_ops) >= 3  # At least Q->A, E->D, N1->EXCL
 
-    def test_service_apply_patch_round_trip(self, temp_layout_files):
+    def test_service_apply_patch_round_trip(self, temp_layout_files, isolated_config):
         """Test that applying a patch recreates the target layout."""
-        service = create_layout_comparison_service()
+        service = create_layout_comparison_service(isolated_config)
 
         # Create diff
         diff_result = service.compare_layouts(
@@ -523,9 +527,9 @@ class TestComparisonServiceMigration:
         # JSON format should report consistent change count
         assert results["json"] > 0, "Should detect changes in JSON format"
 
-    def test_layer_reordering_detection(self, temp_layout_files):
+    def test_layer_reordering_detection(self, temp_layout_files, isolated_config):
         """Test detection of layer reordering changes."""
-        service = create_layout_comparison_service()
+        service = create_layout_comparison_service(isolated_config)
         result = service.compare_layouts(
             temp_layout_files["base"],
             temp_layout_files["layer_reorder"],
@@ -540,9 +544,9 @@ class TestComparisonServiceMigration:
         assert result["deepdiff_summary"]["has_changes"] is True
         assert result["deepdiff_summary"]["total_changes"] > 0
 
-    def test_service_api_compatibility(self, temp_layout_files):
+    def test_service_api_compatibility(self, temp_layout_files, isolated_config):
         """Test that the service maintains API compatibility with the old interface."""
-        service = create_layout_comparison_service()
+        service = create_layout_comparison_service(isolated_config)
 
         # Test all the main methods exist and work
         result = service.compare_layouts(

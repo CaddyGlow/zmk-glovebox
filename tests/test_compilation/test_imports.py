@@ -29,7 +29,7 @@ def test_protocol_imports():
     assert CompilationServiceProtocol is not None
 
 
-def test_factory_functions_exist():
+def test_factory_functions_exist(isolated_config):
     """Test that factory functions exist and work correctly."""
     from glovebox.compilation import (
         create_compilation_service,
@@ -38,7 +38,7 @@ def test_factory_functions_exist():
     )
 
     # ZMK config service is implemented
-    zmk_service = create_zmk_west_service()
+    zmk_service = create_zmk_west_service(isolated_config)
     assert zmk_service is not None
 
     # Moergo service is implemented
@@ -46,17 +46,17 @@ def test_factory_functions_exist():
     assert moergo_service is not None
 
     # Test compilation service factory with different strategies
-    zmk_service_via_factory = create_compilation_service("zmk_config")
+    zmk_service_via_factory = create_compilation_service("zmk_config", isolated_config)
     assert zmk_service_via_factory is not None
 
     # Test that unsupported strategies raise ValueError
     with pytest.raises(
         ValueError, match="Unknown compilation strategy.*Supported strategies"
     ):
-        create_compilation_service("unsupported_strategy")
+        create_compilation_service("unsupported_strategy", isolated_config)
 
     # Test that moergo strategy works
-    moergo_service_via_factory = create_compilation_service("moergo")
+    moergo_service_via_factory = create_compilation_service("moergo", isolated_config)
     assert moergo_service_via_factory is not None
 
 
