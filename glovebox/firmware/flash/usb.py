@@ -64,7 +64,15 @@ class FirmwareFlasherImpl:
         self._device_event = threading.Event()
         self._current_device: BlockDevice | None = None
         self._flashed_devices: set[str] = set()
-        self._detector = detector or create_device_detector()
+        if detector is None:
+            # Import here to avoid circular import
+            from glovebox.firmware.flash.device_detector import MountPointCache
+            from glovebox.firmware.flash.usb_monitor import create_usb_monitor
+
+            usb_monitor = create_usb_monitor()
+            mount_cache = MountPointCache()
+            detector = create_device_detector(usb_monitor, mount_cache)
+        self._detector = detector
 
     def _extract_device_id(self, device: BlockDevice) -> str:
         """Extract a unique device ID for tracking."""

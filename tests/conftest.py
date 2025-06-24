@@ -817,9 +817,6 @@ def mock_layout_service() -> Mock:
     return mock
 
 
-
-
-
 @pytest.fixture(scope="function")
 def mock_flash_service() -> Mock:
     """Mock FlashService with common behaviors."""

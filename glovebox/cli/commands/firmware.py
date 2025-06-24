@@ -106,10 +106,17 @@ def _execute_compilation_service(
     user_config: Any = None,
 ) -> Any:
     """Execute the compilation service."""
+    from glovebox.adapters import create_docker_adapter, create_file_adapter
     from glovebox.compilation import create_compilation_service
 
+    docker_adapter = create_docker_adapter()
+    file_adapter = create_file_adapter()
     compilation_service = create_compilation_service(
-        compilation_strategy, user_config=user_config, session_metrics=session_metrics
+        compilation_strategy,
+        user_config=user_config,
+        docker_adapter=docker_adapter,
+        file_adapter=file_adapter,
+        session_metrics=session_metrics
     )
 
     # Use unified config directly - no conversion needed
@@ -136,10 +143,17 @@ def _execute_compilation_from_json(
     user_config: Any = None,
 ) -> Any:
     """Execute compilation from JSON layout file."""
+    from glovebox.adapters import create_docker_adapter, create_file_adapter
     from glovebox.compilation import create_compilation_service
 
+    docker_adapter = create_docker_adapter()
+    file_adapter = create_file_adapter()
     compilation_service = create_compilation_service(
-        compilation_strategy, user_config=user_config, session_metrics=session_metrics
+        compilation_strategy,
+        user_config=user_config,
+        docker_adapter=docker_adapter,
+        file_adapter=file_adapter,
+        session_metrics=session_metrics
     )
 
     # Use the new compile_from_json method
@@ -572,7 +586,14 @@ def flash(
                 )
 
             # Use the new file-based method which handles file existence checks
-            flash_service = create_flash_service()
+            from glovebox.adapters import create_file_adapter
+            from glovebox.firmware.flash.device_wait_service import (
+                create_device_wait_service,
+            )
+
+            file_adapter = create_file_adapter()
+            device_wait_service = create_device_wait_service()
+            flash_service = create_flash_service(file_adapter, device_wait_service)
             result = flash_service.flash_from_file(
                 firmware_file_path=firmware_file,
                 profile=keyboard_profile,
@@ -644,7 +665,12 @@ def list_devices(
     output_format: OutputFormatOption = "text",
 ) -> None:
     """List available devices for flashing."""
-    flash_service = create_flash_service()
+    from glovebox.adapters import create_file_adapter
+    from glovebox.firmware.flash.device_wait_service import create_device_wait_service
+
+    file_adapter = create_file_adapter()
+    device_wait_service = create_device_wait_service()
+    flash_service = create_flash_service(file_adapter, device_wait_service)
 
     try:
         # Get the keyboard profile from context

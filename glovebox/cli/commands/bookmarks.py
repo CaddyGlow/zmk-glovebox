@@ -458,9 +458,15 @@ def flash(
                 )
 
                 # Flash the firmware
+                from glovebox.adapters import create_file_adapter
                 from glovebox.firmware.flash import create_flash_service
+                from glovebox.firmware.flash.device_wait_service import (
+                    create_device_wait_service,
+                )
 
-                flash_service = create_flash_service()
+                file_adapter = create_file_adapter()
+                device_wait_service = create_device_wait_service()
+                flash_service = create_flash_service(file_adapter, device_wait_service)
 
                 typer.echo("⚡ Flashing firmware to keyboard...")
                 flash_result = flash_service.flash_from_file(

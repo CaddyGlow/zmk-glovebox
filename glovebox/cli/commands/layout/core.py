@@ -4,7 +4,11 @@ import json
 import logging
 from pathlib import Path
 from tempfile import gettempdir, tempdir
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
+
+
+if TYPE_CHECKING:
+    from glovebox.layout.service import LayoutService
 
 import typer
 
@@ -45,7 +49,7 @@ from glovebox.layout.zmk_generator import ZmkFileContentGenerator
 logger = logging.getLogger(__name__)
 
 
-def _create_layout_service_with_dependencies():
+def _create_layout_service_with_dependencies() -> "LayoutService":
     """Create a layout service with all required dependencies."""
     file_adapter = create_file_adapter()
     template_adapter = create_template_adapter()

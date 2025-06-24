@@ -10,6 +10,7 @@ from typing import Annotated, Optional
 
 import typer
 
+from glovebox.adapters import create_file_adapter
 from glovebox.layout.utils.json_operations import load_layout_file
 from glovebox.moergo.client import create_moergo_client
 
@@ -57,7 +58,8 @@ def upload(
 
     # Load the layout file
     try:
-        layout_data = load_layout_file(layout_file)
+        file_adapter = create_file_adapter()
+        layout_data = load_layout_file(layout_file, file_adapter)
     except Exception as e:
         typer.echo(
             Icons.format_with_icon("ERROR", f"Error loading layout file: {e}", "emoji")
