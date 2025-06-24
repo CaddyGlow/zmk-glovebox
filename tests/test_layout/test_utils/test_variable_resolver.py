@@ -165,7 +165,7 @@ class TestVariableResolver:
             ],
         }
 
-        resolver = VariableResolver(layout_data["variables"])
+        resolver = VariableResolver({"timing": 190, "flavor": "tap-preferred"})
         result = resolver.flatten_layout(layout_data)
 
         # Variables section should be removed
@@ -204,7 +204,9 @@ class TestVariableResolver:
             "combos": [{"name": "test_combo", "timeoutMs": "${timing}"}],
         }
 
-        resolver = VariableResolver(layout_data["variables"])
+        resolver = VariableResolver(
+            {"timing": 190, "flavor": "tap-preferred", "unused": "value"}
+        )
         usage = resolver.get_variable_usage(layout_data)
 
         # timing should be used in 2 places
@@ -233,7 +235,7 @@ class TestVariableResolver:
             ],
         }
 
-        resolver = VariableResolver(layout_data["variables"])
+        resolver = VariableResolver({"timing": 190, "unused": "value"})
         errors = resolver.validate_variables(layout_data)
 
         # Should have errors for undefined variable and unused variable
@@ -331,7 +333,13 @@ class TestVariableResolverIntegration:
             ],
         }
 
-        resolver = VariableResolver(layout_data["variables"])
+        resolver = VariableResolver(
+            {
+                "fast_timing": 130,
+                "normal_timing": 190,
+                "tap_flavor": "tap-preferred",
+            }
+        )
         result = resolver.resolve_object(layout_data)
 
         # Check that variables are resolved correctly
@@ -358,7 +366,7 @@ class TestVariableResolverIntegration:
             ],
         }
 
-        resolver = VariableResolver(layout_data["variables"])
+        resolver = VariableResolver({"combo_timeout": 40, "esc_positions": [0, 1]})
         result = resolver.resolve_object(layout_data)
 
         assert result["combos"][0]["timeoutMs"] == 40
@@ -382,7 +390,7 @@ class TestVariableResolverIntegration:
             ],
         }
 
-        resolver = VariableResolver(layout_data["variables"])
+        resolver = VariableResolver({"macro_wait": 10, "macro_tap": 5})
         result = resolver.resolve_object(layout_data)
 
         assert result["macros"][0]["waitMs"] == 10

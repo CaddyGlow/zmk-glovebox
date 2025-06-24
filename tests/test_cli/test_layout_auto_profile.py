@@ -45,9 +45,7 @@ def test_layout_compile_auto_profile_detection(
         patch(
             "glovebox.cli.helpers.profile.create_profile_from_option"
         ) as mock_create_profile,
-        patch(
-            "glovebox.layout.service.create_layout_service"
-        ) as mock_create_service,
+        patch("glovebox.layout.service.create_layout_service") as mock_create_service,
         patch(
             "glovebox.cli.helpers.profile.get_user_config_from_context"
         ) as mock_get_user_config,
@@ -84,7 +82,7 @@ def test_layout_compile_auto_profile_detection(
 
         # Verify auto-profile detection worked by checking the output
         assert "Auto-detected profile from JSON: corne" in cmd_result.output
-        
+
         # The command should fail due to invalid JSON structure in test, but that's OK
         # We've verified that auto-profile detection was triggered
         assert cmd_result.exit_code == 1
@@ -104,9 +102,7 @@ def test_layout_compile_no_auto_flag_disables_detection(
         patch(
             "glovebox.cli.helpers.profile.create_profile_from_option"
         ) as mock_create_profile,
-        patch(
-            "glovebox.layout.service.create_layout_service"
-        ) as mock_create_service,
+        patch("glovebox.layout.service.create_layout_service") as mock_create_service,
         patch(
             "glovebox.cli.helpers.profile.get_user_config_from_context"
         ) as mock_get_user_config,
@@ -166,9 +162,7 @@ def test_layout_validate_auto_profile_detection(cli_runner, sample_json_layout):
         patch(
             "glovebox.cli.helpers.profile.create_profile_from_option"
         ) as mock_create_profile,
-        patch(
-            "glovebox.layout.service.create_layout_service"
-        ) as mock_create_service,
+        patch("glovebox.layout.service.create_layout_service") as mock_create_service,
         patch(
             "glovebox.cli.helpers.profile.get_user_config_from_context"
         ) as mock_get_user_config,
@@ -214,9 +208,7 @@ def test_layout_show_auto_profile_detection(cli_runner, sample_json_layout):
         patch(
             "glovebox.cli.helpers.profile.create_profile_from_option"
         ) as mock_create_profile,
-        patch(
-            "glovebox.layout.service.create_layout_service"
-        ) as mock_create_service,
+        patch("glovebox.layout.service.create_layout_service") as mock_create_service,
         patch(
             "glovebox.cli.helpers.profile.get_user_config_from_context"
         ) as mock_get_user_config,
@@ -265,9 +257,7 @@ def test_layout_split_auto_profile_detection(cli_runner, sample_json_layout, tmp
         patch(
             "glovebox.cli.helpers.profile.create_profile_from_option"
         ) as mock_create_profile,
-        patch(
-            "glovebox.layout.service.create_layout_service"
-        ) as mock_create_service,
+        patch("glovebox.layout.service.create_layout_service") as mock_create_service,
         patch(
             "glovebox.cli.helpers.profile.get_user_config_from_context"
         ) as mock_get_user_config,
@@ -321,9 +311,7 @@ def test_layout_commands_cli_profile_overrides_auto_detection(
         patch(
             "glovebox.cli.helpers.profile.create_profile_from_option"
         ) as mock_create_profile,
-        patch(
-            "glovebox.layout.service.create_layout_service"
-        ) as mock_create_service,
+        patch("glovebox.layout.service.create_layout_service") as mock_create_service,
         patch(
             "glovebox.cli.helpers.profile.get_user_config_from_context"
         ) as mock_get_user_config,

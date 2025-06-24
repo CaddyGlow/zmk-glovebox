@@ -474,7 +474,6 @@ class ZmkFileContentGenerator:
         if not layers_data:
             return ""
 
-
         # Create the keymap opening
         keymap_compatible = profile.keyboard_config.zmk.compatible_strings.keymap
         dtsi_parts = ["keymap {", f'    compatible = "{keymap_compatible}";']
@@ -516,7 +515,7 @@ class ZmkFileContentGenerator:
 
     def generate_kconfig_conf(
         self, keymap_data: "LayoutData", profile: "KeyboardProfile"
-    ) -> tuple[str, dict[str, str]]:
+    ) -> tuple[str, dict[str, str | int]]:
         """Generate kconfig content and settings from keymap data.
 
         Args:

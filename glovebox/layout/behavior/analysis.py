@@ -165,7 +165,7 @@ def register_layout_behaviors(
 
     # Track registered behaviors for summary logging
     registered_behaviors: list[str] = []
-    
+
     # Register system behaviors from profile
     for behavior in profile.system_behaviors:
         behavior_registry.register_behavior(behavior)

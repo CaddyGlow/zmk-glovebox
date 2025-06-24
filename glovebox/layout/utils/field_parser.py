@@ -70,7 +70,7 @@ def _resolve_pydantic_field_alias(model: Any, field_name: str) -> str | None:
     for python_name, field_info in model.model_fields.items():
         # Check if field_name matches the alias
         if hasattr(field_info, "alias") and field_info.alias == field_name:
-            return python_name
+            return str(python_name)
 
     return None
 

@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from glovebox.core.file_operations import CopyStrategy
+from glovebox.core.file_operations import CopyStrategyProtocol
 from glovebox.core.file_operations.strategies import (
     BaselineCopyStrategy,
     BufferedCopyStrategy,
@@ -260,7 +260,7 @@ class TestStrategyIntegration:
 
     def test_all_strategies_handle_empty_directory(self, tmp_path):
         """Test all strategies handle empty directory correctly."""
-        strategies = [
+        strategies: list[CopyStrategyProtocol] = [
             BaselineCopyStrategy(),
             BufferedCopyStrategy(),
         ]
@@ -284,7 +284,7 @@ class TestStrategyIntegration:
 
     def test_all_strategies_preserve_file_metadata(self, tmp_path):
         """Test all strategies preserve file metadata."""
-        strategies = [
+        strategies: list[CopyStrategyProtocol] = [
             BaselineCopyStrategy(),
             BufferedCopyStrategy(),
         ]

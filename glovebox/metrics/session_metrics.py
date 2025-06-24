@@ -364,7 +364,6 @@ class SessionMetrics:
         self.exit_code: int | None = None
         self.cli_args: list[str] = []
 
-
     def Counter(  # noqa: N802
         self, name: str, description: str, labelnames: list[str] | None = None
     ) -> SessionCounter:
@@ -473,7 +472,9 @@ class SessionMetrics:
 
             # Store in cache with TTL (cache.set returns None on success)
             self.cache_manager.set(self.session_uuid, data, ttl=self.ttl_seconds)
-            logger.debug("Saved session metrics to cache with key: %s", self.session_uuid)
+            logger.debug(
+                "Saved session metrics to cache with key: %s", self.session_uuid
+            )
 
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)

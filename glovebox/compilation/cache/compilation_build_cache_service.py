@@ -163,7 +163,6 @@ class CompilationBuildCacheService:
             Path to cached build directory, or None if not found
         """
         try:
-
             cached_data = self.cache_manager.get(cache_key)
             if not cached_data:
                 self.logger.debug("No cached data found for key: %s", cache_key)

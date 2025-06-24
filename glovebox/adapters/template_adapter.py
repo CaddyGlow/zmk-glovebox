@@ -43,7 +43,6 @@ class TemplateAdapter:
         try:
             from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
-
             # Create Jinja2 environment
             env = Environment(
                 loader=FileSystemLoader(template_path.parent),
@@ -86,11 +85,8 @@ class TemplateAdapter:
     def render_string(self, template_string: str, context: dict[str, Any]) -> str:
         """Render a Jinja2 template string with the given context."""
         try:
-            from jinja2 import Environment
-
-
             # Create Jinja2 environment
-            from jinja2 import StrictUndefined
+            from jinja2 import Environment, StrictUndefined
 
             env = Environment(
                 trim_blocks=self.trim_blocks,

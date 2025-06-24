@@ -31,7 +31,7 @@ def sample_layout_with_behaviors():
             HoldTapBehavior(
                 name="&fast_ht",
                 description="Fast hold-tap for modifiers",
-                tapping_term_ms=130,
+                tappingTermMs=130,
                 flavor="tap-preferred",
                 bindings=["&kp", "&mo"],
             )
@@ -82,7 +82,7 @@ class TestBehaviorData:
             variables={"timing": 150},
             holdTaps=[
                 HoldTapBehavior(
-                    name="&ht_test", tapping_term_ms=150, bindings=["&kp", "&mo"]
+                    name="&ht_test", tappingTermMs=150, bindings=["&kp", "&mo"]
                 )
             ],
         )
