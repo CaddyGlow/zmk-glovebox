@@ -387,5 +387,4 @@ def create_docker_adapter() -> DockerAdapterProtocol:
         >>> if adapter.is_available():
         ...     adapter.run_container("ubuntu:latest", [], {})
     """
-    logger.debug("Creating DockerAdapter")
     return DockerAdapter()

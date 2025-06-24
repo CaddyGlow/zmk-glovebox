@@ -46,8 +46,6 @@ def generate_config_file(
     if kconfig_settings:
         options_summary = " | ".join(f"{k}={v}" for k, v in kconfig_settings.items())
         logger.debug("Generated Kconfig with %d options: %s", len(kconfig_settings), options_summary)
-    else:
-        logger.debug("Generated Kconfig file (no custom options set)")
     
     return kconfig_settings
 
@@ -253,7 +251,6 @@ def generate_keymap_file(
         from .core_operations import resolve_template_file_path
 
         template_path = resolve_template_file_path(profile.keyboard_name, template_file)
-        logger.debug("Resolved template path: %s", template_path)
         keymap_content = template_adapter.render_template(template_path, context)
     else:
         raise LayoutError(

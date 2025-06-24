@@ -375,7 +375,6 @@ class SessionMetrics:
         counter = SessionCounter(name, description, labelnames, registry=self)
         self._counters[name] = counter
 
-        logger.debug("Created counter: %s with labels: %s", name, labelnames)
         return counter
 
     def Gauge(  # noqa: N802
@@ -388,7 +387,6 @@ class SessionMetrics:
         gauge = SessionGauge(name, description, labelnames, registry=self)
         self._gauges[name] = gauge
 
-        logger.debug("Created gauge: %s with labels: %s", name, labelnames)
         return gauge
 
     def Histogram(  # noqa: N802
@@ -401,7 +399,6 @@ class SessionMetrics:
         histogram = SessionHistogram(name, description, buckets, registry=self)
         self._histograms[name] = histogram
 
-        logger.debug("Created histogram: %s with buckets: %s", name, buckets)
         return histogram
 
     def Summary(self, name: str, description: str) -> SessionSummary:  # noqa: N802
@@ -422,7 +419,6 @@ class SessionMetrics:
             exit_code: The exit code (0 for success, non-zero for error)
         """
         self.exit_code = exit_code
-        logger.debug("Set session exit code: %d", exit_code)
 
     def set_cli_args(self, cli_args: list[str]) -> None:
         """Set the CLI arguments for this session.
@@ -431,7 +427,6 @@ class SessionMetrics:
             cli_args: List of CLI arguments (typically sys.argv)
         """
         self.cli_args = cli_args.copy()  # Make a copy to avoid external mutations
-        logger.debug("Set session CLI args: %s", cli_args)
 
     def _record_update(
         self,
@@ -478,9 +473,7 @@ class SessionMetrics:
 
             # Store in cache with TTL (cache.set returns None on success)
             self.cache_manager.set(self.session_uuid, data, ttl=self.ttl_seconds)
-            logger.info(
-                "Saved session metrics to cache with key: %s", self.session_uuid
-            )
+            logger.debug("Saved session metrics to cache with key: %s", self.session_uuid)
 
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)

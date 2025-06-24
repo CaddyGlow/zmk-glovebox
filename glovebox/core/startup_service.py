@@ -36,7 +36,6 @@ class StartupService:
             result = version_checker.check_for_updates()
 
             if result.check_disabled:
-                self.logger.debug("ZMK version checks are disabled")
                 return
 
             if result.has_update and result.latest_version:

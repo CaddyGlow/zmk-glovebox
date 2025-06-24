@@ -103,12 +103,13 @@ def _execute_compilation_service(
     compile_config: CompilationConfigUnion,
     keyboard_profile: "KeyboardProfile",
     session_metrics: Any = None,
+    user_config: Any = None,
 ) -> Any:
     """Execute the compilation service."""
     from glovebox.compilation import create_compilation_service
 
     compilation_service = create_compilation_service(
-        compilation_strategy, session_metrics=session_metrics
+        compilation_strategy, session_metrics=session_metrics, user_config=user_config
     )
 
     # Use unified config directly - no conversion needed
@@ -132,12 +133,13 @@ def _execute_compilation_from_json(
     compile_config: CompilationConfigUnion,
     keyboard_profile: "KeyboardProfile",
     session_metrics: Any = None,
+    user_config: Any = None,
 ) -> Any:
     """Execute compilation from JSON layout file."""
     from glovebox.compilation import create_compilation_service
 
     compilation_service = create_compilation_service(
-        compilation_strategy, session_metrics=session_metrics
+        compilation_strategy, session_metrics=session_metrics, user_config=user_config
     )
 
     # Use the new compile_from_json method
@@ -363,6 +365,7 @@ def firmware_compile(
                     compile_config,
                     keyboard_profile,
                     session_metrics=ctx.obj.session_metrics,
+                    user_config=user_config,
                 )
             else:
                 assert config_file is not None  # Already validated above
@@ -374,6 +377,7 @@ def firmware_compile(
                     compile_config,
                     keyboard_profile,
                     session_metrics=ctx.obj.session_metrics,
+                    user_config=user_config,
                 )
 
             # Track firmware build if compilation was successful and input was JSON
