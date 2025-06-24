@@ -4,7 +4,7 @@ This domain provides comprehensive compilation services following the
 GitHub Actions workflow pattern for ZMK config builds.
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 # Defer import to avoid circular dependency
 from glovebox.compilation.protocols.compilation_protocols import (
@@ -15,33 +15,56 @@ from glovebox.compilation.protocols.compilation_protocols import (
 if TYPE_CHECKING:
     from glovebox.config.user_config import UserConfig
     from glovebox.metrics.session_metrics import SessionMetrics
+    from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
 
 
 # Simple factory function for direct service selection
 def create_compilation_service(
     strategy: str,
     user_config: "UserConfig",
+    docker_adapter: "DockerAdapterProtocol",
+    file_adapter: "FileAdapterProtocol",
+    cache_manager: Any | None = None,
+    workspace_cache_service: Any | None = None,
+    build_cache_service: Any | None = None,
     session_metrics: "SessionMetrics | None" = None,
 ) -> CompilationServiceProtocol:
-    """Create compilation service for specified strategy.
+    """Create compilation service for specified strategy with explicit dependencies.
 
     Args:
         strategy: Compilation strategy
         user_config: UserConfig instance
+        docker_adapter: Required DockerAdapter instance
+        file_adapter: Required FileAdapter instance
+        cache_manager: Cache manager instance (required for zmk_config strategy)
+        workspace_cache_service: Workspace cache service (required for zmk_config strategy)
+        build_cache_service: Build cache service (required for zmk_config strategy)
         session_metrics: Optional SessionMetrics instance for metrics integration
 
     Returns:
         CompilationServiceProtocol: Configured compilation service
 
     Raises:
-        ValueError: If strategy is not supported
+        ValueError: If strategy is not supported or required dependencies are missing
     """
     if strategy == "zmk_config":
+        if cache_manager is None or workspace_cache_service is None or build_cache_service is None:
+            raise ValueError("ZMK config strategy requires cache_manager, workspace_cache_service, and build_cache_service")
         return create_zmk_west_service(
-            user_config=user_config, session_metrics=session_metrics
+            user_config=user_config,
+            docker_adapter=docker_adapter,
+            file_adapter=file_adapter,
+            cache_manager=cache_manager,
+            workspace_cache_service=workspace_cache_service,
+            build_cache_service=build_cache_service,
+            session_metrics=session_metrics,
         )
     elif strategy == "moergo":
-        return create_moergo_nix_service(session_metrics=session_metrics)
+        return create_moergo_nix_service(
+            docker_adapter=docker_adapter,
+            file_adapter=file_adapter,
+            session_metrics=session_metrics,
+        )
     else:
         raise ValueError(
             f"Unknown compilation strategy: {strategy}. Supported strategies: zmk_config, moergo"
@@ -50,59 +73,62 @@ def create_compilation_service(
 
 def create_zmk_west_service(
     user_config: "UserConfig",
+    docker_adapter: "DockerAdapterProtocol",
+    file_adapter: "FileAdapterProtocol",
+    cache_manager: Any,
+    workspace_cache_service: Any,
+    build_cache_service: Any,
     session_metrics: "SessionMetrics | None" = None,
 ) -> CompilationServiceProtocol:
-    """Create ZMK with West compilation service using shared cache coordination.
+    """Create ZMK with West compilation service with explicit dependencies.
 
     Args:
         user_config: UserConfig instance
+        docker_adapter: Required DockerAdapter instance
+        file_adapter: Required FileAdapter instance
+        cache_manager: Required cache manager instance
+        workspace_cache_service: Required workspace cache service
+        build_cache_service: Required build cache service
         session_metrics: Optional SessionMetrics instance for metrics integration
 
     Returns:
         CompilationServiceProtocol: ZMK config compilation service
     """
-    from glovebox.adapters import create_docker_adapter
     from glovebox.compilation.services.zmk_west_service import (
         create_zmk_west_service,
-    )
-
-    docker_adapter = create_docker_adapter()
-
-    # Use shared cache coordination via domain-specific factory
-    from glovebox.compilation.cache import create_compilation_cache_service
-
-    cache, workspace_service, build_service = create_compilation_cache_service(
-        user_config, session_metrics=session_metrics
     )
 
     return create_zmk_west_service(
         docker_adapter=docker_adapter,
         user_config=user_config,
-        cache_manager=cache,
-        workspace_cache_service=workspace_service,
-        build_cache_service=build_service,
+        file_adapter=file_adapter,
+        cache_manager=cache_manager,
+        workspace_cache_service=workspace_cache_service,
+        build_cache_service=build_cache_service,
         session_metrics=session_metrics,
     )
 
 
 def create_moergo_nix_service(
+    docker_adapter: "DockerAdapterProtocol",
+    file_adapter: "FileAdapterProtocol",
     session_metrics: "SessionMetrics | None" = None,
 ) -> CompilationServiceProtocol:
-    r"""Create simplified Moergo compilation service.
+    r"""Create simplified Moergo compilation service with explicit dependencies.
 
     Args:
+        docker_adapter: Required DockerAdapter instance
+        file_adapter: Required FileAdapter instance
         session_metrics: Optional SessionMetrics instance for metrics integration
 
     Returns:
         CompilationServiceProtocol: Moergo compilation service
     """
-    from glovebox.adapters import create_docker_adapter
     from glovebox.compilation.services.moergo_nix_service import (
         create_moergo_nix_service,
     )
 
-    docker_adapter = create_docker_adapter()
-    return create_moergo_nix_service(docker_adapter)
+    return create_moergo_nix_service(docker_adapter, file_adapter)
 
 
 __all__ = [

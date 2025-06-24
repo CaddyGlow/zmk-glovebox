@@ -455,20 +455,14 @@ class LayoutComponentService(BaseService):
 
 
 def create_layout_component_service(
-    file_adapter: FileAdapterProtocol | None = None,
+    file_adapter: FileAdapterProtocol,
 ) -> LayoutComponentService:
-    """Create a LayoutComponentService instance with optional dependency injection.
+    """Create a LayoutComponentService instance with explicit dependency injection.
 
     Args:
-        file_adapter: Optional file adapter (creates default if None)
+        file_adapter: Required file adapter for file operations
 
     Returns:
         Configured LayoutComponentService instance
     """
-
-    if file_adapter is None:
-        from glovebox.adapters.file_adapter import create_file_adapter
-
-        file_adapter = create_file_adapter()
-
     return LayoutComponentService(file_adapter)

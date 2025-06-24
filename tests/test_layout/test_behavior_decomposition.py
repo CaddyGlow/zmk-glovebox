@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from glovebox.layout.component_service import create_layout_component_service
+from tests.test_factories import create_layout_component_service_for_tests
 from glovebox.layout.models import (
     BehaviorData,
     ComboBehavior,
@@ -163,7 +163,7 @@ class TestBehaviorDecomposition:
         self, sample_layout_with_behaviors, tmp_path
     ):
         """Test decomposing a layout that contains behavior definitions."""
-        component_service = create_layout_component_service()
+        component_service = create_layout_component_service_for_tests()
 
         result = component_service.decompose_components(
             sample_layout_with_behaviors, tmp_path
@@ -189,7 +189,7 @@ class TestBehaviorDecomposition:
         self, sample_layout_without_behaviors, tmp_path
     ):
         """Test decomposing a layout that has no behavior definitions."""
-        component_service = create_layout_component_service()
+        component_service = create_layout_component_service_for_tests()
 
         result = component_service.decompose_components(
             sample_layout_without_behaviors, tmp_path
@@ -205,7 +205,7 @@ class TestBehaviorDecomposition:
         self, sample_layout_with_behaviors, tmp_path
     ):
         """Test that metadata.json excludes behavior fields."""
-        component_service = create_layout_component_service()
+        component_service = create_layout_component_service_for_tests()
 
         component_service.decompose_components(sample_layout_with_behaviors, tmp_path)
 
@@ -237,7 +237,7 @@ class TestBehaviorDecomposition:
         self, sample_layout_with_behaviors, tmp_path
     ):
         """Test that decomposition creates the expected directory structure."""
-        component_service = create_layout_component_service()
+        component_service = create_layout_component_service_for_tests()
 
         component_service.decompose_components(sample_layout_with_behaviors, tmp_path)
 
@@ -256,7 +256,7 @@ class TestBehaviorComposition:
         self, sample_layout_without_behaviors, tmp_path
     ):
         """Test composing components including a behaviors.json file."""
-        component_service = create_layout_component_service()
+        component_service = create_layout_component_service_for_tests()
 
         # Set up component files
         layers_dir = tmp_path / "layers"
@@ -316,7 +316,7 @@ class TestBehaviorComposition:
         self, sample_layout_without_behaviors, tmp_path
     ):
         """Test composing components when no behaviors.json file exists."""
-        component_service = create_layout_component_service()
+        component_service = create_layout_component_service_for_tests()
 
         # Set up component files without behaviors.json
         layers_dir = tmp_path / "layers"
@@ -356,7 +356,7 @@ class TestBehaviorComposition:
         self, sample_layout_with_behaviors, tmp_path
     ):
         """Test that decomposing and then composing preserves behavior data."""
-        component_service = create_layout_component_service()
+        component_service = create_layout_component_service_for_tests()
 
         # Decompose the layout
         decompose_result = component_service.decompose_components(
@@ -393,7 +393,7 @@ class TestBehaviorComposition:
         self, sample_layout_without_behaviors, tmp_path
     ):
         """Test composing when behaviors.json exists but contains invalid data."""
-        component_service = create_layout_component_service()
+        component_service = create_layout_component_service_for_tests()
 
         # Set up component files
         layers_dir = tmp_path / "layers"

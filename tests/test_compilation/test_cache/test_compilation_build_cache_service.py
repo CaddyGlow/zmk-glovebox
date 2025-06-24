@@ -23,20 +23,11 @@ class TestCompilationBuildCacheService:
         return Mock(spec=CacheManager)
 
     @pytest.fixture
-    def mock_user_config(self, tmp_path: Path) -> Mock:
-        """Create a mock user config."""
-        config = Mock(spec=UserConfig)
-        config._config = Mock()
-        config._config.cache_path = tmp_path / "cache"
-        config._config.cache_path.mkdir(parents=True, exist_ok=True)
-        return config
-
-    @pytest.fixture
     def service(
-        self, mock_user_config: Mock, mock_cache_manager: Mock
+        self, isolated_config: UserConfig, mock_cache_manager: Mock
     ) -> CompilationBuildCacheService:
         """Create CompilationBuildCacheService instance."""
-        return CompilationBuildCacheService(mock_user_config, mock_cache_manager)
+        return CompilationBuildCacheService(isolated_config, mock_cache_manager)
 
     @pytest.fixture
     def sample_build_dir(self, tmp_path: Path) -> Path:
@@ -325,11 +316,11 @@ class TestCompilationBuildCacheService:
     def test_get_cache_directory(
         self,
         service: CompilationBuildCacheService,
-        mock_user_config: Mock,
+        isolated_config: UserConfig,
         tmp_path: Path,
     ):
         """Test cache directory path generation."""
-        expected_path = tmp_path / "cache" / "compilation" / "builds"
+        expected_path = isolated_config._config.cache_path / "compilation" / "builds"
         cache_dir = service.get_cache_directory()
 
         assert cache_dir == expected_path
@@ -339,7 +330,7 @@ class TestCompilationBuildCacheService:
         service: CompilationBuildCacheService,
         sample_build_dir: Path,
         mock_cache_manager: Mock,
-        tmp_path: Path,
+        isolated_config: UserConfig,
     ):
         """Test that caching creates proper directory structure."""
         cache_key = "test_cache_key"
@@ -349,23 +340,23 @@ class TestCompilationBuildCacheService:
 
         assert result is True
         # Check that cache directory structure is created
-        expected_cache_dir = tmp_path / "cache" / "compilation" / "builds"
+        expected_cache_dir = isolated_config._config.cache_path / "compilation" / "builds"
         assert expected_cache_dir.exists()
 
     def test_integration_cache_and_retrieve(
         self,
-        mock_user_config: Mock,
+        isolated_config: UserConfig,
+        isolated_cache_environment: dict[str, Any],
         sample_build_dir: Path,
         sample_keymap_file: Path,
         sample_config_file: Path,
-        tmp_path: Path,
     ):
         """Integration test: cache a build and retrieve it."""
         # Use real cache manager for integration test
         from glovebox.core.cache_v2 import create_default_cache
 
         cache_manager = create_default_cache(tag="compilation_test")
-        service = CompilationBuildCacheService(mock_user_config, cache_manager)
+        service = CompilationBuildCacheService(isolated_config, cache_manager)
 
         # Generate cache key
         cache_key = service.generate_cache_key_from_files(

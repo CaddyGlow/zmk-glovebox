@@ -492,40 +492,26 @@ class LayoutService(BaseService):
 
 
 def create_layout_service(
-    file_adapter: FileAdapterProtocol | None = None,
-    template_adapter: TemplateAdapterProtocol | None = None,
-    behavior_registry: BehaviorRegistryProtocol | None = None,
-    component_service: LayoutComponentService | None = None,
-    layout_service: LayoutDisplayService | None = None,
-    behavior_formatter: BehaviorFormatterImpl | None = None,
-    dtsi_generator: ZmkFileContentGenerator | None = None,
+    file_adapter: FileAdapterProtocol,
+    template_adapter: TemplateAdapterProtocol,
+    behavior_registry: BehaviorRegistryProtocol,
+    component_service: LayoutComponentService,
+    layout_service: LayoutDisplayService,
+    behavior_formatter: BehaviorFormatterImpl,
+    dtsi_generator: ZmkFileContentGenerator,
 ) -> LayoutService:
-    """Create a LayoutService instance with optional dependency injection."""
-
-    # Create default dependencies if not provided
-    if file_adapter is None:
-        file_adapter = create_file_adapter()
-
-    if template_adapter is None:
-        template_adapter = create_template_adapter()
-
-    if behavior_registry is None:
-        temp_registry = create_behavior_registry()
-        behavior_registry = temp_registry
-
-    if behavior_formatter is None:
-        behavior_formatter = BehaviorFormatterImpl(behavior_registry)
-
-    if dtsi_generator is None:
-        dtsi_generator = ZmkFileContentGenerator(behavior_formatter)
-
-    if component_service is None:
-        component_service = create_layout_component_service(file_adapter)
-
-    if layout_service is None:
-        layout_service = create_layout_display_service()
-
-    # Create service instance with all dependencies
+    """Create a LayoutService instance with explicit dependency injection.
+    
+    All dependencies are required to ensure proper dependency management.
+    Use other factory functions to create the required dependencies:
+    - create_file_adapter() for file_adapter
+    - create_template_adapter() for template_adapter  
+    - create_behavior_registry() for behavior_registry
+    - create_layout_component_service() for component_service
+    - create_layout_display_service() for layout_service
+    - BehaviorFormatterImpl(behavior_registry) for behavior_formatter
+    - ZmkFileContentGenerator(behavior_formatter) for dtsi_generator
+    """
     return LayoutService(
         file_adapter=file_adapter,
         template_adapter=template_adapter,

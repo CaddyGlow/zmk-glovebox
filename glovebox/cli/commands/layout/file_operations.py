@@ -23,7 +23,37 @@ from glovebox.cli.helpers.profile import (
 )
 from glovebox.layout.layer import create_layout_layer_service
 from glovebox.layout.service import create_layout_service
+from glovebox.layout import (
+    create_layout_component_service,
+    create_layout_display_service,
+    create_grid_layout_formatter,
+    create_behavior_registry,
+)
+from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
+from glovebox.layout.zmk_generator import ZmkFileContentGenerator
+from glovebox.adapters import create_file_adapter, create_template_adapter
 
+
+def _create_layout_service_with_dependencies():
+    """Create a layout service with all required dependencies."""
+    file_adapter = create_file_adapter()
+    template_adapter = create_template_adapter()
+    behavior_registry = create_behavior_registry()
+    behavior_formatter = BehaviorFormatterImpl(behavior_registry)
+    dtsi_generator = ZmkFileContentGenerator(behavior_formatter)
+    layout_generator = create_grid_layout_formatter()
+    component_service = create_layout_component_service(file_adapter)
+    layout_display_service = create_layout_display_service(layout_generator)
+    
+    return create_layout_service(
+        file_adapter=file_adapter,
+        template_adapter=template_adapter,
+        behavior_registry=behavior_registry,
+        component_service=component_service,
+        layout_service=layout_display_service,
+        behavior_formatter=behavior_formatter,
+        dtsi_generator=dtsi_generator,
+    )
 
 @handle_errors
 def split(
@@ -95,7 +125,7 @@ def split(
         # Create keyboard profile using effective profile
         keyboard_profile = create_profile_from_option(effective_profile, user_config)
 
-        layout_service = create_layout_service()
+        layout_service = _create_layout_service_with_dependencies()
 
         result = layout_service.decompose_components_from_file(
             profile=keyboard_profile,
@@ -177,7 +207,7 @@ def merge(
     command = LayoutOutputCommand()
 
     try:
-        layout_service = create_layout_service()
+        layout_service = _create_layout_service_with_dependencies()
         keyboard_profile = get_keyboard_profile_from_context(ctx)
 
         result = layout_service.generate_from_directory(

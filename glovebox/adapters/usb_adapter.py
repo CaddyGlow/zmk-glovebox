@@ -24,12 +24,12 @@ class USBAdapter:
 
     def __init__(
         self,
-        flash_operations: FlashOperations | None = None,
-        detector: DeviceDetectorProtocol | None = None,
+        flash_operations: FlashOperations,
+        detector: DeviceDetectorProtocol,
     ) -> None:
         """Initialize the USB adapter."""
-        self._detector = detector or create_device_detector()
-        self._flash_ops = flash_operations or create_flash_operations()
+        self._detector = detector
+        self._flash_ops = flash_operations
         self._lock = threading.RLock()
 
     @property
@@ -315,30 +315,25 @@ class USBAdapter:
 
 
 def create_usb_adapter(
-    flash_operations: FlashOperations | None = None,
-    os_adapter: FlashOSProtocol | None = None,
-    detector: DeviceDetectorProtocol | None = None,
+    flash_operations: FlashOperations,
+    detector: DeviceDetectorProtocol,
 ) -> USBAdapterProtocol:
-    """
-    Factory function to create a USBAdapter instance.
+    """Factory function to create a USBAdapter instance with explicit dependencies.
 
     Args:
-        flash_operations: Optional FlashOperations instance for dependency injection
-        os_adapter: Optional OS adapter for flash operations (used if flash_operations is None)
-        detector: Optional DeviceDetectorProtocol for device detection operations
+        flash_operations: Required FlashOperations instance for flash operations
+        detector: Required DeviceDetectorProtocol for device detection operations
 
     Returns:
         Configured USBAdapter instance
 
     Example:
-        >>> adapter = create_usb_adapter()
+        >>> flash_ops = create_flash_operations(create_linux_flash_adapter())
+        >>> detector = create_device_detector(create_usb_monitor(), MountPointCache())
+        >>> adapter = create_usb_adapter(flash_ops, detector)
         >>> devices = adapter.get_all_devices()
         >>> print(f"Found {len(devices)} devices")
     """
-
-    if flash_operations is None and os_adapter is not None:
-        flash_operations = create_flash_operations(os_adapter)
-
     adapter: USBAdapterProtocol = USBAdapter(
         flash_operations=flash_operations, detector=detector
     )

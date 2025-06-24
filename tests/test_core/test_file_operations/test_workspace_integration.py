@@ -10,25 +10,14 @@ from glovebox.core.cache_v2.cache_manager import CacheManager
 from glovebox.core.file_operations import CopyStrategy
 
 
+from typing import Any
+
+from glovebox.config.user_config import UserConfig
+
 class TestWorkspaceCacheIntegration:
     """Test integration of file operations with workspace cache service."""
 
-    @pytest.fixture
-    def mock_user_config(self):
-        """Create mock user config with copy settings."""
-        config = Mock()
-        config._config = Mock()
-        config._config.copy_strategy = CopyStrategy.BASELINE
-        config._config.copy_buffer_size_kb = 512
-        config._config.cache_path = Path("/tmp/test_cache")
-
-        # Mock cache TTL configuration
-        config._config.cache_ttls = Mock()
-        config._config.cache_ttls.get_workspace_ttls = Mock(
-            return_value={"repo": 86400, "repo_branch": 3600}
-        )
-
-        return config
+        # Removed mock_user_config fixture - now using isolated_config from conftest.py
 
     @pytest.fixture
     def mock_cache_manager(self):
@@ -41,12 +30,12 @@ class TestWorkspaceCacheIntegration:
         return manager
 
     @pytest.fixture
-    def workspace_service(self, mock_user_config, mock_cache_manager):
+    def workspace_service(self, isolated_config, mock_cache_manager):
         """Create workspace cache service with mocked dependencies."""
-        return ZmkWorkspaceCacheService(mock_user_config, mock_cache_manager)
+        return ZmkWorkspaceCacheService(isolated_config, mock_cache_manager)
 
     def test_workspace_service_initializes_copy_service(
-        self, workspace_service, mock_user_config
+        self, workspace_service, isolated_config
     ):
         """Test workspace service properly initializes copy service."""
         # The service should have a copy_service attribute
@@ -189,24 +178,19 @@ class TestWorkspaceCacheIntegration:
         assert (cached_workspace / "zmk" / "file.txt").exists()
         assert not (cached_workspace / "zmk" / ".git").exists()
 
-    def test_copy_service_strategy_selection_in_workspace_cache(self, tmp_path):
+    def test_copy_service_strategy_selection_in_workspace_cache(
+        self, isolated_config, isolated_cache_environment
+    ):
         """Test copy service strategy selection in real workspace scenario."""
-        # Create user config with specific strategy
-        config = Mock()
-        config._config = Mock()
-        config._config.copy_strategy = CopyStrategy.BUFFERED
-        config._config.copy_buffer_size_kb = 2048
-        config._config.cache_path = tmp_path / "cache"
-        config._config.cache_ttls = Mock()
-        config._config.cache_ttls.get_workspace_ttls = Mock(
-            return_value={"repo": 86400}
-        )
+        # Update isolated config copy strategy
+        isolated_config._config.copy_strategy = CopyStrategy.BUFFERED
+        isolated_config._config.copy_buffer_size_kb = 2048
 
         cache_manager = Mock(spec=CacheManager)
         cache_manager.get.return_value = None
         cache_manager.set.return_value = True
 
-        service = ZmkWorkspaceCacheService(config, cache_manager)
+        service = ZmkWorkspaceCacheService(isolated_config, cache_manager)
 
         # Verify copy service uses configured strategy
         assert service.copy_service.default_strategy == CopyStrategy.BUFFERED

@@ -11,12 +11,42 @@ from rich.table import Table
 from glovebox.cli.commands.layout.base import LayoutOutputCommand
 from glovebox.cli.decorators import handle_errors
 from glovebox.cli.helpers.parameters import OutputFormatOption
-from glovebox.layout import create_layout_service
+from glovebox.layout import (
+    create_layout_service,
+    create_layout_component_service,
+    create_layout_display_service,
+    create_grid_layout_formatter,
+    create_behavior_registry,
+)
+from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
+from glovebox.layout.zmk_generator import ZmkFileContentGenerator
+from glovebox.adapters import create_file_adapter, create_template_adapter
 from glovebox.layout.utils.variable_resolver import VariableResolver
 
 
 console = Console()
 
+
+def _create_layout_service_with_dependencies():
+    """Create a layout service with all required dependencies."""
+    file_adapter = create_file_adapter()
+    template_adapter = create_template_adapter()
+    behavior_registry = create_behavior_registry()
+    behavior_formatter = BehaviorFormatterImpl(behavior_registry)
+    dtsi_generator = ZmkFileContentGenerator(behavior_formatter)
+    layout_generator = create_grid_layout_formatter()
+    component_service = create_layout_component_service(file_adapter)
+    layout_display_service = create_layout_display_service(layout_generator)
+    
+    return create_layout_service(
+        file_adapter=file_adapter,
+        template_adapter=template_adapter,
+        behavior_registry=behavior_registry,
+        component_service=component_service,
+        layout_service=layout_display_service,
+        behavior_formatter=behavior_formatter,
+        dtsi_generator=dtsi_generator,
+    )
 
 @handle_errors
 def variables(
@@ -136,7 +166,7 @@ def variables(
     command.validate_layout_file(layout_file)
 
     try:
-        layout_service = create_layout_service()
+        layout_service = _create_layout_service_with_dependencies()
 
         # For flatten operation, handle specially since it doesn't need variable modification
         if flatten:

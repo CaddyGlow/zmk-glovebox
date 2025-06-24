@@ -238,8 +238,19 @@ def collect_usb_flash_diagnostics() -> dict[str, Any]:
     # Test USB device detection using USBAdapter
     try:
         from glovebox.adapters.usb_adapter import create_usb_adapter
+        from glovebox.firmware.flash.flash_operations import create_flash_operations
+        from glovebox.firmware.flash.device_detector import create_device_detector
+        from glovebox.firmware.flash.usb_monitor import create_usb_monitor, MountPointCache
+        from glovebox.firmware.flash.os_adapters import create_linux_flash_adapter
 
-        usb_adapter = create_usb_adapter()
+        # Create required dependencies for USB adapter
+        os_adapter = create_linux_flash_adapter()
+        flash_operations = create_flash_operations(os_adapter)
+        mount_cache = MountPointCache()
+        usb_monitor = create_usb_monitor()
+        detector = create_device_detector(usb_monitor, mount_cache)
+        
+        usb_adapter = create_usb_adapter(flash_operations, detector)
         devices = usb_adapter.get_all_devices()
 
         diagnostics["usb_detection"]["status"] = "available"
@@ -404,9 +415,36 @@ def collect_layout_diagnostics() -> dict[str, Any]:
 
     # Test layout service creation
     try:
-        from glovebox.layout import create_layout_service
+        from glovebox.layout import (
+            create_layout_service,
+            create_layout_component_service,
+            create_layout_display_service,
+            create_grid_layout_formatter,
+            create_behavior_registry,
+        )
+        from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
+        from glovebox.layout.zmk_generator import ZmkFileContentGenerator
+        from glovebox.adapters import create_file_adapter, create_template_adapter
 
-        layout_service = create_layout_service()
+        # Create all dependencies for layout service
+        file_adapter = create_file_adapter()
+        template_adapter = create_template_adapter()
+        behavior_registry = create_behavior_registry()
+        behavior_formatter = BehaviorFormatterImpl(behavior_registry)
+        dtsi_generator = ZmkFileContentGenerator(behavior_formatter)
+        layout_generator = create_grid_layout_formatter()
+        component_service = create_layout_component_service(file_adapter)
+        layout_display_service = create_layout_display_service(layout_generator)
+        
+        layout_service = create_layout_service(
+            file_adapter=file_adapter,
+            template_adapter=template_adapter,
+            behavior_registry=behavior_registry,
+            component_service=component_service,
+            layout_service=layout_display_service,
+            behavior_formatter=behavior_formatter,
+            dtsi_generator=dtsi_generator,
+        )
         diagnostics["processing"]["component_extraction"] = "available"
         diagnostics["zmk_generation"]["keymap_generation"] = "available"
         diagnostics["zmk_generation"]["config_generation"] = "available"

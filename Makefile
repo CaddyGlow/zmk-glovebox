@@ -1,4 +1,4 @@
-.PHONY: test lint format fmt coverage setup clean docs docs-clean docs-live view-docs build check-package publish publish-test help
+.PHONY: test lint format fmt coverage setup clean docs docs-clean docs-serve view-docs build check-package publish publish-test help
 
 help:
 	@echo "Available commands:"
@@ -8,10 +8,10 @@ help:
 	@echo "  make coverage   - Run tests with coverage reporting"
 	@echo "  make setup      - Create virtual environment and install dependencies"
 	@echo "  make clean      - Clean build artifacts and coverage reports"
-	@echo "  make docs       - Build documentation"
+	@echo "  make docs       - Build documentation with MkDocs"
 	@echo "  make docs-clean - Clean documentation build artifacts"
-	@echo "  make docs-live  - Build documentation with live reload"
-	@echo "  make view-docs - Build and open documentation in browser"
+	@echo "  make docs-serve - Serve documentation with live reload"
+	@echo "  make view-docs  - Instructions for viewing documentation"
 	@echo "  make build      - Build package for distribution"
 	@echo "  make check-package - Check package metadata and readiness"
 	@echo "  make publish    - Build and publish package to PyPI"
@@ -34,19 +34,22 @@ setup:
 	./scripts/setup.sh
 
 clean:
-	rm -rf build/ htmlcov/ .coverage .pytest_cache/ *.egg-info/ dist/
+	rm -rf build/ htmlcov/ .coverage .pytest_cache/ *.egg-info/ dist/ site/
 
 docs:
-	uv run sphinx-build -b html docs docs/_build/html --keep-going -q
+	uv run mkdocs build
 
 docs-clean:
-	rm -rf docs/_build/ docs/api/generated/
+	rm -rf site/
 
-docs-live:
-	uv run sphinx-autobuild docs docs/_build/html --open-browser
+docs-serve:
+	uv run mkdocs serve
 
 view-docs:
-	./scripts/view-docs.sh
+	@echo "To view documentation:"
+	@echo "1. Run 'make docs' to build"
+	@echo "2. Open site/index.html in your browser"
+	@echo "Or run 'make docs-serve' for live preview"
 
 build:
 	./scripts/build.sh

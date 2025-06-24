@@ -807,6 +807,145 @@ def mock_layout_service() -> Mock:
 
     return mock
 
+# Test factory functions for dependency injection
+# These provide sensible defaults for testing while maintaining explicit dependencies in production
+
+
+def create_layout_service_for_tests(
+    file_adapter=None,
+    template_adapter=None,
+    behavior_registry=None,
+    component_service=None,
+    layout_service=None,
+    behavior_formatter=None,
+    dtsi_generator=None,
+) -> "LayoutService":
+    """Create a LayoutService with test-friendly defaults.
+    
+    This is a test-specific factory that provides sensible defaults for all dependencies.
+    Production code should use create_layout_service() with explicit dependencies.
+    """
+    from glovebox.layout import (
+        create_layout_service,
+        create_layout_component_service,
+        create_layout_display_service,
+        create_grid_layout_formatter,
+        create_behavior_registry,
+    )
+    from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
+    from glovebox.layout.zmk_generator import ZmkFileContentGenerator
+    from glovebox.adapters import create_file_adapter, create_template_adapter
+    
+    # Create defaults if not provided
+    if file_adapter is None:
+        file_adapter = create_file_adapter()
+    if template_adapter is None:
+        template_adapter = create_template_adapter()
+    if behavior_registry is None:
+        behavior_registry = create_behavior_registry()
+    if behavior_formatter is None:
+        behavior_formatter = BehaviorFormatterImpl(behavior_registry)
+    if dtsi_generator is None:
+        dtsi_generator = ZmkFileContentGenerator(behavior_formatter)
+    if layout_service is None:
+        layout_generator = create_grid_layout_formatter()
+        layout_service = create_layout_display_service(layout_generator)
+    if component_service is None:
+        component_service = create_layout_component_service(file_adapter)
+    
+    return create_layout_service(
+        file_adapter=file_adapter,
+        template_adapter=template_adapter,
+        behavior_registry=behavior_registry,
+        component_service=component_service,
+        layout_service=layout_service,
+        behavior_formatter=behavior_formatter,
+        dtsi_generator=dtsi_generator,
+    )
+
+
+def create_layout_component_service_for_tests(file_adapter=None) -> "LayoutComponentService":
+    """Create a LayoutComponentService with test-friendly defaults."""
+    from glovebox.layout import create_layout_component_service
+    from glovebox.adapters import create_file_adapter
+    
+    if file_adapter is None:
+        file_adapter = create_file_adapter()
+    
+    return create_layout_component_service(file_adapter)
+
+
+def create_layout_display_service_for_tests(layout_generator=None) -> "LayoutDisplayService":
+    """Create a LayoutDisplayService with test-friendly defaults."""
+    from glovebox.layout import create_layout_display_service, create_grid_layout_formatter
+    
+    if layout_generator is None:
+        layout_generator = create_grid_layout_formatter()
+    
+    return create_layout_display_service(layout_generator)
+
+
+def create_usb_adapter_for_tests(flash_operations=None, detector=None) -> "USBAdapterProtocol":
+    """Create a USBAdapter with test-friendly defaults."""
+    from glovebox.adapters.usb_adapter import create_usb_adapter
+    from glovebox.firmware.flash.flash_operations import create_flash_operations
+    from glovebox.firmware.flash.device_detector import create_device_detector
+    from glovebox.firmware.flash.usb_monitor import create_usb_monitor, MountPointCache
+    from glovebox.firmware.flash.os_adapters import create_linux_flash_adapter
+    
+    if flash_operations is None:
+        os_adapter = create_linux_flash_adapter()
+        flash_operations = create_flash_operations(os_adapter)
+    
+    if detector is None:
+        mount_cache = MountPointCache()
+        usb_monitor = create_usb_monitor()
+        detector = create_device_detector(usb_monitor, mount_cache)
+    
+    return create_usb_adapter(flash_operations, detector)
+
+
+def create_flash_service_for_tests(file_adapter=None, device_wait_service=None, loglevel="INFO") -> "FlashService":
+    """Create a FlashService with test-friendly defaults."""
+    from glovebox.firmware.flash import create_flash_service, create_device_wait_service
+    from glovebox.adapters import create_file_adapter
+    
+    if file_adapter is None:
+        file_adapter = create_file_adapter()
+    
+    if device_wait_service is None:
+        device_wait_service = create_device_wait_service()
+    
+    return create_flash_service(file_adapter, device_wait_service, loglevel)
+
+
+def create_usb_flasher_for_tests(usb_adapter=None, file_adapter=None) -> "USBFlasher":
+    """Create a USBFlasher with test-friendly defaults."""
+    from glovebox.firmware.flash import create_usb_flasher
+    from glovebox.adapters import create_file_adapter
+    
+    if file_adapter is None:
+        file_adapter = create_file_adapter()
+    
+    if usb_adapter is None:
+        usb_adapter = create_usb_adapter_for_tests()
+    
+    return create_usb_flasher(usb_adapter, file_adapter)
+
+
+def create_device_detector_for_tests(usb_monitor=None, mount_cache=None) -> "DeviceDetector":
+    """Create a DeviceDetector with test-friendly defaults."""
+    from glovebox.firmware.flash.device_detector import create_device_detector
+    from glovebox.firmware.flash.usb_monitor import create_usb_monitor, MountPointCache
+    
+    if usb_monitor is None:
+        usb_monitor = create_usb_monitor()
+    
+    if mount_cache is None:
+        mount_cache = MountPointCache()
+    
+    return create_device_detector(usb_monitor, mount_cache)
+
 
 @pytest.fixture(scope="function")
 def mock_flash_service() -> Mock:

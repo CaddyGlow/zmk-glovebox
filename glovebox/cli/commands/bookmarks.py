@@ -363,9 +363,36 @@ def flash(
             layout = bookmark_service.get_layout_by_bookmark(name)
 
             # Import layout service to convert to ZMK format
-            from glovebox.layout import create_layout_service
+            from glovebox.layout import (
+                create_layout_service,
+                create_layout_component_service,
+                create_layout_display_service,
+                create_grid_layout_formatter,
+                create_behavior_registry,
+            )
+            from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
+            from glovebox.layout.zmk_generator import ZmkFileContentGenerator
+            from glovebox.adapters import create_file_adapter, create_template_adapter
 
-            layout_service = create_layout_service()
+            # Create all dependencies for layout service
+            file_adapter = create_file_adapter()
+            template_adapter = create_template_adapter()
+            behavior_registry = create_behavior_registry()
+            behavior_formatter = BehaviorFormatterImpl(behavior_registry)
+            dtsi_generator = ZmkFileContentGenerator(behavior_formatter)
+            layout_generator = create_grid_layout_formatter()
+            component_service = create_layout_component_service(file_adapter)
+            layout_display_service = create_layout_display_service(layout_generator)
+            
+            layout_service = create_layout_service(
+                file_adapter=file_adapter,
+                template_adapter=template_adapter,
+                behavior_registry=behavior_registry,
+                component_service=component_service,
+                layout_service=layout_display_service,
+                behavior_formatter=behavior_formatter,
+                dtsi_generator=dtsi_generator,
+            )
 
             # Generate ZMK files from layout
             import tempfile
