@@ -196,12 +196,15 @@ class LayoutDisplayService:
         ]
 
 
-def create_layout_display_service() -> LayoutDisplayService:
-    """Create a LayoutDisplayService instance.
+def create_layout_display_service(
+    layout_generator: "GridLayoutFormatter",
+) -> LayoutDisplayService:
+    """Create a LayoutDisplayService instance with explicit dependency injection.
+
+    Args:
+        layout_generator: Required grid layout formatter for display operations
 
     Returns:
         Configured LayoutDisplayService instance
     """
-
-    layout_generator = create_grid_layout_formatter()
     return LayoutDisplayService(layout_generator)

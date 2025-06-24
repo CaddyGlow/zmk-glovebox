@@ -36,7 +36,7 @@ from glovebox.core.file_operations.service import FileCopyService, create_copy_s
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.metrics.session_metrics import SessionMetrics
 from glovebox.models.docker import DockerUserContext
-from glovebox.protocols import DockerAdapterProtocol
+from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
 from glovebox.utils.stream_process import DefaultOutputMiddleware
 
 
@@ -51,11 +51,13 @@ class WorkspaceSetup:
         self,
         logger: logging.Logger,
         copy_service: FileCopyService,
+        file_adapter: FileAdapterProtocol,
         session_metrics: SessionMetrics | None = None,
     ) -> None:
         """Initialize with logger."""
         self.logger = logger
         self.copy_service = copy_service
+        self.file_adapter = file_adapter
         self.session_metrics = session_metrics
 
     def get_or_create_workspace(
@@ -251,8 +253,7 @@ class WorkspaceSetup:
                 import_file="app/west.yml",
             )
         )
-        with (config_dir / "west.yml").open("w") as f:
-            f.write(manifest.to_yaml())
+        self.file_adapter.write_text(config_dir / "west.yml", manifest.to_yaml())
 
 
 class ZmkWestService(CompilationServiceProtocol):
@@ -262,15 +263,17 @@ class ZmkWestService(CompilationServiceProtocol):
         self,
         docker_adapter: DockerAdapterProtocol,
         user_config: UserConfig,
+        file_adapter: FileAdapterProtocol,
         cache_manager: CacheManager | None = None,
         workspace_cache_service: ZmkWorkspaceCacheService | None = None,
         build_cache_service: CompilationBuildCacheService | None = None,
         copy_service: FileCopyService | None = None,
         session_metrics: SessionMetrics | None = None,
     ) -> None:
-        """Initialize with Docker adapter, user config, cache services, and metrics."""
+        """Initialize with Docker adapter, user config, file adapter, cache services, and metrics."""
         self.docker_adapter = docker_adapter
         self.user_config = user_config
+        self.file_adapter = file_adapter
         self.cache_manager = cache_manager
         self.session_metrics = session_metrics
         self.logger = logging.getLogger(__name__)
@@ -278,7 +281,10 @@ class ZmkWestService(CompilationServiceProtocol):
 
         # Initialize workspace setup helper
         self.workspace_setup = WorkspaceSetup(
-            self.logger, copy_service=self.copy_service, session_metrics=session_metrics
+            self.logger,
+            copy_service=self.copy_service,
+            file_adapter=file_adapter,
+            session_metrics=session_metrics,
         )
 
         # Create cache services if not provided
@@ -512,9 +518,36 @@ class ZmkWestService(CompilationServiceProtocol):
 
         try:
             # Convert JSON to keymap/config files first
-            from glovebox.layout import create_layout_service
+            from glovebox.layout import (
+                create_layout_service,
+                create_layout_component_service,
+                create_layout_display_service,
+                create_grid_layout_formatter,
+                create_behavior_registry,
+            )
+            from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
+            from glovebox.layout.zmk_generator import ZmkFileContentGenerator
+            from glovebox.adapters import create_file_adapter, create_template_adapter
 
-            layout_service = create_layout_service()
+            # Create all dependencies for layout service
+            file_adapter = create_file_adapter()
+            template_adapter = create_template_adapter()
+            behavior_registry = create_behavior_registry()
+            behavior_formatter = BehaviorFormatterImpl(behavior_registry)
+            dtsi_generator = ZmkFileContentGenerator(behavior_formatter)
+            layout_generator = create_grid_layout_formatter()
+            component_service = create_layout_component_service(file_adapter)
+            layout_display_service = create_layout_display_service(layout_generator)
+            
+            layout_service = create_layout_service(
+                file_adapter=file_adapter,
+                template_adapter=template_adapter,
+                behavior_registry=behavior_registry,
+                component_service=component_service,
+                layout_service=layout_display_service,
+                behavior_formatter=behavior_formatter,
+                dtsi_generator=dtsi_generator,
+            )
 
             # Create temporary directory for intermediate files
             with tempfile.TemporaryDirectory(prefix="json_to_keymap_") as temp_dir:
@@ -1129,6 +1162,7 @@ class ZmkWestService(CompilationServiceProtocol):
 def create_zmk_west_service(
     docker_adapter: DockerAdapterProtocol,
     user_config: UserConfig,
+    file_adapter: FileAdapterProtocol,
     cache_manager: CacheManager | None = None,
     workspace_cache_service: ZmkWorkspaceCacheService | None = None,
     build_cache_service: CompilationBuildCacheService | None = None,
@@ -1139,6 +1173,7 @@ def create_zmk_west_service(
     Args:
         docker_adapter: Docker adapter for container operations
         user_config: User configuration with cache settings
+        file_adapter: File adapter for file operations
         cache_manager: Optional cache manager instance for both cache services
         workspace_cache_service: Optional workspace cache service
         build_cache_service: Optional build cache service
@@ -1150,6 +1185,7 @@ def create_zmk_west_service(
     return ZmkWestService(
         docker_adapter=docker_adapter,
         user_config=user_config,
+        file_adapter=file_adapter,
         cache_manager=cache_manager,
         workspace_cache_service=workspace_cache_service,
         build_cache_service=build_cache_service,

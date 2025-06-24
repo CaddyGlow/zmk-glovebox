@@ -306,33 +306,18 @@ class DeviceDetector(DeviceDetectorProtocol):
 
 
 def create_device_detector(
-    usb_monitor: Any | None = None,
-    mount_cache: MountPointCache | None = None,
+    usb_monitor: Any,
+    mount_cache: MountPointCache,
 ) -> DeviceDetector:
-    """Create a DeviceDetector instance with optional dependency injection.
-
-    This factory function provides a consistent way to create device detector instances
-    with proper dependency injection. It allows for easier testing and
-    configuration of services.
+    """Create a DeviceDetector instance with explicit dependency injection.
 
     Args:
-        usb_monitor: Optional USB monitor instance (creates default if None)
-        mount_cache: Optional mount point cache (creates default if None)
+        usb_monitor: Required USB monitor instance for device monitoring
+        mount_cache: Required mount point cache for caching operations
 
     Returns:
         Configured DeviceDetector instance
     """
-    # Create default USB monitor if not provided
-    if usb_monitor is None:
-        from glovebox.firmware.flash.usb_monitor import create_usb_monitor
-
-        usb_monitor = create_usb_monitor()
-
-    # Create default mount cache if not provided
-    if mount_cache is None:
-        mount_cache = MountPointCache()
-
-    # Create and return detector instance
     return DeviceDetector(
         usb_monitor=usb_monitor,
         mount_cache=mount_cache,

@@ -23,15 +23,12 @@ class USBFlasher:
 
     def __init__(
         self,
-        usb_adapter: "USBAdapterProtocol | None" = None,
-        file_adapter: "FileAdapterProtocol | None" = None,
+        usb_adapter: "USBAdapterProtocol",
+        file_adapter: "FileAdapterProtocol",
     ):
         """Initialize USB flasher with dependencies."""
-        from glovebox.adapters.file_adapter import create_file_adapter
-        from glovebox.adapters.usb_adapter import create_usb_adapter
-
-        self.usb_adapter = usb_adapter or create_usb_adapter()
-        self.file_adapter = file_adapter or create_file_adapter()
+        self.usb_adapter = usb_adapter
+        self.file_adapter = file_adapter
 
     def flash_device(
         self,
@@ -172,10 +169,18 @@ class USBFlasher:
 
 
 def create_usb_flasher(
-    usb_adapter: "USBAdapterProtocol | None" = None,
-    file_adapter: "FileAdapterProtocol | None" = None,
+    usb_adapter: "USBAdapterProtocol",
+    file_adapter: "FileAdapterProtocol",
 ) -> USBFlasher:
-    """Create a USBFlasher instance with dependency injection."""
+    """Create a USBFlasher instance with explicit dependency injection.
+    
+    Args:
+        usb_adapter: Required USB adapter for device operations
+        file_adapter: Required file adapter for file operations
+    
+    Returns:
+        Configured USBFlasher instance
+    """
     return USBFlasher(
         usb_adapter=usb_adapter,
         file_adapter=file_adapter,

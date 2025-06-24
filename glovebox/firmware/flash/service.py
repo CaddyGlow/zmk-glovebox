@@ -29,19 +29,21 @@ class FlashService:
 
     def __init__(
         self,
-        file_adapter: FileAdapterProtocol | None = None,
+        file_adapter: FileAdapterProtocol,
+        device_wait_service: "DeviceWaitService",
         loglevel: str = "INFO",
     ):
         """Initialize flash service with dependencies.
 
         Args:
             file_adapter: File adapter for file operations
+            device_wait_service: Device wait service for device operations
             loglevel: Log level for flash operations
         """
         self._service_name = "FlashService"
         self._service_version = "2.0.0"
-        self.file_adapter = file_adapter or create_file_adapter()
-        self.device_wait_service = create_device_wait_service()
+        self.file_adapter = file_adapter
+        self.device_wait_service = device_wait_service
         self.loglevel = loglevel
 
     def flash_from_file(
@@ -386,13 +388,15 @@ class FlashService:
 
 
 def create_flash_service(
-    file_adapter: FileAdapterProtocol | None = None,
+    file_adapter: FileAdapterProtocol,
+    device_wait_service: "DeviceWaitService",
     loglevel: str = "INFO",
 ) -> FlashService:
     """Create a FlashService instance for USB firmware flashing.
 
     Args:
-        file_adapter: Optional FileAdapterProtocol instance for file operations
+        file_adapter: Required FileAdapterProtocol instance for file operations
+        device_wait_service: Required DeviceWaitService for device operations
         loglevel: Log level for flash operations
 
     Returns:
@@ -400,5 +404,6 @@ def create_flash_service(
     """
     return FlashService(
         file_adapter=file_adapter,
+        device_wait_service=device_wait_service,
         loglevel=loglevel,
     )

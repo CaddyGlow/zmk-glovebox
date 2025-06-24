@@ -18,7 +18,7 @@ from glovebox.compilation.protocols.compilation_protocols import (
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.models.docker import DockerUserContext
 from glovebox.models.docker_path import DockerPath
-from glovebox.protocols import DockerAdapterProtocol
+from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
 from glovebox.utils.stream_process import DefaultOutputMiddleware
 
 
@@ -29,9 +29,12 @@ if TYPE_CHECKING:
 class MoergoNixService(CompilationServiceProtocol):
     """Ultra-simplified Moergo compilation service (<200 lines)."""
 
-    def __init__(self, docker_adapter: DockerAdapterProtocol) -> None:
-        """Initialize with Docker adapter."""
+    def __init__(
+        self, docker_adapter: DockerAdapterProtocol, file_adapter: FileAdapterProtocol
+    ) -> None:
+        """Initialize with Docker adapter and file adapter."""
         self.docker_adapter = docker_adapter
+        self.file_adapter = file_adapter
         self.logger = logging.getLogger(__name__)
 
     def compile(
@@ -93,9 +96,36 @@ class MoergoNixService(CompilationServiceProtocol):
 
         try:
             # Convert JSON to keymap/config files first
-            from glovebox.layout import create_layout_service
+            from glovebox.layout import (
+                create_layout_service,
+                create_layout_component_service,
+                create_layout_display_service,
+                create_grid_layout_formatter,
+                create_behavior_registry,
+            )
+            from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
+            from glovebox.layout.zmk_generator import ZmkFileContentGenerator
+            from glovebox.adapters import create_file_adapter, create_template_adapter
 
-            layout_service = create_layout_service()
+            # Create all dependencies for layout service
+            file_adapter = create_file_adapter()
+            template_adapter = create_template_adapter()
+            behavior_registry = create_behavior_registry()
+            behavior_formatter = BehaviorFormatterImpl(behavior_registry)
+            dtsi_generator = ZmkFileContentGenerator(behavior_formatter)
+            layout_generator = create_grid_layout_formatter()
+            component_service = create_layout_component_service(file_adapter)
+            layout_display_service = create_layout_display_service(layout_generator)
+            
+            layout_service = create_layout_service(
+                file_adapter=file_adapter,
+                template_adapter=template_adapter,
+                behavior_registry=behavior_registry,
+                component_service=component_service,
+                layout_service=layout_display_service,
+                behavior_formatter=behavior_formatter,
+                dtsi_generator=dtsi_generator,
+            )
 
             # Create temporary directory for intermediate files
             with tempfile.TemporaryDirectory(prefix="json_to_keymap_") as temp_dir:
@@ -175,7 +205,9 @@ class MoergoNixService(CompilationServiceProtocol):
                 self.logger.error("Could not load default.nix from keyboard toolchain")
                 return None
 
-            (config_dir / "default.nix").write_text(default_nix_content)
+            self.file_adapter.write_text(
+                config_dir / "default.nix", default_nix_content
+            )
             return workspace_path
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
@@ -407,6 +439,7 @@ class MoergoNixService(CompilationServiceProtocol):
 
 def create_moergo_nix_service(
     docker_adapter: DockerAdapterProtocol,
+    file_adapter: FileAdapterProtocol,
 ) -> MoergoNixService:
     """Create Moergo nix service."""
-    return MoergoNixService(docker_adapter)
+    return MoergoNixService(docker_adapter, file_adapter)
