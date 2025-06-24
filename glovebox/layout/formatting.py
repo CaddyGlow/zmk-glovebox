@@ -189,7 +189,7 @@ class GridLayoutFormatter:
         output_lines = []
 
         # Extract keymap data from LayoutData object
-        title = layout_data.title or layout_data.name or "Untitled Layout"
+        title = layout_data.title or "Untitled Layout"
         creator = layout_data.creator or "N/A"
         locale = layout_data.locale or "N/A"
         notes = layout_data.notes or ""
@@ -246,6 +246,12 @@ class GridLayoutFormatter:
             layer_names_to_display = layer_names
             indices_to_display = list(range(len(layers)))
 
+        # Convert LayoutBinding objects to strings for display methods
+        layers_to_display_str = [
+            [self._format_binding_display(binding) for binding in layer]
+            for layer in layers_to_display
+        ]
+
         # Generate layout view based on view_mode
         view_mode = view_mode or ViewMode.NORMAL
 
@@ -269,7 +275,7 @@ class GridLayoutFormatter:
             self._generate_compact_view(
                 output_lines,
                 indices_to_display,
-                layers_to_display,
+                layers_to_display_str,
                 layer_names_to_display,
                 layout_config,
             )
@@ -279,7 +285,7 @@ class GridLayoutFormatter:
             self._generate_grid_view(
                 output_lines,
                 indices_to_display,
-                layers_to_display,
+                layers_to_display_str,
                 layer_names_to_display,
                 layout_config,
             )
@@ -601,7 +607,7 @@ class GridLayoutFormatter:
         # For behaviors with parameters, show main parameter value
         if binding.value == "&kp" and binding.params:
             # Show key name for kp behaviors
-            return binding.params[0].value
+            return str(binding.params[0].value)
         elif binding.value == "&mo" and binding.params:
             # Show layer number for momentary layer
             return f"L{binding.params[0].value}"
@@ -619,14 +625,14 @@ class GridLayoutFormatter:
             return f"{binding.params[0].value}/{binding.params[1].value}"
         elif binding.value == "&bt" and binding.params:
             # Show bluetooth command
-            bt_cmd = binding.params[0].value
+            bt_cmd = str(binding.params[0].value)
             if len(binding.params) > 1:
                 return f"BT{binding.params[1].value}"
             else:
                 return bt_cmd.replace("BT_", "")
         elif binding.value == "&rgb_ug" and binding.params:
             # Show RGB command
-            return binding.params[0].value.replace("RGB_", "")
+            return str(binding.params[0].value).replace("RGB_", "")
         else:
             # For other behaviors, show behavior name with first param if available
             if binding.params:
@@ -722,7 +728,9 @@ class GridLayoutFormatter:
             layers: List of layer data to display
             layout_config: Layout configuration
         """
-        key_width = max(4, layout_config.key_width - 2)  # Reduce key width for compactness
+        key_width = max(
+            4, layout_config.key_width - 2
+        )  # Reduce key width for compactness
         key_gap = " "  # Single space gap for compact display
 
         # Use layout_config.rows if available, otherwise use default structure
@@ -752,7 +760,9 @@ class GridLayoutFormatter:
             expected_keys = layout_config.key_count or 80
 
             # Show fewer rows for compact display
-            for _row_idx, row_indices in enumerate(row_structure[:4]):  # Limit to first 4 rows
+            for _row_idx, row_indices in enumerate(
+                row_structure[:4]
+            ):  # Limit to first 4 rows
                 row_parts = []
                 for idx in row_indices:
                     if idx >= 0 and idx < num_keys_in_layer:
@@ -771,7 +781,9 @@ class GridLayoutFormatter:
                     output_lines.append(f"  {row_str}")  # Small indent
 
             # Show summary of remaining keys if any
-            total_displayed = sum(len([k for k in row if k >= 0]) for row in row_structure[:4])
+            total_displayed = sum(
+                len([k for k in row if k >= 0]) for row in row_structure[:4]
+            )
             if total_displayed < num_keys_in_layer:
                 remaining = num_keys_in_layer - total_displayed
                 output_lines.append(f"  ... +{remaining} more keys")

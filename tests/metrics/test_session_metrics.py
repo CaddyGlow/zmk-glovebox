@@ -174,9 +174,11 @@ class TestSessionHistogram:
         """Test histogram time context manager."""
         histogram = SessionHistogram("test_histogram", "Test histogram")
 
-        with patch("time.perf_counter", side_effect=[0.0, 1.5]):
-            with histogram.time():
-                pass  # Simulated work
+        with (
+            patch("time.perf_counter", side_effect=[0.0, 1.5]),
+            histogram.time(),
+        ):
+            pass  # Simulated work
 
         assert len(histogram._observations) == 1
         assert histogram._observations[0]["value"] == 1.5
@@ -235,9 +237,11 @@ class TestSessionSummary:
         """Test summary time context manager."""
         summary = SessionSummary("test_summary", "Test summary")
 
-        with patch("time.perf_counter", side_effect=[0.0, 0.75]):
-            with summary.time():
-                pass  # Simulated work
+        with (
+            patch("time.perf_counter", side_effect=[0.0, 0.75]),
+            summary.time(),
+        ):
+            pass  # Simulated work
 
         assert len(summary._observations) == 1
         assert summary._observations[0]["value"] == 0.75
@@ -578,9 +582,11 @@ class TestPrometheusClientCompatibility:
         )
 
         # Use as context manager - prometheus_client style
-        with patch("time.perf_counter", side_effect=[0.0, 1.25]):
-            with REQUEST_DURATION.time():
-                pass  # Simulated work
+        with (
+            patch("time.perf_counter", side_effect=[0.0, 1.25]),
+            REQUEST_DURATION.time(),
+        ):
+            pass  # Simulated work
 
         assert len(REQUEST_DURATION._observations) == 1
         assert REQUEST_DURATION._observations[0]["value"] == 1.25

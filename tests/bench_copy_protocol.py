@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
+from typing import Any, Optional, Protocol, runtime_checkable
 
 import psutil
 
@@ -263,7 +263,7 @@ class BufferedCopyStrategy:
                 dst_file = dst / rel_path
                 dst_file.parent.mkdir(parents=True, exist_ok=True)
 
-                with open(src_file, "rb") as fsrc, open(dst_file, "wb") as fdst:
+                with src_file.open("rb") as fsrc, dst_file.open("wb") as fdst:
                     while True:
                         chunk = fsrc.read(self.buffer_size)
                         if not chunk:
@@ -398,7 +398,7 @@ class SendfileCopyStrategy:
                 dst_file = dst / rel_path
                 dst_file.parent.mkdir(parents=True, exist_ok=True)
 
-                with open(src_file, "rb") as fsrc, open(dst_file, "wb") as fdst:
+                with src_file.open("rb") as fsrc, dst_file.open("wb") as fdst:
                     file_size = os.fstat(fsrc.fileno()).st_size
                     try:
                         os.sendfile(fdst.fileno(), fsrc.fileno(), 0, file_size)

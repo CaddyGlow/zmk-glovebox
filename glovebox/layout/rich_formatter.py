@@ -138,7 +138,7 @@ class RichLayoutFormatter:
 
     def _print_header(self, layout_data: LayoutData) -> None:
         """Print the keymap header with Rich styling."""
-        title = layout_data.title or layout_data.name or "Untitled Layout"
+        title = layout_data.title or "Untitled Layout"
         keyboard = layout_data.keyboard or "N/A"
         creator = layout_data.creator or "N/A"
         locale = layout_data.locale or "N/A"
@@ -498,7 +498,7 @@ class RichLayoutFormatter:
     def _get_display_value(self, binding: LayoutBinding) -> str:
         """Get the display value for a binding (similar to existing logic)."""
         if binding.value == "&kp" and binding.params:
-            return binding.params[0].value
+            return str(binding.params[0].value)
         elif binding.value == "&mo" and binding.params:
             return f"L{binding.params[0].value}"
         elif binding.value == "&to" and binding.params:
@@ -510,13 +510,13 @@ class RichLayoutFormatter:
         elif binding.value == "&mt" and len(binding.params) >= 2:
             return f"{binding.params[0].value}/{binding.params[1].value}"
         elif binding.value == "&bt" and binding.params:
-            bt_cmd = binding.params[0].value
+            bt_cmd = str(binding.params[0].value)
             if len(binding.params) > 1:
                 return f"BT{binding.params[1].value}"
             else:
                 return bt_cmd.replace("BT_", "")
         elif binding.value == "&rgb_ug" and binding.params:
-            return binding.params[0].value.replace("RGB_", "")
+            return str(binding.params[0].value).replace("RGB_", "")
         else:
             if binding.params:
                 return f"{binding.value[1:]}({binding.params[0].value})"
@@ -565,7 +565,7 @@ class RichLayoutFormatter:
             return BehaviorColors.MOD_TAP
         elif binding.value == "&kp" and binding.params:
             # Color code based on key type
-            key_name = binding.params[0].value
+            key_name = str(binding.params[0].value)
             return self._get_key_type_color(key_name)
         else:
             return BehaviorColors.DEFAULT

@@ -106,3 +106,7 @@ class CacheManager(Protocol):
             List of all cache keys (excluding expired entries)
         """
         ...
+
+    def close(self) -> None:
+        """Close the cache and release resources."""
+        ...

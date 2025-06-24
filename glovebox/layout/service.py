@@ -171,7 +171,9 @@ class LayoutService(BaseService):
 
         # Import metrics here to avoid circular dependencies
         try:
-            from glovebox.metrics.collector import layout_metrics
+            from glovebox.metrics.collector import (  # type: ignore[import-untyped]
+                layout_metrics,
+            )
 
             metrics_enabled = True
         except ImportError:
@@ -359,7 +361,9 @@ class LayoutService(BaseService):
 
         try:
             # Use the layout display service to generate the layout
-            return self._layout_service.show(keymap_data, profile, view_mode, layer_index)
+            return self._layout_service.show(
+                keymap_data, profile, view_mode, layer_index
+            )
         except Exception as e:
             logger.error("Layout display failed: %s", e)
             raise LayoutError(f"Failed to generate layout display: {e}") from e

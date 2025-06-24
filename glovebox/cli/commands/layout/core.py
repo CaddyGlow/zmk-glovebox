@@ -313,6 +313,7 @@ def show(
             else:
                 # String input - resolve layer name to index
                 import json
+
                 raw_layout_data = json.loads(resolved_json_file.read_text())
                 layer_names = raw_layout_data.get("layer_names", [])
 
@@ -324,7 +325,9 @@ def show(
                         break
 
                 if resolved_layer_index is None:
-                    print_error_message(f"Layer '{layer}' not found. Available layers: {', '.join(layer_names)}")
+                    print_error_message(
+                        f"Layer '{layer}' not found. Available layers: {', '.join(layer_names)}"
+                    )
                     raise typer.Exit(1)
 
         # Check if Rich format is requested

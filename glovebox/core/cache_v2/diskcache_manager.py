@@ -2,6 +2,7 @@
 
 import logging
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Optional
@@ -118,7 +119,7 @@ class DiskCacheManager(CacheManager):
         )
 
     @contextmanager
-    def _measure_operation(self, operation: str) -> Any:
+    def _measure_operation(self, operation: str) -> Generator[None, None, None]:
         """Context manager to measure cache operation duration and count."""
         start_time = time.perf_counter()
         operation_success = True
@@ -136,13 +137,13 @@ class DiskCacheManager(CacheManager):
 
             # Update metrics if available
             if self._cache_operations_counter:
-                result = "success" if operation_success else "error"
+                result = "success" if operation_success else "error"  # type: ignore[unreachable]
                 self._cache_operations_counter.labels(
                     operation=operation, tag=self.tag or "default", result=result
                 ).inc()
 
             if self._cache_operation_duration:
-                self._cache_operation_duration.observe(duration)
+                self._cache_operation_duration.observe(duration)  # type: ignore[unreachable]
 
     def get(self, key: str, default: Any = None) -> Any:
         """Retrieve value from cache.
@@ -165,7 +166,7 @@ class DiskCacheManager(CacheManager):
 
                     # Track cache hit in metrics
                     if self._cache_hit_miss_counter:
-                        self._cache_hit_miss_counter.labels(
+                        self._cache_hit_miss_counter.labels(  # type: ignore[unreachable]
                             tag=self.tag or "default", result="hit"
                         ).inc()
                 else:
@@ -174,7 +175,7 @@ class DiskCacheManager(CacheManager):
 
                     # Track cache miss in metrics
                     if self._cache_hit_miss_counter:
-                        self._cache_hit_miss_counter.labels(
+                        self._cache_hit_miss_counter.labels(  # type: ignore[unreachable]
                             tag=self.tag or "default", result="miss"
                         ).inc()
 
@@ -185,7 +186,7 @@ class DiskCacheManager(CacheManager):
 
                 # Track error in metrics
                 if self._cache_errors_counter:
-                    self._cache_errors_counter.labels(
+                    self._cache_errors_counter.labels(  # type: ignore[unreachable]
                         operation="get", tag=self.tag or "default"
                     ).inc()
 
@@ -218,7 +219,7 @@ class DiskCacheManager(CacheManager):
 
                 # Track error in metrics
                 if self._cache_errors_counter:
-                    self._cache_errors_counter.labels(
+                    self._cache_errors_counter.labels(  # type: ignore[unreachable]
                         operation="set", tag=self.tag or "default"
                     ).inc()
 
