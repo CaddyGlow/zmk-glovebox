@@ -440,7 +440,9 @@ class TestLayoutEdit:
                 "removed_layers": [],
                 "removed_count": 0,
                 "remaining_layers": 2,
-                "warnings": ["No layers found matching identifier 'NonExistent'. Available layers: Base, Symbol"],
+                "warnings": [
+                    "No layers found matching identifier 'NonExistent'. Available layers: Base, Symbol"
+                ],
                 "had_matches": False,
             },
         ]
@@ -453,13 +455,15 @@ class TestLayoutEdit:
                 str(layout_file),
                 "--remove-layer",
                 "Symbol",
-                "--remove-layer", 
+                "--remove-layer",
                 "NonExistent",
             ],
         )
 
         assert result.exit_code == 0
-        assert "Layout edited successfully (1 operations) with 1 warnings" in result.output
+        assert (
+            "Layout edited successfully (1 operations) with 1 warnings" in result.output
+        )
         assert "Removed layer 'Symbol' (position 1)" in result.output
         assert "No layers found matching identifier 'NonExistent'" in result.output
 
@@ -473,7 +477,9 @@ class TestLayoutEdit:
             "removed_layers": [],
             "removed_count": 0,
             "remaining_layers": 2,
-            "warnings": ["No layers found matching identifier 'NonExistent'. Available layers: Base, Symbol"],
+            "warnings": [
+                "No layers found matching identifier 'NonExistent'. Available layers: Base, Symbol"
+            ],
             "had_matches": False,
         }
 
@@ -489,7 +495,9 @@ class TestLayoutEdit:
         )
 
         assert result.exit_code == 0
-        assert "No layers were removed - all identifiers failed to match" in result.output
+        assert (
+            "No layers were removed - all identifiers failed to match" in result.output
+        )
         assert "No layers found matching identifier 'NonExistent'" in result.output
 
     def test_edit_invalid_set_syntax(self, cli_runner, layout_file):

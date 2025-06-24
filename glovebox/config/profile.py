@@ -85,12 +85,11 @@ class KeyboardProfile:
         Get system behaviors for this profile.
 
         Returns:
-            List of system behaviors. Returns empty list if no firmware is specified.
+            List of system behaviors merge with the one from firmware.
         """
-        if self.firmware_version is None:
-            # For keyboard-only profiles, return empty behaviors
-            return []
-        return self.keyboard_config.keymap.system_behaviors
+        return self.keyboard_config.keymap.system_behaviors + (
+            self.firmware_config.system_behaviors if self.firmware_config else []
+        )
 
     @property
     def kconfig_options(self) -> dict[str, KConfigOption]:
@@ -100,9 +99,6 @@ class KeyboardProfile:
         Returns:
             Dictionary of kconfig option name to KConfigOption. Returns empty dict if no firmware is specified.
         """
-        if self.firmware_version is None:
-            # For keyboard-only profiles, return empty kconfig options
-            return {}
 
         # Start with keyboard kconfig options
         combined = dict(self.keyboard_config.keymap.kconfig_options)

@@ -52,6 +52,29 @@ def parse_field_path(field_path: str) -> list[str]:
     return parts
 
 
+def _resolve_pydantic_field_alias(model: Any, field_name: str) -> str | None:
+    """Resolve a Pydantic field alias to the actual Python attribute name.
+
+    Args:
+        model: Pydantic model instance
+        field_name: Field name that might be an alias
+
+    Returns:
+        Actual Python attribute name if field_name is an alias, None otherwise
+    """
+    # Check if this is a Pydantic model
+    if not hasattr(model, "model_fields"):
+        return None
+
+    # Iterate through model fields to find alias matches
+    for python_name, field_info in model.model_fields.items():
+        # Check if field_name matches the alias
+        if hasattr(field_info, "alias") and field_info.alias == field_name:
+            return python_name
+
+    return None
+
+
 def extract_field_value_from_model(model: Any, field_path: str) -> Any:
     """Extract a field value directly from a Pydantic model.
 
@@ -88,7 +111,12 @@ def extract_field_value_from_model(model: Any, field_path: str) -> Any:
             if hasattr(current, part):
                 current = getattr(current, part)
             else:
-                raise KeyError(f"Field '{part}' not found")
+                # Check if this is a Pydantic model with field aliases
+                resolved_field = _resolve_pydantic_field_alias(current, part)
+                if resolved_field is not None:
+                    current = getattr(current, resolved_field)
+                else:
+                    raise KeyError(f"Field '{part}' not found")
 
     return current
 

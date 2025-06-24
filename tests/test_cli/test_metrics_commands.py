@@ -399,7 +399,9 @@ class TestMetricsDumpCommand:
         assert data == sample_session_data[session_uuid]
 
     @patch("glovebox.cli.commands.metrics._get_metrics_cache_manager")
-    def test_dump_auto_filename(self, mock_get_cache, sample_session_data):
+    def test_dump_auto_filename(
+        self, mock_get_cache, sample_session_data, isolated_cli_environment
+    ):
         """Test dump command with auto-generated filename."""
         session_uuid = list(sample_session_data.keys())[0]
         mock_cache = Mock()
@@ -407,7 +409,11 @@ class TestMetricsDumpCommand:
         mock_get_cache.return_value = mock_cache
 
         runner = CliRunner()
-        result = runner.invoke(metrics_app, ["dump", session_uuid])
+        # Use isolated environment to prevent file pollution
+        import os
+
+        env = os.environ.copy()
+        result = runner.invoke(metrics_app, ["dump", session_uuid], env=env)
 
         assert result.exit_code == 0
         assert "Session metrics dumped to:" in result.output

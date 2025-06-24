@@ -372,6 +372,10 @@ def create_keyboard_profile_with_includes(
     # Load keyboard configuration with include support
     keyboard_config = load_keyboard_config_with_includes(keyboard_name, user_config)
 
+    # trying to get the latest firmware, the first in the list
+    if not firmware_version and len(keyboard_config.firmwares):
+        firmware_version = list(keyboard_config.firmwares.keys())[0]
+
     if firmware_version:
         logger.debug("  → Profile will use firmware: %s", firmware_version)
     else:
