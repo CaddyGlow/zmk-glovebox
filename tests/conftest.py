@@ -203,6 +203,7 @@ def isolated_cli_environment(
 
     # Patch CLI AppContext to use isolated config
     from glovebox.cli.app import AppContext
+
     original_init = AppContext.__init__
 
     def patched_init(self, *args, **kwargs):

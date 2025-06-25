@@ -280,58 +280,6 @@ class LayoutLayerService:
             "layers": layers_info,
         }
 
-    def export_layer(
-        self,
-        layout_file: Path,
-        layer_name: str,
-        output: Path,
-        format_type: str = "bindings",
-        force: bool = False,
-    ) -> dict[str, Any]:
-        """Export a layer to an external JSON file.
-
-        Args:
-            layout_file: Path to layout JSON file
-            layer_name: Name of layer to export
-            output: Output JSON file path
-            format_type: Export format ('bindings', 'layer', 'full')
-            force: Whether to overwrite existing files
-
-        Returns:
-            Dictionary with operation details
-
-        Raises:
-            ValueError: If layer doesn't exist or format is invalid
-        """
-        # Load WITHOUT variable resolution to preserve original variable references
-        layout_data = load_layout_file(
-            layout_file, self.file_adapter, skip_variable_resolution=True
-        )
-
-        # Validate layer exists and has bindings
-        layer_idx = validate_layer_exists(layout_data, layer_name)
-        validate_layer_has_bindings(layout_data, layer_name, layer_idx)
-
-        # Validate output path
-        validate_output_path(output, force=force)
-
-        layer_bindings = layout_data.layers[layer_idx]
-
-        # Generate export data based on format
-        export_data = self._create_export_data(
-            layout_data, layer_name, layer_bindings, format_type
-        )
-
-        # Save export file
-        save_json_data(export_data, output, self.file_adapter)
-
-        return {
-            "source_file": layout_file,
-            "layer_name": layer_name,
-            "output_file": output,
-            "format": format_type,
-            "binding_count": len(layer_bindings),
-        }
 
     def _create_layer_bindings(
         self,
@@ -477,46 +425,6 @@ class LayoutLayerService:
 
         return layers_to_remove
 
-    def _create_export_data(
-        self,
-        layout_data: LayoutData,
-        layer_name: str,
-        layer_bindings: list[LayoutBinding],
-        format_type: str,
-    ) -> dict[str, Any] | list[dict[str, Any]]:
-        """Create export data in the specified format."""
-        if format_type == "bindings":
-            # Simple array of bindings
-            return [
-                binding.model_dump(by_alias=True, exclude_unset=True)
-                for binding in layer_bindings
-            ]
-        elif format_type == "layer":
-            # Layer object with name and bindings
-            return {
-                "name": layer_name,
-                "bindings": [
-                    binding.model_dump(by_alias=True, exclude_unset=True)
-                    for binding in layer_bindings
-                ],
-            }
-        elif format_type == "full":
-            # Minimal layout with just this layer
-            return {
-                "keyboard": layout_data.keyboard,
-                "title": f"Exported layer: {layer_name}",
-                "layer_names": [layer_name],
-                "layers": [
-                    [
-                        binding.model_dump(by_alias=True, exclude_unset=True)
-                        for binding in layer_bindings
-                    ]
-                ],
-            }
-        else:
-            raise ValueError(
-                f"Invalid format: {format_type}. Use: bindings, layer, or full"
-            )
 
 
 def create_layout_layer_service(

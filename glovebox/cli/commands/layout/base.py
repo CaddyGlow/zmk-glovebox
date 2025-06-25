@@ -1,5 +1,6 @@
 """Base classes for layout CLI commands."""
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,9 @@ from glovebox.cli.helpers.output_formatter import OutputFormatter
 class BaseLayoutCommand:
     """Base class with common error handling patterns."""
 
+    def __init__(self) -> None:
+        self.logger = logging.getLogger(self.__class__.__name__)
+
     def handle_service_error(self, error: Exception, operation: str) -> None:
         """Handle service layer errors with consistent messaging.
 
@@ -23,8 +27,11 @@ class BaseLayoutCommand:
             error: Exception from service layer
             operation: Operation description for error message
         """
+        # CLAUDE.md pattern: debug-aware stack traces
+        exc_info = self.logger.isEnabledFor(logging.DEBUG)
+        self.logger.error("Failed to %s: %s", operation, error, exc_info=exc_info)
         print_error_message(f"Failed to {operation}: {error}")
-        raise typer.Exit(1) from None
+        raise typer.Exit(1) from error
 
     def print_operation_success(self, message: str, details: dict[str, Any]) -> None:
         """Print success message with operation details.
@@ -41,6 +48,9 @@ class BaseLayoutCommand:
 
 class LayoutFileCommand(BaseLayoutCommand):
     """Base class for commands that operate on layout files."""
+
+    def __init__(self) -> None:
+        super().__init__()
 
     def validate_layout_file(self, layout_file: Path) -> None:
         """Validate that layout file exists and is readable.
@@ -64,6 +74,7 @@ class LayoutOutputCommand(LayoutFileCommand):
     """Base class for commands with formatted output options."""
 
     def __init__(self) -> None:
+        super().__init__()
         self.formatter = OutputFormatter()
 
     def format_output(self, data: Any, output_format: str) -> None:

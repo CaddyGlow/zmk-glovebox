@@ -8,6 +8,7 @@ import typer
 from glovebox.adapters import create_file_adapter
 from glovebox.cli.commands.layout.base import LayoutOutputCommand
 from glovebox.cli.decorators import handle_errors
+from glovebox.cli.helpers.auto_profile import resolve_json_file_path
 from glovebox.cli.helpers.parameters import OutputFormatOption, ProfileOption
 from glovebox.layout.comparison import create_layout_comparison_service
 
@@ -15,8 +16,13 @@ from glovebox.layout.comparison import create_layout_comparison_service
 @handle_errors
 def diff(
     ctx: typer.Context,
-    layout1: Annotated[Path, typer.Argument(help="First layout file to compare")],
     layout2: Annotated[Path, typer.Argument(help="Second layout file to compare")],
+    layout1: Annotated[
+        Path | None,
+        typer.Argument(
+            help="First layout file to compare. Uses GLOVEBOX_JSON_FILE environment variable if not provided."
+        ),
+    ] = None,
     output_format: Annotated[
         str,
         typer.Option(
@@ -51,6 +57,9 @@ def diff(
     behaviors, custom DTSI code, and configuration changes. Can also
     create unified diff patch files for DTSI sections.
 
+    The first layout file can be provided as an argument or via the
+    GLOVEBOX_JSON_FILE environment variable for convenience.
+
     Output Formats:
         summary  - Basic difference counts (default)
         detailed - Individual key differences within layers
@@ -64,31 +73,46 @@ def diff(
 
     Examples:
         # Basic comparison showing layer and config changes
-        glovebox layout diff my-layout-v41.json my-layout-v42.json
+        glovebox layout diff my-layout-v42.json my-layout-v41.json
+
+        # Using environment variable for first layout
+        export GLOVEBOX_JSON_FILE=my-layout.json
+        glovebox layout diff my-layout-v42.json
 
         # Detailed view with individual key differences
-        glovebox layout diff layout1.json layout2.json --format detailed
+        glovebox layout diff layout2.json layout1.json --format detailed
 
         # Include custom DTSI code differences
-        glovebox layout diff layout1.json layout2.json --compare-dtsi
+        glovebox layout diff layout2.json layout1.json --compare-dtsi
 
         # Create patch file for DTSI sections
-        glovebox layout diff old.json new.json --output-patch changes.patch
+        glovebox layout diff new.json old.json --output-patch changes.patch
 
         # Create patch for specific DTSI section
-        glovebox layout diff old.json new.json --output-patch behaviors.patch --patch-section behaviors
+        glovebox layout diff new.json old.json --output-patch behaviors.patch --patch-section behaviors
 
         # JSON output with structured key change data
-        glovebox layout diff layout1.json layout2.json --format json
+        glovebox layout diff layout2.json layout1.json --format json
 
         # Compare and create patch in one command
-        glovebox layout diff layout1.json layout2.json --format detailed --output-patch changes.patch
+        glovebox layout diff layout2.json layout1.json --format detailed --output-patch changes.patch
 
         # Compare your custom layout with a master version
-        glovebox layout diff ~/.glovebox/masters/glove80/v42-rc3.json my-custom.json --format detailed
+        glovebox layout diff my-custom.json ~/.glovebox/masters/glove80/v42-rc3.json --format detailed
     """
+    # Resolve first layout file path (supports environment variable)
+    resolved_layout1 = resolve_json_file_path(layout1, "GLOVEBOX_JSON_FILE")
+
+    if resolved_layout1 is None:
+        from glovebox.cli.helpers import print_error_message
+
+        print_error_message(
+            "First layout file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
+        )
+        raise typer.Exit(1)
+
     command = LayoutOutputCommand()
-    command.validate_layout_file(layout1)
+    command.validate_layout_file(resolved_layout1)
     command.validate_layout_file(layout2)
 
     try:
@@ -99,7 +123,7 @@ def diff(
         file_adapter = create_file_adapter()
         comparison_service = create_layout_comparison_service(user_config, file_adapter)
         result = comparison_service.compare_layouts(
-            layout1_path=layout1,
+            layout1_path=resolved_layout1,
             layout2_path=layout2,
             output_format=output_format,
             compare_dtsi=compare_dtsi,
@@ -133,7 +157,7 @@ def diff(
         if output_patch:
             try:
                 patch_result = comparison_service.create_dtsi_patch(
-                    layout1_path=layout1,
+                    layout1_path=resolved_layout1,
                     layout2_path=layout2,
                     output=output_patch,
                     section=patch_section,

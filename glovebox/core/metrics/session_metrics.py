@@ -522,11 +522,25 @@ class SessionMetrics:
         Args:
             operation_name: Name of the operation being timed
         """
-        histogram = self.Histogram(
-            f"{operation_name}_duration_seconds", f"{operation_name} duration"
-        )
-        with histogram.time():
+        start = time.time()
+        try:
             yield
+        finally:
+            duration = time.time() - start
+            # Record specific activity log entry for time_operation
+            self._activity_log.append(
+                {
+                    "timestamp": start,
+                    "operation": "time_operation",
+                    "operation_name": operation_name,
+                    "duration": duration,
+                }
+            )
+            # Also record via histogram for metric collection
+            histogram = self.Histogram(
+                f"{operation_name}_duration_seconds", f"{operation_name} duration"
+            )
+            histogram.observe(duration)
 
     def __enter__(self) -> "SessionMetrics":
         """Enter the context manager."""
@@ -656,10 +670,33 @@ class NoOpCounter:
 
     def inc(self, amount: float = 1) -> None:
         """No-op increment."""
-        pass
+        if self.labelnames:
+            raise ValueError("Counter with labels requires labels() call")
 
     def labels(self, *args: Any, **kwargs: Any) -> NoOpMetricsLabeled:
         """Return no-op labeled instance."""
+        if not self.labelnames:
+            raise ValueError("Counter was not declared with labels")
+
+        # Handle both positional and keyword arguments
+        if args and kwargs:
+            raise ValueError("Cannot mix positional and keyword arguments")
+
+        if args:
+            if len(args) != len(self.labelnames):
+                raise ValueError(
+                    f"Expected {len(self.labelnames)} label values, got {len(args)}"
+                )
+        elif kwargs:
+            # Keyword arguments - ensure all labels are provided
+            missing_labels = set(self.labelnames) - set(kwargs.keys())
+            if missing_labels:
+                raise ValueError(f"Missing label values: {missing_labels}")
+        else:
+            # No arguments provided - this is like having 0 positional args
+            if len(self.labelnames) > 0:
+                raise ValueError(f"Expected {len(self.labelnames)} label values, got 0")
+
         return NoOpMetricsLabeled()
 
 
@@ -691,6 +728,28 @@ class NoOpGauge:
 
     def labels(self, *args: Any, **kwargs: Any) -> NoOpMetricsLabeled:
         """Return no-op labeled instance."""
+        if not self.labelnames:
+            raise ValueError("Gauge was not declared with labels")
+
+        # Handle both positional and keyword arguments
+        if args and kwargs:
+            raise ValueError("Cannot mix positional and keyword arguments")
+
+        if args:
+            if len(args) != len(self.labelnames):
+                raise ValueError(
+                    f"Expected {len(self.labelnames)} label values, got {len(args)}"
+                )
+        elif kwargs:
+            # Keyword arguments - ensure all labels are provided
+            missing_labels = set(self.labelnames) - set(kwargs.keys())
+            if missing_labels:
+                raise ValueError(f"Missing label values: {missing_labels}")
+        else:
+            # No arguments provided - this is like having 0 positional args
+            if len(self.labelnames) > 0:
+                raise ValueError(f"Expected {len(self.labelnames)} label values, got 0")
+
         return NoOpMetricsLabeled()
 
 

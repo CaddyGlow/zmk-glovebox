@@ -325,22 +325,18 @@ class LayoutData(LayoutMetadata):
     @model_validator(mode="before")
     @classmethod
     def resolve_variables(cls, data: Any, info: Any = None) -> Any:
-        """Resolve all variables before field validation.
+        """Resolve all Jinja2 templates before field validation.
 
-        Variables are NOT resolved during edit operations to preserve original
-        variable references in the layout file. This prevents variable flattening
+        Templates are NOT resolved during edit operations to preserve original
+        template expressions in the layout file. This prevents template flattening
         when saving edited layouts.
         """
 
-        if (
-            not isinstance(data, dict)
-            or "variables" not in data
-            or not data["variables"]
-        ):
+        if not isinstance(data, dict):
             return data
 
-        # Check if variable resolution should be skipped
-        # This prevents variable flattening during edit operations
+        # Check if template resolution should be skipped
+        # This prevents template flattening during edit operations
         from glovebox.layout.utils.json_operations import (
             should_skip_variable_resolution,
         )
@@ -348,20 +344,52 @@ class LayoutData(LayoutMetadata):
         if should_skip_variable_resolution():
             return data
 
+        # Skip processing if no variables or templates present
+        if not data.get("variables") and not cls._has_template_syntax(data):
+            return data
+
         # Import here to avoid circular imports
-        from glovebox.layout.utils.variable_resolver import VariableResolver
+        from glovebox.layout.template_service import create_jinja2_template_service
+        from glovebox.layout.utils.json_operations import VariableResolutionContext
 
         try:
-            resolver = VariableResolver(data["variables"])
-            resolved_data = resolver.resolve_object(data)
-            return resolved_data
+            # Create template service and process the data
+            template_service = create_jinja2_template_service()
+
+            # Create a temporary LayoutData instance for processing
+            # We need to disable template resolution for this instance
+            # to avoid infinite recursion
+            with VariableResolutionContext(skip=True):
+                temp_layout = cls.model_validate(data)
+
+            # Process templates and return the resolved data
+            resolved_layout = template_service.process_layout_data(temp_layout)
+            return resolved_layout.model_dump(mode="json", by_alias=True)
+
         except Exception as e:
             # Log the error but don't fail validation - let individual field validation handle it
             import logging
 
             logger = logging.getLogger(__name__)
-            logger.warning("Variable resolution failed: %s", e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.warning("Template resolution failed: %s", e, exc_info=exc_info)
             return data
+
+    @classmethod
+    def _has_template_syntax(cls, data: dict[str, Any]) -> bool:
+        """Check if data contains any Jinja2 template syntax."""
+        import re
+
+        def scan_for_templates(obj: Any) -> bool:
+            if isinstance(obj, str):
+                return bool(re.search(r"\{\{|\{%|\{#", obj))
+            elif isinstance(obj, dict):
+                return any(scan_for_templates(v) for v in obj.values())
+            elif isinstance(obj, list):
+                return any(scan_for_templates(item) for item in obj)
+            return False
+
+        return scan_for_templates(data)
 
     @model_serializer(mode="wrap")
     def serialize_with_sorted_fields(
@@ -371,7 +399,9 @@ class LayoutData(LayoutMetadata):
         data = serializer(self)
 
         # Define the desired field order
+        # IMPORTANT: variables must be first for proper template resolution
         field_order = [
+            "variables",
             "keyboard",
             "firmware_api_version",
             "locale",
@@ -382,7 +412,6 @@ class LayoutData(LayoutMetadata):
             "title",
             "notes",
             "tags",
-            "variables",
             # Added fields for the layout master feature
             "version",
             "base_version",
@@ -467,22 +496,49 @@ class LayoutData(LayoutMetadata):
         return self.model_dump(mode="json", by_alias=True, exclude_unset=True)
 
     def to_flattened_dict(self) -> dict[str, Any]:
-        """Export layout with variables resolved and variables section removed.
+        """Export layout with templates resolved and variables section removed.
 
         Returns:
-            Dictionary representation with all variables resolved and variables section removed
+            Dictionary representation with all templates resolved and variables section removed
         """
         # Get the original dict representation
         data = self.model_dump(mode="json", by_alias=True, exclude_unset=True)
 
-        # If we have variables, resolve and remove them
-        if "variables" in data and data["variables"]:
-            from glovebox.layout.utils.variable_resolver import VariableResolver
+        # If we have variables or templates, resolve and remove variables section
+        if data.get("variables") or self._has_template_syntax(data):
+            from glovebox.layout.template_service import create_jinja2_template_service
+            from glovebox.layout.utils.json_operations import VariableResolutionContext
 
-            resolver = VariableResolver(data["variables"])
-            return resolver.flatten_layout(data)
+            try:
+                template_service = create_jinja2_template_service()
 
-        # No variables to resolve, just return without variables section
+                # Create a copy of self without template resolution to avoid recursion
+                with VariableResolutionContext(skip=True):
+                    temp_layout = LayoutData.model_validate(data)
+
+                # Process templates
+                resolved_layout = template_service.process_layout_data(temp_layout)
+                resolved_data = resolved_layout.model_dump(
+                    mode="json", by_alias=True, exclude_unset=True
+                )
+
+                # Remove variables section from output
+                return {k: v for k, v in resolved_data.items() if k != "variables"}
+
+            except Exception as e:
+                # Fall back to removing variables section only
+                import logging
+
+                logger = logging.getLogger(__name__)
+                exc_info = logger.isEnabledFor(logging.DEBUG)
+                logger.warning(
+                    "Template resolution failed in to_flattened_dict: %s",
+                    e,
+                    exc_info=exc_info,
+                )
+                return {k: v for k, v in data.items() if k != "variables"}
+
+        # No variables or templates to resolve, just return without variables section
         return {k: v for k, v in data.items() if k != "variables"}
 
 
