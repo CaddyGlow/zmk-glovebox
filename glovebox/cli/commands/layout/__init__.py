@@ -15,12 +15,8 @@ from .edit import edit
 # Import file operations
 from .file_operations import merge, split
 
-# Import upgrade command
-from .upgrade import upgrade
 
 # Import variable management command
-# Import version management subcommand group
-from .versions import versions_app
 
 
 # Create a typer app for layout commands
@@ -45,9 +41,6 @@ File Operations:
   split       - Split layout into component files (was decompose)
   merge       - Merge component files into layout (was compose)
 
-Version Management:
-  versions    - Subcommand group for master version management
-  upgrade     - Upgrade layout to new master version
 
 Comparison:
   diff        - Compare layouts with optional patch creation
@@ -74,15 +67,11 @@ layout_app.command()(edit)
 layout_app.command()(split)
 layout_app.command()(merge)
 
-# Register upgrade command
-layout_app.command()(upgrade)
 
 # Register comparison commands
 layout_app.command()(diff)
 layout_app.command()(patch)
 
-# Register version management subcommand group
-layout_app.add_typer(versions_app, name="versions")
 
 # Note: cloud and bookmarks commands are now registered at the top level
 

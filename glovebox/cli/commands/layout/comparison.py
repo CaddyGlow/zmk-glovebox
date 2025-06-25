@@ -23,17 +23,21 @@ def diff(
             help="First layout file to compare. Uses GLOVEBOX_JSON_FILE environment variable if not provided."
         ),
     ] = None,
-    output_format: Annotated[
-        str,
-        typer.Option(
-            "--format",
-            help="Output format: summary (default), detailed, dtsi, pretty, or json",
-        ),
-    ] = "summary",
+    output_format: OutputFormatOption = "text",
+    detailed: Annotated[
+        bool,
+        typer.Option("--detailed", help="Show detailed key changes within layers"),
+    ] = False,
     compare_dtsi: Annotated[
         bool,
         typer.Option(
             "--compare-dtsi", help="Include detailed custom DTSI code comparison"
+        ),
+    ] = False,
+    include_dtsi: Annotated[
+        bool,
+        typer.Option(
+            "--include-dtsi", help="Include custom DTSI fields in diff output"
         ),
     ] = False,
     output_patch: Annotated[
@@ -55,21 +59,18 @@ def diff(
 
     Shows differences between two layout files, focusing on layers,
     behaviors, custom DTSI code, and configuration changes. Can also
-    create unified diff patch files for DTSI sections.
+    create LayoutDiff patch files for later application.
 
     The first layout file can be provided as an argument or via the
     GLOVEBOX_JSON_FILE environment variable for convenience.
 
     Output Formats:
-        summary  - Basic difference counts (default)
-        detailed - Individual key differences within layers
-        dtsi     - Detailed DTSI code differences with unified diff
-        pretty   - Human-readable DeepDiff output
-        json     - Structured data with exact key changes for automation
-
-    The --compare-dtsi flag enables detailed custom DTSI code comparison
-    for any output format. The --output-patch option creates a unified
-    diff patch file (replaces the old create-patch command).
+        text     - Summary with change counts (default)
+        json     - LayoutDiff structure for automation/patching
+        table    - Tabular view of changes
+    Use --detailed to show individual key differences within layers.
+    Use --include-dtsi to include custom DTSI fields in diffs.
+    Use --compare-dtsi for backward compatibility (same as --include-dtsi).
 
     Examples:
         # Basic comparison showing layer and config changes
@@ -80,25 +81,22 @@ def diff(
         glovebox layout diff my-layout-v42.json
 
         # Detailed view with individual key differences
-        glovebox layout diff layout2.json layout1.json --format detailed
+        glovebox layout diff layout2.json layout1.json --detailed
 
         # Include custom DTSI code differences
-        glovebox layout diff layout2.json layout1.json --compare-dtsi
+        glovebox layout diff layout2.json layout1.json --include-dtsi
 
-        # Create patch file for DTSI sections
-        glovebox layout diff new.json old.json --output-patch changes.patch
+        # Create diff file for later patching
+        glovebox layout diff new.json old.json --output-patch changes.json
 
-        # Create patch for specific DTSI section
-        glovebox layout diff new.json old.json --output-patch behaviors.patch --patch-section behaviors
+        # JSON output with LayoutDiff structure
+        glovebox layout diff layout2.json layout1.json --output-format json
 
-        # JSON output with structured key change data
-        glovebox layout diff layout2.json layout1.json --format json
-
-        # Compare and create patch in one command
-        glovebox layout diff layout2.json layout1.json --format detailed --output-patch changes.patch
+        # Detailed comparison with DTSI and diff file creation
+        glovebox layout diff layout2.json layout1.json --detailed --include-dtsi --output-patch changes.json
 
         # Compare your custom layout with a master version
-        glovebox layout diff my-custom.json ~/.glovebox/masters/glove80/v42-rc3.json --format detailed
+        glovebox layout diff my-custom.json ~/.glovebox/masters/glove80/v42-rc3.json --detailed
     """
     # Resolve first layout file path (supports environment variable)
     resolved_layout1 = resolve_json_file_path(layout1, "GLOVEBOX_JSON_FILE")
@@ -134,21 +132,22 @@ def diff(
             layout1_path=file1,
             layout2_path=file2,
             output_format=output_format,
-            compare_dtsi=compare_dtsi,
+            include_dtsi=include_dtsi or compare_dtsi,  # Use either flag
+            detailed=detailed,
         )
 
-        # Handle patch creation if requested
+        # Handle diff file creation if requested
         if output_patch:
             try:
-                patch_result = comparison_service.create_dtsi_patch(
+                patch_result = comparison_service.create_diff_file(
                     layout1_path=file1,
                     layout2_path=file2,
-                    output=output_patch,
-                    section=patch_section,
+                    output_path=output_patch,
+                    include_dtsi=include_dtsi or compare_dtsi,
                 )
-                result["patch_created"] = patch_result
+                result["diff_file_created"] = patch_result
             except Exception as e:
-                result["patch_error"] = str(e)
+                result["diff_file_error"] = str(e)
 
         return result
 
@@ -182,6 +181,10 @@ def patch(
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
+    skip_dtsi: Annotated[
+        bool,
+        typer.Option("--skip-dtsi", help="Skip DTSI changes even if present in patch"),
+    ] = False,
 ) -> None:
     """Apply a JSON diff patch to transform a layout.
 
@@ -214,6 +217,7 @@ def patch(
             patch_file_path=patch_file,
             output=output,
             force=force,
+            skip_dtsi=skip_dtsi,
         )
 
         # Show success with details
@@ -231,16 +235,4 @@ def patch(
         command.handle_service_error(e, "apply patch")
 
 
-# TODO: to be deleted - moved to LayoutOutputFormatter.format_detailed_comparison_text()
-def _format_comparison_text(
-    result: dict[str, Any], output_format: str, compare_dtsi: bool
-) -> list[str]:
-    """Format comparison result for text output."""
-    # This function has been moved to LayoutOutputFormatter.format_detailed_comparison_text()
-    # Temporarily delegating to maintain compatibility during refactoring
-    from glovebox.cli.commands.layout.formatters import create_layout_output_formatter
 
-    formatter = create_layout_output_formatter()
-    return formatter.format_detailed_comparison_text(
-        result, output_format, compare_dtsi
-    )

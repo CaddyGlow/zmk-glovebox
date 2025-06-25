@@ -5,13 +5,17 @@ import logging
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import jsonpatch  # type: ignore
 from deepdiff import DeepDiff
 from pydantic import BaseModel
 
 from glovebox.layout.models import LayoutData
+
+
+if TYPE_CHECKING:
+    from glovebox.layout.diffing.models import LayoutDiff
 
 
 logger = logging.getLogger(__name__)
@@ -27,8 +31,19 @@ class LayoutDiffSystem:
         self,
         base_layout: LayoutData,
         modified_layout: LayoutData,
-    ) -> dict[str, Any]:
-        """Create a comprehensive diff between two layouts."""
+        include_dtsi: bool = False,
+    ) -> "LayoutDiff":
+        """Create a comprehensive diff between two layouts.
+
+        Args:
+            base_layout: Base layout for comparison
+            modified_layout: Modified layout for comparison
+            include_dtsi: Whether to include custom DTSI fields in diff
+
+        Returns:
+            LayoutDiff object containing all changes
+        """
+        from glovebox.layout.diffing.models import LayoutDiff
 
         # Convert to dict for comparison
         base_dict = base_layout.model_dump(
@@ -38,42 +53,88 @@ class LayoutDiffSystem:
             mode="json", by_alias=True, exclude_unset=True
         )
 
-        # Create standard JSON patch
-        # patch = jsonpatch.make_patch(base_dict, modified_dict)
-
-        # Use DeepDiff for detailed analysis
-        deep_diff = DeepDiff(
-            base_dict,
-            modified_dict,
-            ignore_order=False,
-            report_repetition=True,
-            view="tree",
-            max_passes=5,
-        )
-
-        # Analyze specific layout changes
-        layout_changes = self._analyze_layout_changes(base_dict, modified_dict)
-
-        return {
-            "metadata": {
-                "base_version": base_layout.version,
-                "modified_version": modified_layout.version,
-                "base_uuid": base_layout.uuid,
-                "modified_uuid": modified_layout.uuid,
-                "timestamp": datetime.now().isoformat(),
-                "diff_type": "layout_diff_v1",
-            },
-            # "json_patch": patch.patch,
-            # "deep_diff": deep_diff.to_json(),
-            "layout_changes": layout_changes,
-            # "statistics": self._calculate_diff_statistics(patch.patch),
+        # Create diff data starting with metadata
+        diff_data = {
+            # Diff metadata
+            "base_version": base_layout.version,
+            "modified_version": modified_layout.version,
+            "base_uuid": base_layout.uuid,
+            "modified_uuid": modified_layout.uuid,
+            "timestamp": datetime.now(),
+            "diff_type": "layout_diff_v2",
+            # Analyze structured lists
+            "layers": self._analyze_layout_changes(base_dict, modified_dict),
+            "holdTaps": self._analyze_behavior_changes(
+                base_dict.get("holdTaps", []), modified_dict.get("holdTaps", [])
+            ),
+            "combos": self._analyze_behavior_changes(
+                base_dict.get("combos", []), modified_dict.get("combos", [])
+            ),
+            "macros": self._analyze_behavior_changes(
+                base_dict.get("macros", []), modified_dict.get("macros", [])
+            ),
+            "inputListeners": self._analyze_behavior_changes(
+                base_dict.get("inputListeners", []),
+                modified_dict.get("inputListeners", []),
+                name_field="code",  # inputListeners use 'code' not 'name'
+            ),
         }
+
+        # Analyze simple fields (excluding layer_names which is handled with layers)
+        simple_fields = [
+            "keyboard",
+            "title",
+            "firmware_api_version",
+            "locale",
+            "uuid",
+            "parent_uuid",
+            "date",
+            "creator",
+            "notes",
+            "tags",
+            "variables",
+            "config_parameters",
+            "version",
+            "base_version_changes",
+            "base_layout",
+            "last_firmware_build",
+        ]
+
+        for field in simple_fields:
+            base_value = base_dict.get(field)
+            modified_value = modified_dict.get(field)
+            if base_value != modified_value:
+                patch = jsonpatch.make_patch(base_value, modified_value)
+                if patch.patch:
+                    diff_data[field] = patch.patch
+
+        # Handle DTSI fields if requested
+        if include_dtsi:
+            import difflib
+
+            for dtsi_field in ["custom_defined_behaviors", "custom_devicetree"]:
+                base_text = base_dict.get(dtsi_field, "")
+                modified_text = modified_dict.get(dtsi_field, "")
+                if base_text != modified_text:
+                    # Create unified diff
+                    diff = "\n".join(
+                        difflib.unified_diff(
+                            base_text.splitlines(keepends=True),
+                            modified_text.splitlines(keepends=True),
+                            fromfile=f"base/{dtsi_field}",
+                            tofile=f"modified/{dtsi_field}",
+                        )
+                    )
+                    if diff:
+                        diff_data[dtsi_field] = diff
+
+        return LayoutDiff.model_validate(diff_data)
 
     def _analyze_layout_changes(
         self, base: dict[str, Any], modified: dict[str, Any]
     ) -> dict[str, Any]:
         """Enhanced version that stores data needed for applying changes"""
-        changes = {"layers": {"added": [], "removed": [], "modified": []}}
+        changes: dict[str, Any] = {"added": [], "removed": [], "modified": []}
 
         base_layer_dict = OrderedDict(
             zip(base.get("layer_names", []), base.get("layers", []), strict=False)
@@ -86,26 +147,99 @@ class LayoutDiffSystem:
             )
         )
 
-        # Store removed layers with their data
+        # Create position mappings
+        base_layer_names = list(base.get("layer_names", []))
+        modified_layer_names = list(modified.get("layer_names", []))
+
+        base_positions = {name: idx for idx, name in enumerate(base_layer_names)}
+        modified_positions = {name: idx for idx, name in enumerate(modified_layer_names)}
+
+        # Store removed layers with their original positions
         removed_layers = base_layer_dict.keys() - modified_layer_dict.keys()
-        changes["layers"]["removed"] = [
-            # {"name": name, "data": base_layer_dict[name]} for name in removed_layers
-            {"name": name, "data": []}
+        changes["removed"] = [
+            {
+                "name": name,
+                "data": [],
+                "original_position": base_positions.get(name)
+            }
             for name in removed_layers
         ]
 
-        # Store added layers with their data
+        # Store added layers with their new positions
         added_layers = modified_layer_dict.keys() - base_layer_dict.keys()
-        changes["layers"]["added"] = [
-            {"name": name, "data": modified_layer_dict[name]} for name in added_layers
+        changes["added"] = [
+            {
+                "name": name,
+                "data": modified_layer_dict[name],
+                "new_position": modified_positions.get(name)
+            }
+            for name in added_layers
         ]
 
-        # Store modifications
+        # Store modifications with position information
         for k, v in base_layer_dict.items():
             if k in modified_layer_dict:
                 patch = jsonpatch.make_patch(v, modified_layer_dict[k])
-                if patch.patch:  # Only store if there are actual changes
-                    changes["layers"]["modified"].append({k: patch.patch})
+                original_pos = base_positions.get(k)
+                new_pos = modified_positions.get(k)
+
+                # Store if there are content changes OR position changes
+                if patch.patch or original_pos != new_pos:
+                    change_info = {
+                        k: {
+                            "patch": patch.patch,
+                            "original_position": original_pos,
+                            "new_position": new_pos,
+                            "position_changed": original_pos != new_pos
+                        }
+                    }
+                    changes["modified"].append(change_info)
+
+        return changes
+
+    def _analyze_behavior_changes(
+        self,
+        base_behaviors: list[dict[str, Any]],
+        modified_behaviors: list[dict[str, Any]],
+        name_field: str = "name",
+    ) -> dict[str, Any]:
+        """Generic method to analyze changes in behavior lists.
+
+        Args:
+            base_behaviors: List of behaviors in base layout
+            modified_behaviors: List of behaviors in modified layout
+            name_field: Field name to use as identifier (default: "name")
+
+        Returns:
+            Dictionary with added, removed, and modified behaviors
+        """
+        from collections import OrderedDict
+
+        # Create OrderedDict by name
+        base_dict = OrderedDict(
+            (behavior[name_field], behavior) for behavior in base_behaviors
+        )
+        modified_dict = OrderedDict(
+            (behavior[name_field], behavior) for behavior in modified_behaviors
+        )
+
+        changes: dict[str, Any] = {"added": [], "removed": [], "modified": []}
+
+        # Find removed behaviors (only store name)
+        removed_names = base_dict.keys() - modified_dict.keys()
+        changes["removed"] = [{"name": name, "data": []} for name in removed_names]
+
+        # Find added behaviors (store full data)
+        added_names = modified_dict.keys() - base_dict.keys()
+        changes["added"] = [
+            {"name": name, "data": modified_dict[name]} for name in added_names
+        ]
+
+        # Find modified behaviors
+        for name in base_dict.keys() & modified_dict.keys():
+            patch = jsonpatch.make_patch(base_dict[name], modified_dict[name])
+            if patch.patch:  # Only store if there are actual changes
+                changes["modified"].append({name: patch.patch})
 
         return changes
 
@@ -257,16 +391,19 @@ class AdvancedLayoutDiffSystem(LayoutDiffSystem):
 
         diff = self.create_layout_diff(base_layout, modified_layout)
 
+        # Convert LayoutDiff to dict and add semantic descriptions
+        diff_dict = diff.model_dump(mode="json", by_alias=True, exclude_unset=True)
+
         # Add semantic descriptions
         semantic = {
-            "summary": self._generate_diff_summary(diff),
-            # "layer_changes": self._describe_layer_changes(diff),
-            # "behavior_changes": self._describe_behavior_changes(diff),
-            # "impact_analysis": self._analyze_impact(diff),
+            "summary": self._generate_diff_summary(diff_dict),
+            # "layer_changes": self._describe_layer_changes(diff_dict),
+            # "behavior_changes": self._describe_behavior_changes(diff_dict),
+            # "impact_analysis": self._analyze_impact(diff_dict),
         }
 
-        diff["semantic"] = semantic
-        return diff
+        diff_dict["semantic"] = semantic
+        return diff_dict
 
     def _generate_diff_summary(self, diff: dict[str, Any]) -> str:
         """Generate a human-readable summary of changes."""
@@ -306,15 +443,9 @@ class AdvancedLayoutDiffSystem(LayoutDiffSystem):
 
         full_diff = self.create_layout_diff(base_layout, modified_layout)
 
-        # Filter out unchanged elements
-        minimal_patch = []
-        for op in full_diff["json_patch"]:
-            # Include only actual changes, not moves that don't change content
-            if op["op"] != "test":  # Skip test operations
-                minimal_patch.append(op)
+        # Convert to dict format
+        diff_dict = full_diff.model_dump(mode="json", by_alias=True, exclude_unset=True)
 
-        return {
-            "metadata": full_diff["metadata"],
-            "json_patch": minimal_patch,
-            "statistics": self._calculate_diff_statistics(minimal_patch),
-        }
+        # For now, return the full diff as the minimal format
+        # TODO: Implement actual minimal diff logic for new format
+        return diff_dict

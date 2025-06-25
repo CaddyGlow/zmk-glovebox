@@ -27,7 +27,7 @@ config_app.command(name="check-updates")(check_updates)
 config_app.command(name="disable-updates")(disable_updates)
 config_app.command(name="enable-updates")(enable_updates)
 
-# Note: keyboard-related commands are now in the dedicated keyboard module
+# Note: profile-related commands are now in the dedicated profile module
 
 
 def register_commands(app: typer.Typer) -> None:

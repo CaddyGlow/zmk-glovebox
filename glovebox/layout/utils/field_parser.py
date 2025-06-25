@@ -75,7 +75,9 @@ def _resolve_pydantic_field_alias(model: Any, field_name: str) -> str | None:
     return None
 
 
-def _resolve_layer_name_to_index(root_model: Any, current_value: Any, layer_name: str) -> int | None:
+def _resolve_layer_name_to_index(
+    root_model: Any, current_value: Any, layer_name: str
+) -> int | None:
     """Resolve a layer name to its index in the layers array.
 
     Args:
@@ -87,9 +89,11 @@ def _resolve_layer_name_to_index(root_model: Any, current_value: Any, layer_name
         Layer index if found, None otherwise
     """
     # Check if we're working with a layers array and the root model has layer_names
-    if (hasattr(root_model, 'layer_names') and
-        hasattr(current_value, '__getitem__') and
-        hasattr(current_value, '__len__')):
+    if (
+        hasattr(root_model, "layer_names")
+        and hasattr(current_value, "__getitem__")
+        and hasattr(current_value, "__len__")
+    ):
         try:
             # Find the layer name in layer_names
             return int(root_model.layer_names.index(layer_name))
@@ -134,7 +138,9 @@ def extract_field_value_from_model(model: Any, field_path: str) -> Any:
                 if resolved_index is not None:
                     current = current[resolved_index]
                 else:
-                    raise ValueError(f"Invalid array index or layer name: {index_str}") from None
+                    raise ValueError(
+                        f"Invalid array index or layer name: {index_str}"
+                    ) from None
             except IndexError as e:
                 raise ValueError(f"Invalid array index: {index_str}") from e
         else:
@@ -193,7 +199,9 @@ def set_field_value_on_model(model: Any, field_path: str, value: Any) -> None:
                 if resolved_index is not None:
                     current = current[resolved_index]
                 else:
-                    raise ValueError(f"Invalid array index or layer name: {index_str}") from None
+                    raise ValueError(
+                        f"Invalid array index or layer name: {index_str}"
+                    ) from None
             except IndexError as e:
                 raise ValueError(f"Invalid array index: {index_str}") from e
         else:
@@ -232,7 +240,9 @@ def set_field_value_on_model(model: Any, field_path: str, value: Any) -> None:
             if resolved_index is not None:
                 current[resolved_index] = value
             else:
-                raise ValueError(f"Invalid array index or layer name: {index_str}") from None
+                raise ValueError(
+                    f"Invalid array index or layer name: {index_str}"
+                ) from None
         except IndexError as e:
             raise ValueError(f"Invalid array index: {index_str}") from e
     else:
@@ -285,7 +295,9 @@ def unset_field_value_on_model(model: Any, field_path: str) -> None:
                 if resolved_index is not None:
                     current = current[resolved_index]
                 else:
-                    raise ValueError(f"Invalid array index or layer name: {index_str}") from None
+                    raise ValueError(
+                        f"Invalid array index or layer name: {index_str}"
+                    ) from None
             except IndexError as e:
                 raise ValueError(f"Invalid array index: {index_str}") from e
         else:
@@ -335,7 +347,9 @@ def unset_field_value_on_model(model: Any, field_path: str) -> None:
                         f"Cannot remove index from non-list value with [{index_str}]"
                     ) from None
             else:
-                raise ValueError(f"Invalid array index or layer name: {index_str}") from None
+                raise ValueError(
+                    f"Invalid array index or layer name: {index_str}"
+                ) from None
         except IndexError as e:
             raise ValueError(f"Invalid array index: {index_str}") from e
     else:

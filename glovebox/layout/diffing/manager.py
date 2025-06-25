@@ -30,16 +30,19 @@ class LayoutDiffManager:
 
         diff = self.diff_system.create_layout_diff(base, modified)
 
+        # Convert LayoutDiff to dict for backward compatibility
+        diff_dict = diff.model_dump(mode="json", by_alias=True, exclude_unset=True)
+
         # Store in history
         self.diff_history.append(
             {
                 "timestamp": datetime.now(),
                 "source": str(modified_layout_path),
-                "diff": diff,
+                "diff": diff_dict,
             }
         )
 
-        return diff
+        return diff_dict
 
     def save_diff(self, diff: dict[str, Any], output_path: Path) -> None:
         """Save diff to a JSON file."""

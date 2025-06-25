@@ -20,11 +20,12 @@ class TestLayoutEditor:
     @pytest.fixture
     def sample_layout_data(self) -> LayoutData:
         """Create sample layout data for testing."""
+
         # Helper function to create LayoutBinding structure
         def create_binding(behavior: str, *params: str) -> dict[str, Any]:
             return {
                 "value": behavior,
-                "params": [{"value": param, "params": []} for param in params]
+                "params": [{"value": param, "params": []} for param in params],
             }
 
         layout_dict = {
@@ -40,7 +41,7 @@ class TestLayoutEditor:
                 "Typing",
                 "Autoshift",
                 "LeftNav",
-                "RightMove"
+                "RightMove",
             ],
             "layers": [
                 [create_binding("&kp", "A"), create_binding("&kp", "B")],  # Base
@@ -57,7 +58,7 @@ class TestLayoutEditor:
             ],
             "variables": {"test_var": "test_value"},
             "title": "Test Layout",
-            "notes": "Test notes"
+            "notes": "Test notes",
         }
         return LayoutData.model_validate(layout_dict)
 
@@ -137,7 +138,7 @@ class TestLayoutEditor:
 
         # When we set with a dict, it may be converted to LayoutBinding by Pydantic
         binding = editor.layout_data.layers[0][0]
-        if hasattr(binding, 'value'):
+        if hasattr(binding, "value"):
             # LayoutBinding object
             assert binding.value == "&kp"
             assert binding.params[0].value == "Z"
@@ -151,7 +152,9 @@ class TestLayoutEditor:
         """Test removing top-level field."""
         editor.unset_field("notes")
 
-        assert not hasattr(editor.layout_data, "notes") or editor.layout_data.notes is None
+        assert (
+            not hasattr(editor.layout_data, "notes") or editor.layout_data.notes is None
+        )
         assert "Unset notes" in editor.operations_log
 
     def test_unset_field_nested_dict(self, editor: LayoutEditor):
@@ -298,9 +301,11 @@ class TestLayoutEditor:
         # No layers should be removed
         assert len(editor.layout_data.layer_names) == initial_count
         # Should have warning
-        assert hasattr(editor, 'warnings')
+        assert hasattr(editor, "warnings")
         assert len(editor.warnings) > 0
-        assert "No layers found matching identifier 'NonExistent*'" in editor.warnings[0]
+        assert (
+            "No layers found matching identifier 'NonExistent*'" in editor.warnings[0]
+        )
 
     def test_remove_layer_invalid_regex_no_match(self, editor: LayoutEditor):
         """Test removing layer with invalid regex pattern."""
@@ -310,7 +315,7 @@ class TestLayoutEditor:
         # No layers should be removed
         assert len(editor.layout_data.layer_names) == initial_count
         # Should have warning
-        assert hasattr(editor, 'warnings')
+        assert hasattr(editor, "warnings")
         assert len(editor.warnings) > 0
 
     def test_remove_layer_multiple_matches_sorted_removal(self, editor: LayoutEditor):
@@ -357,7 +362,10 @@ class TestLayoutEditor:
         assert "MouseCopy" in editor.layout_data.layer_names
         mouse_index = editor.layout_data.layer_names.index("Mouse")
         copy_index = editor.layout_data.layer_names.index("MouseCopy")
-        assert editor.layout_data.layers[mouse_index] == editor.layout_data.layers[copy_index]
+        assert (
+            editor.layout_data.layers[mouse_index]
+            == editor.layout_data.layers[copy_index]
+        )
         assert "Copied layer 'Mouse' to 'MouseCopy'" in editor.operations_log
 
     def test_copy_layer_nonexistent_source_fails(self, editor: LayoutEditor):
@@ -422,20 +430,14 @@ class TestZmkBehaviorParsing:
         """Test parsing simple behavior without parameters."""
         result = parse_zmk_behavior_string("&trans")
 
-        expected = {
-            "value": "&trans",
-            "params": []
-        }
+        expected = {"value": "&trans", "params": []}
         assert result == expected
 
     def test_parse_behavior_with_single_param(self):
         """Test parsing behavior with single parameter."""
         result = parse_zmk_behavior_string("&kp Q")
 
-        expected = {
-            "value": "&kp",
-            "params": [{"value": "Q", "params": []}]
-        }
+        expected = {"value": "&kp", "params": [{"value": "Q", "params": []}]}
         assert result == expected
 
     def test_parse_behavior_with_multiple_params(self):
@@ -444,10 +446,7 @@ class TestZmkBehaviorParsing:
 
         expected = {
             "value": "&mt",
-            "params": [
-                {"value": "LCTRL", "params": []},
-                {"value": "A", "params": []}
-            ]
+            "params": [{"value": "LCTRL", "params": []}, {"value": "A", "params": []}],
         }
         assert result == expected
 
@@ -455,10 +454,7 @@ class TestZmkBehaviorParsing:
         """Test parsing complex behavior with special characters."""
         result = parse_zmk_behavior_string("&kp LC(LS(TAB))")
 
-        expected = {
-            "value": "&kp",
-            "params": [{"value": "LC(LS(TAB))", "params": []}]
-        }
+        expected = {"value": "&kp", "params": [{"value": "LC(LS(TAB))", "params": []}]}
         assert result == expected
 
     def test_parse_empty_behavior_fails(self):
@@ -477,10 +473,7 @@ class TestZmkBehaviorParsing:
 
         expected = {
             "value": "&kp",
-            "params": [
-                {"value": "Q", "params": []},
-                {"value": "A", "params": []}
-            ]
+            "params": [{"value": "Q", "params": []}, {"value": "A", "params": []}],
         }
         assert result == expected
 
@@ -491,11 +484,12 @@ class TestLayoutEditorIntegration:
     @pytest.fixture
     def complex_layout_data(self) -> LayoutData:
         """Create complex layout data for integration testing."""
+
         # Helper function to create LayoutBinding structure
         def create_binding(behavior: str, *params: str) -> dict[str, Any]:
             return {
                 "value": behavior,
-                "params": [{"value": param, "params": []} for param in params]
+                "params": [{"value": param, "params": []} for param in params],
             }
 
         layout_dict = {
@@ -513,29 +507,23 @@ class TestLayoutEditorIntegration:
                 "Autoshift",
                 "LeftNav",
                 "RightMove",
-                "Magic"
+                "Magic",
             ],
             "layers": [
                 # Complex layer data with various binding types
                 [
                     create_binding("&kp", "Q"),
                     create_binding("&trans"),
-                    create_binding("&none")
-                ] for _ in range(13)  # 13 layers
+                    create_binding("&none"),
+                ]
+                for _ in range(13)  # 13 layers
             ],
-            "variables": {
-                "testVar": 150,
-                "username": "TestUser"
-            },
+            "variables": {"testVar": 150, "username": "TestUser"},
             "title": "TailorKey Zero v4.2g",
             "notes": "Complex test layout",
             "holdTaps": [
-                {
-                    "name": "&test_ht",
-                    "bindings": ["&kp", "&mo"],
-                    "tappingTermMs": 200
-                }
-            ]
+                {"name": "&test_ht", "bindings": ["&kp", "&mo"], "tappingTermMs": 200}
+            ],
         }
         return LayoutData.model_validate(layout_dict)
 
@@ -558,7 +546,9 @@ class TestLayoutEditorIntegration:
         assert len(complex_editor.layout_data.layer_names) == initial_count - 3
 
         # Verify layers and layer_names arrays stay in sync
-        assert len(complex_editor.layout_data.layers) == len(complex_editor.layout_data.layer_names)
+        assert len(complex_editor.layout_data.layers) == len(
+            complex_editor.layout_data.layer_names
+        )
 
     def test_remove_left_and_right_layers(self, complex_editor: LayoutEditor):
         """Test removing Left* and Right* layers."""
@@ -577,21 +567,23 @@ class TestLayoutEditorIntegration:
         initial_count = len(complex_editor.layout_data.layer_names)
 
         # Simulate the user's actual command sequence
-        complex_editor.remove_layer("Mouse*")     # Removes 3 layers
-        complex_editor.remove_layer("Left*")      # Removes 1 layer
-        complex_editor.remove_layer("Gaming")     # Removes 1 layer
-        complex_editor.remove_layer("Typing")     # Removes 1 layer
+        complex_editor.remove_layer("Mouse*")  # Removes 3 layers
+        complex_editor.remove_layer("Left*")  # Removes 1 layer
+        complex_editor.remove_layer("Gaming")  # Removes 1 layer
+        complex_editor.remove_layer("Typing")  # Removes 1 layer
         complex_editor.remove_layer("Autoshift")  # Removes 1 layer
-        complex_editor.remove_layer("Right*")     # Removes 1 layer
+        complex_editor.remove_layer("Right*")  # Removes 1 layer
 
         # Should remove 8 layers total
         removed_layers = [
-            "Mouse", "MouseSlow", "MouseFast",  # Mouse*
-            "LeftNav",                          # Left*
-            "Gaming",                           # Gaming
-            "Typing",                           # Typing
-            "Autoshift",                        # Autoshift
-            "RightMove"                         # Right*
+            "Mouse",
+            "MouseSlow",
+            "MouseFast",  # Mouse*
+            "LeftNav",  # Left*
+            "Gaming",  # Gaming
+            "Typing",  # Typing
+            "Autoshift",  # Autoshift
+            "RightMove",  # Right*
         ]
 
         for layer in removed_layers:
@@ -600,18 +592,28 @@ class TestLayoutEditorIntegration:
         assert len(complex_editor.layout_data.layer_names) == initial_count - 8
 
         # Verify arrays stay in sync
-        assert len(complex_editor.layout_data.layers) == len(complex_editor.layout_data.layer_names)
+        assert len(complex_editor.layout_data.layers) == len(
+            complex_editor.layout_data.layer_names
+        )
 
-    def test_warning_generation_for_non_matching_patterns(self, complex_editor: LayoutEditor):
+    def test_warning_generation_for_non_matching_patterns(
+        self, complex_editor: LayoutEditor
+    ):
         """Test that warnings are generated for non-matching patterns."""
         complex_editor.remove_layer("NonExistent*")
         complex_editor.remove_layer("AnotherMissing")
 
         # Should have warnings
-        assert hasattr(complex_editor, 'warnings')
+        assert hasattr(complex_editor, "warnings")
         assert len(complex_editor.warnings) == 2
-        assert "No layers found matching identifier 'NonExistent*'" in complex_editor.warnings[0]
-        assert "No layers found matching identifier 'AnotherMissing'" in complex_editor.warnings[1]
+        assert (
+            "No layers found matching identifier 'NonExistent*'"
+            in complex_editor.warnings[0]
+        )
+        assert (
+            "No layers found matching identifier 'AnotherMissing'"
+            in complex_editor.warnings[1]
+        )
 
     def test_atomic_operations_preserve_consistency(self, complex_editor: LayoutEditor):
         """Test that all operations preserve layout consistency."""
@@ -626,13 +628,17 @@ class TestLayoutEditorIntegration:
         complex_editor.move_layer("Gaming", 1)
 
         # Arrays should always be in sync
-        assert len(complex_editor.layout_data.layer_names) == len(complex_editor.layout_data.layers)
+        assert len(complex_editor.layout_data.layer_names) == len(
+            complex_editor.layout_data.layers
+        )
 
         # Count should be consistent: +3 added, -3 removed, +1 copied = +1 total
         expected_count = initial_layer_count + 2 + 1 - 3  # +2 new, +1 copy, -3 mouse
         assert len(complex_editor.layout_data.layer_names) == expected_count
 
-    def test_field_operations_with_layer_name_resolution(self, complex_editor: LayoutEditor):
+    def test_field_operations_with_layer_name_resolution(
+        self, complex_editor: LayoutEditor
+    ):
         """Test field operations using layer name resolution."""
         # Set a binding using layer name instead of index
         new_binding = {"value": "&kp", "params": [{"value": "TAB", "params": []}]}
@@ -641,7 +647,7 @@ class TestLayoutEditorIntegration:
         # Verify it was set correctly
         hrm_index = complex_editor.layout_data.layer_names.index("HRM_WinLinx")
         binding = complex_editor.layout_data.layers[hrm_index][0]
-        if hasattr(binding, 'value'):
+        if hasattr(binding, "value"):
             # LayoutBinding object
             assert binding.value == "&kp"
             assert binding.params[0].value == "TAB"
@@ -652,7 +658,7 @@ class TestLayoutEditorIntegration:
 
         # Get using layer name resolution
         value = complex_editor.get_field("layers[HRM_WinLinx][0]")
-        if hasattr(value, 'value'):
+        if hasattr(value, "value"):
             assert value.value == "&kp"
             assert value.params[0].value == "TAB"
         else:
@@ -677,7 +683,9 @@ class TestLayoutEditorIntegration:
         assert any("Added layer 'TestLayer'" in log for log in logs)
 
         # Check for removed layers - order may vary due to removal strategy
-        mouse_removal_logs = [log for log in logs if "Removed layers:" in log and "Mouse" in log]
+        mouse_removal_logs = [
+            log for log in logs if "Removed layers:" in log and "Mouse" in log
+        ]
         assert len(mouse_removal_logs) > 0, f"No mouse removal found in logs: {logs}"
 
         assert any("Copied layer 'Lower' to 'LowerCopy'" in log for log in logs)

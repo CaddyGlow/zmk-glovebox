@@ -29,7 +29,6 @@ from glovebox.compilation.models import (
 )
 from glovebox.config.profile import KeyboardProfile
 from glovebox.firmware.flash import create_flash_service
-from glovebox.layout.firmware_tracker import create_firmware_tracker
 
 
 logger = logging.getLogger(__name__)
@@ -193,24 +192,6 @@ def _execute_compilation_from_json(
         config=compile_config,
         keyboard_profile=keyboard_profile,
     )
-
-
-def _track_firmware_build(
-    layout_file: Path, build_output_dir: Path, profile: str
-) -> None:
-    """Track firmware build in layout metadata."""
-    # Look for generated firmware files
-    firmware_files = list(build_output_dir.glob("*.uf2"))
-    if not firmware_files:
-        logger.warning("No firmware files found in %s", build_output_dir)
-        return
-
-    # Use the first firmware file found
-    firmware_file = firmware_files[0]
-
-    # Track the build
-    tracker = create_firmware_tracker()
-    tracker.track_build(layout_file, firmware_file, profile)
 
 
 def _format_compilation_output(
@@ -423,20 +404,6 @@ def firmware_compile(
                     session_metrics=ctx.obj.session_metrics,
                     user_config=get_user_config_from_context(ctx),
                 )
-
-            # Track firmware build if compilation was successful and input was JSON
-            if result.success and is_json_input:
-                try:
-                    profile_string = (
-                        f"{keyboard_profile.keyboard_name}/{keyboard_profile.firmware_version}"
-                        if keyboard_profile.firmware_version
-                        else keyboard_profile.keyboard_name
-                    )
-                    _track_firmware_build(
-                        resolved_input_file, build_output_dir, profile_string
-                    )
-                except Exception as e:
-                    logger.warning("Failed to track firmware build: %s", e)
 
         if result.success:
             # Track successful compilation
