@@ -75,6 +75,29 @@ def _resolve_pydantic_field_alias(model: Any, field_name: str) -> str | None:
     return None
 
 
+def _resolve_layer_name_to_index(root_model: Any, current_value: Any, layer_name: str) -> int | None:
+    """Resolve a layer name to its index in the layers array.
+
+    Args:
+        root_model: The root LayoutData model
+        current_value: The current value being indexed (should be layers array)
+        layer_name: The layer name to resolve
+
+    Returns:
+        Layer index if found, None otherwise
+    """
+    # Check if we're working with a layers array and the root model has layer_names
+    if (hasattr(root_model, 'layer_names') and
+        hasattr(current_value, '__getitem__') and
+        hasattr(current_value, '__len__')):
+        try:
+            # Find the layer name in layer_names
+            return int(root_model.layer_names.index(layer_name))
+        except (ValueError, AttributeError):
+            pass
+    return None
+
+
 def extract_field_value_from_model(model: Any, field_path: str) -> Any:
     """Extract a field value directly from a Pydantic model.
 
@@ -97,6 +120,7 @@ def extract_field_value_from_model(model: Any, field_path: str) -> Any:
             # Array index access
             index_str = part[1:-1]
             try:
+                # Try numeric index first
                 index = int(index_str)
                 if hasattr(current, "__getitem__"):
                     current = current[index]
@@ -104,7 +128,14 @@ def extract_field_value_from_model(model: Any, field_path: str) -> Any:
                     raise ValueError(
                         f"Cannot index non-indexable value with [{index_str}]"
                     )
-            except (ValueError, IndexError) as e:
+            except ValueError:
+                # If not a number, try layer name resolution
+                resolved_index = _resolve_layer_name_to_index(model, current, index_str)
+                if resolved_index is not None:
+                    current = current[resolved_index]
+                else:
+                    raise ValueError(f"Invalid array index or layer name: {index_str}") from None
+            except IndexError as e:
                 raise ValueError(f"Invalid array index: {index_str}") from e
         else:
             # Attribute/key access
@@ -148,6 +179,7 @@ def set_field_value_on_model(model: Any, field_path: str, value: Any) -> None:
             # Array index access
             index_str = part[1:-1]
             try:
+                # Try numeric index first
                 index = int(index_str)
                 if hasattr(current, "__getitem__"):
                     current = current[index]
@@ -155,7 +187,14 @@ def set_field_value_on_model(model: Any, field_path: str, value: Any) -> None:
                     raise ValueError(
                         f"Cannot index non-indexable value with [{index_str}]"
                     )
-            except (ValueError, IndexError) as e:
+            except ValueError:
+                # If not a number, try layer name resolution
+                resolved_index = _resolve_layer_name_to_index(model, current, index_str)
+                if resolved_index is not None:
+                    current = current[resolved_index]
+                else:
+                    raise ValueError(f"Invalid array index or layer name: {index_str}") from None
+            except IndexError as e:
                 raise ValueError(f"Invalid array index: {index_str}") from e
         else:
             # Attribute/key access
@@ -175,6 +214,7 @@ def set_field_value_on_model(model: Any, field_path: str, value: Any) -> None:
         # Array index access
         index_str = final_part[1:-1]
         try:
+            # Try numeric index first
             index = int(index_str)
             if hasattr(current, "__setitem__"):
                 # For lists, extend if index is beyond current length
@@ -186,7 +226,14 @@ def set_field_value_on_model(model: Any, field_path: str, value: Any) -> None:
                 raise ValueError(
                     f"Cannot set index on non-indexable value with [{index_str}]"
                 )
-        except (ValueError, IndexError) as e:
+        except ValueError:
+            # If not a number, try layer name resolution
+            resolved_index = _resolve_layer_name_to_index(model, current, index_str)
+            if resolved_index is not None:
+                current[resolved_index] = value
+            else:
+                raise ValueError(f"Invalid array index or layer name: {index_str}") from None
+        except IndexError as e:
             raise ValueError(f"Invalid array index: {index_str}") from e
     else:
         # Attribute/key access for final field
@@ -224,6 +271,7 @@ def unset_field_value_on_model(model: Any, field_path: str) -> None:
             # Array index access
             index_str = part[1:-1]
             try:
+                # Try numeric index first
                 index = int(index_str)
                 if hasattr(current, "__getitem__"):
                     current = current[index]
@@ -231,7 +279,14 @@ def unset_field_value_on_model(model: Any, field_path: str) -> None:
                     raise ValueError(
                         f"Cannot index non-indexable value with [{index_str}]"
                     )
-            except (ValueError, IndexError) as e:
+            except ValueError:
+                # If not a number, try layer name resolution
+                resolved_index = _resolve_layer_name_to_index(model, current, index_str)
+                if resolved_index is not None:
+                    current = current[resolved_index]
+                else:
+                    raise ValueError(f"Invalid array index or layer name: {index_str}") from None
+            except IndexError as e:
                 raise ValueError(f"Invalid array index: {index_str}") from e
         else:
             # Attribute/key access
@@ -251,6 +306,7 @@ def unset_field_value_on_model(model: Any, field_path: str) -> None:
         # Array index access - remove from list
         index_str = final_part[1:-1]
         try:
+            # Try numeric index first
             index = int(index_str)
             if isinstance(current, list):
                 if 0 <= index < len(current):
@@ -263,7 +319,24 @@ def unset_field_value_on_model(model: Any, field_path: str) -> None:
                 raise ValueError(
                     f"Cannot remove index from non-list value with [{index_str}]"
                 )
-        except (ValueError, IndexError) as e:
+        except ValueError:
+            # If not a number, try layer name resolution
+            resolved_index = _resolve_layer_name_to_index(model, current, index_str)
+            if resolved_index is not None:
+                if isinstance(current, list):
+                    if 0 <= resolved_index < len(current):
+                        current.pop(resolved_index)
+                    else:
+                        raise ValueError(
+                            f"Index {resolved_index} out of range for list of length {len(current)}"
+                        ) from None
+                else:
+                    raise ValueError(
+                        f"Cannot remove index from non-list value with [{index_str}]"
+                    ) from None
+            else:
+                raise ValueError(f"Invalid array index or layer name: {index_str}") from None
+        except IndexError as e:
             raise ValueError(f"Invalid array index: {index_str}") from e
     else:
         # Attribute/key access for final field

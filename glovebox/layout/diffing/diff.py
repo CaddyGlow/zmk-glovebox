@@ -35,7 +35,7 @@ class LayoutDiffSystem:
         )
 
         # Create standard JSON patch
-        patch = jsonpatch.make_patch(base_dict, modified_dict)
+        # patch = jsonpatch.make_patch(base_dict, modified_dict)
 
         # Use DeepDiff for detailed analysis
         deep_diff = DeepDiff(
@@ -50,11 +50,6 @@ class LayoutDiffSystem:
         # Analyze specific layout changes
         layout_changes = self._analyze_layout_changes(base_dict, modified_dict)
 
-        # Track key binding movements if requested
-        movements = {}
-        if track_movements:
-            movements = self._track_binding_movements(base_dict, modified_dict)
-
         return {
             "metadata": {
                 "base_version": base_layout.version,
@@ -64,11 +59,10 @@ class LayoutDiffSystem:
                 "timestamp": datetime.now().isoformat(),
                 "diff_type": "layout_diff_v1",
             },
-            "json_patch": patch.patch,
-            "deep_diff": deep_diff.to_json(),
+            # "json_patch": patch.patch,
+            # "deep_diff": deep_diff.to_json(),
             "layout_changes": layout_changes,
-            "movements": movements,
-            "statistics": self._calculate_diff_statistics(patch.patch),
+            # "statistics": self._calculate_diff_statistics(patch.patch),
         }
 
     def _analyze_layout_changes(
@@ -154,69 +148,6 @@ class LayoutDiffSystem:
             changes["custom_code"]["behaviors_changed"] = True
 
         return changes
-
-    def _track_binding_movements(
-        self, base: dict[str, Any], modified: dict[str, Any]
-    ) -> dict[str, list[dict[str, Any]]]:
-        """Track movements of key bindings across layers and positions."""
-
-        movements: dict[str, list[dict[str, Any]]] = {
-            "within_layer": [],  # Bindings that moved within the same layer
-            "between_layers": [],  # Bindings that moved to different layers
-            "behavior_changes": [],  # Same position but behavior changed
-        }
-
-        # Create binding signatures for all positions
-        base_signatures = self._create_binding_signatures(base)
-        modified_signatures = self._create_binding_signatures(modified)
-
-        # Track movements
-        for sig, base_positions in base_signatures.items():
-            if sig in modified_signatures:
-                modified_positions = modified_signatures[sig]
-
-                for base_pos in base_positions:
-                    for mod_pos in modified_positions:
-                        if base_pos != mod_pos:
-                            if base_pos["layer"] == mod_pos["layer"]:
-                                movements["within_layer"].append(
-                                    {
-                                        "signature": sig,
-                                        "from": base_pos,
-                                        "to": mod_pos,
-                                        "binding": base_pos["binding"],
-                                    }
-                                )
-                            else:
-                                movements["between_layers"].append(
-                                    {
-                                        "signature": sig,
-                                        "from": base_pos,
-                                        "to": mod_pos,
-                                        "binding": base_pos["binding"],
-                                    }
-                                )
-
-        # Track behavior changes at same position
-        base_layers = base.get("layers", [])
-        modified_layers = modified.get("layers", [])
-
-        for layer_idx in range(min(len(base_layers), len(modified_layers))):
-            base_layer = base_layers[layer_idx]
-            modified_layer = modified_layers[layer_idx]
-
-            for pos_idx in range(min(len(base_layer), len(modified_layer))):
-                if base_layer[pos_idx] != modified_layer[pos_idx]:
-                    movements["behavior_changes"].append(
-                        {
-                            "layer": layer_idx,
-                            "position": pos_idx,
-                            "from": base_layer[pos_idx],
-                            "to": modified_layer[pos_idx],
-                        }
-                    )
-
-        return movements
 
     def _create_binding_signatures(
         self, layout_dict: dict[str, Any]
