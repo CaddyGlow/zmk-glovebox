@@ -233,6 +233,173 @@ class LayoutCommandComposer:
         title = f"Batch {operation_name.replace('_', ' ').title()}"
         self.formatter.format_results(batch_result, output_format, title)
 
+    def execute_validation_operation(
+        self,
+        layout_file: Path,
+        operation: Callable[[Path], dict[str, Any]],
+        operation_name: str = "validate layout",
+        output_format: str = "text",
+    ) -> None:
+        """Execute a validation operation and format the output.
+
+        Args:
+            layout_file: Path to layout file to validate
+            operation: Operation function that takes layout file and returns validation results
+            operation_name: Name of operation for error messages
+            output_format: Output format
+        """
+
+        def execute() -> dict[str, Any]:
+            return operation(layout_file)
+
+        result = self.execute_with_error_handling(
+            execute, operation_name, output_format
+        )
+
+        if result is not None:
+            self.formatter.format_validation_result(result, output_format)
+
+    def execute_compilation_operation(
+        self,
+        layout_file: Path,
+        operation: Callable[[Path], dict[str, Any]],
+        operation_name: str = "compile layout",
+        output_format: str = "text",
+        session_metrics: Any = None,
+    ) -> None:
+        """Execute a compilation operation and format the output.
+
+        Args:
+            layout_file: Path to layout file to compile
+            operation: Operation function that takes layout file and returns compilation results
+            operation_name: Name of operation for error messages
+            output_format: Output format
+            session_metrics: Optional session metrics for tracking
+        """
+
+        def execute() -> dict[str, Any]:
+            return operation(layout_file)
+
+        result = self.execute_with_error_handling(
+            execute, operation_name, output_format
+        )
+
+        if result is not None:
+            self.formatter.format_compilation_result(result, output_format)
+
+    def execute_edit_operation(
+        self,
+        layout_file: Path,
+        field_operations: list[tuple[str, str, Any]] | None = None,
+        layer_operations: list[tuple[str, str, Any]] | None = None,
+        operation_name: str = "edit layout",
+        output_format: str = "text",
+        save: bool = True,
+        dry_run: bool = False,
+        output_file: Path | None = None,
+    ) -> None:
+        """Execute edit operations with transaction support.
+
+        Args:
+            layout_file: Path to layout file to edit
+            field_operations: List of field operations (type, path, value)
+            layer_operations: List of layer operations (type, name, value)
+            operation_name: Name of operation for error messages
+            output_format: Output format
+            save: Whether to save changes
+            dry_run: Whether to perform a dry run
+            output_file: Optional output file path
+        """
+        from glovebox.adapters import create_file_adapter
+        from glovebox.cli.commands.layout.edit import LayoutEditor
+        from glovebox.layout.utils.json_operations import VariableResolutionContext, load_layout_file
+
+        def execute() -> dict[str, Any]:
+            # Load layout data with variable resolution context
+            file_adapter = create_file_adapter()
+            with VariableResolutionContext(skip=True):
+                layout_data = load_layout_file(
+                    layout_file,
+                    file_adapter,
+                    skip_variable_resolution=True,
+                    skip_template_processing=True,
+                )
+
+            # Create editor instance
+            editor = LayoutEditor(layout_data)
+
+            # Execute field operations
+            if field_operations:
+                from glovebox.cli.commands.layout.edit import (
+                    parse_value,
+                    resolve_import,
+                )
+
+                for op_type, path, value_str in field_operations:
+                    if op_type == "set":
+                        value = parse_value(value_str)
+                        if isinstance(value, tuple) and value[0] == "import":
+                            value = resolve_import(value[1], layout_file)
+                        editor.set_field(path, value)
+                    elif op_type == "unset":
+                        editor.unset_field(path)
+                    elif op_type == "merge":
+                        value = parse_value(value_str)
+                        if isinstance(value, tuple) and value[0] == "import":
+                            value = resolve_import(value[1], layout_file)
+                        if not isinstance(value, dict):
+                            raise ValueError("Merge requires a dictionary value")
+                        editor.merge_field(path, value)
+                    elif op_type == "append":
+                        value = parse_value(value_str)
+                        if isinstance(value, tuple) and value[0] == "import":
+                            value = resolve_import(value[1], layout_file)
+                        editor.append_field(path, value)
+
+            # Execute layer operations
+            if layer_operations:
+                from glovebox.cli.commands.layout.edit import resolve_import
+
+                for op_type, name, value in layer_operations:
+                    if op_type == "add_layer":
+                        editor.add_layer(name)
+                    elif op_type == "add_layer_from":
+                        layer_data = resolve_import(value, layout_file)
+                        if not isinstance(layer_data, list):
+                            raise ValueError("Layer import must be a list")
+                        editor.add_layer(name, layer_data)
+                    elif op_type == "remove_layer":
+                        editor.remove_layer(name)
+                    elif op_type == "move_layer":
+                        editor.move_layer(name, int(value))
+                    elif op_type == "copy_layer":
+                        editor.copy_layer(name, value)
+
+            # Check for errors
+            if editor.errors:
+                raise ValueError(f"Edit operations failed: {'; '.join(editor.errors)}")
+
+            # Prepare result
+            result = {"operations": getattr(editor, 'operations_log', [])}
+
+            # Save if requested and not dry run
+            if save and not dry_run:
+                output_path = output_file or layout_file
+                from glovebox.layout.utils.json_operations import save_layout_file
+
+                with VariableResolutionContext(skip=True):
+                    save_layout_file(layout_data, output_path, file_adapter)
+                result["output_file"] = str(output_path)
+
+            return result
+
+        result = self.execute_with_error_handling(
+            execute, operation_name, output_format
+        )
+
+        if result is not None:
+            self.formatter.format_edit_result(result, output_format)
+
 
 def create_layout_command_composer() -> LayoutCommandComposer:
     """Create a layout command composer instance.
