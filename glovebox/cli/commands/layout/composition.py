@@ -312,7 +312,10 @@ class LayoutCommandComposer:
         """
         from glovebox.adapters import create_file_adapter
         from glovebox.cli.commands.layout.edit import LayoutEditor
-        from glovebox.layout.utils.json_operations import VariableResolutionContext, load_layout_file
+        from glovebox.layout.utils.json_operations import (
+            VariableResolutionContext,
+            load_layout_file,
+        )
 
         def execute() -> dict[str, Any]:
             # Load layout data with variable resolution context
@@ -380,7 +383,7 @@ class LayoutCommandComposer:
                 raise ValueError(f"Edit operations failed: {'; '.join(editor.errors)}")
 
             # Prepare result
-            result = {"operations": getattr(editor, 'operations_log', [])}
+            result = {"operations": getattr(editor, "operations_log", [])}
 
             # Save if requested and not dry run
             if save and not dry_run:

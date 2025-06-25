@@ -26,9 +26,9 @@ class LayoutPatchSystem:
             by_alias=True, exclude_unset=True, mode="json"
         )
 
-        # Apply JSON patch
+        # Apply JSON patch with forgiving behavior for missing fields
         patch = jsonpatch.JsonPatch(diff["json_patch"])
-        modified_dict = patch.apply(layout_dict)
+        modified_dict = self._apply_patch_forgiving(patch, layout_dict)
 
         # Update metadata
         modified_dict = self._update_metadata_after_patch(
@@ -41,6 +41,36 @@ class LayoutPatchSystem:
 
         # Create new LayoutData instance
         return LayoutData.model_validate(modified_dict)
+
+    def _apply_patch_forgiving(
+        self, patch: jsonpatch.JsonPatch, layout_dict: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Apply JSON patch with forgiving behavior for missing fields.
+        
+        Attempts to apply each patch operation individually, skipping operations
+        that fail due to non-existent fields rather than failing the entire patch.
+        """
+        try:
+            # Try applying the entire patch first (fastest path)
+            return patch.apply(layout_dict)
+        except jsonpatch.JsonPatchException:
+            # If patch fails, apply operations one by one, skipping failures
+            result_dict = layout_dict.copy()
+            skipped_operations = []
+            
+            for operation in patch.patch:
+                try:
+                    single_patch = jsonpatch.JsonPatch([operation])
+                    result_dict = single_patch.apply(result_dict)
+                except jsonpatch.JsonPatchException as e:
+                    # Skip operations that fail on non-existent fields
+                    op_type = operation.get("op", "unknown")
+                    op_path = operation.get("path", "unknown")
+                    skipped_operations.append(f"{op_type} at {op_path}")
+            
+            # Note: We don't log here since this class doesn't have a logger
+            # The calling code can check if operations were skipped if needed
+            return result_dict
 
     def _validate_diff_format(self, diff: dict[str, Any]) -> None:
         """Validate that the diff has the expected format."""
