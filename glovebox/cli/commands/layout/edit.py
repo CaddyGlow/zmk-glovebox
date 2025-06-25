@@ -1,4 +1,4 @@
-"""Unified layout editing CLI command with batch operations and JSON path support."""
+"""Unified layout editing command with atomic operations."""
 
 import json
 import logging
@@ -10,20 +10,392 @@ from rich.console import Console
 from rich.table import Table
 
 from glovebox.adapters import create_file_adapter
-from glovebox.cli.commands.layout.base import LayoutOutputCommand
 from glovebox.cli.decorators import handle_errors
-from glovebox.cli.helpers import print_error_message
+from glovebox.cli.helpers import (
+    print_error_message,
+    print_list_item,
+    print_success_message,
+)
 from glovebox.cli.helpers.auto_profile import resolve_json_file_path
-from glovebox.cli.helpers.parameters import OutputFormatOption
-from glovebox.layout.editor import create_layout_editor_service
-from glovebox.layout.layer import create_layout_layer_service
-from glovebox.layout.template_service import create_jinja2_template_service
-from glovebox.layout.utils.json_operations import load_layout_file
+from glovebox.cli.helpers.parameters import OutputFormatOption, complete_field_paths
+from glovebox.layout.models import LayoutData
+from glovebox.layout.utils.field_parser import (
+    extract_field_value_from_model,
+    set_field_value_on_model,
+)
+from glovebox.layout.utils.json_operations import (
+    VariableResolutionContext,
+    load_layout_file,
+    save_layout_file,
+)
 from glovebox.layout.utils.variable_resolver import VariableResolver
 
 
-console = Console()
 logger = logging.getLogger(__name__)
+console = Console()
+
+
+class LayoutEditor:
+    """Atomic layout editor that performs all operations in memory."""
+
+    def __init__(self, layout_data: LayoutData):
+        """Initialize editor with layout data.
+
+        Args:
+            layout_data: The layout data to edit
+        """
+        self.layout_data = layout_data
+        self.operations_log: list[str] = []
+        self.errors: list[str] = []
+
+    def get_field(self, field_path: str) -> Any:
+        """Get field value.
+
+        Args:
+            field_path: Dot notation path to field
+
+        Returns:
+            Field value
+
+        Raises:
+            ValueError: If field not found
+        """
+        try:
+            return extract_field_value_from_model(self.layout_data, field_path)
+        except Exception as e:
+            raise ValueError(f"Cannot get field '{field_path}': {e}") from e
+
+    def set_field(self, field_path: str, value: Any) -> None:
+        """Set field value.
+
+        Args:
+            field_path: Dot notation path to field
+            value: Value to set
+
+        Raises:
+            ValueError: If field cannot be set
+        """
+        try:
+            set_field_value_on_model(self.layout_data, field_path, value)
+            self.operations_log.append(f"Set {field_path} = {value}")
+        except Exception as e:
+            raise ValueError(f"Cannot set field '{field_path}': {e}") from e
+
+    def unset_field(self, field_path: str) -> None:
+        """Remove field or dictionary key.
+
+        Args:
+            field_path: Dot notation path to field
+
+        Raises:
+            ValueError: If field cannot be removed
+        """
+        try:
+            parts = field_path.split(".")
+            if len(parts) == 1:
+                # Top-level field
+                if hasattr(self.layout_data, parts[0]):
+                    delattr(self.layout_data, parts[0])
+                else:
+                    raise ValueError(f"Field '{parts[0]}' not found")
+            else:
+                # Nested field - get parent and remove key
+                parent_path = ".".join(parts[:-1])
+                key = parts[-1]
+                parent = extract_field_value_from_model(self.layout_data, parent_path)
+
+                if isinstance(parent, dict) and key in parent:
+                    del parent[key]
+                elif isinstance(parent, list) and key.isdigit():
+                    parent.pop(int(key))
+                else:
+                    raise ValueError(f"Cannot unset '{key}' from '{parent_path}'")
+
+            self.operations_log.append(f"Unset {field_path}")
+        except Exception as e:
+            raise ValueError(f"Cannot unset field '{field_path}': {e}") from e
+
+    def merge_field(self, field_path: str, merge_data: dict[str, Any]) -> None:
+        """Merge dictionary into field.
+
+        Args:
+            field_path: Dot notation path to field
+            merge_data: Dictionary to merge
+
+        Raises:
+            ValueError: If merge fails
+        """
+        try:
+            current = self.get_field(field_path)
+            if not isinstance(current, dict):
+                raise ValueError(f"Field '{field_path}' is not a dictionary")
+
+            merged = deep_merge_dicts(current, merge_data)
+            self.set_field(field_path, merged)
+            self.operations_log[-1] = f"Merged into {field_path}"
+        except Exception as e:
+            raise ValueError(f"Cannot merge into field '{field_path}': {e}") from e
+
+    def append_field(self, field_path: str, value: Any) -> None:
+        """Append value to array field.
+
+        Args:
+            field_path: Dot notation path to field
+            value: Value to append
+
+        Raises:
+            ValueError: If append fails
+        """
+        try:
+            current = self.get_field(field_path)
+            if not isinstance(current, list):
+                raise ValueError(f"Field '{field_path}' is not an array")
+
+            if isinstance(value, list):
+                current.extend(value)
+            else:
+                current.append(value)
+
+            self.operations_log.append(f"Appended to {field_path}")
+        except Exception as e:
+            raise ValueError(f"Cannot append to field '{field_path}': {e}") from e
+
+    def add_layer(self, layer_name: str, layer_data: list[Any] | None = None) -> None:
+        """Add new layer.
+
+        Args:
+            layer_name: Name of new layer
+            layer_data: Optional layer data (creates empty if None)
+
+        Raises:
+            ValueError: If layer already exists
+        """
+        if layer_name in self.layout_data.layer_names:
+            raise ValueError(f"Layer '{layer_name}' already exists")
+
+        self.layout_data.layer_names.append(layer_name)
+        self.layout_data.layers.append(layer_data or [])
+        self.operations_log.append(f"Added layer '{layer_name}'")
+
+    def remove_layer(self, layer_identifier: str) -> None:
+        """Remove layer by name or index.
+
+        Args:
+            layer_identifier: Layer name or index
+
+        Raises:
+            ValueError: If layer not found
+        """
+        try:
+            if layer_identifier.isdigit():
+                # Remove by index
+                index = int(layer_identifier)
+                if 0 <= index < len(self.layout_data.layers):
+                    removed_name = self.layout_data.layer_names.pop(index)
+                    self.layout_data.layers.pop(index)
+                    self.operations_log.append(
+                        f"Removed layer '{removed_name}' at index {index}"
+                    )
+                else:
+                    raise ValueError(f"Layer index {index} out of range")
+            else:
+                # Remove by name
+                if layer_identifier in self.layout_data.layer_names:
+                    index = self.layout_data.layer_names.index(layer_identifier)
+                    self.layout_data.layer_names.pop(index)
+                    self.layout_data.layers.pop(index)
+                    self.operations_log.append(f"Removed layer '{layer_identifier}'")
+                else:
+                    raise ValueError(f"Layer '{layer_identifier}' not found")
+        except Exception as e:
+            raise ValueError(f"Cannot remove layer '{layer_identifier}': {e}") from e
+
+    def move_layer(self, layer_name: str, new_position: int) -> None:
+        """Move layer to new position.
+
+        Args:
+            layer_name: Layer name to move
+            new_position: Target position
+
+        Raises:
+            ValueError: If layer not found or position invalid
+        """
+        if layer_name not in self.layout_data.layer_names:
+            raise ValueError(f"Layer '{layer_name}' not found")
+
+        old_index = self.layout_data.layer_names.index(layer_name)
+        if new_position < 0 or new_position >= len(self.layout_data.layers):
+            raise ValueError(f"Invalid position {new_position}")
+
+        # Remove from old position
+        layer_name = self.layout_data.layer_names.pop(old_index)
+        layer_data = self.layout_data.layers.pop(old_index)
+
+        # Insert at new position
+        self.layout_data.layer_names.insert(new_position, layer_name)
+        self.layout_data.layers.insert(new_position, layer_data)
+
+        self.operations_log.append(
+            f"Moved layer '{layer_name}' from position {old_index} to {new_position}"
+        )
+
+    def copy_layer(self, source_name: str, target_name: str) -> None:
+        """Copy layer with new name.
+
+        Args:
+            source_name: Source layer name
+            target_name: New layer name
+
+        Raises:
+            ValueError: If source not found or target exists
+        """
+        if source_name not in self.layout_data.layer_names:
+            raise ValueError(f"Source layer '{source_name}' not found")
+        if target_name in self.layout_data.layer_names:
+            raise ValueError(f"Target layer '{target_name}' already exists")
+
+        source_index = self.layout_data.layer_names.index(source_name)
+        layer_data = self.layout_data.layers[source_index].copy()
+
+        self.layout_data.layer_names.append(target_name)
+        self.layout_data.layers.append(layer_data)
+
+        self.operations_log.append(f"Copied layer '{source_name}' to '{target_name}'")
+
+    def get_layer_names(self) -> list[str]:
+        """Get list of layer names."""
+        return self.layout_data.layer_names
+
+    def get_variable_usage(self) -> dict[str, list[str]]:
+        """Get variable usage information."""
+        resolver = VariableResolver(self.layout_data.variables or {})
+        return resolver.get_variable_usage(self.layout_data.model_dump())
+
+
+def deep_merge_dicts(dict1: dict[str, Any], dict2: dict[str, Any]) -> dict[str, Any]:
+    """Deep merge two dictionaries."""
+    result = dict1.copy()
+    for key, value in dict2.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = deep_merge_dicts(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+def parse_value(value_str: str) -> Any:
+    """Parse value string into appropriate type."""
+    # Handle from: syntax for imports
+    if value_str.startswith("from:"):
+        return ("import", value_str[5:])
+
+    # Try JSON parsing for complex types
+    if value_str.startswith(("{", "[", '"')):
+        try:
+            return json.loads(value_str)
+        except json.JSONDecodeError:
+            pass
+
+    # Boolean values
+    if value_str.lower() in ("true", "false"):
+        return value_str.lower() == "true"
+
+    # Numeric values
+    if value_str.isdigit() or (value_str.startswith("-") and value_str[1:].isdigit()):
+        return int(value_str)
+
+    try:
+        return float(value_str)
+    except ValueError:
+        pass
+
+    # Default to string
+    return value_str
+
+
+def resolve_import(source: str, base_path: Path) -> Any:
+    """Resolve import source."""
+    try:
+        if "$." in source:
+            # JSON path syntax: file.json$.path.to.field
+            file_part, json_path = source.split("$.", 1)
+            file_path = base_path.parent / file_part
+        elif ":" in source:
+            # Shortcut syntax: file.json:LayerName
+            file_part, shortcut = source.split(":", 1)
+            file_path = base_path.parent / file_part
+
+            # Load file to resolve shortcut
+            import_data = json.loads(file_path.read_text())
+
+            # Common shortcuts
+            if shortcut == "behaviors":
+                return import_data.get("custom_defined_behaviors", "")
+            elif shortcut == "meta":
+                return {
+                    k: v
+                    for k, v in import_data.items()
+                    if k in ["title", "keyboard", "version", "creator", "notes"]
+                }
+            elif shortcut in import_data.get("layer_names", []):
+                # Layer by name
+                idx = import_data["layer_names"].index(shortcut)
+                return import_data["layers"][idx]
+            else:
+                raise ValueError(f"Unknown shortcut: {shortcut}")
+        else:
+            # Full file import
+            file_path = base_path.parent / source
+            return json.loads(file_path.read_text())
+
+        # Handle JSON path if needed
+        if "$." in source:
+            import_data = json.loads(file_path.read_text())
+            current = import_data
+            for part in json_path.split("."):
+                if "[" in part and "]" in part:
+                    # Array index
+                    key, idx = part.split("[")
+                    idx = int(idx.rstrip("]"))
+                    current = current[key][idx]
+                else:
+                    current = current[part]
+            return current
+
+        return import_data
+
+    except Exception as e:
+        raise ValueError(f"Import failed for '{source}': {e}") from e
+
+
+# Tab completion functions
+def complete_field_operation(ctx: typer.Context, incomplete: str) -> list[str]:
+    """Custom completion for field operations with key=value syntax."""
+    try:
+        # If we have = already, don't complete further
+        if "=" in incomplete:
+            key_part = incomplete.split("=")[0]
+            # Could add value suggestions here
+            return [incomplete]
+
+        # Otherwise use standard field completion
+        from glovebox.cli.helpers.parameters import complete_field_paths
+
+        fields = complete_field_paths(ctx, incomplete)
+        # Add = to each field for convenience
+        return [f"{field}=" for field in fields]
+    except Exception:
+        return []
+
+
+def complete_layer_operation(ctx: typer.Context, incomplete: str) -> list[str]:
+    """Completion for layer operations."""
+    try:
+        from glovebox.cli.helpers.parameters import complete_layer_names
+
+        return complete_layer_names(ctx, incomplete)
+    except Exception:
+        return []
 
 
 @handle_errors
@@ -37,94 +409,78 @@ def edit(
     # Field operations
     get: Annotated[
         list[str] | None,
-        typer.Option("--get", help="Get field value(s) using JSON path notation"),
+        typer.Option(
+            "--get",
+            help="Get field value(s) using JSON path notation",
+            autocompletion=complete_field_paths,
+        ),
     ] = None,
     set: Annotated[
         list[str] | None,
         typer.Option(
             "--set",
-            help="Set field value using key=value or key=--from syntax",
+            help="Set field value using 'key=value' format",
+            autocompletion=complete_field_operation,
         ),
     ] = None,
     unset: Annotated[
         list[str] | None,
         typer.Option(
             "--unset",
-            help="Remove field or dictionary key (e.g., 'variables.myVar')",
+            help="Remove field or dictionary key",
+            autocompletion=complete_field_paths,
         ),
     ] = None,
     merge: Annotated[
         list[str] | None,
         typer.Option(
             "--merge",
-            help="Merge values into field using key=--from syntax or key=value for objects",
+            help="Merge dictionary using 'key=value' or 'key=from:file.json'",
+            autocompletion=complete_field_operation,
         ),
     ] = None,
     append: Annotated[
         list[str] | None,
         typer.Option(
             "--append",
-            help="Append values to array field using key=--from syntax or key=value",
+            help="Append to array using 'key=value' format",
+            autocompletion=complete_field_operation,
         ),
     ] = None,
     # Layer operations
     add_layer: Annotated[
         list[str] | None,
-        typer.Option(
-            "--add-layer", help="Add new layer(s) with optional --from import"
-        ),
+        typer.Option("--add-layer", help="Add new layer(s)"),
     ] = None,
     remove_layer: Annotated[
         list[str] | None,
         typer.Option(
-            "--remove-layer", help="Remove layer(s) by name, index, or regex pattern"
+            "--remove-layer",
+            help="Remove layer(s) by name or index",
+            autocompletion=complete_layer_operation,
         ),
     ] = None,
     move_layer: Annotated[
         list[str] | None,
         typer.Option(
             "--move-layer",
-            help="Move layer using 'LayerName:position' syntax",
+            help="Move layer using 'name:position' syntax",
         ),
     ] = None,
     copy_layer: Annotated[
         list[str] | None,
         typer.Option(
             "--copy-layer",
-            help="Copy layer using 'SourceLayer:NewName' syntax",
+            help="Copy layer using 'source:target' syntax",
         ),
     ] = None,
+    # Info operations
     list_layers: Annotated[
         bool, typer.Option("--list-layers", help="List all layers in the layout")
     ] = False,
     list_usage: Annotated[
         bool, typer.Option("--list-usage", help="Show where each variable is used")
     ] = False,
-    dump_context: Annotated[
-        bool,
-        typer.Option(
-            "--dump-context", help="Dump template context values for all stages"
-        ),
-    ] = False,
-    context_stages: Annotated[
-        list[str] | None,
-        typer.Option(
-            "--context-stages",
-            help="Specify which context stages to dump (basic, behaviors, layers, custom). Default: all stages",
-        ),
-    ] = None,
-    # Import/position options
-    from_source: Annotated[
-        str | None,
-        typer.Option(
-            "--from",
-            help="Import source: file.json, file.json:layer, file.json$.path",
-        ),
-    ] = None,
-    position: Annotated[
-        int | None,
-        typer.Option("--position", help="Position for add-layer operations"),
-    ] = None,
     # Output options
     output: Annotated[
         Path | None,
@@ -136,1188 +492,287 @@ def edit(
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite existing files")
     ] = False,
-    confirm: Annotated[
+    dry_run: Annotated[
         bool,
-        typer.Option(
-            "--confirm",
-            help="Show merge preview and ask for confirmation before overwriting existing fields",
-        ),
+        typer.Option("--dry-run", help="Show what would be done without saving"),
     ] = False,
-    save: Annotated[
-        bool, typer.Option("--save/--no-save", help="Save changes to file")
-    ] = True,
 ) -> None:
-    """Unified layout editing command with batch operations support.
+    """Edit layout with atomic operations.
 
-    This command replaces get-field, set-field, add-layer, remove-layer,
-    move-layer, and list-layers with a single, powerful interface that
-    supports batch operations and JSON path imports.
-
-    Field Operations:
-        --get title                           # Get field value
-        --get "layers[0]" --get "title"      # Get multiple fields
-        --set title="New Title"              # Set field value
-        --set "custom_defined_behaviors=--from other.json:behaviors"  # Import from file
-        --unset variables.oldVar             # Remove dictionary key or field
-        --merge variables=--from other.json$.variables  # Merge variables from another file
-        --append tags="gaming"               # Append single value to array
-        --append tags=--from other.json$.tags  # Append array values from another file
-
-    Layer Operations:
-        --add-layer "NewLayer"               # Add empty layer
-        --add-layer "Gaming" --position 2    # Add at specific position
-        --add-layer "Symbol" --from other.json:Symbol  # Import layer
-        --remove-layer "UnusedLayer"         # Remove layer by name
-        --remove-layer "15"                  # Remove layer by index (0-based)
-        --remove-layer "Mouse.*"             # Remove layers matching regex
-        --remove-layer "Mouse*"              # Remove layers with wildcard pattern
-        --move-layer "Symbol:0"              # Move Symbol to position 0
-        --copy-layer "Base:Gaming"           # Copy Base layer as Gaming
-        --list-layers                        # List all layers
-        --list-usage                         # Show where each variable is used
-        --dump-context                       # Dump all template context values
-        --dump-context --context-stages basic behaviors  # Dump specific stages only
-
-    JSON Path Support:
-        --from "file.json$.layers[0]"        # Import using JSON path
-        --from "file.json:Symbol"            # Shortcut for layer by name
-        --from "file.json:behaviors"         # Shortcut for custom_defined_behaviors
-        --from "file.json:meta"              # Shortcut for metadata fields
-
-    Batch Operations:
-        glovebox layout edit layout.json \\
-          --set title="My Layout" \\
-          --add-layer "Gaming" \\
-          --remove-layer "Unused" \\
-          --move-layer "Symbol:0"
+    All operations are performed in memory and saved only if all succeed.
+    Use --dry-run to preview changes without saving.
 
     Examples:
         # Get field values
-        glovebox layout edit layout.json --get title --get version
+        glovebox layout edit layout.json --get title --get keyboard
 
-        # Set multiple fields
-        glovebox layout edit layout.json --set title="New" --set version="2.0"
+        # Set fields
+        glovebox layout edit layout.json --set title="My Layout" --set version="2.0"
 
-        # Set complex nested fields with array indexing and variables
-        glovebox layout edit layout.json --set 'hold_taps[0].tapping_term_ms="${tapMs}"'
+        # Import from other files
+        glovebox layout edit layout.json --set variables=from:vars.json$.variables
+        glovebox layout edit layout.json --merge variables=from:other.json:meta
 
-        # Create new variable entries (dict keys are created automatically)
-        glovebox layout edit layout.json --set variables.myVar=value --set variables.timing=150
+        # Layer operations
+        glovebox layout edit layout.json --add-layer Gaming --remove-layer 3
+        glovebox layout edit layout.json --move-layer Symbol:0 --copy-layer Base:Backup
 
-        # Remove variables or dictionary keys
-        glovebox layout edit layout.json --unset variables.oldVar --unset variables.unused
-
-        # Append to lists (extends list if index is beyond current length)
-        glovebox layout edit layout.json --set 'tags[5]="new-tag"'
-
-        # Remove from lists (by index)
-        glovebox layout edit layout.json --unset 'tags[2]'
-
-        # Layer management
-        glovebox layout edit layout.json --add-layer "Gaming" --position 3
-        glovebox layout edit layout.json --remove-layer "15"  # Remove by index
-        glovebox layout edit layout.json --remove-layer "Mouse*"  # Remove by pattern
-
-        # Import from other layouts
-        glovebox layout edit layout.json --add-layer "Symbol" --from other.json:Symbol
-
-        # Merge and append operations
-        glovebox layout edit layout.json --merge variables=--from vars.json$.variables
-        glovebox layout edit layout.json --append tags=--from other.json$.tags
-        glovebox layout edit layout.json --merge variables=--from vars.json$.variables --confirm
-
-        # Batch operations
-        glovebox layout edit layout.json \\
-          --set title="Updated Layout" \\
-          --merge variables=--from vars.json$.variables \\
-          --add-layer "Gaming" --from gaming.json:Base \\
-          --remove-layer "Unused"
-
-        # List operations only (no save)
-        glovebox layout edit layout.json --list-layers --no-save
-
-        # Template context debugging
-        glovebox layout edit layout.json --dump-context --no-save
-        glovebox layout edit layout.json --dump-context --context-stages behaviors layers --format json
+        # Preview without saving
+        glovebox layout edit layout.json --set title="Test" --dry-run
     """
-    # Resolve JSON file path (supports environment variable)
-    resolved_json_file = resolve_json_file_path(layout_file)
-
-    if resolved_json_file is None:
+    # Resolve JSON file path
+    resolved_file = resolve_json_file_path(layout_file, "GLOVEBOX_JSON_FILE")
+    if not resolved_file:
         print_error_message(
             "JSON file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
         )
         raise typer.Exit(1)
 
-    command = LayoutOutputCommand()
-    command.validate_layout_file(resolved_json_file)
-
     try:
+        # Load layout data once with variable resolution context
         file_adapter = create_file_adapter()
-        editor_service = create_layout_editor_service(file_adapter)
-        layer_service = create_layout_layer_service(file_adapter)
+        # with VariableResolutionContext(skip=True):
+        #     layout_data = load_layout_file(resolved_file, file_adapter)
+        with VariableResolutionContext(skip=True):
+            layout_data = load_layout_file(
+                resolved_file,
+                file_adapter,
+                skip_variable_resolution=True,  # Add this
+                skip_template_processing=True,  # Add this
+            )
+        # Create editor instance
+        editor = LayoutEditor(layout_data)
 
-        # Collect all operations
-        operations: list[dict[str, Any]] = []
-        results: dict[str, Any] = {}
+        # Track results for output
+        results = {}
 
-        # Process get operations first (read-only)
+        # Handle read-only operations first
         if get:
             for field_path in get:
-                value = editor_service.get_field_value(resolved_json_file, field_path)
-                results[f"get:{field_path}"] = value
+                try:
+                    value = editor.get_field(field_path)
+                    results[f"get:{field_path}"] = value
+                except Exception as e:
+                    results[f"get:{field_path}"] = f"Error: {e}"
 
-        # Process list-layers operation (read-only)
         if list_layers:
-            layer_result = layer_service.list_layers(resolved_json_file)
-            results["layers"] = layer_result
+            layer_names = editor.get_layer_names()
+            results["layers"] = layer_names
 
-        # Process list-usage operation (read-only)
         if list_usage:
-            usage_result = _get_variable_usage(resolved_json_file, file_adapter)
-            results["variable_usage"] = usage_result
+            usage = editor.get_variable_usage()
+            results["variable_usage"] = usage
 
-        # Process dump-context operation (read-only)
-        if dump_context:
-            context_result = _get_template_context(
-                resolved_json_file, file_adapter, context_stages
-            )
-            results["template_context"] = context_result
-
-        # If only read operations, output results and return
-        if (get or list_layers or list_usage or dump_context) and not any(
+        # If only read operations, output and exit
+        if results and not any(
             [set, unset, merge, append, add_layer, remove_layer, move_layer, copy_layer]
         ):
-            _output_results(command, results, output_format)
+            _output_results(results, output_format)
             return
 
-        # Process write operations (if save is enabled)
-        if not save:
-            from glovebox.cli.helpers import print_success_message
+        # Collect all write operations
+        all_operations = []
 
-            print_success_message("Read-only mode: no changes saved")
-            _output_results(command, results, output_format)
-            return
-
-        current_file = resolved_json_file
-        changes_made = False
-
-        # Process set operations
+        # Process field operations
         if set:
-            for set_operation in set:
-                if "=" not in set_operation:
-                    raise ValueError(
-                        f"Invalid set syntax: {set_operation}. Use key=value format."
-                    )
+            for op in set:
+                if "=" not in op:
+                    print_error_message(f"Invalid set syntax: {op} (use key=value)")
+                    raise typer.Exit(1)
+                field_path, value_str = op.split("=", 1)
+                all_operations.append(("set", field_path, value_str))
 
-                field_path, value_spec = set_operation.split("=", 1)
-
-                # Handle --from imports
-                if value_spec.startswith("--from "):
-                    # Format: --set field=--from source.json$.path
-                    import_source = value_spec[7:]  # Remove "--from "
-                    resolved_value = _resolve_import_source(import_source, field_path)
-                    # Convert complex objects to JSON strings for the editor service
-                    if isinstance(resolved_value, dict | list):
-                        value = json.dumps(resolved_value)
-                    else:
-                        value = resolved_value
-                elif value_spec == "--from" and from_source:
-                    # Format: --set field=--from --from source.json$.path
-                    resolved_value = _resolve_import_source(from_source, field_path)
-                    # Convert complex objects to JSON strings for the editor service
-                    if isinstance(resolved_value, dict | list):
-                        value = json.dumps(resolved_value)
-                    else:
-                        value = resolved_value
-                else:
-                    value = value_spec
-
-                output_path = editor_service.set_field_value(
-                    layout_file=current_file,
-                    field_path=field_path,
-                    value=value,
-                    value_type="auto",
-                    output=output if not changes_made else None,
-                    force=force,
-                )
-                current_file = output_path
-                changes_made = True
-                operations.append(
-                    {"type": "set", "field": field_path, "value": str(value)[:50]}
-                )
-
-        # Process unset operations
         if unset:
             for field_path in unset:
-                output_path = editor_service.unset_field_value(
-                    layout_file=current_file,
-                    field_path=field_path,
-                    output=output if not changes_made else None,
-                    force=force,
-                )
-                current_file = output_path
-                changes_made = True
-                operations.append({"type": "unset", "field": field_path})
+                all_operations.append(("unset", field_path, None))
 
-        # Process merge operations
         if merge:
-            for merge_operation in merge:
-                if "=" not in merge_operation:
-                    raise ValueError(
-                        f"Invalid merge syntax: {merge_operation}. Use key=value or key=--from format."
-                    )
+            for op in merge:
+                if "=" not in op:
+                    print_error_message(f"Invalid merge syntax: {op} (use key=value)")
+                    raise typer.Exit(1)
+                field_path, value_str = op.split("=", 1)
+                all_operations.append(("merge", field_path, value_str))
 
-                field_path, value_spec = merge_operation.split("=", 1)
-
-                # Handle --from imports for merge
-                if value_spec.startswith("--from "):
-                    import_source = value_spec[7:]  # Remove "--from "
-                    merge_value = _resolve_import_source(import_source, field_path)
-                elif value_spec == "--from" and from_source:
-                    merge_value = _resolve_import_source(from_source, field_path)
-                else:
-                    # Try to parse as JSON for object merging
-                    try:
-                        merge_value = json.loads(value_spec)
-                    except json.JSONDecodeError:
-                        merge_value = value_spec
-
-                logger.debug("Set value %r", merge_value)
-                logger.debug("Set value %r", value_spec)
-                output_path = _merge_field_value(
-                    current_file,
-                    field_path,
-                    merge_value,
-                    output if not changes_made else None,
-                    force,
-                    confirm,
-                )
-                current_file = output_path
-                changes_made = True
-                operations.append(
-                    {
-                        "type": "merge",
-                        "field": field_path,
-                        "value": str(merge_value)[:50],
-                    }
-                )
-
-        # Process append operations
         if append:
-            for append_operation in append:
-                if "=" not in append_operation:
-                    raise ValueError(
-                        f"Invalid append syntax: {append_operation}. Use key=value or key=--from format."
-                    )
-
-                field_path, value_spec = append_operation.split("=", 1)
-
-                # Handle --from imports for append
-                if value_spec.startswith("--from "):
-                    import_source = value_spec[7:]  # Remove "--from "
-                    append_value = _resolve_import_source(import_source, field_path)
-                elif value_spec == "--from" and from_source:
-                    append_value = _resolve_import_source(from_source, field_path)
-                else:
-                    # Try to parse as JSON for array appending
-                    try:
-                        append_value = json.loads(value_spec)
-                    except json.JSONDecodeError:
-                        append_value = value_spec
-
-                # Check for import errors
-                if isinstance(append_value, str) and append_value.startswith(
-                    "IMPORT_ERROR:"
-                ):
-                    raise ValueError(append_value)
-
-                output_path = _append_field_value(
-                    current_file,
-                    field_path,
-                    append_value,
-                    output if not changes_made else None,
-                    force,
-                )
-                current_file = output_path
-                changes_made = True
-                operations.append(
-                    {
-                        "type": "append",
-                        "field": field_path,
-                        "value": str(append_value)[:50],
-                    }
-                )
+            for op in append:
+                if "=" not in op:
+                    print_error_message(f"Invalid append syntax: {op} (use key=value)")
+                    raise typer.Exit(1)
+                field_path, value_str = op.split("=", 1)
+                all_operations.append(("append", field_path, value_str))
 
         # Process layer operations
         if add_layer:
             for layer_spec in add_layer:
-                layer_name = layer_spec
-                import_from = None
-                import_layer = None
+                if "=from:" in layer_spec:
+                    layer_name, source = layer_spec.split("=from:", 1)
+                    all_operations.append(("add_layer_from", layer_name, source))
+                else:
+                    all_operations.append(("add_layer", layer_spec, None))
 
-                # Parse --from if specified globally
-                if from_source:
-                    import_from, import_layer = _parse_import_source(from_source)
-
-                result = layer_service.add_layer(
-                    layout_file=current_file,
-                    layer_name=layer_name,
-                    position=position,
-                    import_from=Path(import_from) if import_from else None,
-                    import_layer=import_layer,
-                    output=output if not changes_made else None,
-                    force=force,
-                )
-                current_file = result["output_path"]
-                changes_made = True
-                operations.append(
-                    {
-                        "type": "add_layer",
-                        "layer": layer_name,
-                        "position": result["position"],
-                    }
-                )
-
-        all_warnings = []
         if remove_layer:
-            for layer_identifier in remove_layer:
-                result = layer_service.remove_layer(
-                    layout_file=current_file,
-                    layer_identifier=layer_identifier,
-                    output=output if not changes_made else None,
-                    force=force,
-                    warn_on_no_match=True,
-                )
-
-                # Collect warnings
-                if result.get("warnings"):
-                    all_warnings.extend(result["warnings"])
-
-                # Only update current file if layers were actually removed
-                if result["had_matches"]:
-                    current_file = result["output_path"]
-                    changes_made = True
-
-                # Handle multiple removed layers
-                for removed_layer in result["removed_layers"]:
-                    operations.append(
-                        {
-                            "type": "remove_layer",
-                            "layer": removed_layer["name"],
-                            "position": removed_layer["position"],
-                        }
-                    )
-
-            # Show warnings for non-matching identifiers
-            if all_warnings:
-                from glovebox.cli.helpers.output import print_warning_message
-
-                for warning in all_warnings:
-                    print_warning_message(warning)
+            for layer_id in remove_layer:
+                all_operations.append(("remove_layer", layer_id, None))
 
         if move_layer:
             for move_spec in move_layer:
                 if ":" not in move_spec:
-                    raise ValueError(
-                        f"Invalid move syntax: {move_spec}. Use 'LayerName:position' format."
+                    print_error_message(
+                        f"Invalid move syntax: {move_spec} (use name:position)"
                     )
-
-                layer_name, position_str = move_spec.split(":", 1)
-                new_position = int(position_str)
-
-                result = layer_service.move_layer(
-                    layout_file=current_file,
-                    layer_name=layer_name,
-                    new_position=new_position,
-                    output=output if not changes_made else None,
-                    force=force,
-                )
-                current_file = result["output_path"]
-                changes_made = True
-                operations.append(
-                    {
-                        "type": "move_layer",
-                        "layer": layer_name,
-                        "from": result["from_position"],
-                        "to": result["to_position"],
-                    }
-                )
+                    raise typer.Exit(1)
+                layer_name, position = move_spec.split(":", 1)
+                all_operations.append(("move_layer", layer_name, position))
 
         if copy_layer:
             for copy_spec in copy_layer:
                 if ":" not in copy_spec:
-                    raise ValueError(
-                        f"Invalid copy syntax: {copy_spec}. Use 'SourceLayer:NewName' format."
+                    print_error_message(
+                        f"Invalid copy syntax: {copy_spec} (use source:target)"
                     )
+                    raise typer.Exit(1)
+                source, target = copy_spec.split(":", 1)
+                all_operations.append(("copy_layer", source, target))
 
-                source_layer, new_layer = copy_spec.split(":", 1)
+        # Execute all operations
+        failed = False
+        for op_type, arg1, arg2 in all_operations:
+            try:
+                if op_type == "set":
+                    value = parse_value(arg2)
+                    if isinstance(value, tuple) and value[0] == "import":
+                        value = resolve_import(value[1], resolved_file)
+                    editor.set_field(arg1, value)
 
-                # Copy is implemented as add with copy_from
-                result = layer_service.add_layer(
-                    layout_file=current_file,
-                    layer_name=new_layer,
-                    copy_from=source_layer,
-                    output=output if not changes_made else None,
-                    force=force,
+                elif op_type == "unset":
+                    editor.unset_field(arg1)
+
+                elif op_type == "merge":
+                    value = parse_value(arg2)
+                    if isinstance(value, tuple) and value[0] == "import":
+                        value = resolve_import(value[1], resolved_file)
+                    if not isinstance(value, dict):
+                        raise ValueError("Merge requires a dictionary value")
+                    editor.merge_field(arg1, value)
+
+                elif op_type == "append":
+                    value = parse_value(arg2)
+                    if isinstance(value, tuple) and value[0] == "import":
+                        value = resolve_import(value[1], resolved_file)
+                    editor.append_field(arg1, value)
+
+                elif op_type == "add_layer":
+                    editor.add_layer(arg1)
+
+                elif op_type == "add_layer_from":
+                    layer_data = resolve_import(arg2, resolved_file)
+                    if not isinstance(layer_data, list):
+                        raise ValueError("Layer import must be a list")
+                    editor.add_layer(arg1, layer_data)
+
+                elif op_type == "remove_layer":
+                    editor.remove_layer(arg1)
+
+                elif op_type == "move_layer":
+                    editor.move_layer(arg1, int(arg2))
+
+                elif op_type == "copy_layer":
+                    editor.copy_layer(arg1, arg2)
+
+            except Exception as e:
+                editor.errors.append(f"{op_type} operation failed: {e}")
+                failed = True
+
+        # Check if we should save
+        if failed:
+            print_error_message("Some operations failed:")
+            for error in editor.errors:
+                print_list_item(error)
+            raise typer.Exit(1)
+
+        if dry_run:
+            print_success_message("Dry run - no changes saved")
+            print_success_message("Operations that would be performed:")
+            for op in editor.operations_log:
+                print_list_item(op)
+        else:
+            # Save the layout
+            output_path = output or resolved_file
+            if output_path != resolved_file and output_path.exists() and not force:
+                print_error_message(
+                    f"Output file exists: {output_path}. Use --force to overwrite."
                 )
-                current_file = result["output_path"]
-                changes_made = True
-                operations.append(
-                    {"type": "copy_layer", "source": source_layer, "new": new_layer}
-                )
+                raise typer.Exit(1)
 
-        # Handle case where no write operations succeeded but had warnings
-        if (
-            not changes_made
-            and "all_warnings" in locals()
-            and all_warnings
-            and not any([set, merge, append, add_layer, move_layer, copy_layer])
-        ):
-            from glovebox.cli.helpers.output import print_warning_message
+            with VariableResolutionContext(skip=True):
+                save_layout_file(layout_data, output_path, file_adapter)
 
-            print_warning_message(
-                "No layers were removed - all identifiers failed to match"
-            )
-            return
+            print_success_message(f"Layout saved to: {output_path}")
+            print_success_message("Operations performed:")
+            for op in editor.operations_log:
+                print_list_item(op)
 
-        # Output results
-        if changes_made:
-            from glovebox.cli.helpers import print_list_item, print_success_message
+        # Add operation results to output
+        if editor.operations_log:
+            results["operations"] = editor.operations_log
+            if not dry_run:
+                results["output_file"] = str(output_path)
 
-            operation_count = len(operations)
-            warning_count = len(all_warnings) if "all_warnings" in locals() else 0
-
-            if operation_count > 0:
-                success_msg = (
-                    f"Layout edited successfully ({operation_count} operations)"
-                )
-                if warning_count > 0:
-                    success_msg += f" with {warning_count} warnings"
-                print_success_message(success_msg)
-                print_list_item(f"Output: {current_file}")
-
-            if output_format.lower() == "json":
-                result_data = {
-                    "success": True,
-                    "output_file": str(current_file),
-                    "operations": operations,
-                    "results": results,
-                    "warnings": all_warnings if "all_warnings" in locals() else [],
-                }
-                command.format_output(result_data, "json")
-            else:
-                for op in operations:
-                    if op["type"] == "set":
-                        print_list_item(f"Set {op['field']}: {op['value']}")
-                    elif op["type"] == "unset":
-                        print_list_item(f"Removed {op['field']}")
-                    elif op["type"] == "add_layer":
-                        print_list_item(
-                            f"Added layer '{op['layer']}' at position {op['position']}"
-                        )
-                    elif op["type"] == "remove_layer":
-                        position_info = (
-                            f" (position {op['position']})" if "position" in op else ""
-                        )
-                        print_list_item(f"Removed layer '{op['layer']}'{position_info}")
-                    elif op["type"] == "move_layer":
-                        print_list_item(
-                            f"Moved layer '{op['layer']}' from {op['from']} to {op['to']}"
-                        )
-                    elif op["type"] == "copy_layer":
-                        print_list_item(
-                            f"Copied layer '{op['source']}' as '{op['new']}'"
-                        )
-                    elif op["type"] == "merge":
-                        print_list_item(f"Merged into {op['field']}: {op['value']}")
-                    elif op["type"] == "append":
-                        print_list_item(f"Appended to {op['field']}: {op['value']}")
-
-        # Include any read results
+        # Output final results
         if results:
-            _output_results(command, results, output_format)
+            _output_results(results, output_format)
 
     except Exception as e:
-        command.handle_service_error(e, "edit layout")
+        exc_info = logger.isEnabledFor(logging.DEBUG)
+        logger.error("Failed to edit layout: %s", e, exc_info=exc_info)
+        print_error_message(f"Failed to edit layout: {e}")
+        raise typer.Exit(1) from e
 
 
-def _output_results(
-    command: LayoutOutputCommand, results: dict[str, Any], output_format: str
-) -> None:
-    """Output read operation results."""
-    if not results:
-        return
-
+def _output_results(results: dict[str, Any], output_format: str) -> None:
+    """Output results in specified format."""
     if output_format.lower() == "json":
-        command.format_output(results, "json")
+        print(json.dumps(results, indent=2))
     else:
-        from glovebox.cli.helpers import print_list_item, print_success_message
-
         for key, value in results.items():
             if key.startswith("get:"):
-                field_name = key[4:]  # Remove "get:" prefix
+                field_name = key[4:]
                 if isinstance(value, dict | list):
                     print_success_message(f"{field_name}:")
-                    command.format_output(value, "json")
+                    print(json.dumps(value, indent=2))
                 else:
                     print_list_item(f"{field_name}: {value}")
+
             elif key == "layers":
-                layer_lines = [
-                    f"{layer['position']:2d}: {layer['name']} ({layer['binding_count']} bindings)"
-                    for layer in value["layers"]
-                ]
-                command.print_text_list(
-                    layer_lines, f"Layout has {value['total_layers']} layers:"
-                )
+                print_success_message("Layers:")
+                for i, layer in enumerate(value):
+                    print_list_item(f"{i}: {layer}")
+
             elif key == "variable_usage":
-                if "error" in value:
-                    print_list_item(f"Error getting variable usage: {value['error']}")
-                elif "message" in value:
-                    print_list_item(value["message"])
+                if value:
+                    table = Table(title="Variable Usage")
+                    table.add_column("Variable", style="cyan")
+                    table.add_column("Used In", style="green")
+                    table.add_column("Count", style="blue")
+
+                    for var_name, paths in value.items():
+                        usage_str = (
+                            "\n".join(paths[:5])
+                            if len(paths) <= 5
+                            else "\n".join(paths[:5])
+                            + f"\n... and {len(paths) - 5} more"
+                        )
+                        table.add_row(var_name, usage_str, str(len(paths)))
+
+                    console.print(table)
                 else:
-                    # Display the usage table
-                    if value:
-                        table = Table(title="Variable Usage")
-                        table.add_column("Variable", style="cyan")
-                        table.add_column("Used In", style="green")
-                        table.add_column("Count", style="blue")
-
-                        for var_name, paths in value.items():
-                            usage_str = (
-                                "\n".join(paths)
-                                if len(paths) <= 5
-                                else "\n".join(paths[:5])
-                                + f"\n... and {len(paths) - 5} more"
-                            )
-                            table.add_row(var_name, usage_str, str(len(paths)))
-
-                        console.print(table)
-                    else:
-                        print_list_item("No variable usage found")
-            elif key == "template_context":
-                if "error" in value:
-                    print_list_item(f"Error getting template context: {value['error']}")
-                else:
-                    _display_template_context(value, output_format)
-
-
-def _resolve_import_source(import_source: str, target_field: str) -> Any:
-    """Resolve import source to actual value."""
-    try:
-        file_adapter = create_file_adapter()
-
-        # Parse the import source
-        if "$." in import_source:
-            # JSON path syntax: file.json$.path.to.field
-            file_part, json_path = import_source.split("$.", 1)
-            source_file = Path(file_part)
-        elif ":" in import_source:
-            # Shortcut syntax: file.json:layer or file.json:behaviors
-            file_part, shortcut = import_source.split(":", 1)
-            source_file = Path(file_part)
-            # Convert shortcut to JSON path
-            if shortcut == "behaviors":
-                json_path = "custom_defined_behaviors"
-            elif shortcut == "meta":
-                json_path = "title,creator,notes"  # Multiple metadata fields
-            else:
-                # Assume it's a layer name - find it in layer_names
-                json_path = f"layers[{shortcut}]"  # Will be resolved below
-        else:
-            # Direct file import
-            source_file = Path(import_source)
-            json_path = None
-
-        # Load the source file
-        if not source_file.exists():
-            raise FileNotFoundError(f"Import source file not found: {source_file}")
-
-        source_data = file_adapter.read_json(source_file)
-
-        # If no specific path, return entire file
-        if not json_path:
-            return source_data
-
-        # Resolve JSON path
-        return _resolve_json_path(source_data, json_path, source_file)
-
-    except Exception as e:
-        # CLAUDE.md pattern: debug-aware stack traces
-        exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.error(
-            "Failed to resolve import '%s': %s", import_source, e, exc_info=exc_info
-        )
-        # Return error information for better debugging
-        return f"IMPORT_ERROR: Failed to resolve import '{import_source}': {e}"
-
-
-def _resolve_json_path(data: dict[str, Any], json_path: str, source_file: Path) -> Any:
-    """Resolve a JSON path in the given data."""
-    # Handle special layer name resolution
-    if (
-        json_path.startswith("layers[")
-        and json_path.endswith("]")
-        and not json_path[7:-1].isdigit()
-    ):
-        # Layer name lookup: layers[LayerName] -> layers[index]
-        layer_name = json_path[7:-1]  # Extract layer name
-        layer_names = data.get("layer_names", [])
-        try:
-            layer_index = layer_names.index(layer_name)
-            json_path = f"layers[{layer_index}]"
-        except ValueError as e:
-            raise ValueError(
-                f"Layer '{layer_name}' not found in {source_file}. Available layers: {layer_names}"
-            ) from e
-
-    # Split path and traverse
-    current = data
-    path_parts = []
-    i = 0
-
-    while i < len(json_path):
-        if json_path[i] == "[":
-            # Array index
-            end_bracket = json_path.find("]", i)
-            if end_bracket == -1:
-                raise ValueError(f"Invalid JSON path: unmatched '[' in '{json_path}'")
-
-            index_str = json_path[i + 1 : end_bracket]
-            try:
-                index = int(index_str)
-                if not isinstance(current, list):
-                    raise TypeError(
-                        f"Cannot index non-list at path: {'.'.join(path_parts)}"
-                    )
-                if index >= len(current):
-                    raise IndexError(
-                        f"Index {index} out of range for array of length {len(current)}"
-                    )
-                current = current[index]
-                path_parts.append(f"[{index}]")
-                i = end_bracket + 1
-            except ValueError as e:
-                raise ValueError(
-                    f"Invalid array index '{index_str}' in JSON path"
-                ) from e
-        elif json_path[i] == ".":
-            i += 1  # Skip dot
-        else:
-            # Object key
-            start = i
-            while i < len(json_path) and json_path[i] not in ".[]":
-                i += 1
-
-            key = json_path[start:i]
-            if not key:
-                continue
-
-            if not isinstance(current, dict):
-                raise TypeError(
-                    f"Cannot access key '{key}' on non-object at path: {'.'.join(path_parts)}"
-                )
-
-            if key not in current:
-                raise KeyError(
-                    f"Key '{key}' not found at path: {'.'.join(path_parts)}. Available keys: {list(current.keys())}"
-                )
-
-            current = current[key]
-            path_parts.append(key)
-
-    return current
-
-
-def _merge_field_value(
-    layout_file: Path,
-    field_path: str,
-    merge_value: Any,
-    output: Path | None,
-    force: bool,
-    confirm: bool = False,
-) -> Path:
-    """Merge a value into a field (for dictionaries/objects)."""
-    from glovebox.adapters import create_file_adapter
-    from glovebox.layout.utils.field_parser import (
-        extract_field_value_from_model,
-        set_field_value_on_model,
-    )
-    from glovebox.layout.utils.json_operations import (
-        VariableResolutionContext,
-        load_layout_file,
-        save_layout_file,
-    )
-
-    # Wrap entire operation in variable resolution context to preserve variables
-    with VariableResolutionContext(skip=True):
-        file_adapter = create_file_adapter()
-
-        # Load the layout WITHOUT variable resolution to preserve variable references
-        layout_data = load_layout_file(
-            layout_file, file_adapter, skip_variable_resolution=True
-        )
-
-        # Get current field value
-        try:
-            current_value = extract_field_value_from_model(layout_data, field_path)
-        except Exception:
-            current_value = {}  # Default to empty dict if field doesn't exist
-
-        # Merge logic
-        if isinstance(current_value, dict) and isinstance(merge_value, dict):
-            # Deep merge dictionaries
-            merged_value = _deep_merge_dicts(current_value, merge_value)
-
-            # Show confirmation if requested
-            if confirm and not _confirm_merge_operation(
-                current_value, merge_value, merged_value, field_path
-            ):
-                raise typer.Abort("Merge operation cancelled by user")
-
-        elif isinstance(merge_value, dict):
-            # Replace with new dict if current is not a dict
-            merged_value = merge_value
-
-            # Show confirmation for complete replacement
-            if confirm:
-                console.print(
-                    f"\n[yellow]⚠️  Complete replacement of field '{field_path}'[/yellow]"
-                )
-                console.print(
-                    f"[red]Current value ({type(current_value).__name__}):[/red] {current_value}"
-                )
-                console.print(f"[green]New value (dict):[/green] {merge_value}")
-
-                if not typer.confirm(
-                    "This will completely replace the current value. Continue?"
-                ):
-                    raise typer.Abort("Merge operation cancelled by user")
-        else:
-            raise TypeError(
-                f"Cannot merge non-dictionary value into field '{field_path}'. Current type: {type(current_value)}, merge type: {type(merge_value)}"
-            )
-
-        # Set the merged value
-        set_field_value_on_model(layout_data, field_path, merged_value)
-
-        # Determine output path
-        output_path = output or layout_file
-
-        # Save the modified layout
-        save_layout_file(layout_data, output_path, file_adapter)
-
-        return output_path
-
-
-def _append_field_value(
-    layout_file: Path,
-    field_path: str,
-    append_value: Any,
-    output: Path | None,
-    force: bool,
-) -> Path:
-    """Append a value to an array field."""
-    from glovebox.adapters import create_file_adapter
-    from glovebox.layout.utils.field_parser import (
-        extract_field_value_from_model,
-        set_field_value_on_model,
-    )
-    from glovebox.layout.utils.json_operations import (
-        VariableResolutionContext,
-        load_layout_file,
-        save_layout_file,
-    )
-
-    # Wrap entire operation in variable resolution context to preserve variables
-    with VariableResolutionContext(skip=True):
-        file_adapter = create_file_adapter()
-
-        # Load the layout WITHOUT variable resolution to preserve variable references
-        layout_data = load_layout_file(
-            layout_file, file_adapter, skip_variable_resolution=True
-        )
-
-        # Get current field value
-        try:
-            current_value = extract_field_value_from_model(layout_data, field_path)
-        except Exception:
-            current_value = []  # Default to empty list if field doesn't exist
-
-        # Append logic
-        if isinstance(current_value, list):
-            if isinstance(append_value, list):
-                # Special handling for layers field - append entire layer as single element
-                if field_path == "layers":
-                    # For layers, append the entire array as a single layer
-                    new_value = current_value + [append_value]
-                else:
-                    # For other fields, extend with multiple values
-                    new_value = current_value + append_value
-            else:
-                # Append single value
-                new_value = current_value + [append_value]
-        else:
-            raise TypeError(
-                f"Cannot append to non-array field '{field_path}'. Current type: {type(current_value)}"
-            )
-
-        logger.debug("Appending value to field '%s': %s", field_path, new_value)
-        logger.debug("layout_data: %s", layout_data)
-        # Set the new value
-        set_field_value_on_model(layout_data, field_path, new_value)
-
-        # Determine output path
-        output_path = output or layout_file
-
-        # Save the modified layout
-        save_layout_file(layout_data, output_path, file_adapter)
-
-        return output_path
-
-
-def _deep_merge_dicts(dict1: dict[str, Any], dict2: dict[str, Any]) -> dict[str, Any]:
-    """Deep merge two dictionaries."""
-    result = dict1.copy()
-
-    for key, value in dict2.items():
-        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-            result[key] = _deep_merge_dicts(result[key], value)
-        else:
-            result[key] = value
-
-    return result
-
-
-def _confirm_merge_operation(
-    current_value: dict[str, Any],
-    merge_value: dict[str, Any],
-    merged_value: dict[str, Any],
-    field_path: str,
-) -> bool:
-    """Show merge preview and ask for user confirmation."""
-    # Analyze what will be overwritten and what will be added
-    overwritten_keys = []
-    new_keys = []
-
-    for key, value in merge_value.items():
-        if key in current_value:
-            if current_value[key] != value:
-                overwritten_keys.append(key)
-        else:
-            new_keys.append(key)
-
-    console.print(f"\n[cyan]📋 Merge Preview for field '{field_path}'[/cyan]")
-
-    if new_keys:
-        console.print(f"\n[green]✅ New keys to be added ({len(new_keys)}):[/green]")
-        for key in new_keys:
-            console.print(f"  + {key}: {merge_value[key]}")
-
-    if overwritten_keys:
-        console.print(
-            f"\n[yellow]⚠️  Existing keys to be overwritten ({len(overwritten_keys)}):[/yellow]"
-        )
-        for key in overwritten_keys:
-            console.print(f"  [red]- {key}: {current_value[key]}[/red]")
-            console.print(f"  [green]+ {key}: {merge_value[key]}[/green]")
-
-    if not overwritten_keys and not new_keys:
-        console.print("[dim]No changes detected in merge operation.[/dim]")
-        return True
-
-    # Show summary
-    total_keys_after = len(merged_value)
-    console.print("\n[cyan]Summary:[/cyan]")
-    console.print(f"  Current keys: {len(current_value)}")
-    console.print(f"  New keys: {len(new_keys)}")
-    console.print(f"  Overwritten keys: {len(overwritten_keys)}")
-    console.print(f"  Total keys after merge: {total_keys_after}")
-
-    if overwritten_keys:
-        return typer.confirm(
-            "\nProceed with merge? This will overwrite existing values."
-        )
-    else:
-        return typer.confirm("\nProceed with merge?")
-
-
-def _parse_import_source(source: str) -> tuple[str | None, str | None]:
-    """Parse import source into file and layer/path components."""
-    if ":" in source:
-        file_part, layer_part = source.split(":", 1)
-        return file_part, layer_part
-    return source, None
-
-
-def _get_variable_usage(layout_file: Path, file_adapter: Any) -> dict[str, Any]:
-    """Get variable usage information from a layout file."""
-    try:
-        # For variable usage analysis, we need to read the raw JSON
-        # to see the actual variable references before resolution
-        json_data = file_adapter.read_json(layout_file)
-        variables_dict = json_data.get("variables", {})
-
-        if not variables_dict:
-            return {"message": "No variables found in layout"}
-
-        resolver = VariableResolver(variables_dict)
-        usage = resolver.get_variable_usage(json_data)
-        return usage
-    except Exception as e:
-        # CLAUDE.md pattern: debug-aware stack traces
-        exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.error("Failed to get variable usage: %s", e, exc_info=exc_info)
-        return {"error": str(e)}
-
-
-def _get_template_context(
-    layout_file: Path, file_adapter: Any, context_stages: list[str] | None
-) -> dict[str, Any]:
-    """Get template context information from a layout file."""
-    try:
-        # Load layout data without variable resolution to get original templates
-        layout_data = load_layout_file(
-            layout_file, file_adapter, skip_variable_resolution=True
-        )
-
-        # Create template service
-        template_service = create_jinja2_template_service()
-
-        # Define available stages
-        available_stages = ["basic", "behaviors", "layers", "custom"]
-
-        # Use specified stages or all stages
-        stages_to_dump = context_stages if context_stages else available_stages
-
-        # Validate requested stages
-        invalid_stages = [
-            stage for stage in stages_to_dump if stage not in available_stages
-        ]
-        if invalid_stages:
-            return {
-                "error": f"Invalid context stages: {', '.join(invalid_stages)}. Available: {', '.join(available_stages)}"
-            }
-
-        # Create context for each requested stage
-        contexts = {}
-        for stage in stages_to_dump:
-            try:
-                context = template_service.create_template_context(layout_data, stage)
-                # Convert any complex objects to JSON-serializable format
-                contexts[stage] = _make_json_serializable(context)
-            except Exception as stage_error:
-                # CLAUDE.md pattern: debug-aware stack traces
-                exc_info = logger.isEnabledFor(logging.DEBUG)
-                logger.warning(
-                    "Failed to create context for stage '%s': %s",
-                    stage,
-                    stage_error,
-                    exc_info=exc_info,
-                )
-                contexts[stage] = {"error": str(stage_error)}
-
-        return {
-            "stages": contexts,
-            "layout_title": layout_data.title,
-            "keyboard": layout_data.keyboard,
-            "available_stages": available_stages,
-            "dumped_stages": stages_to_dump,
-        }
-
-    except Exception as e:
-        # CLAUDE.md pattern: debug-aware stack traces
-        exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.error("Failed to get template context: %s", e, exc_info=exc_info)
-        return {"error": str(e)}
-
-
-def _make_json_serializable(obj: Any) -> Any:
-    """Convert object to JSON-serializable format."""
-    if callable(obj):
-        return f"<function: {obj.__name__}>"
-    elif isinstance(obj, dict):
-        return {k: _make_json_serializable(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [_make_json_serializable(item) for item in obj]
-    elif hasattr(obj, "__dict__"):
-        return f"<object: {type(obj).__name__}>"
-    else:
-        return obj
-
-
-def _display_template_context(context_data: dict[str, Any], output_format: str) -> None:
-    """Display template context data in the specified format."""
-    from glovebox.cli.helpers import print_list_item, print_success_message
-
-    if output_format.lower() == "json":
-        console.print(json.dumps(context_data, indent=2))
-        return
-
-    # Text format display
-    print_success_message(
-        f"Template Context for '{context_data.get('layout_title', 'Unknown Layout')}'"
-    )
-    print_list_item(f"Keyboard: {context_data.get('keyboard', 'Unknown')}")
-    print_list_item(
-        f"Dumped stages: {', '.join(context_data.get('dumped_stages', []))}"
-    )
-
-    stages = context_data.get("stages", {})
-
-    for stage_name in context_data.get("dumped_stages", []):
-        stage_context = stages.get(stage_name, {})
-
-        if "error" in stage_context:
-            print_list_item(
-                f"❌ {stage_name.title()} Stage: Error - {stage_context['error']}"
-            )
-            continue
-
-        print_list_item(f"📋 {stage_name.title()} Stage Context:")
-
-        # Display key context items
-        if "variables" in stage_context and stage_context["variables"]:
-            console.print("  [cyan]Variables:[/cyan]")
-            for var_name, var_value in stage_context["variables"].items():
-                console.print(f"    {var_name}: {var_value}")
-
-        if "keyboard" in stage_context:
-            console.print(f"  [cyan]Keyboard:[/cyan] {stage_context['keyboard']}")
-
-        if "title" in stage_context:
-            console.print(f"  [cyan]Title:[/cyan] {stage_context['title']}")
-
-        # Optional metadata fields
-        if "creator" in stage_context and stage_context["creator"]:
-            console.print(f"  [cyan]Creator:[/cyan] {stage_context['creator']}")
-
-        if "uuid" in stage_context and stage_context["uuid"]:
-            console.print(f"  [cyan]UUID:[/cyan] {stage_context['uuid']}")
-
-        if "version" in stage_context and stage_context["version"]:
-            console.print(f"  [cyan]Version:[/cyan] {stage_context['version']}")
-
-        if "date" in stage_context and stage_context["date"]:
-            console.print(f"  [cyan]Date:[/cyan] {stage_context['date']}")
-
-        if "tags" in stage_context and stage_context["tags"]:
-            console.print(
-                f"  [cyan]Tags:[/cyan] {', '.join(map(str, stage_context['tags']))}"
-            )
-
-        # Config parameters - handle as dict of paramName/value pairs
-        if "config_parameters" in stage_context and stage_context["config_parameters"]:
-            console.print("  [cyan]Config Parameters:[/cyan]")
-            config_params = stage_context["config_parameters"]
-            if isinstance(config_params, list):
-                # Handle list format [{"paramName": "key", "value": "val"}, ...]
-                for param in config_params:
-                    if (
-                        isinstance(param, dict)
-                        and "paramName" in param
-                        and "value" in param
-                    ):
-                        console.print(f"    {param['paramName']}: {param['value']}")
-                    else:
-                        console.print(f"    {param}")
-            elif isinstance(config_params, dict):
-                # Handle direct dict format {"key": "value", ...}
-                for param_name, param_value in config_params.items():
-                    console.print(f"    {param_name}: {param_value}")
-
-        if "layer_names" in stage_context and stage_context["layer_names"]:
-            console.print(
-                f"  [cyan]Layers:[/cyan] {', '.join(stage_context['layer_names'])}"
-            )
-
-        if (
-            "layer_name_to_index" in stage_context
-            and stage_context["layer_name_to_index"]
-        ):
-            console.print("  [cyan]Layer Indices:[/cyan]")
-            for layer_name, index in stage_context["layer_name_to_index"].items():
-                console.print(f"    {layer_name}: {index}")
-
-        # Stage-specific content
-        if stage_name in ("behaviors", "layers", "custom"):
-            behavior_types = ["holdTaps", "combos", "macros"]
-            for behavior_type in behavior_types:
-                if behavior_type in stage_context and stage_context[behavior_type]:
-                    console.print(f"  [cyan]{behavior_type.title()}:[/cyan]")
-                    for behavior in stage_context[behavior_type]:
-                        if isinstance(behavior, dict) and "name" in behavior:
-                            console.print(f"    - {behavior['name']}")
-                        else:
-                            console.print(f"    - {behavior}")
-
-        if stage_name in ("layers", "custom") and "layers_by_name" in stage_context:
-            layers_by_name = stage_context["layers_by_name"]
-            if layers_by_name:
-                console.print(
-                    f"  [cyan]Layer Content Available:[/cyan] {', '.join(layers_by_name.keys())}"
-                )
-
-        # Show utility functions
-        utility_functions = [
-            key for key in stage_context if key.startswith("<function:")
-        ]
-        if utility_functions:
-            console.print(
-                f"  [cyan]Utility Functions:[/cyan] {', '.join(utility_functions)}"
-            )
-
-        console.print()  # Add spacing between stages
-
-
-def _unset_field_value(
-    editor_service: Any, layout_file: Path, field_path: str, force: bool
-) -> Path:
-    """Remove a field value from a layout file."""
-    from glovebox.adapters import create_file_adapter
-    from glovebox.layout.utils.field_parser import unset_field_value_on_model
-    from glovebox.layout.utils.json_operations import load_layout_file, save_layout_file
-
-    file_adapter = create_file_adapter()
-
-    # Load the layout WITHOUT variable resolution to preserve variable references
-    layout_data = load_layout_file(
-        layout_file, file_adapter, skip_variable_resolution=True
-    )
-
-    # Remove the field value
-    unset_field_value_on_model(layout_data, field_path)
-
-    # Save the modified layout
-    save_layout_file(layout_data, layout_file, file_adapter)
-
-    return layout_file
-
-
-def _display_variables_usage(
-    json_data: dict[str, Any], resolver: VariableResolver, output_format: str
-) -> None:
-    """Display where each variable is used."""
-    usage = resolver.get_variable_usage(json_data)
-
-    if output_format == "json":
-        console.print(json.dumps(usage, indent=2))
-    else:
-        if not usage:
-            console.print("[yellow]No variable usage found[/yellow]")
-            return
-
-        table = Table(title="Variable Usage")
-        table.add_column("Variable", style="cyan")
-        table.add_column("Used In", style="green")
-        table.add_column("Count", style="blue")
-
-        for var_name, paths in usage.items():
-            usage_str = (
-                "\n".join(paths)
-                if len(paths) <= 5
-                else "\n".join(paths[:5]) + f"\n... and {len(paths) - 5} more"
-            )
-            table.add_row(var_name, usage_str, str(len(paths)))
-
-        console.print(table)
+                    print_list_item("No variable usage found")
+
+            elif key == "operations":
+                print_success_message("Operations performed:")
+                for op in value:
+                    print_list_item(op)
+
+            elif key == "output_file":
+                print_list_item(f"Saved to: {value}")

@@ -37,24 +37,7 @@ def load_layout_file(
     skip_variable_resolution: bool = False,
     skip_template_processing: bool = False,
 ) -> LayoutData:
-    """Load and validate a layout JSON file.
-
-    Args:
-        file_path: Path to the layout JSON file
-        file_adapter: File adapter for file operations
-        skip_variable_resolution: If True, skip variable resolution to preserve
-                                  original variable references (for edit operations)
-        skip_template_processing: If True, skip template processing to avoid
-                                  serialization issues (for edit operations)
-
-    Returns:
-        Validated LayoutData instance
-
-    Raises:
-        FileNotFoundError: If file doesn't exist
-        json.JSONDecodeError: If file contains invalid JSON
-        ValueError: If data doesn't match LayoutData schema
-    """
+    """Load and validate a layout JSON file."""
     if not file_adapter.check_exists(file_path):
         raise FileNotFoundError(f"Layout file not found: {file_path}")
 
@@ -64,23 +47,17 @@ def load_layout_file(
         content = file_adapter.read_text(file_path)
         data = json.loads(content)
 
-        # Convert integer timestamps to datetime objects for date fields
-        if "date" in data and isinstance(data["date"], int):
-            from datetime import datetime
-
-            data["date"] = datetime.fromtimestamp(data["date"])
-
         # Set the module flag before validation
         old_skip_value = _skip_variable_resolution
         _skip_variable_resolution = skip_variable_resolution
 
         try:
-            # Conditionally skip template processing to avoid serialization issues
-            if skip_template_processing:
-                with VariableResolutionContext(skip=True):
-                    return LayoutData.model_validate(data)
-            else:
+            if skip_template_processing or skip_variable_resolution:
+                # Just validate without template processing
                 return LayoutData.model_validate(data)
+            else:
+                # Use the new method that includes template processing
+                return LayoutData.load_with_templates(data)
         finally:
             # Restore the original flag value
             _skip_variable_resolution = old_skip_value
@@ -113,11 +90,12 @@ def save_layout_file(
     """
     try:
         # Use Pydantic's serialization with aliases and sorted fields
-        content = json.dumps(
-            layout_data.model_dump(by_alias=True, exclude_unset=True, mode="json"),
-            indent=2,
-            ensure_ascii=False,
-        )
+        with VariableResolutionContext(skip=True):
+            content = json.dumps(
+                layout_data.model_dump(by_alias=True, exclude_unset=True, mode="json"),
+                indent=2,
+                ensure_ascii=False,
+            )
         file_adapter.write_text(file_path, content)
     except OSError as e:
         raise OSError(f"Failed to save layout file {file_path}: {e}") from e

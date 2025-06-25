@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import Annotated, Any
 
 import typer
 
@@ -27,18 +27,16 @@ from glovebox.compilation.models import (
     MoergoCompilationConfig,
     ZmkCompilationConfig,
 )
+from glovebox.config.profile import KeyboardProfile
 from glovebox.firmware.flash import create_flash_service
 from glovebox.layout.firmware_tracker import create_firmware_tracker
 
-
-if TYPE_CHECKING:
-    from glovebox.config.profile import KeyboardProfile
 
 logger = logging.getLogger(__name__)
 
 
 def _resolve_compilation_type(
-    keyboard_profile: "KeyboardProfile", strategy: str | None
+    keyboard_profile: KeyboardProfile, strategy: str | None
 ) -> tuple[str, CompilationConfigUnion]:
     """Resolve compilation type and config from profile."""
     # Get the appropriate compile method config from the keyboard profile
@@ -85,7 +83,7 @@ def _resolve_compilation_type(
 
 def _update_config_from_profile(
     compile_config: CompilationConfigUnion,
-    keyboard_profile: "KeyboardProfile",
+    keyboard_profile: KeyboardProfile,
 ) -> None:
     """Update compile config with firmware settings from profile."""
     if keyboard_profile.firmware_config is not None:
@@ -101,7 +99,7 @@ def _execute_compilation_service(
     kconfig_file: Path,
     build_output_dir: Path,
     compile_config: CompilationConfigUnion,
-    keyboard_profile: "KeyboardProfile",
+    keyboard_profile: KeyboardProfile,
     session_metrics: Any = None,
     user_config: Any = None,
 ) -> Any:
@@ -154,7 +152,7 @@ def _execute_compilation_from_json(
     json_file: Path,
     build_output_dir: Path,
     compile_config: CompilationConfigUnion,
-    keyboard_profile: "KeyboardProfile",
+    keyboard_profile: KeyboardProfile,
     session_metrics: Any = None,
     user_config: Any = None,
 ) -> Any:

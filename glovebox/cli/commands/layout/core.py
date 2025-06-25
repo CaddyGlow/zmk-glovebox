@@ -6,15 +6,11 @@ from pathlib import Path
 from tempfile import gettempdir, tempdir
 from typing import TYPE_CHECKING, Annotated
 
-
-if TYPE_CHECKING:
-    from glovebox.layout.service import LayoutService
-
 import typer
 
-from glovebox.adapters import create_file_adapter, create_template_adapter
 from glovebox.cli.commands.layout.base import LayoutOutputCommand
-from glovebox.cli.decorators import handle_errors, with_profile
+from glovebox.cli.commands.layout.dependencies import create_full_layout_service
+from glovebox.cli.decorators import handle_errors, with_layout_context, with_profile
 from glovebox.cli.helpers import (
     print_error_message,
     print_list_item,
@@ -37,38 +33,12 @@ from glovebox.cli.helpers.profile import (
     get_keyboard_profile_from_context,
     get_user_config_from_context,
 )
-from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
-from glovebox.layout.behavior.service import create_behavior_registry
-from glovebox.layout.component_service import create_layout_component_service
-from glovebox.layout.display_service import create_layout_display_service
-from glovebox.layout.formatting import ViewMode, create_grid_layout_formatter
-from glovebox.layout.service import create_layout_service
-from glovebox.layout.zmk_generator import ZmkFileContentGenerator
+from glovebox.config.profile import KeyboardProfile
+from glovebox.layout.formatting import ViewMode
+from glovebox.layout.service import LayoutService
 
 
 logger = logging.getLogger(__name__)
-
-
-def _create_layout_service_with_dependencies() -> "LayoutService":
-    """Create a layout service with all required dependencies."""
-    file_adapter = create_file_adapter()
-    template_adapter = create_template_adapter()
-    behavior_registry = create_behavior_registry()
-    behavior_formatter = BehaviorFormatterImpl(behavior_registry)
-    dtsi_generator = ZmkFileContentGenerator(behavior_formatter)
-    layout_generator = create_grid_layout_formatter()
-    component_service = create_layout_component_service(file_adapter)
-    layout_display_service = create_layout_display_service(layout_generator)
-
-    return create_layout_service(
-        file_adapter=file_adapter,
-        template_adapter=template_adapter,
-        behavior_registry=behavior_registry,
-        component_service=component_service,
-        layout_service=layout_display_service,
-        behavior_formatter=behavior_formatter,
-        dtsi_generator=dtsi_generator,
-    )
 
 
 @handle_errors
@@ -166,7 +136,7 @@ def compile_layout(
                 output_file_prefix = str(Path(tmp_dir) / keyboard_profile.keyboard_name)
 
             # Generate keymap using the file-based service method
-            keymap_service = _create_layout_service_with_dependencies()
+            keymap_service = create_full_layout_service()
 
             result = keymap_service.generate_from_file(
                 profile=keyboard_profile,
@@ -222,6 +192,7 @@ def compile_layout(
 
 
 @handle_errors
+@with_layout_context(needs_json=True, needs_profile=True, validate_json=True)
 def validate(
     ctx: typer.Context,
     json_file: JsonFileArgument = None,
@@ -245,32 +216,19 @@ def validate(
     4. User config default profile
     5. Hardcoded fallback profile
     """
-    # Resolve JSON file path (supports environment variable)
-    resolved_json_file = resolve_json_file_path(json_file, "GLOVEBOX_JSON_FILE")
-
-    if resolved_json_file is None:
-        print_error_message(
-            "JSON file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
-        )
-        raise typer.Exit(1)
-
     command = LayoutOutputCommand()
-    command.validate_layout_file(resolved_json_file)
+
+    # Get values injected by the decorator from context
+    resolved_json_file = ctx.meta.get("resolved_json_file")
+    keyboard_profile = ctx.meta.get("keyboard_profile")
+
+    # These are guaranteed to be non-None by the decorator
+    assert resolved_json_file is not None
+    assert keyboard_profile is not None
 
     try:
-        # Use unified profile resolution with auto-detection support
-        from glovebox.cli.helpers.parameters import create_profile_from_param_unified
-
-        keyboard_profile = create_profile_from_param_unified(
-            ctx=ctx,
-            profile=profile,
-            default_profile="glove80/v25.05",
-            json_file=resolved_json_file,
-            no_auto=no_auto,
-        )
-
         # Validate using the file-based service method
-        keymap_service = _create_layout_service_with_dependencies()
+        keymap_service = create_full_layout_service()
 
         if keymap_service.validate_from_file(
             profile=keyboard_profile, json_file_path=resolved_json_file
@@ -344,7 +302,7 @@ def show(
         )
 
         # Call the service
-        keymap_service = _create_layout_service_with_dependencies()
+        keymap_service = create_full_layout_service()
 
         # Resolve layer parameter (can be index or name)
         resolved_layer_index = None

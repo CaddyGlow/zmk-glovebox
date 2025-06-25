@@ -1,0 +1,18 @@
+{
+  "variables": {
+    "user_name": "TestUser",
+    "timing": 200
+  },
+  "keyboard": "glove80",
+  "title": "Test Layout",
+  "layer_names": [
+    "Base"
+  ],
+  "layers": [
+    [
+      {
+        "value": "&kp A"
+      }
+    ]
+  ]
+}

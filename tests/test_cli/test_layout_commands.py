@@ -52,7 +52,7 @@ def mock_layout_service():
     """Create a mock layout service."""
     with (
         patch(
-            "glovebox.cli.commands.layout.core.create_layout_service"
+            "glovebox.cli.commands.layout.dependencies.create_full_layout_service"
         ) as mock_create_core,
         patch(
             "glovebox.cli.commands.layout.file_operations.create_layout_service"
@@ -67,9 +67,7 @@ def mock_layout_service():
 @pytest.fixture
 def mock_layout_editor_service():
     """Create a mock layout editor service."""
-    with patch(
-        "glovebox.cli.commands.layout.edit.create_layout_editor_service"
-    ) as mock_create:
+    with patch("glovebox.layout.editor.create_layout_editor_service") as mock_create:
         mock_service = Mock()
         mock_create.return_value = mock_service
         yield mock_service
@@ -79,9 +77,7 @@ def mock_layout_editor_service():
 def mock_layout_layer_service():
     """Create a mock layout layer service."""
     with (
-        patch(
-            "glovebox.cli.commands.layout.edit.create_layout_layer_service"
-        ) as mock_create_edit,
+        patch("glovebox.layout.layer.create_layout_layer_service") as mock_create_edit,
         patch(
             "glovebox.cli.commands.layout.file_operations.create_layout_layer_service"
         ) as mock_create_file,

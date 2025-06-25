@@ -313,8 +313,6 @@ class LayoutMetadata(GloveboxBaseModel):
 class LayoutData(LayoutMetadata):
     """Complete layout data model with Pydantic v2."""
 
-    # LayoutData doesn't need to override model_config since it inherits from GloveboxBaseModel
-
     # Essential structure fields
     layers: list[LayerBindings] = Field(default_factory=list)
 
@@ -324,31 +322,36 @@ class LayoutData(LayoutMetadata):
 
     @model_validator(mode="before")
     @classmethod
-    def resolve_variables(cls, data: Any, info: Any = None) -> Any:
-        """Resolve all Jinja2 templates before field validation.
+    def validate_data_structure(cls, data: Any, info: Any = None) -> Any:
+        """Basic validation without template processing.
 
-        Templates are NOT resolved during edit operations to preserve original
-        template expressions in the layout file. This prevents template flattening
-        when saving edited layouts.
+        This only handles basic data structure validation like date conversion.
+        Template processing is handled separately by process_templates().
         """
-
         if not isinstance(data, dict):
             return data
 
-        # Check if template resolution should be skipped
-        # This prevents template flattening during edit operations
-        from glovebox.layout.utils.json_operations import (
-            should_skip_variable_resolution,
-        )
+        # Convert integer timestamps to datetime objects for date fields
+        if "date" in data and isinstance(data["date"], int):
+            from datetime import datetime
 
-        if should_skip_variable_resolution():
-            return data
+            data["date"] = datetime.fromtimestamp(data["date"])
 
+        return data
+
+    def process_templates(self) -> "LayoutData":
+        """Process all Jinja2 templates in the layout data.
+
+        This is a separate method that can be called explicitly when needed,
+        instead of being part of model validation.
+
+        Returns:
+            New LayoutData instance with resolved templates
+        """
         # Skip processing if no variables or templates present
-        if not data.get("variables") and not cls._has_template_syntax(data):
-            return data
+        if not self.variables and not self._has_template_syntax(self.model_dump()):
+            return self
 
-        # Import here to avoid circular imports
         from glovebox.layout.template_service import create_jinja2_template_service
         from glovebox.layout.utils.json_operations import VariableResolutionContext
 
@@ -356,24 +359,36 @@ class LayoutData(LayoutMetadata):
             # Create template service and process the data
             template_service = create_jinja2_template_service()
 
-            # Create a temporary LayoutData instance for processing
-            # We need to disable template resolution for this instance
-            # to avoid infinite recursion
-            with VariableResolutionContext(skip=True):
-                temp_layout = cls.model_validate(data)
-
-            # Process templates and return the resolved data
-            resolved_layout = template_service.process_layout_data(temp_layout)
-            return resolved_layout.model_dump(mode="json", by_alias=True)
+            # Process templates and return new instance
+            resolved_layout = template_service.process_layout_data(self)
+            return resolved_layout
 
         except Exception as e:
-            # Log the error but don't fail validation - let individual field validation handle it
             import logging
 
             logger = logging.getLogger(__name__)
             exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.warning("Template resolution failed: %s", e, exc_info=exc_info)
-            return data
+            return self
+
+    @classmethod
+    def load_with_templates(cls, data: dict[str, Any]) -> "LayoutData":
+        """Load layout data and process templates.
+
+        This is the method to use when you want templates processed.
+        """
+        # First create the model without template processing
+        layout = cls.model_validate(data)
+
+        # Then process templates if not in skip context
+        from glovebox.layout.utils.json_operations import (
+            should_skip_variable_resolution,
+        )
+
+        if not should_skip_variable_resolution():
+            layout = layout.process_templates()
+
+        return layout
 
     @classmethod
     def _has_template_syntax(cls, data: dict[str, Any]) -> bool:
@@ -467,17 +482,6 @@ class LayoutData(LayoutMetadata):
 
         return v
 
-    # We should check that layer_name have a matching layer in the folder=
-    # @model_validator(mode="after")
-    # def validate_layer_consistency(self) -> "LayoutData":
-    #     """Validate consistency between layer names and layer data."""
-    #     if len(self.layers) != len(self.layer_names):
-    #         raise ValueError(
-    #             f"Number of layers ({len(self.layers)}) must match "
-    #             f"number of layer names ({len(self.layer_names)})"
-    #         ) from None
-    #     return self
-
     def get_structured_layers(self) -> list[LayoutLayer]:
         """Create LayoutLayer objects from typed layer data."""
         structured_layers = []
@@ -506,18 +510,9 @@ class LayoutData(LayoutMetadata):
 
         # If we have variables or templates, resolve and remove variables section
         if data.get("variables") or self._has_template_syntax(data):
-            from glovebox.layout.template_service import create_jinja2_template_service
-            from glovebox.layout.utils.json_operations import VariableResolutionContext
-
             try:
-                template_service = create_jinja2_template_service()
-
-                # Create a copy of self without template resolution to avoid recursion
-                with VariableResolutionContext(skip=True):
-                    temp_layout = LayoutData.model_validate(data)
-
-                # Process templates
-                resolved_layout = template_service.process_layout_data(temp_layout)
+                # Process templates on a copy
+                resolved_layout = self.process_templates()
                 resolved_data = resolved_layout.model_dump(
                     mode="json", by_alias=True, exclude_unset=True
                 )
