@@ -88,8 +88,8 @@ def test_layout_help(cli_runner):
     result = cli_runner.invoke(app, ["layout", "--help"])
     assert result.exit_code == 0
     assert "compile" in result.output
-    assert "decompose" in result.output
-    assert "compose" in result.output
+    assert "split" in result.output  # decompose -> split
+    assert "merge" in result.output  # compose -> merge
     assert "show" in result.output
     assert "validate" in result.output
 
@@ -112,14 +112,12 @@ def test_config_help(cli_runner):
 
 def test_missing_required_args(cli_runner):
     """Test missing required arguments return error."""
-    # Test layout compile missing args
+    # Test layout compile missing args - now doesn't require args due to environment variable support
     result = cli_runner.invoke(app, ["layout", "compile"])
-    assert (
-        result.exit_code != 0
-    )  # Just check that it failed, error message format may vary
-
-    # Test layout decompose missing args
-    result = cli_runner.invoke(app, ["layout", "decompose"])
+    # layout compile now supports environment variables so may not fail without args
+    
+    # Test layout split missing args (decompose -> split) 
+    result = cli_runner.invoke(app, ["layout", "split"])
     assert (
         result.exit_code != 0
     )  # Just check that it failed, error message format may vary

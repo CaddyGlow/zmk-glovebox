@@ -52,22 +52,26 @@ class LayoutFileCommand(BaseLayoutCommand):
     def __init__(self) -> None:
         super().__init__()
 
-    def validate_layout_file(self, layout_file: Path) -> None:
-        """Validate that layout file exists and is readable.
+    # TODO: to be deleted - file validation now handled within composer operations
 
-        Args:
-            layout_file: Path to layout file
 
-        Raises:
-            typer.Exit: If file doesn't exist or isn't readable
-        """
-        if not layout_file.exists():
-            print_error_message(f"Layout file not found: {layout_file}")
-            raise typer.Exit(1)
+def validate_layout_file(self, file_path: Path) -> None:
+    """Validate that a layout file exists and is readable.
 
-        if not layout_file.is_file():
-            print_error_message(f"Path is not a file: {layout_file}")
-            raise typer.Exit(1)
+    Args:
+        file_path: Path to layout file to validate
+    """
+    if not file_path.exists():
+        print_error_message(f"Layout file not found: {file_path}")
+        raise typer.Exit(1)
+
+    if not file_path.is_file():
+        print_error_message(f"Path is not a file: {file_path}")
+        raise typer.Exit(1)
+
+    if file_path.suffix.lower() != ".json":
+        print_error_message(f"Layout file must be a JSON file: {file_path}")
+        raise typer.Exit(1)
 
 
 class LayoutOutputCommand(LayoutFileCommand):
@@ -77,20 +81,24 @@ class LayoutOutputCommand(LayoutFileCommand):
         super().__init__()
         self.formatter = OutputFormatter()
 
-    def format_output(self, data: Any, output_format: str) -> None:
-        """Format and print output based on format type.
+    # TODO: to be deleted - replaced by LayoutOutputFormatter methods
 
-        Args:
-            data: Data to format and output
-            output_format: Format type ('text', 'json', 'table')
-        """
-        if output_format.lower() == "json":
-            print(self.formatter.format(data, "json"))
-        elif output_format.lower() == "table":
-            self.formatter.print_formatted(data, "table")
-        else:
-            # Default text format handled by caller
-            pass
+
+def format_output(self, data: Any, output_format: str = "text") -> None:
+    """Format and output data in specified format.
+
+    Args:
+        data: Data to format and output
+        output_format: Output format (text, json, table)
+    """
+    if output_format.lower() == "json":
+        import json
+
+        print(json.dumps(data, indent=2, default=str))
+    elif output_format.lower() == "table" and isinstance(data, list):
+        self.formatter.print_table(data)
+    else:
+        self.print_text_list(data)
 
     def print_text_list(self, items: list[str], title: str | None = None) -> None:
         """Print a list of items in text format.

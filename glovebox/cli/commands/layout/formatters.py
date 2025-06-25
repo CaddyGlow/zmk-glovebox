@@ -117,6 +117,8 @@ class LayoutOutputFormatter:
         if output_format.lower() == "json":
             self._format_json(results)
         else:
+            from glovebox.cli.helpers import print_list_item, print_success_message
+
             print_success_message(f"{operation.title()} completed")
             print_list_item(f"Input: {input_file}")
             if output_file:
@@ -268,6 +270,340 @@ class LayoutOutputFormatter:
                 )
             else:
                 print_list_item(f"✅ {section}: no changes")
+
+    def format_detailed_comparison_text(
+        self, result: dict[str, Any], output_format: str, compare_dtsi: bool
+    ) -> list[str]:
+        """Format comparison result for detailed text output (moved from comparison.py)."""
+        differences = []
+
+        # Add metadata changes
+        for field, change in result.get("metadata", {}).items():
+            if isinstance(change, dict) and "from" in change and "to" in change:
+                # Handle long content fields differently based on output format
+                if field in ["custom_defined_behaviors", "custom_devicetree"]:
+                    # Only show DTSI fields when compare_dtsi flag is set
+                    if compare_dtsi:
+                        if output_format.lower() == "detailed":
+                            # Show full content in detailed mode
+                            differences.append(
+                                f"{field.title()}: '{change['from']}' → '{change['to']}'"
+                            )
+                        else:
+                            # Show summary in other modes
+                            differences.append(f"{field.title()}: Content differs")
+                else:
+                    # Normal metadata fields - show full content
+                    # Handle list modifications differently
+                    if (
+                        change["from"] == "list_modified"
+                        and change["to"] == "list_modified"
+                    ):
+                        differences.append(f"{field.title()}: List modified")
+                    else:
+                        differences.append(
+                            f"{field.title()}: '{change['from']}' → '{change['to']}'"
+                        )
+
+        # Add layer changes
+        layers = result.get("layers", {})
+        if layers.get("added"):
+            differences.append(f"Added layers: {', '.join(sorted(layers['added']))}")
+        if layers.get("removed"):
+            differences.append(
+                f"Removed layers: {', '.join(sorted(layers['removed']))}"
+            )
+
+        # Add layer overview for summary format or detailed key changes for detailed format
+        changed_layers = layers.get("changed", {})
+        if changed_layers:
+            if output_format.lower() == "detailed":
+                # Show detailed key changes for each layer
+                for layer_name, layer_changes in changed_layers.items():
+                    key_count = layer_changes.get("total_key_differences", 0)
+                    differences.append(
+                        f"Layer '{layer_name}': {key_count} key differences"
+                    )
+
+                    # Show individual key changes (limited)
+                    key_changes = layer_changes.get("key_changes", [])
+                    if key_changes:
+                        for key_change in key_changes[:5]:
+                            key_idx = key_change.get("key_index")
+                            from_val = key_change.get("from", "None")
+                            to_val = key_change.get("to", "None")
+                            # Truncate long values
+                            from_str = (
+                                from_val[:40] + "..."
+                                if len(str(from_val)) > 40
+                                else str(from_val)
+                            )
+                            to_str = (
+                                to_val[:40] + "..."
+                                if len(str(to_val)) > 40
+                                else str(to_val)
+                            )
+                            differences.append(
+                                f"  Key {key_idx:2d}: '{from_str}' → '{to_str}'"
+                            )
+
+                        # Show truncation if needed
+                        total_changes = len(key_changes)
+                        if total_changes > 5:
+                            differences.append(
+                                f"  ... and {total_changes - 5} more changes"
+                            )
+                    else:
+                        # Fallback when key_changes is empty but differences exist
+                        if key_count > 0:
+                            differences.append(
+                                f"  • {key_count} key differences (detailed changes available in JSON format)"
+                            )
+            else:
+                # Show summary of layer changes with breakdown
+                total_key_changes = sum(
+                    layer_data.get("total_key_differences", 0)
+                    for layer_data in changed_layers.values()
+                )
+                layer_count = len(changed_layers)
+                differences.append(
+                    f"Layers: {layer_count} changed ({total_key_changes} total key differences)"
+                )
+
+                # Show per-layer breakdown
+                for layer_name, layer_data in sorted(changed_layers.items()):
+                    key_count = layer_data.get("total_key_differences", 0)
+                    differences.append(f"  - {layer_name}: {key_count} changes")
+
+        # Add behavior changes
+        behaviors = result.get("behaviors", {})
+        if behaviors.get("changed"):
+            count1 = behaviors.get("layout1_count", 0)
+            count2 = behaviors.get("layout2_count", 0)
+            if count1 == count2:
+                differences.append(f"Behaviors: {count1} modified")
+            else:
+                differences.append(f"Behaviors: {count1} → {count2}")
+
+            # Add detailed behavior breakdown for detailed format
+            if output_format.lower() == "detailed":
+                detailed_changes = behaviors.get("detailed_changes", {})
+                for behavior_type, changes in detailed_changes.items():
+                    added = changes.get("added", [])
+                    removed = changes.get("removed", [])
+                    changed = changes.get("changed", [])
+
+                    if added or removed or changed:
+                        differences.append(f"  {behavior_type.title()}:")
+
+                        for behavior in added:
+                            differences.append(
+                                f"    + Added: {behavior['name']} ({behavior['type']})"
+                            )
+
+                        for behavior in removed:
+                            differences.append(
+                                f"    - Removed: {behavior['name']} ({behavior['type']})"
+                            )
+
+                        for behavior in changed:
+                            field_changes = behavior.get("field_changes", {})
+                            field_count = len(field_changes)
+                            differences.append(
+                                f"    ~ Changed: {behavior['name']} ({field_count} fields modified)"
+                            )
+
+                            # Show specific field changes
+                            for field_name, change in field_changes.items():
+                                if (
+                                    isinstance(change, dict)
+                                    and "from" in change
+                                    and "to" in change
+                                ):
+                                    from_val = change["from"]
+                                    to_val = change["to"]
+                                    # Truncate long values for readability
+                                    from_str = (
+                                        str(from_val)[:30] + "..."
+                                        if len(str(from_val)) > 30
+                                        else str(from_val)
+                                    )
+                                    to_str = (
+                                        str(to_val)[:30] + "..."
+                                        if len(str(to_val)) > 30
+                                        else str(to_val)
+                                    )
+                                    differences.append(
+                                        f"      • {field_name}: '{from_str}' → '{to_str}'"
+                                    )
+            else:
+                # Show summary of behavior types changed
+                detailed_changes = behaviors.get("detailed_changes", {})
+                behavior_changes_summary: list[str] = []
+                for behavior_type, changes in detailed_changes.items():
+                    added_count = len(changes.get("added", []))
+                    removed_count = len(changes.get("removed", []))
+                    changed_count = len(changes.get("changed", []))
+
+                    if added_count or removed_count or changed_count:
+                        type_summary: list[str] = []
+                        if added_count:
+                            type_summary.append(f"+{added_count}")
+                        if removed_count:
+                            type_summary.append(f"-{removed_count}")
+                        if changed_count:
+                            type_summary.append(f"~{changed_count}")
+                        behavior_changes_summary.append(
+                            f"{behavior_type}: {'/'.join(type_summary)}"
+                        )
+
+                if behavior_changes_summary:
+                    differences.append(f"  - {', '.join(behavior_changes_summary)}")
+
+        # Add config changes
+        config = result.get("config", {})
+        if config.get("changed"):
+            count1 = config.get("layout1_count", 0)
+            count2 = config.get("layout2_count", 0)
+            differences.append(f"Config parameters: {count1} → {count2}")
+
+            # Show detailed config changes in detailed mode
+            if output_format.lower() == "detailed":
+                # Look for config parameter changes in metadata
+                config_changes = []
+                for field, change in result.get("metadata", {}).items():
+                    # Config parameters are stored as metadata fields
+                    if (
+                        (field.startswith("config_") or field in ["config_parameters"])
+                        and isinstance(change, dict)
+                        and "from" in change
+                        and "to" in change
+                    ):
+                        config_changes.append(
+                            f"    {field}: '{change['from']}' → '{change['to']}'"
+                        )
+
+                # If no specific config changes found, check if we can extract from the comparison data
+                if not config_changes and count1 != count2:
+                    differences.append(
+                        f"  • Added {count2 - count1} config parameters (details in JSON format)"
+                    )
+
+                for config_change in config_changes:
+                    differences.append(config_change)
+
+        # Add DTSI changes (only when compare_dtsi flag is set)
+        if compare_dtsi and output_format.lower() == "detailed":
+            dtsi = result.get("custom_dtsi", {})
+            if dtsi.get("custom_defined_behaviors", {}).get("changed"):
+                differences.append("custom_defined_behaviors: Content differs")
+            if dtsi.get("custom_devicetree", {}).get("changed"):
+                differences.append("custom_devicetree: Content differs")
+
+        return differences
+
+    def format_compilation_result(
+        self, result: dict[str, Any], output_format: str = "text"
+    ) -> None:
+        """Format compilation results with specialized formatting."""
+        if output_format.lower() == "json":
+            self._format_json(result)
+        elif output_format.lower() == "table":
+            self._format_compilation_table(result)
+        else:
+            self._format_compilation_text(result)
+
+    def format_validation_result(
+        self, result: dict[str, Any], output_format: str = "text"
+    ) -> None:
+        """Format validation results with specialized formatting."""
+        if output_format.lower() == "json":
+            self._format_json(result)
+        else:
+            self._format_validation_text(result)
+
+    def format_edit_result(
+        self, result: dict[str, Any], output_format: str = "text"
+    ) -> None:
+        """Format edit operation results with specialized formatting."""
+        if output_format.lower() == "json":
+            self._format_json(result)
+        elif output_format.lower() == "table":
+            self._format_edit_table(result)
+        else:
+            self._format_edit_text(result)
+
+    def _format_compilation_table(self, result: dict[str, Any]) -> None:
+        """Format compilation results as a table."""
+        table = Table(title="Compilation Results")
+        table.add_column("File Type", style="cyan")
+        table.add_column("Output Path", style="green")
+
+        output_files = result.get("output_files", {})
+        for file_type, file_path in output_files.items():
+            table.add_row(file_type.title(), str(file_path))
+
+        console.print(table)
+
+    def _format_compilation_text(self, result: dict[str, Any]) -> None:
+        """Format compilation results as text."""
+        from glovebox.cli.helpers import print_list_item, print_success_message
+
+        if result.get("success"):
+            print_success_message("Layout generated successfully")
+            output_files = result.get("output_files", {})
+            for file_type, file_path in output_files.items():
+                print_list_item(f"{file_type}: {file_path}")
+        else:
+            from glovebox.cli.helpers import print_error_message
+
+            print_error_message("Layout generation failed")
+            for error in result.get("errors", []):
+                print_list_item(error)
+
+    def _format_validation_text(self, result: dict[str, Any]) -> None:
+        """Format validation results as text."""
+        from glovebox.cli.helpers import (
+            print_error_message,
+            print_list_item,
+            print_success_message,
+        )
+
+        if result.get("valid"):
+            print_success_message(f"Layout file {result.get('file')} is valid")
+        else:
+            print_error_message(f"Layout file {result.get('file')} is invalid")
+            for error in result.get("errors", []):
+                print_list_item(error)
+
+    def _format_edit_table(self, result: dict[str, Any]) -> None:
+        """Format edit operation results as a table."""
+        table = Table(title="Edit Operations")
+        table.add_column("Operation", style="cyan")
+        table.add_column("Status", style="green")
+        table.add_column("Details", style="yellow")
+
+        operations = result.get("operations", [])
+        for op in operations:
+            table.add_row("EDIT", "SUCCESS", op)
+
+        if result.get("output_file"):
+            table.add_row("SAVE", "SUCCESS", f"Saved to: {result['output_file']}")
+
+        console.print(table)
+
+    def _format_edit_text(self, result: dict[str, Any]) -> None:
+        """Format edit operation results as text."""
+        from glovebox.cli.helpers import print_list_item, print_success_message
+
+        operations = result.get("operations", [])
+        if operations:
+            print_success_message("Operations performed:")
+            for op in operations:
+                print_list_item(op)
+
+        if result.get("output_file"):
+            print_success_message(f"Layout saved to: {result['output_file']}")
 
     def _make_json_serializable(self, obj: Any) -> Any:
         """Convert object to JSON-serializable format."""

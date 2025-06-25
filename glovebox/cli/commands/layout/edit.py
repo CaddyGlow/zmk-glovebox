@@ -398,6 +398,144 @@ def complete_layer_operation(ctx: typer.Context, incomplete: str) -> list[str]:
         return []
 
 
+def _collect_field_operations(
+    get: list[str] | None,
+    set: list[str] | None,
+    unset: list[str] | None,
+    merge: list[str] | None,
+    append: list[str] | None,
+) -> tuple[list[tuple[str, str, str | None]], dict[str, Any]]:
+    """Parse field operations into standard format.
+
+    Returns:
+        Tuple of (operations_list, read_results)
+    """
+    operations = []
+    read_results = {}
+
+    # Handle read operations
+    if get:
+        from glovebox.cli.commands.layout.edit import LayoutEditor
+
+        # Note: Read operations are handled separately in the main function
+        # This is just for consistency
+        pass
+
+    # Handle write operations
+    if set:
+        for op in set:
+            if "=" not in op:
+                raise ValueError(f"Invalid set syntax: {op} (use key=value)")
+            field_path, value_str = op.split("=", 1)
+            operations.append(("set", field_path, value_str))
+
+    if unset:
+        for field_path in unset:
+            operations.append(("unset", field_path, None))
+
+    if merge:
+        for op in merge:
+            if "=" not in op:
+                raise ValueError(f"Invalid merge syntax: {op} (use key=value)")
+            field_path, value_str = op.split("=", 1)
+            operations.append(("merge", field_path, value_str))
+
+    if append:
+        for op in append:
+            if "=" not in op:
+                raise ValueError(f"Invalid append syntax: {op} (use key=value)")
+            field_path, value_str = op.split("=", 1)
+            operations.append(("append", field_path, value_str))
+
+    return operations, read_results
+
+
+def _collect_layer_operations(
+    add_layer: list[str] | None,
+    remove_layer: list[str] | None,
+    move_layer: list[str] | None,
+    copy_layer: list[str] | None,
+) -> list[tuple[str, str, str | None]]:
+    """Parse layer operations into standard format."""
+    operations = []
+
+    if add_layer:
+        for layer_spec in add_layer:
+            if "=from:" in layer_spec:
+                layer_name, source = layer_spec.split("=from:", 1)
+                operations.append(("add_layer_from", layer_name, source))
+            else:
+                operations.append(("add_layer", layer_spec, None))
+
+    if remove_layer:
+        for layer_id in remove_layer:
+            operations.append(("remove_layer", layer_id, None))
+
+    if move_layer:
+        for move_spec in move_layer:
+            if ":" not in move_spec:
+                raise ValueError(
+                    f"Invalid move syntax: {move_spec} (use name:position)"
+                )
+            layer_name, position = move_spec.split(":", 1)
+            operations.append(("move_layer", layer_name, position))
+
+    if copy_layer:
+        for copy_spec in copy_layer:
+            if ":" not in copy_spec:
+                raise ValueError(
+                    f"Invalid copy syntax: {copy_spec} (use source:target)"
+                )
+            source, target = copy_spec.split(":", 1)
+            operations.append(("copy_layer", source, target))
+
+    return operations
+
+
+def _execute_read_operations(
+    editor: "LayoutEditor",
+    get: list[str] | None,
+    list_layers: bool,
+    list_usage: bool,
+) -> dict[str, Any]:
+    """Execute read-only operations and return results."""
+    results = {}
+
+    if get:
+        for field_path in get:
+            try:
+                value = editor.get_field(field_path)
+                results[f"get:{field_path}"] = value
+            except Exception as e:
+                results[f"get:{field_path}"] = f"Error: {e}"
+
+    if list_layers:
+        layer_names = editor.get_layer_names()
+        results["layers"] = layer_names
+
+    if list_usage:
+        usage = editor.get_variable_usage()
+        results["variable_usage"] = usage
+
+    return results
+
+
+def _has_write_operations(
+    set: list[str] | None,
+    unset: list[str] | None,
+    merge: list[str] | None,
+    append: list[str] | None,
+    add_layer: list[str] | None,
+    remove_layer: list[str] | None,
+    move_layer: list[str] | None,
+    copy_layer: list[str] | None,
+) -> bool:
+    """Check if any write operations are specified."""
+    return any(
+        [set, unset, merge, append, add_layer, remove_layer, move_layer, copy_layer]
+    )
+
+
 @handle_errors
 def edit(
     layout_file: Annotated[
@@ -528,200 +666,59 @@ def edit(
         )
         raise typer.Exit(1)
 
-    try:
-        # Load layout data once with variable resolution context
-        file_adapter = create_file_adapter()
-        # with VariableResolutionContext(skip=True):
-        #     layout_data = load_layout_file(resolved_file, file_adapter)
-        with VariableResolutionContext(skip=True):
-            layout_data = load_layout_file(
-                resolved_file,
-                file_adapter,
-                skip_variable_resolution=True,  # Add this
-                skip_template_processing=True,  # Add this
-            )
-        # Create editor instance
-        editor = LayoutEditor(layout_data)
+    # Check if only read operations are requested
+    has_writes = _has_write_operations(
+        set, unset, merge, append, add_layer, remove_layer, move_layer, copy_layer
+    )
 
-        # Track results for output
-        results = {}
+    if not has_writes:
+        # Handle read-only operations
+        try:
+            file_adapter = create_file_adapter()
+            with VariableResolutionContext(skip=True):
+                layout_data = load_layout_file(
+                    resolved_file,
+                    file_adapter,
+                    skip_variable_resolution=True,
+                    skip_template_processing=True,
+                )
 
-        # Handle read-only operations first
-        if get:
-            for field_path in get:
-                try:
-                    value = editor.get_field(field_path)
-                    results[f"get:{field_path}"] = value
-                except Exception as e:
-                    results[f"get:{field_path}"] = f"Error: {e}"
-
-        if list_layers:
-            layer_names = editor.get_layer_names()
-            results["layers"] = layer_names
-
-        if list_usage:
-            usage = editor.get_variable_usage()
-            results["variable_usage"] = usage
-
-        # If only read operations, output and exit
-        if results and not any(
-            [set, unset, merge, append, add_layer, remove_layer, move_layer, copy_layer]
-        ):
+            editor = LayoutEditor(layout_data)
+            results = _execute_read_operations(editor, get, list_layers, list_usage)
             _output_results(results, output_format)
             return
 
-        # Collect all write operations
-        all_operations = []
+        except Exception as e:
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("Failed to read layout: %s", e, exc_info=exc_info)
+            print_error_message(f"Failed to read layout: {e}")
+            raise typer.Exit(1) from e
 
-        # Process field operations
-        if set:
-            for op in set:
-                if "=" not in op:
-                    print_error_message(f"Invalid set syntax: {op} (use key=value)")
-                    raise typer.Exit(1)
-                field_path, value_str = op.split("=", 1)
-                all_operations.append(("set", field_path, value_str))
+    # Handle write operations using composer
+    try:
+        # Collect operations
+        field_operations, _ = _collect_field_operations(get, set, unset, merge, append)
+        layer_operations = _collect_layer_operations(
+            add_layer, remove_layer, move_layer, copy_layer
+        )
 
-        if unset:
-            for field_path in unset:
-                all_operations.append(("unset", field_path, None))
+        # Create composer and execute edit operation
+        from glovebox.cli.commands.layout.composition import (
+            create_layout_command_composer,
+        )
 
-        if merge:
-            for op in merge:
-                if "=" not in op:
-                    print_error_message(f"Invalid merge syntax: {op} (use key=value)")
-                    raise typer.Exit(1)
-                field_path, value_str = op.split("=", 1)
-                all_operations.append(("merge", field_path, value_str))
+        composer = create_layout_command_composer()
 
-        if append:
-            for op in append:
-                if "=" not in op:
-                    print_error_message(f"Invalid append syntax: {op} (use key=value)")
-                    raise typer.Exit(1)
-                field_path, value_str = op.split("=", 1)
-                all_operations.append(("append", field_path, value_str))
-
-        # Process layer operations
-        if add_layer:
-            for layer_spec in add_layer:
-                if "=from:" in layer_spec:
-                    layer_name, source = layer_spec.split("=from:", 1)
-                    all_operations.append(("add_layer_from", layer_name, source))
-                else:
-                    all_operations.append(("add_layer", layer_spec, None))
-
-        if remove_layer:
-            for layer_id in remove_layer:
-                all_operations.append(("remove_layer", layer_id, None))
-
-        if move_layer:
-            for move_spec in move_layer:
-                if ":" not in move_spec:
-                    print_error_message(
-                        f"Invalid move syntax: {move_spec} (use name:position)"
-                    )
-                    raise typer.Exit(1)
-                layer_name, position = move_spec.split(":", 1)
-                all_operations.append(("move_layer", layer_name, position))
-
-        if copy_layer:
-            for copy_spec in copy_layer:
-                if ":" not in copy_spec:
-                    print_error_message(
-                        f"Invalid copy syntax: {copy_spec} (use source:target)"
-                    )
-                    raise typer.Exit(1)
-                source, target = copy_spec.split(":", 1)
-                all_operations.append(("copy_layer", source, target))
-
-        # Execute all operations
-        failed = False
-        for op_type, arg1, arg2 in all_operations:
-            try:
-                if op_type == "set":
-                    value = parse_value(arg2)
-                    if isinstance(value, tuple) and value[0] == "import":
-                        value = resolve_import(value[1], resolved_file)
-                    editor.set_field(arg1, value)
-
-                elif op_type == "unset":
-                    editor.unset_field(arg1)
-
-                elif op_type == "merge":
-                    value = parse_value(arg2)
-                    if isinstance(value, tuple) and value[0] == "import":
-                        value = resolve_import(value[1], resolved_file)
-                    if not isinstance(value, dict):
-                        raise ValueError("Merge requires a dictionary value")
-                    editor.merge_field(arg1, value)
-
-                elif op_type == "append":
-                    value = parse_value(arg2)
-                    if isinstance(value, tuple) and value[0] == "import":
-                        value = resolve_import(value[1], resolved_file)
-                    editor.append_field(arg1, value)
-
-                elif op_type == "add_layer":
-                    editor.add_layer(arg1)
-
-                elif op_type == "add_layer_from":
-                    layer_data = resolve_import(arg2, resolved_file)
-                    if not isinstance(layer_data, list):
-                        raise ValueError("Layer import must be a list")
-                    editor.add_layer(arg1, layer_data)
-
-                elif op_type == "remove_layer":
-                    editor.remove_layer(arg1)
-
-                elif op_type == "move_layer":
-                    editor.move_layer(arg1, int(arg2))
-
-                elif op_type == "copy_layer":
-                    editor.copy_layer(arg1, arg2)
-
-            except Exception as e:
-                editor.errors.append(f"{op_type} operation failed: {e}")
-                failed = True
-
-        # Check if we should save
-        if failed:
-            print_error_message("Some operations failed:")
-            for error in editor.errors:
-                print_list_item(error)
-            raise typer.Exit(1)
-
-        if dry_run:
-            print_success_message("Dry run - no changes saved")
-            print_success_message("Operations that would be performed:")
-            for op in editor.operations_log:
-                print_list_item(op)
-        else:
-            # Save the layout
-            output_path = output or resolved_file
-            if output_path != resolved_file and output_path.exists() and not force:
-                print_error_message(
-                    f"Output file exists: {output_path}. Use --force to overwrite."
-                )
-                raise typer.Exit(1)
-
-            with VariableResolutionContext(skip=True):
-                save_layout_file(layout_data, output_path, file_adapter)
-
-            print_success_message(f"Layout saved to: {output_path}")
-            print_success_message("Operations performed:")
-            for op in editor.operations_log:
-                print_list_item(op)
-
-        # Add operation results to output
-        if editor.operations_log:
-            results["operations"] = editor.operations_log
-            if not dry_run:
-                results["output_file"] = str(output_path)
-
-        # Output final results
-        if results:
-            _output_results(results, output_format)
+        composer.execute_edit_operation(
+            layout_file=resolved_file,
+            field_operations=field_operations,
+            layer_operations=layer_operations,
+            operation_name="edit layout",
+            output_format=output_format,
+            save=not dry_run,
+            dry_run=dry_run,
+            output_file=output,
+        )
 
     except Exception as e:
         exc_info = logger.isEnabledFor(logging.DEBUG)
@@ -730,6 +727,7 @@ def edit(
         raise typer.Exit(1) from e
 
 
+# TODO: to be deleted - replaced by LayoutOutputFormatter.format_edit_result()
 def _output_results(results: dict[str, Any], output_format: str) -> None:
     """Output results in specified format."""
     if output_format.lower() == "json":

@@ -4,7 +4,7 @@ import json
 import logging
 from pathlib import Path
 from tempfile import gettempdir, tempdir
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 
@@ -106,16 +106,22 @@ def compile_layout(
     )
 
     metrics.Summary("compile_start", "Start to start compilation")
-    try:
+
+    # Create composer and execute compilation
+    from glovebox.cli.commands.layout.composition import create_layout_command_composer
+
+    composer = create_layout_command_composer()
+
+    def compilation_operation(layout_file: Path) -> dict[str, Any]:
+        """Compilation operation that returns structured results."""
         with layout_duration.time():
             # Resolve JSON file path (supports environment variable)
             resolved_json_file = resolve_json_file_path(json_file, "GLOVEBOX_JSON_FILE")
 
             if resolved_json_file is None:
-                print_error_message(
+                raise ValueError(
                     "JSON file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
                 )
-                raise typer.Exit(1)
 
             # Use unified profile resolution with auto-detection support
             from glovebox.cli.helpers.parameters import (
@@ -129,11 +135,15 @@ def compile_layout(
                 json_file=resolved_json_file,
                 no_auto=no_auto,
             )
+
             if output_file_prefix is None and json_file is not None:
-                output_file_prefix = Path(json_file).stem + "_"
+                output_file_prefix_final = Path(json_file).stem + "_"
             else:
-                tmp_dir = gettempdir()
-                output_file_prefix = str(Path(tmp_dir) / keyboard_profile.keyboard_name)
+                from tempfile import gettempdir
+
+                output_file_prefix_final = str(
+                    Path(gettempdir()) / keyboard_profile.keyboard_name
+                )
 
             # Generate keymap using the file-based service method
             keymap_service = create_full_layout_service()
@@ -141,50 +151,38 @@ def compile_layout(
             result = keymap_service.generate_from_file(
                 profile=keyboard_profile,
                 json_file_path=resolved_json_file,
-                output_file_prefix=output_file_prefix,
+                output_file_prefix=output_file_prefix_final,
                 session_metrics=metrics,
                 force=force,
             )
 
-        if result.success:
-            # Track successful compilation
-            layout_counter.labels("compile", "success").inc()
+            if result.success:
+                # Track successful compilation
+                layout_counter.labels("compile", "success").inc()
 
-            if output_format.lower() == "json":
-                # JSON output for automation
                 output_files = result.get_output_files()
-                result_data = {
+                return {
                     "success": True,
                     "message": "Layout generated successfully",
                     "output_files": {k: str(v) for k, v in output_files.items()},
                     "messages": result.messages if hasattr(result, "messages") else [],
                 }
-                command.format_output(result_data, "json")
             else:
-                # Rich text output (default)
-                print_success_message("Layout generated successfully")
-                output_files = result.get_output_files()
+                # Track failed compilation
+                layout_counter.labels("compile", "failure").inc()
 
-                if output_format.lower() == "table":
-                    # Table format for file listing
-                    file_data = [
-                        {"Type": file_type, "Path": str(file_path)}
-                        for file_type, file_path in output_files.items()
-                    ]
-                    command.format_output(file_data, "table")
-                else:
-                    # Text format (default)
-                    for file_type, file_path in output_files.items():
-                        print_list_item(f"{file_type}: {file_path}")
-        else:
-            # Track failed compilation
-            layout_counter.labels("compile", "failure").inc()
+                raise ValueError(
+                    f"Layout generation failed: {'; '.join(result.errors)}"
+                )
 
-            print_error_message("Layout generation failed")
-            for error in result.errors:
-                print_list_item(error)
-            raise typer.Exit(1)
-
+    try:
+        composer.execute_compilation_operation(
+            layout_file=Path("dummy"),  # Not used in compilation operation
+            operation=compilation_operation,
+            operation_name="compile layout",
+            output_format=output_format,
+            session_metrics=metrics,
+        )
     except Exception as e:
         # Track exception errors
         layout_counter.labels("compile", "error").inc()
@@ -208,7 +206,7 @@ def validate(
 ) -> None:
     """Validate keymap syntax and structure.
 
-    \b
+    \\b
     Profile precedence (highest to lowest):
     1. CLI --profile flag (overrides all)
     2. Auto-detection from JSON keyboard field (unless --no-auto)
@@ -216,8 +214,6 @@ def validate(
     4. User config default profile
     5. Hardcoded fallback profile
     """
-    command = LayoutOutputCommand()
-
     # Get values injected by the decorator from context
     resolved_json_file = ctx.meta.get("resolved_json_file")
     keyboard_profile = ctx.meta.get("keyboard_profile")
@@ -226,20 +222,33 @@ def validate(
     assert resolved_json_file is not None
     assert keyboard_profile is not None
 
-    try:
-        # Validate using the file-based service method
+    # Create composer and execute validation
+    from glovebox.cli.commands.layout.composition import create_layout_command_composer
+
+    composer = create_layout_command_composer()
+
+    def validation_operation(layout_file: Path) -> dict[str, Any]:
+        """Validation operation that returns structured results."""
         keymap_service = create_full_layout_service()
 
-        if keymap_service.validate_from_file(
-            profile=keyboard_profile, json_file_path=resolved_json_file
-        ):
-            print_success_message(f"Layout file {resolved_json_file} is valid")
-        else:
-            print_error_message(f"Layout file {resolved_json_file} is invalid")
-            raise typer.Exit(1)
+        try:
+            is_valid = keymap_service.validate_from_file(
+                profile=keyboard_profile, json_file_path=layout_file
+            )
+            return {
+                "valid": is_valid,
+                "file": str(layout_file),
+                "errors": [] if is_valid else ["Validation failed"],
+            }
+        except Exception as e:
+            return {"valid": False, "file": str(layout_file), "errors": [str(e)]}
 
-    except Exception as e:
-        command.handle_service_error(e, "validate layout")
+    composer.execute_validation_operation(
+        layout_file=resolved_json_file,
+        operation=validation_operation,
+        operation_name="validate layout",
+        output_format=output_format,
+    )
 
 
 @handle_errors
