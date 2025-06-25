@@ -1502,6 +1502,411 @@ class TestLayoutCommandHelp:
         assert "diff" in result.output
         assert "patch" in result.output
 
+    def test_edit_merge_operation(self, cli_runner, isolated_cli_environment):
+        """Test --merge operation with dictionary merging."""
+        # Create target layout
+        target_layout = {
+            "title": "Target Layout",
+            "keyboard": "glove80",
+            "version": "1.0",
+            "layer_names": ["Base"],
+            "layers": [[{"value": "&kp Q", "params": []}]],
+            "variables": {
+                "existing_var": "existing_value",
+                "shared_var": "original_value",
+            },
+            "custom_defined_behaviors": "",
+            "custom_devicetree": "",
+        }
+
+        # Create source data for merging
+        merge_data = {
+            "variables": {
+                "new_var": "new_value",
+                "shared_var": "merged_value",
+                "another_var": 42,
+            }
+        }
+
+        target_file = isolated_cli_environment.temp_dir / "target.json"
+        source_file = isolated_cli_environment.temp_dir / "source.json"
+
+        with target_file.open("w") as f:
+            json.dump(target_layout, f, indent=2)
+        with source_file.open("w") as f:
+            json.dump(merge_data, f, indent=2)
+
+        # Test merge operation
+        result = cli_runner.invoke(
+            app,
+            [
+                "layout",
+                "edit",
+                str(target_file),
+                "--merge",
+                "variables=--from",
+                "--from",
+                f"{source_file}$.variables",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Layout edited successfully (1 operations)" in result.output
+        assert "Merged into variables:" in result.output
+
+        # Verify merge result
+        with target_file.open("r") as f:
+            result_data = json.load(f)
+
+        # Check that original variable is preserved
+        assert result_data["variables"]["existing_var"] == "existing_value"
+        # Check that new variables are added
+        assert result_data["variables"]["new_var"] == "new_value"
+        assert result_data["variables"]["another_var"] == 42
+        # Check that shared variable is updated
+        assert result_data["variables"]["shared_var"] == "merged_value"
+
+    def test_edit_append_operation(self, cli_runner, isolated_cli_environment):
+        """Test --append operation with array appending."""
+        # Create target layout
+        target_layout = {
+            "title": "Target Layout",
+            "keyboard": "glove80",
+            "version": "1.0",
+            "layer_names": ["Base"],
+            "layers": [
+                [
+                    {"value": "&kp Q", "params": []},
+                    {"value": "&kp W", "params": []},
+                ]
+            ],
+            "tags": ["existing_tag"],
+            "custom_defined_behaviors": "",
+            "custom_devicetree": "",
+        }
+
+        # Create source layer data
+        source_layer = [
+            {"value": "&kp EXCL", "params": []},
+            {"value": "&kp AT", "params": []},
+        ]
+
+        target_file = isolated_cli_environment.temp_dir / "target.json"
+        source_file = isolated_cli_environment.temp_dir / "layer_source.json"
+
+        with target_file.open("w") as f:
+            json.dump(target_layout, f, indent=2)
+        with source_file.open("w") as f:
+            json.dump({"layer": source_layer}, f, indent=2)
+
+        # Test append layer operation
+        result = cli_runner.invoke(
+            app,
+            [
+                "layout",
+                "edit",
+                str(target_file),
+                "--append",
+                "layers=--from",
+                "--from",
+                f"{source_file}$.layer",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Layout edited successfully (1 operations)" in result.output
+        assert "Appended to layers:" in result.output
+
+        # Verify append result
+        with target_file.open("r") as f:
+            result_data = json.load(f)
+
+        # Check that original layer is preserved
+        assert len(result_data["layers"]) == 2
+        assert result_data["layers"][0][0]["value"] == "&kp Q"
+        # Check that new layer is appended
+        assert result_data["layers"][1][0]["value"] == "&kp EXCL"
+        assert result_data["layers"][1][1]["value"] == "&kp AT"
+
+    def test_edit_append_tags_operation(self, cli_runner, isolated_cli_environment):
+        """Test --append operation with simple array values."""
+        # Create target layout
+        target_layout = {
+            "title": "Target Layout",
+            "keyboard": "glove80",
+            "version": "1.0",
+            "layer_names": ["Base"],
+            "layers": [[{"value": "&kp Q", "params": []}]],
+            "tags": ["existing_tag"],
+            "custom_defined_behaviors": "",
+            "custom_devicetree": "",
+        }
+
+        target_file = isolated_cli_environment.temp_dir / "target.json"
+        source_file = isolated_cli_environment.temp_dir / "tags_source.json"
+
+        with target_file.open("w") as f:
+            json.dump(target_layout, f, indent=2)
+        with source_file.open("w") as f:
+            json.dump({"tags": ["new_tag", "another_tag"]}, f, indent=2)
+
+        # Test append tags operation
+        result = cli_runner.invoke(
+            app,
+            [
+                "layout",
+                "edit",
+                str(target_file),
+                "--append",
+                "tags=--from",
+                "--from",
+                f"{source_file}$.tags",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Layout edited successfully (1 operations)" in result.output
+        assert "Appended to tags:" in result.output
+
+        # Verify append result
+        with target_file.open("r") as f:
+            result_data = json.load(f)
+
+        # Check that all tags are present
+        expected_tags = ["existing_tag", "new_tag", "another_tag"]
+        assert result_data["tags"] == expected_tags
+
+    def test_edit_set_with_import(self, cli_runner, isolated_cli_environment):
+        """Test --set operation with JSON path imports."""
+        # Create target layout
+        target_layout = {
+            "title": "Target Layout",
+            "keyboard": "glove80",
+            "version": "1.0",
+            "layer_names": ["Base"],
+            "layers": [[{"value": "&kp Q", "params": []}]],
+            "variables": {},
+            "custom_defined_behaviors": "",
+            "custom_devicetree": "",
+        }
+
+        # Create source data
+        source_data = {
+            "config": {
+                "variables": {
+                    "tap_time": 150,
+                    "hold_time": 200,
+                    "flavor": "tap-preferred",
+                }
+            }
+        }
+
+        target_file = isolated_cli_environment.temp_dir / "target.json"
+        source_file = isolated_cli_environment.temp_dir / "config_source.json"
+
+        with target_file.open("w") as f:
+            json.dump(target_layout, f, indent=2)
+        with source_file.open("w") as f:
+            json.dump(source_data, f, indent=2)
+
+        # Test set operation with import
+        result = cli_runner.invoke(
+            app,
+            [
+                "layout",
+                "edit",
+                str(target_file),
+                "--set",
+                "variables=--from",
+                "--from",
+                f"{source_file}$.config.variables",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Layout edited successfully (1 operations)" in result.output
+        assert "Set variables:" in result.output
+
+        # Verify set result
+        with target_file.open("r") as f:
+            result_data = json.load(f)
+
+        # Check that variables were set correctly
+        assert result_data["variables"]["tap_time"] == 150
+        assert result_data["variables"]["hold_time"] == 200
+        assert result_data["variables"]["flavor"] == "tap-preferred"
+
+    def test_edit_merge_with_confirmation(self, cli_runner, isolated_cli_environment):
+        """Test --merge operation with confirmation prompt."""
+        # Create target layout with existing variables
+        target_layout = {
+            "title": "Target Layout",
+            "keyboard": "glove80",
+            "version": "1.0",
+            "layer_names": ["Base"],
+            "layers": [[{"value": "&kp Q", "params": []}]],
+            "variables": {"existing_var": "original_value", "tap_time": 100},
+            "custom_defined_behaviors": "",
+            "custom_devicetree": "",
+        }
+
+        # Create source data that will overwrite existing variables
+        merge_data = {
+            "variables": {
+                "existing_var": "new_value",
+                "tap_time": 150,
+                "new_var": "added_value",
+            }
+        }
+
+        target_file = isolated_cli_environment.temp_dir / "target.json"
+        source_file = isolated_cli_environment.temp_dir / "merge_source.json"
+
+        with target_file.open("w") as f:
+            json.dump(target_layout, f, indent=2)
+        with source_file.open("w") as f:
+            json.dump(merge_data, f, indent=2)
+
+        # Test merge with confirmation (auto-confirm with yes)
+        result = cli_runner.invoke(
+            app,
+            [
+                "layout",
+                "edit",
+                str(target_file),
+                "--merge",
+                "variables=--from",
+                "--from",
+                f"{source_file}$.variables",
+                "--confirm",
+            ],
+            input="y\n",  # Auto-confirm
+        )
+
+        assert result.exit_code == 0
+        assert "Layout edited successfully (1 operations)" in result.output
+        assert "Merge Preview" in result.output
+        assert (
+            "Will be overwritten:" in result.output or "Will be added:" in result.output
+        )
+
+    def test_edit_batch_operations_with_imports(
+        self, cli_runner, isolated_cli_environment
+    ):
+        """Test batch operations combining merge, append, and set with imports."""
+        # Create target layout
+        target_layout = {
+            "title": "Original Title",
+            "keyboard": "glove80",
+            "version": "1.0",
+            "layer_names": ["Base"],
+            "layers": [[{"value": "&kp Q", "params": []}]],
+            "variables": {"original": "value"},
+            "tags": ["original_tag"],
+            "custom_defined_behaviors": "",
+            "custom_devicetree": "",
+        }
+
+        # Create various source files
+        variables_source = {"variables": {"new_var": 42, "another": "test"}}
+        tags_source = {"additional_tags": ["tag1", "tag2"]}
+        title_source = {"metadata": {"title": "Updated Title"}}
+
+        target_file = isolated_cli_environment.temp_dir / "target.json"
+        vars_file = isolated_cli_environment.temp_dir / "vars.json"
+        tags_file = isolated_cli_environment.temp_dir / "tags.json"
+        title_file = isolated_cli_environment.temp_dir / "title.json"
+
+        with target_file.open("w") as f:
+            json.dump(target_layout, f, indent=2)
+        with vars_file.open("w") as f:
+            json.dump(variables_source, f, indent=2)
+        with tags_file.open("w") as f:
+            json.dump(tags_source, f, indent=2)
+        with title_file.open("w") as f:
+            json.dump(title_source, f, indent=2)
+
+        # Test batch operations
+        result = cli_runner.invoke(
+            app,
+            [
+                "layout",
+                "edit",
+                str(target_file),
+                "--merge",
+                "variables=--from",
+                "--from",
+                f"{vars_file}$.variables",
+                "--append",
+                "tags=--from",
+                "--from",
+                f"{tags_file}$.additional_tags",
+                "--set",
+                "title=--from",
+                "--from",
+                f"{title_file}$.metadata.title",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Layout edited successfully (3 operations)" in result.output
+        assert "Merged into variables:" in result.output
+        assert "Appended to tags:" in result.output
+        assert "Set title:" in result.output
+
+        # Verify all operations were applied
+        with target_file.open("r") as f:
+            result_data = json.load(f)
+
+        # Check merge result (original variables preserved + new ones added)
+        assert result_data["variables"]["original"] == "value"
+        assert result_data["variables"]["new_var"] == 42
+        assert result_data["variables"]["another"] == "test"
+
+        # Check append result (original tags + new ones)
+        assert "original_tag" in result_data["tags"]
+        assert "tag1" in result_data["tags"]
+        assert "tag2" in result_data["tags"]
+
+        # Check set result
+        assert result_data["title"] == "Updated Title"
+
+    def test_edit_import_error_handling(self, cli_runner, isolated_cli_environment):
+        """Test error handling for import operations."""
+        # Create target layout
+        target_layout = {
+            "title": "Target Layout",
+            "keyboard": "glove80",
+            "version": "1.0",
+            "layer_names": ["Base"],
+            "layers": [[{"value": "&kp Q", "params": []}]],
+            "custom_defined_behaviors": "",
+            "custom_devicetree": "",
+        }
+
+        target_file = isolated_cli_environment.temp_dir / "target.json"
+
+        with target_file.open("w") as f:
+            json.dump(target_layout, f, indent=2)
+
+        # Test with non-existent source file
+        result = cli_runner.invoke(
+            app,
+            [
+                "layout",
+                "edit",
+                str(target_file),
+                "--set",
+                "title=--from",
+                "--from",
+                "nonexistent.json$.title",
+            ],
+        )
+
+        assert result.exit_code == 1
+        assert "Failed to edit layout:" in result.output
+        assert "IMPORT_ERROR" in result.output or "not found" in result.output
+
     def test_edit_command_help(self, cli_runner):
         """Test edit command help."""
         result = cli_runner.invoke(app, ["layout", "edit", "--help"])
@@ -1513,6 +1918,8 @@ class TestLayoutCommandHelp:
         assert "JSON Path Support:" in result.output
         assert "Batch Operations:" in result.output
         assert "--get" in result.output
+        assert "--merge" in result.output
+        assert "--append" in result.output
         assert "--set" in result.output
         assert "--add-layer" in result.output
         assert "--remove-layer" in result.output
