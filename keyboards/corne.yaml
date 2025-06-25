@@ -9,14 +9,14 @@ includes:
   - "config/firmware/zmk.yaml" # All shared config files
 
 compile_methods:
-  - strategy: zmk_config
+  - method_type: zmk_config
     repository: "zmkfirmware/zmk"
     branch: "main" # Default, overridden by firmware config
     build_config:
       board: ["nice_nano_v2"]
       shield: ["corne_left", "corne_right"]
 
-  # - strategy: moergo
+  # - method_type: moergo
   #   image: glove80-zmk-config-docker
   #   repository: "moergo-sc/zmk"
   #   branch: "v25.05"

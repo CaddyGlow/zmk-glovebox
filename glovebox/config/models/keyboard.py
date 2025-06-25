@@ -147,33 +147,40 @@ class KeyboardConfig(GloveboxBaseModel):
                 # Layout utils not available, keep as-is
                 pass
 
-        # Convert compile_methods: map 'strategy' field to 'type' field
+        # Convert compile_methods: map 'strategy' field to 'method_type' field for backward compatibility
         if "compile_methods" in data and isinstance(data["compile_methods"], list):
             for i, method in enumerate(data["compile_methods"]):
-                if isinstance(method, dict) and "strategy" in method:
-                    # Convert build_config to build_matrix format
-                    if "build_config" in method:
-                        build_config = method.pop("build_config")
-                        if isinstance(build_config, dict):
-                            from glovebox.compilation.models.build_matrix import (
-                                BuildMatrix,
-                            )
+                if isinstance(method, dict):
+                    # Map legacy 'strategy' field to 'method_type' for backward compatibility
+                    if "strategy" in method and "method_type" not in method:
+                        method["method_type"] = method.pop("strategy")
 
-                            method["build_matrix"] = BuildMatrix.model_validate(
-                                build_config
-                            )
+                    # Ensure we have method_type
+                    if "method_type" in method:
+                        # Convert build_config to build_matrix format
+                        if "build_config" in method:
+                            build_config = method.pop("build_config")
+                            if isinstance(build_config, dict):
+                                from glovebox.compilation.models.build_matrix import (
+                                    BuildMatrix,
+                                )
 
-                    if method["strategy"] in "zmk_config":
-                        data["compile_methods"][i] = (
-                            ZmkCompilationConfig.model_validate(method)
-                        )
-                    elif method["strategy"] in "moergo":
-                        data["compile_methods"][i] = (
-                            MoergoCompilationConfig.model_validate(method)
-                        )
-                    else:
-                        logger.warning(
-                            "Unknown compilation strategy: %s", method["strategy"]
-                        )
+                                method["build_matrix"] = BuildMatrix.model_validate(
+                                    build_config
+                                )
+
+                        if method["method_type"] in "zmk_config":
+                            data["compile_methods"][i] = (
+                                ZmkCompilationConfig.model_validate(method)
+                            )
+                        elif method["method_type"] in "moergo":
+                            data["compile_methods"][i] = (
+                                MoergoCompilationConfig.model_validate(method)
+                            )
+                        else:
+                            logger.warning(
+                                "Unknown compilation method type: %s",
+                                method["method_type"],
+                            )
         #
         return data

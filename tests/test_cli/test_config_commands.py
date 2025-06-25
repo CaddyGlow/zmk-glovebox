@@ -30,7 +30,7 @@ def mock_keyboard_config():
             "key_count": 84,
             "compile_methods": [
                 {
-                    "strategy": "zmk_config",
+                    "method_type": "zmk_config",
                     "image": "zmkfirmware/zmk-build-arm:stable",
                     "repository": "zmkfirmware/zmk",
                     "branch": "main",

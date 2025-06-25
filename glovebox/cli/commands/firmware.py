@@ -75,7 +75,7 @@ def _resolve_compilation_type(
         raise typer.Exit(1)
 
     # At this point, compile_config is guaranteed to be not None
-    compilation_strategy = compile_config.strategy
+    compilation_strategy = compile_config.method_type
 
     return compilation_strategy, compile_config
 

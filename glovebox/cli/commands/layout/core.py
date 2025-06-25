@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 def compile_layout(
     ctx: typer.Context,
     json_file: JsonFileArgument = None,
-    output_file_prefix: Annotated[
+    output: Annotated[
         str | None,
         typer.Option(
             "-o",
@@ -136,7 +136,9 @@ def compile_layout(
                 no_auto=no_auto,
             )
 
-            if output_file_prefix is None and json_file is not None:
+            if output is not None:
+                output_file_prefix_final = output
+            elif json_file is not None:
                 output_file_prefix_final = Path(json_file).stem + "_"
             else:
                 from tempfile import gettempdir

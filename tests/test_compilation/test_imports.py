@@ -50,28 +50,58 @@ def test_factory_functions_exist(isolated_config):
     moergo_service = create_moergo_nix_service_for_tests()
     assert moergo_service is not None
 
-    # Test compilation service factory with different strategies
+    # Test compilation service factory with different method types
     from glovebox.adapters import create_docker_adapter, create_file_adapter
+    from glovebox.core.cache import create_default_cache
+    from glovebox.core.metrics.session_metrics import SessionMetrics
 
     docker_adapter = create_docker_adapter()
     file_adapter = create_file_adapter()
+    cache_manager = create_default_cache(tag="test")
+    session_metrics = SessionMetrics(
+        cache_manager=cache_manager, session_uuid="test-session"
+    )
+
+    # Test ZMK service creation (requires cache services)
+    from glovebox.compilation.cache import create_compilation_cache_service
+
+    cache_mgr, workspace_service, build_cache_service = (
+        create_compilation_cache_service(isolated_config, session_metrics)
+    )
 
     zmk_service_via_factory = create_compilation_service(
-        "zmk_config", isolated_config, docker_adapter, file_adapter
+        method_type="zmk_config",
+        user_config=isolated_config,
+        docker_adapter=docker_adapter,
+        file_adapter=file_adapter,
+        cache_manager=cache_mgr,
+        session_metrics=session_metrics,
+        workspace_cache_service=workspace_service,
+        build_cache_service=build_cache_service,
     )
     assert zmk_service_via_factory is not None
 
-    # Test that unsupported strategies raise ValueError
+    # Test that unsupported method types raise ValueError
     with pytest.raises(
-        ValueError, match="Unknown compilation strategy.*Supported strategies"
+        ValueError, match="Unknown compilation method type.*Supported method types"
     ):
         create_compilation_service(
-            "unsupported_strategy", isolated_config, docker_adapter, file_adapter
+            method_type="unsupported_method_type",
+            user_config=isolated_config,
+            docker_adapter=docker_adapter,
+            file_adapter=file_adapter,
+            cache_manager=cache_manager,
+            session_metrics=session_metrics,
         )
 
-    # Test that moergo strategy works
+    # Test that moergo method type works
     moergo_service_via_factory = create_compilation_service(
-        "moergo", isolated_config, docker_adapter, file_adapter
+        method_type="moergo",
+        user_config=isolated_config,
+        docker_adapter=docker_adapter,
+        file_adapter=file_adapter,
+        cache_manager=cache_manager,
+        session_metrics=session_metrics,
     )
     assert moergo_service_via_factory is not None
 

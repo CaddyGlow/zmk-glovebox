@@ -152,20 +152,30 @@ class LayoutOutputFormatter:
 
         console.print(table)
 
-    def _format_text(self, results: dict[str, Any], title: str) -> None:
-        """Format results as text."""
-        if not results:
-            print_success_message("No results to display")
-            return
+    def _format_text(self, data: Any, title: str | None = None) -> None:
+        """Format data as text with flexible handling for different data types."""
+        from glovebox.cli.helpers import print_list_item, print_success_message
 
-        print_success_message(f"{title}:")
-        for key, value in results.items():
-            if isinstance(value, list) and value:
-                print_list_item(f"{key}:")
-                for item in value:
-                    print_list_item(f"  {item}")
-            else:
-                print_list_item(f"{key}: {value}")
+        if title:
+            print_success_message(f"{title}:")
+
+        if isinstance(data, dict):
+            if not data:
+                print_success_message("No results to display")
+                return
+
+            for key, value in data.items():
+                if isinstance(value, list) and value:
+                    print_list_item(f"{key}:")
+                    for item in value:
+                        print_list_item(f"  {item}")
+                else:
+                    print_list_item(f"{key}: {value}")
+        elif isinstance(data, list):
+            for item in data:
+                print_list_item(str(item))
+        else:
+            print_list_item(str(data))
 
     def _format_field_table(self, results: dict[str, Any]) -> None:
         """Format field operation results as a specialized table."""
@@ -294,7 +304,9 @@ class LayoutOutputFormatter:
         if "diff_file_created" in diff_results:
             diff_info = diff_results["diff_file_created"]
             print_list_item("")
-            print_list_item(f"💾 Diff file saved: {diff_info.get('diff_file', 'unknown')}")
+            print_list_item(
+                f"💾 Diff file saved: {diff_info.get('diff_file', 'unknown')}"
+            )
 
     def _format_summary_changes(self, summary: dict[str, Any]) -> None:
         """Format summary view of changes."""
@@ -302,17 +314,23 @@ class LayoutOutputFormatter:
         if "layers" in summary:
             layer_summary = summary["layers"]
             if any(layer_summary.values()):
-                print_list_item(f"📊 Layers: {layer_summary['added']} added, {layer_summary['removed']} removed, {layer_summary['modified']} modified")
+                print_list_item(
+                    f"📊 Layers: {layer_summary['added']} added, {layer_summary['removed']} removed, {layer_summary['modified']} modified"
+                )
 
         if "behaviors" in summary:
             behavior_summary = summary["behaviors"]
             for behavior_type, counts in behavior_summary.items():
                 if any(counts.values()):
                     display_name = behavior_type.replace("_", " ").title()
-                    print_list_item(f"📊 {display_name}: {counts['added']} added, {counts['removed']} removed, {counts['modified']} modified")
+                    print_list_item(
+                        f"📊 {display_name}: {counts['added']} added, {counts['removed']} removed, {counts['modified']} modified"
+                    )
 
         if summary.get("metadata_changes", 0) > 0:
-            print_list_item(f"📊 Metadata: {summary['metadata_changes']} field(s) changed")
+            print_list_item(
+                f"📊 Metadata: {summary['metadata_changes']} field(s) changed"
+            )
 
         if summary.get("dtsi_changes", 0) > 0:
             print_list_item(f"📊 DTSI: {summary['dtsi_changes']} section(s) changed")
@@ -328,7 +346,9 @@ class LayoutOutputFormatter:
         # Show behavior changes in detail
         for behavior_type in ["hold_taps", "combos", "macros", "input_listeners"]:
             if behavior_type in diff_data and diff_data[behavior_type]:
-                self._format_detailed_behavior_changes(behavior_type, diff_data[behavior_type])
+                self._format_detailed_behavior_changes(
+                    behavior_type, diff_data[behavior_type]
+                )
 
         # Show metadata changes in detail
         self._format_detailed_metadata_changes(diff_data)
@@ -379,7 +399,11 @@ class LayoutOutputFormatter:
 
                         # Build position info
                         position_info = ""
-                        if position_changed and original_pos is not None and new_pos is not None:
+                        if (
+                            position_changed
+                            and original_pos is not None
+                            and new_pos is not None
+                        ):
                             position_info = f" (moved {original_pos}→{new_pos})"
                         elif original_pos is not None:
                             position_info = f" (position {original_pos})"
@@ -387,7 +411,9 @@ class LayoutOutputFormatter:
                         # Count content changes
                         if isinstance(patch_operations, list) and patch_operations:
                             total_changes = len(patch_operations)
-                            print_list_item(f"  ~ {layer_name}{position_info}: {total_changes} patch operations")
+                            print_list_item(
+                                f"  ~ {layer_name}{position_info}: {total_changes} patch operations"
+                            )
 
                             # Show specific patch operations (limited to first few)
                             for patch_op in patch_operations[:3]:
@@ -395,28 +421,40 @@ class LayoutOutputFormatter:
                                     op_type = patch_op.get("op", "unknown")
                                     path = patch_op.get("path", "")
                                     value = str(patch_op.get("value", ""))[:30]
-                                    print_list_item(f"    {op_type.upper()} {path}: {value}")
+                                    print_list_item(
+                                        f"    {op_type.upper()} {path}: {value}"
+                                    )
 
                             if len(patch_operations) > 3:
                                 remaining = len(patch_operations) - 3
-                                print_list_item(f"    ... and {remaining} more operations")
+                                print_list_item(
+                                    f"    ... and {remaining} more operations"
+                                )
                         elif position_changed:
                             # Position changed but no content changes
-                            print_list_item(f"  ~ {layer_name}{position_info}: Position changed only")
+                            print_list_item(
+                                f"  ~ {layer_name}{position_info}: Position changed only"
+                            )
                         else:
-                            print_list_item(f"  ~ {layer_name}{position_info}: Modified")
+                            print_list_item(
+                                f"  ~ {layer_name}{position_info}: Modified"
+                            )
                     else:
                         # Fallback for old structure (patch_operations directly)
                         if isinstance(layer_info, list):
                             total_changes = len(layer_info)
-                            print_list_item(f"  ~ {layer_name}: {total_changes} patch operations")
+                            print_list_item(
+                                f"  ~ {layer_name}: {total_changes} patch operations"
+                            )
                         else:
                             print_list_item(f"  ~ {layer_name}: Modified")
                 else:
                     # Fallback for unexpected structure
                     print_list_item("  ~ Unknown layer: Modified")
 
-    def _format_detailed_behavior_changes(self, behavior_type: str, behavior_changes: dict[str, Any]) -> None:
+    def _format_detailed_behavior_changes(
+        self, behavior_type: str, behavior_changes: dict[str, Any]
+    ) -> None:
         """Format detailed behavior changes."""
         display_name = behavior_type.replace("_", " ").title()
         added = behavior_changes.get("added", [])
@@ -442,7 +480,11 @@ class LayoutOutputFormatter:
 
                 # Show specific field changes (limited)
                 for field_name, change_info in list(changes.items())[:3]:
-                    if isinstance(change_info, dict) and "old" in change_info and "new" in change_info:
+                    if (
+                        isinstance(change_info, dict)
+                        and "old" in change_info
+                        and "new" in change_info
+                    ):
                         old_val = str(change_info["old"])[:25]
                         new_val = str(change_info["new"])[:25]
                         print_list_item(f"    {field_name}: '{old_val}' → '{new_val}'")
@@ -451,10 +493,23 @@ class LayoutOutputFormatter:
         """Format detailed metadata changes."""
         # List of simple metadata fields that use JSON patches
         metadata_fields = [
-            "keyboard", "title", "firmware_api_version", "locale", "uuid",
-            "parent_uuid", "date", "creator", "notes", "tags", "variables",
-            "config_parameters", "version", "base_version_patch", "base_layout",
-            "layer_names", "last_firmware_build"
+            "keyboard",
+            "title",
+            "firmware_api_version",
+            "locale",
+            "uuid",
+            "parent_uuid",
+            "date",
+            "creator",
+            "notes",
+            "tags",
+            "variables",
+            "config_parameters",
+            "version",
+            "base_version_patch",
+            "base_layout",
+            "layer_names",
+            "last_firmware_build",
         ]
 
         metadata_changes = []
@@ -809,16 +864,62 @@ class LayoutOutputFormatter:
 
     def _format_edit_text(self, result: dict[str, Any]) -> None:
         """Format edit operation results as text."""
+        import json
+
+        from rich.console import Console
+        from rich.table import Table
+
         from glovebox.cli.helpers import print_list_item, print_success_message
 
+        console = Console()
+
+        # Handle get operations (field retrieval)
+        for key, value in result.items():
+            if key.startswith("get:"):
+                field_name = key[4:]
+                if isinstance(value, dict | list):
+                    print_success_message(f"{field_name}:")
+                    print(json.dumps(value, indent=2))
+                else:
+                    print_list_item(f"{field_name}: {value}")
+
+        # Handle layer listing
+        if "layers" in result:
+            print_success_message("Layers:")
+            for i, layer in enumerate(result["layers"]):
+                print_list_item(f"{i}: {layer}")
+
+        # Handle variable usage display
+        if "variable_usage" in result:
+            usage = result["variable_usage"]
+            if usage:
+                table = Table(title="Variable Usage")
+                table.add_column("Variable", style="cyan")
+                table.add_column("Used In", style="green")
+                table.add_column("Count", style="blue")
+
+                for var_name, paths in usage.items():
+                    usage_str = (
+                        "\n".join(paths[:5])
+                        if len(paths) <= 5
+                        else "\n".join(paths[:5]) + f"\n... and {len(paths) - 5} more"
+                    )
+                    table.add_row(var_name, usage_str, str(len(paths)))
+
+                console.print(table)
+            else:
+                print_list_item("No variable usage found")
+
+        # Handle write operations (existing functionality)
         operations = result.get("operations", [])
         if operations:
             print_success_message("Operations performed:")
             for op in operations:
                 print_list_item(op)
 
+        # Handle output file indication
         if result.get("output_file"):
-            print_success_message(f"Layout saved to: {result['output_file']}")
+            print_list_item(f"Saved to: {result['output_file']}")
 
     def _make_json_serializable(self, obj: Any) -> Any:
         """Convert object to JSON-serializable format."""

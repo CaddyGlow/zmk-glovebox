@@ -146,7 +146,9 @@ class LayoutPatchSystem:
                     # Handle new structure with position information
                     if isinstance(layer_info, dict) and "patch" in layer_info:
                         patch_data = layer_info["patch"]
-                        if patch_data:  # Only apply if there are actual patch operations
+                        if (
+                            patch_data
+                        ):  # Only apply if there are actual patch operations
                             patch = jsonpatch.JsonPatch(patch_data)
                             target_layer_dict[layer_name] = patch.apply(
                                 target_layer_dict[layer_name]

@@ -219,7 +219,7 @@ def test_firmware_compile_auto_profile_detection(cli_runner, tmp_path):
         mock_profile = Mock()
         mock_profile.keyboard_name = "corne"
         mock_profile.firmware_version = None
-        mock_profile.keyboard_config.compile_methods = [Mock(strategy="zmk_config")]
+        mock_profile.keyboard_config.compile_methods = [Mock(method_type="zmk_config")]
         mock_create_profile.return_value = mock_profile
 
         # Mock user config
@@ -286,7 +286,7 @@ def test_firmware_compile_no_auto_flag_disables_detection(cli_runner, tmp_path):
         mock_profile = Mock()
         mock_profile.keyboard_name = "glove80"
         mock_profile.firmware_version = "v25.05"
-        mock_profile.keyboard_config.compile_methods = [Mock(strategy="zmk_config")]
+        mock_profile.keyboard_config.compile_methods = [Mock(method_type="zmk_config")]
         mock_create_profile.return_value = mock_profile
 
         # Mock user config
@@ -354,7 +354,7 @@ def test_firmware_compile_cli_profile_overrides_auto_detection(cli_runner, tmp_p
         mock_profile = Mock()
         mock_profile.keyboard_name = "glove80"
         mock_profile.firmware_version = "v25.05"
-        mock_profile.keyboard_config.compile_methods = [Mock(strategy="zmk_config")]
+        mock_profile.keyboard_config.compile_methods = [Mock(method_type="zmk_config")]
         mock_create_profile.return_value = mock_profile
 
         # Mock user config
@@ -418,7 +418,7 @@ def test_firmware_compile_auto_detection_only_for_json_files(cli_runner, tmp_pat
         mock_profile = Mock()
         mock_profile.keyboard_name = "glove80"
         mock_profile.firmware_version = "v25.05"
-        mock_profile.keyboard_config.compile_methods = [Mock(strategy="zmk_config")]
+        mock_profile.keyboard_config.compile_methods = [Mock(method_type="zmk_config")]
         mock_create_profile.return_value = mock_profile
 
         # Mock user config

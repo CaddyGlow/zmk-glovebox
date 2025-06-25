@@ -74,8 +74,8 @@ class CompilationConfig(GloveboxBaseModel):
     """Base compilation configuration for all strategies."""
 
     # Core identification
-    strategy: str = Field(
-        default="zmk_config", description="Compilation strategy type used as hint"
+    method_type: str = Field(
+        default="zmk_config", description="Compilation method type used as hint"
     )
 
     # Docker configuration
@@ -102,19 +102,19 @@ class CompilationConfig(GloveboxBaseModel):
         description="Settings to drop docker privileges, used to fix volume permission error",
     )
 
-    @field_validator("strategy")
+    @field_validator("method_type")
     @classmethod
-    def validate_strategy(cls, v: str) -> str:
-        """Validate compilation type."""
+    def validate_method_type(cls, v: str) -> str:
+        """Validate compilation method type."""
         if not v or not v.strip():
-            raise ValueError("Compilation strategy cannot be empty")
+            raise ValueError("Compilation method type cannot be empty")
         return v.strip()
 
 
 class ZmkCompilationConfig(CompilationConfig):
     """ZMK compilation configuration with west workspace support."""
 
-    strategy: str = "zmk_config"
+    method_type: str = "zmk_config"
     image: str = "zmkfirmware/zmk-build-arm:stable"
     repository: str = "zmkfirmware/zmk"
     branch: str = "main"
@@ -130,7 +130,7 @@ class ZmkCompilationConfig(CompilationConfig):
 class MoergoCompilationConfig(CompilationConfig):
     """Moergo compilation configuration using Nix toolchain."""
 
-    strategy: str = "moergo"
+    method_type: str = "moergo"
     image: str = "glove80-zmk-config-docker"
     repository: str = "moergo-sc/zmk"
     branch: str = "v25.05"
