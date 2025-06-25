@@ -17,7 +17,11 @@ from glovebox.cli.helpers import (
     print_success_message,
 )
 from glovebox.cli.helpers.auto_profile import resolve_json_file_path
-from glovebox.cli.helpers.parameters import OutputFormatOption, complete_field_paths
+from glovebox.cli.helpers.parameters import (
+    JsonFileArgument,
+    OutputFormatOption,
+    complete_field_paths,
+)
 from glovebox.layout.models import LayoutData
 from glovebox.layout.utils.field_parser import (
     extract_field_value_from_model,
@@ -626,12 +630,7 @@ def _has_write_operations(
 
 @handle_errors
 def edit(
-    layout_file: Annotated[
-        Path | None,
-        typer.Argument(
-            help="Path to layout JSON file. Uses GLOVEBOX_JSON_FILE environment variable if not provided."
-        ),
-    ] = None,
+    layout_file: JsonFileArgument = None,
     # Field operations
     get: Annotated[
         list[str] | None,
@@ -773,7 +772,14 @@ def edit(
 
             editor = LayoutEditor(layout_data)
             results = _execute_read_operations(editor, get, list_layers, list_usage)
-            _output_results(results, output_format)
+
+            # Use LayoutOutputFormatter for output
+            from glovebox.cli.commands.layout.formatters import (
+                create_layout_output_formatter,
+            )
+
+            formatter = create_layout_output_formatter()
+            formatter.format_edit_result(results, output_format)
             return
 
         except Exception as e:
@@ -813,52 +819,3 @@ def edit(
         logger.error("Failed to edit layout: %s", e, exc_info=exc_info)
         print_error_message(f"Failed to edit layout: {e}")
         raise typer.Exit(1) from e
-
-
-# TODO: to be deleted - replaced by LayoutOutputFormatter.format_edit_result()
-def _output_results(results: dict[str, Any], output_format: str) -> None:
-    """Output results in specified format."""
-    if output_format.lower() == "json":
-        print(json.dumps(results, indent=2))
-    else:
-        for key, value in results.items():
-            if key.startswith("get:"):
-                field_name = key[4:]
-                if isinstance(value, dict | list):
-                    print_success_message(f"{field_name}:")
-                    print(json.dumps(value, indent=2))
-                else:
-                    print_list_item(f"{field_name}: {value}")
-
-            elif key == "layers":
-                print_success_message("Layers:")
-                for i, layer in enumerate(value):
-                    print_list_item(f"{i}: {layer}")
-
-            elif key == "variable_usage":
-                if value:
-                    table = Table(title="Variable Usage")
-                    table.add_column("Variable", style="cyan")
-                    table.add_column("Used In", style="green")
-                    table.add_column("Count", style="blue")
-
-                    for var_name, paths in value.items():
-                        usage_str = (
-                            "\n".join(paths[:5])
-                            if len(paths) <= 5
-                            else "\n".join(paths[:5])
-                            + f"\n... and {len(paths) - 5} more"
-                        )
-                        table.add_row(var_name, usage_str, str(len(paths)))
-
-                    console.print(table)
-                else:
-                    print_list_item("No variable usage found")
-
-            elif key == "operations":
-                print_success_message("Operations performed:")
-                for op in value:
-                    print_list_item(op)
-
-            elif key == "output_file":
-                print_list_item(f"Saved to: {value}")

@@ -11,6 +11,7 @@ from glovebox.compilation.models.build_matrix import BuildMatrix, BuildTarget
 from glovebox.compilation.services.zmk_west_service import create_zmk_west_service
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.cache import create_default_cache
+from glovebox.core.metrics.session_metrics import SessionMetrics
 from glovebox.firmware.models import BuildResult
 
 
@@ -52,7 +53,7 @@ class TestZmkWestServiceIntegration:
     def zmk_config(self):
         """Standard ZMK compilation config for testing."""
         return ZmkCompilationConfig(
-            strategy="zmk_config",
+            method_type="zmk_config",
             repository="zmkfirmware/zmk",
             branch="main",
             image="zmkfirmware/zmk-build-arm:stable",
@@ -75,12 +76,16 @@ class TestZmkWestServiceIntegration:
     ):
         """Test that ZmkWestService can be created with new cache services."""
         cache_manager = create_default_cache(tag="test")
+        session_metrics = SessionMetrics(
+            cache_manager=cache_manager, session_uuid="test-session"
+        )
 
         service = create_zmk_west_service(
             docker_adapter=mock_docker_adapter,
             user_config=isolated_config,
             file_adapter=mock_file_adapter,
             cache_manager=cache_manager,
+            session_metrics=session_metrics,
         )
 
         assert service is not None
@@ -100,7 +105,7 @@ class TestZmkWestServiceIntegration:
         keymap_file, config_file = test_files
 
         config = ZmkCompilationConfig(
-            strategy="zmk_config",
+            method_type="zmk_config",
             repository="zmkfirmware/zmk",
             branch="main",
             image="zmkfirmware/zmk-build-arm:stable",
@@ -115,6 +120,10 @@ class TestZmkWestServiceIntegration:
             user_config=isolated_config,
             file_adapter=mock_file_adapter,
             cache_manager=create_default_cache(tag="test"),
+            session_metrics=SessionMetrics(
+                cache_manager=create_default_cache(tag="test"),
+                session_uuid="test-session",
+            ),
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -142,6 +151,10 @@ class TestZmkWestServiceIntegration:
             user_config=isolated_config,
             file_adapter=mock_file_adapter,
             cache_manager=create_default_cache(tag="test"),
+            session_metrics=SessionMetrics(
+                cache_manager=create_default_cache(tag="test"),
+                session_uuid="test-session",
+            ),
         )
 
         # First call should be cache miss
@@ -194,6 +207,10 @@ class TestZmkWestServiceIntegration:
             user_config=isolated_config,
             file_adapter=mock_file_adapter,
             cache_manager=create_default_cache(tag="test"),
+            session_metrics=SessionMetrics(
+                cache_manager=create_default_cache(tag="test"),
+                session_uuid="test-session",
+            ),
         )
 
         # First call should be cache miss

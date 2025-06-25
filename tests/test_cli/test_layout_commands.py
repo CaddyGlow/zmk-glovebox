@@ -175,21 +175,22 @@ class TestRefactoredArchitecture:
             "Missing execute_edit_operation method"
         )
 
-    def test_deprecated_functions_marked(self):
-        """Test that deprecated functions are properly marked with TODO."""
+    def test_deprecated_functions_removed(self):
+        """Test that deprecated functions have been successfully removed."""
         from pathlib import Path
 
         project_root = Path(__file__).parents[2]
-        base_file = (
-            project_root / "glovebox" / "cli" / "commands" / "layout" / "base.py"
-        )
-
-        if base_file.exists():
-            content = base_file.read_text()
-            # Should have TODO markers for deprecated functions
-            assert (
-                "TODO: to be deleted" in content or "# TODO: to be deleted" in content
-            )
+        layout_commands_dir = project_root / "glovebox" / "cli" / "commands" / "layout"
+        
+        # Check that deprecated functions with TODO markers have been removed
+        python_files = list(layout_commands_dir.glob("*.py"))
+        for file_path in python_files:
+            if file_path.exists():
+                content = file_path.read_text()
+                # Should NOT have TODO deletion markers anymore
+                assert "# TODO: to be deleted" not in content, (
+                    f"Found TODO deletion marker in {file_path.name} - migration incomplete"
+                )
 
 
 class TestServiceMocking:

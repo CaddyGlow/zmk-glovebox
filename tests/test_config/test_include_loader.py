@@ -351,7 +351,7 @@ class TestIncludeConfigLoader:
         base_config = {
             "compile_methods": [
                 {
-                    "strategy": "moergo",
+                    "method_type": "moergo",
                     "image": "base_image",
                     "repository": "test/repo",
                     "branch": "main",

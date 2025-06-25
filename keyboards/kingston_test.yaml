@@ -5,7 +5,7 @@ key_count: 80
 
 # Compile method configurations
 compile_methods:
-  - strategy: zmk_config
+  - method_type: zmk_config
     image: moergo-zmk-build:latest
 
 # Flash method configurations  

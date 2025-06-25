@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 # Simple factory function for direct service selection
 def create_compilation_service(
-    strategy: str,
+    method_type: str,
     user_config: "UserConfig",
     docker_adapter: "DockerAdapterProtocol",
     file_adapter: "FileAdapterProtocol",
@@ -34,32 +34,32 @@ def create_compilation_service(
     workspace_cache_service: Any | None = None,
     build_cache_service: Any | None = None,
 ) -> CompilationServiceProtocol:
-    """Create compilation service for specified strategy with explicit dependencies.
+    """Create compilation service for specified method type with explicit dependencies.
 
     Args:
-        strategy: Compilation strategy
+        method_type: Compilation method type
         user_config: UserConfig instance
         docker_adapter: Required DockerAdapter instance
         file_adapter: Required FileAdapter instance
-        cache_manager: Cache manager instance (required for zmk_config strategy)
-        workspace_cache_service: Workspace cache service (required for zmk_config strategy)
-        build_cache_service: Build cache service (required for zmk_config strategy)
+        cache_manager: Cache manager instance (required for zmk_config method)
+        workspace_cache_service: Workspace cache service (required for zmk_config method)
+        build_cache_service: Build cache service (required for zmk_config method)
         session_metrics: Optional SessionMetrics instance for metrics integration
 
     Returns:
         CompilationServiceProtocol: Configured compilation service
 
     Raises:
-        ValueError: If strategy is not supported or required dependencies are missing
+        ValueError: If method type is not supported or required dependencies are missing
     """
-    if strategy == "zmk_config":
+    if method_type == "zmk_config":
         if (
             cache_manager is None
             or workspace_cache_service is None
             or build_cache_service is None
         ):
             raise ValueError(
-                "ZMK config strategy requires cache_manager, workspace_cache_service, and build_cache_service"
+                "ZMK config method requires cache_manager, workspace_cache_service, and build_cache_service"
             )
         return create_zmk_west_service(
             user_config=user_config,
@@ -70,7 +70,7 @@ def create_compilation_service(
             workspace_cache_service=workspace_cache_service,
             build_cache_service=build_cache_service,
         )
-    elif strategy == "moergo":
+    elif method_type == "moergo":
         return create_moergo_nix_service(
             docker_adapter=docker_adapter,
             file_adapter=file_adapter,
@@ -78,7 +78,7 @@ def create_compilation_service(
         )
     else:
         raise ValueError(
-            f"Unknown compilation strategy: {strategy}. Supported strategies: zmk_config, moergo"
+            f"Unknown compilation method type: {method_type}. Supported method types: zmk_config, moergo"
         )
 
 

@@ -9,7 +9,7 @@ includes:
   - "config/firmware/zmk.yaml" # All shared config files
 
 compile_methods:
-  - strategy: zmk_config
+  - method_type: zmk_config
     repository: "zmkfirmware/zmk"
     branch: "main" # Default, overridden by firmware config
     build_config:

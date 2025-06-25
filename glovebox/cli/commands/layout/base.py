@@ -70,8 +70,6 @@ class LayoutFileCommand(BaseLayoutCommand):
             print_error_message(f"Layout file must be a JSON file: {file_path}")
             raise typer.Exit(1)
 
-    # TODO: to be deleted - file validation now handled within composer operations
-
 
 class LayoutOutputCommand(LayoutFileCommand):
     """Base class for commands with formatted output options."""
@@ -92,21 +90,12 @@ class LayoutOutputCommand(LayoutFileCommand):
 
             print(json.dumps(data, indent=2, default=str))
         elif output_format.lower() == "table" and isinstance(data, list):
-            self.formatter.print_table(data)
+            self.formatter._print_list_table(data)
         else:
-            self.print_text_list(data)
+            # Use LayoutOutputFormatter for text output
+            from glovebox.cli.commands.layout.formatters import (
+                create_layout_output_formatter,
+            )
 
-    def print_text_list(self, items: list[str], title: str | None = None) -> None:
-        """Print a list of items in text format.
-
-        Args:
-            items: List of items to print
-            title: Optional title for the list
-        """
-        if title:
-            print_success_message(title)
-
-        for item in items:
-            print_list_item(item)
-
-    # TODO: to be deleted - replaced by LayoutOutputFormatter methods
+            formatter = create_layout_output_formatter()
+            formatter._format_text(data)

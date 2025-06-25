@@ -265,7 +265,7 @@ def test_firmware_compile_with_json_env_var(cli_runner, sample_json_layout, clea
         mock_profile = Mock()
         mock_profile.keyboard_name = "glove80"
         mock_profile.firmware_version = "v25.05"
-        mock_profile.keyboard_config.compile_methods = [Mock(strategy="zmk_config")]
+        mock_profile.keyboard_config.compile_methods = [Mock(method_type="zmk_config")]
         mock_create_profile.return_value = mock_profile
 
         # Mock user config

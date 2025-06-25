@@ -75,8 +75,8 @@ class TestLayoutDiff:
         diff = diff_system.create_layout_diff(base, modified)
 
         # Verify the diff is a LayoutDiff object
-        assert hasattr(diff, 'layers')
-        assert hasattr(diff, 'diff_type')
+        assert hasattr(diff, "layers")
+        assert hasattr(diff, "diff_type")
         assert diff.diff_type == "layout_diff_v2"
 
         # Check that layer modification was detected (position-aware)
@@ -196,7 +196,9 @@ class TestLayoutDiff:
             if "patch" in layer_info:
                 total_patch_ops += len(layer_info["patch"])
 
-        assert total_patch_ops >= 5  # Should have many changes for complete layer content change
+        assert (
+            total_patch_ops >= 5
+        )  # Should have many changes for complete layer content change
 
     def test_complex_change(self, diff_system: LayoutDiffSystem) -> None:
         """Test complex changes with multiple operations."""
@@ -211,9 +213,9 @@ class TestLayoutDiff:
 
         # Should have multiple types of changes
         total_changes = (
-            len(layer_changes["added"]) +
-            len(layer_changes["removed"]) +
-            len(layer_changes["modified"])
+            len(layer_changes["added"])
+            + len(layer_changes["removed"])
+            + len(layer_changes["modified"])
         )
         assert total_changes > 0
 
@@ -302,9 +304,9 @@ class TestLayoutDiff:
 
         # Verify the new LayoutDiff structure
         assert diff.diff_type == "layout_diff_v2"
-        assert hasattr(diff, 'base_version')
-        assert hasattr(diff, 'modified_version')
-        assert hasattr(diff, 'timestamp')
+        assert hasattr(diff, "base_version")
+        assert hasattr(diff, "modified_version")
+        assert hasattr(diff, "timestamp")
 
         # Verify layer structure with position information
         assert diff.layers is not None

@@ -152,16 +152,14 @@ class LayoutDiffSystem:
         modified_layer_names = list(modified.get("layer_names", []))
 
         base_positions = {name: idx for idx, name in enumerate(base_layer_names)}
-        modified_positions = {name: idx for idx, name in enumerate(modified_layer_names)}
+        modified_positions = {
+            name: idx for idx, name in enumerate(modified_layer_names)
+        }
 
         # Store removed layers with their original positions
         removed_layers = base_layer_dict.keys() - modified_layer_dict.keys()
         changes["removed"] = [
-            {
-                "name": name,
-                "data": [],
-                "original_position": base_positions.get(name)
-            }
+            {"name": name, "data": [], "original_position": base_positions.get(name)}
             for name in removed_layers
         ]
 
@@ -171,7 +169,7 @@ class LayoutDiffSystem:
             {
                 "name": name,
                 "data": modified_layer_dict[name],
-                "new_position": modified_positions.get(name)
+                "new_position": modified_positions.get(name),
             }
             for name in added_layers
         ]
@@ -190,7 +188,7 @@ class LayoutDiffSystem:
                             "patch": patch.patch,
                             "original_position": original_pos,
                             "new_position": new_pos,
-                            "position_changed": original_pos != new_pos
+                            "position_changed": original_pos != new_pos,
                         }
                     }
                     changes["modified"].append(change_info)
