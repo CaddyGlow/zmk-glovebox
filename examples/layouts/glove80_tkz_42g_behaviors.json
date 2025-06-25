@@ -16,6 +16,13 @@
   "variables": {
     "tapMs": 190
   },
+  "last_firmware_build": {
+    "date": "2025-06-25T01:10:27.922377",
+    "profile": "glove80/v25.05",
+    "firmware_path": "/home/rick/projects/glovebox/build/glove80_rh-zmk.uf2",
+    "firmware_hash": "sha256:15b32a1df58b06ba48819c44e3b6dec448a246c171c5dfc9971bb432954b7e82",
+    "build_id": ""
+  },
   "layer_names": [
     "HRM_WinLinx",
     "Cursor",

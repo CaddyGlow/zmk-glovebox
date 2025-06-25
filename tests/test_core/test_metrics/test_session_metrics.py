@@ -461,7 +461,7 @@ class TestSessionMetricsSerialization:
         # Test context manager protocol
         with metrics as ctx_metrics:
             assert ctx_metrics is metrics
-            
+
             # Use metrics inside context
             counter = ctx_metrics.Counter("test_counter", "Test counter")
             counter.inc()
@@ -474,14 +474,19 @@ class TestSessionMetricsSerialization:
         with metrics.time_operation("test_operation"):
             # Simulate some work
             import time
+
             time.sleep(0.001)
 
         # Should have recorded the operation in activity log
         assert len(metrics._activity_log) > 0
-        
+
         # Find the timing entry
         timing_entry = next(
-            (log for log in metrics._activity_log if log.get("operation") == "time_operation"),
+            (
+                log
+                for log in metrics._activity_log
+                if log.get("operation") == "time_operation"
+            ),
             None,
         )
         assert timing_entry is not None
@@ -500,12 +505,16 @@ class TestSessionMetricsSerialization:
             "operation": "layout_compile",
             "layer_count": 5,
         }
-        
+
         metrics.set_context(**context_data)
 
         # Should be recorded in activity log
         context_entry = next(
-            (log for log in metrics._activity_log if log.get("operation") == "set_context"),
+            (
+                log
+                for log in metrics._activity_log
+                if log.get("operation") == "set_context"
+            ),
             None,
         )
         assert context_entry is not None
@@ -517,25 +526,27 @@ class TestSessionMetricsSerialization:
 
         # Record cache hit
         metrics.record_cache_event("workspace", cache_hit=True)
-        
+
         # Record cache miss
         metrics.record_cache_event("build", cache_hit=False)
 
         # Should have recorded the events in activity log
         assert len(metrics._activity_log) >= 2
-        
+
         # Find the cache events
         cache_events = [
-            log for log in metrics._activity_log if log.get("operation") == "cache_event"
+            log
+            for log in metrics._activity_log
+            if log.get("operation") == "cache_event"
         ]
         assert len(cache_events) == 2
-        
+
         # Check cache hit event
         hit_event = next((e for e in cache_events if e["cache_hit"]), None)
         assert hit_event is not None
         assert hit_event["cache_type"] == "workspace"
         assert hit_event["cache_hit"] is True
-        
+
         # Check cache miss event
         miss_event = next((e for e in cache_events if not e["cache_hit"]), None)
         assert miss_event is not None
@@ -747,7 +758,7 @@ class TestNoOpCounter:
         counter.inc(5)
 
         # Should not maintain any state
-        assert hasattr(counter, 'name')
+        assert hasattr(counter, "name")
         assert counter.name == "test_counter"
         assert counter.description == "Test counter"
 
@@ -776,7 +787,9 @@ class TestNoOpCounter:
         counter = NoOpCounter("test_counter", "Test counter", ["method"])
 
         # Should raise error for direct inc() when labels are defined
-        with pytest.raises(ValueError, match="Counter with labels requires labels\\(\\) call"):
+        with pytest.raises(
+            ValueError, match="Counter with labels requires labels\\(\\) call"
+        ):
             counter.inc()
 
 
@@ -950,57 +963,58 @@ class TestMetricsProtocolCompliance:
     def test_session_metrics_implements_protocol(self):
         """Test that SessionMetrics implements MetricsProtocol."""
         metrics = create_test_session_metrics("test-protocol")
-        
+
         # Should pass isinstance check
         assert isinstance(metrics, MetricsProtocol)
 
         # Should have all required methods
-        assert hasattr(metrics, 'set_context')
-        assert hasattr(metrics, 'time_operation')
-        assert hasattr(metrics, 'Counter')
-        assert hasattr(metrics, 'Gauge')
-        assert hasattr(metrics, 'Histogram')
-        assert hasattr(metrics, 'Summary')
-        assert hasattr(metrics, 'set_exit_code')
-        assert hasattr(metrics, 'set_cli_args')
-        assert hasattr(metrics, 'record_cache_event')
-        assert hasattr(metrics, 'save')
-        assert hasattr(metrics, '__enter__')
-        assert hasattr(metrics, '__exit__')
+        assert hasattr(metrics, "set_context")
+        assert hasattr(metrics, "time_operation")
+        assert hasattr(metrics, "Counter")
+        assert hasattr(metrics, "Gauge")
+        assert hasattr(metrics, "Histogram")
+        assert hasattr(metrics, "Summary")
+        assert hasattr(metrics, "set_exit_code")
+        assert hasattr(metrics, "set_cli_args")
+        assert hasattr(metrics, "record_cache_event")
+        assert hasattr(metrics, "save")
+        assert hasattr(metrics, "__enter__")
+        assert hasattr(metrics, "__exit__")
 
     def test_noop_metrics_implements_protocol(self):
         """Test that NoOpMetrics implements MetricsProtocol."""
         metrics = NoOpMetrics("test-protocol")
-        
+
         # Should pass isinstance check
         assert isinstance(metrics, MetricsProtocol)
 
         # Should have all required methods
-        assert hasattr(metrics, 'set_context')
-        assert hasattr(metrics, 'time_operation')
-        assert hasattr(metrics, 'Counter')
-        assert hasattr(metrics, 'Gauge')
-        assert hasattr(metrics, 'Histogram')
-        assert hasattr(metrics, 'Summary')
-        assert hasattr(metrics, 'set_exit_code')
-        assert hasattr(metrics, 'set_cli_args')
-        assert hasattr(metrics, 'record_cache_event')
-        assert hasattr(metrics, 'save')
-        assert hasattr(metrics, '__enter__')
-        assert hasattr(metrics, '__exit__')
+        assert hasattr(metrics, "set_context")
+        assert hasattr(metrics, "time_operation")
+        assert hasattr(metrics, "Counter")
+        assert hasattr(metrics, "Gauge")
+        assert hasattr(metrics, "Histogram")
+        assert hasattr(metrics, "Summary")
+        assert hasattr(metrics, "set_exit_code")
+        assert hasattr(metrics, "set_cli_args")
+        assert hasattr(metrics, "record_cache_event")
+        assert hasattr(metrics, "save")
+        assert hasattr(metrics, "__enter__")
+        assert hasattr(metrics, "__exit__")
 
     def test_protocol_interchangeability(self):
         """Test that SessionMetrics and NoOpMetrics can be used interchangeably."""
+
         def use_metrics(metrics: MetricsProtocol) -> None:
             """Function that accepts any MetricsProtocol implementation."""
             metrics.set_context(profile="test")
-            
+
             counter = metrics.Counter("test_counter", "Test counter")
             counter.inc()
-            
+
             with metrics.time_operation("test_operation"):
                 pass
-            
+
             metrics.set_cli_args(["test"])
             metrics.set_exit_code(0)
             metrics.save()
@@ -1014,60 +1028,57 @@ class TestMetricsProtocolCompliance:
         use_metrics(noop_metrics)
 
 
-
 class TestNoOpMetricsPerformance:
     """Test that NoOpMetrics has minimal performance impact."""
 
     def test_noop_metrics_performance(self):
         """Test that NoOpMetrics operations are fast."""
-        import time
-        
+
         metrics = NoOpMetrics("test-performance")
-        
+
         # Create metrics
         counter = metrics.Counter("test_counter", "Test counter", ["method"])
         gauge = metrics.Gauge("test_gauge", "Test gauge")
         histogram = metrics.Histogram("test_histogram", "Test histogram")
         summary = metrics.Summary("test_summary", "Test summary")
-        
+
         # Time a bunch of operations
         start_time = time.perf_counter()
-        
+
         for i in range(1000):
             counter.labels("GET").inc()
             gauge.set(i)
             histogram.observe(i * 0.001)
             summary.observe(i * 0.001)
-            
+
             with metrics.time_operation("test_op"):
                 pass
-        
+
         end_time = time.perf_counter()
         duration = end_time - start_time
-        
+
         # Should be very fast (under 100ms for 1000 operations)
         assert duration < 0.1, f"NoOp operations took too long: {duration:.3f}s"
 
     def test_noop_context_manager_performance(self):
         """Test that NoOp context managers have minimal overhead."""
-        import time
-        
+
         metrics = NoOpMetrics("test-context-performance")
         histogram = metrics.Histogram("test_histogram", "Test histogram")
-        
+
         start_time = time.perf_counter()
-        
+
         # Test context manager overhead
         for _i in range(1000):
             with histogram.time():
                 pass
-            
+
             with metrics.time_operation("test_op"):
                 pass
-        
+
         end_time = time.perf_counter()
         duration = end_time - start_time
-        
+
         # Context managers should also be fast
         assert duration < 0.1, f"NoOp context managers took too long: {duration:.3f}s"
 
@@ -1086,7 +1097,9 @@ class TestNoOpMetricsErrorHandling:
         with pytest.raises(ValueError, match="Missing label values"):
             counter.labels(method="GET")
 
-        with pytest.raises(ValueError, match="Cannot mix positional and keyword arguments"):
+        with pytest.raises(
+            ValueError, match="Cannot mix positional and keyword arguments"
+        ):
             counter.labels("GET", status="success")
 
     def test_noop_gauge_label_validation(self):
@@ -1102,10 +1115,10 @@ class TestNoOpMetricsErrorHandling:
         # Should not raise exception even with None or empty string
         metrics1 = NoOpMetrics(None)  # type: ignore
         metrics2 = NoOpMetrics("")
-        
+
         # Should still work
         counter1 = metrics1.Counter("test", "Test")
         counter2 = metrics2.Counter("test", "Test")
-        
+
         counter1.inc()
         counter2.inc()

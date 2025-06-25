@@ -554,7 +554,7 @@ class TestConfigClear:
                 "--set",
                 "log_level=DEBUG",
                 "--add",
-                "keyboard_paths=/test/clear_multi/path",
+                "keyboard_paths=/test/isolated_clear_multiple_fields/path",
                 "--save",
             ],
         )

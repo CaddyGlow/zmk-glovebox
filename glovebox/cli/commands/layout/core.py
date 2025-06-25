@@ -133,6 +133,7 @@ def compile_layout(
         "layout_operation_duration_seconds", "Layout operation duration"
     )
 
+    metrics.Summary("compile_start", "Start to start compilation")
     try:
         with layout_duration.time():
             # Resolve JSON file path (supports environment variable)
