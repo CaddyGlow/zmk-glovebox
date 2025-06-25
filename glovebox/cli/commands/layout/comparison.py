@@ -223,7 +223,7 @@ def patch(
                 "source": result["source"],
                 "patch": result["patch"],
                 "output": result["output"],
-                "applied_changes": result["total_changes"],
+                # "applied_changes": result["total_changes"],
             },
         )
 

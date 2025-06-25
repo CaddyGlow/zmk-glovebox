@@ -54,7 +54,7 @@ class LayoutComparisonService:
         # Create diff using new library
         diff = self.diff_system.create_layout_diff(layout1_data, layout2_data)
 
-        # Convert to legacy format for compatibility
+        # Convert to legacy format for API compatibility
         comparison = self._convert_to_legacy_format(
             diff, layout1_data, layout2_data, layout1_path, layout2_path
         )
@@ -64,16 +64,42 @@ class LayoutComparisonService:
             self._add_dtsi_comparison(comparison, layout1_data, layout2_data)
 
         # Format-specific processing
-        if output_format.lower() == "summary":
-            self._format_summary(comparison)
+        if output_format.lower() == "json":
+            self._format_json(comparison, diff)
         elif output_format.lower() == "detailed":
             self._format_detailed(comparison, diff)
-        elif output_format.lower() == "json":
-            self._format_json(comparison, diff)
         elif output_format.lower() == "pretty":
             self._format_pretty(comparison, diff)
+        else:
+            self._format_summary(comparison)
 
         return comparison
+
+    def _add_dtsi_comparison(
+        self, comparison: dict[str, Any], layout1: LayoutData, layout2: LayoutData
+    ) -> None:
+        """Add DTSI comparison to the results."""
+        behaviors_diff = self._create_unified_diff(
+            layout1.custom_defined_behaviors,
+            layout2.custom_defined_behaviors,
+            "custom_defined_behaviors",
+        )
+        devicetree_diff = self._create_unified_diff(
+            layout1.custom_devicetree,
+            layout2.custom_devicetree,
+            "custom_devicetree",
+        )
+
+        comparison["custom_dtsi"] = {
+            "custom_defined_behaviors": {
+                "changed": bool(behaviors_diff),
+                "differences": behaviors_diff,
+            },
+            "custom_devicetree": {
+                "changed": bool(devicetree_diff),
+                "differences": devicetree_diff,
+            },
+        }
 
     def apply_patch(
         self,
@@ -111,14 +137,10 @@ class LayoutComparisonService:
         # Save patched layout
         save_layout_file(patched_data, output, self.file_adapter)
 
-        # Calculate changes applied
-        total_changes = self._count_patch_changes(patch_data)
-
         return {
             "source": source_layout_path,
             "patch": patch_file_path,
             "output": output,
-            "total_changes": total_changes,
         }
 
     def create_dtsi_patch(
@@ -413,38 +435,6 @@ class LayoutComparisonService:
             "\n".join(pretty_lines) if pretty_lines else "No changes found"
         )
 
-    def _add_dtsi_comparison(
-        self, comparison: dict[str, Any], layout1: LayoutData, layout2: LayoutData
-    ) -> None:
-        """Add DTSI comparison to the comparison result."""
-        # Compare custom defined behaviors
-        behaviors_diff = self._compare_dtsi_section(
-            layout1.custom_defined_behaviors, layout2.custom_defined_behaviors
-        )
-        comparison["custom_dtsi"]["custom_defined_behaviors"] = behaviors_diff
-
-        # Compare custom devicetree
-        devicetree_diff = self._compare_dtsi_section(
-            layout1.custom_devicetree, layout2.custom_devicetree
-        )
-        comparison["custom_dtsi"]["custom_devicetree"] = devicetree_diff
-
-    def _compare_dtsi_section(self, section1: str, section2: str) -> dict[str, Any]:
-        """Compare two DTSI sections and return differences."""
-        if section1 == section2:
-            return {"changed": False, "differences": []}
-
-        # Generate unified diff
-        lines1 = section1.splitlines(keepends=True)
-        lines2 = section2.splitlines(keepends=True)
-        diff_lines = list(
-            difflib.unified_diff(
-                lines1, lines2, fromfile="original", tofile="modified", lineterm=""
-            )
-        )
-
-        return {"changed": True, "differences": diff_lines}
-
     def _generate_dtsi_patches(
         self, layout1: LayoutData, layout2: LayoutData, section: str
     ) -> list[str]:
@@ -496,17 +486,6 @@ class LayoutComparisonService:
         with patch_file_path.open() as f:
             result: dict[str, Any] = json.load(f)
             return result
-
-    def _count_patch_changes(self, patch_data: dict[str, Any]) -> int:
-        """Count the number of changes in a patch."""
-        if "json_patch" in patch_data:
-            return len(patch_data["json_patch"])
-        elif "statistics" in patch_data:
-            total_ops: int = patch_data["statistics"].get("total_operations", 0)
-            return total_ops
-        else:
-            # Legacy format counting
-            return len(patch_data.get("values_changed", {}))
 
 
 def create_layout_comparison_service(

@@ -1,6 +1,8 @@
 import copy
 import hashlib
 import json
+import logging
+from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -10,6 +12,9 @@ from deepdiff import DeepDiff
 from pydantic import BaseModel
 
 from glovebox.layout.models import LayoutData
+
+
+logger = logging.getLogger(__name__)
 
 
 class LayoutDiffSystem:
@@ -22,7 +27,6 @@ class LayoutDiffSystem:
         self,
         base_layout: LayoutData,
         modified_layout: LayoutData,
-        track_movements: bool = True,
     ) -> dict[str, Any]:
         """Create a comprehensive diff between two layouts."""
 
@@ -68,86 +72,126 @@ class LayoutDiffSystem:
     def _analyze_layout_changes(
         self, base: dict[str, Any], modified: dict[str, Any]
     ) -> dict[str, Any]:
-        """Analyze specific layout-related changes."""
+        """Enhanced version that stores data needed for applying changes"""
+        changes = {"layers": {"added": [], "removed": [], "modified": []}}
 
-        changes: dict[str, Any] = {
-            "layers": {"added": [], "removed": [], "modified": [], "reordered": False},
-            "behaviors": {
-                "hold_taps": {"added": [], "removed": [], "modified": []},
-                "combos": {"added": [], "removed": [], "modified": []},
-                "macros": {"added": [], "removed": [], "modified": []},
-                "input_listeners": {"added": [], "removed": [], "modified": []},
-            },
-            "config_parameters": {"added": [], "removed": [], "modified": []},
-            "custom_code": {"devicetree_changed": False, "behaviors_changed": False},
-            "layer_names": {"renamed": [], "order_changed": False},
-        }
-
-        # Analyze layer changes
-        base_layers = base.get("layers", [])
-        modified_layers = modified.get("layers", [])
-        base_names = base.get("layer_names", [])
-        modified_names = modified.get("layer_names", [])
-
-        # Check for layer additions/removals
-        if len(modified_layers) > len(base_layers):
-            changes["layers"]["added"] = list(
-                range(len(base_layers), len(modified_layers))
+        base_layer_dict = OrderedDict(
+            zip(base.get("layer_names", []), base.get("layers", []), strict=False)
+        )
+        modified_layer_dict = OrderedDict(
+            zip(
+                modified.get("layer_names", []),
+                modified.get("layers", []),
+                strict=False,
             )
-        elif len(modified_layers) < len(base_layers):
-            changes["layers"]["removed"] = list(
-                range(len(modified_layers), len(base_layers))
-            )
+        )
 
-        # Check for layer modifications
-        for i in range(min(len(base_layers), len(modified_layers))):
-            if base_layers[i] != modified_layers[i]:
-                changes["layers"]["modified"].append(i)
+        # Store removed layers with their data
+        removed_layers = base_layer_dict.keys() - modified_layer_dict.keys()
+        changes["layers"]["removed"] = [
+            # {"name": name, "data": base_layer_dict[name]} for name in removed_layers
+            {"name": name, "data": []}
+            for name in removed_layers
+        ]
 
-        # Check for layer name changes
-        for i in range(min(len(base_names), len(modified_names))):
-            if base_names[i] != modified_names[i]:
-                changes["layer_names"]["renamed"].append(
-                    {"index": i, "from": base_names[i], "to": modified_names[i]}
-                )
+        # Store added layers with their data
+        added_layers = modified_layer_dict.keys() - base_layer_dict.keys()
+        changes["layers"]["added"] = [
+            {"name": name, "data": modified_layer_dict[name]} for name in added_layers
+        ]
 
-        # Check if layer order changed (same names but different order)
-        if set(base_names) == set(modified_names) and base_names != modified_names:
-            changes["layers"]["reordered"] = True
-            changes["layer_names"]["order_changed"] = True
-
-        # Analyze behavior changes
-        for behavior_type in ["holdTaps", "combos", "macros", "inputListeners"]:
-            python_key = behavior_type.replace("holdTaps", "hold_taps").replace(
-                "inputListeners", "input_listeners"
-            )
-            base_behaviors = {b.get("name"): b for b in base.get(behavior_type, [])}
-            modified_behaviors = {
-                b.get("name"): b for b in modified.get(behavior_type, [])
-            }
-
-            # Added behaviors
-            added = set(modified_behaviors.keys()) - set(base_behaviors.keys())
-            changes["behaviors"][python_key]["added"] = list(added)
-
-            # Removed behaviors
-            removed = set(base_behaviors.keys()) - set(modified_behaviors.keys())
-            changes["behaviors"][python_key]["removed"] = list(removed)
-
-            # Modified behaviors
-            for name in set(base_behaviors.keys()) & set(modified_behaviors.keys()):
-                if base_behaviors[name] != modified_behaviors[name]:
-                    changes["behaviors"][python_key]["modified"].append(name)
-
-        # Check custom code changes
-        if base.get("custom_devicetree") != modified.get("custom_devicetree"):
-            changes["custom_code"]["devicetree_changed"] = True
-        if base.get("custom_defined_behaviors") != modified.get(
-            "custom_defined_behaviors"
-        ):
-            changes["custom_code"]["behaviors_changed"] = True
+        # Store modifications
+        for k, v in base_layer_dict.items():
+            if k in modified_layer_dict:
+                patch = jsonpatch.make_patch(v, modified_layer_dict[k])
+                if patch.patch:  # Only store if there are actual changes
+                    changes["layers"]["modified"].append({k: patch.patch})
 
         return changes
+
+    # def _analyze_layout_changes(
+    #     self, base: dict[str, Any], modified: dict[str, Any]
+    # ) -> dict[str, Any]:
+    #     """Analyze specific layout-related changes."""
+    #
+    #     changes: dict[str, Any] = {
+    #         "layers": {"added": [], "removed": [], "modified": [], "reordered": False},
+    #         "behaviors": {
+    #             "hold_taps": {"added": [], "removed": [], "modified": []},
+    #             "combos": {"added": [], "removed": [], "modified": []},
+    #             "macros": {"added": [], "removed": [], "modified": []},
+    #             "input_listeners": {"added": [], "removed": [], "modified": []},
+    #         },
+    #         "config_parameters": {"added": [], "removed": [], "modified": []},
+    #         "custom_code": {"devicetree_changed": False, "behaviors_changed": False},
+    #         "layer_names": {"renamed": [], "order_changed": False},
+    #     }
+    #
+    #     # Analyze layer changes
+    #     base_layer_dict = OrderedDict(
+    #         zip(base.get("layer_names", []), base.get("layers", []), strict=False)
+    #     )
+    #     modified_layer_dict = OrderedDict(
+    #         zip(
+    #             modified.get("layer_names", []),
+    #             modified.get("layers", []),
+    #             strict=False,
+    #         )
+    #     )
+    #
+    #     # Check for layer additions/removals
+    #     changes["layers"]["removed"] = list(
+    #         base_layer_dict.keys() - modified_layer_dict.keys()
+    #     )
+    #     changes["layers"]["added"] = list(
+    #         modified_layer_dict.keys() - base_layer_dict.keys()
+    #     )
+    #
+    #     # Check for layer modifications
+    #     for k, v in base_layer_dict.items():
+    #         if k in modified_layer_dict:
+    #             diff = DeepDiff(v, modified_layer_dict[k])
+    #             logger.debug("Diff for %s: %s", k, diff)
+    #             patch = jsonpatch.make_patch(v, modified_layer_dict[k])
+    #             changes["layers"]["modified"].append({k: patch.patch})
+    #
+    #     # # Check if layer order changed (same names but different order)
+    #     # if set(base_names) == set(modified_names) and base_names != modified_names:
+    #     #     changes["layers"]["reordered"] = True
+    #     #     changes["layer_names"]["order_changed"] = True
+    #
+    #     # Analyze behavior changes
+    #     for behavior_type in ["holdTaps", "combos", "macros", "inputListeners"]:
+    #         python_key = behavior_type.replace("holdTaps", "hold_taps").replace(
+    #             "inputListeners", "input_listeners"
+    #         )
+    #         base_behaviors = {b.get("name"): b for b in base.get(behavior_type, [])}
+    #         modified_behaviors = {
+    #             b.get("name"): b for b in modified.get(behavior_type, [])
+    #         }
+    #
+    #         # Added behaviors
+    #         added = set(modified_behaviors.keys()) - set(base_behaviors.keys())
+    #         changes["behaviors"][python_key]["added"] = list(added)
+    #
+    #         # Removed behaviors
+    #         removed = set(base_behaviors.keys()) - set(modified_behaviors.keys())
+    #         changes["behaviors"][python_key]["removed"] = list(removed)
+    #
+    #         # Modified behaviors
+    #         for name in set(base_behaviors.keys()) & set(modified_behaviors.keys()):
+    #             if base_behaviors[name] != modified_behaviors[name]:
+    #                 changes["behaviors"][python_key]["modified"].append(name)
+    #
+    #     # Check custom code changes
+    #     if base.get("custom_devicetree") != modified.get("custom_devicetree"):
+    #         changes["custom_code"]["devicetree_changed"] = True
+    #     if base.get("custom_defined_behaviors") != modified.get(
+    #         "custom_defined_behaviors"
+    #     ):
+    #         changes["custom_code"]["behaviors_changed"] = True
+    #
+    #     return changes
 
     def _create_binding_signatures(
         self, layout_dict: dict[str, Any]

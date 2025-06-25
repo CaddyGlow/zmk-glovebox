@@ -378,6 +378,11 @@ class LayoutCommandComposer:
                     elif op_type == "copy_layer":
                         editor.copy_layer(name, value)
 
+            # Handle warnings from layer operations
+            if hasattr(editor, 'warnings') and editor.warnings:
+                for warning in editor.warnings:
+                    logger.warning(warning)
+
             # Check for errors
             if editor.errors:
                 raise ValueError(f"Edit operations failed: {'; '.join(editor.errors)}")
