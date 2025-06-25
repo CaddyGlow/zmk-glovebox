@@ -4,10 +4,6 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
-
-if TYPE_CHECKING:
-    from glovebox.config.user_config import UserConfig
-
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -16,6 +12,7 @@ from rich.text import Text
 
 from glovebox.cli.app import AppContext
 from glovebox.cli.decorators import handle_errors
+from glovebox.config.user_config import UserConfig
 from glovebox.utils.diagnostics import collect_all_diagnostics
 
 

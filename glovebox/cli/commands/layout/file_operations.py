@@ -3,14 +3,10 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
-
-if TYPE_CHECKING:
-    from glovebox.layout.service import LayoutService
-
 import typer
 
-from glovebox.adapters import create_file_adapter, create_template_adapter
 from glovebox.cli.commands.layout.base import LayoutOutputCommand
+from glovebox.cli.commands.layout.dependencies import create_full_layout_service
 from glovebox.cli.decorators import handle_errors, with_profile
 from glovebox.cli.helpers.auto_profile import (
     resolve_json_file_path,
@@ -26,38 +22,8 @@ from glovebox.cli.helpers.profile import (
     get_keyboard_profile_from_context,
     get_user_config_from_context,
 )
-from glovebox.layout import (
-    create_behavior_registry,
-    create_grid_layout_formatter,
-    create_layout_component_service,
-    create_layout_display_service,
-)
-from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
 from glovebox.layout.layer import create_layout_layer_service
-from glovebox.layout.service import create_layout_service
-from glovebox.layout.zmk_generator import ZmkFileContentGenerator
-
-
-def _create_layout_service_with_dependencies() -> "LayoutService":
-    """Create a layout service with all required dependencies."""
-    file_adapter = create_file_adapter()
-    template_adapter = create_template_adapter()
-    behavior_registry = create_behavior_registry()
-    behavior_formatter = BehaviorFormatterImpl(behavior_registry)
-    dtsi_generator = ZmkFileContentGenerator(behavior_formatter)
-    layout_generator = create_grid_layout_formatter()
-    component_service = create_layout_component_service(file_adapter)
-    layout_display_service = create_layout_display_service(layout_generator)
-
-    return create_layout_service(
-        file_adapter=file_adapter,
-        template_adapter=template_adapter,
-        behavior_registry=behavior_registry,
-        component_service=component_service,
-        layout_service=layout_display_service,
-        behavior_formatter=behavior_formatter,
-        dtsi_generator=dtsi_generator,
-    )
+from glovebox.layout.service import LayoutService
 
 
 @handle_errors
@@ -130,7 +96,7 @@ def split(
             no_auto=no_auto,
         )
 
-        layout_service = _create_layout_service_with_dependencies()
+        layout_service = create_full_layout_service()
 
         result = layout_service.split_components_from_file(
             profile=keyboard_profile,
@@ -212,7 +178,7 @@ def merge(
     command = LayoutOutputCommand()
 
     try:
-        layout_service = _create_layout_service_with_dependencies()
+        layout_service = create_full_layout_service()
         keyboard_profile = get_keyboard_profile_from_context(ctx)
 
         # Get session metrics from context

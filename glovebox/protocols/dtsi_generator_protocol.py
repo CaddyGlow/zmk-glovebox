@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Protocol, TypeAlias, runtime_checkable
 
 
 if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
     from glovebox.layout.models import (
         ComboBehavior,
         HoldTapBehavior,

@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 import typer
 from click.core import Context as ClickContext
@@ -14,9 +14,11 @@ from glovebox.config.keyboard_profile import (
     create_keyboard_profile,
     get_available_keyboards,
 )
+from glovebox.config.profile import KeyboardProfile
+from glovebox.config.user_config import UserConfig
 
 
-def _get_icon_mode_safe(user_config: "UserConfig | None" = None) -> str:
+def _get_icon_mode_safe(user_config: UserConfig | None = None) -> str:
     """Safely get icon mode from user config with fallback to emoji.
 
     Args:
@@ -37,11 +39,6 @@ def _get_icon_mode_safe(user_config: "UserConfig | None" = None) -> str:
         return "emoji"
 
 
-if TYPE_CHECKING:
-    from glovebox.config.profile import KeyboardProfile
-    from glovebox.config.user_config import UserConfig
-
-
 logger = logging.getLogger(__name__)
 
 # Default fallback profile (aligned with user config default)
@@ -50,7 +47,7 @@ DEFAULT_PROFILE = "glove80/v25.05"
 
 def get_user_config_from_context(
     ctx: typer.Context | ClickContext,
-) -> "UserConfig | None":
+) -> UserConfig | None:
     """Get UserConfig from Typer context.
 
     Args:
@@ -71,7 +68,7 @@ def get_user_config_from_context(
 
 def get_keyboard_profile_from_context(
     ctx: typer.Context | ClickContext,
-) -> "KeyboardProfile":
+) -> KeyboardProfile:
     """Get KeyboardProfile from Typer context.
 
     Args:
@@ -95,7 +92,7 @@ def get_keyboard_profile_from_context(
     return keyboard_profile
 
 
-def get_keyboard_profile_from_kwargs(**kwargs: Any) -> "KeyboardProfile":
+def get_keyboard_profile_from_kwargs(**kwargs: Any) -> KeyboardProfile:
     """Get KeyboardProfile from function kwargs.
 
     This helper function extracts the keyboard_profile that was injected
@@ -116,11 +113,11 @@ def get_keyboard_profile_from_kwargs(**kwargs: Any) -> "KeyboardProfile":
         raise RuntimeError(
             "KeyboardProfile not available in kwargs. Ensure @with_profile decorator is used."
         )
-    return cast("KeyboardProfile", keyboard_profile)
+    return cast(KeyboardProfile, keyboard_profile)
 
 
 def get_effective_profile(
-    profile_option: str | None, user_config: "UserConfig | None" = None
+    profile_option: str | None, user_config: UserConfig | None = None
 ) -> str:
     """Get the effective profile to use based on precedence rules.
 
@@ -154,7 +151,7 @@ def get_effective_profile(
 
 
 def _handle_firmware_not_found_error(
-    keyboard_name: str, firmware_name: str, user_config: "UserConfig | None"
+    keyboard_name: str, firmware_name: str, user_config: UserConfig | None
 ) -> None:
     """Handle firmware not found error with helpful feedback."""
     from glovebox.cli.helpers.theme import Icons
@@ -189,7 +186,7 @@ def _handle_firmware_not_found_error(
 
 
 def _handle_keyboard_not_found_error(
-    keyboard_name: str, user_config: "UserConfig | None"
+    keyboard_name: str, user_config: UserConfig | None
 ) -> None:
     """Handle keyboard not found error with helpful feedback."""
     from glovebox.cli.helpers.theme import Icons
@@ -215,7 +212,7 @@ def _handle_keyboard_not_found_error(
 
 
 def _handle_general_config_error(
-    error_message: str, user_config: "UserConfig | None"
+    error_message: str, user_config: UserConfig | None
 ) -> None:
     """Handle general configuration error with helpful feedback."""
     from glovebox.cli.helpers.theme import Icons
@@ -241,8 +238,8 @@ def _handle_general_config_error(
 
 
 def create_profile_from_option(
-    profile_option: str | None, user_config: "UserConfig | None" = None
-) -> "KeyboardProfile":
+    profile_option: str | None, user_config: UserConfig | None = None
+) -> KeyboardProfile:
     """Create a KeyboardProfile from a profile option string.
 
     Args:
@@ -285,7 +282,7 @@ def create_profile_from_option(
 
 def create_profile_from_context(
     ctx: typer.Context | ClickContext, profile_option: str | None
-) -> "KeyboardProfile":
+) -> KeyboardProfile:
     """Create a KeyboardProfile from context and profile option.
 
     Convenience function that automatically gets user config from context.
@@ -310,7 +307,7 @@ def resolve_and_create_profile_unified(
     default_profile: str | None = None,
     json_file_path: Path | None = None,
     no_auto: bool = False,
-) -> "KeyboardProfile":
+) -> KeyboardProfile:
     """Unified profile resolution and creation function.
 
     This function consolidates all profile handling logic used across
