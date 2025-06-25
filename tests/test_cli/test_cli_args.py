@@ -115,8 +115,8 @@ def test_missing_required_args(cli_runner):
     # Test layout compile missing args - now doesn't require args due to environment variable support
     result = cli_runner.invoke(app, ["layout", "compile"])
     # layout compile now supports environment variables so may not fail without args
-    
-    # Test layout split missing args (decompose -> split) 
+
+    # Test layout split missing args (decompose -> split)
     result = cli_runner.invoke(app, ["layout", "split"])
     assert (
         result.exit_code != 0

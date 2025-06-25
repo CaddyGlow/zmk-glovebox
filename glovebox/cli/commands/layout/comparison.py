@@ -111,10 +111,6 @@ def diff(
         )
         raise typer.Exit(1)
 
-    command = LayoutOutputCommand()
-    command.validate_layout_file(resolved_layout1)
-    command.validate_layout_file(layout2)
-
     # Validate layout files
     command = LayoutOutputCommand()
     command.validate_layout_file(resolved_layout1)
