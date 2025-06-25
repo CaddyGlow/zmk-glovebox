@@ -1,11 +1,15 @@
 {
+  "variables": {
+    "tapMs": 190,
+    "username": "Jack"
+  },
   "keyboard": "glove80",
   "firmware_api_version": "1",
   "locale": "en-US",
   "uuid": "",
   "parent_uuid": "2a73d99d-e09b-4287-86a3-dba934bb7c17",
   "date": 1750275751,
-  "creator": "rick3",
+  "creator": "{{ variables.username}}}",
   "title": "TailorKey Zero v4.2g Bilateral",
   "notes": "",
   "tags": [
@@ -13,9 +17,6 @@
     "tailorkey",
     "tkz42bil"
   ],
-  "variables": {
-    "tapMs": 190
-  },
   "last_firmware_build": {
     "date": "2025-06-25T01:10:27.922377",
     "profile": "glove80/v25.05",
@@ -39,7 +40,7 @@
         "&AS_Shifted_v1_TKZ",
         "&kp"
       ],
-      "tappingTermMs": 190,
+      "tappingTermMs": "{{variables.tapMs}}",
       "flavor": "tap-preferred"
     },
     {
@@ -7655,6 +7656,6 @@
       }
     ]
   ],
-  "custom_defined_behaviors": "",
+  "custom_defined_behaviors": "// Config for {{ variables.username}}",
   "custom_devicetree": ""
 }

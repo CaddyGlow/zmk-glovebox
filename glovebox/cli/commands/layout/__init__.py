@@ -13,7 +13,7 @@ from .core import compile_layout, show, validate
 from .edit import edit
 
 # Import file operations
-from .file_operations import export, import_layout, merge, split
+from .file_operations import merge, split
 
 # Import upgrade command
 from .upgrade import upgrade
@@ -31,7 +31,7 @@ layout_app = typer.Typer(
 Transform JSON layouts to ZMK files, edit layouts with batch operations,
 manage file operations, handle version upgrades, and compare layouts.
 
-**NEW COMMAND STRUCTURE** (8 main commands instead of 19+):
+**NEW COMMAND STRUCTURE** (6 main commands instead of 19+):
 
 Core Operations:
   compile     - Convert JSON layout to ZMK files
@@ -41,12 +41,9 @@ Core Operations:
 Unified Editing:
   edit        - Get/set fields, add/remove/move layers, list variable usage (batch operations)
 
-
 File Operations:
   split       - Split layout into component files (was decompose)
   merge       - Merge component files into layout (was compose)
-  export      - Export layer to external file (was export-layer)
-  import      - Import from other layouts (new unified import)
 
 Version Management:
   versions    - Subcommand group for master version management
@@ -76,8 +73,6 @@ layout_app.command()(edit)
 # Register file operations
 layout_app.command()(split)
 layout_app.command()(merge)
-layout_app.command()(export)
-layout_app.command(name="import")(import_layout)  # import is a Python keyword
 
 # Register upgrade command
 layout_app.command()(upgrade)

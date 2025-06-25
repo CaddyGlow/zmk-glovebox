@@ -51,6 +51,10 @@ from glovebox.layout.models import (
     MacroBehavior,
 )
 from glovebox.layout.service import create_layout_service
+from glovebox.layout.template_service import (
+    create_jinja2_template_service,
+    create_template_service,
+)
 from glovebox.layout.zmk_generator import create_zmk_file_generator
 
 
@@ -95,6 +99,8 @@ __all__ = [
     "create_grid_layout_formatter",
     "create_zmk_file_generator",
     "create_behavior_registry",
+    "create_template_service",
+    "create_jinja2_template_service",
     # Behavior analysis functions
     "extract_behavior_codes_from_layout",
     "get_required_includes_for_layout",

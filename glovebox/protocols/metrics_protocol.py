@@ -1,7 +1,21 @@
 """Protocol for metrics collection interfaces."""
 
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+
+if TYPE_CHECKING:
+    from glovebox.core.metrics.session_metrics import (
+        NoOpCounter,
+        NoOpGauge,
+        NoOpHistogram,
+        NoOpSummary,
+        SessionCounter,
+        SessionGauge,
+        SessionHistogram,
+        SessionSummary,
+    )
 
 
 @runtime_checkable
@@ -13,31 +27,31 @@ class MetricsProtocol(Protocol):
         ...
 
     @contextmanager
-    def time_operation(self, operation_name: str) -> Any:
+    def time_operation(self, operation_name: str) -> Iterator[None]:
         """Time an operation using a histogram."""
         ...
 
     def Counter(  # noqa: N802
         self, name: str, description: str, labelnames: list[str] | None = None
-    ) -> Any:
+    ) -> "SessionCounter | NoOpCounter":
         """Create a Counter metric."""
         ...
 
     def Gauge(  # noqa: N802
         self, name: str, description: str, labelnames: list[str] | None = None
-    ) -> Any:
+    ) -> "SessionGauge | NoOpGauge":
         """Create a Gauge metric."""
         ...
 
     def Histogram(  # noqa: N802
         self, name: str, description: str, buckets: list[float] | None = None
-    ) -> Any:
+    ) -> "SessionHistogram | NoOpHistogram":
         """Create a Histogram metric."""
         ...
 
     def Summary(  # noqa: N802
         self, name: str, description: str
-    ) -> Any:
+    ) -> "SessionSummary | NoOpSummary":
         """Create a Summary metric."""
         ...
 

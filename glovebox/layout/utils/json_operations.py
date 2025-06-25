@@ -35,6 +35,7 @@ def load_layout_file(
     file_path: Path,
     file_adapter: FileAdapterProtocol,
     skip_variable_resolution: bool = False,
+    skip_template_processing: bool = False,
 ) -> LayoutData:
     """Load and validate a layout JSON file.
 
@@ -43,6 +44,8 @@ def load_layout_file(
         file_adapter: File adapter for file operations
         skip_variable_resolution: If True, skip variable resolution to preserve
                                   original variable references (for edit operations)
+        skip_template_processing: If True, skip template processing to avoid
+                                  serialization issues (for edit operations)
 
     Returns:
         Validated LayoutData instance
@@ -60,13 +63,23 @@ def load_layout_file(
     try:
         content = file_adapter.read_text(file_path)
         data = json.loads(content)
+        
+        # Convert integer timestamps to datetime objects for date fields
+        if "date" in data and isinstance(data["date"], int):
+            from datetime import datetime
+            data["date"] = datetime.fromtimestamp(data["date"])
 
         # Set the module flag before validation
         old_skip_value = _skip_variable_resolution
         _skip_variable_resolution = skip_variable_resolution
 
         try:
-            return LayoutData.model_validate(data)
+            # Conditionally skip template processing to avoid serialization issues
+            if skip_template_processing:
+                with VariableResolutionContext(skip=True):
+                    return LayoutData.model_validate(data)
+            else:
+                return LayoutData.model_validate(data)
         finally:
             # Restore the original flag value
             _skip_variable_resolution = old_skip_value

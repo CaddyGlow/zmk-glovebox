@@ -205,7 +205,11 @@ class LayoutService(BaseService):
         metrics: MetricsProtocol,
     ) -> LayoutResult:
         """Generate ZMK keymap and config files with metrics collection."""
-        metrics.Checkpoint("start_generate")
+        # Record generation start time
+        generation_counter = metrics.Counter(
+            "layout_generations_total", "Total layout generations"
+        )
+        generation_counter.inc()
         # Prepare output paths
         with metrics.time_operation("preparation"):
             output_paths = prepare_output_paths(output_file_prefix, profile)
