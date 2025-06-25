@@ -77,8 +77,10 @@ def compile_layout(
     json_file: JsonFileArgument = None,
     output_file_prefix: Annotated[
         str | None,
-        typer.Argument(
-            help="Output directory and base filename (e.g., 'config/my_glove80')"
+        typer.Option(
+            "-o",
+            "--output",
+            help="Output directory and base filename (e.g., 'config/my_glove80')",
         ),
     ] = None,
     profile: ProfileOption = None,
@@ -109,13 +111,13 @@ def compile_layout(
 
     Examples:
 
-    * glovebox layout compile layout.json output/glove80 --profile glove80/v25.05
+    * glovebox layout compile layout.json -o output/glove80 --profile glove80/v25.05
 
-    * glovebox layout compile layout.json output/glove80  # Auto-detect profile from JSON
+    * glovebox layout compile layout.json -o output/glove80  # Auto-detect profile from JSON
 
-    * GLOVEBOX_JSON_FILE=layout.json glovebox layout compile output/glove80
+    * GLOVEBOX_JSON_FILE=layout.json glovebox layout compile -o output/glove80
 
-    * glovebox layout compile layout.json output/glove80 --no-auto --profile glove80/v25.05
+    * glovebox layout compile layout.json --output output/glove80 --no-auto --profile glove80/v25.05
     """
     command = LayoutOutputCommand()
 

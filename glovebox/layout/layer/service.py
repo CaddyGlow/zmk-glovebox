@@ -280,7 +280,6 @@ class LayoutLayerService:
             "layers": layers_info,
         }
 
-
     def _create_layer_bindings(
         self,
         layout_data: LayoutData,
@@ -424,7 +423,6 @@ class LayoutLayerService:
             return []
 
         return layers_to_remove
-
 
 
 def create_layout_layer_service(

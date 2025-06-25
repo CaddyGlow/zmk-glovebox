@@ -63,10 +63,11 @@ def load_layout_file(
     try:
         content = file_adapter.read_text(file_path)
         data = json.loads(content)
-        
+
         # Convert integer timestamps to datetime objects for date fields
         if "date" in data and isinstance(data["date"], int):
             from datetime import datetime
+
             data["date"] = datetime.fromtimestamp(data["date"])
 
         # Set the module flag before validation

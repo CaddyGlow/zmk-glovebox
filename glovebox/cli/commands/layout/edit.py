@@ -843,7 +843,11 @@ def _merge_field_value(
         extract_field_value_from_model,
         set_field_value_on_model,
     )
-    from glovebox.layout.utils.json_operations import load_layout_file, save_layout_file, VariableResolutionContext
+    from glovebox.layout.utils.json_operations import (
+        VariableResolutionContext,
+        load_layout_file,
+        save_layout_file,
+    )
 
     # Wrap entire operation in variable resolution context to preserve variables
     with VariableResolutionContext(skip=True):
@@ -919,7 +923,11 @@ def _append_field_value(
         extract_field_value_from_model,
         set_field_value_on_model,
     )
-    from glovebox.layout.utils.json_operations import load_layout_file, save_layout_file, VariableResolutionContext
+    from glovebox.layout.utils.json_operations import (
+        VariableResolutionContext,
+        load_layout_file,
+        save_layout_file,
+    )
 
     # Wrap entire operation in variable resolution context to preserve variables
     with VariableResolutionContext(skip=True):
