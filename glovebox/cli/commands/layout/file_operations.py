@@ -217,6 +217,7 @@ def merge(
 
         # Get session metrics from context
         from glovebox.cli.app import AppContext
+
         app_ctx: AppContext = ctx.obj
         session_metrics = app_ctx.session_metrics
 

@@ -89,7 +89,9 @@ class LayoutService(BaseService):
         return process_json_file(
             json_file_path,
             "Keymap generation",
-            lambda data: self.compile(profile, data, output_file_prefix, session_metrics, force),
+            lambda data: self.compile(
+                profile, data, output_file_prefix, session_metrics, force
+            ),
             self._file_adapter,
         )
 
@@ -132,7 +134,9 @@ class LayoutService(BaseService):
         )
 
         # Generate the combined keymap files using the normal generate process
-        return self.compile(profile, combined_layout, output_file_prefix, session_metrics, force)
+        return self.compile(
+            profile, combined_layout, output_file_prefix, session_metrics, force
+        )
 
     def show_from_file(
         self,
@@ -201,6 +205,7 @@ class LayoutService(BaseService):
         metrics: MetricsProtocol,
     ) -> LayoutResult:
         """Generate ZMK keymap and config files with metrics collection."""
+        metrics.Checkpoint("start_generate")
         # Prepare output paths
         with metrics.time_operation("preparation"):
             output_paths = prepare_output_paths(output_file_prefix, profile)
@@ -261,7 +266,6 @@ class LayoutService(BaseService):
         result.success = True
         logger.info("Keymap generation completed successfully")
         return result
-
 
     def split_components(
         self,

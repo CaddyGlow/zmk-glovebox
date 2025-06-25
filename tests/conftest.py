@@ -173,6 +173,7 @@ def isolated_cli_environment(
     - Setting current directory to a temporary path
     - Mocking environment variables
     - Providing a clean environment context
+    - Patching CLI AppContext to use isolated config
 
     Usage:
         def test_cli_command(isolated_cli_environment, cli_runner):
@@ -199,6 +200,18 @@ def isolated_cli_environment(
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("TMPDIR", str(tmp_path / "tmp"))
     # XDG_CACHE_HOME is already set by isolated_cache_environment
+
+    # Patch CLI AppContext to use isolated config
+    from glovebox.cli.app import AppContext
+    original_init = AppContext.__init__
+
+    def patched_init(self, *args, **kwargs):
+        # Call original init but replace user_config
+        original_init(self, *args, **kwargs)
+        # Replace with isolated config after creation
+        self.user_config = isolated_config
+
+    monkeypatch.setattr(AppContext, "__init__", patched_init)
 
     # Create environment context combining both cache and CLI contexts
     env_context = {

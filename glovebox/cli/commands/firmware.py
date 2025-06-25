@@ -119,8 +119,9 @@ def _execute_compilation_service(
 
     if compilation_strategy == "zmk_config":
         from glovebox.compilation.cache import create_compilation_cache_service
-        cache_manager, workspace_cache_service, build_cache_service = create_compilation_cache_service(
-            user_config, session_metrics
+
+        cache_manager, workspace_cache_service, build_cache_service = (
+            create_compilation_cache_service(user_config, session_metrics)
         )
 
     compilation_service = create_compilation_service(
@@ -171,8 +172,9 @@ def _execute_compilation_from_json(
 
     if compilation_strategy == "zmk_config":
         from glovebox.compilation.cache import create_compilation_cache_service
-        cache_manager, workspace_cache_service, build_cache_service = create_compilation_cache_service(
-            user_config, session_metrics
+
+        cache_manager, workspace_cache_service, build_cache_service = (
+            create_compilation_cache_service(user_config, session_metrics)
         )
 
     compilation_service = create_compilation_service(

@@ -344,7 +344,7 @@ class TestConfigImport:
         """Test import with metadata section."""
         import_file = isolated_cli_environment["temp_dir"] / "import_with_metadata.yaml"
         import_data = {
-            "profile": "metadata_test/v1.0",
+            "profile": "isolated_metadata_test/v1.0",
             "log_level": "INFO",
             "_metadata": {
                 "generated_at": "2023-01-01T00:00:00",

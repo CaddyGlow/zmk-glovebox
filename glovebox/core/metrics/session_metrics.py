@@ -468,7 +468,7 @@ class SessionMetrics:
 
     def record_cache_event(self, cache_type: str, cache_hit: bool) -> None:
         """Record a cache event (hit or miss) for metrics tracking.
-        
+
         Args:
             cache_type: Type of cache (e.g., 'workspace', 'build', etc.)
             cache_hit: True if cache hit, False if cache miss

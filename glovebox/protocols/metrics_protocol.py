@@ -17,19 +17,27 @@ class MetricsProtocol(Protocol):
         """Time an operation using a histogram."""
         ...
 
-    def Counter(self, name: str, description: str, labelnames: list[str] | None = None) -> Any:  # noqa: N802
+    def Counter(  # noqa: N802
+        self, name: str, description: str, labelnames: list[str] | None = None
+    ) -> Any:
         """Create a Counter metric."""
         ...
 
-    def Gauge(self, name: str, description: str, labelnames: list[str] | None = None) -> Any:  # noqa: N802
+    def Gauge(  # noqa: N802
+        self, name: str, description: str, labelnames: list[str] | None = None
+    ) -> Any:
         """Create a Gauge metric."""
         ...
 
-    def Histogram(self, name: str, description: str, buckets: list[float] | None = None) -> Any:  # noqa: N802
+    def Histogram(  # noqa: N802
+        self, name: str, description: str, buckets: list[float] | None = None
+    ) -> Any:
         """Create a Histogram metric."""
         ...
 
-    def Summary(self, name: str, description: str) -> Any:  # noqa: N802
+    def Summary(  # noqa: N802
+        self, name: str, description: str
+    ) -> Any:
         """Create a Summary metric."""
         ...
 

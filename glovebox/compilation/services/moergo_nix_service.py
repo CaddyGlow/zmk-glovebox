@@ -137,7 +137,10 @@ class MoergoNixService(CompilationServiceProtocol):
                 from glovebox.core.metrics.session_metrics import (
                     create_noop_session_metrics,
                 )
-                layout_session_metrics = create_noop_session_metrics("moergo_nix_service")
+
+                layout_session_metrics = create_noop_session_metrics(
+                    "moergo_nix_service"
+                )
 
                 layout_result = layout_service.generate_from_file(
                     profile=keyboard_profile,
