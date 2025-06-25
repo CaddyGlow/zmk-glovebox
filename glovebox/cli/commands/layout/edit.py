@@ -198,7 +198,9 @@ class LayoutEditor:
         try:
             index = int(layer_identifier)
             if 0 <= index < len(self.layout_data.layer_names):
-                layers_to_remove.append({"name": self.layout_data.layer_names[index], "index": index})
+                layers_to_remove.append(
+                    {"name": self.layout_data.layer_names[index], "index": index}
+                )
         except ValueError:
             # Not an integer, continue with name/pattern matching
             pass
@@ -233,9 +235,9 @@ class LayoutEditor:
 
         if not layers_to_remove:
             # No matches found - log warning but don't raise error for better UX
-            available_layers = ', '.join(self.layout_data.layer_names)
+            available_layers = ", ".join(self.layout_data.layer_names)
             warning_msg = f"No layers found matching identifier '{layer_identifier}'. Available layers: {available_layers}"
-            if hasattr(self, 'warnings'):
+            if hasattr(self, "warnings"):
                 self.warnings.append(warning_msg)
             else:
                 self.warnings: list[str] = [warning_msg]
@@ -395,7 +397,7 @@ def parse_zmk_behavior_string(behavior_str: str) -> dict[str, Any]:
     # Create LayoutBinding structure
     return {
         "value": behavior,
-        "params": [{"value": param, "params": []} for param in params]
+        "params": [{"value": param, "params": []} for param in params],
     }
 
 

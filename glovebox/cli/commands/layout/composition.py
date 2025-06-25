@@ -379,7 +379,7 @@ class LayoutCommandComposer:
                         editor.copy_layer(name, value)
 
             # Handle warnings from layer operations
-            if hasattr(editor, 'warnings') and editor.warnings:
+            if hasattr(editor, "warnings") and editor.warnings:
                 for warning in editor.warnings:
                     logger.warning(warning)
 

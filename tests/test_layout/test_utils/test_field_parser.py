@@ -33,16 +33,29 @@ class TestParseFieldPath:
 
     def test_layer_name_index(self):
         """Test layer name in brackets."""
-        assert parse_field_path("layers[HRM_WinLinx][1]") == ["layers", "[HRM_WinLinx]", "[1]"]
+        assert parse_field_path("layers[HRM_WinLinx][1]") == [
+            "layers",
+            "[HRM_WinLinx]",
+            "[1]",
+        ]
 
     def test_complex_path(self):
         """Test complex field path."""
-        assert parse_field_path("holdTaps[0].tappingTermMs") == ["holdTaps", "[0]", "tappingTermMs"]
+        assert parse_field_path("holdTaps[0].tappingTermMs") == [
+            "holdTaps",
+            "[0]",
+            "tappingTermMs",
+        ]
 
     def test_multiple_array_indices(self):
         """Test multiple array indices."""
         assert parse_field_path("layers[Base][5].params[0].value") == [
-            "layers", "[Base]", "[5]", "params", "[0]", "value"
+            "layers",
+            "[Base]",
+            "[5]",
+            "params",
+            "[0]",
+            "value",
         ]
 
 
@@ -55,7 +68,7 @@ class TestResolveLayerNameToIndex:
             keyboard="glove80",
             title="Test Layout",
             layer_names=["Base", "Symbol", "Lower"],
-            layers=[[], [], []]
+            layers=[[], [], []],
         )
 
         index = _resolve_layer_name_to_index(layout_data, layout_data.layers, "Symbol")
@@ -67,7 +80,7 @@ class TestResolveLayerNameToIndex:
             keyboard="glove80",
             title="Test Layout",
             layer_names=["Base", "Symbol", "Lower"],
-            layers=[[], [], []]
+            layers=[[], [], []],
         )
 
         index = _resolve_layer_name_to_index(layout_data, layout_data.layers, "Base")
@@ -79,7 +92,7 @@ class TestResolveLayerNameToIndex:
             keyboard="glove80",
             title="Test Layout",
             layer_names=["Base", "Symbol", "Lower"],
-            layers=[[], [], []]
+            layers=[[], [], []],
         )
 
         index = _resolve_layer_name_to_index(layout_data, layout_data.layers, "Lower")
@@ -91,7 +104,7 @@ class TestResolveLayerNameToIndex:
             keyboard="glove80",
             title="Test Layout",
             layer_names=["Base", "Symbol", "Lower"],
-            layers=[[], [], []]
+            layers=[[], [], []],
         )
 
         index = _resolve_layer_name_to_index(layout_data, layout_data.layers, "Gaming")
@@ -110,7 +123,7 @@ class TestResolveLayerNameToIndex:
             keyboard="glove80",
             title="Test Layout",
             layer_names=["Base", "Symbol", "Lower"],
-            layers=[[], [], []]
+            layers=[[], [], []],
         )
 
         # The function will still return the index since it checks the root model's layer_names
@@ -125,10 +138,7 @@ class TestExtractFieldValue:
     def test_extract_simple_field(self):
         """Test extracting simple field."""
         layout_data = LayoutData(
-            keyboard="glove80",
-            title="Test Layout",
-            layer_names=["Base"],
-            layers=[[]]
+            keyboard="glove80", title="Test Layout", layer_names=["Base"], layers=[[]]
         )
 
         assert extract_field_value_from_model(layout_data, "title") == "Test Layout"
@@ -140,7 +150,7 @@ class TestExtractFieldValue:
             keyboard="glove80",
             title="Test Layout",
             layer_names=["Base", "Symbol", "Lower"],
-            layers=[[], [], []]
+            layers=[[], [], []],
         )
 
         assert extract_field_value_from_model(layout_data, "layer_names[1]") == "Symbol"
@@ -154,8 +164,8 @@ class TestExtractFieldValue:
             layers=[
                 [LayoutBinding(value="&kp", params=[LayoutParam(value="A")])],
                 [LayoutBinding(value="&kp", params=[LayoutParam(value="1")])],
-                [LayoutBinding(value="&trans", params=[])]
-            ]
+                [LayoutBinding(value="&trans", params=[])],
+            ],
         )
 
         # Extract layer by name
@@ -173,13 +183,13 @@ class TestExtractFieldValue:
             layers=[
                 [
                     LayoutBinding(value="&kp", params=[LayoutParam(value="A")]),
-                    LayoutBinding(value="&kp", params=[LayoutParam(value="B")])
+                    LayoutBinding(value="&kp", params=[LayoutParam(value="B")]),
                 ],
                 [
                     LayoutBinding(value="&kp", params=[LayoutParam(value="1")]),
-                    LayoutBinding(value="&kp", params=[LayoutParam(value="2")])
-                ]
-            ]
+                    LayoutBinding(value="&kp", params=[LayoutParam(value="2")]),
+                ],
+            ],
         )
 
         # Extract specific binding by layer name and position
@@ -193,19 +203,18 @@ class TestExtractFieldValue:
             keyboard="glove80",
             title="Test Layout",
             layer_names=["Base", "Symbol"],
-            layers=[[], []]
+            layers=[[], []],
         )
 
-        with pytest.raises(ValueError, match="Invalid array index or layer name: Gaming"):
+        with pytest.raises(
+            ValueError, match="Invalid array index or layer name: Gaming"
+        ):
             extract_field_value_from_model(layout_data, "layers[Gaming][0]")
 
     def test_extract_invalid_numeric_index(self):
         """Test extracting with invalid numeric index."""
         layout_data = LayoutData(
-            keyboard="glove80",
-            title="Test Layout",
-            layer_names=["Base"],
-            layers=[[]]
+            keyboard="glove80", title="Test Layout", layer_names=["Base"], layers=[[]]
         )
 
         with pytest.raises(ValueError, match="Invalid array index: 5"):
@@ -214,10 +223,7 @@ class TestExtractFieldValue:
     def test_extract_nonexistent_field(self):
         """Test extracting non-existent field."""
         layout_data = LayoutData(
-            keyboard="glove80",
-            title="Test Layout",
-            layer_names=["Base"],
-            layers=[[]]
+            keyboard="glove80", title="Test Layout", layer_names=["Base"], layers=[[]]
         )
 
         with pytest.raises(KeyError, match="Field 'nonexistent' not found"):
@@ -230,10 +236,7 @@ class TestSetFieldValue:
     def test_set_simple_field(self):
         """Test setting simple field."""
         layout_data = LayoutData(
-            keyboard="glove80",
-            title="Test Layout",
-            layer_names=["Base"],
-            layers=[[]]
+            keyboard="glove80", title="Test Layout", layer_names=["Base"], layers=[[]]
         )
 
         set_field_value_on_model(layout_data, "title", "New Title")
@@ -245,7 +248,7 @@ class TestSetFieldValue:
             keyboard="glove80",
             title="Test Layout",
             layer_names=["Base", "Symbol", "Lower"],
-            layers=[[], [], []]
+            layers=[[], [], []],
         )
 
         set_field_value_on_model(layout_data, "layer_names[1]", "NewSymbol")
@@ -257,7 +260,7 @@ class TestSetFieldValue:
             keyboard="glove80",
             title="Test Layout",
             layer_names=["Base", "Symbol"],
-            layers=[[], []]
+            layers=[[], []],
         )
 
         new_binding = LayoutBinding(value="&kp", params=[LayoutParam(value="Q")])
@@ -275,8 +278,8 @@ class TestSetFieldValue:
             layer_names=["Base", "Symbol"],
             layers=[
                 [LayoutBinding(value="&trans", params=[])],
-                [LayoutBinding(value="&none", params=[])]
-            ]
+                [LayoutBinding(value="&none", params=[])],
+            ],
         )
 
         new_binding = LayoutBinding(value="&kp", params=[LayoutParam(value="ESC")])
@@ -291,19 +294,18 @@ class TestSetFieldValue:
             keyboard="glove80",
             title="Test Layout",
             layer_names=["Base", "Symbol"],
-            layers=[[], []]
+            layers=[[], []],
         )
 
-        with pytest.raises(ValueError, match="Invalid array index or layer name: Gaming"):
+        with pytest.raises(
+            ValueError, match="Invalid array index or layer name: Gaming"
+        ):
             set_field_value_on_model(layout_data, "layers[Gaming][0]", "value")
 
     def test_set_extend_list_beyond_length(self):
         """Test setting beyond current list length extends the list."""
         layout_data = LayoutData(
-            keyboard="glove80",
-            title="Test Layout",
-            layer_names=["Base"],
-            layers=[[]]
+            keyboard="glove80", title="Test Layout", layer_names=["Base"], layers=[[]]
         )
 
         # Set layer_names[2] when only index 0 exists
@@ -318,10 +320,7 @@ class TestSetFieldValue:
     def test_set_nested_field_creation(self):
         """Test setting creates missing nested dictionary fields."""
         layout_data = LayoutData(
-            keyboard="glove80",
-            title="Test Layout",
-            layer_names=["Base"],
-            layers=[[]]
+            keyboard="glove80", title="Test Layout", layer_names=["Base"], layers=[[]]
         )
 
         # Set a nested field in variables (which might not exist)
@@ -341,7 +340,7 @@ class TestUnsetFieldValue:
             title="Test Layout",
             layer_names=["Base"],
             layers=[[]],
-            notes="Some notes"
+            notes="Some notes",
         )
 
         # Unsetting a field in a Pydantic model should work without raising an exception
@@ -360,7 +359,7 @@ class TestUnsetFieldValue:
             keyboard="glove80",
             title="Test Layout",
             layer_names=["Base", "Symbol", "Lower"],
-            layers=[[], [], []]
+            layers=[[], [], []],
         )
 
         unset_field_value_on_model(layout_data, "layer_names[1]")
@@ -375,8 +374,8 @@ class TestUnsetFieldValue:
             layers=[
                 [LayoutBinding(value="&kp", params=[LayoutParam(value="A")])],
                 [LayoutBinding(value="&kp", params=[LayoutParam(value="1")])],
-                [LayoutBinding(value="&trans", params=[])]
-            ]
+                [LayoutBinding(value="&trans", params=[])],
+            ],
         )
 
         # Remove the Symbol layer (index 1)
@@ -385,7 +384,9 @@ class TestUnsetFieldValue:
         # Verify the Symbol layer (originally at index 1) was removed
         # Now only Base and Lower should remain
         assert layout_data.layers[0][0].params[0].value == "A"  # Base layer
-        assert layout_data.layers[1][0].value == "&trans"  # Lower layer (moved from index 2 to 1)
+        assert (
+            layout_data.layers[1][0].value == "&trans"
+        )  # Lower layer (moved from index 2 to 1)
 
     def test_unset_invalid_layer_name(self):
         """Test unsetting with invalid layer name."""
@@ -393,19 +394,18 @@ class TestUnsetFieldValue:
             keyboard="glove80",
             title="Test Layout",
             layer_names=["Base", "Symbol"],
-            layers=[[], []]
+            layers=[[], []],
         )
 
-        with pytest.raises(ValueError, match="Invalid array index or layer name: Gaming"):
+        with pytest.raises(
+            ValueError, match="Invalid array index or layer name: Gaming"
+        ):
             unset_field_value_on_model(layout_data, "layers[Gaming]")
 
     def test_unset_out_of_range_index(self):
         """Test unsetting with out of range index."""
         layout_data = LayoutData(
-            keyboard="glove80",
-            title="Test Layout",
-            layer_names=["Base"],
-            layers=[[]]
+            keyboard="glove80", title="Test Layout", layer_names=["Base"], layers=[[]]
         )
 
         with pytest.raises(ValueError, match="Invalid array index or layer name: 5"):
@@ -414,10 +414,7 @@ class TestUnsetFieldValue:
     def test_unset_nonexistent_field(self):
         """Test unsetting non-existent field."""
         layout_data = LayoutData(
-            keyboard="glove80",
-            title="Test Layout",
-            layer_names=["Base"],
-            layers=[[]]
+            keyboard="glove80", title="Test Layout", layer_names=["Base"], layers=[[]]
         )
 
         with pytest.raises(KeyError, match="Field 'nonexistent' not found"):
@@ -436,17 +433,17 @@ class TestFieldParserIntegration:
             layers=[
                 [
                     LayoutBinding(value="&kp", params=[LayoutParam(value="A")]),
-                    LayoutBinding(value="&kp", params=[LayoutParam(value="S")])
+                    LayoutBinding(value="&kp", params=[LayoutParam(value="S")]),
                 ],
                 [
                     LayoutBinding(value="&kp", params=[LayoutParam(value="1")]),
-                    LayoutBinding(value="&kp", params=[LayoutParam(value="2")])
+                    LayoutBinding(value="&kp", params=[LayoutParam(value="2")]),
                 ],
                 [
                     LayoutBinding(value="&trans", params=[]),
-                    LayoutBinding(value="&none", params=[])
-                ]
-            ]
+                    LayoutBinding(value="&none", params=[]),
+                ],
+            ],
         )
 
         # Get values using layer names
@@ -463,13 +460,25 @@ class TestFieldParserIntegration:
         set_field_value_on_model(layout_data, "layers[Lower][0]", new_binding)
 
         # Verify the change
-        modified_binding = extract_field_value_from_model(layout_data, "layers[Lower][0]")
+        modified_binding = extract_field_value_from_model(
+            layout_data, "layers[Lower][0]"
+        )
         assert modified_binding.value == "&kp"
         assert modified_binding.params[0].value == "ESC"
 
         # Original layers should be unchanged
-        assert extract_field_value_from_model(layout_data, "layers[Base][0]").params[0].value == "A"
-        assert extract_field_value_from_model(layout_data, "layers[Symbol][1]").params[0].value == "2"
+        assert (
+            extract_field_value_from_model(layout_data, "layers[Base][0]")
+            .params[0]
+            .value
+            == "A"
+        )
+        assert (
+            extract_field_value_from_model(layout_data, "layers[Symbol][1]")
+            .params[0]
+            .value
+            == "2"
+        )
 
     def test_mixed_index_types(self):
         """Test mixing numeric and layer name indices."""
@@ -480,13 +489,15 @@ class TestFieldParserIntegration:
             layers=[
                 [LayoutBinding(value="&kp", params=[LayoutParam(value="A")])],
                 [LayoutBinding(value="&kp", params=[LayoutParam(value="1")])],
-                [LayoutBinding(value="&trans", params=[])]
-            ]
+                [LayoutBinding(value="&trans", params=[])],
+            ],
         )
 
         # Use numeric index for layers, layer name doesn't apply here
         numeric_access = extract_field_value_from_model(layout_data, "layers[1]")
-        layer_name_access = extract_field_value_from_model(layout_data, "layers[Symbol]")
+        layer_name_access = extract_field_value_from_model(
+            layout_data, "layers[Symbol]"
+        )
 
         # Both should return the same layer
         assert numeric_access[0].value == layer_name_access[0].value
@@ -498,14 +509,27 @@ class TestFieldParserIntegration:
             keyboard="glove80",
             title="Test Layout",
             layer_names=["Base", "SYMBOL", "lower"],
-            layers=[[], [], []]
+            layers=[[], [], []],
         )
 
         # Correct case should work
-        assert _resolve_layer_name_to_index(layout_data, layout_data.layers, "SYMBOL") == 1
-        assert _resolve_layer_name_to_index(layout_data, layout_data.layers, "lower") == 2
+        assert (
+            _resolve_layer_name_to_index(layout_data, layout_data.layers, "SYMBOL") == 1
+        )
+        assert (
+            _resolve_layer_name_to_index(layout_data, layout_data.layers, "lower") == 2
+        )
 
         # Wrong case should fail
-        assert _resolve_layer_name_to_index(layout_data, layout_data.layers, "symbol") is None
-        assert _resolve_layer_name_to_index(layout_data, layout_data.layers, "LOWER") is None
-        assert _resolve_layer_name_to_index(layout_data, layout_data.layers, "base") is None
+        assert (
+            _resolve_layer_name_to_index(layout_data, layout_data.layers, "symbol")
+            is None
+        )
+        assert (
+            _resolve_layer_name_to_index(layout_data, layout_data.layers, "LOWER")
+            is None
+        )
+        assert (
+            _resolve_layer_name_to_index(layout_data, layout_data.layers, "base")
+            is None
+        )

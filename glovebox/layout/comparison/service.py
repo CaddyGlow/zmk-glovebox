@@ -1,13 +1,8 @@
-"""Layout comparison service using the new diffing library.
+"""Layout comparison service using the new LayoutDiff format."""
 
-This is a migration wrapper that maintains the existing API while using
-the new glovebox.layout.diffing library underneath.
-"""
-
-import difflib
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from glovebox.config import UserConfig
 from glovebox.layout.diffing.diff import LayoutDiffSystem
@@ -18,8 +13,12 @@ from glovebox.layout.utils.validation import validate_output_path
 from glovebox.protocols import FileAdapterProtocol
 
 
+if TYPE_CHECKING:
+    from glovebox.layout.diffing.models import LayoutDiff
+
+
 class LayoutComparisonService:
-    """Service for comparing and patching layouts using the new diffing library."""
+    """Service for comparing and patching layouts using the new LayoutDiff format."""
 
     def __init__(
         self, user_config: UserConfig, file_adapter: FileAdapterProtocol
@@ -34,72 +33,45 @@ class LayoutComparisonService:
         self,
         layout1_path: Path,
         layout2_path: Path,
-        output_format: str = "summary",
-        compare_dtsi: bool = False,
+        output_format: str = "text",
+        include_dtsi: bool = False,
+        detailed: bool = False,
     ) -> dict[str, Any]:
         """Compare two layouts and return differences.
 
         Args:
             layout1_path: Path to first layout file
             layout2_path: Path to second layout file
-            output_format: Output format ('summary', 'detailed', 'dtsi', 'json', 'pretty')
-            compare_dtsi: Include custom DTSI code comparison
+            output_format: Output format ('text', 'json', 'table')
+            include_dtsi: Include custom DTSI fields in diff output
+            detailed: Show detailed key changes within layers
 
         Returns:
-            Dictionary with comparison results compatible with original API
+            Dictionary with comparison results in LayoutDiff format
         """
         layout1_data = load_layout_file(layout1_path, self.file_adapter)
         layout2_data = load_layout_file(layout2_path, self.file_adapter)
 
         # Create diff using new library
-        diff = self.diff_system.create_layout_diff(layout1_data, layout2_data)
-
-        # Convert to legacy format for API compatibility
-        comparison = self._convert_to_legacy_format(
-            diff, layout1_data, layout2_data, layout1_path, layout2_path
+        diff = self.diff_system.create_layout_diff(
+            layout1_data, layout2_data, include_dtsi=include_dtsi
         )
 
-        # Add DTSI comparison if requested
-        if compare_dtsi or output_format.lower() == "dtsi":
-            self._add_dtsi_comparison(comparison, layout1_data, layout2_data)
-
-        # Format-specific processing
-        if output_format.lower() == "json":
-            self._format_json(comparison, diff)
-        elif output_format.lower() == "detailed":
-            self._format_detailed(comparison, diff)
-        elif output_format.lower() == "pretty":
-            self._format_pretty(comparison, diff)
-        else:
-            self._format_summary(comparison)
-
-        return comparison
-
-    def _add_dtsi_comparison(
-        self, comparison: dict[str, Any], layout1: LayoutData, layout2: LayoutData
-    ) -> None:
-        """Add DTSI comparison to the results."""
-        behaviors_diff = self._create_unified_diff(
-            layout1.custom_defined_behaviors,
-            layout2.custom_defined_behaviors,
-            "custom_defined_behaviors",
-        )
-        devicetree_diff = self._create_unified_diff(
-            layout1.custom_devicetree,
-            layout2.custom_devicetree,
-            "custom_devicetree",
-        )
-
-        comparison["custom_dtsi"] = {
-            "custom_defined_behaviors": {
-                "changed": bool(behaviors_diff),
-                "differences": behaviors_diff,
-            },
-            "custom_devicetree": {
-                "changed": bool(devicetree_diff),
-                "differences": devicetree_diff,
-            },
+        # Convert to dict for CLI output
+        result = {
+            "source_file": str(layout1_path),
+            "target_file": str(layout2_path),
+            "diff": diff.model_dump(mode="json", by_alias=True, exclude_unset=True),
+            "has_changes": self._has_changes(diff),
+            "summary": self._create_summary(diff),
+            "detailed": detailed,  # Pass through detailed flag
         }
+
+        # Add format-specific data
+        if detailed:
+            result["detailed_output"] = self._format_detailed(diff)
+
+        return result
 
     def apply_patch(
         self,
@@ -107,24 +79,28 @@ class LayoutComparisonService:
         patch_file_path: Path,
         output: Path | None = None,
         force: bool = False,
+        skip_dtsi: bool = False,
     ) -> dict[str, Any]:
-        """Apply a patch to transform a layout.
+        """Apply a LayoutDiff patch to transform a layout.
 
         Args:
             source_layout_path: Path to source layout file
-            patch_file_path: Path to JSON diff patch file
+            patch_file_path: Path to LayoutDiff JSON file
             output: Output path (defaults to source with -patched suffix)
             force: Whether to overwrite existing files
+            skip_dtsi: Whether to skip DTSI changes even if present in patch
 
         Returns:
             Dictionary with patch operation details
         """
         # Load source layout and patch data
         layout_data = load_layout_file(source_layout_path, self.file_adapter)
-        patch_data = self._load_patch_file(patch_file_path)
+        patch_data = self._load_diff_file(patch_file_path)
 
         # Apply patch using new library
-        patched_data = self.patch_system.apply_patch(layout_data, patch_data)
+        patched_data = self.patch_system.apply_patch(
+            layout_data, patch_data, skip_dtsi=skip_dtsi
+        )
 
         # Determine output path
         if output is None:
@@ -138,354 +114,250 @@ class LayoutComparisonService:
         save_layout_file(patched_data, output, self.file_adapter)
 
         return {
-            "source": source_layout_path,
-            "patch": patch_file_path,
-            "output": output,
+            "source": str(source_layout_path),
+            "patch": str(patch_file_path),
+            "output": str(output),
+            "success": True,
         }
 
-    def create_dtsi_patch(
+    def create_diff_file(
         self,
         layout1_path: Path,
         layout2_path: Path,
-        output: Path | None = None,
-        section: str = "both",
+        output_path: Path,
+        include_dtsi: bool = False,
     ) -> dict[str, Any]:
-        """Create a unified diff patch for custom DTSI sections.
+        """Create a LayoutDiff file for later patching.
 
         Args:
-            layout1_path: Path to original layout file
+            layout1_path: Path to base layout file
             layout2_path: Path to modified layout file
-            output: Output patch file path
-            section: DTSI section ('behaviors', 'devicetree', 'both')
+            output_path: Path for the diff file
+            include_dtsi: Include custom DTSI fields in diff
 
         Returns:
-            Dictionary with patch creation details
+            Dictionary with diff creation details
         """
         layout1_data = load_layout_file(layout1_path, self.file_adapter)
         layout2_data = load_layout_file(layout2_path, self.file_adapter)
 
-        # Determine output path
-        if output is None:
-            output = Path(f"{layout1_path.stem}-to-{layout2_path.stem}.patch")
-
-        # Generate patches
-        patch_sections = self._generate_dtsi_patches(
-            layout1_data, layout2_data, section
+        # Create diff
+        diff = self.diff_system.create_layout_diff(
+            layout1_data, layout2_data, include_dtsi=include_dtsi
         )
 
-        if not patch_sections:
-            return {
-                "source": layout1_path,
-                "target": layout2_path,
-                "output": None,
-                "sections": section,
-                "has_differences": False,
-            }
-
-        # Write patch file
-        patch_content = "\n".join(patch_sections)
-        output.write_text(patch_content)
+        # Save diff file
+        diff_dict = diff.model_dump(mode="json", by_alias=True, exclude_unset=True)
+        with output_path.open("w", encoding="utf-8") as f:
+            json.dump(diff_dict, f, indent=2, ensure_ascii=False)
 
         return {
-            "source": layout1_path,
-            "target": layout2_path,
-            "output": output,
-            "sections": section,
-            "patch_lines": len(patch_sections),
-            "has_differences": True,
+            "base_layout": str(layout1_path),
+            "modified_layout": str(layout2_path),
+            "diff_file": str(output_path),
+            "has_changes": self._has_changes(diff),
+            "include_dtsi": include_dtsi,
         }
 
-    def _convert_to_legacy_format(
-        self,
-        diff: dict[str, Any],
-        layout1: LayoutData,
-        layout2: LayoutData,
-        layout1_path: Path,
-        layout2_path: Path,
-    ) -> dict[str, Any]:
-        """Convert new diff format to legacy format for API compatibility."""
-        # Extract information from new diff format
-        layout_changes = diff.get("layout_changes", {})
-        movements = diff.get("movements", {})
-        statistics = diff.get("statistics", {})
+    def _load_diff_file(self, diff_file_path: Path) -> "LayoutDiff":
+        """Load a LayoutDiff from a JSON file."""
+        from glovebox.layout.diffing.models import LayoutDiff
 
-        # Build legacy format
-        comparison = {
-            "success": True,
-            "layout1": str(layout1_path),
-            "layout2": str(layout2_path),
-            "deepdiff_summary": {
-                "has_changes": statistics.get("total_operations", 0) > 0,
-                "change_types": self._extract_change_types(diff),
-                "total_changes": statistics.get("total_operations", 0),
+        with diff_file_path.open("r", encoding="utf-8") as f:
+            diff_data = json.load(f)
+
+        return LayoutDiff.model_validate(diff_data)
+
+    def _has_changes(self, diff: "LayoutDiff") -> bool:
+        """Check if the diff contains any changes."""
+        # Check structured changes
+        if diff.layers and any(
+            diff.layers.model_dump().get(key, [])
+            for key in ["added", "removed", "modified"]
+        ):
+            return True
+
+        # Check behavior changes
+        for behavior_field in ["hold_taps", "combos", "macros", "input_listeners"]:
+            if hasattr(diff, behavior_field):
+                behavior_changes = getattr(diff, behavior_field)
+                if behavior_changes and any(
+                    behavior_changes.model_dump().get(key, [])
+                    for key in ["added", "removed", "modified"]
+                ):
+                    return True
+
+        # Check simple field changes (JSON patches)
+        simple_fields = [
+            "keyboard",
+            "title",
+            "firmware_api_version",
+            "locale",
+            "uuid",
+            "parent_uuid",
+            "date",
+            "creator",
+            "notes",
+            "tags",
+            "variables",
+            "config_parameters",
+            "version",
+            "base_version_patch",
+            "base_layout",
+            "layer_names",
+            "last_firmware_build",
+        ]
+
+        for field in simple_fields:
+            if getattr(diff, field, None) is not None:
+                return True
+
+        # Check DTSI changes
+        return bool(diff.custom_defined_behaviors or diff.custom_devicetree)
+
+    def _create_summary(self, diff: "LayoutDiff") -> dict[str, Any]:
+        """Create a summary of changes in the diff."""
+        summary = {
+            "layers": {"added": 0, "removed": 0, "modified": 0},
+            "behaviors": {
+                "hold_taps": {"added": 0, "removed": 0, "modified": 0},
+                "combos": {"added": 0, "removed": 0, "modified": 0},
+                "macros": {"added": 0, "removed": 0, "modified": 0},
+                "input_listeners": {"added": 0, "removed": 0, "modified": 0},
             },
-            "metadata": self._convert_metadata_changes(layout_changes),
-            "layers": self._convert_layer_changes(layout_changes, movements),
-            "behaviors": self._convert_behavior_changes(layout_changes),
-            "config": self._convert_config_changes(layout_changes),
-            "custom_dtsi": {
-                "custom_defined_behaviors": {"changed": False, "differences": []},
-                "custom_devicetree": {"changed": False, "differences": []},
-            },
+            "metadata_changes": 0,
+            "dtsi_changes": 0,
         }
 
-        return comparison
+        # Count layer changes
+        if diff.layers:
+            layer_dict = diff.layers.model_dump()
+            summary["layers"]["added"] = len(layer_dict.get("added", []))
+            summary["layers"]["removed"] = len(layer_dict.get("removed", []))
+            summary["layers"]["modified"] = len(layer_dict.get("modified", []))
 
-    def _convert_metadata_changes(
-        self, layout_changes: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Convert metadata changes to legacy format."""
-        return {
-            "title": {"changed": False, "old": "", "new": ""},
-            "keyboard": {"changed": False, "old": "", "new": ""},
-            "notes": {"changed": False, "old": "", "new": ""},
-            "tags": {"changed": False, "added": [], "removed": []},
-            "version": {"changed": False, "old": "", "new": ""},
-        }
+        # Count behavior changes
+        for behavior_type in ["hold_taps", "combos", "macros", "input_listeners"]:
+            if hasattr(diff, behavior_type):
+                behavior_changes = getattr(diff, behavior_type)
+                if behavior_changes:
+                    behavior_dict = behavior_changes.model_dump()
+                    summary["behaviors"][behavior_type]["added"] = len(
+                        behavior_dict.get("added", [])
+                    )
+                    summary["behaviors"][behavior_type]["removed"] = len(
+                        behavior_dict.get("removed", [])
+                    )
+                    summary["behaviors"][behavior_type]["modified"] = len(
+                        behavior_dict.get("modified", [])
+                    )
 
-    def _convert_layer_changes(
-        self, layout_changes: dict[str, Any], movements: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Convert layer changes to legacy format."""
-        layer_data = layout_changes.get("layers", {})
-        layer_names_data = layout_changes.get("layer_names", {})
-        behavior_changes = movements.get("behavior_changes", [])
+        # Count metadata changes
+        simple_fields = [
+            "keyboard",
+            "title",
+            "firmware_api_version",
+            "locale",
+            "uuid",
+            "parent_uuid",
+            "date",
+            "creator",
+            "notes",
+            "tags",
+            "variables",
+            "config_parameters",
+            "version",
+            "base_version_patch",
+            "base_layout",
+            "layer_names",
+            "last_firmware_build",
+        ]
 
-        # Build the "changed" layers structure that the CLI expects
-        changed_layers = {}
+        summary["metadata_changes"] = sum(
+            1 for field in simple_fields if getattr(diff, field, None) is not None
+        )
 
-        # Group behavior changes by layer
-        layers_with_changes: dict[int, list[dict[str, Any]]] = {}
-        for change in behavior_changes:
-            layer_idx = change["layer"]
-            if layer_idx not in layers_with_changes:
-                layers_with_changes[layer_idx] = []
-            layers_with_changes[layer_idx].append(change)
+        # Count DTSI changes
+        dtsi_changes = 0
+        if diff.custom_defined_behaviors:
+            dtsi_changes += 1
+        if diff.custom_devicetree:
+            dtsi_changes += 1
+        summary["dtsi_changes"] = dtsi_changes
 
-        # Convert to the expected format with layer names
-        for layer_idx, changes in layers_with_changes.items():
-            # Use layer index as key for now, CLI might need layer names
-            layer_key = f"layer_{layer_idx}"
-            changed_layers[layer_key] = {
-                "total_key_differences": len(changes),
-                "key_changes": [
-                    {
-                        "key_index": change["position"],
-                        "from": f"{change['from']['value']} {change['from']['params'][0]['value'] if change['from'].get('params') else ''}".strip(),
-                        "to": f"{change['to']['value']} {change['to']['params'][0]['value'] if change['to'].get('params') else ''}".strip(),
-                    }
-                    for change in changes
-                ],
-            }
+        return summary
 
-        return {
-            "count_changed": len(layer_data.get("added", [])) > 0
-            or len(layer_data.get("removed", [])) > 0
-            or len(changed_layers) > 0,
-            "layers_added": layer_data.get("added", []),
-            "layers_removed": layer_data.get("removed", []),
-            "layers_modified": layer_data.get("modified", []),
-            "layer_names_changed": layer_names_data.get("order_changed", False),
-            "reordering": layer_data.get("reordered", False),
-            "behavior_changes": behavior_changes,
-            "changed": changed_layers,  # Add the expected "changed" field
-        }
+    def _format_pretty(self, diff: "LayoutDiff") -> str:
+        """Format diff for pretty output."""
+        lines = []
+        summary = self._create_summary(diff)
 
-    def _convert_behavior_changes(
-        self, layout_changes: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Convert behavior changes to legacy format."""
-        behaviors = layout_changes.get("behaviors", {})
-
-        return {
-            "hold_taps": {
-                "count_changed": len(behaviors.get("hold_taps", {}).get("added", []))
-                > 0
-                or len(behaviors.get("hold_taps", {}).get("removed", [])) > 0,
-                "added": behaviors.get("hold_taps", {}).get("added", []),
-                "removed": behaviors.get("hold_taps", {}).get("removed", []),
-                "modified": behaviors.get("hold_taps", {}).get("modified", []),
-            },
-            "combos": {
-                "count_changed": len(behaviors.get("combos", {}).get("added", [])) > 0
-                or len(behaviors.get("combos", {}).get("removed", [])) > 0,
-                "added": behaviors.get("combos", {}).get("added", []),
-                "removed": behaviors.get("combos", {}).get("removed", []),
-                "modified": behaviors.get("combos", {}).get("modified", []),
-            },
-            "macros": {
-                "count_changed": len(behaviors.get("macros", {}).get("added", [])) > 0
-                or len(behaviors.get("macros", {}).get("removed", [])) > 0,
-                "added": behaviors.get("macros", {}).get("added", []),
-                "removed": behaviors.get("macros", {}).get("removed", []),
-                "modified": behaviors.get("macros", {}).get("modified", []),
-            },
-            "input_listeners": {
-                "count_changed": len(
-                    behaviors.get("input_listeners", {}).get("added", [])
-                )
-                > 0
-                or len(behaviors.get("input_listeners", {}).get("removed", [])) > 0,
-                "added": behaviors.get("input_listeners", {}).get("added", []),
-                "removed": behaviors.get("input_listeners", {}).get("removed", []),
-                "modified": behaviors.get("input_listeners", {}).get("modified", []),
-            },
-        }
-
-    def _convert_config_changes(self, layout_changes: dict[str, Any]) -> dict[str, Any]:
-        """Convert config changes to legacy format."""
-        config = layout_changes.get("config", {})
-
-        return {
-            "count_changed": len(config.get("added", [])) > 0
-            or len(config.get("removed", [])) > 0,
-            "added": config.get("added", []),
-            "removed": config.get("removed", []),
-            "modified": config.get("modified", []),
-        }
-
-    def _extract_change_types(self, diff: dict[str, Any]) -> list[str]:
-        """Extract change types from new diff format."""
-        change_types = []
-        if diff.get("statistics", {}).get("additions", 0) > 0:
-            change_types.append("additions")
-        if diff.get("statistics", {}).get("removals", 0) > 0:
-            change_types.append("removals")
-        if diff.get("statistics", {}).get("replacements", 0) > 0:
-            change_types.append("replacements")
-        return change_types
-
-    def _format_summary(self, comparison: dict[str, Any]) -> None:
-        """Format comparison for summary output."""
-        # Summary format doesn't need additional processing
-        pass
-
-    def _format_detailed(
-        self, comparison: dict[str, Any], diff: dict[str, Any]
-    ) -> None:
-        """Format comparison for detailed output."""
-        # Add detailed movement tracking
-        comparison["detailed_movements"] = diff.get("movements", {})
-
-    def _format_json(self, comparison: dict[str, Any], diff: dict[str, Any]) -> None:
-        """Format comparison for JSON output."""
-        # Add the JSON patch from the new diff system
-        comparison["json_patch"] = diff.get("json_patch", [])
-        comparison["full_diff"] = diff
-
-    def _format_pretty(self, comparison: dict[str, Any], diff: dict[str, Any]) -> None:
-        """Format comparison for pretty output."""
-        # Create a pretty representation of the changes
-        pretty_lines = []
-
-        # Summary
-        stats = diff.get("statistics", {})
-        if stats.get("total_operations", 0) > 0:
-            pretty_lines.append(f"Total operations: {stats['total_operations']}")
-            if stats.get("additions", 0) > 0:
-                pretty_lines.append(f"  Additions: {stats['additions']}")
-            if stats.get("removals", 0) > 0:
-                pretty_lines.append(f"  Removals: {stats['removals']}")
-            if stats.get("replacements", 0) > 0:
-                pretty_lines.append(f"  Replacements: {stats['replacements']}")
-            pretty_lines.append("")
+        # Diff metadata
+        lines.append(f"Diff: {diff.base_version} → {diff.modified_version}")
+        lines.append(f"Timestamp: {diff.timestamp}")
+        lines.append("")
 
         # Layer changes
-        layer_changes = diff.get("layout_changes", {}).get("layers", {})
-        if (
-            layer_changes.get("added")
-            or layer_changes.get("removed")
-            or layer_changes.get("modified")
-        ):
-            pretty_lines.append("Layer Changes:")
-            for added in layer_changes.get("added", []):
-                pretty_lines.append(f"  + Added layer at index {added}")
-            for removed in layer_changes.get("removed", []):
-                pretty_lines.append(f"  - Removed layer at index {removed}")
-            for modified in layer_changes.get("modified", []):
-                pretty_lines.append(f"  ~ Modified layer at index {modified}")
-            pretty_lines.append("")
+        layer_summary = summary["layers"]
+        if any(layer_summary.values()):
+            lines.append("Layer Changes:")
+            if layer_summary["added"]:
+                lines.append(f"  + {layer_summary['added']} layers added")
+            if layer_summary["removed"]:
+                lines.append(f"  - {layer_summary['removed']} layers removed")
+            if layer_summary["modified"]:
+                lines.append(f"  ~ {layer_summary['modified']} layers modified")
+            lines.append("")
 
         # Behavior changes
-        movements = diff.get("movements", {})
-        if movements.get("behavior_changes"):
-            pretty_lines.append("Key Binding Changes:")
-            for change in movements["behavior_changes"][:10]:  # Limit to first 10
-                layer = change["layer"]
-                pos = change["position"]
-                from_val = change["from"]["value"]
-                to_val = change["to"]["value"]
-                if change["from"].get("params"):
-                    from_param = change["from"]["params"][0]["value"]
-                    from_str = f"{from_val} {from_param}"
-                else:
-                    from_str = from_val
-                if change["to"].get("params"):
-                    to_param = change["to"]["params"][0]["value"]
-                    to_str = f"{to_val} {to_param}"
-                else:
-                    to_str = to_val
-                pretty_lines.append(f"  Layer {layer}[{pos}]: {from_str} → {to_str}")
+        behavior_summary = summary["behaviors"]
+        behavior_changes = [
+            (behavior_type, counts)
+            for behavior_type, counts in behavior_summary.items()
+            if any(counts.values())
+        ]
 
-            if len(movements["behavior_changes"]) > 10:
-                remaining = len(movements["behavior_changes"]) - 10
-                pretty_lines.append(f"  ... and {remaining} more changes")
+        if behavior_changes:
+            lines.append("Behavior Changes:")
+            for behavior_type, counts in behavior_changes:
+                display_name = behavior_type.replace("_", " ").title()
+                if counts["added"]:
+                    lines.append(f"  + {counts['added']} {display_name} added")
+                if counts["removed"]:
+                    lines.append(f"  - {counts['removed']} {display_name} removed")
+                if counts["modified"]:
+                    lines.append(f"  ~ {counts['modified']} {display_name} modified")
+            lines.append("")
 
-        comparison["deepdiff_pretty"] = (
-            "\n".join(pretty_lines) if pretty_lines else "No changes found"
-        )
+        # Metadata changes
+        if summary["metadata_changes"]:
+            lines.append(f"Metadata: {summary['metadata_changes']} field(s) changed")
+            lines.append("")
 
-    def _generate_dtsi_patches(
-        self, layout1: LayoutData, layout2: LayoutData, section: str
-    ) -> list[str]:
-        """Generate unified diff patches for DTSI sections."""
-        patch_sections = []
+        # DTSI changes
+        if summary["dtsi_changes"]:
+            lines.append(f"DTSI: {summary['dtsi_changes']} section(s) changed")
+            if diff.custom_defined_behaviors:
+                lines.append("  ~ Custom behaviors modified")
+            if diff.custom_devicetree:
+                lines.append("  ~ Custom devicetree modified")
 
-        if section in ["behaviors", "both"]:
-            behaviors_patch = self._create_unified_diff(
-                layout1.custom_defined_behaviors,
-                layout2.custom_defined_behaviors,
-                "custom_defined_behaviors",
-            )
-            if behaviors_patch:
-                patch_sections.extend(behaviors_patch)
+        return "\n".join(lines) if lines else "No changes detected"
 
-        if section in ["devicetree", "both"]:
-            devicetree_patch = self._create_unified_diff(
-                layout1.custom_devicetree,
-                layout2.custom_devicetree,
-                "custom_devicetree",
-            )
-            if devicetree_patch:
-                patch_sections.extend(devicetree_patch)
-
-        return patch_sections
-
-    def _create_unified_diff(self, text1: str, text2: str, filename: str) -> list[str]:
-        """Create unified diff between two text sections."""
-        if text1 == text2:
-            return []
-
-        lines1 = text1.splitlines(keepends=True)
-        lines2 = text2.splitlines(keepends=True)
-
-        diff_lines = list(
-            difflib.unified_diff(
-                lines1,
-                lines2,
-                fromfile=f"a/{filename}",
-                tofile=f"b/{filename}",
-                lineterm="",
-            )
-        )
-
-        return diff_lines
-
-    def _load_patch_file(self, patch_file_path: Path) -> dict[str, Any]:
-        """Load patch data from file."""
-        with patch_file_path.open() as f:
-            result: dict[str, Any] = json.load(f)
-            return result
+    def _format_detailed(self, diff: "LayoutDiff") -> dict[str, Any]:
+        """Format diff for detailed output."""
+        return {
+            "diff_metadata": {
+                "base_version": diff.base_version,
+                "modified_version": diff.modified_version,
+                "base_uuid": diff.base_uuid,
+                "modified_uuid": diff.modified_uuid,
+                "timestamp": diff.timestamp.isoformat(),
+                "diff_type": diff.diff_type,
+            },
+            "changes": diff.model_dump(mode="json", by_alias=True, exclude_unset=True),
+            "summary": self._create_summary(diff),
+        }
 
 
 def create_layout_comparison_service(

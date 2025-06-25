@@ -278,17 +278,6 @@ class LayoutMetadata(GloveboxBaseModel):
         description="Global variables for substitution using ${variable_name} syntax",
     )
 
-    # layers order and name
-    layer_names: list[str] = Field(default_factory=list, alias="layer_names")
-
-    # User behavior definitions
-    hold_taps: list[HoldTapBehavior] = Field(default_factory=list, alias="holdTaps")
-    combos: list[ComboBehavior] = Field(default_factory=list)
-    macros: list[MacroBehavior] = Field(default_factory=list)
-    input_listeners: list[InputListener] = Field(
-        default_factory=list, alias="inputListeners"
-    )
-
     # Configuration
     config_parameters: ConfigParamList = Field(
         default_factory=list, alias="config_parameters"
@@ -299,19 +288,19 @@ class LayoutMetadata(GloveboxBaseModel):
     base_version: str = Field(default="")  # Master version this is based on
     base_layout: str = Field(default="")  # e.g., "glorious-engrammer"
 
-    # Firmware tracking (new)
-    last_firmware_build: dict[str, Any] = Field(default_factory=dict)
-    # Structure: {
-    #     "date": "2024-01-15T10:30:00Z",
-    #     "profile": "glove80/v25.05",
-    #     "firmware_path": "firmware/my-layout-v42.uf2",
-    #     "firmware_hash": "sha256:abc123...",
-    #     "build_id": "8984a4e0-v25.05-598b0350"
-    # }
+    layer_names: list[str] = Field(default_factory=list, alias="layer_names")
 
 
 class LayoutData(LayoutMetadata):
     """Complete layout data model with Pydantic v2."""
+
+    # User behavior definitions
+    hold_taps: list[HoldTapBehavior] = Field(default_factory=list, alias="holdTaps")
+    combos: list[ComboBehavior] = Field(default_factory=list)
+    macros: list[MacroBehavior] = Field(default_factory=list)
+    input_listeners: list[InputListener] = Field(
+        default_factory=list, alias="inputListeners"
+    )
 
     # Essential structure fields
     layers: list[LayerBindings] = Field(default_factory=list)

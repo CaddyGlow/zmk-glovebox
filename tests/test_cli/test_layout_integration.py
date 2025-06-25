@@ -436,98 +436,6 @@ class TestLayoutFileOperationsIntegration:
                 assert fmt in result.output or "bindings" in result.output
 
 
-class TestLayoutVersionsIntegration:
-    """Integration tests for version management."""
-
-    @pytest.mark.skip(
-        reason="Integration test needs version manager service implementation - covered by unit tests"
-    )
-    def test_master_import_list_workflow(self, cli_runner, tmp_path, complex_layout):
-        """Test importing master versions and listing them."""
-        master_file = tmp_path / "master_v42.json"
-        master_layout = complex_layout.copy()
-        master_layout["title"] = "Glorious Master v42"
-        master_layout["version"] = "42.0"
-
-        with master_file.open("w") as f:
-            json.dump(master_layout, f, indent=2)
-
-        with patch("glovebox.layout.version_manager.create_version_manager") as mock_vm:
-            # Mock import
-            mock_vm.return_value.import_master.return_value = {
-                "keyboard": "glove80",
-                "title": "Glorious Master v42",
-                "path": "/home/user/.glovebox/masters/glove80/v42.json",
-            }
-
-            # Mock list
-            mock_vm.return_value.list_masters.return_value = [
-                {"name": "v41", "title": "Glorious v41", "date": "2025-01-01T10:00:00"},
-                {
-                    "name": "v42",
-                    "title": "Glorious Master v42",
-                    "date": "2025-01-15T15:00:00",
-                },
-            ]
-
-            # Test import
-            import_result = cli_runner.invoke(
-                app, ["layout", "versions", "import", str(master_file), "v42"]
-            )
-            assert import_result.exit_code == 0
-            assert "Imported master version 'v42' for glove80" in import_result.output
-
-            # Test list
-            list_result = cli_runner.invoke(
-                app, ["layout", "versions", "list", "glove80"]
-            )
-            assert list_result.exit_code == 0
-            assert "Master versions for glove80:" in list_result.output
-            assert "v42 - Glorious Master v42" in list_result.output
-
-    @pytest.mark.skip(
-        reason="Integration test needs upgrade service implementation - covered by unit tests"
-    )
-    def test_upgrade_workflow_with_preservation(
-        self, cli_runner, tmp_path, complex_layout
-    ):
-        """Test layout upgrade preserving customizations."""
-        custom_layout = complex_layout.copy()
-        custom_layout["title"] = "My Custom Layout"
-        custom_layout["layers"].append(
-            {
-                "name": "CustomLayer",
-                "bindings": [{"id": 0, "binding": "&custom_behavior"}],
-            }
-        )
-
-        layout_file = tmp_path / "custom_layout.json"
-        with layout_file.open("w") as f:
-            json.dump(custom_layout, f, indent=2)
-
-        with patch("glovebox.layout.version_manager.create_version_manager") as mock_vm:
-            mock_vm.return_value.upgrade_layout.return_value = {
-                "from_version": "v41",
-                "to_version": "v42",
-                "output_path": tmp_path / "upgraded_layout.json",
-                "preserved_customizations": {
-                    "custom_layers": ["CustomLayer"],
-                    "custom_behaviors": ["tap_hold_custom"],
-                    "custom_config": ["metadata.author"],
-                },
-            }
-
-            result = cli_runner.invoke(
-                app, ["layout", "upgrade", str(layout_file), "--to", "v42"]
-            )
-
-            assert result.exit_code == 0
-            assert "Upgraded layout from v41 to v42" in result.output
-            assert "Preserved custom layers: CustomLayer" in result.output
-            assert "Preserved behaviors: tap_hold_custom" in result.output
-            assert "Preserved config: metadata.author" in result.output
-
-
 class TestLayoutComparisonIntegration:
     """Integration tests for layout comparison operations."""
 
@@ -736,53 +644,6 @@ class TestLayoutWorkflowIntegration:
             )
             assert compile_result.exit_code == 0
 
-    @pytest.mark.skip(
-        reason="Integration test needs version management service implementation - covered by unit tests"
-    )
-    def test_version_management_workflow(self, cli_runner, tmp_path, complex_layout):
-        """Test version management workflow."""
-        # Create master layout
-        master_file = tmp_path / "master_v42.json"
-        with master_file.open("w") as f:
-            json.dump(complex_layout, f, indent=2)
-
-        # Create custom layout
-        custom_layout = complex_layout.copy()
-        custom_layout["title"] = "My Custom Layout"
-        custom_file = tmp_path / "custom.json"
-        with custom_file.open("w") as f:
-            json.dump(custom_layout, f, indent=2)
-
-        with patch("glovebox.layout.version_manager.create_version_manager") as mock_vm:
-            # Import master
-            mock_vm.return_value.import_master.return_value = {
-                "keyboard": "glove80",
-                "title": "Master v42",
-                "path": "/home/user/.glovebox/masters/glove80/v42.json",
-            }
-
-            import_result = cli_runner.invoke(
-                app, ["layout", "versions", "import", str(master_file), "v42"]
-            )
-            assert import_result.exit_code == 0
-
-            # Upgrade custom layout
-            mock_vm.return_value.upgrade_layout.return_value = {
-                "from_version": "v41",
-                "to_version": "v42",
-                "output_path": tmp_path / "upgraded_custom.json",
-                "preserved_customizations": {
-                    "custom_layers": [],
-                    "custom_behaviors": [],
-                    "custom_config": ["title"],
-                },
-            }
-
-            upgrade_result = cli_runner.invoke(
-                app, ["layout", "upgrade", str(custom_file), "--to", "v42"]
-            )
-            assert upgrade_result.exit_code == 0
-
 
 class TestLayoutErrorHandlingIntegration:
     """Integration tests for error handling across commands."""
@@ -830,21 +691,6 @@ class TestLayoutErrorHandlingIntegration:
             assert result.exit_code == 1
             assert (
                 "Invalid field path" in result.output
-                or "error" in result.output.lower()
-            )
-
-        # Test version manager failure
-        with patch("glovebox.layout.version_manager.create_version_manager") as mock_vm:
-            mock_vm.return_value.import_master.side_effect = FileNotFoundError(
-                "Master file not found"
-            )
-
-            result = cli_runner.invoke(
-                app, ["layout", "versions", "import", "/nonexistent/master.json", "v42"]
-            )
-            assert result.exit_code == 1
-            assert (
-                "Master file not found" in result.output
                 or "error" in result.output.lower()
             )
 

@@ -86,7 +86,11 @@ class LayoutOutputFormatter:
             output_format: Output format
         """
         if output_format.lower() == "json":
-            self._format_json(diff_results)
+            # For JSON output, return just the clean LayoutDiff data
+            if "diff" in diff_results:
+                self._format_json(diff_results["diff"])
+            else:
+                self._format_json(diff_results)
         elif output_format.lower() == "table":
             self._format_comparison_table(diff_results)
         else:
@@ -262,14 +266,225 @@ class LayoutOutputFormatter:
             print_success_message("No differences found")
             return
 
+        # Handle new LayoutDiff format
+        has_changes = diff_results.get("has_changes", False)
+        summary = diff_results.get("summary", {})
+        detailed = diff_results.get("detailed", False)
+
+        if not has_changes:
+            print_success_message("No differences found")
+            return
+
+        # Show basic info
+        source_file = diff_results.get("source_file", "unknown")
+        target_file = diff_results.get("target_file", "unknown")
         print_success_message("Layout comparison results:")
-        for section, changes in diff_results.items():
-            if changes:
-                print_list_item(
-                    f"📊 {section}: {len(changes) if isinstance(changes, list | dict) else 1} changes"
-                )
-            else:
-                print_list_item(f"✅ {section}: no changes")
+        print_list_item(f"📄 Source: {Path(source_file).name}")
+        print_list_item(f"📄 Target: {Path(target_file).name}")
+        print_list_item("")
+
+        if detailed:
+            # Show detailed view with specific changes
+            self._format_detailed_changes(diff_results)
+        else:
+            # Show summary counts
+            self._format_summary_changes(summary)
+
+        # Show diff file creation if it happened
+        if "diff_file_created" in diff_results:
+            diff_info = diff_results["diff_file_created"]
+            print_list_item("")
+            print_list_item(f"💾 Diff file saved: {diff_info.get('diff_file', 'unknown')}")
+
+    def _format_summary_changes(self, summary: dict[str, Any]) -> None:
+        """Format summary view of changes."""
+        # Show summary counts
+        if "layers" in summary:
+            layer_summary = summary["layers"]
+            if any(layer_summary.values()):
+                print_list_item(f"📊 Layers: {layer_summary['added']} added, {layer_summary['removed']} removed, {layer_summary['modified']} modified")
+
+        if "behaviors" in summary:
+            behavior_summary = summary["behaviors"]
+            for behavior_type, counts in behavior_summary.items():
+                if any(counts.values()):
+                    display_name = behavior_type.replace("_", " ").title()
+                    print_list_item(f"📊 {display_name}: {counts['added']} added, {counts['removed']} removed, {counts['modified']} modified")
+
+        if summary.get("metadata_changes", 0) > 0:
+            print_list_item(f"📊 Metadata: {summary['metadata_changes']} field(s) changed")
+
+        if summary.get("dtsi_changes", 0) > 0:
+            print_list_item(f"📊 DTSI: {summary['dtsi_changes']} section(s) changed")
+
+    def _format_detailed_changes(self, diff_results: dict[str, Any]) -> None:
+        """Format detailed view of specific changes."""
+        diff_data = diff_results.get("diff", {})
+
+        # Show layer changes in detail
+        if "layers" in diff_data and diff_data["layers"]:
+            self._format_detailed_layer_changes(diff_data["layers"])
+
+        # Show behavior changes in detail
+        for behavior_type in ["hold_taps", "combos", "macros", "input_listeners"]:
+            if behavior_type in diff_data and diff_data[behavior_type]:
+                self._format_detailed_behavior_changes(behavior_type, diff_data[behavior_type])
+
+        # Show metadata changes in detail
+        self._format_detailed_metadata_changes(diff_data)
+
+        # Show DTSI changes in detail
+        self._format_detailed_dtsi_changes(diff_data)
+
+    def _format_detailed_layer_changes(self, layer_changes: dict[str, Any]) -> None:
+        """Format detailed layer changes."""
+        added = layer_changes.get("added", [])
+        removed = layer_changes.get("removed", [])
+        modified = layer_changes.get("modified", [])
+
+        if added:
+            print_list_item(f"📊 Added Layers ({len(added)}):")
+            for layer in added:
+                layer_name = layer.get("name", "Unknown")
+                position = layer.get("new_position")
+                if position is not None:
+                    print_list_item(f"  + {layer_name} (at position {position})")
+                else:
+                    print_list_item(f"  + {layer_name}")
+
+        if removed:
+            print_list_item(f"📊 Removed Layers ({len(removed)}):")
+            for layer in removed:
+                layer_name = layer.get("name", "Unknown")
+                position = layer.get("original_position")
+                if position is not None:
+                    print_list_item(f"  - {layer_name} (was at position {position})")
+                else:
+                    print_list_item(f"  - {layer_name}")
+
+        if modified:
+            print_list_item(f"📊 Modified Layers ({len(modified)}):")
+            for layer_mod in modified:
+                # Modified layers are stored as {layer_name: {patch, positions, etc}}
+                if isinstance(layer_mod, dict) and len(layer_mod) == 1:
+                    layer_name = list(layer_mod.keys())[0]
+                    layer_info = layer_mod[layer_name]
+
+                    if isinstance(layer_info, dict):
+                        # Extract position and patch information
+                        original_pos = layer_info.get("original_position")
+                        new_pos = layer_info.get("new_position")
+                        position_changed = layer_info.get("position_changed", False)
+                        patch_operations = layer_info.get("patch", [])
+
+                        # Build position info
+                        position_info = ""
+                        if position_changed and original_pos is not None and new_pos is not None:
+                            position_info = f" (moved {original_pos}→{new_pos})"
+                        elif original_pos is not None:
+                            position_info = f" (position {original_pos})"
+
+                        # Count content changes
+                        if isinstance(patch_operations, list) and patch_operations:
+                            total_changes = len(patch_operations)
+                            print_list_item(f"  ~ {layer_name}{position_info}: {total_changes} patch operations")
+
+                            # Show specific patch operations (limited to first few)
+                            for patch_op in patch_operations[:3]:
+                                if isinstance(patch_op, dict):
+                                    op_type = patch_op.get("op", "unknown")
+                                    path = patch_op.get("path", "")
+                                    value = str(patch_op.get("value", ""))[:30]
+                                    print_list_item(f"    {op_type.upper()} {path}: {value}")
+
+                            if len(patch_operations) > 3:
+                                remaining = len(patch_operations) - 3
+                                print_list_item(f"    ... and {remaining} more operations")
+                        elif position_changed:
+                            # Position changed but no content changes
+                            print_list_item(f"  ~ {layer_name}{position_info}: Position changed only")
+                        else:
+                            print_list_item(f"  ~ {layer_name}{position_info}: Modified")
+                    else:
+                        # Fallback for old structure (patch_operations directly)
+                        if isinstance(layer_info, list):
+                            total_changes = len(layer_info)
+                            print_list_item(f"  ~ {layer_name}: {total_changes} patch operations")
+                        else:
+                            print_list_item(f"  ~ {layer_name}: Modified")
+                else:
+                    # Fallback for unexpected structure
+                    print_list_item("  ~ Unknown layer: Modified")
+
+    def _format_detailed_behavior_changes(self, behavior_type: str, behavior_changes: dict[str, Any]) -> None:
+        """Format detailed behavior changes."""
+        display_name = behavior_type.replace("_", " ").title()
+        added = behavior_changes.get("added", [])
+        removed = behavior_changes.get("removed", [])
+        modified = behavior_changes.get("modified", [])
+
+        if added or removed or modified:
+            print_list_item(f"📊 {display_name} Changes:")
+
+            for behavior in added:
+                name = behavior.get("name", "Unknown")
+                print_list_item(f"  + Added: {name}")
+
+            for behavior in removed:
+                name = behavior.get("name", "Unknown")
+                print_list_item(f"  - Removed: {name}")
+
+            for behavior in modified:
+                name = behavior.get("name", "Unknown")
+                changes = behavior.get("changes", {})
+                change_count = len(changes)
+                print_list_item(f"  ~ Modified: {name} ({change_count} field changes)")
+
+                # Show specific field changes (limited)
+                for field_name, change_info in list(changes.items())[:3]:
+                    if isinstance(change_info, dict) and "old" in change_info and "new" in change_info:
+                        old_val = str(change_info["old"])[:25]
+                        new_val = str(change_info["new"])[:25]
+                        print_list_item(f"    {field_name}: '{old_val}' → '{new_val}'")
+
+    def _format_detailed_metadata_changes(self, diff_data: dict[str, Any]) -> None:
+        """Format detailed metadata changes."""
+        # List of simple metadata fields that use JSON patches
+        metadata_fields = [
+            "keyboard", "title", "firmware_api_version", "locale", "uuid",
+            "parent_uuid", "date", "creator", "notes", "tags", "variables",
+            "config_parameters", "version", "base_version_patch", "base_layout",
+            "layer_names", "last_firmware_build"
+        ]
+
+        metadata_changes = []
+        for field in metadata_fields:
+            if field in diff_data and diff_data[field]:
+                # For JSON patch operations, show operation type
+                patches = diff_data[field]
+                if isinstance(patches, list) and patches:
+                    operation_count = len(patches)
+                    metadata_changes.append(f"  ~ {field}: {operation_count} changes")
+
+        if metadata_changes:
+            print_list_item("📊 Metadata Changes:")
+            for change in metadata_changes:
+                print_list_item(change)
+
+    def _format_detailed_dtsi_changes(self, diff_data: dict[str, Any]) -> None:
+        """Format detailed DTSI changes."""
+        dtsi_changes = []
+
+        if diff_data.get("custom_defined_behaviors"):
+            dtsi_changes.append("  ~ Custom behaviors modified")
+
+        if diff_data.get("custom_devicetree"):
+            dtsi_changes.append("  ~ Custom devicetree modified")
+
+        if dtsi_changes:
+            print_list_item("📊 DTSI Changes:")
+            for change in dtsi_changes:
+                print_list_item(change)
 
     def format_detailed_comparison_text(
         self, result: dict[str, Any], output_format: str, compare_dtsi: bool
