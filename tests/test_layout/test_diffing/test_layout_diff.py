@@ -308,7 +308,7 @@ class TestLayoutDiff:
         # Create a patch that tries to remove a non-existent field
         patch_with_missing_field = {
             "source": "test_layout.json",
-            "target": "test_layout.json", 
+            "target": "test_layout.json",
             "timestamp": "2024-01-01T00:00:00Z",
             "statistics": {"total_operations": 2},
             "json_patch": [

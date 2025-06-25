@@ -296,6 +296,10 @@ def parse_value(value_str: str) -> Any:
         except json.JSONDecodeError:
             pass
 
+    # Handle ZMK behavior strings (like "&kp Q", "&trans", "&none")
+    if value_str.startswith("&"):
+        return parse_zmk_behavior_string(value_str)
+
     # Boolean values
     if value_str.lower() in ("true", "false"):
         return value_str.lower() == "true"
@@ -311,6 +315,37 @@ def parse_value(value_str: str) -> Any:
 
     # Default to string
     return value_str
+
+
+def parse_zmk_behavior_string(behavior_str: str) -> dict[str, Any]:
+    """Parse ZMK behavior string into LayoutBinding format.
+
+    Args:
+        behavior_str: ZMK behavior string like "&kp Q", "&trans", "&mt LCTRL A"
+
+    Returns:
+        Dictionary representing a LayoutBinding
+
+    Examples:
+        "&kp Q" -> {"value": "&kp", "params": [{"value": "Q", "params": []}]}
+        "&trans" -> {"value": "&trans", "params": []}
+        "&mt LCTRL A" -> {"value": "&mt", "params": [{"value": "LCTRL", "params": []}, {"value": "A", "params": []}]}
+    """
+    # Split the behavior string into parts
+    parts = behavior_str.split()
+
+    if not parts:
+        raise ValueError(f"Invalid behavior string: {behavior_str}")
+
+    # First part is the behavior name
+    behavior = parts[0]
+    params = parts[1:] if len(parts) > 1 else []
+
+    # Create LayoutBinding structure
+    return {
+        "value": behavior,
+        "params": [{"value": param, "params": []} for param in params]
+    }
 
 
 def resolve_import(source: str, base_path: Path) -> Any:
@@ -410,8 +445,8 @@ def _collect_field_operations(
     Returns:
         Tuple of (operations_list, read_results)
     """
-    operations = []
-    read_results = {}
+    operations: list[tuple[str, str, str | None]] = []
+    read_results: dict[str, Any] = {}
 
     # Handle read operations
     if get:
@@ -457,7 +492,7 @@ def _collect_layer_operations(
     copy_layer: list[str] | None,
 ) -> list[tuple[str, str, str | None]]:
     """Parse layer operations into standard format."""
-    operations = []
+    operations: list[tuple[str, str, str | None]] = []
 
     if add_layer:
         for layer_spec in add_layer:

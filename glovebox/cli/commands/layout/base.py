@@ -110,6 +110,3 @@ class LayoutOutputCommand(LayoutFileCommand):
             print_list_item(item)
 
     # TODO: to be deleted - replaced by LayoutOutputFormatter methods
-
-
-

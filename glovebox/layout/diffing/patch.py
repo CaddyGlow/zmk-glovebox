@@ -46,7 +46,7 @@ class LayoutPatchSystem:
         self, patch: jsonpatch.JsonPatch, layout_dict: dict[str, Any]
     ) -> dict[str, Any]:
         """Apply JSON patch with forgiving behavior for missing fields.
-        
+
         Attempts to apply each patch operation individually, skipping operations
         that fail due to non-existent fields rather than failing the entire patch.
         """
@@ -57,7 +57,7 @@ class LayoutPatchSystem:
             # If patch fails, apply operations one by one, skipping failures
             result_dict = layout_dict.copy()
             skipped_operations = []
-            
+
             for operation in patch.patch:
                 try:
                     single_patch = jsonpatch.JsonPatch([operation])
@@ -67,7 +67,7 @@ class LayoutPatchSystem:
                     op_type = operation.get("op", "unknown")
                     op_path = operation.get("path", "unknown")
                     skipped_operations.append(f"{op_type} at {op_path}")
-            
+
             # Note: We don't log here since this class doesn't have a logger
             # The calling code can check if operations were skipped if needed
             return result_dict
