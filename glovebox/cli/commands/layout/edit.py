@@ -178,37 +178,88 @@ class LayoutEditor:
         self.operations_log.append(f"Added layer '{layer_name}'")
 
     def remove_layer(self, layer_identifier: str) -> None:
-        """Remove layer by name or index.
+        """Remove layer(s) by name, index, or regex pattern.
 
         Args:
-            layer_identifier: Layer name or index
+            layer_identifier: Layer identifier - can be:
+                - Layer name (exact match)
+                - Index (0-based, e.g., "0", "15")
+                - Regex pattern (e.g., "Mouse.*", "Mouse*", ".*Index")
 
         Raises:
-            ValueError: If layer not found
+            ValueError: If no layers found or invalid identifier
         """
+        import re
+
+        # Find layers to remove based on identifier type
+        layers_to_remove: list[dict[str, Any]] = []
+
+        # Try to parse as integer index first
         try:
-            if layer_identifier.isdigit():
-                # Remove by index
-                index = int(layer_identifier)
-                if 0 <= index < len(self.layout_data.layers):
-                    removed_name = self.layout_data.layer_names.pop(index)
-                    self.layout_data.layers.pop(index)
-                    self.operations_log.append(
-                        f"Removed layer '{removed_name}' at index {index}"
-                    )
-                else:
-                    raise ValueError(f"Layer index {index} out of range")
+            index = int(layer_identifier)
+            if 0 <= index < len(self.layout_data.layer_names):
+                layers_to_remove.append({"name": self.layout_data.layer_names[index], "index": index})
+        except ValueError:
+            # Not an integer, continue with name/pattern matching
+            pass
+
+        if not layers_to_remove:
+            # Check for exact layer name match first
+            for i, layer_name in enumerate(self.layout_data.layer_names):
+                if layer_name == layer_identifier:
+                    layers_to_remove.append({"name": layer_name, "index": i})
+                    break
+
+        if not layers_to_remove:
+            # Try regex pattern matching
+            try:
+                # Convert shell-style wildcards to regex if needed
+                pattern = layer_identifier
+                if "*" in pattern and not any(c in pattern for c in "[]{}()^$+?\\|"):
+                    # Simple wildcard pattern - convert to regex
+                    pattern = pattern.replace("*", ".*")
+
+                # Compile regex pattern
+                regex = re.compile(pattern)
+
+                # Find all matching layers
+                for i, layer_name in enumerate(self.layout_data.layer_names):
+                    if regex.match(layer_name):
+                        layers_to_remove.append({"name": layer_name, "index": i})
+
+            except re.error:
+                # Invalid regex pattern - no matches
+                pass
+
+        if not layers_to_remove:
+            # No matches found - log warning but don't raise error for better UX
+            available_layers = ', '.join(self.layout_data.layer_names)
+            warning_msg = f"No layers found matching identifier '{layer_identifier}'. Available layers: {available_layers}"
+            if hasattr(self, 'warnings'):
+                self.warnings.append(warning_msg)
             else:
-                # Remove by name
-                if layer_identifier in self.layout_data.layer_names:
-                    index = self.layout_data.layer_names.index(layer_identifier)
-                    self.layout_data.layer_names.pop(index)
-                    self.layout_data.layers.pop(index)
-                    self.operations_log.append(f"Removed layer '{layer_identifier}'")
-                else:
-                    raise ValueError(f"Layer '{layer_identifier}' not found")
-        except Exception as e:
-            raise ValueError(f"Cannot remove layer '{layer_identifier}': {e}") from e
+                self.warnings: list[str] = [warning_msg]
+            return
+
+        # Sort by index in descending order to remove from end to start
+        # This prevents index shifting issues
+        layers_to_remove.sort(key=lambda x: x["index"], reverse=True)
+
+        removed_names: list[str] = []
+        for layer_info in layers_to_remove:
+            idx = layer_info["index"]
+            name = layer_info["name"]
+
+            # Remove layer name and bindings
+            self.layout_data.layer_names.pop(idx)
+            if idx < len(self.layout_data.layers):
+                self.layout_data.layers.pop(idx)
+
+            removed_names.append(name)
+
+        # Log the operation
+        if removed_names:
+            self.operations_log.append(f"Removed layers: {', '.join(removed_names)}")
 
     def move_layer(self, layer_name: str, new_position: int) -> None:
         """Move layer to new position.

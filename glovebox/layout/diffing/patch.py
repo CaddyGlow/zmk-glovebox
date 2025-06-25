@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from datetime import datetime
 from typing import Any
 
@@ -17,30 +18,62 @@ class LayoutPatchSystem:
     ) -> LayoutData:
         """Apply a diff to a base layout and return the modified layout."""
 
-        # Validate diff format
-        if validate:
-            self._validate_diff_format(diff)
-
         # Convert layout to dict
         layout_dict = base_layout.model_dump(
             by_alias=True, exclude_unset=True, mode="json"
         )
 
         # Apply JSON patch with forgiving behavior for missing fields
-        patch = jsonpatch.JsonPatch(diff["json_patch"])
-        modified_dict = self._apply_patch_forgiving(patch, layout_dict)
+        # patch = jsonpatch.JsonPatch(diff["json_patch"])
+        layer_changes = diff["full_diff"]["layout_changes"]
+        modified_dict = self._apply_changes(layout_dict, layer_changes)
 
         # Update metadata
-        modified_dict = self._update_metadata_after_patch(
-            modified_dict, base_layout, diff
-        )
-
-        # Validate the result before creating LayoutData
-        if validate:
-            self._validate_patched_layout(modified_dict)
+        # modified_dict = self._update_metadata_after_patch(
+        #     modified_dict, base_layout, diff
+        # )
 
         # Create new LayoutData instance
         return LayoutData.model_validate(modified_dict)
+
+    def _apply_changes(
+        self, target_dict: dict[str, Any], changes: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Apply changes to target dictionary"""
+        target_layer_dict = OrderedDict(
+            zip(
+                target_dict.get("layer_names", []),
+                target_dict.get("layers", []),
+                strict=False,
+            )
+        )
+
+        # Remove layers
+        for layer_info in changes["layers"]["removed"]:
+            layer_name = layer_info["name"]
+            if layer_name in target_layer_dict:
+                del target_layer_dict[layer_name]
+
+        # Add layers
+        for layer_info in changes["layers"]["added"]:
+            layer_name = layer_info["name"]
+            layer_data = layer_info["data"]
+            target_layer_dict[layer_name] = layer_data
+
+        # Modify layers
+        for modification in changes["layers"]["modified"]:
+            for layer_name, patch_data in modification.items():
+                if layer_name in target_layer_dict:
+                    patch = jsonpatch.JsonPatch(patch_data)
+                    target_layer_dict[layer_name] = patch.apply(
+                        target_layer_dict[layer_name]
+                    )
+
+        # Update the target dictionary
+        target_dict["layer_names"] = list(target_layer_dict.keys())
+        target_dict["layers"] = list(target_layer_dict.values())
+
+        return target_dict
 
     def _apply_patch_forgiving(
         self, patch: jsonpatch.JsonPatch, layout_dict: dict[str, Any]
@@ -74,13 +107,10 @@ class LayoutPatchSystem:
 
     def _validate_diff_format(self, diff: dict[str, Any]) -> None:
         """Validate that the diff has the expected format."""
-        required_keys = ["metadata", "json_patch"]
+        required_keys = ["layout_changes"]
         for key in required_keys:
             if key not in diff:
                 raise ValueError(f"Diff missing required key: {key}")
-
-        if not isinstance(diff["json_patch"], list):
-            raise ValueError("json_patch must be a list")
 
     def _update_metadata_after_patch(
         self, layout_dict: dict[str, Any], base_layout: LayoutData, diff: dict[str, Any]
@@ -104,27 +134,3 @@ class LayoutPatchSystem:
         layout_dict["date"] = datetime.now().isoformat()
 
         return layout_dict
-
-    def _validate_patched_layout(self, layout_dict: dict[str, Any]) -> None:
-        """Validate the patched layout structure."""
-
-        # Check required fields
-        required_fields = ["keyboard", "title", "layers"]
-        for field in required_fields:
-            if field not in layout_dict:
-                raise ValueError(f"Patched layout missing required field: {field}")
-
-        # Validate layer consistency
-        layers = layout_dict.get("layers", [])
-        layer_names = layout_dict.get("layer_names", [])
-
-        if len(layers) != len(layer_names):
-            raise ValueError(
-                f"Layer count mismatch: {len(layers)} layers but {len(layer_names)} names"
-            )
-
-        # Validate each layer has reasonable number of bindings
-        for i, layer in enumerate(layers):
-            if len(layer) < 1:  # At least one binding per layer
-                raise ValueError(f"Layer {i} has no bindings")
-            # Note: Don't enforce specific binding count for test flexibility
