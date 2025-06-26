@@ -56,10 +56,6 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
         self.current_board_step = 0
         self.total_board_steps = 0
 
-        # Log capture for Rich display
-        self.captured_logs: list[tuple[str, str]] = []  # (level, message) pairs
-        self.max_log_lines = 100  # Keep last 100 log lines
-
         # Patterns for parsing different types of output
         self.repo_download_pattern = re.compile(
             r"^From https://github\.com/([^/]+/[^/\s]+)"
@@ -85,16 +81,13 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
         """
         line_stripped = line.strip()
 
-        # Log all Docker output for debugging and capture for Rich display
-        if stream_type == "stdout":
-            logger.debug("Docker stdout: %s", line_stripped)
-            if line_stripped:  # Don't capture empty lines
-                self._capture_log("info", line_stripped)
-        else:
-            # Log stderr at warning level since it might contain important errors
-            if line_stripped:  # Don't log empty stderr lines
-                logger.warning("Docker stderr: %s", line_stripped)
-                self._capture_log("warning", line_stripped)
+        # # Log all Docker output for debugging
+        # if stream_type == "stdout":
+        #     logger.debug("Docker stdout: %s", line_stripped)
+        # else:
+        #     # Log stderr at warning level since it might contain important errors
+        #     if line_stripped:  # Don't log empty stderr lines
+        #         logger.warning("Docker stderr: %s", line_stripped)
 
         if not line_stripped:
             return line
@@ -282,19 +275,6 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
         )
 
         self.progress_callback(progress)
-
-    def _capture_log(self, level: str, message: str) -> None:
-        """Capture log line for Rich display.
-
-        Args:
-            level: Log level (info, warning, error)
-            message: Log message
-        """
-        self.captured_logs.append((level, message))
-
-        # Keep only the last max_log_lines entries
-        if len(self.captured_logs) > self.max_log_lines:
-            self.captured_logs = self.captured_logs[-self.max_log_lines :]
 
     def get_current_progress(self) -> CompilationProgress:
         """Get the current progress state.

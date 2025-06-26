@@ -6,7 +6,7 @@ import platform
 from pathlib import Path
 from typing import Any
 
-from glovebox.config.models.moergo import MoErgoCredentialConfig
+from glovebox.moergo.config import MoErgoCredentialConfig
 from glovebox.services.base_service import BaseService
 
 from .models import AuthTokens, UserCredentials

@@ -3,9 +3,11 @@
 import json
 import logging
 import logging.handlers
+import queue
 import sys
+import threading
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 
 if TYPE_CHECKING:
@@ -13,9 +15,121 @@ if TYPE_CHECKING:
 
 try:
     import colorlog
+
     HAS_COLORLOG = True
 except ImportError:
     HAS_COLORLOG = False
+
+
+class TUIProgressProtocol(Protocol):
+    """Protocol for TUI progress managers that can display logs."""
+
+    def add_log(self, level: str, message: str) -> None:
+        """Add a log message to the TUI display.
+
+        Args:
+            level: Log level (debug, info, warning, error, critical)
+            message: Log message to display
+        """
+        ...
+
+
+class TUILogHandler(logging.Handler):
+    """Thread-based async log handler that forwards logs to TUI progress display.
+
+    This handler uses a background thread and queue to avoid blocking the main
+    thread while forwarding log messages to a TUI progress display. Follows
+    CLAUDE.md principles of simplicity and pragmatic design.
+    """
+
+    def __init__(
+        self,
+        progress_manager: TUIProgressProtocol | None = None,
+        level: int = logging.NOTSET,
+    ) -> None:
+        """Initialize TUI log handler.
+
+        Args:
+            progress_manager: Progress manager that implements TUIProgressProtocol
+            level: Minimum log level to handle
+        """
+        super().__init__(level)
+        self.progress_manager = progress_manager
+        self.log_queue: queue.Queue[tuple[str, str]] = queue.Queue(maxsize=1000)
+        self.stop_event = threading.Event()
+        self.worker_thread: threading.Thread | None = None
+        self._setup_worker()
+
+    def set_progress_manager(self, progress_manager: TUIProgressProtocol) -> None:
+        """Set or update the progress manager for log display.
+
+        Args:
+            progress_manager: Progress manager that implements TUIProgressProtocol
+        """
+        self.progress_manager = progress_manager
+
+    def _setup_worker(self) -> None:
+        """Set up the background worker thread for async log processing."""
+        if self.worker_thread is not None:
+            return
+
+        self.stop_event.clear()
+        self.worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
+        self.worker_thread.start()
+
+    def _worker_loop(self) -> None:
+        """Background worker loop that processes queued log messages."""
+        while not self.stop_event.is_set():
+            try:
+                # Get log message with timeout
+                level, message = self.log_queue.get(timeout=0.1)
+
+                # Forward to progress manager if available
+                if self.progress_manager:
+                    self.progress_manager.add_log(level, message)
+
+                # Mark task as done
+                self.log_queue.task_done()
+
+            except queue.Empty:
+                continue
+            except Exception as e:
+                # Log worker errors to stderr to avoid infinite loops
+                print(f"TUILogHandler worker error: {e}", file=sys.stderr)
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Emit a log record by queuing it for async processing.
+
+        Args:
+            record: Log record to emit
+        """
+        try:
+            # Format the message
+            message = self.format(record)
+            level = record.levelname.lower()
+
+            # Queue the log message (non-blocking)
+            self.log_queue.put((level, message), block=False)
+
+        except queue.Full:
+            # Queue is full, drop the message (prevents blocking)
+            pass
+        except Exception:
+            # Handle any other errors silently to prevent logging loops
+            pass
+
+    def close(self) -> None:
+        """Close the handler and clean up resources."""
+        # Signal worker to stop
+        self.stop_event.set()
+
+        # Wait for worker to finish
+        if self.worker_thread and self.worker_thread.is_alive():
+            self.worker_thread.join(timeout=1.0)
+
+        # Clean up
+        self.worker_thread = None
+        super().close()
 
 
 class JSONFormatter(logging.Formatter):
@@ -82,16 +196,18 @@ def _create_formatter(format_type: str, colored: bool = False) -> logging.Format
     # Use colored formatter if requested and available
     if colored and HAS_COLORLOG and format_type != "json":
         # Colorlog format with colors
-        color_format = format_string.replace("%(levelname)s", "%(log_color)s%(levelname)s%(reset)s")
+        color_format = format_string.replace(
+            "%(levelname)s", "%(log_color)s%(levelname)s%(reset)s"
+        )
         return colorlog.ColoredFormatter(
             color_format,
             log_colors={
-                'DEBUG': 'cyan',
-                'INFO': 'green',
-                'WARNING': 'yellow',
-                'ERROR': 'red',
-                'CRITICAL': 'red,bg_white',
-            }
+                "DEBUG": "cyan",
+                "INFO": "green",
+                "WARNING": "yellow",
+                "ERROR": "red",
+                "CRITICAL": "red,bg_white",
+            },
         )
 
     return logging.Formatter(format_string)
@@ -125,6 +241,9 @@ def _create_handler(handler_config: "LogHandlerConfig") -> logging.Handler | Non
             # Ensure parent directory exists
             handler_config.file_path.parent.mkdir(parents=True, exist_ok=True)
             handler = logging.FileHandler(handler_config.file_path)
+        elif handler_config.type == LogHandlerType.TUI:
+            # Create TUI handler without progress manager (set later)
+            handler = TUILogHandler()
 
         if handler:
             # Set level
@@ -132,10 +251,15 @@ def _create_handler(handler_config: "LogHandlerConfig") -> logging.Handler | Non
 
             # Create and set formatter
             # Don't use colored output for file handlers
-            use_colors = (handler_config.colored and
-                         handler_config.type != LogHandlerType.FILE)
+            use_colors = (
+                handler_config.colored and handler_config.type != LogHandlerType.FILE
+            )
             # Handle both enum and string format values
-            format_value = handler_config.format.value if hasattr(handler_config.format, 'value') else handler_config.format
+            format_value = (
+                handler_config.format.value
+                if hasattr(handler_config.format, "value")
+                else handler_config.format
+            )
             formatter = _create_formatter(format_value, use_colors)
             handler.setFormatter(formatter)
 
@@ -144,7 +268,11 @@ def _create_handler(handler_config: "LogHandlerConfig") -> logging.Handler | Non
     except Exception as e:
         logger = logging.getLogger("glovebox.core.logging")
         # Handle both enum and string type values
-        type_value = handler_config.type.value if hasattr(handler_config.type, 'value') else handler_config.type
+        type_value = (
+            handler_config.type.value
+            if hasattr(handler_config.type, "value")
+            else handler_config.type
+        )
         logger.error("Failed to create %s handler: %s", type_value, e)
         return None
 
@@ -234,4 +362,3 @@ def setup_logging(
     root_logger.propagate = False
 
     return root_logger
-

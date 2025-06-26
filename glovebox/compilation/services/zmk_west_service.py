@@ -1009,18 +1009,9 @@ class ZmkWestService(CompilationServiceProtocol):
                     board_names=board_info["board_names"],
                 )
 
-                # Store middleware reference in progress callback for log access
-                if hasattr(progress_callback, "manager"):
-                    # New reusable component approach
-                    progress_callback.manager.set_log_provider(middleware)  # type: ignore[attr-defined]
-                elif hasattr(progress_callback, "__setattr__"):
-                    # Legacy approach for backward compatibility
-                    progress_callback.middleware_ref = middleware  # type: ignore[attr-defined]
-
                 middlewares.append(middleware)
 
-            else:
-                middlewares.append(DefaultOutputMiddleware())
+            middlewares.append(DefaultOutputMiddleware())
 
             chained = create_chained_middleware(middlewares)
             result: tuple[int, list[str], list[str]] = (

@@ -16,7 +16,7 @@ from glovebox.cli.helpers.theme import IconMode
 from .cache import CacheTTLConfig
 from .firmware import UserFirmwareConfig
 from .logging import LoggingConfig, create_default_logging_config
-from .moergo import MoErgoServiceConfig, create_default_moergo_config
+from glovebox.moergo.config import MoErgoServiceConfig, create_default_moergo_config
 
 
 if TYPE_CHECKING:

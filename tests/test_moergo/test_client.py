@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 import requests
 
-from glovebox.config.models.moergo import (
+from glovebox.moergo.config import (
     MoErgoCredentialConfig,
     create_moergo_credential_config,
 )

@@ -1,0 +1,78 @@
+# Glovebox Base Configuration
+# This file contains default configuration values that will be merged with user config
+# User configuration from glovebox.yaml/.glovebox.yml takes precedence over these defaults
+
+# Default profile (keyboard/firmware combination)
+profile: "glove80/v25.05"
+
+# Paths for user-defined keyboards and layouts
+profiles_paths: []
+
+# Version check settings
+disable_version_checks: false
+
+# Cache settings
+cache_strategy: "shared"
+
+# Cache TTL configuration (in seconds)
+cache_ttls:
+  # Compilation cache settings
+  compilation_workspace: 3600      # 1 hour - workspace cache
+  compilation_build: 3600          # 1 hour - build cache
+  compilation_dependencies: 86400  # 24 hours - dependencies cache
+  compilation_docker_image: 604800 # 7 days - docker image cache
+  
+  # Layout cache settings
+  layout_diff: 1800               # 30 minutes - diff cache
+  layout_validation: 3600         # 1 hour - validation cache
+  layout_behavior_analysis: 7200  # 2 hours - behavior analysis cache
+  
+  # General cache settings
+  general_metadata: 3600          # 1 hour - general metadata cache
+  general_network: 1800           # 30 minutes - network operations cache
+
+# UI settings
+icon_mode: "emoji"
+
+# Logging configuration
+logging:
+  global_level: "INFO"
+  
+  handlers:
+    - type: "console"
+      level: "INFO"
+      format: "simple"
+      colored: true
+      
+    - type: "file"
+      level: "DEBUG"
+      format: "detailed"
+      file_path: "~/.cache/glovebox/logs/glovebox.log"
+      max_size_mb: 10
+      backup_count: 3
+      colored: false
+
+# Firmware configuration
+firmware:
+  flash:
+    timeout: 30
+    verify: true
+    auto_detect: true
+    wait_for_device: true
+    device_wait_timeout: 60
+
+# MoErgo service configuration
+moergo:
+  enabled: true
+  base_url: "https://my.glove80.com"
+  api_timeout: 30
+  
+  # Credential management
+  credentials:
+    store_type: "keyring"
+    keyring_service: "glovebox-moergo"
+    
+  # Bookmark settings
+  bookmarks:
+    auto_sync: false
+    cache_ttl: 3600

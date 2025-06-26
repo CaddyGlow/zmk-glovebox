@@ -7,12 +7,12 @@ from urllib.parse import urljoin
 
 import requests
 
-from glovebox.config.models.moergo import MoErgoServiceConfig
 from glovebox.core.cache import create_cache_from_user_config
 from glovebox.core.cache.cache_manager import CacheManager
+from glovebox.moergo.config import MoErgoServiceConfig
 
-from .auth import create_cognito_auth, Glove80Auth
-from .credentials import create_credential_manager, CredentialManager
+from .auth import Glove80Auth, create_cognito_auth
+from .credentials import CredentialManager, create_credential_manager
 from .models import (
     APIError,
     AuthenticationError,
@@ -327,3 +327,28 @@ class MoErgoBaseClient:
             "expires_in_minutes": round(expires_in_minutes, 1),
             "needs_renewal": expires_in_minutes < 5,
         }
+
+
+def create_moergo_base_client(
+    moergo_config: MoErgoServiceConfig | None = None,
+    credential_manager: CredentialManager | None = None,
+    cache: CacheManager | None = None,
+) -> MoErgoBaseClient:
+    """Create a MoErgoBaseClient instance with the given configuration.
+
+    Factory function following CLAUDE.md patterns for creating
+    MoErgoBaseClient instances with proper configuration.
+
+    Args:
+        moergo_config: MoErgo service configuration (defaults to default config)
+        credential_manager: Custom credential manager (will use config if not provided)
+        cache: Cache manager instance
+
+    Returns:
+        MoErgoBaseClient: Configured MoErgo base client
+    """
+    return MoErgoBaseClient(
+        credential_manager=credential_manager,
+        cache=cache,
+        moergo_config=moergo_config,
+    )

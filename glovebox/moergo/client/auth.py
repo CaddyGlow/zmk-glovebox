@@ -5,7 +5,7 @@ from typing import Any
 
 import requests
 
-from glovebox.config.models.moergo import MoErgoCognitoConfig
+from glovebox.moergo.config import MoErgoCognitoConfig
 from glovebox.services.base_service import BaseService
 
 
@@ -52,7 +52,10 @@ class CognitoAuth(BaseService):
 
         try:
             response = requests.post(
-                self.config.cognito_url, headers=headers, json=payload, timeout=self.config.request_timeout
+                self.config.cognito_url,
+                headers=headers,
+                json=payload,
+                timeout=self.config.request_timeout,
             )
             response.raise_for_status()
             return response.json()  # type: ignore[no-any-return]
@@ -79,7 +82,10 @@ class CognitoAuth(BaseService):
 
         try:
             response = requests.post(
-                self.config.cognito_url, headers=headers, json=payload, timeout=self.config.request_timeout
+                self.config.cognito_url,
+                headers=headers,
+                json=payload,
+                timeout=self.config.request_timeout,
             )
             response.raise_for_status()
             return response.json()  # type: ignore[no-any-return]
@@ -106,7 +112,10 @@ class CognitoAuth(BaseService):
 
         try:
             response = requests.post(
-                self.config.cognito_url, headers=headers, json=payload, timeout=self.config.request_timeout
+                self.config.cognito_url,
+                headers=headers,
+                json=payload,
+                timeout=self.config.request_timeout,
             )
             response.raise_for_status()
             return response.json()  # type: ignore[no-any-return]
@@ -122,13 +131,13 @@ def create_cognito_auth(
     cognito_config: MoErgoCognitoConfig | None = None,
 ) -> CognitoAuth:
     """Create a CognitoAuth instance with the given configuration.
-    
+
     Factory function following CLAUDE.md patterns for creating
     CognitoAuth instances with proper configuration.
-    
+
     Args:
         cognito_config: MoErgo Cognito configuration (defaults to default config)
-        
+
     Returns:
         CognitoAuth: Configured Cognito authentication client
     """

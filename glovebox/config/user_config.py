@@ -94,9 +94,87 @@ class UserConfig:
 
         return config_paths
 
+    def _load_base_config(self) -> dict[str, Any]:
+        """
+        Load base configuration from glovebox/config/config.yaml.
+
+        Returns:
+            Dictionary containing base configuration data
+        """
+        # Get path to base config file relative to this module
+        base_config_path = Path(__file__).parent / "config.yaml"
+
+        try:
+            if base_config_path.exists():
+                base_config_data = self._adapter.load_config(base_config_path)
+                logger.debug("Loaded base configuration from %s", base_config_path)
+                return base_config_data
+            else:
+                logger.warning("Base config file not found at %s", base_config_path)
+                return {}
+        except Exception as e:
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("Failed to load base config: %s", e, exc_info=exc_info)
+            return {}
+
+    def _merge_config_data(
+        self, base_config: dict[str, Any], user_config: dict[str, Any]
+    ) -> dict[str, Any]:
+        """
+        Merge base configuration with user configuration.
+        User configuration takes precedence over base configuration.
+
+        Args:
+            base_config: Base configuration dictionary
+            user_config: User configuration dictionary
+
+        Returns:
+            Merged configuration dictionary
+        """
+        merged = base_config.copy()
+
+        def deep_merge(base_dict: dict[str, Any], user_dict: dict[str, Any]) -> None:
+            """Recursively merge user config into base config."""
+            for key, value in user_dict.items():
+                if (
+                    key in base_dict
+                    and isinstance(base_dict[key], dict)
+                    and isinstance(value, dict)
+                ):
+                    # Recursively merge nested dictionaries
+                    deep_merge(base_dict[key], value)
+                else:
+                    # Override with user value
+                    base_dict[key] = value
+
+        deep_merge(merged, user_config)
+        return merged
+
+    def _track_base_config_sources(
+        self, base_config_data: dict[str, Any], prefix: str = ""
+    ) -> None:
+        """
+        Track sources for base configuration values.
+
+        Args:
+            base_config_data: Base configuration data dictionary
+            prefix: Current key prefix for nested tracking
+        """
+        for key, value in base_config_data.items():
+            current_key = f"{prefix}.{key}" if prefix else key
+
+            if isinstance(value, dict):
+                # Recursively track nested dictionaries
+                self._track_base_config_sources(value, current_key)
+            else:
+                # Only track if user didn't override this value
+                if current_key not in self._config_sources:
+                    self._config_sources[current_key] = "base_config"
+
     def _load_config(self) -> None:
         """
         Load configuration from config files and environment variables using Pydantic Settings.
+        Base config is loaded first, then user config is merged over it.
         """
 
         # Log environment variables that will affect configuration
@@ -108,28 +186,39 @@ class UserConfig:
                 " | ".join(f"{k}={v}" for k, v in env_vars.items()),
             )
 
-        # Load configuration from YAML files and merge with environment variables
-        config_data, found_path = self._adapter.search_config_files(self._config_paths)
+        # Load base configuration first
+        base_config_data = self._load_base_config()
+
+        # Load user configuration and merge with base config
+        user_config_data, found_path = self._adapter.search_config_files(
+            self._config_paths
+        )
+
+        # Merge base config with user config (user config takes precedence)
+        merged_config_data = self._merge_config_data(
+            base_config_data, user_config_data or {}
+        )
 
         if found_path:
             logger.debug("Loaded user configuration from %s", found_path)
             self._main_config_path = found_path
 
-            # Create UserConfigData with file data and automatic env var handling
-            self._config = UserConfigData(**config_data)
-
-            # Track sources for file-based values (including nested keys)
-            self._track_file_sources(config_data, found_path.name)
+            # Track sources for user file-based values (including nested keys)
+            self._track_file_sources(user_config_data or {}, found_path.name)
 
         else:
             logger.info(
-                "No user configuration files found. Using defaults with environment variables."
+                "No user configuration files found. Using base defaults with environment variables."
             )
-            # Create UserConfigData with just environment variables
-            self._config = UserConfigData()
             # Set main config path to the default XDG location
             if self._config_paths:
                 self._main_config_path = self._config_paths[-1]  # Last path is XDG yml
+
+        # Create UserConfigData with merged data and automatic env var handling
+        self._config = UserConfigData(**merged_config_data)
+
+        # Track base config sources
+        self._track_base_config_sources(base_config_data)
 
         # Track environment variable sources
         self._track_env_var_sources()
