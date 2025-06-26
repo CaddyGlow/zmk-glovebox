@@ -205,16 +205,6 @@ class MoErgoServiceConfig(GloveboxBaseModel):
         description="Configuration for AWS Cognito authentication",
     )
 
-    # Service preferences
-    enable_layout_sync: bool = Field(
-        default=True,
-        description="Enable automatic layout synchronization with MoErgo service",
-    )
-
-    enable_bookmark_sync: bool = Field(
-        default=True,
-        description="Enable bookmark synchronization with MoErgo service",
-    )
 
     # Timeout settings (in seconds)
     connection_timeout: int = Field(

@@ -103,9 +103,8 @@ class UserConfigData(BaseSettings):
     logging_config: LoggingConfig = Field(
         default_factory=create_default_logging_config,
         description="Logging configuration with multiple handlers and formats",
-        alias="logging"
+        alias="logging",
     )
-
 
     # Version check settings
     disable_version_checks: bool = Field(
@@ -163,7 +162,7 @@ class UserConfigData(BaseSettings):
     # MoErgo service configuration
     moergo: MoErgoServiceConfig = Field(
         default_factory=create_default_moergo_config,
-        description="Configuration for MoErgo service integration and credential management"
+        description="Configuration for MoErgo service integration and credential management",
     )
 
     @field_validator("profile")
@@ -189,7 +188,6 @@ class UserConfigData(BaseSettings):
             )
 
         return v
-
 
     # @field_validator("deepdiff_delta_serializer")
     # @classmethod
@@ -254,6 +252,7 @@ class UserConfigData(BaseSettings):
     def serialize_icon_mode(self, value: "IconMode") -> str:
         """Serialize IconMode enum to string for config file storage."""
         return value.value
+
 
 # Rebuild model to resolve forward references
 if not TYPE_CHECKING and BookmarkCollection is not None:

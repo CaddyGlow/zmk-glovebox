@@ -17,19 +17,19 @@ cache_strategy: "shared"
 # Cache TTL configuration (in seconds)
 cache_ttls:
   # Compilation cache settings
-  compilation_workspace: 3600      # 1 hour - workspace cache
-  compilation_build: 3600          # 1 hour - build cache
-  compilation_dependencies: 86400  # 24 hours - dependencies cache
+  compilation_workspace: 3600 # 1 hour - workspace cache
+  compilation_build: 3600 # 1 hour - build cache
+  compilation_dependencies: 86400 # 24 hours - dependencies cache
   compilation_docker_image: 604800 # 7 days - docker image cache
-  
+
   # Layout cache settings
-  layout_diff: 1800               # 30 minutes - diff cache
-  layout_validation: 3600         # 1 hour - validation cache
-  layout_behavior_analysis: 7200  # 2 hours - behavior analysis cache
-  
+  layout_diff: 1800 # 30 minutes - diff cache
+  layout_validation: 3600 # 1 hour - validation cache
+  layout_behavior_analysis: 7200 # 2 hours - behavior analysis cache
+
   # General cache settings
-  general_metadata: 3600          # 1 hour - general metadata cache
-  general_network: 1800           # 30 minutes - network operations cache
+  general_metadata: 3600 # 1 hour - general metadata cache
+  general_network: 1800 # 30 minutes - network operations cache
 
 # UI settings
 icon_mode: "emoji"
@@ -37,13 +37,13 @@ icon_mode: "emoji"
 # Logging configuration
 logging:
   global_level: "INFO"
-  
+
   handlers:
     - type: "console"
       level: "INFO"
       format: "simple"
       colored: true
-      
+
     - type: "file"
       level: "DEBUG"
       format: "detailed"
@@ -63,16 +63,29 @@ firmware:
 
 # MoErgo service configuration
 moergo:
-  enabled: true
-  base_url: "https://my.glove80.com"
-  api_timeout: 30
+  # API configuration
+  api_base_url: "https://my.glove80.com"
   
-  # Credential management
+  # Connection timeout settings (in seconds)
+  connection_timeout: 30
+  request_timeout: 60
+  
+  # Credential storage configuration
   credentials:
-    store_type: "keyring"
+    config_dir: "~/.glovebox"
+    credentials_file: "moergo_credentials.json"
+    tokens_file: "moergo_tokens.json"
+    default_username: null
+    prefer_keyring: true
     keyring_service: "glovebox-moergo"
-    
-  # Bookmark settings
-  bookmarks:
-    auto_sync: false
-    cache_ttl: 3600
+    file_permissions: "600"
+  
+  # AWS Cognito authentication configuration
+  cognito:
+    client_id: "3hvr36st4kdb6p7kasi1cdnson"
+    cognito_url: "https://cognito-idp.us-east-1.amazonaws.com/"
+    request_timeout: 30
+    user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+    origin_url: "https://my.glove80.com"
+    referer_url: "https://my.glove80.com/"
+    aws_amplify_version: "aws-amplify/5.0.4 js"

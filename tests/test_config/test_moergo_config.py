@@ -31,7 +31,11 @@ class TestMoErgoCredentialConfig:
 
     def test_custom_configuration(self, isolated_config):
         """Test custom credential configuration."""
-        config_dir = isolated_config.config_file_path.parent if isolated_config.config_file_path else Path("/tmp/test")
+        config_dir = (
+            isolated_config.config_file_path.parent
+            if isolated_config.config_file_path
+            else Path("/tmp/test")
+        )
 
         config = MoErgoCredentialConfig(
             config_dir=config_dir,
@@ -97,7 +101,7 @@ class TestMoErgoCognitoConfig:
     def test_default_configuration(self):
         """Test default Cognito configuration values."""
         config = MoErgoCognitoConfig()
-        
+
         assert config.client_id == "3hvr36st4kdb6p7kasi1cdnson"
         assert config.cognito_url == "https://cognito-idp.us-east-1.amazonaws.com/"
         assert config.request_timeout == 30
@@ -116,7 +120,7 @@ class TestMoErgoCognitoConfig:
             referer_url="https://custom.example.com/auth/",
             user_agent="Custom User Agent",
         )
-        
+
         assert config.client_id == "custom-client-id"
         assert config.cognito_url == "https://custom-cognito.amazonaws.com/"
         assert config.request_timeout == 60
@@ -129,11 +133,11 @@ class TestMoErgoCognitoConfig:
         # Valid client ID
         config = MoErgoCognitoConfig(client_id="valid-client-id")
         assert config.client_id == "valid-client-id"
-        
+
         # Empty client ID should raise ValueError
         with pytest.raises(ValueError, match="Client ID cannot be empty"):
             MoErgoCognitoConfig(client_id="")
-        
+
         with pytest.raises(ValueError, match="Client ID cannot be empty"):
             MoErgoCognitoConfig(client_id="   ")
 
@@ -148,11 +152,11 @@ class TestMoErgoCognitoConfig:
         assert config.cognito_url == "https://example.com"
         assert config.origin_url == "http://localhost:8080"
         assert config.referer_url == "https://custom.com/path"
-        
+
         # Invalid URLs
         with pytest.raises(ValueError, match="URL must start with http"):
             MoErgoCognitoConfig(cognito_url="ftp://example.com")
-        
+
         with pytest.raises(ValueError, match="URL cannot be empty"):
             MoErgoCognitoConfig(origin_url="")
 
@@ -161,11 +165,11 @@ class TestMoErgoCognitoConfig:
         # Valid timeout
         config = MoErgoCognitoConfig(request_timeout=120)
         assert config.request_timeout == 120
-        
+
         # Invalid timeout
         with pytest.raises(ValueError, match="Request timeout must be positive"):
             MoErgoCognitoConfig(request_timeout=0)
-        
+
         with pytest.raises(ValueError, match="Request timeout must be positive"):
             MoErgoCognitoConfig(request_timeout=-10)
 
@@ -180,8 +184,6 @@ class TestMoErgoServiceConfig:
         assert config.api_base_url == "https://my.glove80.com"
         assert isinstance(config.credentials, MoErgoCredentialConfig)
         assert isinstance(config.cognito, MoErgoCognitoConfig)
-        assert config.enable_layout_sync is True
-        assert config.enable_bookmark_sync is True
         assert config.connection_timeout == 30
         assert config.request_timeout == 60
 
@@ -230,7 +232,11 @@ class TestMoErgoFactoryFunctions:
 
     def test_create_moergo_credential_config(self, isolated_config):
         """Test MoErgo credential config factory."""
-        config_dir = isolated_config.config_file_path.parent if isolated_config.config_file_path else Path("/tmp/test")
+        config_dir = (
+            isolated_config.config_file_path.parent
+            if isolated_config.config_file_path
+            else Path("/tmp/test")
+        )
 
         config = create_moergo_credential_config(
             config_dir=config_dir,
@@ -259,7 +265,7 @@ class TestMoErgoFactoryFunctions:
             request_timeout=45,
             origin_url="https://test.example.com",
         )
-        
+
         assert isinstance(config, MoErgoCognitoConfig)
         assert config.client_id == "test-client-id"
         assert config.request_timeout == 45
@@ -269,7 +275,7 @@ class TestMoErgoFactoryFunctions:
     def test_create_moergo_cognito_config_defaults(self):
         """Test MoErgo Cognito config factory with defaults."""
         config = create_moergo_cognito_config()
-        
+
         assert isinstance(config, MoErgoCognitoConfig)
         assert config.client_id == "3hvr36st4kdb6p7kasi1cdnson"
         assert config.request_timeout == 30
@@ -281,7 +287,11 @@ class TestMoErgoModelSerialization:
 
     def test_credential_config_serialization(self, isolated_config):
         """Test credential config serialization."""
-        config_dir = isolated_config.config_file_path.parent if isolated_config.config_file_path else Path("/tmp/test")
+        config_dir = (
+            isolated_config.config_file_path.parent
+            if isolated_config.config_file_path
+            else Path("/tmp/test")
+        )
 
         config = MoErgoCredentialConfig(
             config_dir=config_dir,
@@ -305,20 +315,17 @@ class TestMoErgoModelSerialization:
         """Test service config serialization."""
         config = MoErgoServiceConfig(
             api_base_url="https://test.example.com",
-            enable_layout_sync=False,
             connection_timeout=45,
         )
 
         # Test model_dump
         data = config.model_dump(mode="json")
         assert data["api_base_url"] == "https://test.example.com"
-        assert data["enable_layout_sync"] is False
         assert data["connection_timeout"] == 45
         assert "credentials" in data
 
         # Test round-trip serialization
         restored = MoErgoServiceConfig.model_validate(data)
         assert restored.api_base_url == config.api_base_url
-        assert restored.enable_layout_sync == config.enable_layout_sync
         assert restored.connection_timeout == config.connection_timeout
         assert isinstance(restored.credentials, MoErgoCredentialConfig)

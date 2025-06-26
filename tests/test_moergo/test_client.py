@@ -37,7 +37,11 @@ class TestCredentialManager:
     @pytest.fixture
     def credential_config(self, isolated_config):
         """Create MoErgo credential configuration with isolated directory."""
-        config_dir = isolated_config.config_file_path.parent if isolated_config.config_file_path else Path.home() / ".glovebox"
+        config_dir = (
+            isolated_config.config_file_path.parent
+            if isolated_config.config_file_path
+            else Path.home() / ".glovebox"
+        )
         return create_moergo_credential_config(
             config_dir=config_dir,
             username="test@example.com",
@@ -131,7 +135,9 @@ class TestCredentialManager:
             credential_manager.store_credentials(credentials)
 
             mock_keyring_module.set_password.assert_called_once_with(
-                credential_manager.config.keyring_service, "test@example.com", "testpass123"
+                credential_manager.config.keyring_service,
+                "test@example.com",
+                "testpass123",
             )
 
             loaded = credential_manager.load_credentials()
@@ -146,7 +152,11 @@ class TestMoErgoClient:
     @pytest.fixture
     def credential_config(self, isolated_config):
         """Create MoErgo credential configuration with isolated directory."""
-        config_dir = isolated_config.config_file_path.parent if isolated_config.config_file_path else Path.home() / ".glovebox"
+        config_dir = (
+            isolated_config.config_file_path.parent
+            if isolated_config.config_file_path
+            else Path.home() / ".glovebox"
+        )
         return create_moergo_credential_config(
             config_dir=config_dir,
             prefer_keyring=True,
@@ -527,7 +537,11 @@ class TestFirmwareCompilation:
     @pytest.fixture
     def credential_config(self, isolated_config):
         """Create MoErgo credential configuration with isolated directory."""
-        config_dir = isolated_config.config_file_path.parent if isolated_config.config_file_path else Path.home() / ".glovebox"
+        config_dir = (
+            isolated_config.config_file_path.parent
+            if isolated_config.config_file_path
+            else Path.home() / ".glovebox"
+        )
         return create_moergo_credential_config(
             config_dir=config_dir,
             prefer_keyring=True,

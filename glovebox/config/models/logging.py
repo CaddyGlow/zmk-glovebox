@@ -34,7 +34,8 @@ class LogHandlerConfig(GloveboxBaseModel):
         description="Type of handler: console, stderr, or file"
     )
     level: str = Field(
-        default="INFO", description="Log level for this handler (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
+        default="INFO",
+        description="Log level for this handler (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
     )
     format: LogFormat = Field(
         default=LogFormat.SIMPLE, description="Format preset for log messages"
@@ -45,7 +46,6 @@ class LogHandlerConfig(GloveboxBaseModel):
     file_path: Path | None = Field(
         default=None, description="File path for file handlers (required for type=file)"
     )
-
 
     @field_validator("level")
     @classmethod
@@ -110,7 +110,9 @@ class LoggingConfig(GloveboxBaseModel):
 
     @field_validator("handlers")
     @classmethod
-    def validate_handlers_not_empty(cls, v: list[LogHandlerConfig]) -> list[LogHandlerConfig]:
+    def validate_handlers_not_empty(
+        cls, v: list[LogHandlerConfig]
+    ) -> list[LogHandlerConfig]:
         """Ensure at least one handler is configured."""
         if not v:
             raise ValueError("At least one log handler must be configured")
@@ -123,7 +125,9 @@ class LoggingConfig(GloveboxBaseModel):
         for handler in self.handlers:
             if handler.type == LogHandlerType.FILE and handler.file_path:
                 if handler.file_path in file_paths:
-                    raise ValueError(f"Duplicate file path in handlers: {handler.file_path}")
+                    raise ValueError(
+                        f"Duplicate file path in handlers: {handler.file_path}"
+                    )
                 file_paths.append(handler.file_path)
 
 
