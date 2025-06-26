@@ -49,38 +49,21 @@ def show_config(
 ) -> None:
     """Show configuration settings with optional field operations.
 
-
     \b
     By default, shows only configuration fields that have been explicitly set.
     Use --all to see all possible configuration options.
 
-
+    \b
     Examples:
-
-        \b
-        # Show only configured values (new default behavior)
-
-        glovebox config show
-
-
-        \b
-        # Show all possible configuration fields
-
-        glovebox config show --all
-
-
-        \b
-        # Show with additional info
-
-        glovebox config show --sources --defaults --descriptions
-
-
-        \b
-        # Get specific fields
-
-        glovebox config show --get cache_strategy
-
-        glovebox config show --get firmware.flash.timeout --get emoji_mode
+    # Show only configured values
+    glovebox config show
+    # Show all possible configuration fields
+    glovebox config show --all
+    # Show with additional info
+    glovebox config show --sources --defaults --descriptions
+    # Get specific fields
+    glovebox config show --get cache_strategy
+    glovebox config show --get firmware.flash.timeout --get emoji_mode
     """
     from glovebox.cli.app import AppContext
     from glovebox.cli.commands.config.edit import ConfigEditor
