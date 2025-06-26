@@ -4,10 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from glovebox.config.models.moergo import (
+from glovebox.moergo.config import (
+    MoErgoCognitoConfig,
     MoErgoCredentialConfig,
     MoErgoServiceConfig,
     create_default_moergo_config,
+    create_moergo_cognito_config,
     create_moergo_credential_config,
 )
 
@@ -89,6 +91,85 @@ class TestMoErgoCredentialConfig:
         assert config.config_dir.is_absolute()
 
 
+class TestMoErgoCognitoConfig:
+    """Test MoErgo Cognito configuration."""
+
+    def test_default_configuration(self):
+        """Test default Cognito configuration values."""
+        config = MoErgoCognitoConfig()
+        
+        assert config.client_id == "3hvr36st4kdb6p7kasi1cdnson"
+        assert config.cognito_url == "https://cognito-idp.us-east-1.amazonaws.com/"
+        assert config.request_timeout == 30
+        assert config.origin_url == "https://my.glove80.com"
+        assert config.referer_url == "https://my.glove80.com/"
+        assert config.aws_amplify_version == "aws-amplify/5.0.4 js"
+        assert "Mozilla/5.0" in config.user_agent
+
+    def test_custom_configuration(self):
+        """Test custom Cognito configuration."""
+        config = MoErgoCognitoConfig(
+            client_id="custom-client-id",
+            cognito_url="https://custom-cognito.amazonaws.com/",
+            request_timeout=60,
+            origin_url="https://custom.example.com",
+            referer_url="https://custom.example.com/auth/",
+            user_agent="Custom User Agent",
+        )
+        
+        assert config.client_id == "custom-client-id"
+        assert config.cognito_url == "https://custom-cognito.amazonaws.com/"
+        assert config.request_timeout == 60
+        assert config.origin_url == "https://custom.example.com"
+        assert config.referer_url == "https://custom.example.com/auth/"
+        assert config.user_agent == "Custom User Agent"
+
+    def test_client_id_validation(self):
+        """Test client ID validation."""
+        # Valid client ID
+        config = MoErgoCognitoConfig(client_id="valid-client-id")
+        assert config.client_id == "valid-client-id"
+        
+        # Empty client ID should raise ValueError
+        with pytest.raises(ValueError, match="Client ID cannot be empty"):
+            MoErgoCognitoConfig(client_id="")
+        
+        with pytest.raises(ValueError, match="Client ID cannot be empty"):
+            MoErgoCognitoConfig(client_id="   ")
+
+    def test_url_validation(self):
+        """Test URL validation."""
+        # Valid URLs
+        config = MoErgoCognitoConfig(
+            cognito_url="https://example.com",
+            origin_url="http://localhost:8080",
+            referer_url="https://custom.com/path",
+        )
+        assert config.cognito_url == "https://example.com"
+        assert config.origin_url == "http://localhost:8080"
+        assert config.referer_url == "https://custom.com/path"
+        
+        # Invalid URLs
+        with pytest.raises(ValueError, match="URL must start with http"):
+            MoErgoCognitoConfig(cognito_url="ftp://example.com")
+        
+        with pytest.raises(ValueError, match="URL cannot be empty"):
+            MoErgoCognitoConfig(origin_url="")
+
+    def test_timeout_validation(self):
+        """Test request timeout validation."""
+        # Valid timeout
+        config = MoErgoCognitoConfig(request_timeout=120)
+        assert config.request_timeout == 120
+        
+        # Invalid timeout
+        with pytest.raises(ValueError, match="Request timeout must be positive"):
+            MoErgoCognitoConfig(request_timeout=0)
+        
+        with pytest.raises(ValueError, match="Request timeout must be positive"):
+            MoErgoCognitoConfig(request_timeout=-10)
+
+
 class TestMoErgoServiceConfig:
     """Test MoErgo service configuration."""
 
@@ -98,6 +179,7 @@ class TestMoErgoServiceConfig:
 
         assert config.api_base_url == "https://my.glove80.com"
         assert isinstance(config.credentials, MoErgoCredentialConfig)
+        assert isinstance(config.cognito, MoErgoCognitoConfig)
         assert config.enable_layout_sync is True
         assert config.enable_bookmark_sync is True
         assert config.connection_timeout == 30
@@ -144,6 +226,7 @@ class TestMoErgoFactoryFunctions:
         assert isinstance(config, MoErgoServiceConfig)
         assert config.api_base_url == "https://my.glove80.com"
         assert isinstance(config.credentials, MoErgoCredentialConfig)
+        assert isinstance(config.cognito, MoErgoCognitoConfig)
 
     def test_create_moergo_credential_config(self, isolated_config):
         """Test MoErgo credential config factory."""
@@ -168,6 +251,29 @@ class TestMoErgoFactoryFunctions:
         assert config.config_dir == Path.home() / ".glovebox"
         assert config.default_username is None
         assert config.prefer_keyring is True
+
+    def test_create_moergo_cognito_config(self):
+        """Test MoErgo Cognito config factory."""
+        config = create_moergo_cognito_config(
+            client_id="test-client-id",
+            request_timeout=45,
+            origin_url="https://test.example.com",
+        )
+        
+        assert isinstance(config, MoErgoCognitoConfig)
+        assert config.client_id == "test-client-id"
+        assert config.request_timeout == 45
+        assert config.origin_url == "https://test.example.com"
+        assert config.referer_url == "https://test.example.com/"
+
+    def test_create_moergo_cognito_config_defaults(self):
+        """Test MoErgo Cognito config factory with defaults."""
+        config = create_moergo_cognito_config()
+        
+        assert isinstance(config, MoErgoCognitoConfig)
+        assert config.client_id == "3hvr36st4kdb6p7kasi1cdnson"
+        assert config.request_timeout == 30
+        assert config.origin_url == "https://my.glove80.com"
 
 
 class TestMoErgoModelSerialization:

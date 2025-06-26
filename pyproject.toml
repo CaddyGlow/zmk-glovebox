@@ -61,6 +61,12 @@ source = "vcs"
 [tool.hatch.build.hooks.vcs]
 version-file = "glovebox/_version.py"
 
+[tool.hatch.build.targets.wheel]
+packages = ["glovebox"]
+include = [
+  "glovebox/config/config.yaml",
+]
+
 [tool.pytest.ini_options]
 addopts = "-ra -q"
 markers = [

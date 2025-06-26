@@ -307,6 +307,13 @@ def firmware_compile(
             help="Show compilation logs in progress display (default: enabled when progress is shown)",
         ),
     ] = True,
+    debug: Annotated[
+        bool,
+        typer.Option(
+            "--debug",
+            help="Show debug-level application logs in TUI progress display",
+        ),
+    ] = False,
 ) -> None:
     """Build ZMK firmware from keymap/config files or JSON layout.
 
@@ -345,8 +352,8 @@ def firmware_compile(
         # Specify compilation strategy explicitly
         glovebox firmware compile layout.json --profile glove80/v25.05 --strategy zmk_config
 
-        # Enable verbose output for debugging
-        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --verbose
+        # Show debug logs in TUI progress display
+        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --debug
 
         # JSON output for automation
         glovebox firmware compile layout.json --profile glove80/v25.05 --output-format json
@@ -379,7 +386,7 @@ def firmware_compile(
             progress_callback = None
             if show_progress:
                 progress_callback = _create_compilation_progress_display(
-                    show_logs=show_logs
+                    show_logs=show_logs, debug=debug
                 )
                 # Start with initial status
                 initial_progress = CompilationProgress(
@@ -828,11 +835,17 @@ def list_devices(
         raise typer.Exit(1) from None
 
 
-def _create_compilation_progress_display(show_logs: bool = True) -> CompilationProgressCallback:
+def _create_compilation_progress_display(
+    show_logs: bool = True, debug: bool = False
+) -> CompilationProgressCallback:
     """Create a compilation progress display callback using the reusable TUI component.
 
-    This function provides a simple progress display without over-engineered
-    logging integration, following CLAUDE.md principles of simplicity.
+    This function provides a simple progress display with optional debug logging
+    integration, following CLAUDE.md principles of simplicity.
+
+    Args:
+        show_logs: Whether to show compilation logs in progress display
+        debug: Whether to show debug-level application logs in TUI
     """
     from glovebox.cli.components.progress_display import (
         CompilationProgressDisplayManager,
@@ -841,11 +854,41 @@ def _create_compilation_progress_display(show_logs: bool = True) -> CompilationP
     # Create the progress display manager
     manager = CompilationProgressDisplayManager(show_logs=show_logs)
 
+    # Add TUI log handler if debug logging is requested
+    tui_log_handler = None
+    if debug:
+        from glovebox.core import TUILogHandler
+        from glovebox.core.logging import get_logger
+
+        # Create TUI log handler and connect to progress manager
+        tui_log_handler = TUILogHandler(progress_manager=manager, level=logging.DEBUG)
+        tui_log_handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
+
+        # Add handler to glovebox logger to capture all debug logs
+        glovebox_logger = get_logger("glovebox")
+        glovebox_logger.addHandler(tui_log_handler)
+
     # Start and return the progress callback
     progress_callback = manager.start()
 
     # Add compatibility for middleware reference (used in ZMK service)
     progress_callback.manager = manager  # type: ignore[attr-defined]
+
+    # Add cleanup for TUI handler
+    if tui_log_handler:
+        original_cleanup = getattr(progress_callback, "cleanup", manager.stop)
+
+        def enhanced_cleanup() -> None:
+            """Cleanup progress display and TUI log handler."""
+            # Remove TUI handler from logger
+            glovebox_logger = get_logger("glovebox")
+            if tui_log_handler in glovebox_logger.handlers:
+                glovebox_logger.removeHandler(tui_log_handler)
+            tui_log_handler.close()
+            # Call original cleanup
+            original_cleanup()
+
+        progress_callback.cleanup = enhanced_cleanup  # type: ignore[attr-defined]
 
     # The manager's start() method already adds the cleanup function
     return progress_callback

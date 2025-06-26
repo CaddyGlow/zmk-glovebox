@@ -16,6 +16,7 @@ class LogHandlerType(str, Enum):
     CONSOLE = "console"
     STDERR = "stderr"
     FILE = "file"
+    TUI = "tui"
 
 
 class LogFormat(str, Enum):
