@@ -10,6 +10,7 @@ from rich.console import Console
 
 from .utils import get_icon, log_error_with_debug_stack
 
+
 logger = logging.getLogger(__name__)
 console = Console()
 

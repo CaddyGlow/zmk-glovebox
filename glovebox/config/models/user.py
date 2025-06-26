@@ -1,5 +1,6 @@
 """User configuration models."""
 
+import logging
 import os
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from glovebox.cli.helpers.theme import IconMode
 
 from .cache import CacheTTLConfig
 from .firmware import UserFirmwareConfig
+from .logging import LoggingConfig, create_default_logging_config
 
 
 if TYPE_CHECKING:
@@ -96,8 +98,13 @@ class UserConfigData(BaseSettings):
         description="Default keyboard/firmware profile (e.g., 'glove80/v25.05')",
     )
 
-    # Logging
-    log_level: str = "WARNING"
+    # Logging configuration
+    logging_config: LoggingConfig = Field(
+        default_factory=create_default_logging_config,
+        description="Logging configuration with multiple handlers and formats",
+        alias="logging"
+    )
+
 
     # Version check settings
     disable_version_checks: bool = Field(
@@ -176,16 +183,6 @@ class UserConfigData(BaseSettings):
 
         return v
 
-    @field_validator("log_level")
-    @classmethod
-    def validate_log_level(cls, v: str) -> str:
-        """Validate log level is a recognized value."""
-        valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-        # Strip whitespace and convert to uppercase
-        upper_v = v.strip().upper()
-        if upper_v not in valid_levels:
-            raise ValueError(f"Log level must be one of {valid_levels}")
-        return upper_v  # Always normalize to uppercase
 
     # @field_validator("deepdiff_delta_serializer")
     # @classmethod
@@ -250,7 +247,6 @@ class UserConfigData(BaseSettings):
     def serialize_icon_mode(self, value: "IconMode") -> str:
         """Serialize IconMode enum to string for config file storage."""
         return value.value
-
 
 # Rebuild model to resolve forward references
 if not TYPE_CHECKING and BookmarkCollection is not None:

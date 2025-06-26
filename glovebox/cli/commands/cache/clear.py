@@ -8,13 +8,15 @@ import typer
 from rich.console import Console
 
 from glovebox.config.user_config import create_user_config
+
 from .utils import (
-    get_cache_manager,
-    format_size_display,
-    get_directory_size_bytes,
     format_icon_with_message,
+    format_size_display,
+    get_cache_manager,
+    get_directory_size_bytes,
     get_icon,
 )
+
 
 logger = logging.getLogger(__name__)
 console = Console()

@@ -20,15 +20,15 @@ def process_workspace_source(
     source: str, progress: bool = True, console: Console | None = None
 ) -> tuple[Path, list[Path]]:
     """Process workspace source (directory, zip file, or URL) and return workspace path.
-    
+
     Args:
         source: Source path, zip file, or URL
         progress: Whether to show progress bars
         console: Rich console for output
-        
+
     Returns:
         Tuple of (workspace_path, temp_dirs_to_cleanup)
-        
+
     Raises:
         typer.Exit: If processing fails
     """
@@ -37,7 +37,7 @@ def process_workspace_source(
 
     # Check if it's a URL
     parsed_url = urlparse(source)
-    if parsed_url.scheme in ['http', 'https']:
+    if parsed_url.scheme in ["http", "https"]:
         workspace_path, temp_dir = download_and_extract_zip(source, progress, console)
         return workspace_path, [temp_dir]
 
@@ -54,24 +54,28 @@ def process_workspace_source(
         return validate_workspace_directory(source_path, console), []
 
     # If it's a zip file, extract it
-    if source_path.suffix.lower() == '.zip':
+    if source_path.suffix.lower() == ".zip":
         workspace_path, temp_dir = extract_local_zip(source_path, progress, console)
         return workspace_path, [temp_dir]
 
     # Unknown file type
     console.print(f"[red]Unsupported source type: {source_path}[/red]")
-    console.print("[dim]Supported sources: directory, .zip file, or URL to .zip file[/dim]")
+    console.print(
+        "[dim]Supported sources: directory, .zip file, or URL to .zip file[/dim]"
+    )
     raise typer.Exit(1)
 
 
-def download_and_extract_zip(url: str, progress: bool, console: Console) -> tuple[Path, Path]:
+def download_and_extract_zip(
+    url: str, progress: bool, console: Console
+) -> tuple[Path, Path]:
     """Download zip file from URL and extract workspace.
-    
+
     Args:
         url: URL to zip file
         progress: Whether to show progress bar
         console: Rich console for output
-        
+
     Returns:
         Path to extracted workspace directory
     """
@@ -109,13 +113,16 @@ def download_and_extract_zip(url: str, progress: bool, console: Console) -> tupl
                 def download_with_progress() -> None:
                     """Download file with progress updates."""
                     try:
-                        with urllib.request.urlopen(url) as response:
-                            total_size = int(response.headers.get('content-length', 0))
+                        # Cloudflare R2 storage is blocking the default User-Agent
+                        headers = {"User-Agent": "curl/8.13.0"}
+                        request = urllib.request.Request(url=url, headers=headers)
+                        with urllib.request.urlopen(request) as response:
+                            total_size = int(response.headers.get("content-length", 0))
                             if total_size > 0:
                                 progress_bar.update(task_id, total=total_size)
 
                             downloaded = 0
-                            with zip_path.open('wb') as f:
+                            with zip_path.open("wb") as f:
                                 while True:
                                     chunk = response.read(8192)
                                     if not chunk:
@@ -149,14 +156,16 @@ def download_and_extract_zip(url: str, progress: bool, console: Console) -> tupl
         raise
 
 
-def extract_local_zip(zip_path: Path, progress: bool, console: Console) -> tuple[Path, Path]:
+def extract_local_zip(
+    zip_path: Path, progress: bool, console: Console
+) -> tuple[Path, Path]:
     """Extract local zip file to temporary directory.
-    
+
     Args:
         zip_path: Path to local zip file
         progress: Whether to show progress bar
         console: Rich console for output
-        
+
     Returns:
         Path to extracted workspace directory
     """
@@ -184,12 +193,12 @@ def extract_local_zip(zip_path: Path, progress: bool, console: Console) -> tuple
 
 def extract_zip_file(zip_path: Path, progress: bool, console: Console) -> Path:
     """Extract zip file and find workspace directory.
-    
+
     Args:
         zip_path: Path to zip file
         progress: Whether to show progress bar
         console: Rich console for output
-        
+
     Returns:
         Path to workspace directory
     """
@@ -205,7 +214,7 @@ def extract_zip_file(zip_path: Path, progress: bool, console: Console) -> Path:
     extract_dir.mkdir(exist_ok=True)
 
     try:
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
             file_list = zip_ref.namelist()
 
             if progress:
@@ -219,7 +228,9 @@ def extract_zip_file(zip_path: Path, progress: bool, console: Console) -> Path:
                 )
 
                 with progress_bar:
-                    task_id = progress_bar.add_task("Extracting...", total=len(file_list))
+                    task_id = progress_bar.add_task(
+                        "Extracting...", total=len(file_list)
+                    )
 
                     for i, file_info in enumerate(zip_ref.infolist()):
                         zip_ref.extract(file_info, extract_dir)
@@ -240,17 +251,18 @@ def extract_zip_file(zip_path: Path, progress: bool, console: Console) -> Path:
 
 def find_workspace_in_directory(base_dir: Path, console: Console) -> Path:
     """Find workspace directory by checking for ZMK workspace structure.
-    
+
     Args:
         base_dir: Base directory to search in
         console: Rich console for output
-        
+
     Returns:
         Path to workspace directory
     """
+
     def is_workspace_directory(path: Path) -> bool:
         """Check if directory contains ZMK workspace structure."""
-        required_dirs = ['zmk', 'zephyr', 'modules']
+        required_dirs = ["zmk", "zephyr", "modules"]
         return all((path / dir_name).is_dir() for dir_name in required_dirs)
 
     # Check root directory first
@@ -260,7 +272,9 @@ def find_workspace_in_directory(base_dir: Path, console: Console) -> Path:
     # Check each subdirectory
     for item in base_dir.iterdir():
         if item.is_dir() and is_workspace_directory(item):
-            console.print(f"[green]Found workspace in subdirectory: {item.name}[/green]")
+            console.print(
+                f"[green]Found workspace in subdirectory: {item.name}[/green]"
+            )
             return item
 
     # No workspace found
@@ -271,21 +285,23 @@ def find_workspace_in_directory(base_dir: Path, console: Console) -> Path:
 
 def validate_workspace_directory(workspace_path: Path, console: Console) -> Path:
     """Validate that directory contains ZMK workspace structure.
-    
+
     Args:
         workspace_path: Path to workspace directory
         console: Rich console for output
-        
+
     Returns:
         Validated workspace path
     """
-    required_dirs = ['zmk', 'zephyr', 'modules']
+    required_dirs = ["zmk", "zephyr", "modules"]
     missing_dirs = [d for d in required_dirs if not (workspace_path / d).is_dir()]
 
     if missing_dirs:
         console.print(f"[red]Invalid workspace directory: {workspace_path}[/red]")
         console.print(f"[red]Missing directories: {', '.join(missing_dirs)}[/red]")
-        console.print("[dim]Expected ZMK workspace structure: zmk/, zephyr/, modules/[/dim]")
+        console.print(
+            "[dim]Expected ZMK workspace structure: zmk/, zephyr/, modules/[/dim]"
+        )
         raise typer.Exit(1)
 
     return workspace_path

@@ -12,7 +12,7 @@ import typer
 from glovebox.cli.decorators.error_handling import print_stack_trace_if_verbose
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core import metrics
-from glovebox.core.logging import setup_logging
+from glovebox.core.logging import setup_logging, setup_logging_from_config
 
 
 # Export setup_logging to make it available when importing from this module
@@ -237,17 +237,24 @@ def main_callback(
 
     # Set log level based on verbosity, debug flag, or config
     log_level = logging.WARNING
-    if debug:
-        log_level = logging.DEBUG
-    elif verbose == 1:
-        log_level = logging.INFO
-    elif verbose >= 2:
-        log_level = logging.DEBUG
-    elif not verbose and log_file is None:
-        # If no explicit CLI flags are set, use the config file log level
-        log_level = app_context.user_config.get_log_level_int()
+    # Determine if CLI flags override user config
+    cli_overrides = debug or verbose or log_file is not None
 
-    setup_logging(level=log_level, log_file=log_file)
+    if cli_overrides:
+        # Use legacy setup_logging with CLI overrides
+        if debug:
+            log_level = logging.DEBUG
+        elif verbose == 1:
+            log_level = logging.INFO
+        elif verbose >= 2:
+            log_level = logging.DEBUG
+        else:
+            log_level = app_context.user_config.get_log_level_int()
+
+        setup_logging(level=log_level, log_file=log_file)
+    else:
+        # Use new configuration-based logging
+        setup_logging_from_config(app_context.user_config._config.logging_config)
 
     # Run startup checks (version updates, etc.)
     _run_startup_checks(app_context)
