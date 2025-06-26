@@ -6,7 +6,7 @@ import logging
 import shlex
 import subprocess
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from glovebox.models.docker import DockerUserContext
 from glovebox.protocols.docker_adapter_protocol import (
@@ -19,6 +19,7 @@ from glovebox.utils.stream_process import (
     OutputMiddleware,
     ProcessResult,
     T,
+    create_chained_middleware,
 )
 
 
@@ -373,6 +374,75 @@ class DockerAdapter:
 
             logger.error("Unexpected Docker pull error for %s: %s", image_full_name, e)
             raise error from e
+
+
+def create_logger_middleware(
+    logger_instance: logging.Logger | None = None,
+    stdout_prefix: str = "",
+    stderr_prefix: str = "",
+) -> LoggerOutputMiddleware:
+    """Factory function to create a LoggerOutputMiddleware instance.
+
+    Args:
+        logger_instance: Logger instance to use (defaults to module logger)
+        stdout_prefix: Prefix for stdout lines
+        stderr_prefix: Prefix for stderr lines
+
+    Returns:
+        Configured LoggerOutputMiddleware instance
+    """
+    if logger_instance is None:
+        logger_instance = logger
+    return LoggerOutputMiddleware(logger_instance, stdout_prefix, stderr_prefix)
+
+
+def create_chained_docker_middleware(
+    middleware_chain: list[OutputMiddleware[Any]],
+    include_logger: bool = True,
+    logger_instance: logging.Logger | None = None,
+    stdout_prefix: str = "",
+    stderr_prefix: str = "",
+) -> OutputMiddleware[Any]:
+    """Factory function to create chained middleware for Docker operations.
+
+    Args:
+        middleware_chain: List of middleware components to chain together
+        include_logger: Whether to automatically add logger middleware at the end
+        logger_instance: Logger instance to use (defaults to module logger)
+        stdout_prefix: Prefix for stdout lines in logger middleware
+        stderr_prefix: Prefix for stderr lines in logger middleware
+
+    Returns:
+        Chained middleware instance
+
+    Example:
+        ```python
+        from glovebox.adapters.compilation_progress_middleware import create_compilation_progress_middleware
+        from glovebox.adapters.docker_adapter import create_chained_docker_middleware
+
+        # Create progress middleware
+        progress_middleware = create_compilation_progress_middleware(callback)
+
+        # Create chained middleware with automatic logger
+        chained = create_chained_docker_middleware([progress_middleware])
+
+        # Use with docker adapter
+        adapter = create_docker_adapter()
+        result = adapter.run_container("image", [], {}, middleware=chained)
+        ```
+    """
+    final_chain = list(middleware_chain)
+
+    if include_logger:
+        logger_middleware = create_logger_middleware(
+            logger_instance, stdout_prefix, stderr_prefix
+        )
+        final_chain.append(logger_middleware)
+
+    if len(final_chain) == 1:
+        return final_chain[0]
+
+    return create_chained_middleware(final_chain)
 
 
 def create_docker_adapter() -> DockerAdapterProtocol:

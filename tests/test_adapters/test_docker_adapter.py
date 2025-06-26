@@ -9,7 +9,9 @@ import pytest
 from glovebox.adapters.docker_adapter import (
     DockerAdapter,
     LoggerOutputMiddleware,
+    create_chained_docker_middleware,
     create_docker_adapter,
+    create_logger_middleware,
 )
 from glovebox.core.errors import DockerError
 from glovebox.models.docker import DockerUserContext
@@ -567,3 +569,67 @@ class TestDockerAdapterProtocol:
         assert isinstance(adapter, DockerAdapterProtocol), (
             "DockerAdapter should be instance of DockerAdapterProtocol"
         )
+
+
+class TestChainedMiddleware:
+    """Test chained middleware functionality."""
+
+    def test_chained_middleware_creation(self):
+        """Test that chained middleware can be created."""
+        from glovebox.utils.stream_process import OutputMiddleware
+
+        # Create a simple test middleware
+        class TestMiddleware(OutputMiddleware[str]):
+            def process(self, line: str, stream_type: str) -> str:
+                return f"TEST: {line}"
+
+        middleware = TestMiddleware()
+        chained = create_chained_docker_middleware([middleware])
+
+        # Test that it processes output correctly
+        result = chained.process("test line", "stdout")
+        assert isinstance(result, str)
+        # Should have been processed by TestMiddleware and LoggerOutputMiddleware
+
+    def test_chained_middleware_no_logger(self):
+        """Test chained middleware without automatic logger."""
+        from glovebox.utils.stream_process import OutputMiddleware
+
+        class TestMiddleware(OutputMiddleware[str]):
+            def process(self, line: str, stream_type: str) -> str:
+                return f"PROCESSED: {line}"
+
+        middleware = TestMiddleware()
+        chained = create_chained_docker_middleware([middleware], include_logger=False)
+
+        result = chained.process("test", "stdout")
+        assert result == "PROCESSED: test"
+
+    def test_multiple_middleware_chaining(self):
+        """Test chaining multiple middleware components."""
+        from glovebox.utils.stream_process import (
+            OutputMiddleware,
+            create_chained_middleware,
+        )
+
+        class FirstMiddleware(OutputMiddleware[str]):
+            def process(self, line: str, stream_type: str) -> str:
+                return f"FIRST: {line}"
+
+        class SecondMiddleware(OutputMiddleware[str]):
+            def process(self, line: str, stream_type: str) -> str:
+                return f"SECOND: {line}"
+
+        first = FirstMiddleware()
+        second = SecondMiddleware()
+        chained = create_chained_middleware([first, second])
+
+        result = chained.process("test", "stdout")
+        assert result == "SECOND: FIRST: test"
+
+    def test_chained_middleware_empty_chain(self):
+        """Test that empty middleware chain raises ValueError."""
+        from glovebox.utils.stream_process import create_chained_middleware
+
+        with pytest.raises(ValueError, match="Middleware chain cannot be empty"):
+            create_chained_middleware([])

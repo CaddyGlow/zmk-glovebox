@@ -5,7 +5,7 @@ import shutil
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -31,8 +31,12 @@ from glovebox.config.user_config import UserConfig
 from glovebox.core.cache.cache_manager import CacheManager
 from glovebox.core.cache.models import CacheKey
 from glovebox.core.errors import CompilationError
-from glovebox.core.file_operations.enums import CopyStrategy
-from glovebox.core.file_operations.service import FileCopyService, create_copy_service
+from glovebox.core.file_operations import (
+    CompilationProgress,
+    CompilationProgressCallback,
+    FileCopyService,
+    create_copy_service,
+)
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.models.docker import DockerUserContext
 from glovebox.protocols import (
@@ -40,7 +44,11 @@ from glovebox.protocols import (
     FileAdapterProtocol,
     MetricsProtocol,
 )
-from glovebox.utils.stream_process import DefaultOutputMiddleware
+from glovebox.utils.stream_process import (
+    DefaultOutputMiddleware,
+    OutputMiddleware,
+    create_chained_middleware,
+)
 
 
 if TYPE_CHECKING:
@@ -71,6 +79,7 @@ class WorkspaceSetup:
         get_cached_workspace_func: Callable[
             [ZmkCompilationConfig], tuple[Path | None, bool, str | None]
         ],
+        progress_callback: CompilationProgressCallback | None = None,
     ) -> tuple[Path | None, bool, str | None]:
         """Get cached workspace or create new one.
 
@@ -94,11 +103,19 @@ class WorkspaceSetup:
 
             with workspace_duration.time():
                 return self._get_or_create_workspace_internal(
-                    keymap_file, config_file, config, get_cached_workspace_func
+                    keymap_file,
+                    config_file,
+                    config,
+                    get_cached_workspace_func,
+                    progress_callback,
                 )
         else:
             return self._get_or_create_workspace_internal(
-                keymap_file, config_file, config, get_cached_workspace_func
+                keymap_file,
+                config_file,
+                config,
+                get_cached_workspace_func,
+                progress_callback,
             )
 
     def _get_or_create_workspace_internal(
@@ -109,6 +126,7 @@ class WorkspaceSetup:
         get_cached_workspace_func: Callable[
             [ZmkCompilationConfig], tuple[Path | None, bool, str | None]
         ],
+        progress_callback: CompilationProgressCallback | None = None,
     ) -> tuple[Path | None, bool, str | None]:
         """Internal method for workspace creation."""
         # Track cache operations with SessionMetrics
@@ -147,14 +165,18 @@ class WorkspaceSetup:
                         "Workspace restoration duration",
                     )
                     with workspace_restoration_duration.time():
-                        self._restore_cached_workspace(cached_workspace, workspace_path)
+                        self._restore_cached_workspace(
+                            cached_workspace, workspace_path, progress_callback
+                        )
                         self.setup_workspace(
                             keymap_file, config_file, config, workspace_path
                         )
                     if cache_operations:
                         cache_operations.labels("restoration", "success").inc()
                 else:
-                    self._restore_cached_workspace(cached_workspace, workspace_path)
+                    self._restore_cached_workspace(
+                        cached_workspace, workspace_path, progress_callback
+                    )
                     self.setup_workspace(
                         keymap_file, config_file, config, workspace_path
                     )
@@ -184,20 +206,40 @@ class WorkspaceSetup:
         return workspace_path, False, None
 
     def _restore_cached_workspace(
-        self, cached_workspace: Path, workspace_path: Path
+        self,
+        cached_workspace: Path,
+        workspace_path: Path,
+        progress_callback: CompilationProgressCallback | None = None,
     ) -> None:
-        """Restore workspace from cached directory."""
+        """Restore workspace from cached directory with progress tracking."""
+
+        # Create a wrapper to convert CopyProgress to CompilationProgress
+        def copy_progress_wrapper(copy_progress: Any) -> None:
+            if progress_callback and hasattr(copy_progress, "current_file"):
+                # Convert file copy progress to compilation progress
+                compilation_progress = CompilationProgress(
+                    repositories_downloaded=50,  # Cache restoration is ~50% of initialization
+                    total_repositories=100,
+                    current_repository=f"Restoring cache: {copy_progress.current_file}",
+                    compilation_phase="cache_restoration",
+                    bytes_downloaded=copy_progress.bytes_copied,
+                    total_bytes=copy_progress.total_bytes,
+                )
+                progress_callback(compilation_progress)
+
+        self.logger.info("Restoring workspace from cache: %s", cached_workspace)
         result = self.copy_service.copy_directory(
             src=cached_workspace,
             dst=workspace_path,
             exclude_git=False,
-            strategy=CopyStrategy.PIPELINE,
+            use_pipeline=True,
+            progress_callback=copy_progress_wrapper if progress_callback else None,
         )
         if not result.success:
             raise RuntimeError(f"Copy operation failed: {result.error}")
 
-        self.logger.debug(
-            "Directory copy completed using strategy '%s': %.1f MB in %.2f seconds (%.1f MB/s)",
+        self.logger.info(
+            "Cache restoration completed using strategy '%s': %.1f MB in %.2f seconds (%.1f MB/s)",
             result.strategy_used,
             result.bytes_copied / (1024 * 1024),
             result.elapsed_time,
@@ -280,7 +322,9 @@ class ZmkWestService(CompilationServiceProtocol):
         self.cache_manager = cache_manager
         self.session_metrics = session_metrics
         self.logger = logging.getLogger(__name__)
-        self.copy_service = copy_service or create_copy_service(user_config)
+        self.copy_service = copy_service or create_copy_service(
+            use_pipeline=True, max_workers=3
+        )
 
         # Initialize workspace setup helper
         self.workspace_setup = WorkspaceSetup(
@@ -312,6 +356,7 @@ class ZmkWestService(CompilationServiceProtocol):
         output_dir: Path,
         config: CompilationConfigUnion,
         keyboard_profile: "KeyboardProfile",
+        progress_callback: "CompilationProgressCallback | None" = None,
     ) -> BuildResult:
         """Execute ZMK compilation."""
         self.logger.info("Starting ZMK config compilation")
@@ -335,11 +380,21 @@ class ZmkWestService(CompilationServiceProtocol):
 
             with compilation_duration.time():
                 return self._compile_internal(
-                    keymap_file, config_file, output_dir, config, keyboard_profile
+                    keymap_file,
+                    config_file,
+                    output_dir,
+                    config,
+                    keyboard_profile,
+                    progress_callback,
                 )
         else:
             return self._compile_internal(
-                keymap_file, config_file, output_dir, config, keyboard_profile
+                keymap_file,
+                config_file,
+                output_dir,
+                config,
+                keyboard_profile,
+                progress_callback,
             )
 
     def _compile_internal(
@@ -349,6 +404,7 @@ class ZmkWestService(CompilationServiceProtocol):
         output_dir: Path,
         config: CompilationConfigUnion,
         keyboard_profile: "KeyboardProfile",
+        progress_callback: CompilationProgressCallback | None = None,
     ) -> BuildResult:
         """Execute ZMK compilation."""
         try:
@@ -401,7 +457,11 @@ class ZmkWestService(CompilationServiceProtocol):
             # Try to use cached workspace
             workspace_path, cache_used, cache_type = (
                 self.workspace_setup.get_or_create_workspace(
-                    keymap_file, config_file, config, self._get_cached_workspace
+                    keymap_file,
+                    config_file,
+                    config,
+                    self._get_cached_workspace,
+                    progress_callback,
                 )
             )
             if not workspace_path:
@@ -420,7 +480,11 @@ class ZmkWestService(CompilationServiceProtocol):
                 )
                 with docker_duration.time():
                     compilation_success = self._run_compilation(
-                        workspace_path, config, cache_used, cache_type
+                        workspace_path,
+                        config,
+                        cache_used,
+                        cache_type,
+                        progress_callback,
                     )
                 if compilation_success:
                     docker_operations.labels("compilation", "success").inc()
@@ -428,7 +492,7 @@ class ZmkWestService(CompilationServiceProtocol):
                     docker_operations.labels("compilation", "failed").inc()
             else:
                 compilation_success = self._run_compilation(
-                    workspace_path, config, cache_used, cache_type
+                    workspace_path, config, cache_used, cache_type, progress_callback
                 )
 
             # Cache workspace dependencies if it was created fresh (not from cache)
@@ -511,6 +575,7 @@ class ZmkWestService(CompilationServiceProtocol):
         output_dir: Path,
         config: CompilationConfigUnion,
         keyboard_profile: "KeyboardProfile",
+        progress_callback: CompilationProgressCallback | None = None,
     ) -> BuildResult:
         """Execute compilation from JSON layout file."""
         self.logger.info("Starting JSON to firmware compilation")
@@ -591,6 +656,7 @@ class ZmkWestService(CompilationServiceProtocol):
                     output_dir=output_dir,
                     config=config,
                     keyboard_profile=keyboard_profile,
+                    progress_callback=progress_callback,
                 )
 
         except Exception as e:
@@ -874,6 +940,7 @@ class ZmkWestService(CompilationServiceProtocol):
         config: ZmkCompilationConfig,
         cache_was_used: bool = False,
         cache_type: str | None = None,
+        progress_callback: CompilationProgressCallback | None = None,
     ) -> bool:
         """Run Docker compilation with intelligent west update logic.
 
@@ -882,6 +949,7 @@ class ZmkWestService(CompilationServiceProtocol):
             config: ZMK compilation configuration
             cache_was_used: Whether workspace was loaded from cache
             cache_type: Type of cache used ('repo_branch' or 'repo_only')
+            progress_callback: Optional callback for compilation progress updates
         """
         try:
             # Check if Docker image exists, build if not
@@ -925,13 +993,44 @@ class ZmkWestService(CompilationServiceProtocol):
 
             self.logger.info("Running Docker compilation")
 
+            # Create progress middleware if progress callback is provided
+            middlewares: list[OutputMiddleware[Any]] = []
+            if progress_callback:
+                from glovebox.adapters import create_compilation_progress_middleware
+
+                # Extract board information for multi-board progress tracking
+                board_info = self._extract_board_info(workspace_path)
+
+                middleware = create_compilation_progress_middleware(
+                    progress_callback=progress_callback,
+                    total_repositories=39,  # Default repository count
+                    skip_west_update=cache_was_used,  # Skip west update if cache was used
+                    total_boards=board_info["total_boards"],
+                    board_names=board_info["board_names"],
+                )
+
+                # Store middleware reference in progress callback for log access
+                if hasattr(progress_callback, "manager"):
+                    # New reusable component approach
+                    progress_callback.manager.set_log_provider(middleware)  # type: ignore[attr-defined]
+                elif hasattr(progress_callback, "__setattr__"):
+                    # Legacy approach for backward compatibility
+                    progress_callback.middleware_ref = middleware  # type: ignore[attr-defined]
+
+                middlewares.append(middleware)
+
+            else:
+                middlewares.append(DefaultOutputMiddleware())
+
+            chained = create_chained_middleware(middlewares)
             result: tuple[int, list[str], list[str]] = (
                 self.docker_adapter.run_container(
                     image=config.image,
-                    command=["sh", "-c", " && ".join(all_commands)],
+                    command=["sh", "-c", "set -xeu; " + " && ".join(all_commands)],
                     volumes=[(str(workspace_path), "/workspace")],
                     environment={},  # {"JOBS": "4"},
                     user_context=user_context,
+                    middleware=chained,
                 )
             )
             return_code, stdout, stderr = result
@@ -994,6 +1093,43 @@ class ZmkWestService(CompilationServiceProtocol):
         except Exception as e:
             self.logger.error("Failed to generate build commands: %s", e)
             return []
+
+    def _extract_board_info(self, workspace_path: Path) -> dict[str, Any]:
+        """Extract board information from build matrix for progress tracking.
+
+        Args:
+            workspace_path: Path to the workspace directory
+
+        Returns:
+            Dictionary with total_boards and board_names
+        """
+        try:
+            build_yaml = workspace_path / "build.yaml"
+            if not build_yaml.exists():
+                self.logger.warning("build.yaml not found, using default single board")
+                return {"total_boards": 1, "board_names": []}
+
+            # Load build matrix to extract board information
+            build_matrix = BuildMatrix.from_yaml(build_yaml)
+
+            # Extract board names from targets
+            board_names = [target.board for target in build_matrix.targets]
+            total_boards = len(board_names)
+
+            self.logger.info(
+                "Detected %d boards for compilation: %s",
+                total_boards,
+                ", ".join(board_names),
+            )
+
+            return {
+                "total_boards": total_boards,
+                "board_names": board_names,
+            }
+
+        except Exception as e:
+            self.logger.warning("Failed to extract board info: %s", e)
+            return {"total_boards": 1, "board_names": []}
 
     def _collect_files(
         self, workspace_path: Path, output_dir: Path

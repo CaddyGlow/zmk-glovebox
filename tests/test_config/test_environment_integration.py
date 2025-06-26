@@ -44,7 +44,7 @@ class TestEnvironmentVariableOverrides:
         assert config.log_level == "CRITICAL"
         # Check that paths are converted to Path objects
         expected_paths = [Path("/env/path1"), Path("/env/path2"), Path("~/env/path3")]
-        assert config.keyboard_paths == expected_paths
+        assert config.profiles_paths == expected_paths
         assert config.firmware.flash.timeout == 999
         assert config.firmware.flash.count == 42
         assert config.firmware.flash.track_flashed is False
@@ -64,7 +64,7 @@ class TestEnvironmentVariableOverrides:
 
         # Default values for non-overridden fields
         assert config.log_level == "INFO"
-        assert config.keyboard_paths == []
+        assert config.profiles_paths == []
         assert config.firmware.flash.count == 2
         assert config.firmware.flash.track_flashed is True
         assert config.firmware.flash.skip_existing is False
@@ -142,9 +142,9 @@ class TestEnvironmentVariableOverrides:
         assert isinstance(config.firmware.flash.skip_existing, bool)
         assert config.firmware.flash.skip_existing is True
 
-        assert isinstance(config.keyboard_paths, list)
+        assert isinstance(config.profiles_paths, list)
         expected_paths = [Path("/path1"), Path("/path2"), Path("/path3")]
-        assert config.keyboard_paths == expected_paths
+        assert config.profiles_paths == expected_paths
 
     def test_boolean_environment_variable_values(self, clean_environment):
         """Test various boolean representations in environment variables."""
@@ -207,7 +207,7 @@ class TestEnvironmentVariableOverrides:
                 expected_paths = [
                     Path(path.strip()) for path in env_value.split(",") if path.strip()
                 ]
-            assert config.keyboard_paths == expected_paths, (
+            assert config.profiles_paths == expected_paths, (
                 f"Failed for value: {env_value}"
             )
 
@@ -367,7 +367,7 @@ class TestEnvironmentVariableEdgeCases:
         # Should handle unicode correctly
         assert config.profile == "unicode_🚀/test_✨"
         expected_paths = [Path("/path/with/émojis"), Path("~/ユニコード/パス")]
-        assert config.keyboard_paths == expected_paths
+        assert config.profiles_paths == expected_paths
 
     def test_keyboard_only_profile_environment_variables(self, clean_environment):
         """Test keyboard-only profile format in environment variables."""
@@ -396,8 +396,8 @@ class TestEnvironmentVariableEdgeCases:
 
         # Should handle long values
         assert config.profile == long_profile
-        assert len(config.keyboard_paths) == 10
-        assert all("z" * 50 in str(path) for path in config.keyboard_paths)
+        assert len(config.profiles_paths) == 10
+        assert all("z" * 50 in str(path) for path in config.profiles_paths)
 
     def test_special_characters_in_environment_variables(self, clean_environment):
         """Test handling of special characters in environment variables."""
@@ -417,7 +417,7 @@ class TestEnvironmentVariableEdgeCases:
             Path("/path/with'quotes"),
             Path('/path/with"double-quotes'),
         ]
-        assert config.keyboard_paths == expected_paths
+        assert config.profiles_paths == expected_paths
 
 
 class TestEnvironmentVariablePrecedence:

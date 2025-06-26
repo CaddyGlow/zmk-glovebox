@@ -7,17 +7,16 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from glovebox.core.file_operations import CopyStrategy
-from glovebox.core.file_operations.strategies import PipelineCopyStrategy
+from glovebox.core.file_operations import PipelineStrategy
 
 
-class TestPipelineCopyStrategy:
+class TestPipelineStrategy:
     """Test pipeline copy strategy implementation."""
 
     @pytest.fixture
     def strategy(self):
         """Create pipeline copy strategy with test configuration."""
-        return PipelineCopyStrategy(max_workers=2, size_calculation_workers=3)
+        return PipelineStrategy(max_workers=2, size_calculation_workers=3)
 
     @pytest.fixture
     def workspace_structure(self, tmp_path):
@@ -470,7 +469,7 @@ class TestPipelineCopyStrategy:
     def test_large_component_count(self, strategy, tmp_path):
         """Test performance with many components."""
         # Create strategy with more workers for this test
-        large_strategy = PipelineCopyStrategy(max_workers=4, size_calculation_workers=6)
+        large_strategy = PipelineStrategy(max_workers=4, size_calculation_workers=6)
 
         src_dir = tmp_path / "source"
         src_dir.mkdir()
@@ -541,12 +540,10 @@ class TestPipelineCopyStrategy:
     def test_different_worker_configurations(self, tmp_path):
         """Test strategy with different worker configurations."""
         # Test minimal workers
-        minimal_strategy = PipelineCopyStrategy(
-            max_workers=1, size_calculation_workers=1
-        )
+        minimal_strategy = PipelineStrategy(max_workers=1, size_calculation_workers=1)
 
         # Test many workers
-        many_workers_strategy = PipelineCopyStrategy(
+        many_workers_strategy = PipelineStrategy(
             max_workers=8, size_calculation_workers=12
         )
 

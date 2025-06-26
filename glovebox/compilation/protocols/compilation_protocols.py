@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
+from glovebox.core.file_operations import CompilationProgressCallback
 from glovebox.firmware.models import BuildResult
 
 
@@ -22,6 +23,7 @@ class CompilationServiceProtocol(Protocol):
         output_dir: Path,
         config: "CompilationConfigUnion",
         keyboard_profile: "KeyboardProfile",
+        progress_callback: CompilationProgressCallback | None = None,
     ) -> BuildResult:
         """Execute compilation using this strategy.
 
@@ -31,6 +33,7 @@ class CompilationServiceProtocol(Protocol):
             output_dir: Output directory for build artifacts
             config: Compilation configuration
             keyboard_profile: Keyboard profile for dynamic generation
+            progress_callback: Optional callback for compilation progress updates
 
         Returns:
             BuildResult: Results of compilation
@@ -43,6 +46,7 @@ class CompilationServiceProtocol(Protocol):
         output_dir: Path,
         config: "CompilationConfigUnion",
         keyboard_profile: "KeyboardProfile",
+        progress_callback: CompilationProgressCallback | None = None,
     ) -> BuildResult:
         """Execute compilation from JSON layout file.
 
@@ -51,6 +55,7 @@ class CompilationServiceProtocol(Protocol):
             output_dir: Output directory for build artifacts
             config: Compilation configuration
             keyboard_profile: Keyboard profile for dynamic generation
+            progress_callback: Optional callback for compilation progress updates
 
         Returns:
             BuildResult: Results of compilation

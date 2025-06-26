@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from glovebox.core.file_operations import create_benchmark_runner
+from glovebox.core.file_operations import create_copy_service
 
 
 def create_test_workspace(base_path: Path, size_mb: int = 10) -> Path:
@@ -55,20 +55,20 @@ def create_test_workspace(base_path: Path, size_mb: int = 10) -> Path:
 def test_comprehensive_file_operations_benchmark(
     tmp_path, workspace_path_override=None
 ):
-    """Comprehensive test of file operations benchmarking system.
+    """Comprehensive test of file operations using simplified interface.
 
     Args:
         tmp_path: Temporary directory for test isolation
         workspace_path_override: Optional existing workspace path to use instead of creating one
     """
-    # Enable logging to see benchmark progress
+    # Enable logging to see copy progress
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
     print("\n" + "=" * 60)
-    print("FILE OPERATIONS BENCHMARK DEMO")
+    print("FILE OPERATIONS DEMO")
     print("=" * 60)
 
     # Use provided workspace or create test workspace
@@ -86,78 +86,57 @@ def test_comprehensive_file_operations_benchmark(
         )  # Reasonable size for tests
         print(f"   Created workspace: {workspace_path}")
 
-    output_dir = tmp_path / "benchmark_output"
+    output_dir = tmp_path / "copy_output"
     print(f"   Output dir: {output_dir}")
 
-    # Create benchmark runner
-    benchmark = create_benchmark_runner()
+    # Create file copy service
+    copy_service = create_copy_service()
 
-    print("\n2. Running comprehensive benchmark suite...")
+    print("\n2. Running file copy operations...")
     print("   This will test:")
-    print("   - Directory traversal (rglob vs psutil)")
-    print("   - Copy strategies (baseline, buffered, parallel, sendfile)")
-    print("   - Parallel worker scaling (1, 2, 4, 8 threads)")
-    print("   - Pipeline copy approach (two-phase parallel)")
+    print("   - Baseline copy strategy")
+    print("   - Pipeline copy strategy")
 
-    # Run comprehensive benchmark
-    results = benchmark.run_comprehensive_benchmark(
-        workspace_path=workspace_path, output_dir=output_dir, verbose=True
+    # Test baseline strategy
+    baseline_output = output_dir / "baseline"
+    result = copy_service.copy_directory(
+        src=workspace_path, dst=baseline_output, use_pipeline=False, exclude_git=True
     )
 
-    print("\n3. Benchmark Results Summary:")
+    print("\n3. Baseline Copy Results:")
     print("-" * 40)
+    print(f"  Success: {result.success}")
+    print(f"  Files copied: {result.files_copied}")
+    print(f"  Total size: {result.total_size / (1024**2):.1f} MB")
+    print(f"  Duration: {result.duration:.2f}s")
 
-    for category, result_list in results.items():
-        print(f"\n{category.upper()}:")
-        for result in result_list:
-            status = "SUCCESS" if not result.errors else f"FAILED: {result.errors[0]}"
-            print(
-                f"  {result.method:<20} {result.duration:>6.2f}s  {result.speed_summary:>10}  {status}"
-            )
+    # Test pipeline strategy
+    pipeline_output = output_dir / "pipeline"
+    result = copy_service.copy_directory(
+        src=workspace_path, dst=pipeline_output, use_pipeline=True, exclude_git=True
+    )
 
-    # Verify we got results
-    assert "traversal" in results
-    assert "copy_strategies" in results
-    assert "parallel_workers" in results
-    assert "pipeline" in results
-
-    # At least one result per category
-    assert len(results["traversal"]) >= 1
-    assert len(results["copy_strategies"]) >= 1
-    assert len(results["parallel_workers"]) >= 1
-    assert len(results["pipeline"]) == 1
-
-    print("\n4. Individual Benchmark Examples:")
+    print("\n4. Pipeline Copy Results:")
     print("-" * 40)
+    print(f"  Success: {result.success}")
+    print(f"  Files copied: {result.files_copied}")
+    print(f"  Total size: {result.total_size / (1024**2):.1f} MB")
+    print(f"  Duration: {result.duration:.2f}s")
 
-    # Example 1: Just directory traversal
-    print("\nDirectory Traversal Benchmark (rglob vs psutil):")
-    traversal_results = benchmark.benchmark_directory_traversal(
-        workspace_path, iterations=2
-    )
-    for result in traversal_results:
-        print(
-            f"  {result.method}: {result.duration:.3f}s, {result.file_count} files, {result.speed_summary}"
-        )
-
-    # Example 2: Pipeline copy (matches user's example)
-    print("\nPipeline Copy Benchmark (two-phase parallel):")
-    pipeline_result = benchmark.pipeline_copy_benchmark(
-        workspace_path=workspace_path,
-        cache_dir=output_dir / "pipeline_test",
-        components=["zmk", "zephyr", "modules"],
-    )
-    print(
-        f"  Pipeline: {pipeline_result.duration:.3f}s, {pipeline_result.file_count} files, {pipeline_result.speed_summary}"
-    )
+    # Verify results
+    assert result.success
+    assert baseline_output.exists()
+    assert pipeline_output.exists()
+    assert result.files_copied > 0
+    assert result.total_size > 0
 
     print("\n" + "=" * 60)
-    print("BENCHMARK DEMO COMPLETED SUCCESSFULLY!")
+    print("FILE OPERATIONS DEMO COMPLETED SUCCESSFULLY!")
     print("=" * 60)
 
 
 def test_pipeline_copy_example(workspace_path_override=None):
-    """Example showing the pipeline copy approach similar to user's option2_pipeline_copy.
+    """Example showing the pipeline copy approach using simplified interface.
 
     Args:
         workspace_path_override: Optional existing workspace path to use instead of creating one
@@ -177,28 +156,28 @@ def test_pipeline_copy_example(workspace_path_override=None):
 
         cache_dir = tmp_path / "pipeline_cache"
 
-        # Create benchmark runner
-        benchmark = create_benchmark_runner()
+        # Create copy service with pipeline strategy
+        copy_service = create_copy_service(use_pipeline=True)
 
-        print("\nPipeline Copy Example (like option2_pipeline_copy):")
+        print("\nPipeline Copy Example:")
         print("-" * 50)
 
-        # Run pipeline benchmark
-        result = benchmark.pipeline_copy_benchmark(
-            workspace_path=workspace_path,
-            cache_dir=cache_dir,
-            components=["zmk", "zephyr", "modules", ".west"],
+        # Run pipeline copy
+        result = copy_service.copy_directory(
+            src=workspace_path, dst=cache_dir, use_pipeline=True, exclude_git=True
         )
 
         print(f"Total time: {result.duration:.2f}s")
-        print(f"Files copied: {result.file_count}")
+        print(f"Files copied: {result.files_copied}")
         print(f"Total size: {result.total_size / (1024**2):.1f} MB")
-        print(f"Throughput: {result.speed_summary}")
-        print(f"Status: {'SUCCESS' if not result.errors else 'FAILED'}")
+        if result.duration > 0:
+            throughput = result.total_size / (1024**2) / result.duration
+            print(f"Throughput: {throughput:.1f} MB/s")
+        print(f"Status: {'SUCCESS' if result.success else 'FAILED'}")
 
         # Verify cache was created
         assert cache_dir.exists()
-        assert result.file_count > 0
+        assert result.files_copied > 0
         assert result.total_size > 0
         assert result.duration > 0
 

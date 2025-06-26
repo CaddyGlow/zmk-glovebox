@@ -93,6 +93,94 @@ class DefaultOutputMiddleware(OutputMiddleware[str]):
         return line
 
 
+class ChainedOutputMiddleware(OutputMiddleware[T]):
+    """Middleware that chains multiple middleware components together.
+
+    Processes output through a sequence of middleware components, where each
+    middleware processes the output from the previous one. The final output
+    type T is determined by the last middleware in the chain.
+
+    Example:
+        ```python
+        # Chain progress tracking with logging
+        progress_middleware = CompilationProgressMiddleware(callback)
+        logger_middleware = LoggerOutputMiddleware(logger)
+
+        chained = ChainedOutputMiddleware([progress_middleware, logger_middleware])
+
+        # Process: line -> progress_middleware -> logger_middleware -> final result
+        result = docker_adapter.run_container("image", [], {}, middleware=chained)
+        ```
+    """
+
+    def __init__(self, middleware_chain: list[OutputMiddleware[Any]]) -> None:
+        """Initialize chained middleware.
+
+        Args:
+            middleware_chain: List of middleware components to chain together.
+                             Output flows from first to last middleware.
+
+        Raises:
+            ValueError: If middleware_chain is empty
+        """
+        if not middleware_chain:
+            raise ValueError("Middleware chain cannot be empty")
+
+        self.middleware_chain = middleware_chain
+
+    def process(self, line: str, stream_type: str) -> T:
+        """Process line through the middleware chain.
+
+        Args:
+            line: Output line to process
+            stream_type: Either "stdout" or "stderr"
+
+        Returns:
+            Output from the final middleware in the chain
+        """
+        current_output: Any = line
+
+        # Process through each middleware in sequence
+        for middleware in self.middleware_chain:
+            current_output = middleware.process(current_output, stream_type)
+
+        return cast(T, current_output)
+
+
+def create_chained_middleware(
+    middleware_chain: list[OutputMiddleware[Any]],
+) -> ChainedOutputMiddleware[Any]:
+    """Factory function to create a chained middleware.
+
+    Args:
+        middleware_chain: List of middleware components to chain together
+
+    Returns:
+        ChainedOutputMiddleware instance
+
+    Raises:
+        ValueError: If middleware_chain is empty
+
+    Example:
+        ```python
+        from glovebox.utils.stream_process import create_chained_middleware
+        from glovebox.adapters.compilation_progress_middleware import create_compilation_progress_middleware
+        from glovebox.adapters.docker_adapter import LoggerOutputMiddleware
+
+        # Create individual middleware components
+        progress_middleware = create_compilation_progress_middleware(callback)
+        logger_middleware = LoggerOutputMiddleware(logger)
+
+        # Chain them together
+        chained = create_chained_middleware([progress_middleware, logger_middleware])
+
+        # Use with docker adapter
+        result = docker_adapter.run_container("image", [], {}, middleware=chained)
+        ```
+    """
+    return ChainedOutputMiddleware(middleware_chain)
+
+
 def run_command(
     cmd: str | list[str],
     middleware: OutputMiddleware[T] | None = None,

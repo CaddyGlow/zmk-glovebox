@@ -1,23 +1,34 @@
-"""File operations module with strategy-based copy optimizations."""
+"""Simplified file operations module with embedded strategies."""
 
-from .benchmarks import (
-    BenchmarkResult,
-    FileOperationsBenchmark,
-    create_benchmark_runner,
+from .models import (
+    CompilationProgress,
+    CompilationProgressCallback,
+    CopyProgress,
+    CopyProgressCallback,
+    CopyResult,
 )
-from .enums import CopyStrategy
-from .models import CopyResult
 from .protocols import CopyStrategyProtocol
-from .service import FileCopyService, create_copy_service
+from .service import (
+    BASELINE,
+    PIPELINE,
+    BaselineStrategy,
+    FileCopyService,
+    PipelineStrategy,
+    create_copy_service,
+)
 
 
 __all__ = [
-    "BenchmarkResult",
+    "BASELINE",
+    "PIPELINE",
+    "BaselineStrategy",
+    "CompilationProgress",
+    "CompilationProgressCallback",
+    "CopyProgress",
+    "CopyProgressCallback",
     "CopyResult",
-    "CopyStrategy",
     "CopyStrategyProtocol",
-    "create_benchmark_runner",
-    "create_copy_service",
-    "FileOperationsBenchmark",
     "FileCopyService",
+    "PipelineStrategy",
+    "create_copy_service",
 ]

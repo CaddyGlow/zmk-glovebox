@@ -103,7 +103,7 @@ class TestConfigurationPrecedenceChain:
                 config._config.profile == "file/override"
             )  # Not default 'glove80/v25.05'
             assert config._config.log_level == "ERROR"  # Not default 'INFO'
-            assert config._config.keyboard_paths == [
+            assert config._config.profiles_paths == [
                 Path("/file/path1"),
                 Path("/file/path2"),
             ]  # Not default []
@@ -163,7 +163,7 @@ class TestConfigurationPrecedenceChain:
             )
 
             # Defaults for settings not in file or environment
-            assert config._config.keyboard_paths == []
+            assert config._config.profiles_paths == []
             assert config._config.firmware.flash.track_flashed is True
             assert config.get_source("keyboard_paths") == "default"
             assert config.get_source("firmware.flash.track_flashed") == "default"
@@ -332,7 +332,7 @@ class TestComplexIntegrationScenarios:
             assert config._config.log_level == "DEBUG"
             # keyboard_paths should be converted from environment variable string
             expected_paths = [Path("/home/user/keyboards"), Path("~/my-layouts")]
-            assert config._config.keyboard_paths == expected_paths
+            assert config._config.profiles_paths == expected_paths
             assert config._config.firmware.flash.timeout == 120
 
             # System defaults for non-customized settings

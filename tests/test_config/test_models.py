@@ -137,7 +137,7 @@ class TestUserConfigData:
 
         assert config.profile == "glove80/v25.05"
         assert config.log_level == "INFO"
-        assert config.keyboard_paths == []
+        assert config.profiles_paths == []
         assert config.icon_mode == IconMode.EMOJI  # Default value
         assert config.firmware.flash.timeout == 60
         assert config.firmware.flash.count == 2
@@ -149,7 +149,7 @@ class TestUserConfigData:
         config = UserConfigData(
             profile="custom/v1.0",
             log_level="DEBUG",
-            keyboard_paths=[Path("/path/to/keyboards")],
+            profiles_paths=[Path("/path/to/keyboards")],
             firmware=UserFirmwareConfig(
                 flash=FirmwareFlashConfig(
                     timeout=120,
@@ -162,7 +162,7 @@ class TestUserConfigData:
 
         assert config.profile == "custom/v1.0"
         assert config.log_level == "DEBUG"
-        assert config.keyboard_paths == [Path("/path/to/keyboards")]
+        assert config.profiles_paths == [Path("/path/to/keyboards")]
         assert config.firmware.flash.timeout == 120
         assert config.firmware.flash.count == 5
         assert config.firmware.flash.track_flashed is False
@@ -195,18 +195,18 @@ class TestUserConfigData:
     def test_keyboard_paths_validation(self, clean_environment):
         """Test keyboard paths validation."""
         # Valid paths
-        config = UserConfigData(keyboard_paths=[Path("/path/one"), Path("~/path/two")])
-        assert config.keyboard_paths == [Path("/path/one"), Path("~/path/two")]
+        config = UserConfigData(profiles_paths=[Path("/path/one"), Path("~/path/two")])
+        assert config.profiles_paths == [Path("/path/one"), Path("~/path/two")]
 
         # Empty list is valid
-        config = UserConfigData(keyboard_paths=[])
-        assert config.keyboard_paths == []
+        config = UserConfigData(profiles_paths=[])
+        assert config.profiles_paths == []
 
         # Mixed types should be converted to Path objects
         config = UserConfigData(
-            keyboard_paths=[Path("path"), Path("123")]
+            profiles_paths=[Path("path"), Path("123")]
         )  # Both as Path objects
-        assert config.keyboard_paths == [Path("path"), Path("123")]
+        assert config.profiles_paths == [Path("path"), Path("123")]
 
     def test_environment_variable_override(self, mock_environment):
         """Test environment variable override functionality."""
@@ -270,7 +270,7 @@ class TestUserConfigData:
     def test_expanded_keyboard_paths(self, clean_environment):
         """Test keyboard path functionality."""
         config = UserConfigData(
-            keyboard_paths=[
+            profiles_paths=[
                 Path("~/home/keyboards"),
                 Path("$HOME/other"),
                 Path("/absolute/path"),
@@ -278,7 +278,7 @@ class TestUserConfigData:
         )
 
         # keyboard_paths are Path objects
-        paths = config.keyboard_paths
+        paths = config.profiles_paths
 
         # Should return Path objects
         assert all(hasattr(path, "resolve") for path in paths)
@@ -295,7 +295,7 @@ class TestUserConfigData:
         config = UserConfigData(
             profile="dict/test",
             log_level="WARNING",
-            keyboard_paths=[Path("/dict/path")],
+            profiles_paths=[Path("/dict/path")],
             firmware=UserFirmwareConfig(
                 flash=FirmwareFlashConfig(
                     timeout=777,
@@ -308,7 +308,7 @@ class TestUserConfigData:
 
         assert config.profile == "dict/test"
         assert config.log_level == "WARNING"
-        assert config.keyboard_paths == [Path("/dict/path")]
+        assert config.profiles_paths == [Path("/dict/path")]
         assert config.firmware.flash.timeout == 777
         assert config.firmware.flash.count == 7
         assert config.firmware.flash.track_flashed is False
@@ -333,7 +333,7 @@ class TestConfigurationValidation:
         config = UserConfigData(
             profile="complex_keyboard/v2.1.0",
             log_level="debug",
-            keyboard_paths=[
+            profiles_paths=[
                 Path("~/my-keyboards"),
                 Path("/usr/local/share/keyboards"),
                 Path("$HOME/.config/keyboards"),
@@ -350,7 +350,7 @@ class TestConfigurationValidation:
 
         assert config.profile == "complex_keyboard/v2.1.0"
         assert config.log_level == "DEBUG"  # Normalized
-        assert len(config.keyboard_paths) == 3
+        assert len(config.profiles_paths) == 3
         assert config.firmware.flash.timeout == 300
         assert config.firmware.flash.count == 0
         assert config.firmware.flash.track_flashed is True
@@ -363,7 +363,7 @@ class TestConfigurationValidation:
         # Should use defaults for unspecified fields
         assert config.profile == "minimal/v1"
         assert config.log_level == "INFO"
-        assert config.keyboard_paths == []
+        assert config.profiles_paths == []
         assert config.firmware.flash.timeout == 60
 
     def test_model_serialization(self, clean_environment):
@@ -371,7 +371,7 @@ class TestConfigurationValidation:
         config = UserConfigData(
             profile="serialize/test",
             log_level="ERROR",
-            keyboard_paths=[Path("/test/path")],
+            profiles_paths=[Path("/test/path")],
         )
 
         # Test dict conversion
