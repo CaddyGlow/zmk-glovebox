@@ -14,8 +14,11 @@ from glovebox.config.models.cache import CacheLevel
 from glovebox.config.user_config import UserConfig
 from glovebox.core.cache.cache_manager import CacheManager
 from glovebox.core.cache.models import CacheKey
-from glovebox.core.file_operations import create_copy_service
-from glovebox.core.file_operations.enums import CopyStrategy
+from glovebox.core.file_operations import (
+    CopyProgress,
+    CopyProgressCallback,
+    create_copy_service,
+)
 from glovebox.protocols.metrics_protocol import MetricsProtocol
 
 
@@ -42,7 +45,7 @@ class ZmkWorkspaceCacheService:
         self.user_config = user_config
         self.cache_manager = cache_manager
         self.logger = logging.getLogger(__name__)
-        self.copy_service = create_copy_service(user_config)
+        self.copy_service = create_copy_service(use_pipeline=True, max_workers=3)
         self.metrics = session_metrics
 
     def get_cache_directory(self) -> Path:
@@ -84,7 +87,10 @@ class ZmkWorkspaceCacheService:
             return f"workspace_repo_branch_{parts_hash}"
 
     def cache_workspace_repo_only(
-        self, workspace_path: Path, repository: str
+        self,
+        workspace_path: Path,
+        repository: str,
+        progress_callback: CopyProgressCallback | None = None,
     ) -> WorkspaceCacheResult:
         """Cache workspace for repository-only (includes .git folders).
 
@@ -111,10 +117,15 @@ class ZmkWorkspaceCacheService:
                 branch=None,
                 cache_level=CacheLevel.REPO,
                 include_git=True,
+                progress_callback=progress_callback,
             )
 
     def cache_workspace_repo_branch(
-        self, workspace_path: Path, repository: str, branch: str
+        self,
+        workspace_path: Path,
+        repository: str,
+        branch: str,
+        progress_callback: CopyProgressCallback | None = None,
     ) -> WorkspaceCacheResult:
         """Cache workspace for repository+branch (excludes .git folders).
 
@@ -141,6 +152,7 @@ class ZmkWorkspaceCacheService:
                 branch=branch,
                 cache_level=CacheLevel.REPO_BRANCH,
                 include_git=True,
+                progress_callback=progress_callback,
             )
 
     def get_cached_workspace(
@@ -248,7 +260,11 @@ class ZmkWorkspaceCacheService:
             )
 
     def inject_existing_workspace(
-        self, workspace_path: Path, repository: str, branch: str | None = None
+        self,
+        workspace_path: Path,
+        repository: str,
+        branch: str | None = None,
+        progress_callback: CopyProgressCallback | None = None,
     ) -> WorkspaceCacheResult:
         """Inject an existing workspace into cache.
 
@@ -284,6 +300,7 @@ class ZmkWorkspaceCacheService:
                 branch=branch,
                 cache_level=cache_level,
                 include_git=include_git,
+                progress_callback=progress_callback,
             )
 
         except Exception as e:
@@ -427,6 +444,7 @@ class ZmkWorkspaceCacheService:
         branch: str | None,
         cache_level: CacheLevel,
         include_git: bool,
+        progress_callback: CopyProgressCallback | None = None,
     ) -> WorkspaceCacheResult:
         """Internal method to cache workspace with specified options.
 
@@ -463,8 +481,9 @@ class ZmkWorkspaceCacheService:
                 if component_path.exists() and component_path.is_dir():
                     detected_components.append(component)
 
-            # Copy workspace components
-            for component in detected_components:
+            # Copy workspace components with progress tracking
+            total_components = len(detected_components)
+            for component_idx, component in enumerate(detected_components):
                 src_component = workspace_path / component
                 dest_component = cached_workspace_dir / component
 
@@ -472,8 +491,38 @@ class ZmkWorkspaceCacheService:
                 if dest_component.exists():
                     shutil.rmtree(dest_component)
 
+                # Create component-specific progress callback
+                component_progress_callback = None
+                if progress_callback:
+
+                    def make_component_callback(
+                        comp_name: str, comp_idx: int
+                    ) -> CopyProgressCallback:
+                        def component_callback(progress: CopyProgress) -> None:
+                            # Update progress with component-level information
+                            overall_progress = CopyProgress(
+                                files_processed=progress.files_processed,
+                                total_files=progress.total_files,
+                                bytes_copied=progress.bytes_copied,
+                                total_bytes=progress.total_bytes,
+                                current_file=progress.current_file,
+                                component_name=f"{comp_name} ({comp_idx + 1}/{total_components})",
+                            )
+                            progress_callback(overall_progress)
+
+                        return component_callback
+
+                    component_progress_callback = make_component_callback(
+                        component, component_idx
+                    )
+
                 # Copy component directory
-                self._copy_directory(src_component, dest_component, include_git)
+                self._copy_directory(
+                    src_component,
+                    dest_component,
+                    include_git,
+                    component_progress_callback,
+                )
                 self.logger.debug(
                     "Copied component %s to %s (include_git=%s)",
                     component,
@@ -538,20 +587,28 @@ class ZmkWorkspaceCacheService:
                 success=False, error_message=f"Failed to cache workspace: {e}"
             )
 
-    def _copy_directory(self, src: Path, dest: Path, include_git: bool) -> None:
+    def _copy_directory(
+        self,
+        src: Path,
+        dest: Path,
+        include_git: bool,
+        progress_callback: CopyProgressCallback | None = None,
+    ) -> None:
         """Copy directory with optional .git exclusion using optimized copy service.
 
         Args:
             src: Source directory
             dest: Destination directory
             include_git: Whether to include .git folders
+            progress_callback: Optional progress callback for tracking copy progress
         """
-        # Use the copy service with git exclusion
+        # Use the copy service with git exclusion and progress tracking
         result = self.copy_service.copy_directory(
             src=src,
             dst=dest,
             exclude_git=(not include_git),
-            strategy=CopyStrategy.PIPELINE,
+            use_pipeline=True,
+            progress_callback=progress_callback,
         )
 
         if not result.success:

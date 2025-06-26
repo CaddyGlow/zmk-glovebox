@@ -322,7 +322,7 @@ class TestUserConfigHelperMethods:
         config = UserConfig(config_adapter=mock_adapter)
 
         # Test get_keyboard_paths
-        config._config.keyboard_paths = [Path("~/test"), Path("/absolute/path")]
+        config._config.profiles_paths = [Path("~/test"), Path("/absolute/path")]
         paths = config.get_keyboard_paths()
 
         # Should return expanded Path objects
@@ -338,7 +338,7 @@ class TestUserConfigHelperMethods:
 
         # Add new path
         config.add_keyboard_path("/new/path")
-        assert Path("/new/path") in config._config.keyboard_paths
+        assert Path("/new/path") in config._config.profiles_paths
         assert config.get_source("keyboard_paths") == "runtime"
 
         # Adding duplicate should not duplicate
@@ -356,7 +356,7 @@ class TestUserConfigHelperMethods:
         config = UserConfig(config_adapter=mock_adapter)
 
         # Set initial paths
-        config._config.keyboard_paths = [Path("/path/one"), Path("/path/two")]
+        config._config.profiles_paths = [Path("/path/one"), Path("/path/two")]
 
         # Remove existing path
         config.remove_keyboard_path("/path/one")

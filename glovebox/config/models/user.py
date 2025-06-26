@@ -74,12 +74,12 @@ class UserConfigData(BaseSettings):
             file_secret_settings,  # Lowest: file secrets
         )
 
-    keyboard_paths: Annotated[list[Path], NoDecode] = []
+    profiles_paths: Annotated[list[Path], NoDecode] = []
 
     # Paths for user-defined keyboards and layouts (stored as string, accessed as list[Path])
-    @field_validator("keyboard_paths", mode="before")
+    @field_validator("profiles_paths", mode="before")
     @classmethod
-    def decode_keyboard_paths(cls, v: Any) -> list[Path]:
+    def decode_profiles_paths(cls, v: Any) -> list[Path]:
         if isinstance(v, str):
             return [Path(path.strip()) for path in v.split(",") if path.strip()]
         elif isinstance(v, list):
@@ -97,7 +97,7 @@ class UserConfigData(BaseSettings):
     )
 
     # Logging
-    log_level: str = "INFO"
+    log_level: str = "WARNING"
 
     # Version check settings
     disable_version_checks: bool = Field(
@@ -107,10 +107,10 @@ class UserConfigData(BaseSettings):
 
     # DeepDiff settings
     # TODO: not in use yet
-    deepdiff_delta_serializer: str = Field(
-        default="json",
-        description="Serializer for DeepDiff delta objects: 'json' (default) or 'pickle'",
-    )
+    # deepdiff_delta_serializer: str = Field(
+    #     default="json",
+    #     description="Serializer for DeepDiff delta objects: 'json' (default) or 'pickle'",
+    # )
 
     # Cache settings
     cache_path: Path = Field(
@@ -146,20 +146,6 @@ class UserConfigData(BaseSettings):
 
     # Firmware settings
     firmware: UserFirmwareConfig = Field(default_factory=UserFirmwareConfig)
-
-    # File copy optimization settings
-    copy_strategy: str = Field(
-        default="auto",
-        description="File copy strategy: 'auto' (default), 'baseline', 'buffered', 'sendfile', or 'parallel'",
-    )
-    copy_buffer_size_kb: int = Field(
-        default=1024,
-        description="Buffer size in KB for buffered copy operations (default: 1024)",
-    )
-    copy_max_workers: int = Field(
-        default=4,
-        description="Maximum number of worker threads for parallel copy operations (default: 4)",
-    )
 
     # Layout bookmarks
     layout_bookmarks: "BookmarkCollection | None" = Field(
@@ -201,18 +187,18 @@ class UserConfigData(BaseSettings):
             raise ValueError(f"Log level must be one of {valid_levels}")
         return upper_v  # Always normalize to uppercase
 
-    @field_validator("deepdiff_delta_serializer")
-    @classmethod
-    def validate_deepdiff_delta_serializer(cls, v: str) -> str:
-        """Validate DeepDiff delta serializer is a recognized value."""
-        valid_serializers = ["json", "pickle"]
-        # Strip whitespace and convert to lowercase
-        lower_v = v.strip().lower()
-        if lower_v not in valid_serializers:
-            raise ValueError(
-                f"DeepDiff delta serializer must be one of {valid_serializers}"
-            )
-        return lower_v  # Always normalize to lowercase
+    # @field_validator("deepdiff_delta_serializer")
+    # @classmethod
+    # def validate_deepdiff_delta_serializer(cls, v: str) -> str:
+    #     """Validate DeepDiff delta serializer is a recognized value."""
+    #     valid_serializers = ["json", "pickle"]
+    #     # Strip whitespace and convert to lowercase
+    #     lower_v = v.strip().lower()
+    #     if lower_v not in valid_serializers:
+    #         raise ValueError(
+    #             f"DeepDiff delta serializer must be one of {valid_serializers}"
+    #         )
+    #     return lower_v  # Always normalize to lowercase
 
     @field_validator("cache_path", mode="before")
     @classmethod

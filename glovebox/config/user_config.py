@@ -210,7 +210,7 @@ class UserConfig:
         Returns:
             List of Path objects for user keyboard configurations
         """
-        return [path.expanduser() for path in self._config.keyboard_paths]
+        return [path.expanduser() for path in self._config.profiles_paths]
 
     def add_keyboard_path(self, path: str | Path) -> None:
         """
@@ -224,7 +224,7 @@ class UserConfig:
 
         if path_obj not in current_paths:
             # Add to the list
-            self._config.keyboard_paths.append(Path(path))
+            self._config.profiles_paths.append(Path(path))
             self._config_sources["keyboard_paths"] = "runtime"
 
     def remove_keyboard_path(self, path: str | Path) -> None:
@@ -237,7 +237,7 @@ class UserConfig:
         path_obj = Path(path)
         # Remove from list if present
         try:
-            self._config.keyboard_paths.remove(path_obj)
+            self._config.profiles_paths.remove(path_obj)
             self._config_sources["keyboard_paths"] = "runtime"
         except ValueError:
             # Path not in list, do nothing

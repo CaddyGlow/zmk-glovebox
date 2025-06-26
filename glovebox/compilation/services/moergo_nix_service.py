@@ -15,6 +15,7 @@ from glovebox.compilation.models import (
 from glovebox.compilation.protocols.compilation_protocols import (
     CompilationServiceProtocol,
 )
+from glovebox.core.file_operations import CompilationProgressCallback
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.models.docker import DockerUserContext
 from glovebox.models.docker_path import DockerPath
@@ -44,6 +45,7 @@ class MoergoNixService(CompilationServiceProtocol):
         output_dir: Path,
         config: CompilationConfigUnion,
         keyboard_profile: "KeyboardProfile",
+        progress_callback: "CompilationProgressCallback | None" = None,
     ) -> BuildResult:
         """Execute Moergo compilation."""
         self.logger.info("Starting Moergo compilation")
@@ -90,6 +92,7 @@ class MoergoNixService(CompilationServiceProtocol):
         output_dir: Path,
         config: CompilationConfigUnion,
         keyboard_profile: "KeyboardProfile",
+        progress_callback: CompilationProgressCallback | None = None,
     ) -> BuildResult:
         """Execute compilation from JSON layout file."""
         self.logger.info("Starting JSON to firmware compilation")

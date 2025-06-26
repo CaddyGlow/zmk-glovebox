@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
-from .models import CopyResult
+from .models import CopyProgressCallback, CopyResult
 
 
 @runtime_checkable
@@ -21,7 +21,12 @@ class CopyStrategyProtocol(Protocol):
         ...
 
     def copy_directory(
-        self, src: Path, dst: Path, exclude_git: bool = False, **options: Any
+        self,
+        src: Path,
+        dst: Path,
+        exclude_git: bool = False,
+        progress_callback: CopyProgressCallback | None = None,
+        **options: Any,
     ) -> CopyResult:
         """Copy directory with specified options.
 
@@ -29,6 +34,7 @@ class CopyStrategyProtocol(Protocol):
             src: Source directory path
             dst: Destination directory path
             exclude_git: Whether to exclude .git directories
+            progress_callback: Optional callback for progress reporting
             **options: Strategy-specific options
 
         Returns:

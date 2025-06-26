@@ -28,6 +28,10 @@ from glovebox.compilation.models import (
     ZmkCompilationConfig,
 )
 from glovebox.config.profile import KeyboardProfile
+from glovebox.core.file_operations import (
+    CompilationProgress,
+    CompilationProgressCallback,
+)
 from glovebox.firmware.flash import create_flash_service
 
 
@@ -101,6 +105,7 @@ def _execute_compilation_service(
     keyboard_profile: KeyboardProfile,
     session_metrics: Any = None,
     user_config: Any = None,
+    progress_callback: Any = None,
 ) -> Any:
     """Execute the compilation service."""
     from glovebox.adapters import create_docker_adapter, create_file_adapter
@@ -115,6 +120,16 @@ def _execute_compilation_service(
     build_cache_service = None
 
     if compilation_strategy == "zmk_config":
+        # Update progress for cache service initialization
+        if progress_callback:
+            cache_progress = CompilationProgress(
+                repositories_downloaded=35,
+                total_repositories=100,
+                current_repository="Setting up cache services...",
+                compilation_phase="initialization",
+            )
+            progress_callback(cache_progress)
+
         from glovebox.compilation.cache import create_compilation_cache_service
 
         cache_manager, workspace_cache_service, build_cache_service = (
@@ -139,6 +154,7 @@ def _execute_compilation_service(
         output_dir=build_output_dir,
         config=compile_config,
         keyboard_profile=keyboard_profile,
+        progress_callback=progress_callback,
     )
 
 
@@ -154,6 +170,7 @@ def _execute_compilation_from_json(
     keyboard_profile: KeyboardProfile,
     session_metrics: Any = None,
     user_config: Any = None,
+    progress_callback: Any = None,
 ) -> Any:
     """Execute compilation from JSON layout file."""
     from glovebox.adapters import create_docker_adapter, create_file_adapter
@@ -168,6 +185,16 @@ def _execute_compilation_from_json(
     build_cache_service = None
 
     if compilation_strategy == "zmk_config":
+        # Update progress for cache service initialization
+        if progress_callback:
+            cache_progress = CompilationProgress(
+                repositories_downloaded=35,
+                total_repositories=100,
+                current_repository="Setting up cache services...",
+                compilation_phase="initialization",
+            )
+            progress_callback(cache_progress)
+
         from glovebox.compilation.cache import create_compilation_cache_service
 
         cache_manager, workspace_cache_service, build_cache_service = (
@@ -191,6 +218,7 @@ def _execute_compilation_from_json(
         output_dir=build_output_dir,
         config=compile_config,
         keyboard_profile=keyboard_profile,
+        progress_callback=progress_callback,
     )
 
 
@@ -265,6 +293,20 @@ def firmware_compile(
         ),
     ] = False,
     output_format: OutputFormatOption = "text",
+    progress: Annotated[
+        bool | None,
+        typer.Option(
+            "--progress/--no-progress",
+            help="Show compilation progress with repository downloads (default: enabled)",
+        ),
+    ] = None,
+    show_logs: Annotated[
+        bool,
+        typer.Option(
+            "--show-logs/--no-show-logs",
+            help="Show compilation logs in progress display (default: enabled when progress is shown)",
+        ),
+    ] = True,
 ) -> None:
     """Build ZMK firmware from keymap/config files or JSON layout.
 
@@ -330,18 +372,54 @@ def firmware_compile(
 
     try:
         with firmware_duration.time():
+            # Determine if progress should be shown (default: enabled)
+            show_progress = progress if progress is not None else True
+
+            # Create progress callback early if progress is enabled
+            progress_callback = None
+            if show_progress:
+                progress_callback = _create_compilation_progress_display(show_logs=show_logs)
+                # Start with initial status
+                initial_progress = CompilationProgress(
+                    repositories_downloaded=0,
+                    total_repositories=100,  # We'll update this later when we know the actual count
+                    current_repository="Initializing...",
+                    compilation_phase="initialization",
+                )
+                progress_callback(initial_progress)
+
             # Resolve input file path (supports environment variable for JSON files)
+            if progress_callback:
+                early_progress = CompilationProgress(
+                    repositories_downloaded=5,
+                    total_repositories=100,
+                    current_repository="Resolving input file path...",
+                    compilation_phase="initialization",
+                )
+                progress_callback(early_progress)
+
             resolved_input_file = resolve_json_file_path(
                 input_file, "GLOVEBOX_JSON_FILE"
             )
 
             if resolved_input_file is None:
+                if progress_callback and hasattr(progress_callback, "cleanup"):
+                    progress_callback.cleanup()
                 print_error_message(
                     "Input file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
                 )
                 raise typer.Exit(1)
 
             # Use unified profile resolution with auto-detection support
+            if progress_callback:
+                early_progress = CompilationProgress(
+                    repositories_downloaded=15,
+                    total_repositories=100,
+                    current_repository="Resolving keyboard profile...",
+                    compilation_phase="initialization",
+                )
+                progress_callback(early_progress)
+
             from glovebox.cli.helpers.parameters import (
                 create_profile_from_param_unified,
             )
@@ -361,6 +439,8 @@ def firmware_compile(
             is_json_input = resolved_input_file.suffix.lower() == ".json"
 
             if not is_json_input and config_file is None:
+                if progress_callback and hasattr(progress_callback, "cleanup"):
+                    progress_callback.cleanup()
                 print_error_message(
                     "Config file is required when input is a .keymap file"
                 )
@@ -376,12 +456,31 @@ def firmware_compile(
             build_output_dir.mkdir(parents=True, exist_ok=True)
 
             # Resolve compilation strategy and configuration
+            if progress_callback:
+                early_progress = CompilationProgress(
+                    repositories_downloaded=25,
+                    total_repositories=100,
+                    current_repository="Resolving compilation strategy...",
+                    compilation_phase="initialization",
+                )
+                progress_callback(early_progress)
+
             compilation_type, compile_config = _resolve_compilation_type(
                 keyboard_profile, strategy
             )
 
             # Update config with profile firmware settings
             _update_config_from_profile(compile_config, keyboard_profile)
+
+            # Update progress before starting actual compilation
+            if progress_callback:
+                compilation_start_progress = CompilationProgress(
+                    repositories_downloaded=50,
+                    total_repositories=100,
+                    current_repository="Starting compilation...",
+                    compilation_phase="initialization",
+                )
+                progress_callback(compilation_start_progress)
 
             # Execute compilation based on input type
             if is_json_input:
@@ -393,6 +492,7 @@ def firmware_compile(
                     keyboard_profile,
                     session_metrics=ctx.obj.session_metrics,
                     user_config=get_user_config_from_context(ctx),
+                    progress_callback=progress_callback,
                 )
             else:
                 assert config_file is not None  # Already validated above
@@ -405,7 +505,12 @@ def firmware_compile(
                     keyboard_profile,
                     session_metrics=ctx.obj.session_metrics,
                     user_config=get_user_config_from_context(ctx),
+                    progress_callback=progress_callback,
                 )
+
+        # Clean up progress display if it was used
+        if progress_callback and hasattr(progress_callback, "cleanup"):
+            progress_callback.cleanup()
 
         if result.success:
             # Track successful compilation
@@ -421,6 +526,10 @@ def firmware_compile(
             _format_compilation_output(result, output_format, build_output_dir)
 
     except Exception as e:
+        # Clean up progress display if it was used
+        if progress_callback and hasattr(progress_callback, "cleanup"):
+            progress_callback.cleanup()
+
         # Track exception errors
         firmware_counter.labels("compile", "error").inc()
         print_error_message(f"Firmware compilation failed: {str(e)}")
@@ -715,6 +824,30 @@ def list_devices(
     except Exception as e:
         print_error_message(f"Error listing devices: {str(e)}")
         raise typer.Exit(1) from None
+
+
+def _create_compilation_progress_display(show_logs: bool = True) -> CompilationProgressCallback:
+    """Create a compilation progress display callback using the reusable TUI component.
+
+    This function provides backward compatibility while using the new reusable
+    progress display component.
+    """
+    from glovebox.cli.components.progress_display import (
+        CompilationProgressDisplayManager,
+    )
+
+    # Create the progress display manager
+    manager = CompilationProgressDisplayManager(show_logs=show_logs)
+
+    # Start and return the progress callback
+    progress_callback = manager.start()
+
+    # Add compatibility for middleware reference (used in ZMK service)
+    progress_callback.manager = manager  # type: ignore[attr-defined]
+
+    # The manager's start() method already adds the cleanup function
+    return progress_callback
+
 
 
 def register_commands(app: typer.Typer) -> None:

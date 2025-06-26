@@ -3,9 +3,13 @@
 import contextlib
 import logging
 import shutil
+import tempfile
 import time
+import urllib.request
+import zipfile
 from pathlib import Path
 from typing import Annotated, Any
+from urllib.parse import urlparse
 
 import typer
 from rich.console import Console
@@ -63,6 +67,285 @@ def _get_cache_manager() -> CacheManager:
     """Get cache manager using user config (backward compatibility)."""
     cache_manager, _, _ = _get_cache_manager_and_service()
     return cache_manager
+
+
+def _process_workspace_source(
+    source: str, progress: bool = True, console: Console | None = None
+) -> tuple[Path, list[Path]]:
+    """Process workspace source (directory, zip file, or URL) and return workspace path.
+
+    Args:
+        source: Source path, zip file, or URL
+        progress: Whether to show progress bars
+        console: Rich console for output
+
+    Returns:
+        Tuple of (workspace_path, temp_dirs_to_cleanup)
+
+    Raises:
+        typer.Exit: If processing fails
+    """
+    if console is None:
+        console = Console()
+
+    # Check if it's a URL
+    parsed_url = urlparse(source)
+    if parsed_url.scheme in ['http', 'https']:
+        workspace_path, temp_dir = _download_and_extract_zip(source, progress, console)
+        return workspace_path, [temp_dir]
+
+    # Convert to Path for local processing
+    source_path = Path(source).resolve()
+
+    # Check if source exists
+    if not source_path.exists():
+        console.print(f"[red]Source does not exist: {source_path}[/red]")
+        raise typer.Exit(1)
+
+    # If it's a directory, validate and return
+    if source_path.is_dir():
+        return _validate_workspace_directory(source_path, console), []
+
+    # If it's a zip file, extract it
+    if source_path.suffix.lower() == '.zip':
+        workspace_path, temp_dir = _extract_local_zip(source_path, progress, console)
+        return workspace_path, [temp_dir]
+
+    # Unknown file type
+    console.print(f"[red]Unsupported source type: {source_path}[/red]")
+    console.print("[dim]Supported sources: directory, .zip file, or URL to .zip file[/dim]")
+    raise typer.Exit(1)
+
+
+def _download_and_extract_zip(url: str, progress: bool, console: Console) -> tuple[Path, Path]:
+    """Download zip file from URL and extract workspace.
+
+    Args:
+        url: URL to zip file
+        progress: Whether to show progress bar
+        console: Rich console for output
+
+    Returns:
+        Path to extracted workspace directory
+    """
+    import queue
+    import threading
+
+    from rich.progress import (
+        BarColumn,
+        DownloadColumn,
+        Progress,
+        SpinnerColumn,
+        TaskID,
+        TimeRemainingColumn,
+        TransferSpeedColumn,
+    )
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="glovebox_workspace_"))
+    zip_path = temp_dir / "workspace.zip"
+
+    try:
+        if progress:
+            # Create progress bar for download
+            progress_bar = Progress(
+                SpinnerColumn(),
+                "[progress.description]{task.description}",
+                BarColumn(),
+                DownloadColumn(),
+                "•",
+                TransferSpeedColumn(),
+                "•",
+                TimeRemainingColumn(),
+                console=console,
+                transient=True,
+            )
+
+            with progress_bar:
+                task_id = progress_bar.add_task("Downloading...", total=None)
+
+                def download_with_progress() -> None:
+                    """Download file with progress updates."""
+                    try:
+                        with urllib.request.urlopen(url) as response:
+                            total_size = int(response.headers.get('content-length', 0))
+                            if total_size > 0:
+                                progress_bar.update(task_id, total=total_size)
+
+                            downloaded = 0
+                            with zip_path.open('wb') as f:
+                                while True:
+                                    chunk = response.read(8192)
+                                    if not chunk:
+                                        break
+                                    f.write(chunk)
+                                    downloaded += len(chunk)
+                                    progress_bar.update(task_id, completed=downloaded)
+                    except Exception as e:
+                        console.print(f"[red]Download failed: {e}[/red]")
+                        raise typer.Exit(1) from e
+
+                download_with_progress()
+        else:
+            # Simple download without progress
+            console.print(f"[blue]Downloading: {url}[/blue]")
+            try:
+                urllib.request.urlretrieve(url, zip_path)
+            except Exception as e:
+                console.print(f"[red]Download failed: {e}[/red]")
+                raise typer.Exit(1) from e
+
+        # Extract the downloaded zip
+        workspace_path = _extract_zip_file(zip_path, progress, console)
+
+        # Return both workspace path and temp directory for cleanup
+        return workspace_path, temp_dir
+
+    except Exception as e:
+        # Cleanup temp directory on error
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
+
+
+def _extract_local_zip(zip_path: Path, progress: bool, console: Console) -> tuple[Path, Path]:
+    """Extract local zip file to temporary directory.
+
+    Args:
+        zip_path: Path to local zip file
+        progress: Whether to show progress bar
+        console: Rich console for output
+
+    Returns:
+        Path to extracted workspace directory
+    """
+    if not zipfile.is_zipfile(zip_path):
+        console.print(f"[red]Invalid zip file: {zip_path}[/red]")
+        raise typer.Exit(1)
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="glovebox_local_zip_"))
+
+    try:
+        # Copy zip to temp directory for extraction
+        temp_zip = temp_dir / zip_path.name
+        shutil.copy2(zip_path, temp_zip)
+
+        workspace_path = _extract_zip_file(temp_zip, progress, console)
+
+        # Return both workspace path and temp directory for cleanup
+        return workspace_path, temp_dir
+
+    except Exception as e:
+        # Cleanup temp directory on error
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
+
+
+def _extract_zip_file(zip_path: Path, progress: bool, console: Console) -> Path:
+    """Extract zip file and find workspace directory.
+
+    Args:
+        zip_path: Path to zip file
+        progress: Whether to show progress bar
+        console: Rich console for output
+
+    Returns:
+        Path to workspace directory
+    """
+    from rich.progress import (
+        BarColumn,
+        Progress,
+        SpinnerColumn,
+        TaskProgressColumn,
+        TextColumn,
+    )
+
+    extract_dir = zip_path.parent / "extracted"
+    extract_dir.mkdir(exist_ok=True)
+
+    try:
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            file_list = zip_ref.namelist()
+
+            if progress:
+                progress_bar = Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    BarColumn(),
+                    TaskProgressColumn(),
+                    console=console,
+                    transient=True,
+                )
+
+                with progress_bar:
+                    task_id = progress_bar.add_task("Extracting...", total=len(file_list))
+
+                    for i, file_info in enumerate(zip_ref.infolist()):
+                        zip_ref.extract(file_info, extract_dir)
+                        progress_bar.update(task_id, completed=i + 1)
+            else:
+                console.print("[blue]Extracting zip file...[/blue]")
+                zip_ref.extractall(extract_dir)
+
+        # Find workspace directory in extracted content
+        workspace_path = _find_workspace_in_directory(extract_dir, console)
+        return workspace_path
+
+    except Exception as e:
+        console.print(f"[red]Extraction failed: {e}[/red]")
+        shutil.rmtree(extract_dir, ignore_errors=True)
+        raise typer.Exit(1) from e
+
+
+def _find_workspace_in_directory(base_dir: Path, console: Console) -> Path:
+    """Find workspace directory by checking for ZMK workspace structure.
+
+    Args:
+        base_dir: Base directory to search in
+        console: Rich console for output
+
+    Returns:
+        Path to workspace directory
+    """
+    def is_workspace_directory(path: Path) -> bool:
+        """Check if directory contains ZMK workspace structure."""
+        required_dirs = ['zmk', 'zephyr', 'modules']
+        return all((path / dir_name).is_dir() for dir_name in required_dirs)
+
+    # Check root directory first
+    if is_workspace_directory(base_dir):
+        return base_dir
+
+    # Check each subdirectory
+    for item in base_dir.iterdir():
+        if item.is_dir() and is_workspace_directory(item):
+            console.print(f"[green]Found workspace in subdirectory: {item.name}[/green]")
+            return item
+
+    # No workspace found
+    console.print("[red]No valid ZMK workspace found in zip file[/red]")
+    console.print("[dim]Expected directories: zmk/, zephyr/, modules/[/dim]")
+    raise typer.Exit(1)
+
+
+def _validate_workspace_directory(workspace_path: Path, console: Console) -> Path:
+    """Validate that directory contains ZMK workspace structure.
+
+    Args:
+        workspace_path: Path to workspace directory
+        console: Rich console for output
+
+    Returns:
+        Validated workspace path
+    """
+    required_dirs = ['zmk', 'zephyr', 'modules']
+    missing_dirs = [d for d in required_dirs if not (workspace_path / d).is_dir()]
+
+    if missing_dirs:
+        console.print(f"[red]Invalid workspace directory: {workspace_path}[/red]")
+        console.print(f"[red]Missing directories: {', '.join(missing_dirs)}[/red]")
+        console.print("[dim]Expected ZMK workspace structure: zmk/, zephyr/, modules/[/dim]")
+        raise typer.Exit(1)
+
+    return workspace_path
 
 
 def _show_cache_entries_by_level(
@@ -1151,7 +1434,7 @@ def cache_show(
         console.print("\n[bold cyan]🛠️  Cache Management Commands[/bold cyan]")
         console.print("[dim]Workspace cache:[/dim]")
         console.print("  • glovebox cache workspace show")
-        console.print("  • glovebox cache workspace add <path>")
+        console.print("  • glovebox cache workspace add <path|zip|url>")
         console.print("  • glovebox cache workspace delete [repository]")
         console.print("  • glovebox cache workspace cleanup [--max-age <days>]")
         console.print("[dim]Module cache:[/dim]")
@@ -1176,9 +1459,9 @@ def cache_show(
 
 @workspace_app.command(name="add")
 def workspace_add(
-    workspace_path: Annotated[
-        Path,
-        typer.Argument(help="Path to existing ZMK workspace directory"),
+    workspace_source: Annotated[
+        str,
+        typer.Argument(help="Path to ZMK workspace directory, zip file, or URL to zip file"),
     ],
     repository: Annotated[
         str | None,
@@ -1192,20 +1475,32 @@ def workspace_add(
         bool,
         typer.Option("--force", "-f", help="Overwrite existing cache"),
     ] = False,
+    progress: Annotated[
+        bool,
+        typer.Option(
+            "--progress/--no-progress", help="Show progress bar during copy operations"
+        ),
+    ] = True,
 ) -> None:
-    """Add an existing ZMK workspace to cache with auto-detection support.
+    """Add an existing ZMK workspace to cache from directory, zip file, or URL.
 
-    This allows you to cache a workspace you've already built locally,
-    with enhanced auto-detection of git repository info and workspace structure.
+    This allows you to cache a workspace from various sources:
+    - Local directory: /path/to/workspace
+    - Local zip file: /path/to/workspace.zip
+    - Remote zip URL: https://example.com/workspace.zip
 
-    Your workspace should contain directories like: zmk/, zephyr/, modules/
+    The workspace should contain directories like: zmk/, zephyr/, modules/
     """
     try:
         cache_manager, workspace_cache_service, user_config = (
             _get_cache_manager_and_service()
         )
-        workspace_path = workspace_path.resolve()
         icon_mode = "emoji"  # Default icon mode
+
+        # Determine source type and process accordingly
+        workspace_path, temp_cleanup_dirs = _process_workspace_source(
+            workspace_source, progress=progress, console=console
+        )
 
         # Use the new workspace cache service for adding external workspace
         if not repository:
@@ -1214,16 +1509,59 @@ def workspace_add(
             )
             raise typer.Exit(1)
 
-        result = workspace_cache_service.inject_existing_workspace(
-            workspace_path=workspace_path, repository=repository
-        )
+        # Setup progress tracking using the new reusable TUI component
+        import time
+
+        start_time = time.time()
+        progress_callback = None
+
+        if progress:
+            from glovebox.cli.components.progress_display import (
+                create_workspace_progress_display,
+            )
+
+            # Create workspace progress display using the reusable TUI component
+            progress_callback = create_workspace_progress_display(show_logs=False)
+
+        try:
+            result = workspace_cache_service.inject_existing_workspace(
+                workspace_path=workspace_path,
+                repository=repository,
+                progress_callback=progress_callback,
+            )
+        finally:
+            # Clean up progress display if it was used
+            if progress_callback and hasattr(progress_callback, "cleanup"):
+                progress_callback.cleanup()
+
+            # Cleanup temporary directories from zip extraction
+            for temp_dir in temp_cleanup_dirs:
+                try:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                    logger.debug("Cleaned up temp directory: %s", temp_dir)
+                except Exception as e:
+                    logger.debug("Failed to cleanup temp directory %s: %s", temp_dir, e)
 
         if result.success and result.metadata:
             # Display success information with enhanced metadata
             metadata = result.metadata
 
+            # Calculate and display transfer summary
+            end_time = time.time()
+            total_time = end_time - start_time
+
+            # Display transfer summary using metadata
+            if metadata.size_bytes and metadata.size_bytes > 0 and total_time > 0:
+                avg_speed_mbps = (metadata.size_bytes / (1024 * 1024)) / total_time
+                console.print(
+                    f"[bold cyan]📊 Transfer Summary:[/bold cyan] "
+                    f"{_format_size(metadata.size_bytes)} copied in "
+                    f"{total_time:.1f}s at {avg_speed_mbps:.1f} MB/s"
+                )
+                console.print()  # Extra spacing
+
             console.print(
-                f"\n[green]{Icons.format_with_icon('SUCCESS', 'Successfully added workspace cache', icon_mode)}[/green]"
+                f"[green]{Icons.format_with_icon('SUCCESS', 'Successfully added workspace cache', icon_mode)}[/green]"
             )
             console.print(
                 f"[bold]Repository:[/bold] {metadata.repository}@{metadata.branch}"
@@ -1268,6 +1606,15 @@ def workspace_add(
             raise typer.Exit(1)
 
     except Exception as e:
+        # Cleanup temporary directories on error
+        if 'temp_cleanup_dirs' in locals():
+            for temp_dir in temp_cleanup_dirs:
+                try:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                    logger.debug("Cleaned up temp directory after error: %s", temp_dir)
+                except Exception as cleanup_e:
+                    logger.debug("Failed to cleanup temp directory %s: %s", temp_dir, cleanup_e)
+
         logger.error("Failed to add workspace to cache: %s", e)
         console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(1) from e
@@ -1690,6 +2037,19 @@ def cache_delete(
             # Find keys matching pattern
             all_keys = module_cache.keys()
             keys_to_delete = [k for k in all_keys if pattern.lower() in k.lower()]
+
+            # For compilation module, provide safety check to prevent workspace deletion
+            if module == "compilation" and pattern.lower() in ["compilation_build", "build"]:
+                # Filter out workspace keys to prevent accidental deletion
+                workspace_prefixes = ["workspace_repo_", "workspace_repo_branch_"]
+                original_count = len(keys_to_delete)
+                keys_to_delete = [
+                    k for k in keys_to_delete
+                    if not any(k.startswith(prefix) for prefix in workspace_prefixes)
+                ]
+                filtered_count = original_count - len(keys_to_delete)
+                if filtered_count > 0:
+                    console.print(f"[yellow]Filtered out {filtered_count} workspace cache keys for safety[/yellow]")
         else:
             console.print("[red]Must specify --keys, --json-file, or --pattern[/red]")
             console.print("[dim]Examples:[/dim]")

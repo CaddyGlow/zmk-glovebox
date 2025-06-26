@@ -125,12 +125,12 @@ def test_config_file_adapter_model():
         assert model.log_level == "DEBUG"
 
         # Modify and save the model
-        model.keyboard_paths = [Path("/test/path")]
+        model.profiles_paths = [Path("/test/path")]
         adapter.save_model(temp_path, model)
 
         # Reload and verify changes
         new_model = adapter.load_model(temp_path, UserConfigData)
-        assert new_model.keyboard_paths == [Path("/test/path")]
+        assert new_model.profiles_paths == [Path("/test/path")]
 
     finally:
         # Clean up

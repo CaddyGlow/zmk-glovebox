@@ -9,7 +9,7 @@ import pytest
 from glovebox.compilation.cache.workspace_cache_service import ZmkWorkspaceCacheService
 from glovebox.config.user_config import UserConfig
 from glovebox.core.cache.cache_manager import CacheManager
-from glovebox.core.file_operations import CopyStrategy
+from glovebox.core.file_operations import create_copy_service
 
 
 class TestWorkspaceCacheIntegration:
@@ -43,8 +43,9 @@ class TestWorkspaceCacheIntegration:
         assert workspace_service.copy_service is not None
 
         # Copy service should be configured from user config
-        assert workspace_service.copy_service.default_strategy == CopyStrategy.BASELINE
-        assert workspace_service.copy_service.buffer_size_kb == 512
+        assert workspace_service.copy_service.use_pipeline == False
+        # The new interface doesn't have buffer_size_kb attribute
+        # Copy service should be configured appropriately
 
     def test_copy_directory_uses_copy_service(self, workspace_service, tmp_path):
         """Test that _copy_directory uses the copy service."""
@@ -183,8 +184,8 @@ class TestWorkspaceCacheIntegration:
     ):
         """Test copy service strategy selection in real workspace scenario."""
         # Update isolated config copy strategy
-        isolated_config._config.copy_strategy = CopyStrategy.BUFFERED
-        isolated_config._config.copy_buffer_size_kb = 2048
+        # Configuration would be handled differently in the new interface
+        # Configuration handling is different in the new interface
 
         cache_manager = Mock(spec=CacheManager)
         cache_manager.get.return_value = None
@@ -195,13 +196,11 @@ class TestWorkspaceCacheIntegration:
         )
 
         # Verify copy service uses configured strategy
-        assert service.copy_service.default_strategy == CopyStrategy.BUFFERED
-        assert service.copy_service.buffer_size_kb == 2048
-
-        # Verify buffered strategy is available and configured correctly
-        strategy_info = service.copy_service.get_strategy_info(CopyStrategy.BUFFERED)
-        assert strategy_info is not None
-        assert "2048KB" in strategy_info["name"]
+        assert service.copy_service.use_pipeline == True
+        # Verify pipeline strategy is available
+        strategies = service.copy_service.get_strategies()
+        assert "pipeline" in strategies
+        assert "baseline" in strategies
 
     def test_workspace_cache_performance_logging(
         self, workspace_service, tmp_path, caplog
