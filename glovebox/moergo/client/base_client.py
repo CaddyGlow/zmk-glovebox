@@ -7,11 +7,12 @@ from urllib.parse import urljoin
 
 import requests
 
+from glovebox.config.models.moergo import MoErgoServiceConfig
 from glovebox.core.cache import create_cache_from_user_config
 from glovebox.core.cache.cache_manager import CacheManager
 
-from .auth import Glove80Auth
-from .credentials import CredentialManager
+from .auth import create_cognito_auth, Glove80Auth
+from .credentials import create_credential_manager, CredentialManager
 from .models import (
     APIError,
     AuthenticationError,
@@ -25,38 +26,48 @@ from .models import (
 class MoErgoBaseClient:
     """Base client for MoErgo API with authentication and core functionality."""
 
-    BASE_URL = "https://my.glove80.com/api/"
-
     def __init__(
         self,
         credential_manager: CredentialManager | None = None,
         cache: CacheManager | None = None,
+        moergo_config: MoErgoServiceConfig | None = None,
     ):
-        self.credential_manager = credential_manager or CredentialManager()
-        self.auth_client = Glove80Auth()
+        self.config = moergo_config or MoErgoServiceConfig()
+        self.credential_manager = credential_manager or create_credential_manager(
+            self.config.credentials
+        )
+        self.auth_client = create_cognito_auth(self.config.cognito)
         self.session = requests.Session()
         self._tokens: AuthTokens | None = None
         self._cache = cache
+        self._initialize_session()
 
+    @property
+    def base_url(self) -> str:
+        """Get the base URL for the MoErgo API."""
+        return f"{self.config.api_base_url.rstrip('/')}/api/"
+
+    def _initialize_session(self) -> None:
+        """Initialize the session with common headers."""
         # Set common headers
         self.session.headers.update(
             {
                 "accept": "*/*",
                 "accept-language": "en-US,en;q=0.9",
-                "referer": "https://my.glove80.com/",
+                "referer": self.config.cognito.referer_url,
                 "sec-ch-ua": '"Not.A/Brand";v="99", "Chromium";v="136"',
                 "sec-ch-ua-mobile": "?0",
                 "sec-ch-ua-platform": '"Linux"',
                 "sec-fetch-dest": "empty",
                 "sec-fetch-mode": "cors",
                 "sec-fetch-site": "same-origin",
-                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+                "user-agent": self.config.cognito.user_agent,
             }
         )
 
     def _get_full_url(self, endpoint: str) -> str:
         """Get full URL for API endpoint."""
-        return urljoin(self.BASE_URL, endpoint)
+        return urljoin(self.base_url, endpoint)
 
     def _handle_response(self, response: requests.Response) -> Any:
         """Handle API response and raise appropriate exceptions."""

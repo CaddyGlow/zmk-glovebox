@@ -828,27 +828,18 @@ def list_devices(
         raise typer.Exit(1) from None
 
 
-def _create_compilation_progress_display(
-    show_logs: bool = True,
-) -> CompilationProgressCallback:
-    """Create a compilation progress display callback with integrated logging.
+def _create_compilation_progress_display(show_logs: bool = True) -> CompilationProgressCallback:
+    """Create a compilation progress display callback using the reusable TUI component.
 
-    This function creates a LoggingProgressManager that combines queue-based logging
-    with progress display for TUI applications. Logs are captured and displayed
-    alongside progress bars, and also written to debug files.
+    This function provides a simple progress display without over-engineered
+    logging integration, following CLAUDE.md principles of simplicity.
     """
-    from pathlib import Path
-
-    from glovebox.cli.components import create_compilation_logging_progress_manager
-
-    # Create debug log file path
-    debug_file = Path("~/.glovebox/logs/firmware-compilation.log").expanduser()
-    debug_file.parent.mkdir(parents=True, exist_ok=True)
-
-    # Create the logging progress manager with enhanced functionality
-    manager = create_compilation_logging_progress_manager(
-        debug_file=debug_file, show_logs=show_logs
+    from glovebox.cli.components.progress_display import (
+        CompilationProgressDisplayManager,
     )
+
+    # Create the progress display manager
+    manager = CompilationProgressDisplayManager(show_logs=show_logs)
 
     # Start and return the progress callback
     progress_callback = manager.start()
@@ -856,12 +847,7 @@ def _create_compilation_progress_display(
     # Add compatibility for middleware reference (used in ZMK service)
     progress_callback.manager = manager  # type: ignore[attr-defined]
 
-    # Add cleanup function to the callback for proper resource management
-    def cleanup() -> None:
-        manager.stop()
-
-    progress_callback.cleanup = cleanup  # type: ignore[attr-defined]
-
+    # The manager's start() method already adds the cleanup function
     return progress_callback
 
 

@@ -16,6 +16,7 @@ from glovebox.cli.helpers.theme import IconMode
 from .cache import CacheTTLConfig
 from .firmware import UserFirmwareConfig
 from .logging import LoggingConfig, create_default_logging_config
+from .moergo import MoErgoServiceConfig, create_default_moergo_config
 
 
 if TYPE_CHECKING:
@@ -157,6 +158,12 @@ class UserConfigData(BaseSettings):
     # Layout bookmarks
     layout_bookmarks: "BookmarkCollection | None" = Field(
         default=None, description="Collection of saved layout bookmarks for easy access"
+    )
+
+    # MoErgo service configuration
+    moergo: MoErgoServiceConfig = Field(
+        default_factory=create_default_moergo_config,
+        description="Configuration for MoErgo service integration and credential management"
     )
 
     @field_validator("profile")
