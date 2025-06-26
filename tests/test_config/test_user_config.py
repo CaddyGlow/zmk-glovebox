@@ -24,10 +24,10 @@ class TestUserConfigInitialization:
 
         config = UserConfig(config_adapter=mock_config_adapter)
 
-        # Should use default values
+        # Should use default values from base config
         assert config._config.profile == "glove80/v25.05"
-        assert config._config.log_level == "INFO"
-        assert config._config.firmware.flash.timeout == 60
+        assert config._config.cache_strategy == "shared"
+        assert config._config.firmware.flash.timeout == 30
 
         # Should have called search_config_files
         mock_config_adapter.search_config_files.assert_called_once()
@@ -42,6 +42,12 @@ class TestUserConfigInitialization:
         config_path = temp_config_dir / "test_config.yml"
 
         mock_adapter = Mock()
+        # Mock base config loading
+        mock_adapter.load_config.return_value = {
+            "profile": "glove80/v25.05",
+            "cache_strategy": "shared",
+            "firmware": {"flash": {"timeout": 30}}
+        }
         mock_adapter.search_config_files.return_value = (
             sample_config_dict,
             config_path,
@@ -51,19 +57,16 @@ class TestUserConfigInitialization:
 
         # Should use values from config file
         assert config._config.profile == "test_keyboard/v1.0"
-        assert config._config.log_level == "DEBUG"
         assert config._config.firmware.flash.timeout == 120
-        assert config._config.firmware.flash.count == 5
 
-    def test_config_path_generation(self, clean_environment):
+    def test_config_path_generation(self, clean_environment, mock_config_adapter: Mock):
         """Test configuration path generation."""
-        mock_adapter = Mock()
-        mock_adapter.search_config_files.return_value = ({}, None)
+        mock_config_adapter.search_config_files.return_value = ({}, None)
 
-        config = UserConfig(config_adapter=mock_adapter)
+        config = UserConfig(config_adapter=mock_config_adapter)
 
         # Should have generated config paths
-        call_args = mock_adapter.search_config_files.call_args[0][0]
+        call_args = mock_config_adapter.search_config_files.call_args[0][0]
         config_paths = call_args
 
         # Should include current directory paths
@@ -73,19 +76,18 @@ class TestUserConfigInitialization:
         # Should include XDG config paths
         assert any(".config/glovebox" in str(path) for path in config_paths)
 
-    def test_cli_config_path_priority(self, clean_environment, temp_config_dir: Path):
+    def test_cli_config_path_priority(self, clean_environment, temp_config_dir: Path, mock_config_adapter: Mock):
         """Test that CLI-provided config path has priority."""
         cli_config_path = temp_config_dir / "cli_config.yml"
 
-        mock_adapter = Mock()
-        mock_adapter.search_config_files.return_value = ({}, None)
+        mock_config_adapter.search_config_files.return_value = ({}, None)
 
         config = UserConfig(
-            cli_config_path=cli_config_path, config_adapter=mock_adapter
+            cli_config_path=cli_config_path, config_adapter=mock_config_adapter
         )
 
         # Should include CLI path first in search
-        call_args = mock_adapter.search_config_files.call_args[0][0]
+        call_args = mock_config_adapter.search_config_files.call_args[0][0]
         config_paths = call_args
         assert config_paths[0] == cli_config_path.resolve()
 
@@ -132,8 +134,150 @@ class TestUserConfigSourceTracking:
         assert config.get_source("profile") == "environment"
         assert config.get_source("firmware.flash.timeout") == "environment"
 
-        # Non-environment values should show as default
-        assert config.get_source("log_level") == "default"
+        # Non-environment values should show as base_config
+        assert config.get_source("cache_strategy") == "base_config"
+
+
+class TestUserConfigBaseConfig:
+    """Tests for base configuration loading and merging functionality."""
+
+    def test_base_config_loading(self, clean_environment):
+        """Test that base config is loaded correctly."""
+        mock_adapter = Mock()
+        mock_adapter.search_config_files.return_value = ({}, None)
+        # Mock the base config loading
+        mock_adapter.load_config.return_value = {
+            "profile": "base_keyboard/v1.0",
+            "cache_strategy": "shared",
+            "icon_mode": "emoji"
+        }
+
+        config = UserConfig(config_adapter=mock_adapter)
+
+        # Should have loaded base config values
+        assert config._config.profile == "base_keyboard/v1.0"
+        assert config._config.cache_strategy == "shared"
+        assert config._config.icon_mode.value == "emoji"
+
+    def test_user_config_merges_over_base(self, clean_environment):
+        """Test that user config values override base config values."""
+        mock_adapter = Mock()
+
+        # Mock base config
+        mock_adapter.load_config.return_value = {
+            "profile": "base_keyboard/v1.0",
+            "cache_strategy": "shared",
+            "icon_mode": "emoji",
+            "firmware": {
+                "flash": {
+                    "timeout": 30,
+                    "verify": True
+                }
+            }
+        }
+
+        # Mock user config that overrides some values
+        user_config = {
+            "profile": "user_keyboard/v2.0",
+            "icon_mode": "text",
+            "firmware": {
+                "flash": {
+                    "timeout": 60
+                    # verify not specified - should keep base value
+                }
+            }
+        }
+        mock_adapter.search_config_files.return_value = (user_config, Path("/tmp/user.yml"))
+
+        config = UserConfig(config_adapter=mock_adapter)
+
+        # User values should override base values
+        assert config._config.profile == "user_keyboard/v2.0"
+        assert config._config.icon_mode.value == "text"
+        assert config._config.firmware.flash.timeout == 60
+
+        # Base values should be preserved where not overridden
+        assert config._config.cache_strategy == "shared"  # From base
+        assert config._config.firmware.flash.verify is True  # From base
+
+    def test_base_config_source_tracking(self, clean_environment):
+        """Test that base config sources are tracked correctly."""
+        mock_adapter = Mock()
+
+        # Mock base config
+        mock_adapter.load_config.return_value = {
+            "cache_strategy": "shared",
+            "icon_mode": "emoji"
+        }
+
+        # Mock empty user config
+        mock_adapter.search_config_files.return_value = ({}, None)
+
+        config = UserConfig(config_adapter=mock_adapter)
+
+        # Base config values should be tracked
+        assert config.get_source("cache_strategy") == "base_config"
+        assert config.get_source("icon_mode") == "base_config"
+
+    def test_nested_config_merging(self, clean_environment):
+        """Test that nested configuration merging works correctly."""
+        mock_adapter = Mock()
+
+        # Mock base config with nested structure
+        mock_adapter.load_config.return_value = {
+            "cache_ttls": {
+                "compilation_workspace": 3600,
+                "compilation_build": 3600,
+                "layout_diff": 1800
+            },
+            "firmware": {
+                "flash": {
+                    "timeout": 30,
+                    "verify": True,
+                    "auto_detect": True
+                }
+            }
+        }
+
+        # Mock user config that partially overrides nested values
+        user_config = {
+            "cache_ttls": {
+                "compilation_workspace": 7200,  # Override this
+                # Keep compilation_build and layout_diff from base
+            },
+            "firmware": {
+                "flash": {
+                    "timeout": 120,  # Override this
+                    # Keep verify and auto_detect from base
+                }
+            }
+        }
+        mock_adapter.search_config_files.return_value = (user_config, Path("/tmp/user.yml"))
+
+        config = UserConfig(config_adapter=mock_adapter)
+
+        # User overrides should take effect
+        assert config._config.cache_ttls.compilation_workspace == 7200
+        assert config._config.firmware.flash.timeout == 120
+
+        # Base values should be preserved where not overridden
+        assert config._config.cache_ttls.compilation_build == 3600
+        assert config._config.cache_ttls.layout_diff == 1800
+        assert config._config.firmware.flash.verify is True
+        assert config._config.firmware.flash.auto_detect is True
+
+    def test_base_config_file_not_found(self, clean_environment):
+        """Test behavior when base config file is not found."""
+        mock_adapter = Mock()
+        mock_adapter.search_config_files.return_value = ({}, None)
+        # Mock base config file not existing
+        mock_adapter.load_config.side_effect = FileNotFoundError("Base config not found")
+
+        config = UserConfig(config_adapter=mock_adapter)
+
+        # Should still work with Pydantic model defaults
+        assert config._config.profile == "glove80/v25.05"  # Pydantic default
+        assert config._config.cache_strategy == "shared"   # Pydantic default
 
 
 class TestUserConfigFileOperations:

@@ -111,6 +111,26 @@ def empty_config_file(temp_config_dir: Path) -> Path:
 def mock_config_adapter() -> Mock:
     """Mock ConfigFileAdapter for testing."""
     adapter = Mock(spec=ConfigFileAdapter)
+    # Mock base config loading with realistic defaults
+    adapter.load_config.return_value = {
+        "profile": "glove80/v25.05",
+        "cache_strategy": "shared",
+        "icon_mode": "emoji",
+        "firmware": {
+            "flash": {
+                "timeout": 30,
+                "verify": True,
+                "auto_detect": True,
+                "wait_for_device": True,
+                "device_wait_timeout": 60
+            }
+        },
+        "cache_ttls": {
+            "compilation_workspace": 3600,
+            "compilation_build": 3600,
+            "layout_diff": 1800
+        }
+    }
     return adapter
 
 

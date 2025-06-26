@@ -475,6 +475,29 @@ class CompilationProgressDisplayManager(ProgressDisplayManager[Any]):
                         total=compilation_progress.total_repositories,
                         description=f"Restoring Cache ({compilation_progress.compilation_phase})",
                     )
+            elif compilation_progress.compilation_phase == "workspace_setup":
+                current_file_text = Text(
+                    f"🗂️ Workspace: {compilation_progress.current_repository}",
+                    style="magenta",
+                )
+                # Use bytes progress if available, otherwise fallback to percentage
+                if (
+                    hasattr(compilation_progress, "total_bytes")
+                    and compilation_progress.total_bytes > 0
+                ):
+                    progress.update(
+                        task_id,
+                        completed=compilation_progress.bytes_downloaded or 0,
+                        total=compilation_progress.total_bytes,
+                        description=f"Setting up Workspace ({compilation_progress.compilation_phase})",
+                    )
+                else:
+                    progress.update(
+                        task_id,
+                        completed=50,  # Arbitrary progress for workspace setup
+                        total=100,
+                        description=f"Setting up Workspace ({compilation_progress.compilation_phase})",
+                    )
             elif compilation_progress.compilation_phase == "west_update":
                 current_file_text = Text(
                     f"📦 Downloading: {compilation_progress.current_repository}",

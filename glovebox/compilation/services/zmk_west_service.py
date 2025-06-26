@@ -80,6 +80,7 @@ class WorkspaceSetup:
             [ZmkCompilationConfig], tuple[Path | None, bool, str | None]
         ],
         progress_callback: CompilationProgressCallback | None = None,
+        progress_coordinator: Any = None,
     ) -> tuple[Path | None, bool, str | None]:
         """Get cached workspace or create new one.
 
@@ -108,6 +109,7 @@ class WorkspaceSetup:
                     config,
                     get_cached_workspace_func,
                     progress_callback,
+                    progress_coordinator,
                 )
         else:
             return self._get_or_create_workspace_internal(
@@ -116,6 +118,7 @@ class WorkspaceSetup:
                 config,
                 get_cached_workspace_func,
                 progress_callback,
+                progress_coordinator,
             )
 
     def _get_or_create_workspace_internal(
@@ -127,6 +130,7 @@ class WorkspaceSetup:
             [ZmkCompilationConfig], tuple[Path | None, bool, str | None]
         ],
         progress_callback: CompilationProgressCallback | None = None,
+        progress_coordinator: Any = None,
     ) -> tuple[Path | None, bool, str | None]:
         """Internal method for workspace creation."""
         # Track cache operations with SessionMetrics
@@ -166,7 +170,7 @@ class WorkspaceSetup:
                     )
                     with workspace_restoration_duration.time():
                         self._restore_cached_workspace(
-                            cached_workspace, workspace_path, progress_callback
+                            cached_workspace, workspace_path, progress_callback, progress_coordinator
                         )
                         self.setup_workspace(
                             keymap_file, config_file, config, workspace_path
@@ -175,7 +179,7 @@ class WorkspaceSetup:
                         cache_operations.labels("restoration", "success").inc()
                 else:
                     self._restore_cached_workspace(
-                        cached_workspace, workspace_path, progress_callback
+                        cached_workspace, workspace_path, progress_callback, progress_coordinator
                     )
                     self.setup_workspace(
                         keymap_file, config_file, config, workspace_path
@@ -210,22 +214,20 @@ class WorkspaceSetup:
         cached_workspace: Path,
         workspace_path: Path,
         progress_callback: CompilationProgressCallback | None = None,
+        progress_coordinator: Any = None,
     ) -> None:
         """Restore workspace from cached directory with progress tracking."""
 
-        # Create a wrapper to convert CopyProgress to CompilationProgress
+        # Create a wrapper to use unified coordinator for progress tracking
         def copy_progress_wrapper(copy_progress: Any) -> None:
-            if progress_callback and hasattr(copy_progress, "current_file"):
-                # Convert file copy progress to compilation progress
-                compilation_progress = CompilationProgress(
-                    repositories_downloaded=50,  # Cache restoration is ~50% of initialization
-                    total_repositories=100,
-                    current_repository=f"Restoring cache: {copy_progress.current_file}",
-                    compilation_phase="cache_restoration",
-                    bytes_downloaded=copy_progress.bytes_copied,
-                    total_bytes=copy_progress.total_bytes,
+            if progress_coordinator and hasattr(copy_progress, "current_file"):
+                # Use coordinator to update cache restoration progress
+                progress_coordinator.update_cache_progress(
+                    operation="restoring",
+                    current=copy_progress.bytes_copied or 0,
+                    total=copy_progress.total_bytes or 100,
+                    description=copy_progress.current_file,
                 )
-                progress_callback(compilation_progress)
 
         self.logger.info("Restoring workspace from cache: %s", cached_workspace)
         result = self.copy_service.copy_directory(
@@ -233,7 +235,7 @@ class WorkspaceSetup:
             dst=workspace_path,
             exclude_git=False,
             use_pipeline=True,
-            progress_callback=copy_progress_wrapper if progress_callback else None,
+            progress_callback=copy_progress_wrapper if progress_coordinator else None,
         )
         if not result.success:
             raise RuntimeError(f"Copy operation failed: {result.error}")
@@ -454,7 +456,24 @@ class ZmkWestService(CompilationServiceProtocol):
             if cache_operations:
                 cache_operations.labels("lookup", "miss").inc()
 
-            # Try to use cached workspace
+            # Create unified progress coordinator early for workspace setup
+            progress_coordinator = None
+            if progress_callback:
+                from glovebox.cli.components.unified_progress_coordinator import (
+                    create_unified_progress_coordinator,
+                )
+                
+                # Extract board information for progress tracking
+                board_info = self._extract_board_info_from_config(config)
+                
+                progress_coordinator = create_unified_progress_coordinator(
+                    tui_callback=progress_callback,
+                    total_boards=board_info["total_boards"],
+                    board_names=board_info["board_names"],
+                    total_repositories=39,  # Default repository count
+                )
+
+            # Try to use cached workspace  
             workspace_path, cache_used, cache_type = (
                 self.workspace_setup.get_or_create_workspace(
                     keymap_file,
@@ -462,6 +481,7 @@ class ZmkWestService(CompilationServiceProtocol):
                     config,
                     self._get_cached_workspace,
                     progress_callback,
+                    progress_coordinator,
                 )
             )
             if not workspace_path:
@@ -485,6 +505,7 @@ class ZmkWestService(CompilationServiceProtocol):
                         cache_used,
                         cache_type,
                         progress_callback,
+                        progress_coordinator,
                     )
                 if compilation_success:
                     docker_operations.labels("compilation", "success").inc()
@@ -492,7 +513,7 @@ class ZmkWestService(CompilationServiceProtocol):
                     docker_operations.labels("compilation", "failed").inc()
             else:
                 compilation_success = self._run_compilation(
-                    workspace_path, config, cache_used, cache_type, progress_callback
+                    workspace_path, config, cache_used, cache_type, progress_callback, progress_coordinator
                 )
 
             # Cache workspace dependencies if it was created fresh (not from cache)
@@ -941,6 +962,7 @@ class ZmkWestService(CompilationServiceProtocol):
         cache_was_used: bool = False,
         cache_type: str | None = None,
         progress_callback: CompilationProgressCallback | None = None,
+        progress_coordinator: Any = None,
     ) -> bool:
         """Run Docker compilation with intelligent west update logic.
 
@@ -993,20 +1015,15 @@ class ZmkWestService(CompilationServiceProtocol):
 
             self.logger.info("Running Docker compilation")
 
-            # Create progress middleware if progress callback is provided
+            # Create progress middleware if progress coordinator is provided
             middlewares: list[OutputMiddleware[Any]] = []
-            if progress_callback:
+            if progress_coordinator:
                 from glovebox.adapters import create_compilation_progress_middleware
 
-                # Extract board information for multi-board progress tracking
-                board_info = self._extract_board_info(workspace_path)
-
+                # Create middleware that delegates to existing coordinator
                 middleware = create_compilation_progress_middleware(
-                    progress_callback=progress_callback,
-                    total_repositories=39,  # Default repository count
+                    progress_coordinator=progress_coordinator,
                     skip_west_update=cache_was_used,  # Skip west update if cache was used
-                    total_boards=board_info["total_boards"],
-                    board_names=board_info["board_names"],
                 )
 
                 middlewares.append(middleware)
@@ -1120,6 +1137,40 @@ class ZmkWestService(CompilationServiceProtocol):
 
         except Exception as e:
             self.logger.warning("Failed to extract board info: %s", e)
+            return {"total_boards": 1, "board_names": []}
+
+    def _extract_board_info_from_config(self, config: ZmkCompilationConfig) -> dict[str, Any]:
+        """Extract board information from ZmkCompilationConfig for early progress tracking.
+
+        Args:
+            config: ZMK compilation configuration
+
+        Returns:
+            Dictionary with total_boards and board_names
+        """
+        try:
+            # Extract board names from build matrix in config
+            if config.build_matrix and config.build_matrix.targets:
+                board_names = [target.board for target in config.build_matrix.targets]
+                total_boards = len(board_names)
+                
+                self.logger.info(
+                    "Detected %d boards from config: %s",
+                    total_boards,
+                    ", ".join(board_names),
+                )
+                
+                return {
+                    "total_boards": total_boards,
+                    "board_names": board_names,
+                }
+            else:
+                # Fallback to default single board
+                self.logger.info("No build matrix in config, using default single board")
+                return {"total_boards": 1, "board_names": []}
+                
+        except Exception as e:
+            self.logger.error("Error extracting board info from config: %s", e)
             return {"total_boards": 1, "board_names": []}
 
     def _collect_files(
