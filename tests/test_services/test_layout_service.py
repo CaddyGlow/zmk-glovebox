@@ -280,6 +280,7 @@ class TestLayoutServiceWithKeyboardConfig:
         mock_prepare_paths,
         sample_keymap_json,
         tmp_path,
+        session_metrics,
     ):
         """Test keymap compilation with keyboard configuration."""
         # Setup path mock
@@ -340,6 +341,7 @@ class TestLayoutServiceWithKeyboardConfig:
                                         output_file_prefix=str(
                                             tmp_path / "output/test"
                                         ),
+                                        session_metrics=session_metrics,
                                     )
 
                                     # Verify
@@ -462,6 +464,7 @@ class TestLayoutServiceWithKeyboardConfig:
         mock_prepare_paths,
         sample_keymap_json,
         tmp_path,
+        session_metrics,
     ):
         """Test that layout compilation uses correct model_dump parameters."""
         # Setup path mock
@@ -526,6 +529,7 @@ class TestLayoutServiceWithKeyboardConfig:
                                         output_file_prefix=str(
                                             tmp_path / "output/test"
                                         ),
+                                        session_metrics=session_metrics,
                                     )
 
                                     # Verify success
@@ -591,6 +595,7 @@ class TestLayoutServiceWithMockedConfig:
         mock_create_profile,
         sample_keymap_json,
         tmp_path,
+        session_metrics,
     ):
         """Test integrated keymap workflow with mocked config API."""
         # Setup path mock
@@ -695,6 +700,7 @@ class TestLayoutServiceWithMockedConfig:
                                     mock_profile,
                                     keymap_data,
                                     output_file_prefix=output_file_prefix,
+                                    session_metrics=session_metrics,
                                 )
                                 success = True
                                 assert result.success is True

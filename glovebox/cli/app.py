@@ -137,15 +137,17 @@ class AppContext:
         # Try new icon_mode field first, fall back to emoji_mode for compatibility
         if hasattr(self.user_config._config, "icon_mode"):
             icon_mode = self.user_config._config.icon_mode
-            return str(icon_mode) if icon_mode is not None else "emoji"
+            # Handle both enum and string values for compatibility
+            return icon_mode.value if hasattr(icon_mode, 'value') else str(icon_mode)
         else:
             # Legacy fallback
             if hasattr(self.user_config._config, "emoji_mode"):
                 emoji_mode = self.user_config._config.emoji_mode
                 emoji_enabled = bool(emoji_mode) if emoji_mode is not None else True
                 return "emoji" if emoji_enabled else "text"
-            else:
-                return "emoji"  # Default to emoji if neither field exists
+
+            # Default to emoji if neither field exists
+            return "emoji"
 
     def save_session_metrics(self) -> None:
         """Save session metrics to file."""

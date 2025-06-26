@@ -1,6 +1,8 @@
 """Unified theme system for consistent Rich styling across CLI commands."""
 
-from typing import Any
+# Color scheme constants
+from enum import Enum
+from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
 from rich.panel import Panel
@@ -9,7 +11,17 @@ from rich.text import Text
 from rich.theme import Theme
 
 
-# Color scheme constants
+if TYPE_CHECKING:
+    import typer
+
+
+class IconMode(str, Enum):
+    """Icon display modes for CLI output."""
+
+    EMOJI = "emoji"
+    NERDFONT = "nerdfont"
+    TEXT = "text"
+
 class Colors:
     """Standardized color palette for CLI output."""
 
@@ -235,37 +247,45 @@ class Icons:
     }
 
     @classmethod
-    def get_icon(cls, icon_name: str, icon_mode: str = "emoji") -> str:
+    def get_icon(cls, icon_name: str, icon_mode: IconMode | str = IconMode.EMOJI) -> str:
         """Get icon based on the specified mode.
 
         Args:
             icon_name: Name of the icon (e.g., "SUCCESS", "ERROR")
-            icon_mode: Icon mode - "emoji", "nerdfont", or "text"
+            icon_mode: Icon mode - IconMode enum or string
 
         Returns:
             The appropriate icon based on mode
         """
-        if icon_mode == "nerdfont":
+        # Convert string to enum for backward compatibility
+        if isinstance(icon_mode, str):
+            icon_mode = IconMode(icon_mode)
+
+        if icon_mode == IconMode.NERDFONT:
             return cls._NERDFONT_ICONS.get(icon_name, "")
-        elif icon_mode == "emoji":
+        elif icon_mode == IconMode.EMOJI:
             return getattr(cls, icon_name, "")
         else:  # text mode
             return cls._TEXT_FALLBACKS.get(icon_name, f"[{icon_name}]")
 
     @classmethod
     def format_with_icon(
-        cls, icon_name: str, text: str, icon_mode: str = "emoji"
+        cls, icon_name: str, text: str, icon_mode: IconMode | str = IconMode.EMOJI
     ) -> str:
         """Format text with icon, handling empty icons gracefully.
 
         Args:
             icon_name: Name of the icon
             text: Text to format
-            icon_mode: Icon mode - "emoji", "nerdfont", or "text"
+            icon_mode: Icon mode - IconMode enum or string
 
         Returns:
             Formatted string with proper spacing
         """
+        # Convert string to enum for backward compatibility
+        if isinstance(icon_mode, str):
+            icon_mode = IconMode(icon_mode)
+
         icon = cls.get_icon(icon_name, icon_mode)
         if icon:
             return f"{icon} {text}"
@@ -330,13 +350,16 @@ GLOVEBOX_THEME = Theme(
 class ThemedConsole:
     """Console wrapper with Glovebox theme applied."""
 
-    def __init__(self, icon_mode: str = "emoji") -> None:
+    def __init__(self, icon_mode: IconMode | str = IconMode.EMOJI) -> None:
         """Initialize themed console.
 
         Args:
-            icon_mode: Icon mode - "emoji", "nerdfont", or "text"
+            icon_mode: Icon mode - IconMode enum or string
         """
         self.console = Console(theme=GLOVEBOX_THEME)
+        # Convert string to enum for backward compatibility
+        if isinstance(icon_mode, str):
+            icon_mode = IconMode(icon_mode)
         self.icon_mode = icon_mode
 
     def print_success(self, message: str) -> None:
@@ -371,18 +394,22 @@ class TableStyles:
 
     @staticmethod
     def create_basic_table(
-        title: str = "", icon: str = "", icon_mode: str = "emoji"
+        title: str = "", icon: str = "", icon_mode: IconMode | str = IconMode.EMOJI
     ) -> Table:
         """Create a basic styled table.
 
         Args:
             title: Table title
             icon: Icon to include in title
-            icon_mode: Icon mode - "emoji", "nerdfont", or "text"
+            icon_mode: Icon mode - IconMode enum or string
 
         Returns:
             Configured Table instance
         """
+        # Convert string to enum for backward compatibility
+        if isinstance(icon_mode, str):
+            icon_mode = IconMode(icon_mode)
+
         if icon and title:
             # Get the appropriate icon based on mode
             display_icon = (
@@ -401,8 +428,10 @@ class TableStyles:
         )
 
     @staticmethod
-    def create_device_table(icon_mode: str = "emoji") -> Table:
+    def create_device_table(icon_mode: IconMode | str = IconMode.EMOJI) -> Table:
         """Create table for device listings."""
+        if isinstance(icon_mode, str):
+            icon_mode = IconMode(icon_mode)
         table = TableStyles.create_basic_table("USB Devices", "DEVICE", icon_mode)
         table.add_column("Device", style=Colors.PRIMARY, no_wrap=True)
         table.add_column("Serial", style=Colors.ACCENT)
@@ -411,8 +440,10 @@ class TableStyles:
         return table
 
     @staticmethod
-    def create_status_table(icon_mode: str = "emoji") -> Table:
+    def create_status_table(icon_mode: IconMode | str = IconMode.EMOJI) -> Table:
         """Create table for status information."""
+        if isinstance(icon_mode, str):
+            icon_mode = IconMode(icon_mode)
         table = TableStyles.create_basic_table("System Status", "SYSTEM", icon_mode)
         table.add_column("Component", style=Colors.PRIMARY, no_wrap=True)
         table.add_column("Status", style="bold")
@@ -420,16 +451,20 @@ class TableStyles:
         return table
 
     @staticmethod
-    def create_config_table(icon_mode: str = "emoji") -> Table:
+    def create_config_table(icon_mode: IconMode | str = IconMode.EMOJI) -> Table:
         """Create table for configuration display."""
+        if isinstance(icon_mode, str):
+            icon_mode = IconMode(icon_mode)
         table = TableStyles.create_basic_table("Configuration", "CONFIG", icon_mode)
         table.add_column("Setting", style=Colors.PRIMARY, no_wrap=True)
         table.add_column("Value", style=Colors.NORMAL)
         return table
 
     @staticmethod
-    def create_keyboard_table(icon_mode: str = "emoji") -> Table:
+    def create_keyboard_table(icon_mode: IconMode | str = IconMode.EMOJI) -> Table:
         """Create table for keyboard listings."""
+        if isinstance(icon_mode, str):
+            icon_mode = IconMode(icon_mode)
         table = TableStyles.create_basic_table("Keyboards", "KEYBOARD", icon_mode)
         table.add_column("Keyboard", style=Colors.PRIMARY, no_wrap=True)
         table.add_column("Firmwares", style=Colors.ACCENT)
@@ -562,15 +597,18 @@ class StatusIndicators:
 
 
 # Utility functions for quick access
-def get_themed_console(icon_mode: str = "emoji") -> ThemedConsole:
+def get_themed_console(icon_mode: IconMode | str = IconMode.EMOJI) -> ThemedConsole:
     """Get a themed console instance.
 
     Args:
-        icon_mode: Icon mode - "emoji", "nerdfont", or "text"
+        icon_mode: Icon mode - IconMode enum or string
 
     Returns:
         Configured ThemedConsole instance
     """
+    # Convert string to enum for backward compatibility
+    if isinstance(icon_mode, str):
+        icon_mode = IconMode(icon_mode)
     return ThemedConsole(icon_mode=icon_mode)
 
 
@@ -626,33 +664,50 @@ def apply_glovebox_theme(console: Console) -> Console:
     return Console(theme=GLOVEBOX_THEME)
 
 
-def get_icon_mode_from_config(user_config: Any = None) -> str:
+def get_icon_mode_from_config(user_config: Any = None) -> IconMode:
     """Get icon mode from user configuration with fallback logic.
 
     Args:
         user_config: User configuration object
 
     Returns:
-        Icon mode string: "emoji", "nerdfont", or "text"
+        IconMode enum value: IconMode.EMOJI, IconMode.NERDFONT, or IconMode.TEXT
     """
     if user_config is None:
-        return "emoji"
+        return IconMode.EMOJI
 
     # Try new icon_mode field first
     if hasattr(user_config, "_config") and hasattr(user_config._config, "icon_mode"):
         icon_mode = user_config._config.icon_mode
-        return str(icon_mode) if icon_mode is not None else "emoji"
+        if icon_mode is not None:
+            return IconMode(str(icon_mode))
     elif hasattr(user_config, "icon_mode"):
         icon_mode = user_config.icon_mode
-        return str(icon_mode) if icon_mode is not None else "emoji"
+        if icon_mode is not None:
+            return IconMode(str(icon_mode))
 
     # Fall back to legacy emoji_mode for backward compatibility
     if hasattr(user_config, "_config") and hasattr(user_config._config, "emoji_mode"):
         emoji_mode = user_config._config.emoji_mode
-        return "emoji" if bool(emoji_mode) else "text"
+        return IconMode.EMOJI if bool(emoji_mode) else IconMode.TEXT
     elif hasattr(user_config, "emoji_mode"):
         emoji_mode = user_config.emoji_mode
-        return "emoji" if bool(emoji_mode) else "text"
+        return IconMode.EMOJI if bool(emoji_mode) else IconMode.TEXT
 
     # Default fallback
-    return "emoji"
+    return IconMode.EMOJI
+
+
+def get_icon_mode_from_context(ctx: "typer.Context") -> IconMode:
+    """Get icon_mode from app context safely.
+
+    Args:
+        ctx: Typer context containing AppContext
+
+    Returns:
+        IconMode enum value from user configuration
+    """
+    from glovebox.cli.app import AppContext
+
+    app_ctx: AppContext = ctx.obj
+    return IconMode(app_ctx.icon_mode)

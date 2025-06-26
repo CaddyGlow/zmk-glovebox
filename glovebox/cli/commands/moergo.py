@@ -55,7 +55,7 @@ def login(
     """
     import os
 
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
     # Note: This function doesn't have ctx parameter, so we'll use default icon mode
     icon_mode = "emoji"  # Default behavior for this command
@@ -125,7 +125,7 @@ def login(
 @moergo_app.command("logout")
 def logout() -> None:
     """Clear stored MoErgo credentials."""
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
     icon_mode = "emoji"  # Default behavior for this command
 
@@ -159,7 +159,7 @@ def download_layout(
     ] = False,
 ) -> None:
     """Download a layout by ID from MoErgo."""
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
     icon_mode = "emoji"  # Default behavior for this command
 
@@ -251,11 +251,10 @@ def download_layout(
 def status(ctx: typer.Context) -> None:
     """Show MoErgo authentication status and credential information."""
     from glovebox.cli.app import AppContext
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
     # Get icon mode from app context
-    app_ctx: AppContext = ctx.obj
-    icon_mode = app_ctx.icon_mode
+    icon_mode = get_icon_mode_from_context(ctx)
 
     try:
         client = create_moergo_client()
@@ -338,7 +337,7 @@ def status(ctx: typer.Context) -> None:
 @moergo_app.command("keystore")
 def keystore_info() -> None:
     """Show detailed keystore and credential storage information."""
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
     icon_mode = "emoji"  # Default behavior for this command
 

@@ -181,7 +181,7 @@ class TestRefactoredArchitecture:
 
         project_root = Path(__file__).parents[2]
         layout_commands_dir = project_root / "glovebox" / "cli" / "commands" / "layout"
-        
+
         # Check that deprecated functions with TODO markers have been removed
         python_files = list(layout_commands_dir.glob("*.py"))
         for file_path in python_files:

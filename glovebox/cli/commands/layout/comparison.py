@@ -111,7 +111,11 @@ def diff(
     # Create composer and execute comparison
     from glovebox.cli.commands.layout.composition import create_layout_command_composer
 
-    composer = create_layout_command_composer()
+    # Get icon mode from context for proper display
+    from glovebox.cli.helpers.theme import get_icon_mode_from_context
+    icon_mode = get_icon_mode_from_context(ctx)
+
+    composer = create_layout_command_composer(icon_mode)
 
     def comparison_operation(file1: Path, file2: Path) -> dict[str, Any]:
         """Comparison operation that returns structured results."""

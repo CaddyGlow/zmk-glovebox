@@ -29,8 +29,8 @@ def create_compilation_service(
     user_config: "UserConfig",
     docker_adapter: "DockerAdapterProtocol",
     file_adapter: "FileAdapterProtocol",
-    cache_manager: "CacheManager",
-    session_metrics: "SessionMetrics ",
+    cache_manager: "CacheManager | None",
+    session_metrics: "SessionMetrics",
     workspace_cache_service: Any | None = None,
     build_cache_service: Any | None = None,
 ) -> CompilationServiceProtocol:
@@ -41,7 +41,7 @@ def create_compilation_service(
         user_config: UserConfig instance
         docker_adapter: Required DockerAdapter instance
         file_adapter: Required FileAdapter instance
-        cache_manager: Cache manager instance (required for zmk_config method)
+        cache_manager: Cache manager instance (required for zmk_config method, optional for others)
         workspace_cache_service: Workspace cache service (required for zmk_config method)
         build_cache_service: Build cache service (required for zmk_config method)
         session_metrics: Optional SessionMetrics instance for metrics integration
@@ -53,13 +53,11 @@ def create_compilation_service(
         ValueError: If method type is not supported or required dependencies are missing
     """
     if method_type == "zmk_config":
-        if (
-            cache_manager is None
-            or workspace_cache_service is None
-            or build_cache_service is None
-        ):
+        if cache_manager is None:
+            raise ValueError("ZMK config method requires cache_manager")
+        if workspace_cache_service is None or build_cache_service is None:
             raise ValueError(
-                "ZMK config method requires cache_manager, workspace_cache_service, and build_cache_service"
+                "ZMK config method requires workspace_cache_service and build_cache_service"
             )
         return create_zmk_west_service(
             user_config=user_config,

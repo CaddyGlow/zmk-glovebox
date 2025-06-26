@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import typer
 from click.core import Context as ClickContext
@@ -18,25 +18,31 @@ from glovebox.config.profile import KeyboardProfile
 from glovebox.config.user_config import UserConfig
 
 
-def _get_icon_mode_safe(user_config: UserConfig | None = None) -> str:
+if TYPE_CHECKING:
+    from glovebox.cli.helpers.theme import IconMode
+
+
+def _get_icon_mode_safe(user_config: UserConfig | None = None) -> "IconMode":
     """Safely get icon mode from user config with fallback to emoji.
 
     Args:
         user_config: User configuration instance
 
     Returns:
-        Icon mode string, defaulting to "emoji" if config unavailable
+        IconMode enum value, defaulting to IconMode.EMOJI if config unavailable
     """
     try:
         if user_config is None:
-            return "emoji"
+            from glovebox.cli.helpers.theme import IconMode
+            return IconMode.EMOJI
 
         from glovebox.cli.helpers.theme import get_icon_mode_from_config
 
         return get_icon_mode_from_config(user_config)
     except Exception:
         # Fallback to emoji if anything goes wrong
-        return "emoji"
+        from glovebox.cli.helpers.theme import IconMode
+        return IconMode.EMOJI
 
 
 logger = logging.getLogger(__name__)

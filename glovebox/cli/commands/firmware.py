@@ -312,9 +312,11 @@ def firmware_compile(
 
     # Access session metrics from CLI context
     from glovebox.cli.app import AppContext
+    from glovebox.cli.helpers.theme import get_icon_mode_from_context
 
     app_ctx: AppContext = ctx.obj
     metrics = app_ctx.session_metrics
+    icon_mode = get_icon_mode_from_context(ctx)
 
     # Track firmware compilation metrics
     firmware_counter = metrics.Counter(
@@ -511,9 +513,11 @@ def flash(
 
     # Access session metrics from CLI context
     from glovebox.cli.app import AppContext
+    from glovebox.cli.helpers.theme import get_icon_mode_from_context
 
     app_ctx: AppContext = ctx.obj
     metrics = app_ctx.session_metrics
+    icon_mode = get_icon_mode_from_context(ctx)
 
     # Track firmware flash metrics
     flash_counter = metrics.Counter(

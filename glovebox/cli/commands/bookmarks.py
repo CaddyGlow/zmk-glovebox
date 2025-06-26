@@ -49,11 +49,9 @@ def add(
     ] = None,
 ) -> None:
     """Add a new layout bookmark."""
-    from glovebox.cli.app import AppContext
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
-    app_ctx: AppContext = ctx.obj
-    icon_mode = app_ctx.icon_mode
+    icon_mode = get_icon_mode_from_context(ctx)
 
     try:
         from glovebox.cli.helpers.profile import get_user_config_from_context
@@ -124,11 +122,9 @@ def list(
     ] = False,
 ) -> None:
     """List all saved layout bookmarks."""
-    from glovebox.cli.app import AppContext
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
-    app_ctx: AppContext = ctx.obj
-    icon_mode = app_ctx.icon_mode
+    icon_mode = get_icon_mode_from_context(ctx)
 
     try:
         from glovebox.cli.helpers.profile import get_user_config_from_context
@@ -276,10 +272,9 @@ def clone(
         typer.echo(Icons.format_with_icon("SAVE", f"Saved to: {output}", icon_mode))
 
     except Exception as e:
-        from glovebox.cli.app import AppContext
+        from glovebox.cli.helpers.theme import get_icon_mode_from_context
 
-        error_app_ctx: AppContext = ctx.obj
-        error_icon_mode = error_app_ctx.icon_mode
+        error_icon_mode = get_icon_mode_from_context(ctx)
         typer.echo(
             Icons.format_with_icon(
                 "ERROR", f"Error cloning bookmark: {e}", error_icon_mode
@@ -302,11 +297,9 @@ def flash(
     ],
 ) -> None:
     """Flash firmware for a bookmarked layout directly to keyboard."""
-    from glovebox.cli.app import AppContext
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
-    app_ctx: AppContext = ctx.obj
-    icon_mode = app_ctx.icon_mode
+    icon_mode = get_icon_mode_from_context(ctx)
 
     try:
         from glovebox.cli.helpers.profile import get_user_config_from_context
@@ -337,6 +330,10 @@ def flash(
                 )
             )
             raise typer.Exit(1) from e
+
+        # Get app context for session metrics
+        from glovebox.cli.app import AppContext
+        app_ctx: AppContext = ctx.obj
 
         # Get layout metadata to check compilation status
         layout_meta = bookmark_service._client.get_layout_meta(
@@ -525,11 +522,9 @@ def remove(
     force: Annotated[bool, typer.Option("--force", help="Skip confirmation")] = False,
 ) -> None:
     """Remove a layout bookmark."""
-    from glovebox.cli.app import AppContext
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
-    app_ctx: AppContext = ctx.obj
-    icon_mode = app_ctx.icon_mode
+    icon_mode = get_icon_mode_from_context(ctx)
 
     try:
         from glovebox.cli.helpers.profile import get_user_config_from_context
@@ -592,11 +587,9 @@ def info(
     ],
 ) -> None:
     """Get detailed information about a bookmarked layout."""
-    from glovebox.cli.app import AppContext
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
-    app_ctx: AppContext = ctx.obj
-    icon_mode = app_ctx.icon_mode
+    icon_mode = get_icon_mode_from_context(ctx)
 
     try:
         from glovebox.cli.helpers.profile import get_user_config_from_context
@@ -659,11 +652,9 @@ def refresh(
     force: Annotated[bool, typer.Option("--force", help="Skip confirmation")] = False,
 ) -> None:
     """Refresh factory default bookmarks from MoErgo API."""
-    from glovebox.cli.app import AppContext
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
-    app_ctx: AppContext = ctx.obj
-    icon_mode = app_ctx.icon_mode
+    icon_mode = get_icon_mode_from_context(ctx)
 
     try:
         from glovebox.cli.helpers.profile import get_user_config_from_context

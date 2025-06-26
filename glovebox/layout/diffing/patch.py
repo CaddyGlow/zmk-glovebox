@@ -1,8 +1,8 @@
 from collections import OrderedDict
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
-import jsonpatch  # type: ignore
+import jsonpatch  # type: ignore[import-untyped]
 
 from glovebox.layout.models import LayoutData
 
@@ -297,7 +297,9 @@ class LayoutPatchSystem:
             return original
 
     def _apply_patch_forgiving(
-        self, patch: "jsonpatch.JsonPatch", layout_dict: dict[str, Any]
+        self,
+        patch: Any,
+        layout_dict: dict[str, Any],  # jsonpatch.JsonPatch
     ) -> dict[str, Any]:
         """Apply JSON patch with forgiving behavior for missing fields.
 
@@ -306,7 +308,7 @@ class LayoutPatchSystem:
         """
         try:
             # Try applying the entire patch first (fastest path)
-            return patch.apply(layout_dict)
+            return cast(dict[str, Any], patch.apply(layout_dict))
         except jsonpatch.JsonPatchException:
             # If patch fails, apply operations one by one, skipping failures
             result_dict = layout_dict.copy()

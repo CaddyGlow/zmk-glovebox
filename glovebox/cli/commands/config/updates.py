@@ -34,10 +34,9 @@ def check_updates(
 
     if result.check_disabled and not force:
         from glovebox.cli.app import AppContext
-        from glovebox.cli.helpers.theme import Icons
+        from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
-        app_ctx: AppContext = ctx.obj
-        icon_mode = app_ctx.icon_mode
+        icon_mode = get_icon_mode_from_context(ctx)
         print(
             Icons.format_with_icon("WARNING", "Version checks are disabled", icon_mode)
         )
@@ -46,10 +45,10 @@ def check_updates(
 
     if result.has_update and result.latest_version:
         from glovebox.cli.app import AppContext
-        from glovebox.cli.helpers.theme import Icons
+        from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
         app_context: AppContext = ctx.obj
-        icon_mode = app_context.icon_mode
+        icon_mode = get_icon_mode_from_context(ctx)
         print(
             Icons.format_with_icon(
                 "LOADING", "ZMK Firmware Update Available!", icon_mode
@@ -63,10 +62,10 @@ def check_updates(
             print(f"   Details: {result.latest_url}")
     else:
         from glovebox.cli.app import AppContext
-        from glovebox.cli.helpers.theme import Icons
+        from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
         app_ctx2: AppContext = ctx.obj
-        icon_mode = app_ctx2.icon_mode
+        icon_mode = get_icon_mode_from_context(ctx)
         print(
             Icons.format_with_icon("SUCCESS", "ZMK firmware is up to date", icon_mode)
         )

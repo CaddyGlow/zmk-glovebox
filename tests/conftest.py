@@ -22,6 +22,8 @@ from glovebox.config.models import (
 )
 from glovebox.config.profile import KeyboardProfile
 from glovebox.config.user_config import UserConfig
+from glovebox.core.cache import create_default_cache
+from glovebox.core.metrics.session_metrics import SessionMetrics
 from glovebox.firmware.flash.models import FlashResult
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.layout.models import LayoutResult, SystemBehavior
@@ -272,6 +274,48 @@ def shared_cache_stats() -> Generator[Callable[[], dict[str, Any]], None, None]:
         }
 
     yield get_stats
+
+
+@pytest.fixture
+def session_metrics(
+    isolated_cache_environment: dict[str, Any]
+) -> Generator[SessionMetrics, None, None]:
+    """Create an isolated SessionMetrics instance for testing.
+
+    This fixture provides complete SessionMetrics isolation by:
+    - Using isolated cache environment to prevent cache pollution
+    - Creating a unique session UUID for each test
+    - Automatically cleaning up metrics data after each test
+    - Following CLAUDE.md isolation requirements
+
+    Usage:
+        def test_metrics_operation(session_metrics):
+            counter = session_metrics.Counter('test_operations', 'Test operations')
+            counter.inc()
+            # All metrics isolated to test session
+    """
+    import uuid
+
+    # Create isolated cache manager for this test
+    from glovebox.core.cache.cache_coordinator import get_shared_cache_instance
+
+    cache_manager = get_shared_cache_instance(
+        cache_root=isolated_cache_environment["cache_root"],
+        tag="test_metrics"
+    )
+
+    # Create unique session UUID for test isolation
+    test_session_uuid = f"test-{uuid.uuid4().hex[:8]}"
+
+    # Create SessionMetrics with isolated cache
+    metrics = SessionMetrics(
+        cache_manager=cache_manager,
+        session_uuid=test_session_uuid,
+        ttl_days=1  # Short TTL for test data
+    )
+
+    yield metrics
+    # Test isolation handled by isolated cache environment and unique session UUID
 
 
 # ---- Test Data Directories ----

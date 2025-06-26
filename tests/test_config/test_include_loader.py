@@ -368,7 +368,7 @@ class TestIncludeConfigLoader:
             "key_count": 42,
             "compile_methods": [
                 {
-                    "strategy": "zmk",
+                    "method_type": "zmk",
                     "image": "local_image",
                     "repository": "test/local",
                     "branch": "main",
@@ -383,7 +383,7 @@ class TestIncludeConfigLoader:
 
         # Lists should be merged (base + main)
         assert len(result.compile_methods) == 2
-        methods = [method.strategy for method in result.compile_methods]
+        methods = [method.method_type for method in result.compile_methods]
         assert "moergo" in methods
         assert "zmk" in methods
 
@@ -615,6 +615,6 @@ class TestIncludeLoaderIntegration:
 
         # Verify method configurations from main file
         assert len(result.compile_methods) == 1
-        assert result.compile_methods[0].strategy == "zmk"
+        assert result.compile_methods[0].method_type == "zmk"
         assert len(result.flash_methods) == 1
         assert result.flash_methods[0].device_query == "vendor=ZSA and removable=true"

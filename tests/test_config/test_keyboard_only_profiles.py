@@ -287,24 +287,22 @@ class TestProfileHelperFunctions:
         effective = get_effective_profile(None)
         assert effective == "glove80/v25.05"  # DEFAULT_PROFILE
 
-    def test_get_effective_profile_with_user_config(self):
+    def test_get_effective_profile_with_user_config(self, isolated_config):
         """Test get_effective_profile with user config providing keyboard-only default."""
         from glovebox.config.models import UserConfigData
-        from glovebox.config.user_config import UserConfig
 
-        # Create a real user config with keyboard-only profile
-        config_data = UserConfigData(profile="custom_keyboard")
+        # Create a keyboard-only profile using isolated config
+        isolated_config.set("profile", "custom_keyboard")
 
-        # Mock user config with proper structure
-        mock_user_config = UserConfig()
-        mock_user_config._config = config_data
+        # Update the internal config data
+        isolated_config._config.profile = "custom_keyboard"
 
         # User config should be used when no explicit profile
-        effective = get_effective_profile(None, mock_user_config)
+        effective = get_effective_profile(None, isolated_config)
         assert effective == "custom_keyboard"
 
         # Explicit profile should override user config
-        effective = get_effective_profile("explicit_keyboard", mock_user_config)
+        effective = get_effective_profile("explicit_keyboard", isolated_config)
         assert effective == "explicit_keyboard"
 
     def test_create_profile_from_option_keyboard_only(self):

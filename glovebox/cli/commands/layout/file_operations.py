@@ -128,9 +128,9 @@ def split(
         else:
             from glovebox.cli.app import AppContext
             from glovebox.cli.helpers import print_error_message, print_list_item
+            from glovebox.cli.helpers.theme import get_icon_mode_from_context
 
-            app_ctx: AppContext = ctx.obj
-            icon_mode = app_ctx.icon_mode
+            icon_mode = get_icon_mode_from_context(ctx)
 
             print_error_message("Layout split failed", icon_mode=icon_mode)
             for error in result.errors:
@@ -217,6 +217,7 @@ def merge(
                 )
         else:
             from glovebox.cli.helpers import print_error_message, print_list_item
+            from glovebox.cli.helpers.theme import get_icon_mode_from_context
 
             icon_mode = app_ctx.icon_mode
 

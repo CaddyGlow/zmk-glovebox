@@ -18,8 +18,8 @@ T = TypeVar("T")
 class LayoutCommandComposer:
     """Composer for layout command operations with common patterns."""
 
-    def __init__(self) -> None:
-        self.formatter = create_layout_output_formatter()
+    def __init__(self, icon_mode: str = "emoji") -> None:
+        self.formatter = create_layout_output_formatter(icon_mode)
 
     def execute_with_error_handling(
         self,
@@ -409,10 +409,10 @@ class LayoutCommandComposer:
             self.formatter.format_edit_result(result, output_format)
 
 
-def create_layout_command_composer() -> LayoutCommandComposer:
+def create_layout_command_composer(icon_mode: str = "emoji") -> LayoutCommandComposer:
     """Create a layout command composer instance.
 
     Returns:
         Configured LayoutCommandComposer instance
     """
-    return LayoutCommandComposer()
+    return LayoutCommandComposer(icon_mode)
