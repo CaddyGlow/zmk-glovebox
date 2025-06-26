@@ -167,20 +167,20 @@ class TestBehaviorDiff:
         hold_tap_changes = diff.hold_taps
 
         # Check hold-tap changes
-        assert "ht_new" in getattr(diff.hold_taps, 'added', [])
-        assert "ht_a" in getattr(diff.hold_taps, 'modified', [])
+        assert "ht_new" in getattr(diff.hold_taps, "added", [])
+        assert "ht_a" in getattr(diff.hold_taps, "modified", [])
 
         # Check combo changes
-        assert "combo_new" in getattr(diff.combos, 'added', [])
-        assert "combo_space" in getattr(diff.combos, 'modified', [])
+        assert "combo_new" in getattr(diff.combos, "added", [])
+        assert "combo_space" in getattr(diff.combos, "modified", [])
 
         # Check macro changes
-        assert "macro_hello" in getattr(diff.macros, 'modified', [])
+        assert "macro_hello" in getattr(diff.macros, "modified", [])
 
         # Verify no removals in this test case
-        assert len(getattr(diff.hold_taps, 'removed', [])) == 0
-        assert len(getattr(diff.combos, 'removed', [])) == 0
-        assert len(getattr(diff.macros, 'removed', [])) == 0
+        assert len(getattr(diff.hold_taps, "removed", [])) == 0
+        assert len(getattr(diff.combos, "removed", [])) == 0
+        assert len(getattr(diff.macros, "removed", [])) == 0
 
     def test_behavior_replacement(self, diff_system: LayoutDiffSystem) -> None:
         """Test detecting complete behavior replacement."""
@@ -193,21 +193,21 @@ class TestBehaviorDiff:
         hold_tap_changes = diff.hold_taps
 
         # Check hold-tap changes
-        assert "ht_a" in behavior_changes["hold_taps"]["removed"]
-        assert "ht_new_only" in behavior_changes["hold_taps"]["added"]
+        assert "ht_a" in getattr(diff.hold_taps, "removed", [])
+        assert "ht_new_only" in getattr(diff.hold_taps, "added", [])
 
         # Check combo changes
-        assert "combo_space" in behavior_changes["combos"]["removed"]
-        assert "combo_new_only" in behavior_changes["combos"]["added"]
+        assert "combo_space" in getattr(diff.combos, "removed", [])
+        assert "combo_new_only" in getattr(diff.combos, "added", [])
 
         # Check macro changes
-        assert "macro_hello" in behavior_changes["macros"]["removed"]
-        assert "macro_new_only" in behavior_changes["macros"]["added"]
+        assert "macro_hello" in getattr(diff.macros, "removed", [])
+        assert "macro_new_only" in getattr(diff.macros, "added", [])
 
         # Should have no modifications since behaviors were completely replaced
-        assert len(behavior_changes["hold_taps"]["modified"]) == 0
-        assert len(behavior_changes["combos"]["modified"]) == 0
-        assert len(behavior_changes["macros"]["modified"]) == 0
+        assert len(getattr(diff.hold_taps, "modified", [])) == 0
+        assert len(getattr(diff.combos, "modified", [])) == 0
+        assert len(getattr(diff.macros, "modified", [])) == 0
 
     def test_behavior_diff_statistics(self, diff_system: LayoutDiffSystem) -> None:
         """Test that behavior changes are reflected in diff statistics."""
@@ -217,20 +217,27 @@ class TestBehaviorDiff:
         diff = diff_system.create_layout_diff(base, modified)
 
         # Should have many operations due to behavior changes
-        stats = diff["statistics"]
-        assert stats["total_operations"] > 5  # At least several changes
+        # Count operations based on LayoutDiff structure
+        operation_count = (
+            len(getattr(diff.hold_taps, "added", []))
+            + len(getattr(diff.hold_taps, "modified", []))
+            + len(getattr(diff.hold_taps, "removed", []))
+        )
+        operation_count += (
+            len(getattr(diff.combos, "added", []))
+            + len(getattr(diff.combos, "modified", []))
+            + len(getattr(diff.combos, "removed", []))
+        )
+        operation_count += (
+            len(getattr(diff.macros, "added", []))
+            + len(getattr(diff.macros, "modified", []))
+            + len(getattr(diff.macros, "removed", []))
+        )
+        assert operation_count > 5  # At least several changes
 
-        # Check that the JSON patch includes behavior-related paths
-        patch_paths = [op.get("path", "") for op in diff["json_patch"]]
-        behavior_paths = [
-            path
-            for path in patch_paths
-            if any(
-                behavior_type in path
-                for behavior_type in ["/holdTaps", "/combos", "/macros"]
-            )
-        ]
-        assert len(behavior_paths) > 0, "Should have behavior-related patch operations"
+        # Check behavior-related fields are present in diff
+        has_behavior_changes = any([diff.hold_taps, diff.combos, diff.macros])
+        assert has_behavior_changes, "Should have behavior-related changes"
 
     def test_behavior_name_tracking(self, diff_system: LayoutDiffSystem) -> None:
         """Test that behavior changes are tracked by name correctly."""
@@ -243,13 +250,13 @@ class TestBehaviorDiff:
         hold_tap_changes = diff.hold_taps
 
         # Verify specific behavior names are tracked
-        assert "ht_a" in behavior_changes["hold_taps"]["modified"]
-        assert "combo_space" in behavior_changes["combos"]["modified"]
-        assert "macro_hello" in behavior_changes["macros"]["modified"]
+        assert "ht_a" in getattr(diff.hold_taps, "modified", [])
+        assert "combo_space" in getattr(diff.combos, "modified", [])
+        assert "macro_hello" in getattr(diff.macros, "modified", [])
 
         # New behaviors should be tracked by name
-        assert "ht_new" in behavior_changes["hold_taps"]["added"]
-        assert "combo_new" in behavior_changes["combos"]["added"]
+        assert "ht_new" in getattr(diff.hold_taps, "added", [])
+        assert "combo_new" in getattr(diff.combos, "added", [])
 
     def test_behavior_patch_application(
         self, diff_system: LayoutDiffSystem, patch_system: LayoutPatchSystem

@@ -396,24 +396,25 @@ class TestLayoutDiff:
         layer_model = LayerModel(layer_names=["Base"], layers=[["&kp Q", "&kp W"]])
         base_layout = self.create_layout_data(layer_model)
 
-        # Create a LayoutDiff with title changes
+        # Create a LayoutDiff with title changes using model_validate
         from datetime import datetime
 
-        from glovebox.layout.diffing.models import BehaviorChanges, LayoutDiff
+        from glovebox.layout.diffing.models import LayoutDiff
 
-        diff = LayoutDiff(
-            base_version="1.0.0",
-            modified_version="1.0.1",
-            base_uuid="test-uuid-base",
-            modified_uuid="test-uuid-modified",
-            timestamp=datetime.fromisoformat("2024-01-01T00:00:00"),
-            layers=BehaviorChanges(),
-            hold_taps=BehaviorChanges(),
-            combos=BehaviorChanges(),
-            macros=BehaviorChanges(),
-            input_listeners=BehaviorChanges(),
-            title=[{"op": "replace", "path": "", "value": "Updated Layout"}],
-        )
+        diff_data = {
+            "base_version": "1.0.0",
+            "modified_version": "1.0.1",
+            "base_uuid": "test-uuid-base",
+            "modified_uuid": "test-uuid-modified",
+            "timestamp": datetime.fromisoformat("2024-01-01T00:00:00"),
+            "layers": {},
+            "holdTaps": {},
+            "combos": {},
+            "macros": {},
+            "inputListeners": {},
+            "title": [{"op": "replace", "path": "", "value": "Updated Layout"}],
+        }
+        diff = LayoutDiff.model_validate(diff_data)
 
         # Apply the patch - this should NOT raise an exception
         result = patch_system.apply_patch(base_layout, diff)

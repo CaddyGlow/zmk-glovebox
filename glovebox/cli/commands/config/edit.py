@@ -273,28 +273,22 @@ def edit(
 
     All operations are performed and saved atomically. Use --dry-run to preview changes.
 
+    \b
     Examples:
         # Get field values
         glovebox config edit --get cache_strategy --get firmware.flash.timeout
-
         # Set fields
         glovebox config edit --set cache_strategy=docker --set emoji_mode=true
-
         # Append to arrays
         glovebox config edit --append keyboard_paths=/new/path
-
         # Unset fields (reset to default)
         glovebox config edit --unset firmware.flash.timeout
-
         # Merge dictionaries
         glovebox config edit --merge firmware.docker='{"memory_limit": "2GB"}'
-
         # Combined operations
         glovebox config edit --set cache_strategy=docker --append keyboard_paths=/new --save
-
         # Preview without saving
         glovebox config edit --set emoji_mode=true --dry-run
-
         # Interactive editing
         glovebox config edit --interactive
     """
