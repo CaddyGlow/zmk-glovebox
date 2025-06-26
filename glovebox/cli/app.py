@@ -112,7 +112,11 @@ class AppContext:
         # Try new icon_mode field first, fall back to emoji_mode for compatibility
         if hasattr(self.user_config._config, "icon_mode"):
             icon_mode = self.user_config._config.icon_mode
-            return str(icon_mode) == "emoji" if icon_mode is not None else True
+            # Handle both enum and string values
+            if hasattr(icon_mode, "value"):
+                return icon_mode.value == "emoji"
+            else:
+                return str(icon_mode) == "emoji"
         else:
             # Legacy fallback
             if hasattr(self.user_config._config, "emoji_mode"):
@@ -138,7 +142,7 @@ class AppContext:
         if hasattr(self.user_config._config, "icon_mode"):
             icon_mode = self.user_config._config.icon_mode
             # Handle both enum and string values for compatibility
-            return icon_mode.value if hasattr(icon_mode, 'value') else str(icon_mode)
+            return icon_mode.value if hasattr(icon_mode, "value") else str(icon_mode)
         else:
             # Legacy fallback
             if hasattr(self.user_config._config, "emoji_mode"):

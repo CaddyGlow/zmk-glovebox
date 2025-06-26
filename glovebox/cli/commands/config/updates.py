@@ -72,27 +72,3 @@ def check_updates(
 
     if result.last_check:
         print(f"   Last checked: {result.last_check.strftime('%Y-%m-%d %H:%M:%S')}")
-
-
-@handle_errors
-def disable_updates(ctx: typer.Context) -> None:
-    """Disable automatic ZMK version checks."""
-    from glovebox.cli.helpers.profile import get_user_config_from_context
-    from glovebox.core.version_check import create_zmk_version_checker
-
-    user_config = get_user_config_from_context(ctx)
-    version_checker = create_zmk_version_checker(user_config)
-    version_checker.disable_version_checks()
-    print_success_message("ZMK version checks disabled")
-
-
-@handle_errors
-def enable_updates(ctx: typer.Context) -> None:
-    """Enable automatic ZMK version checks."""
-    from glovebox.cli.helpers.profile import get_user_config_from_context
-    from glovebox.core.version_check import create_zmk_version_checker
-
-    user_config = get_user_config_from_context(ctx)
-    version_checker = create_zmk_version_checker(user_config)
-    version_checker.enable_version_checks()
-    print_success_message("ZMK version checks enabled")

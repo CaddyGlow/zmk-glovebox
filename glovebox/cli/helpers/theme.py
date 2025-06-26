@@ -22,6 +22,7 @@ class IconMode(str, Enum):
     NERDFONT = "nerdfont"
     TEXT = "text"
 
+
 class Colors:
     """Standardized color palette for CLI output."""
 
@@ -247,7 +248,9 @@ class Icons:
     }
 
     @classmethod
-    def get_icon(cls, icon_name: str, icon_mode: IconMode | str = IconMode.EMOJI) -> str:
+    def get_icon(
+        cls, icon_name: str, icon_mode: IconMode | str = IconMode.EMOJI
+    ) -> str:
         """Get icon based on the specified mode.
 
         Args:
@@ -705,9 +708,26 @@ def get_icon_mode_from_context(ctx: "typer.Context") -> IconMode:
         ctx: Typer context containing AppContext
 
     Returns:
-        IconMode enum value from user configuration
+        IconMode enum value from user configuration, or EMOJI as fallback
     """
-    from glovebox.cli.app import AppContext
+    try:
+        app_ctx = ctx.obj
+        if app_ctx is None:
+            return IconMode.EMOJI
 
-    app_ctx: AppContext = ctx.obj
-    return IconMode(app_ctx.icon_mode)
+        if not hasattr(app_ctx, "icon_mode"):
+            return IconMode.EMOJI
+
+        icon_mode_value = app_ctx.icon_mode
+        if isinstance(icon_mode_value, IconMode):
+            return icon_mode_value
+        elif isinstance(icon_mode_value, str):
+            try:
+                return IconMode(icon_mode_value)
+            except ValueError:
+                return IconMode.EMOJI
+        else:
+            return IconMode.EMOJI
+    except Exception:
+        # Default fallback
+        return IconMode.EMOJI

@@ -3,8 +3,8 @@
 import typer
 
 from .edit import edit
-from .management import export_config, import_config, show_config
-from .updates import check_updates, disable_updates, enable_updates
+from .management import show_config
+from .updates import check_updates
 
 
 # Create a typer app for configuration commands
@@ -19,13 +19,9 @@ config_app.command()(edit)
 
 # Register management commands
 config_app.command(name="show")(show_config)
-config_app.command(name="export")(export_config)
-config_app.command(name="import")(import_config)
 
 # Register update commands
 config_app.command(name="check-updates")(check_updates)
-config_app.command(name="disable-updates")(disable_updates)
-config_app.command(name="enable-updates")(enable_updates)
 
 # Note: profile-related commands are now in the dedicated profile module
 

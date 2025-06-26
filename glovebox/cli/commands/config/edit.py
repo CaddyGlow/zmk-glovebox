@@ -16,6 +16,13 @@ from glovebox.cli.helpers import (
     print_error_message,
     print_success_message,
 )
+from glovebox.cli.helpers.parameters import (
+    AppendConfigFieldOption,
+    GetConfigFieldOption,
+    MergeConfigFieldOption,
+    SetConfigFieldOption,
+    UnsetConfigFieldOption,
+)
 from glovebox.config.models.firmware import (
     FirmwareDockerConfig,
     FirmwareFlashConfig,
@@ -236,79 +243,15 @@ def get_field_info(key: str) -> tuple[Any, str]:
     return default_val, description
 
 
-def complete_config_keys(incomplete: str) -> list[str]:
-    """Tab completion for configuration keys."""
-    try:
-
-        def get_all_config_keys() -> list[str]:
-            """Get all valid configuration keys from the models."""
-            keys = []
-
-            # Add core keys
-            for field_name in UserConfigData.model_fields:
-                if field_name not in [
-                    "firmware",
-                    "compilation",
-                ]:  # These are handled separately
-                    keys.append(field_name)
-
-            # Add firmware keys
-            for field_name in FirmwareFlashConfig.model_fields:
-                keys.append(f"firmware.flash.{field_name}")
-
-            for field_name in FirmwareDockerConfig.model_fields:
-                keys.append(f"firmware.docker.{field_name}")
-
-            return keys
-
-        valid_keys = get_all_config_keys()
-        return [key for key in valid_keys if key.startswith(incomplete)]
-    except Exception:
-        # If completion fails, return empty list
-        return []
-
-
 @handle_errors
 def edit(
     ctx: typer.Context,
-    # Field operations (matching layout pattern)
-    get: Annotated[
-        list[str] | None,
-        typer.Option(
-            "--get",
-            help="Get field value(s) using dot notation",
-            autocompletion=complete_config_keys,
-        ),
-    ] = None,
-    set: Annotated[
-        list[str] | None,
-        typer.Option(
-            "--set",
-            help="Set field value using 'key=value' format",
-        ),
-    ] = None,
-    unset: Annotated[
-        list[str] | None,
-        typer.Option(
-            "--unset",
-            help="Remove field or set to default value",
-            autocompletion=complete_config_keys,
-        ),
-    ] = None,
-    merge: Annotated[
-        list[str] | None,
-        typer.Option(
-            "--merge",
-            help="Merge dictionary using 'key=value' or 'key=from:file.json'",
-        ),
-    ] = None,
-    append: Annotated[
-        list[str] | None,
-        typer.Option(
-            "--append",
-            help="Append to array using 'key=value' format",
-        ),
-    ] = None,
+    # Field operations (matching layout pattern) with tab completion
+    get: GetConfigFieldOption = None,
+    set: SetConfigFieldOption = None,
+    unset: UnsetConfigFieldOption = None,
+    merge: MergeConfigFieldOption = None,
+    append: AppendConfigFieldOption = None,
     # Output options
     save: Annotated[
         bool, typer.Option("--save/--no-save", help="Save configuration to file")

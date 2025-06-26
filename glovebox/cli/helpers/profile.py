@@ -34,6 +34,7 @@ def _get_icon_mode_safe(user_config: UserConfig | None = None) -> "IconMode":
     try:
         if user_config is None:
             from glovebox.cli.helpers.theme import IconMode
+
             return IconMode.EMOJI
 
         from glovebox.cli.helpers.theme import get_icon_mode_from_config
@@ -42,6 +43,7 @@ def _get_icon_mode_safe(user_config: UserConfig | None = None) -> "IconMode":
     except Exception:
         # Fallback to emoji if anything goes wrong
         from glovebox.cli.helpers.theme import IconMode
+
         return IconMode.EMOJI
 
 

@@ -30,7 +30,9 @@ class TestWorkspaceCacheIntegration:
     @pytest.fixture
     def workspace_service(self, isolated_config, mock_cache_manager, session_metrics):
         """Create workspace cache service with mocked dependencies."""
-        return ZmkWorkspaceCacheService(isolated_config, mock_cache_manager, session_metrics)
+        return ZmkWorkspaceCacheService(
+            isolated_config, mock_cache_manager, session_metrics
+        )
 
     def test_workspace_service_initializes_copy_service(
         self, workspace_service, isolated_config
@@ -188,7 +190,9 @@ class TestWorkspaceCacheIntegration:
         cache_manager.get.return_value = None
         cache_manager.set.return_value = True
 
-        service = ZmkWorkspaceCacheService(isolated_config, cache_manager, session_metrics)
+        service = ZmkWorkspaceCacheService(
+            isolated_config, cache_manager, session_metrics
+        )
 
         # Verify copy service uses configured strategy
         assert service.copy_service.default_strategy == CopyStrategy.BUFFERED

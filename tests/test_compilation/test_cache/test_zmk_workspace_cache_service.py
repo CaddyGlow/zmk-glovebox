@@ -79,7 +79,9 @@ class TestZmkWorkspaceCacheServiceSimplified:
         self, isolated_config: UserConfig, mock_cache_manager: Mock, session_metrics
     ) -> ZmkWorkspaceCacheService:
         """Create ZmkWorkspaceCacheService instance."""
-        return ZmkWorkspaceCacheService(isolated_config, mock_cache_manager, session_metrics)
+        return ZmkWorkspaceCacheService(
+            isolated_config, mock_cache_manager, session_metrics
+        )
 
     @pytest.fixture
     def sample_workspace(self, tmp_path: Path) -> Path:
@@ -569,7 +571,9 @@ class TestZmkWorkspaceCacheServiceSimplified:
         from glovebox.core.cache import create_default_cache
 
         cache_manager = create_default_cache(tag="workspace_test")
-        service = ZmkWorkspaceCacheService(isolated_config, cache_manager, session_metrics)
+        service = ZmkWorkspaceCacheService(
+            isolated_config, cache_manager, session_metrics
+        )
 
         repository = "zmkfirmware/zmk"
 
@@ -599,7 +603,9 @@ class TestZmkWorkspaceCacheServiceSimplified:
         from glovebox.core.cache import create_default_cache
 
         cache_manager = create_default_cache(tag="workspace_test")
-        service = ZmkWorkspaceCacheService(isolated_config, cache_manager, session_metrics)
+        service = ZmkWorkspaceCacheService(
+            isolated_config, cache_manager, session_metrics
+        )
 
         repository = "zmkfirmware/zmk"
         branch = "main"
