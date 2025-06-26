@@ -264,7 +264,10 @@ def workspace_delete(
                 return
 
             total_size = sum(
-                (workspace.size_bytes or get_directory_size_bytes(workspace.workspace_path))
+                (
+                    workspace.size_bytes
+                    or get_directory_size_bytes(workspace.workspace_path)
+                )
                 for workspace in cached_workspaces
             )
 
@@ -383,7 +386,9 @@ def workspace_cleanup(
 def workspace_add(
     workspace_source: Annotated[
         str,
-        typer.Argument(help="Path to ZMK workspace directory, zip file, or URL to zip file"),
+        typer.Argument(
+            help="Path to ZMK workspace directory, zip file, or URL to zip file"
+        ),
     ],
     repository: Annotated[
         str | None,
@@ -441,7 +446,7 @@ def workspace_add(
             )
 
             # Create workspace progress display using the reusable TUI component
-            progress_callback = create_workspace_progress_display(show_logs=False)
+            progress_callback = create_workspace_progress_display(show_logs=True)
 
         try:
             result = workspace_cache_service.inject_existing_workspace(

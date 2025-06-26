@@ -12,7 +12,9 @@ from rich.console import Console
 from rich.table import Table
 
 from glovebox.config.user_config import create_user_config
+
 from .utils import format_size_display
+
 
 logger = logging.getLogger(__name__)
 console = Console()

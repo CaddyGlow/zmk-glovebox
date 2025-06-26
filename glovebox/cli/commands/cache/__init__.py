@@ -23,9 +23,9 @@ def register_cache_commands(app: typer.Typer) -> None:
     register_workspace_commands(cache_app)
 
     # Import individual command functions from modules
+    from .clear import cache_clear
     from .debug import cache_debug
     from .delete import cache_delete
-    from .clear import cache_clear
     from .keys import cache_keys
     from .show import cache_show
 

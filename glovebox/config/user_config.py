@@ -319,24 +319,19 @@ class UserConfig:
 
     def get_log_level_int(self) -> int:
         """
-        Get the log level as an integer value for use with logging module.
+        Get the most restrictive log level from logging configuration.
 
         Returns:
-            The configured log level as an int (logging.INFO, etc.)
+            The most restrictive (lowest) log level from all handlers as an int
         """
-        level_name = (
-            self._config.log_level.upper()
-        )  # Ensure uppercase for logging module
         try:
-            # Define mapping for type safety
-            level_map = {
-                "DEBUG": logging.DEBUG,
-                "INFO": logging.INFO,
-                "WARNING": logging.WARNING,
-                "ERROR": logging.ERROR,
-                "CRITICAL": logging.CRITICAL,
-            }
-            return level_map.get(level_name, logging.INFO)
+            # Get the most restrictive (lowest numeric value) log level from all handlers
+            min_level = logging.CRITICAL  # Start with highest level
+            for handler in self._config.logging_config.handlers:
+                handler_level = handler.get_log_level_int()
+                if handler_level < min_level:
+                    min_level = handler_level
+            return min_level
         except (AttributeError, ValueError):
             return logging.INFO
 
