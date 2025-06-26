@@ -1,5 +1,6 @@
 """Unified configuration editing commands."""
 
+import json
 import logging
 import os
 import subprocess
@@ -23,6 +24,216 @@ from glovebox.config.models.user import UserConfigData
 
 
 logger = logging.getLogger(__name__)
+
+
+class ConfigEditor:
+    """Atomic configuration editor that performs all operations in memory."""
+
+    def __init__(self, user_config: Any):
+        """Initialize editor with user configuration.
+
+        Args:
+            user_config: The user configuration instance to edit
+        """
+        self.user_config = user_config
+        self.operations_log: list[str] = []
+        self.errors: list[str] = []
+
+    def get_field(self, field_path: str) -> Any:
+        """Get field value.
+
+        Args:
+            field_path: Dot notation path to field
+
+        Returns:
+            Field value
+
+        Raises:
+            ValueError: If field not found
+        """
+        try:
+            return self.user_config.get(field_path)
+        except Exception as e:
+            raise ValueError(f"Cannot get field '{field_path}': {e}") from e
+
+    def set_field(self, field_path: str, value: Any) -> None:
+        """Set field value.
+
+        Args:
+            field_path: Dot notation path to field
+            value: Value to set
+
+        Raises:
+            ValueError: If field cannot be set
+        """
+        try:
+            self.user_config.set(field_path, value)
+            self.operations_log.append(f"Set {field_path} = {value}")
+        except Exception as e:
+            raise ValueError(f"Cannot set field '{field_path}': {e}") from e
+
+    def unset_field(self, field_path: str) -> None:
+        """Remove field or set to default value.
+
+        Args:
+            field_path: Dot notation path to field
+
+        Raises:
+            ValueError: If field cannot be unset
+        """
+        try:
+            # Get default value for the field
+            default_val, _ = get_field_info(field_path)
+
+            # Check if current value is a list to determine how to unset
+            current_value = self.user_config.get(field_path)
+            if isinstance(current_value, list):
+                self.user_config.set(field_path, [])
+                self.operations_log.append(f"Unset {field_path} (cleared list)")
+            else:
+                # For other fields, set to default value
+                self.user_config.set(field_path, default_val)
+                if default_val is None:
+                    self.operations_log.append(f"Unset {field_path} (set to null)")
+                else:
+                    self.operations_log.append(
+                        f"Unset {field_path} (set to default: {default_val})"
+                    )
+        except Exception as e:
+            raise ValueError(f"Cannot unset field '{field_path}': {e}") from e
+
+    def merge_field(self, field_path: str, merge_data: dict[str, Any]) -> None:
+        """Merge dictionary into field.
+
+        Args:
+            field_path: Dot notation path to field
+            merge_data: Dictionary to merge
+
+        Raises:
+            ValueError: If merge fails
+        """
+        try:
+            current = self.get_field(field_path)
+            if not isinstance(current, dict):
+                raise ValueError(f"Field '{field_path}' is not a dictionary")
+
+            merged = deep_merge_dicts(current, merge_data)
+            self.set_field(field_path, merged)
+            self.operations_log[-1] = f"Merged into {field_path}"
+        except Exception as e:
+            raise ValueError(f"Cannot merge into field '{field_path}': {e}") from e
+
+    def append_field(self, field_path: str, value: Any) -> None:
+        """Append value to array field.
+
+        Args:
+            field_path: Dot notation path to field
+            value: Value to append
+
+        Raises:
+            ValueError: If append fails
+        """
+        try:
+            current = self.get_field(field_path)
+            if current is None:
+                current = []
+            if not isinstance(current, list):
+                raise ValueError(f"Field '{field_path}' is not an array")
+
+            # Convert value if needed for path fields
+            append_value = value
+            if field_path.endswith("_paths") or field_path == "keyboard_paths":
+                append_value = Path(value) if not isinstance(value, Path) else value
+
+            # Check if value already exists
+            if append_value in current:
+                raise ValueError(f"Value '{value}' already exists in {field_path}")
+
+            if isinstance(value, list):
+                current.extend(value)
+            else:
+                current.append(append_value)
+
+            self.user_config.set(field_path, current)
+            self.operations_log.append(f"Appended to {field_path}")
+        except Exception as e:
+            raise ValueError(f"Cannot append to field '{field_path}': {e}") from e
+
+
+def deep_merge_dicts(dict1: dict[str, Any], dict2: dict[str, Any]) -> dict[str, Any]:
+    """Deep merge two dictionaries."""
+    result = dict1.copy()
+    for key, value in dict2.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = deep_merge_dicts(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+def parse_value(value_str: str) -> Any:
+    """Parse value string into appropriate type."""
+    # Handle from: syntax for imports
+    if value_str.startswith("from:"):
+        return ("import", value_str[5:])
+
+    # Try JSON parsing for complex types
+    if value_str.startswith(("{", "[", '"')):
+        try:
+            return json.loads(value_str)
+        except json.JSONDecodeError:
+            pass
+
+    # Boolean values
+    if value_str.lower() in ("true", "false"):
+        return value_str.lower() == "true"
+
+    # Numeric values
+    if value_str.isdigit() or (value_str.startswith("-") and value_str[1:].isdigit()):
+        return int(value_str)
+
+    try:
+        return float(value_str)
+    except ValueError:
+        pass
+
+    # Default to string
+    return value_str
+
+
+def get_field_info(key: str) -> tuple[Any, str]:
+    """Get default value and description for a configuration key."""
+    default_val = None
+    description = "No description available"
+
+    if "." in key:
+        parts = key.split(".")
+        if len(parts) == 3 and parts[0] == "firmware":
+            if parts[1] == "flash":
+                field_info = FirmwareFlashConfig.model_fields.get(parts[2])
+            elif parts[1] == "docker":
+                field_info = FirmwareDockerConfig.model_fields.get(parts[2])
+            else:
+                field_info = None
+        else:
+            field_info = None
+    else:
+        field_info = UserConfigData.model_fields.get(key)
+
+    if field_info:
+        default_val = field_info.default
+        if (
+            hasattr(field_info, "default_factory")
+            and field_info.default_factory is not None
+        ):
+            try:
+                # Pydantic v2 factory functions may need special handling
+                default_val = field_info.default_factory()  # type: ignore
+            except Exception:
+                default_val = f"<factory: {field_info.default_factory}>"
+        description = field_info.description or "No description available"
+
+    return default_val, description
 
 
 def complete_config_keys(incomplete: str) -> list[str]:
@@ -57,120 +268,15 @@ def complete_config_keys(incomplete: str) -> list[str]:
         return []
 
 
-def complete_config_list_keys(incomplete: str) -> list[str]:
-    """Tab completion for configuration keys that are lists."""
-    try:
-
-        def get_list_config_keys() -> list[str]:
-            """Get configuration keys that are lists."""
-            keys = []
-
-            # Check core keys for list types
-            for field_name, field_info in UserConfigData.model_fields.items():
-                if (
-                    field_name not in ["firmware", "compilation"]
-                    and hasattr(field_info, "annotation")
-                    and field_info.annotation
-                ):
-                    annotation = field_info.annotation
-                    if (
-                        hasattr(annotation, "__origin__")
-                        and annotation.__origin__ is list
-                    ):
-                        keys.append(field_name)
-
-            # Check firmware keys for list types
-            for field_name, field_info in FirmwareFlashConfig.model_fields.items():
-                if hasattr(field_info, "annotation") and field_info.annotation:
-                    annotation = field_info.annotation
-                    if (
-                        hasattr(annotation, "__origin__")
-                        and annotation.__origin__ is list
-                    ):
-                        keys.append(f"firmware.flash.{field_name}")
-
-            for field_name, field_info in FirmwareDockerConfig.model_fields.items():
-                if hasattr(field_info, "annotation") and field_info.annotation:
-                    annotation = field_info.annotation
-                    if (
-                        hasattr(annotation, "__origin__")
-                        and annotation.__origin__ is list
-                    ):
-                        keys.append(f"firmware.docker.{field_name}")
-
-            return keys
-
-        valid_keys = get_list_config_keys()
-        return [key for key in valid_keys if key.startswith(incomplete)]
-    except Exception:
-        # If completion fails, return empty list
-        return []
-
-
-def _get_field_type_for_key(config_key: str) -> type:
-    """Get the expected type for a configuration key."""
-    if "." in config_key:
-        parts = config_key.split(".")
-        if len(parts) == 3 and parts[0] == "firmware":
-            if parts[1] == "flash":
-                field_info = FirmwareFlashConfig.model_fields.get(parts[2])
-            elif parts[1] == "docker":
-                field_info = FirmwareDockerConfig.model_fields.get(parts[2])
-            else:
-                return str
-        else:
-            return str
-    else:
-        field_info = UserConfigData.model_fields.get(config_key)
-
-    if field_info and hasattr(field_info, "annotation") and field_info.annotation:
-        annotation = field_info.annotation
-        # Handle basic types
-        if annotation is int:
-            return int
-        elif annotation is bool:
-            return bool
-        elif hasattr(annotation, "__origin__") and annotation.__origin__ is list:
-            return list
-        else:
-            return str
-    return str
-
-
-def _parse_key_value_pair(pair: str) -> tuple[str, str]:
-    """Parse key=value string."""
-    if "=" not in pair:
-        raise ValueError(f"Invalid key=value format: {pair}")
-
-    key, value = pair.split("=", 1)
-    return key.strip(), value.strip()
-
-
-def _convert_value(value: str, field_type: type) -> Any:
-    """Convert string value to appropriate type."""
-    try:
-        if field_type is bool:
-            return value.lower() in ("true", "yes", "1", "y")
-        elif field_type is int:
-            return int(value)
-        elif field_type is list:
-            return [item.strip() for item in value.split(",")]
-        else:
-            return value
-    except ValueError as err:
-        if field_type is int:
-            raise ValueError(f"Invalid integer value: {value}") from err
-        raise
-
-
 @handle_errors
 def edit(
     ctx: typer.Context,
+    # Field operations (matching layout pattern)
     get: Annotated[
         list[str] | None,
         typer.Option(
             "--get",
-            help="Get configuration values (can be used multiple times)",
+            help="Get field value(s) using dot notation",
             autocompletion=complete_config_keys,
         ),
     ] = None,
@@ -178,31 +284,32 @@ def edit(
         list[str] | None,
         typer.Option(
             "--set",
-            help="Set configuration values as key=value (can be used multiple times)",
+            help="Set field value using 'key=value' format",
         ),
     ] = None,
-    add: Annotated[
+    unset: Annotated[
         list[str] | None,
         typer.Option(
-            "--add",
-            help="Add values to list configurations as key=value (can be used multiple times)",
-        ),
-    ] = None,
-    remove: Annotated[
-        list[str] | None,
-        typer.Option(
-            "--remove",
-            help="Remove values from list configurations as key=value (can be used multiple times)",
-        ),
-    ] = None,
-    clear: Annotated[
-        list[str] | None,
-        typer.Option(
-            "--clear",
-            help="Clear values (lists to empty, other fields to default/null) (can be used multiple times)",
+            "--unset",
+            help="Remove field or set to default value",
             autocompletion=complete_config_keys,
         ),
     ] = None,
+    merge: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--merge",
+            help="Merge dictionary using 'key=value' or 'key=from:file.json'",
+        ),
+    ] = None,
+    append: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--append",
+            help="Append to array using 'key=value' format",
+        ),
+    ] = None,
+    # Output options
     save: Annotated[
         bool, typer.Option("--save/--no-save", help="Save configuration to file")
     ] = True,
@@ -214,39 +321,36 @@ def edit(
             help="Open configuration file in editor for interactive editing",
         ),
     ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Show what would be done without saving"),
+    ] = False,
 ) -> None:
-    """Unified configuration editing command.
+    """Edit configuration with atomic operations.
 
-    This command supports getting, setting, adding to, removing from, and clearing
-    configuration values in a single operation. Multiple operations can be performed at once.
+    All operations are performed and saved atomically. Use --dry-run to preview changes.
 
     Examples:
-        # Get single value
-        glovebox config edit --get keyboard.type
+        # Get field values
+        glovebox config edit --get cache_strategy --get firmware.flash.timeout
 
-        # Get multiple values
-        glovebox config edit --get keyboard.type --get firmware.flash.timeout
+        # Set fields
+        glovebox config edit --set cache_strategy=docker --set emoji_mode=true
 
-        # Set single value
-        glovebox config edit --set keyboard.type=glove80
+        # Append to arrays
+        glovebox config edit --append keyboard_paths=/new/path
 
-        # Set multiple values
-        glovebox config edit --set keyboard.type=glove80 --set firmware.flash.timeout=30
+        # Unset fields (reset to default)
+        glovebox config edit --unset firmware.flash.timeout
 
-        # Add to list
-        glovebox config edit --add keyboard_paths=/new/path
-
-        # Remove from list
-        glovebox config edit --remove keyboard_paths=/old/path
-
-        # Clear entire list
-        glovebox config edit --clear keyboard_paths
-
-        # Clear normal field to default/null
-        glovebox config edit --clear cache_strategy
+        # Merge dictionaries
+        glovebox config edit --merge firmware.docker='{"memory_limit": "2GB"}'
 
         # Combined operations
-        glovebox config edit --set keyboard.type=glove80 --add keyboard_paths=/new/path --clear old_list --save
+        glovebox config edit --set cache_strategy=docker --append keyboard_paths=/new --save
+
+        # Preview without saving
+        glovebox config edit --set emoji_mode=true --dry-run
 
         # Interactive editing
         glovebox config edit --interactive
@@ -256,7 +360,7 @@ def edit(
 
     # Handle interactive editing first (exclusive mode)
     if interactive:
-        if any([get, set, add, remove, clear]):
+        if any([get, set, unset, merge, append]):
             print_error_message(
                 "Interactive mode (--interactive) cannot be combined with other operations"
             )
@@ -265,253 +369,163 @@ def edit(
         _handle_interactive_edit(app_ctx)
         return
 
-    # Ensure at least one operation is specified for non-interactive mode
-    if not any([get, set, add, remove, clear]):
+    # Check if only read operations are requested
+    has_writes = any([set, unset, merge, append])
+
+    if not has_writes and not get:
         print_error_message(
-            "At least one operation (--get, --set, --add, --remove, --clear, --interactive) must be specified"
+            "At least one operation (--get, --set, --unset, --merge, --append, --interactive) must be specified"
         )
         raise typer.Exit(1)
 
-    # Get all valid keys for validation
-    def get_all_config_keys() -> list[str]:
-        """Get all valid configuration keys from the models."""
-        keys = []
+    if not has_writes:
+        # Handle read-only operations
+        try:
+            editor = ConfigEditor(app_ctx.user_config)
 
-        # Add core keys
-        for field_name in UserConfigData.model_fields:
-            if field_name not in [
-                "firmware",
-                "compilation",
-            ]:  # These are handled separately
-                keys.append(field_name)
+            # Execute read operations
+            if get:
+                for field_path in get:
+                    try:
+                        value = editor.get_field(field_path)
+                        if isinstance(value, list):
+                            if not value:
+                                print(f"{field_path}: (empty list)")
+                            else:
+                                print(f"{field_path}:")
+                                for item in value:
+                                    print(f"  - {item}")
+                        elif value is None:
+                            print(f"{field_path}: null")
+                        else:
+                            print(f"{field_path}: {value}")
+                    except Exception as e:
+                        print_error_message(f"Cannot get field '{field_path}': {e}")
+            return
 
-        # Add firmware keys
-        for field_name in FirmwareFlashConfig.model_fields:
-            keys.append(f"firmware.flash.{field_name}")
+        except Exception as e:
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("Failed to read configuration: %s", e, exc_info=exc_info)
+            print_error_message(f"Failed to read configuration: {e}")
+            raise typer.Exit(1) from e
 
-        for field_name in FirmwareDockerConfig.model_fields:
-            keys.append(f"firmware.docker.{field_name}")
+    # Handle write operations
+    try:
+        editor = ConfigEditor(app_ctx.user_config)
 
-        return keys
+        # Parse operations
+        operations: list[tuple[str, str, str | None]] = []
 
-    def get_field_info(key: str) -> tuple[Any, str]:
-        """Get default value and description for a configuration key."""
-        default_val = None
-        description = "No description available"
+        if get:
+            for field_path in get:
+                operations.append(("get", field_path, None))
 
-        if "." in key:
-            parts = key.split(".")
-            if len(parts) == 3 and parts[0] == "firmware":
-                if parts[1] == "flash":
-                    field_info = FirmwareFlashConfig.model_fields.get(parts[2])
-                elif parts[1] == "docker":
-                    field_info = FirmwareDockerConfig.model_fields.get(parts[2])
-                else:
-                    field_info = None
-            else:
-                field_info = None
-        else:
-            field_info = UserConfigData.model_fields.get(key)
+        if set:
+            for op in set:
+                if "=" not in op:
+                    raise ValueError(f"Invalid set syntax: {op} (use key=value)")
+                field_path, value_str = op.split("=", 1)
+                operations.append(("set", field_path, value_str))
 
-        if field_info:
-            default_val = field_info.default
-            if (
-                hasattr(field_info, "default_factory")
-                and field_info.default_factory is not None
-            ):
-                try:
-                    # Pydantic v2 factory functions may need special handling
-                    default_val = field_info.default_factory()  # type: ignore
-                except Exception:
-                    default_val = f"<factory: {field_info.default_factory}>"
-            description = field_info.description or "No description available"
+        if unset:
+            for field_path in unset:
+                operations.append(("unset", field_path, None))
 
-        return default_val, description
+        if merge:
+            for op in merge:
+                if "=" not in op:
+                    raise ValueError(f"Invalid merge syntax: {op} (use key=value)")
+                field_path, value_str = op.split("=", 1)
+                operations.append(("merge", field_path, value_str))
 
-    valid_keys = get_all_config_keys()
-    changes_made = False
+        if append:
+            for op in append:
+                if "=" not in op:
+                    raise ValueError(f"Invalid append syntax: {op} (use key=value)")
+                field_path, value_str = op.split("=", 1)
+                operations.append(("append", field_path, value_str))
 
-    # Handle GET operations
-    if get:
-        for key in get:
-            if key not in valid_keys:
-                print_error_message(f"Unknown configuration key: {key}")
-                continue
+        # Execute operations atomically
+        results = {}
 
-            value = app_ctx.user_config.get(key)
-            if isinstance(value, list):
-                if not value:
-                    print(f"{key}: (empty list)")
-                else:
-                    print(f"{key}:")
-                    for item in value:
-                        print(f"  - {item}")
-            else:
-                print(f"{key}: {value}")
-
-    # Handle SET operations
-    if set:
-        for pair in set:
+        for operation, field_path, value_str in operations:  # type: ignore
             try:
-                key, value = _parse_key_value_pair(pair)
+                if operation == "get":
+                    value = editor.get_field(field_path)
+                    results[f"get:{field_path}"] = value
 
-                if key not in valid_keys:
-                    print_error_message(f"Unknown configuration key: {key}")
-                    continue
+                elif operation == "set":
+                    if value_str is None:
+                        raise ValueError("Set operation requires a value")
+                    parsed_value = parse_value(value_str)
+                    editor.set_field(field_path, parsed_value)
 
-                field_type = _get_field_type_for_key(key)
-                typed_value = _convert_value(value, field_type)
+                elif operation == "unset":
+                    editor.unset_field(field_path)
 
-                app_ctx.user_config.set(key, typed_value)
-                print_success_message(f"Set {key} = {typed_value}")
-                changes_made = True
-
-            except ValueError as e:
-                print_error_message(str(e))
-                continue
-
-    # Handle ADD operations
-    if add:
-        for pair in add:
-            try:
-                key, value = _parse_key_value_pair(pair)
-
-                if key not in valid_keys:
-                    print_error_message(f"Unknown configuration key: {key}")
-                    continue
-
-                field_type = _get_field_type_for_key(key)
-                if field_type is not list:
-                    print_error_message(f"Configuration key '{key}' is not a list")
-                    continue
-
-                # Get current list value
-                current_list = app_ctx.user_config.get(key, [])
-                if not isinstance(current_list, list):
-                    current_list = []
-
-                # Convert value to appropriate type if needed
-                add_typed_value: Any = value
-                if key.endswith("_paths") or key == "keyboard_paths":
-                    from pathlib import Path
-
-                    add_typed_value = Path(value)
-
-                # Check if value already exists
-                if add_typed_value in current_list:
-                    print_error_message(f"Value '{value}' already exists in {key}")
-                    continue
-
-                # Add the value to the list
-                current_list.append(add_typed_value)
-                app_ctx.user_config.set(key, current_list)
-                print_success_message(f"Added '{value}' to {key}")
-                changes_made = True
-
-            except ValueError as e:
-                print_error_message(str(e))
-                continue
-
-    # Handle REMOVE operations
-    if remove:
-        for pair in remove:
-            try:
-                key, value = _parse_key_value_pair(pair)
-
-                if key not in valid_keys:
-                    print_error_message(f"Unknown configuration key: {key}")
-                    continue
-
-                field_type = _get_field_type_for_key(key)
-                if field_type is not list:
-                    print_error_message(f"Configuration key '{key}' is not a list")
-                    continue
-
-                # Get current list value
-                current_list = app_ctx.user_config.get(key, [])
-                if not isinstance(current_list, list):
-                    print_error_message(f"Configuration key '{key}' is not a list")
-                    continue
-
-                # Convert value to appropriate type if needed
-                remove_typed_value: Any = value
-                if key.endswith("_paths") or key == "keyboard_paths":
-                    from pathlib import Path
-
-                    remove_typed_value = Path(value)
-
-                # Check if value exists in list
-                if remove_typed_value not in current_list:
-                    print_error_message(f"Value '{value}' not found in {key}")
-                    continue
-
-                # Remove the value from the list
-                current_list.remove(remove_typed_value)
-                app_ctx.user_config.set(key, current_list)
-                print_success_message(f"Removed '{value}' from {key}")
-                changes_made = True
-
-            except ValueError as e:
-                print_error_message(str(e))
-                continue
-
-    # Handle CLEAR operations
-    if clear:
-        for key in clear:
-            try:
-                if key not in valid_keys:
-                    print_error_message(f"Unknown configuration key: {key}")
-                    continue
-
-                field_type = _get_field_type_for_key(key)
-
-                if field_type is list:
-                    # Handle list fields - clear to empty list
-                    current_list = app_ctx.user_config.get(key, [])
-                    if not isinstance(current_list, list):
-                        print_error_message(f"Configuration key '{key}' is not a list")
-                        continue
-
-                    # Check if list is already empty
-                    if not current_list:
-                        print_success_message(f"List '{key}' is already empty")
-                        continue
-
-                    # Clear the entire list
-                    app_ctx.user_config.set(key, [])
-                    print_success_message(f"Cleared all values from {key}")
-                    changes_made = True
-                else:
-                    # Handle non-list fields - set to default value or None
-                    default_val, _ = get_field_info(key)
-
-                    # Get current value to check if already at default
-                    current_value = app_ctx.user_config.get(key)
-
-                    if current_value == default_val:
-                        print_success_message(
-                            f"Field '{key}' is already at default value"
-                        )
-                        continue
-
-                    # Set to default value
-                    app_ctx.user_config.set(key, default_val)
-                    if default_val is None:
-                        print_success_message(f"Cleared {key} (set to null)")
+                elif operation == "merge":
+                    if value_str is None:
+                        raise ValueError("Merge operation requires a value")
+                    if value_str.startswith("from:"):
+                        # TODO: Handle file imports
+                        raise ValueError("File imports not yet supported for config")
                     else:
-                        print_success_message(
-                            f"Cleared {key} (set to default: {default_val})"
-                        )
-                    changes_made = True
+                        parsed_value = parse_value(value_str)
+                        if not isinstance(parsed_value, dict):
+                            raise ValueError(
+                                f"Merge value must be a dictionary, got {type(parsed_value)}"
+                            )
+                        editor.merge_field(field_path, parsed_value)
 
-            except ValueError as e:
-                print_error_message(str(e))
-                continue
+                elif operation == "append":
+                    if value_str is None:
+                        raise ValueError("Append operation requires a value")
+                    parsed_value = parse_value(value_str)
+                    editor.append_field(field_path, parsed_value)
 
-    # Save configuration if requested and changes were made
-    if save and changes_made:
-        app_ctx.user_config.save()
-        print_success_message("Configuration saved")
+            except Exception as e:
+                raise ValueError(
+                    f"Operation {operation} on '{field_path}' failed: {e}"
+                ) from e
+
+        # Show results for read operations
+        for key, value in results.items():
+            if key.startswith("get:"):
+                field_path = key[4:]  # Remove "get:" prefix
+                if isinstance(value, list):
+                    if not value:
+                        print(f"{field_path}: (empty list)")
+                    else:
+                        print(f"{field_path}:")
+                        for item in value:
+                            print(f"  - {item}")
+                elif value is None:
+                    print(f"{field_path}: null")
+                else:
+                    print(f"{field_path}: {value}")
+
+        # Show operation log
+        if editor.operations_log:
+            for operation in editor.operations_log:
+                print_success_message(operation)
+
+        # Save changes if not dry run
+        if not dry_run and editor.operations_log:
+            if save:
+                app_ctx.user_config.save()
+                print_success_message("Configuration saved")
+            else:
+                print_success_message("Configuration updated (not saved to disk)")
+        elif dry_run and editor.operations_log:
+            print_success_message("Dry run complete - no changes saved")
+        elif not editor.operations_log and not results:
+            print_success_message("No operations performed")
+
+    except Exception as e:
+        exc_info = logger.isEnabledFor(logging.DEBUG)
+        logger.error("Failed to edit configuration: %s", e, exc_info=exc_info)
+        print_error_message(f"Failed to edit configuration: {e}")
+        raise typer.Exit(1) from e
 
 
 def _handle_interactive_edit(app_ctx: AppContext) -> None:
