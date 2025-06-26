@@ -125,6 +125,9 @@ def list_config(
                 return "\n".join(str(v) for v in value)
         elif value is None:
             return "null"
+        elif hasattr(value, "value"):
+            # Handle enums by extracting their value
+            return str(value.value)
         else:
             return str(value)
 
@@ -284,6 +287,9 @@ def export_config(
                 elif hasattr(current_value, "model_dump"):
                     # Handle Pydantic models
                     current_value = current_value.model_dump(mode="json")
+                elif hasattr(current_value, "value"):
+                    # Handle enums by extracting their value
+                    current_value = current_value.value
 
                 config_data[field_name] = current_value
 
@@ -426,11 +432,11 @@ def import_config(
 ) -> None:
     """Import configuration from a YAML, JSON, or TOML file."""
     from glovebox.cli.app import AppContext
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
     # Get app context with user config
     app_ctx: AppContext = ctx.obj
-    icon_mode = app_ctx.icon_mode
+    icon_mode = get_icon_mode_from_context(ctx)
     config_path = Path(config_file)
 
     if not config_path.exists():

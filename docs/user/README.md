@@ -19,6 +19,7 @@ Welcome to the Glovebox user documentation. These guides will help you get start
 
 ### Basic Usage
 - **[Getting Started](getting-started.md)** - Installation, first build, and basic usage
+- **[Layout Commands](layout-commands.md)** - Complete guide to all layout operations (diff, patch, compile, edit, etc.)
 - **[Keyboard Profiles](keyboard-profiles.md)** - Understanding and managing keyboard profiles
 - **[Layout Management](layout-editing.md)** - Creating, editing, and organizing keyboard layouts
 
@@ -49,8 +50,11 @@ Welcome to the Glovebox user documentation. These guides will help you get start
 
 ### Common Commands
 ```bash
-# Build layout files
-glovebox layout compile my_layout.json output/my_layout --profile glove80/v25.05
+# Layout operations (harmonized parameters)
+glovebox layout compile my_layout.json --output build/my_layout --profile glove80/v25.05
+glovebox layout diff old.json new.json --output changes.json --detailed
+glovebox layout patch base.json changes.json --output patched.json
+glovebox layout edit layout.json --set title="My Layout" --output modified.json
 
 # Build firmware
 glovebox firmware compile layout.keymap config.conf --profile glove80/v25.05
@@ -58,10 +62,9 @@ glovebox firmware compile layout.keymap config.conf --profile glove80/v25.05
 # Flash firmware
 glovebox firmware flash firmware.uf2 --profile glove80/v25.05
 
-# Version management (NEW)
+# Version management
 glovebox layout import-master ~/Downloads/glorious-v42.json v42
 glovebox layout upgrade my-custom-v41.json --to-master v42
-glovebox layout diff layout-v41.json layout-v42.json
 
 # Configuration management
 glovebox config list                    # Show current configuration

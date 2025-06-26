@@ -6,15 +6,12 @@ from typing import TYPE_CHECKING, Any
 
 from glovebox.config import UserConfig
 from glovebox.layout.diffing.diff import LayoutDiffSystem
+from glovebox.layout.diffing.models import BehaviorChanges, LayoutDiff
 from glovebox.layout.diffing.patch import LayoutPatchSystem
 from glovebox.layout.models import LayoutData
 from glovebox.layout.utils.json_operations import load_layout_file, save_layout_file
 from glovebox.layout.utils.validation import validate_output_path
 from glovebox.protocols import FileAdapterProtocol
-
-
-if TYPE_CHECKING:
-    from glovebox.layout.diffing.models import LayoutDiff
 
 
 class LayoutComparisonService:
@@ -215,9 +212,9 @@ class LayoutComparisonService:
         # Check DTSI changes
         return bool(diff.custom_defined_behaviors or diff.custom_devicetree)
 
-    def _create_summary(self, diff: "LayoutDiff") -> dict[str, Any]:
+    def _create_summary(self, diff: LayoutDiff) -> dict[str, Any]:
         """Create a summary of changes in the diff."""
-        summary = {
+        summary: dict[str, Any] = {
             "layers": {"added": 0, "removed": 0, "modified": 0},
             "behaviors": {
                 "hold_taps": {"added": 0, "removed": 0, "modified": 0},
@@ -231,7 +228,7 @@ class LayoutComparisonService:
 
         # Count layer changes
         if diff.layers:
-            layer_dict = diff.layers.model_dump()
+            layer_dict: dict[str, Any] = diff.layers.model_dump()
             summary["layers"]["added"] = len(layer_dict.get("added", []))
             summary["layers"]["removed"] = len(layer_dict.get("removed", []))
             summary["layers"]["modified"] = len(layer_dict.get("modified", []))
@@ -241,7 +238,7 @@ class LayoutComparisonService:
             if hasattr(diff, behavior_type):
                 behavior_changes = getattr(diff, behavior_type)
                 if behavior_changes:
-                    behavior_dict = behavior_changes.model_dump()
+                    behavior_dict: dict[str, Any] = behavior_changes.model_dump()
                     summary["behaviors"][behavior_type]["added"] = len(
                         behavior_dict.get("added", [])
                     )

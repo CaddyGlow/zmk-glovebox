@@ -315,7 +315,7 @@ class TestSetFieldValue:
         assert len(layout_data.layer_names) == 3
         assert layout_data.layer_names[0] == "Base"
         assert layout_data.layer_names[1] is None
-        assert layout_data.layer_names[2] == "NewLayer"
+        assert layout_data.layer_names[2] == "NewLayer"  # type: ignore[unreachable]
 
     def test_set_nested_field_creation(self):
         """Test setting creates missing nested dictionary fields."""

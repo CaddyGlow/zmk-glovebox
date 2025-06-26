@@ -1,6 +1,6 @@
 """Helper functions for CLI output formatting with Rich integration."""
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
 
@@ -8,11 +8,15 @@ from glovebox.cli.helpers.theme import get_themed_console
 from glovebox.models.results import BaseResult
 
 
+if TYPE_CHECKING:
+    from glovebox.cli.helpers.theme import IconMode
+
+
 def print_success_message(
     message: str,
     use_rich: bool = True,
     use_emoji: bool = True,
-    icon_mode: str | None = None,
+    icon_mode: "IconMode | str | None" = None,
 ) -> None:
     """Print a success message with a checkmark.
 
@@ -20,11 +24,15 @@ def print_success_message(
         message: The message to print
         use_rich: Whether to use Rich formatting (default: True)
         use_emoji: Whether to use emoji icons (default: True) - legacy parameter
-        icon_mode: Icon mode override ("emoji", "nerdfont", "text")
+        icon_mode: Icon mode override (IconMode enum or string)
     """
+    from glovebox.cli.helpers.theme import IconMode
+
     # Determine icon mode - prefer explicit icon_mode over legacy use_emoji
     if icon_mode is None:
-        icon_mode = "emoji" if use_emoji else "text"
+        icon_mode = IconMode.EMOJI if use_emoji else IconMode.TEXT
+    elif isinstance(icon_mode, str):
+        icon_mode = IconMode(icon_mode)
 
     if use_rich:
         console = get_themed_console(icon_mode=icon_mode)
@@ -37,15 +45,21 @@ def print_success_message(
 
 
 def print_error_message(
-    message: str, use_rich: bool = True, icon_mode: str = "emoji"
+    message: str, use_rich: bool = True, icon_mode: "IconMode | str" = "emoji"
 ) -> None:
     """Print an error message with an X symbol.
 
     Args:
         message: The message to print
         use_rich: Whether to use Rich formatting (default: True)
-        icon_mode: Icon mode ("emoji", "nerdfont", "text")
+        icon_mode: Icon mode (IconMode enum or string)
     """
+    from glovebox.cli.helpers.theme import IconMode
+
+    # Convert string to enum for backward compatibility
+    if isinstance(icon_mode, str):
+        icon_mode = IconMode(icon_mode)
+
     if use_rich:
         console = get_themed_console(icon_mode=icon_mode)
         console.print_error(message)
@@ -57,7 +71,7 @@ def print_error_message(
 
 
 def print_list_item(
-    item: str, indent: int = 1, use_rich: bool = True, icon_mode: str = "emoji"
+    item: str, indent: int = 1, use_rich: bool = True, icon_mode: "IconMode | str" = "emoji"
 ) -> None:
     """Print a list item with bullet and indentation.
 
@@ -65,8 +79,14 @@ def print_list_item(
         item: The list item to print
         indent: Number of indentation levels (default: 1)
         use_rich: Whether to use Rich formatting (default: True)
-        icon_mode: Icon mode ("emoji", "nerdfont", "text")
+        icon_mode: Icon mode (IconMode enum or string)
     """
+    from glovebox.cli.helpers.theme import IconMode
+
+    # Convert string to enum for backward compatibility
+    if isinstance(icon_mode, str):
+        icon_mode = IconMode(icon_mode)
+
     if use_rich:
         console = get_themed_console(icon_mode=icon_mode)
         console.print_list_item(item, indent)
@@ -106,15 +126,21 @@ def print_result(result: BaseResult, icon_mode: str = "emoji") -> None:
 
 # Rich-enhanced helper functions
 def print_info_message(
-    message: str, use_rich: bool = True, icon_mode: str = "emoji"
+    message: str, use_rich: bool = True, icon_mode: "IconMode | str" = "emoji"
 ) -> None:
     """Print an info message with icon.
 
     Args:
         message: The message to print
         use_rich: Whether to use Rich formatting (default: True)
-        icon_mode: Icon mode ("emoji", "nerdfont", "text")
+        icon_mode: Icon mode (IconMode enum or string)
     """
+    from glovebox.cli.helpers.theme import IconMode
+
+    # Convert string to enum for backward compatibility
+    if isinstance(icon_mode, str):
+        icon_mode = IconMode(icon_mode)
+
     if use_rich:
         console = get_themed_console(icon_mode=icon_mode)
         console.print_info(message)
@@ -126,15 +152,21 @@ def print_info_message(
 
 
 def print_warning_message(
-    message: str, use_rich: bool = True, icon_mode: str = "emoji"
+    message: str, use_rich: bool = True, icon_mode: "IconMode | str" = "emoji"
 ) -> None:
     """Print a warning message with icon.
 
     Args:
         message: The message to print
         use_rich: Whether to use Rich formatting (default: True)
-        icon_mode: Icon mode ("emoji", "nerdfont", "text")
+        icon_mode: Icon mode (IconMode enum or string)
     """
+    from glovebox.cli.helpers.theme import IconMode
+
+    # Convert string to enum for backward compatibility
+    if isinstance(icon_mode, str):
+        icon_mode = IconMode(icon_mode)
+
     if use_rich:
         console = get_themed_console(icon_mode=icon_mode)
         console.print_warning(message)
@@ -163,27 +195,36 @@ def print_header_panel(
     console.print(panel)
 
 
-def print_device_table(devices: list[dict[str, Any]], icon_mode: str = "emoji") -> None:
+def print_device_table(devices: list[dict[str, Any]], icon_mode: "IconMode | str" = "emoji") -> None:
     """Print devices in a formatted Rich table.
 
     Args:
         devices: List of device dictionaries
-        icon_mode: Icon mode ("emoji", "nerdfont", "text")
+        icon_mode: Icon mode (IconMode enum or string)
     """
     from glovebox.cli.helpers.output_formatter import DeviceListFormatter
+    from glovebox.cli.helpers.theme import IconMode
+
+    # Convert string to enum for backward compatibility
+    if isinstance(icon_mode, str):
+        icon_mode = IconMode(icon_mode)
 
     formatter = DeviceListFormatter()
     formatter.format_device_list(devices, "table", icon_mode=icon_mode)
 
 
-def print_status_table(status_data: dict[str, Any], icon_mode: str = "emoji") -> None:
+def print_status_table(status_data: dict[str, Any], icon_mode: "IconMode | str" = "emoji") -> None:
     """Print status information in a formatted Rich table.
 
     Args:
         status_data: Status data dictionary
-        icon_mode: Icon mode ("emoji", "nerdfont", "text")
+        icon_mode: Icon mode (IconMode enum or string)
     """
-    from glovebox.cli.helpers.theme import TableStyles
+    from glovebox.cli.helpers.theme import IconMode, TableStyles
+
+    # Convert string to enum for backward compatibility
+    if isinstance(icon_mode, str):
+        icon_mode = IconMode(icon_mode)
 
     console = Console()
     table = TableStyles.create_status_table(icon_mode)
@@ -202,15 +243,19 @@ def print_status_table(status_data: dict[str, Any], icon_mode: str = "emoji") ->
 
 
 def print_configuration_table(
-    config_data: dict[str, Any], icon_mode: str = "emoji"
+    config_data: dict[str, Any], icon_mode: "IconMode | str" = "emoji"
 ) -> None:
     """Print configuration in a formatted Rich table.
 
     Args:
         config_data: Configuration data dictionary
-        icon_mode: Icon mode ("emoji", "nerdfont", "text")
+        icon_mode: Icon mode (IconMode enum or string)
     """
-    from glovebox.cli.helpers.theme import TableStyles
+    from glovebox.cli.helpers.theme import IconMode, TableStyles
+
+    # Convert string to enum for backward compatibility
+    if isinstance(icon_mode, str):
+        icon_mode = IconMode(icon_mode)
 
     console = Console()
     table = TableStyles.create_config_table(icon_mode)

@@ -21,8 +21,9 @@ console = Console()
 class LayoutOutputFormatter:
     """Unified output formatter for layout operations."""
 
-    def __init__(self) -> None:
+    def __init__(self, icon_mode: str = "emoji") -> None:
         self.base_formatter = OutputFormatter()
+        self.icon_mode = icon_mode
 
     def format_results(
         self,
@@ -123,7 +124,7 @@ class LayoutOutputFormatter:
         else:
             from glovebox.cli.helpers import print_list_item, print_success_message
 
-            print_success_message(f"{operation.title()} completed")
+            print_success_message(f"{operation.title()} completed", icon_mode=self.icon_mode)
             print_list_item(f"Input: {input_file}")
             if output_file:
                 print_list_item(f"Output: {output_file}")
@@ -135,7 +136,7 @@ class LayoutOutputFormatter:
             print(json.dumps(serializable_results, indent=2))
         except Exception as e:
             logger.error("Failed to serialize results to JSON: %s", e)
-            print_success_message("Operation completed (JSON serialization failed)")
+            print_success_message("Operation completed (JSON serialization failed)", icon_mode=self.icon_mode)
 
     def _format_table(self, results: dict[str, Any], title: str) -> None:
         """Format results as a table."""
@@ -157,11 +158,11 @@ class LayoutOutputFormatter:
         from glovebox.cli.helpers import print_list_item, print_success_message
 
         if title:
-            print_success_message(f"{title}:")
+            print_success_message(f"{title}:", icon_mode=self.icon_mode)
 
         if isinstance(data, dict):
             if not data:
-                print_success_message("No results to display")
+                print_success_message("No results to display", icon_mode=self.icon_mode)
                 return
 
             for key, value in data.items():
@@ -207,22 +208,25 @@ class LayoutOutputFormatter:
     def _format_field_text(self, results: dict[str, Any]) -> None:
         """Format field operation results as text."""
         if not results:
-            print_success_message("No operations performed")
+            print_success_message("No operations performed", icon_mode=self.icon_mode)
             return
 
-        print_success_message("Field operation results:")
+        print_success_message("Field operation results:", icon_mode=self.icon_mode)
 
         for key, value in results.items():
             if key.startswith("get:"):
                 field_name = key[4:]
-                print_list_item(f"📄 {field_name}: {value}")
+                from glovebox.cli.helpers.theme import Icons
+                print_list_item(f"{Icons.get_icon('FILE', self.icon_mode)} {field_name}: {value}")
             elif key == "operations":
                 if isinstance(value, list) and value:
-                    print_list_item("✅ Operations performed:")
+                    from glovebox.cli.helpers.theme import Icons
+                    print_list_item(f"{Icons.get_icon('SUCCESS', self.icon_mode)} Operations performed:")
                     for op in value:
                         print_list_item(f"   {op}")
             elif key == "output_file":
-                print_list_item(f"💾 Saved to: {value}")
+                from glovebox.cli.helpers.theme import Icons
+                print_list_item(f"{Icons.get_icon('SAVE', self.icon_mode)} Saved to: {value}")
             else:
                 print_list_item(f"{key}: {value}")
 
@@ -240,10 +244,10 @@ class LayoutOutputFormatter:
     def _format_layer_text(self, layers: list[str]) -> None:
         """Format layer names as text."""
         if not layers:
-            print_success_message("No layers found")
+            print_success_message("No layers found", icon_mode=self.icon_mode)
             return
 
-        print_success_message(f"Found {len(layers)} layers:")
+        print_success_message(f"Found {len(layers)} layers:", icon_mode=self.icon_mode)
         for i, layer in enumerate(layers):
             print_list_item(f"{i}: {layer}")
 
@@ -273,7 +277,7 @@ class LayoutOutputFormatter:
     def _format_comparison_text(self, diff_results: dict[str, Any]) -> None:
         """Format comparison results as text."""
         if not diff_results:
-            print_success_message("No differences found")
+            print_success_message("No differences found", icon_mode=self.icon_mode)
             return
 
         # Handle new LayoutDiff format
@@ -282,15 +286,16 @@ class LayoutOutputFormatter:
         detailed = diff_results.get("detailed", False)
 
         if not has_changes:
-            print_success_message("No differences found")
+            print_success_message("No differences found", icon_mode=self.icon_mode)
             return
 
         # Show basic info
         source_file = diff_results.get("source_file", "unknown")
         target_file = diff_results.get("target_file", "unknown")
-        print_success_message("Layout comparison results:")
-        print_list_item(f"📄 Source: {Path(source_file).name}")
-        print_list_item(f"📄 Target: {Path(target_file).name}")
+        print_success_message("Layout comparison results:", icon_mode=self.icon_mode)
+        from glovebox.cli.helpers.theme import Icons
+        print_list_item(f"{Icons.get_icon('FILE', self.icon_mode)} Source: {Path(source_file).name}")
+        print_list_item(f"{Icons.get_icon('FILE', self.icon_mode)} Target: {Path(target_file).name}")
         print_list_item("")
 
         if detailed:
@@ -304,18 +309,21 @@ class LayoutOutputFormatter:
         if "diff_file_created" in diff_results:
             diff_info = diff_results["diff_file_created"]
             print_list_item("")
+            from glovebox.cli.helpers.theme import Icons
             print_list_item(
-                f"💾 Diff file saved: {diff_info.get('diff_file', 'unknown')}"
+                f"{Icons.get_icon('SAVE', self.icon_mode)} Diff file saved: {diff_info.get('diff_file', 'unknown')}"
             )
 
     def _format_summary_changes(self, summary: dict[str, Any]) -> None:
         """Format summary view of changes."""
+        from glovebox.cli.helpers.theme import Icons
+
         # Show summary counts
         if "layers" in summary:
             layer_summary = summary["layers"]
             if any(layer_summary.values()):
                 print_list_item(
-                    f"📊 Layers: {layer_summary['added']} added, {layer_summary['removed']} removed, {layer_summary['modified']} modified"
+                    f"{Icons.get_icon('STATS', self.icon_mode)} Layers: {layer_summary['added']} added, {layer_summary['removed']} removed, {layer_summary['modified']} modified"
                 )
 
         if "behaviors" in summary:
@@ -324,16 +332,16 @@ class LayoutOutputFormatter:
                 if any(counts.values()):
                     display_name = behavior_type.replace("_", " ").title()
                     print_list_item(
-                        f"📊 {display_name}: {counts['added']} added, {counts['removed']} removed, {counts['modified']} modified"
+                        f"{Icons.get_icon('STATS', self.icon_mode)} {display_name}: {counts['added']} added, {counts['removed']} removed, {counts['modified']} modified"
                     )
 
         if summary.get("metadata_changes", 0) > 0:
             print_list_item(
-                f"📊 Metadata: {summary['metadata_changes']} field(s) changed"
+                f"{Icons.get_icon('STATS', self.icon_mode)} Metadata: {summary['metadata_changes']} field(s) changed"
             )
 
         if summary.get("dtsi_changes", 0) > 0:
-            print_list_item(f"📊 DTSI: {summary['dtsi_changes']} section(s) changed")
+            print_list_item(f"{Icons.get_icon('STATS', self.icon_mode)} DTSI: {summary['dtsi_changes']} section(s) changed")
 
     def _format_detailed_changes(self, diff_results: dict[str, Any]) -> None:
         """Format detailed view of specific changes."""
@@ -358,12 +366,14 @@ class LayoutOutputFormatter:
 
     def _format_detailed_layer_changes(self, layer_changes: dict[str, Any]) -> None:
         """Format detailed layer changes."""
+        from glovebox.cli.helpers.theme import Icons
+
         added = layer_changes.get("added", [])
         removed = layer_changes.get("removed", [])
         modified = layer_changes.get("modified", [])
 
         if added:
-            print_list_item(f"📊 Added Layers ({len(added)}):")
+            print_list_item(f"{Icons.get_icon('STATS', self.icon_mode)} Added Layers ({len(added)}):")
             for layer in added:
                 layer_name = layer.get("name", "Unknown")
                 position = layer.get("new_position")
@@ -373,7 +383,7 @@ class LayoutOutputFormatter:
                     print_list_item(f"  + {layer_name}")
 
         if removed:
-            print_list_item(f"📊 Removed Layers ({len(removed)}):")
+            print_list_item(f"{Icons.get_icon('STATS', self.icon_mode)} Removed Layers ({len(removed)}):")
             for layer in removed:
                 layer_name = layer.get("name", "Unknown")
                 position = layer.get("original_position")
@@ -383,7 +393,7 @@ class LayoutOutputFormatter:
                     print_list_item(f"  - {layer_name}")
 
         if modified:
-            print_list_item(f"📊 Modified Layers ({len(modified)}):")
+            print_list_item(f"{Icons.get_icon('STATS', self.icon_mode)} Modified Layers ({len(modified)}):")
             for layer_mod in modified:
                 # Modified layers are stored as {layer_name: {patch, positions, etc}}
                 if isinstance(layer_mod, dict) and len(layer_mod) == 1:
@@ -462,7 +472,8 @@ class LayoutOutputFormatter:
         modified = behavior_changes.get("modified", [])
 
         if added or removed or modified:
-            print_list_item(f"📊 {display_name} Changes:")
+            from glovebox.cli.helpers.theme import Icons
+            print_list_item(f"{Icons.get_icon('STATS', self.icon_mode)} {display_name} Changes:")
 
             for behavior in added:
                 name = behavior.get("name", "Unknown")
@@ -522,7 +533,8 @@ class LayoutOutputFormatter:
                     metadata_changes.append(f"  ~ {field}: {operation_count} changes")
 
         if metadata_changes:
-            print_list_item("📊 Metadata Changes:")
+            from glovebox.cli.helpers.theme import Icons
+            print_list_item(f"{Icons.get_icon('STATS', self.icon_mode)} Metadata Changes:")
             for change in metadata_changes:
                 print_list_item(change)
 
@@ -537,7 +549,8 @@ class LayoutOutputFormatter:
             dtsi_changes.append("  ~ Custom devicetree modified")
 
         if dtsi_changes:
-            print_list_item("📊 DTSI Changes:")
+            from glovebox.cli.helpers.theme import Icons
+            print_list_item(f"{Icons.get_icon('STATS', self.icon_mode)} DTSI Changes:")
             for change in dtsi_changes:
                 print_list_item(change)
 
@@ -820,7 +833,7 @@ class LayoutOutputFormatter:
         from glovebox.cli.helpers import print_list_item, print_success_message
 
         if result.get("success"):
-            print_success_message("Layout generated successfully")
+            print_success_message("Layout generated successfully", icon_mode=self.icon_mode)
             output_files = result.get("output_files", {})
             for file_type, file_path in output_files.items():
                 print_list_item(f"{file_type}: {file_path}")
@@ -840,7 +853,7 @@ class LayoutOutputFormatter:
         )
 
         if result.get("valid"):
-            print_success_message(f"Layout file {result.get('file')} is valid")
+            print_success_message(f"Layout file {result.get('file')} is valid", icon_mode=self.icon_mode)
         else:
             print_error_message(f"Layout file {result.get('file')} is invalid")
             for error in result.get("errors", []):
@@ -878,14 +891,14 @@ class LayoutOutputFormatter:
             if key.startswith("get:"):
                 field_name = key[4:]
                 if isinstance(value, dict | list):
-                    print_success_message(f"{field_name}:")
+                    print_success_message(f"{field_name}:", icon_mode=self.icon_mode)
                     print(json.dumps(value, indent=2))
                 else:
                     print_list_item(f"{field_name}: {value}")
 
         # Handle layer listing
         if "layers" in result:
-            print_success_message("Layers:")
+            print_success_message("Layers:", icon_mode=self.icon_mode)
             for i, layer in enumerate(result["layers"]):
                 print_list_item(f"{i}: {layer}")
 
@@ -913,7 +926,7 @@ class LayoutOutputFormatter:
         # Handle write operations (existing functionality)
         operations = result.get("operations", [])
         if operations:
-            print_success_message("Operations performed:")
+            print_success_message("Operations performed:", icon_mode=self.icon_mode)
             for op in operations:
                 print_list_item(op)
 
@@ -939,10 +952,10 @@ class LayoutOutputFormatter:
             return str(obj)
 
 
-def create_layout_output_formatter() -> LayoutOutputFormatter:
+def create_layout_output_formatter(icon_mode: str = "emoji") -> LayoutOutputFormatter:
     """Create a layout output formatter instance.
 
     Returns:
         Configured LayoutOutputFormatter instance
     """
-    return LayoutOutputFormatter()
+    return LayoutOutputFormatter(icon_mode)

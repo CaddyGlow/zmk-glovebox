@@ -241,12 +241,14 @@ class TestConfigFileSearchPrecedence:
         yaml_config.write_text(yaml.dump({"profile": "yaml/extension"}))
         yml_config.write_text(yaml.dump({"profile": "yml/extension"}))
 
-        # Change to temp directory
+        # Change to temp directory and use isolated config creation
         original_cwd = Path.cwd()
         os.chdir(temp_config_dir)
 
         try:
-            config = create_user_config()
+            # Use explicit config file path to avoid real config pollution
+            config_file = yaml_config if yaml_config.exists() else yml_config
+            config = create_user_config(cli_config_path=config_file)
 
             # The search should find one of them (implementation detail which wins)
             # The important thing is that it finds A config file, not which extension
@@ -339,7 +341,7 @@ class TestComplexIntegrationScenarios:
         finally:
             system_config_path.unlink(missing_ok=True)
 
-    def test_ci_cd_environment_scenario(self, clean_environment):
+    def test_ci_cd_environment_scenario(self, clean_environment, isolated_config):
         """Test scenario for CI/CD environments with specific requirements."""
         # CI/CD specific environment variables
         ci_env_vars = {
@@ -355,7 +357,8 @@ class TestComplexIntegrationScenarios:
         for key, value in ci_env_vars.items():
             os.environ[key] = value
 
-        config = create_user_config()
+        # Use isolated config to prevent pollution
+        config = isolated_config
 
         # Verify CI-optimized configuration
         assert config._config.profile == "ci_board/automated"
@@ -405,15 +408,19 @@ class TestComplexIntegrationScenarios:
 class TestErrorHandlingInPrecedence:
     """Tests for error handling in configuration precedence scenarios."""
 
-    def test_partial_invalid_environment(self, clean_environment):
+    def test_partial_invalid_environment(self, clean_environment, tmp_path):
         """Test handling when some environment variables are invalid."""
         # Set mix of valid and invalid environment variables
         os.environ["GLOVEBOX_PROFILE"] = "valid/profile"  # Valid
         os.environ["GLOVEBOX_FIRMWARE__FLASH__TIMEOUT"] = "-1"  # Invalid (negative)
 
+        # Create isolated config file to prevent pollution
+        config_file = tmp_path / "glovebox.yaml"
+        config_file.write_text("profile: valid/profile\n")
+
         # Should raise validation error for invalid timeout
         with pytest.raises(ValidationError):  # ValidationError from Pydantic
-            create_user_config()
+            create_user_config(cli_config_path=config_file)
 
     def test_malformed_config_file_with_environment_fallback(self, clean_environment):
         """Test that environment variables can't save malformed config files."""

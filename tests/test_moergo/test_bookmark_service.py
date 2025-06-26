@@ -558,11 +558,8 @@ def test_create_bookmark_service_defaults(isolated_config):
         mock_moergo_client = Mock()
         mock_create_client.return_value = mock_moergo_client
 
-        # Need to provide user_config since it's now required
-        from glovebox.config import create_user_config
-
-        user_config = create_user_config()
-        service = create_bookmark_service(user_config._config)
+        # Use isolated_config instead of creating real UserConfig
+        service = create_bookmark_service(isolated_config._config)
 
         assert service._client == mock_moergo_client
         # user_config will be from isolated environment

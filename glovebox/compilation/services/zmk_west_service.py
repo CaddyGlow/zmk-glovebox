@@ -291,24 +291,18 @@ class ZmkWestService(CompilationServiceProtocol):
         )
 
         # Create cache services if not provided
-        if cache_manager is not None:
-            if workspace_cache_service is None:
-                self.workspace_cache_service: ZmkWorkspaceCacheService | None = (
-                    ZmkWorkspaceCacheService(
-                        user_config, cache_manager, session_metrics
-                    )
-                )
-            else:
-                self.workspace_cache_service = workspace_cache_service
-
-            if build_cache_service is None:
-                self.build_cache_service: CompilationBuildCacheService | None = (
-                    CompilationBuildCacheService(user_config, cache_manager)
-                )
-            else:
-                self.build_cache_service = build_cache_service
+        if workspace_cache_service is None:
+            self.workspace_cache_service: ZmkWorkspaceCacheService | None = (
+                ZmkWorkspaceCacheService(user_config, cache_manager, session_metrics)
+            )
         else:
             self.workspace_cache_service = workspace_cache_service
+
+        if build_cache_service is None:
+            self.build_cache_service: CompilationBuildCacheService | None = (
+                CompilationBuildCacheService(user_config, cache_manager)
+            )
+        else:
             self.build_cache_service = build_cache_service
 
     def compile(
@@ -560,16 +554,8 @@ class ZmkWestService(CompilationServiceProtocol):
                 output_prefix = temp_path / "layout"
 
                 # Generate keymap and config files from JSON
-                # Use session_metrics if available, otherwise create NoOp metrics
+                # Use session_metrics which is always available
                 layout_session_metrics = self.session_metrics
-                if layout_session_metrics is None:
-                    from glovebox.core.metrics.session_metrics import (
-                        create_noop_session_metrics,
-                    )
-
-                    layout_session_metrics = create_noop_session_metrics(
-                        "zmk_west_service"
-                    )
 
                 layout_result = layout_service.generate_from_file(
                     profile=keyboard_profile,

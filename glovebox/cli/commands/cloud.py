@@ -42,7 +42,7 @@ def upload(
     unlisted: Annotated[bool, typer.Option(help="Make the layout unlisted")] = False,
 ) -> None:
     """Upload a layout file to Glove80 cloud service."""
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
     client = create_moergo_client()
 
@@ -125,7 +125,7 @@ def download(
     ],
 ) -> None:
     """Download a layout from Glove80 cloud service."""
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
     client = create_moergo_client()
 
@@ -166,10 +166,9 @@ def list(
 ) -> None:
     """List all user's layouts from Glove80 cloud service."""
     from glovebox.cli.app import AppContext
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
-    app_ctx: AppContext = ctx.obj
-    icon_mode = app_ctx.icon_mode
+    icon_mode = get_icon_mode_from_context(ctx)
 
     client = create_moergo_client()
 
@@ -245,10 +244,9 @@ def browse(
 ) -> None:
     """Browse public layouts from Glove80 community."""
     from glovebox.cli.app import AppContext
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
-    app_ctx: AppContext = ctx.obj
-    icon_mode = app_ctx.icon_mode
+    icon_mode = get_icon_mode_from_context(ctx)
 
     client = create_moergo_client()
 
@@ -338,7 +336,7 @@ def delete(
     ] = False,
 ) -> None:
     """Delete a layout from Glove80 cloud service."""
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
 
     client = create_moergo_client()
 

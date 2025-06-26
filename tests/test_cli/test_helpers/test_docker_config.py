@@ -26,7 +26,7 @@ def test_build_moergo_strategy_defaults():
 def test_build_with_overrides():
     """Test building with parameter overrides."""
     config = DockerConfigBuilder.build_from_params(
-        method_type="zmk_config",
+        strategy="zmk_config",
         docker_uid=1000,
         docker_gid=1000,
         docker_username="testuser",
@@ -47,7 +47,7 @@ def test_no_docker_mapping_overrides_strategy():
     """Test that no_docker_user_mapping overrides strategy defaults."""
     # Even for standard strategy, should disable mapping
     config = DockerConfigBuilder.build_from_params(
-        method_type="zmk_config", no_docker_user_mapping=True
+        strategy="zmk_config", no_docker_user_mapping=True
     )
 
     assert config.enable_user_mapping is False
@@ -56,7 +56,7 @@ def test_no_docker_mapping_overrides_strategy():
 def test_moergo_with_manual_uid():
     """Test Moergo strategy with manual UID override."""
     config = DockerConfigBuilder.build_from_params(
-        method_type="moergo",
+        strategy="moergo",
         docker_uid=1001,
         docker_gid=1001,
     )
@@ -70,7 +70,7 @@ def test_moergo_with_manual_uid():
 def test_partial_docker_overrides():
     """Test building with partial Docker overrides."""
     config = DockerConfigBuilder.build_from_params(
-        method_type="zmk_config",
+        strategy="zmk_config",
         docker_uid=1000,
         # Only UID override, no GID
         docker_home="/custom/home",

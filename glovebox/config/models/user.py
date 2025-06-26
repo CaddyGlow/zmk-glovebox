@@ -6,8 +6,11 @@ from pathlib import Path
 # Import bookmark models
 from typing import TYPE_CHECKING, Annotated, Any
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_serializer, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+# Import for icon mode enum
+from glovebox.cli.helpers.theme import IconMode
 
 from .cache import CacheTTLConfig
 from .firmware import UserFirmwareConfig
@@ -130,8 +133,8 @@ class UserConfigData(BaseSettings):
     )
 
     # UI settings
-    icon_mode: str = Field(
-        default="emoji",
+    icon_mode: "IconMode" = Field(
+        default=IconMode.EMOJI,
         description="Icon display mode: 'emoji' (default), 'nerdfont', or 'text'",
     )
 
@@ -241,16 +244,26 @@ class UserConfigData(BaseSettings):
             raise ValueError(f"Cache strategy must be one of {valid_strategies}")
         return lower_v  # Always normalize to lowercase
 
-    @field_validator("icon_mode")
+    @field_validator("icon_mode", mode="before")
     @classmethod
-    def validate_icon_mode(cls, v: str) -> str:
-        """Validate icon mode is a recognized value."""
-        valid_modes = ["emoji", "nerdfont", "text"]
-        # Strip whitespace and convert to lowercase
-        lower_v = v.strip().lower()
-        if lower_v not in valid_modes:
-            raise ValueError(f"Icon mode must be one of {valid_modes}")
-        return lower_v  # Always normalize to lowercase
+    def validate_icon_mode(cls, v: Any) -> "IconMode":
+        """Validate and convert icon mode to IconMode enum."""
+        if isinstance(v, IconMode):
+            return v
+        if isinstance(v, str):
+            # Strip whitespace and convert to lowercase
+            lower_v = v.strip().lower()
+            try:
+                return IconMode(lower_v)
+            except ValueError:
+                valid_modes = [mode.value for mode in IconMode]
+                raise ValueError(f"Icon mode must be one of {valid_modes}") from None
+        raise ValueError(f"Icon mode must be a string or IconMode enum, got {type(v)}")
+
+    @field_serializer("icon_mode", when_used="json")
+    def serialize_icon_mode(self, value: "IconMode") -> str:
+        """Serialize IconMode enum to string for config file storage."""
+        return value.value
 
 
 # Rebuild model to resolve forward references

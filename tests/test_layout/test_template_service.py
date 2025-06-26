@@ -221,8 +221,8 @@ class TestTemplateService:
         assert result == {"title": "Hello Alice", "count": 3, "static": "unchanged"}
 
         # List with templates
-        data = ["{{ variables.name }}", "{{ variables.count }}", "static"]
-        result = template_service._process_field_value(data, context)
+        list_data = ["{{ variables.name }}", "{{ variables.count }}", "static"]
+        result = template_service._process_field_value(list_data, context)
         assert result == ["Alice", 3, "static"]
 
     def test_convert_to_appropriate_type(self, template_service):
