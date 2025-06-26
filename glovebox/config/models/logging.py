@@ -44,9 +44,7 @@ class LogHandlerConfig(GloveboxBaseModel):
     file_path: Path | None = Field(
         default=None, description="File path for file handlers (required for type=file)"
     )
-    queue_enabled: bool = Field(
-        default=False, description="Enable queue-based logging for non-blocking operation (useful for TUI applications)"
-    )
+
 
     @field_validator("level")
     @classmethod
@@ -179,13 +177,13 @@ def create_developer_logging_config(debug_file: Path | None = None) -> LoggingCo
 
 
 def create_tui_logging_config(debug_file: Path | None = None) -> LoggingConfig:
-    """Create TUI-optimized logging configuration with queue-based handlers.
+    """Create simple logging configuration for CLI applications.
 
     Args:
         debug_file: Optional path for debug log file
 
     Returns:
-        LoggingConfig with queue-enabled handlers for non-blocking TUI operation
+        LoggingConfig with basic handlers for simple CLI operation
     """
     handlers = [
         LogHandlerConfig(
@@ -193,7 +191,6 @@ def create_tui_logging_config(debug_file: Path | None = None) -> LoggingConfig:
             level="WARNING",
             format=LogFormat.SIMPLE,
             colored=True,
-            queue_enabled=True,  # Non-blocking for TUI
         )
     ]
 
@@ -205,7 +202,6 @@ def create_tui_logging_config(debug_file: Path | None = None) -> LoggingConfig:
                 format=LogFormat.JSON,
                 colored=False,
                 file_path=debug_file,
-                queue_enabled=True,  # Non-blocking for TUI
             )
         )
 

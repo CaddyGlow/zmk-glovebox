@@ -1,7 +1,6 @@
 """Tests for MoErgo API client."""
 
 import json
-import tempfile
 import zlib
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
@@ -9,12 +8,15 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 import requests
 
+from glovebox.config.models.moergo import (
+    MoErgoCredentialConfig,
+    create_moergo_credential_config,
+)
 from glovebox.moergo.client import (
     APIError,
     AuthenticationError,
     AuthTokens,
     CompilationError,
-    CredentialManager,
     FirmwareCompileRequest,
     FirmwareCompileResponse,
     MoErgoClient,
@@ -23,21 +25,29 @@ from glovebox.moergo.client import (
     TimeoutError,
     UserCredentials,
 )
+from glovebox.moergo.client.credentials import (
+    CredentialManager,
+    create_credential_manager,
+)
 
 
 class TestCredentialManager:
     """Test credential management functionality."""
 
     @pytest.fixture
-    def temp_config_dir(self):
-        """Create temporary config directory."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            yield Path(tmpdir)
+    def credential_config(self, isolated_config):
+        """Create MoErgo credential configuration with isolated directory."""
+        config_dir = isolated_config.config_file_path.parent if isolated_config.config_file_path else Path.home() / ".glovebox"
+        return create_moergo_credential_config(
+            config_dir=config_dir,
+            username="test@example.com",
+            prefer_keyring=True,
+        )
 
     @pytest.fixture
-    def credential_manager(self, temp_config_dir):
-        """Create credential manager with temp directory."""
-        return CredentialManager(config_dir=temp_config_dir)
+    def credential_manager(self, credential_config):
+        """Create credential manager with isolated configuration."""
+        return create_credential_manager(credential_config)
 
     def test_store_and_load_credentials_file_fallback(self, credential_manager):
         """Test storing and loading credentials with file fallback."""
@@ -121,7 +131,7 @@ class TestCredentialManager:
             credential_manager.store_credentials(credentials)
 
             mock_keyring_module.set_password.assert_called_once_with(
-                "glovebox-moergo", "test@example.com", "testpass123"
+                credential_manager.config.keyring_service, "test@example.com", "testpass123"
             )
 
             loaded = credential_manager.load_credentials()
@@ -134,15 +144,18 @@ class TestMoErgoClient:
     """Test MoErgo API client functionality."""
 
     @pytest.fixture
-    def temp_config_dir(self):
-        """Create temporary config directory."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            yield Path(tmpdir)
+    def credential_config(self, isolated_config):
+        """Create MoErgo credential configuration with isolated directory."""
+        config_dir = isolated_config.config_file_path.parent if isolated_config.config_file_path else Path.home() / ".glovebox"
+        return create_moergo_credential_config(
+            config_dir=config_dir,
+            prefer_keyring=True,
+        )
 
     @pytest.fixture
-    def credential_manager(self, temp_config_dir):
-        """Create credential manager with temp directory."""
-        return CredentialManager(config_dir=temp_config_dir)
+    def credential_manager(self, credential_config):
+        """Create credential manager with isolated configuration."""
+        return create_credential_manager(credential_config)
 
     @pytest.fixture
     def client(self, credential_manager):
@@ -512,15 +525,18 @@ class TestFirmwareCompilation:
     """Test firmware compilation and download functionality."""
 
     @pytest.fixture
-    def temp_config_dir(self):
-        """Create temporary config directory."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            yield Path(tmpdir)
+    def credential_config(self, isolated_config):
+        """Create MoErgo credential configuration with isolated directory."""
+        config_dir = isolated_config.config_file_path.parent if isolated_config.config_file_path else Path.home() / ".glovebox"
+        return create_moergo_credential_config(
+            config_dir=config_dir,
+            prefer_keyring=True,
+        )
 
     @pytest.fixture
-    def credential_manager(self, temp_config_dir):
-        """Create credential manager with temp directory."""
-        return CredentialManager(config_dir=temp_config_dir)
+    def credential_manager(self, credential_config):
+        """Create credential manager with isolated configuration."""
+        return create_credential_manager(credential_config)
 
     @pytest.fixture
     def client(self, credential_manager):
@@ -686,12 +702,12 @@ class TestFirmwareCompilation:
             assert "Failed to decompress firmware data" in str(exc_info.value)
 
     def test_download_firmware_with_output_path(
-        self, authenticated_client, temp_config_dir
+        self, authenticated_client, credential_config
     ):
         """Test downloading firmware and saving to file."""
         test_firmware = b"test firmware content"
         compressed_firmware = zlib.compress(test_firmware)
-        output_path = temp_config_dir / "downloaded_firmware.uf2"
+        output_path = credential_config.config_dir / "downloaded_firmware.uf2"
 
         mock_response = Mock()
         mock_response.status_code = 200

@@ -11,6 +11,14 @@ from .firmware import (
     UserFirmwareConfig,
 )
 from .keyboard import FormattingConfig, KeyboardConfig, KeymapSection
+from .moergo import (
+    MoErgoCognitoConfig,
+    MoErgoCredentialConfig,
+    MoErgoServiceConfig,
+    create_default_moergo_config,
+    create_moergo_cognito_config,
+    create_moergo_credential_config,
+)
 from .user import UserConfigData
 from .zmk import (
     FileExtensions,
@@ -36,10 +44,16 @@ __all__ = [
     "KeymapSection",
     "LayoutStructure",
     "ModifierMapping",
+    "MoErgoCognitoConfig",
+    "MoErgoCredentialConfig",
+    "MoErgoServiceConfig",
     "UserConfigData",
     "UserFirmwareConfig",
     "ValidationLimits",
     "ZmkCompatibleStrings",
     "ZmkConfig",
     "ZmkPatterns",
+    "create_default_moergo_config",
+    "create_moergo_cognito_config",
+    "create_moergo_credential_config",
 ]

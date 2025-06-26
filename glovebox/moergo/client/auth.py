@@ -1,16 +1,21 @@
 """MoErgo Cognito authentication module."""
 
+import logging
 from typing import Any
 
 import requests
 
+from glovebox.config.models.moergo import MoErgoCognitoConfig
+from glovebox.services.base_service import BaseService
 
-class CognitoAuth:
+
+class CognitoAuth(BaseService):
     """Handles AWS Cognito authentication for MoErgo API."""
 
-    def __init__(self) -> None:
-        self.client_id = "3hvr36st4kdb6p7kasi1cdnson"
-        self.cognito_url = "https://cognito-idp.us-east-1.amazonaws.com/"
+    def __init__(self, cognito_config: MoErgoCognitoConfig | None = None):
+        super().__init__("CognitoAuth", "1.0.0")
+        self.logger = logging.getLogger(__name__)
+        self.config = cognito_config or MoErgoCognitoConfig()
 
     def _get_headers(self, target: str) -> dict[str, str]:
         """Get headers for Cognito requests."""
@@ -19,14 +24,14 @@ class CognitoAuth:
             "accept-language": "en-US,en;q=0.9",
             "cache-control": "no-store",
             "content-type": "application/x-amz-json-1.1",
-            "origin": "https://my.glove80.com",
-            "referer": "https://my.glove80.com/",
+            "origin": self.config.origin_url,
+            "referer": self.config.referer_url,
             "sec-fetch-dest": "empty",
             "sec-fetch-mode": "cors",
             "sec-fetch-site": "cross-site",
-            "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+            "user-agent": self.config.user_agent,
             "x-amz-target": target,
-            "x-amz-user-agent": "aws-amplify/5.0.4 js",
+            "x-amz-user-agent": self.config.aws_amplify_version,
         }
 
     def simple_login_attempt(
@@ -41,18 +46,21 @@ class CognitoAuth:
 
         payload = {
             "AuthFlow": "USER_PASSWORD_AUTH",
-            "ClientId": self.client_id,
+            "ClientId": self.config.client_id,
             "AuthParameters": {"USERNAME": username, "PASSWORD": password},
         }
 
         try:
             response = requests.post(
-                self.cognito_url, headers=headers, json=payload, timeout=30
+                self.config.cognito_url, headers=headers, json=payload, timeout=self.config.request_timeout
             )
             response.raise_for_status()
             return response.json()  # type: ignore[no-any-return]
-        except (requests.exceptions.RequestException, ValueError):
-            # Silently fail for now - caller will handle the None return
+        except (requests.exceptions.RequestException, ValueError) as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.warning(
+                "Cognito authentication failed: %s", e, exc_info=exc_info
+            )
             return None
 
     def refresh_token(self, refresh_token: str) -> dict[str, Any] | None:
@@ -65,18 +73,21 @@ class CognitoAuth:
 
         payload = {
             "AuthFlow": "REFRESH_TOKEN_AUTH",
-            "ClientId": self.client_id,
+            "ClientId": self.config.client_id,
             "AuthParameters": {"REFRESH_TOKEN": refresh_token},
         }
 
         try:
             response = requests.post(
-                self.cognito_url, headers=headers, json=payload, timeout=30
+                self.config.cognito_url, headers=headers, json=payload, timeout=self.config.request_timeout
             )
             response.raise_for_status()
             return response.json()  # type: ignore[no-any-return]
-        except (requests.exceptions.RequestException, ValueError):
-            # Silently fail for now - caller will handle the None return
+        except (requests.exceptions.RequestException, ValueError) as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.warning(
+                "Cognito token refresh failed: %s", e, exc_info=exc_info
+            )
             return None
 
     def initiate_auth(self, username: str) -> dict[str, Any] | None:
@@ -89,18 +100,39 @@ class CognitoAuth:
 
         payload = {
             "AuthFlow": "USER_SRP_AUTH",
-            "ClientId": self.client_id,
+            "ClientId": self.config.client_id,
             "AuthParameters": {"USERNAME": username},
         }
 
         try:
             response = requests.post(
-                self.cognito_url, headers=headers, json=payload, timeout=30
+                self.config.cognito_url, headers=headers, json=payload, timeout=self.config.request_timeout
             )
             response.raise_for_status()
             return response.json()  # type: ignore[no-any-return]
-        except (requests.exceptions.RequestException, ValueError):
+        except (requests.exceptions.RequestException, ValueError) as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.warning(
+                "Cognito SRP initiation failed: %s", e, exc_info=exc_info
+            )
             return None
+
+
+def create_cognito_auth(
+    cognito_config: MoErgoCognitoConfig | None = None,
+) -> CognitoAuth:
+    """Create a CognitoAuth instance with the given configuration.
+    
+    Factory function following CLAUDE.md patterns for creating
+    CognitoAuth instances with proper configuration.
+    
+    Args:
+        cognito_config: MoErgo Cognito configuration (defaults to default config)
+        
+    Returns:
+        CognitoAuth: Configured Cognito authentication client
+    """
+    return CognitoAuth(cognito_config)
 
 
 # Backward compatibility alias
