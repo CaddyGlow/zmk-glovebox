@@ -910,5 +910,207 @@ UnsetFieldOption = Annotated[
 ]
 
 
+# Config field completion functions
+
+CONFIG_FIELD_COMPLETION_CACHE_KEY = "config_field_completion_data_v1"
+CONFIG_FIELD_COMPLETION_TTL = 3600  # 1 hour
+
+
+def complete_config_field_paths(incomplete: str) -> list[str]:
+    """Tab completion for configuration field paths.
+
+    Provides completion for UserConfig model fields including:
+    - Top-level fields (cache_strategy, emoji_mode, etc.)
+    - Nested fields (firmware.flash.timeout, firmware.docker.memory_limit, etc.)
+
+    Args:
+        incomplete: Partial field path being typed
+
+    Returns:
+        List of matching field paths
+    """
+    try:
+        field_completions = _get_cached_config_field_completions()
+
+        if not incomplete:
+            # Return top-level fields for empty input
+            return sorted([comp for comp in field_completions if "." not in comp])
+
+        # Filter completions based on incomplete input
+        matching = []
+        for comp in field_completions:
+            if comp.startswith(incomplete):
+                matching.append(comp)
+            elif "." in incomplete:
+                # For nested paths, also match if the completion starts with the partial path
+                parts = incomplete.split(".")
+                comp_parts = comp.split(".")
+                if len(comp_parts) >= len(parts) and all(
+                    cp.startswith(ip)
+                    for cp, ip in zip(comp_parts[: len(parts)], parts, strict=False)
+                ):
+                    matching.append(comp)
+
+        return sorted(set(matching))
+    except Exception:
+        return []
+
+
+def _get_cached_config_field_completions() -> list[str]:
+    """Get cached config field completion data."""
+    try:
+        from glovebox.core.cache import create_default_cache
+
+        cache = create_default_cache(tag="cli_completion")
+        cached_data = cache.get(CONFIG_FIELD_COMPLETION_CACHE_KEY)
+
+        if cached_data is not None:
+            return cached_data  # type: ignore[no-any-return]
+
+        # Build field completion data from config models
+        field_completions = _build_config_field_completions()
+
+        # Cache with TTL
+        cache.set(
+            CONFIG_FIELD_COMPLETION_CACHE_KEY,
+            field_completions,
+            ttl=CONFIG_FIELD_COMPLETION_TTL,
+        )
+        return field_completions
+    except Exception:
+        # Fallback to basic field list
+        return [
+            "cache_strategy",
+            "emoji_mode",
+            "editor",
+            "keyboard_paths",
+            "firmware.flash.timeout",
+            "firmware.flash.device_vendor_id",
+            "firmware.flash.device_product_id",
+            "firmware.docker.memory_limit",
+            "firmware.docker.cpu_limit",
+        ]
+
+
+def _build_config_field_completions() -> list[str]:
+    """Build comprehensive field completion list from config models."""
+    try:
+        from glovebox.config.models.firmware import (
+            FirmwareDockerConfig,
+            FirmwareFlashConfig,
+        )
+        from glovebox.config.models.user import UserConfigData
+
+        completions = []
+
+        # Add core configuration fields
+        for field_name in UserConfigData.model_fields:
+            if field_name not in ["firmware"]:  # Handle firmware separately
+                completions.append(field_name)
+
+        # Add firmware flash fields
+        for field_name in FirmwareFlashConfig.model_fields:
+            completions.append(f"firmware.flash.{field_name}")
+
+        # Add firmware docker fields
+        for field_name in FirmwareDockerConfig.model_fields:
+            completions.append(f"firmware.docker.{field_name}")
+
+        return completions
+    except Exception:
+        # Fallback to basic completions
+        return [
+            "cache_strategy",
+            "emoji_mode",
+            "editor",
+            "keyboard_paths",
+            "firmware.flash.timeout",
+            "firmware.docker.memory_limit",
+        ]
+
+
+def complete_config_operation_syntax(incomplete: str) -> list[str]:
+    """Tab completion for config edit operations with key=value syntax."""
+    try:
+        # If we have = already, don't complete further
+        if "=" in incomplete:
+            key_part = incomplete.split("=")[0]
+            # Could add value suggestions here based on key type
+            return [incomplete]
+
+        # Otherwise use standard field completion
+        fields = complete_config_field_paths(incomplete)
+        # Add = to each field for convenience
+        return [f"{field}=" for field in fields]
+    except Exception:
+        return []
+
+
+# Config field path parameter with smart completion
+ConfigFieldPathOption = Annotated[
+    str | None,
+    typer.Option(
+        "--field",
+        help="Configuration field path using dot notation (e.g., 'cache_strategy', 'firmware.flash.timeout'). Use tab completion for available fields.",
+        autocompletion=complete_config_field_paths,
+    ),
+]
+
+
+# Config field path parameter for get operations (can be used multiple times)
+GetConfigFieldOption = Annotated[
+    list[str] | None,
+    typer.Option(
+        "--get",
+        help="Get configuration field value(s) using dot notation. Use tab completion for available fields.",
+        autocompletion=complete_config_field_paths,
+    ),
+]
+
+
+# Config field path parameter for set operations with key=value completion
+SetConfigFieldOption = Annotated[
+    list[str] | None,
+    typer.Option(
+        "--set",
+        help="Set configuration field value using 'key=value' format. Use tab completion for available fields.",
+        autocompletion=complete_config_operation_syntax,
+    ),
+]
+
+
+# Config field path parameter for unset operations
+UnsetConfigFieldOption = Annotated[
+    list[str] | None,
+    typer.Option(
+        "--unset",
+        help="Remove configuration field or set to default value. Use tab completion for available fields.",
+        autocompletion=complete_config_field_paths,
+    ),
+]
+
+
+# Config field path parameter for merge operations with key=value completion
+MergeConfigFieldOption = Annotated[
+    list[str] | None,
+    typer.Option(
+        "--merge",
+        help="Merge dictionary into configuration field using 'key=value' format. Use tab completion for available fields.",
+        autocompletion=complete_config_operation_syntax,
+    ),
+]
+
+
+# Config field path parameter for append operations with key=value completion
+AppendConfigFieldOption = Annotated[
+    list[str] | None,
+    typer.Option(
+        "--append",
+        help="Append to array configuration field using 'key=value' format. Use tab completion for available fields.",
+        autocompletion=complete_config_operation_syntax,
+    ),
+]
+
+
 # Note: For more complex parameter variations, create new Annotated types
 # following the same pattern as ProfileOption above.

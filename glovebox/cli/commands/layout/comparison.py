@@ -113,6 +113,7 @@ def diff(
 
     # Get icon mode from context for proper display
     from glovebox.cli.helpers.theme import get_icon_mode_from_context
+
     icon_mode = get_icon_mode_from_context(ctx)
 
     composer = create_layout_command_composer(icon_mode)

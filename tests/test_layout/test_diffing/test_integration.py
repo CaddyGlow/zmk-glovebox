@@ -59,6 +59,42 @@ class TestLayoutDiffIntegration:
             uuid="test-uuid-base",
         )
 
+    def _count_diff_operations(self, diff: Any) -> int:
+        """Count the total number of operations in a LayoutDiff."""
+        count = 0
+
+        # Count changes in structured lists
+        if diff.layers and hasattr(diff.layers, "added"):
+            count += len(getattr(diff.layers, "added", []))
+            count += len(getattr(diff.layers, "removed", []))
+            count += len(getattr(diff.layers, "modified", []))
+
+        # Count simple field changes
+        simple_fields = [
+            "title",
+            "keyboard",
+            "firmware_api_version",
+            "locale",
+            "uuid",
+            "parent_uuid",
+            "date",
+            "creator",
+            "notes",
+            "tags",
+            "variables",
+            "config_parameters",
+            "version",
+            "base_version_patch",
+            "base_layout",
+        ]
+
+        for field in simple_fields:
+            field_value = getattr(diff, field, None)
+            if field_value is not None:
+                count += len(field_value) if isinstance(field_value, list) else 1
+
+        return count
+
     def test_scenario_execution(
         self, diff_system: LayoutDiffSystem, patch_system: LayoutPatchSystem
     ) -> None:
@@ -85,7 +121,7 @@ class TestLayoutDiffIntegration:
                 {
                     "scenario": scenario["name"],
                     "success": success,
-                    "operations": diff["statistics"]["total_operations"],
+                    "operations": self._count_diff_operations(diff),
                     "description": scenario["description"],
                 }
             )
@@ -142,13 +178,13 @@ class TestLayoutDiffIntegration:
         # Save to file
         diff_file = tmp_path / "test.diff.json"
         with diff_file.open("w") as f:
-            json.dump(diff, f, indent=2)
+            json.dump(diff.model_dump(mode="json", by_alias=True), f, indent=2)
 
         # Load from file
         with diff_file.open() as f:
             loaded_diff = json.load(f)
 
         # Verify loaded diff has same structure
-        assert loaded_diff["metadata"]["diff_type"] == "layout_diff_v1"
-        assert len(loaded_diff["json_patch"]) == len(diff["json_patch"])
-        assert loaded_diff["statistics"] == diff["statistics"]
+        assert loaded_diff["diff_type"] == "layout_diff_v2"
+        assert loaded_diff["base_version"] == diff.base_version
+        assert loaded_diff["modified_version"] == diff.modified_version

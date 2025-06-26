@@ -333,6 +333,7 @@ def flash(
 
         # Get app context for session metrics
         from glovebox.cli.app import AppContext
+
         app_ctx: AppContext = ctx.obj
 
         # Get layout metadata to check compilation status

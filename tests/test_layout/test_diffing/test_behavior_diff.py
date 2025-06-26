@@ -163,23 +163,24 @@ class TestBehaviorDiff:
 
         diff = diff_system.create_layout_diff(base, modified)
 
-        behavior_changes = diff["layout_changes"]["behaviors"]
+        # Access behavior changes directly from the diff object
+        hold_tap_changes = diff.hold_taps
 
         # Check hold-tap changes
-        assert "ht_new" in behavior_changes["hold_taps"]["added"]
-        assert "ht_a" in behavior_changes["hold_taps"]["modified"]
+        assert "ht_new" in getattr(diff.hold_taps, 'added', [])
+        assert "ht_a" in getattr(diff.hold_taps, 'modified', [])
 
         # Check combo changes
-        assert "combo_new" in behavior_changes["combos"]["added"]
-        assert "combo_space" in behavior_changes["combos"]["modified"]
+        assert "combo_new" in getattr(diff.combos, 'added', [])
+        assert "combo_space" in getattr(diff.combos, 'modified', [])
 
         # Check macro changes
-        assert "macro_hello" in behavior_changes["macros"]["modified"]
+        assert "macro_hello" in getattr(diff.macros, 'modified', [])
 
         # Verify no removals in this test case
-        assert len(behavior_changes["hold_taps"]["removed"]) == 0
-        assert len(behavior_changes["combos"]["removed"]) == 0
-        assert len(behavior_changes["macros"]["removed"]) == 0
+        assert len(getattr(diff.hold_taps, 'removed', [])) == 0
+        assert len(getattr(diff.combos, 'removed', [])) == 0
+        assert len(getattr(diff.macros, 'removed', [])) == 0
 
     def test_behavior_replacement(self, diff_system: LayoutDiffSystem) -> None:
         """Test detecting complete behavior replacement."""
@@ -188,7 +189,8 @@ class TestBehaviorDiff:
 
         diff = diff_system.create_layout_diff(base, modified)
 
-        behavior_changes = diff["layout_changes"]["behaviors"]
+        # Access behavior changes directly from the diff object
+        hold_tap_changes = diff.hold_taps
 
         # Check hold-tap changes
         assert "ht_a" in behavior_changes["hold_taps"]["removed"]
@@ -237,7 +239,8 @@ class TestBehaviorDiff:
 
         diff = diff_system.create_layout_diff(base, modified)
 
-        behavior_changes = diff["layout_changes"]["behaviors"]
+        # Access behavior changes directly from the diff object
+        hold_tap_changes = diff.hold_taps
 
         # Verify specific behavior names are tracked
         assert "ht_a" in behavior_changes["hold_taps"]["modified"]
@@ -314,24 +317,18 @@ class TestBehaviorDiff:
 
             diff = diff_system.create_layout_diff(base, modified)
 
-            # Basic validation that diff was created
-            assert "layout_changes" in diff
-            assert "behaviors" in diff["layout_changes"]
-
-            behavior_changes = diff["layout_changes"]["behaviors"]
-
-            # At least one behavior type should have changes
+            # Basic validation that diff was created and check for changes
             has_changes = any(
                 [
-                    behavior_changes["hold_taps"]["added"]
-                    or behavior_changes["hold_taps"]["removed"]
-                    or behavior_changes["hold_taps"]["modified"],
-                    behavior_changes["combos"]["added"]
-                    or behavior_changes["combos"]["removed"]
-                    or behavior_changes["combos"]["modified"],
-                    behavior_changes["macros"]["added"]
-                    or behavior_changes["macros"]["removed"]
-                    or behavior_changes["macros"]["modified"],
+                    getattr(diff.hold_taps, "added", [])
+                    or getattr(diff.hold_taps, "removed", [])
+                    or getattr(diff.hold_taps, "modified", []),
+                    getattr(diff.combos, "added", [])
+                    or getattr(diff.combos, "removed", [])
+                    or getattr(diff.combos, "modified", []),
+                    getattr(diff.macros, "added", [])
+                    or getattr(diff.macros, "removed", [])
+                    or getattr(diff.macros, "modified", []),
                 ]
             )
 

@@ -71,7 +71,10 @@ def print_error_message(
 
 
 def print_list_item(
-    item: str, indent: int = 1, use_rich: bool = True, icon_mode: "IconMode | str" = "emoji"
+    item: str,
+    indent: int = 1,
+    use_rich: bool = True,
+    icon_mode: "IconMode | str" = "emoji",
 ) -> None:
     """Print a list item with bullet and indentation.
 
@@ -195,7 +198,9 @@ def print_header_panel(
     console.print(panel)
 
 
-def print_device_table(devices: list[dict[str, Any]], icon_mode: "IconMode | str" = "emoji") -> None:
+def print_device_table(
+    devices: list[dict[str, Any]], icon_mode: "IconMode | str" = "emoji"
+) -> None:
     """Print devices in a formatted Rich table.
 
     Args:
@@ -213,7 +218,9 @@ def print_device_table(devices: list[dict[str, Any]], icon_mode: "IconMode | str
     formatter.format_device_list(devices, "table", icon_mode=icon_mode)
 
 
-def print_status_table(status_data: dict[str, Any], icon_mode: "IconMode | str" = "emoji") -> None:
+def print_status_table(
+    status_data: dict[str, Any], icon_mode: "IconMode | str" = "emoji"
+) -> None:
     """Print status information in a formatted Rich table.
 
     Args:

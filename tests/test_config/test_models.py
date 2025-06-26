@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from glovebox.cli.helpers.theme import IconMode
 from glovebox.config.models import (
     FirmwareFlashConfig,
     UserConfigData,
@@ -137,6 +138,7 @@ class TestUserConfigData:
         assert config.profile == "glove80/v25.05"
         assert config.log_level == "INFO"
         assert config.keyboard_paths == []
+        assert config.icon_mode == IconMode.EMOJI  # Default value
         assert config.firmware.flash.timeout == 60
         assert config.firmware.flash.count == 2
         assert config.firmware.flash.track_flashed is True
@@ -382,3 +384,118 @@ class TestConfigurationValidation:
         ]  # Path objects are serialized to strings
         assert "firmware" in config_dict
         assert "flash" in config_dict["firmware"]
+
+
+class TestIconModeIntegration:
+    """Tests for IconMode enum integration in UserConfigData."""
+
+    def test_icon_mode_default_value(self, clean_environment):
+        """Test that icon_mode defaults to EMOJI."""
+        config = UserConfigData()
+        assert config.icon_mode == IconMode.EMOJI
+        assert isinstance(config.icon_mode, IconMode)
+
+    def test_icon_mode_string_validation(self, clean_environment):
+        """Test validation of icon_mode from string values."""
+        # Valid string values should convert to enum
+        for mode_str, expected_enum in [
+            ("emoji", IconMode.EMOJI),
+            ("nerdfont", IconMode.NERDFONT),
+            ("text", IconMode.TEXT),
+            ("EMOJI", IconMode.EMOJI),  # Case insensitive
+            ("NERDFONT", IconMode.NERDFONT),
+            ("TEXT", IconMode.TEXT),
+            (" emoji ", IconMode.EMOJI),  # Whitespace stripped
+            (" NERDFONT ", IconMode.NERDFONT),
+        ]:
+            config = UserConfigData(icon_mode=mode_str)  # type: ignore[arg-type]
+            assert config.icon_mode == expected_enum
+            assert isinstance(config.icon_mode, IconMode)
+
+    def test_icon_mode_enum_validation(self, clean_environment):
+        """Test validation of icon_mode from IconMode enum values."""
+        for enum_value in [IconMode.EMOJI, IconMode.NERDFONT, IconMode.TEXT]:
+            config = UserConfigData(icon_mode=enum_value)
+            assert config.icon_mode == enum_value
+            assert isinstance(config.icon_mode, IconMode)
+
+    def test_icon_mode_invalid_string(self, clean_environment):
+        """Test that invalid string values raise ValidationError."""
+        invalid_modes = ["invalid", "unknown", "123", "", "nerd_font", "emojis"]
+
+        for invalid_mode in invalid_modes:
+            with pytest.raises(ValidationError) as exc_info:
+                UserConfigData(icon_mode=invalid_mode)  # type: ignore[arg-type]
+            error_msg = str(exc_info.value)
+            assert "Icon mode must be one of" in error_msg
+            assert "['emoji', 'nerdfont', 'text']" in error_msg
+
+    def test_icon_mode_invalid_type(self, clean_environment):
+        """Test that invalid types raise ValidationError."""
+        invalid_values: list[object] = [123, None, [], {}, True, False]
+
+        for invalid_value in invalid_values:
+            with pytest.raises(ValidationError) as exc_info:
+                UserConfigData(icon_mode=invalid_value)  # type: ignore[arg-type]
+            error_msg = str(exc_info.value)
+            assert "Icon mode must be a string or IconMode enum" in error_msg
+
+    def test_icon_mode_serialization(self, clean_environment):
+        """Test that IconMode enum serializes to string in JSON mode."""
+        config = UserConfigData(icon_mode=IconMode.NERDFONT)
+
+        # Test model_dump with JSON mode
+        serialized = config.model_dump(mode="json")
+        assert serialized["icon_mode"] == "nerdfont"
+        assert isinstance(serialized["icon_mode"], str)
+
+        # Test model_dump_json
+        json_str = config.model_dump_json()
+        assert '"icon_mode":"nerdfont"' in json_str
+
+    def test_icon_mode_round_trip(self, clean_environment):
+        """Test that IconMode can be serialized and deserialized correctly."""
+        for mode in [IconMode.EMOJI, IconMode.NERDFONT, IconMode.TEXT]:
+            # Create config with enum
+            config1 = UserConfigData(icon_mode=mode)
+
+            # Serialize to dict (JSON mode)
+            data = config1.model_dump(mode="json")
+
+            # Deserialize back
+            config2 = UserConfigData.model_validate(data)
+
+            # Should match original
+            assert config2.icon_mode == mode
+            assert isinstance(config2.icon_mode, IconMode)
+
+    def test_icon_mode_environment_variable(self, clean_environment):
+        """Test icon_mode from environment variable."""
+        test_cases = [
+            ("emoji", IconMode.EMOJI),
+            ("nerdfont", IconMode.NERDFONT),
+            ("text", IconMode.TEXT),
+            ("EMOJI", IconMode.EMOJI),
+            ("TEXT", IconMode.TEXT),
+        ]
+
+        for env_value, expected_enum in test_cases:
+            os.environ["GLOVEBOX_ICON_MODE"] = env_value
+            try:
+                config = UserConfigData()
+                assert config.icon_mode == expected_enum
+                assert isinstance(config.icon_mode, IconMode)
+            finally:
+                os.environ.pop("GLOVEBOX_ICON_MODE", None)
+
+    def test_icon_mode_invalid_environment_variable(self, clean_environment):
+        """Test that invalid environment variable values raise ValidationError."""
+        os.environ["GLOVEBOX_ICON_MODE"] = "invalid_mode"
+
+        try:
+            with pytest.raises(ValidationError) as exc_info:
+                UserConfigData()
+            error_msg = str(exc_info.value)
+            assert "Icon mode must be one of" in error_msg
+        finally:
+            os.environ.pop("GLOVEBOX_ICON_MODE", None)

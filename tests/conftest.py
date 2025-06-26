@@ -278,7 +278,7 @@ def shared_cache_stats() -> Generator[Callable[[], dict[str, Any]], None, None]:
 
 @pytest.fixture
 def session_metrics(
-    isolated_cache_environment: dict[str, Any]
+    isolated_cache_environment: dict[str, Any],
 ) -> Generator[SessionMetrics, None, None]:
     """Create an isolated SessionMetrics instance for testing.
 
@@ -300,8 +300,7 @@ def session_metrics(
     from glovebox.core.cache.cache_coordinator import get_shared_cache_instance
 
     cache_manager = get_shared_cache_instance(
-        cache_root=isolated_cache_environment["cache_root"],
-        tag="test_metrics"
+        cache_root=isolated_cache_environment["cache_root"], tag="test_metrics"
     )
 
     # Create unique session UUID for test isolation
@@ -311,7 +310,7 @@ def session_metrics(
     metrics = SessionMetrics(
         cache_manager=cache_manager,
         session_uuid=test_session_uuid,
-        ttl_days=1  # Short TTL for test data
+        ttl_days=1,  # Short TTL for test data
     )
 
     yield metrics
