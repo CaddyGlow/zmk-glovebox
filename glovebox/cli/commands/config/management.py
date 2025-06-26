@@ -10,6 +10,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from glovebox.cli.app import AppContext
 from glovebox.cli.decorators import handle_errors
 from glovebox.cli.helpers import (
     print_error_message,
@@ -26,8 +27,17 @@ logger = logging.getLogger(__name__)
 
 
 @handle_errors
-def list_config(
+def show_config(
     ctx: typer.Context,
+    # Field operations (read-only, matching layout pattern)
+    get: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--get",
+            help="Get specific field value(s) using dot notation",
+        ),
+    ] = None,
+    # Display options
     show_sources: Annotated[
         bool, typer.Option("--sources", help="Show configuration sources")
     ] = False,
@@ -38,12 +48,66 @@ def list_config(
         bool, typer.Option("--descriptions", help="Show field descriptions")
     ] = False,
 ) -> None:
-    """Show configuration settings. By default shows effective values (current or default if unset)."""
+    """Show configuration settings with optional field operations.
+
+    This command serves as the primary interface for viewing configuration. It combines
+    the functionality of the old 'list' command with field-specific operations.
+
+    Examples:
+        # Show all configuration (old behavior)
+        glovebox config show
+
+        # Show with additional info
+        glovebox config show --sources --defaults --descriptions
+
+        # Get specific fields (new behavior)
+        glovebox config show --get cache_strategy
+        glovebox config show --get firmware.flash.timeout --get emoji_mode
+    """
     from glovebox.cli.app import AppContext
+    from glovebox.cli.commands.config.edit import ConfigEditor
 
     # Get app context with user config
     app_ctx: AppContext = ctx.obj
 
+    # If specific fields requested, use ConfigEditor for consistent behavior
+    if get:
+        try:
+            editor = ConfigEditor(app_ctx.user_config)
+
+            for field_path in get:
+                try:
+                    value = editor.get_field(field_path)
+                    if isinstance(value, list):
+                        if not value:
+                            print(f"{field_path}: (empty list)")
+                        else:
+                            print(f"{field_path}:")
+                            for item in value:
+                                print(f"  - {item}")
+                    elif value is None:
+                        print(f"{field_path}: null")
+                    else:
+                        print(f"{field_path}: {value}")
+                except Exception as e:
+                    print_error_message(f"Cannot get field '{field_path}': {e}")
+            return
+
+        except Exception as e:
+            print_error_message(f"Failed to read configuration: {e}")
+            raise typer.Exit(1) from e
+
+    # Default behavior: show all configuration (matches old list_config)
+    _show_all_config(app_ctx, show_sources, show_defaults, show_descriptions)
+
+
+def _show_all_config(
+    app_ctx: "AppContext",
+    show_sources: bool,
+    show_defaults: bool,
+    show_descriptions: bool,
+) -> None:
+    """Show all configuration settings in table format."""
     # Create a nice table display
     console = Console()
     table = Table(title="Glovebox Configuration")
@@ -194,6 +258,9 @@ def list_config(
         "[dim]  --sources       Show configuration sources (shows 'default' for unset values)[/dim]"
     )
     console.print("[dim]  --descriptions  Show field descriptions[/dim]")
+    console.print(
+        "[dim]  --get <field>   Get specific field value using dot notation[/dim]"
+    )
     console.print(
         "\n[dim]Use 'glovebox config edit --set <setting>=<value>' to change settings[/dim]"
     )
