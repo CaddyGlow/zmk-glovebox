@@ -5,9 +5,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_serializer, field_validator
 
 from glovebox.models.base import GloveboxBaseModel
+from glovebox.models.path import PreservingPath
 
 
 class LogHandlerType(str, Enum):
@@ -43,7 +44,7 @@ class LogHandlerConfig(GloveboxBaseModel):
     colored: bool = Field(
         default=True, description="Enable colored output (console/stderr only)"
     )
-    file_path: Path | None = Field(
+    file_path: PreservingPath | None = Field(
         default=None, description="File path for file handlers (required for type=file)"
     )
 
@@ -67,16 +68,25 @@ class LogHandlerConfig(GloveboxBaseModel):
 
     @field_validator("file_path", mode="before")
     @classmethod
-    def validate_file_path(cls, v: Any, info: Any) -> Path | None:
-        """Validate and expand file path."""
+    def validate_file_path(cls, v: Any, info: Any) -> PreservingPath | None:
+        """Validate and create PreservingPath for file_path."""
         if v is None:
             return None
-        if isinstance(v, str):
-            return Path(v).expanduser().resolve()
-        if isinstance(v, Path):
-            return v.expanduser().resolve()
-        # Invalid type, return None (will be caught by validation)
-        return None
+
+        if isinstance(v, PreservingPath):
+            return v
+
+        if isinstance(v, str | Path):
+            return PreservingPath(str(v))
+
+        raise ValueError(f"Invalid file path type: {type(v)}")
+
+    @field_serializer("file_path", when_used="json")
+    def serialize_file_path(self, value: PreservingPath | None) -> str | None:
+        """Serialize file_path back to original notation."""
+        if value is None:
+            return None
+        return value.original
 
     def model_post_init(self, __context: Any) -> None:
         """Post-initialization validation."""
@@ -124,9 +134,10 @@ class LoggingConfig(GloveboxBaseModel):
         file_paths = []
         for handler in self.handlers:
             if handler.type == LogHandlerType.FILE and handler.file_path:
+                # Compare resolved paths to detect duplicates
                 if handler.file_path in file_paths:
                     raise ValueError(
-                        f"Duplicate file path in handlers: {handler.file_path}"
+                        f"Duplicate file path in handlers: {handler.file_path.original}"
                     )
                 file_paths.append(handler.file_path)
 
@@ -149,7 +160,9 @@ def create_default_logging_config() -> LoggingConfig:
     )
 
 
-def create_developer_logging_config(debug_file: Path | None = None) -> LoggingConfig:
+def create_developer_logging_config(
+    debug_file: Path | str | None = None,
+) -> LoggingConfig:
     """Create developer-friendly logging configuration.
 
     Args:
@@ -168,20 +181,21 @@ def create_developer_logging_config(debug_file: Path | None = None) -> LoggingCo
     ]
 
     if debug_file:
+        file_path = PreservingPath(str(debug_file)) if debug_file else None
         handlers.append(
             LogHandlerConfig(
                 type=LogHandlerType.FILE,
                 level="DEBUG",
                 format=LogFormat.JSON,
                 colored=False,
-                file_path=debug_file,
+                file_path=file_path,
             )
         )
 
     return LoggingConfig(handlers=handlers)
 
 
-def create_tui_logging_config(debug_file: Path | None = None) -> LoggingConfig:
+def create_tui_logging_config(debug_file: Path | str | None = None) -> LoggingConfig:
     """Create simple logging configuration for CLI applications.
 
     Args:
@@ -200,13 +214,14 @@ def create_tui_logging_config(debug_file: Path | None = None) -> LoggingConfig:
     ]
 
     if debug_file:
+        file_path = PreservingPath(str(debug_file)) if debug_file else None
         handlers.append(
             LogHandlerConfig(
                 type=LogHandlerType.FILE,
                 level="DEBUG",
                 format=LogFormat.JSON,
                 colored=False,
-                file_path=debug_file,
+                file_path=file_path,
             )
         )
 

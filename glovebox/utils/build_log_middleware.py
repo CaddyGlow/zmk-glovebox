@@ -68,7 +68,12 @@ class BuildLogCaptureMiddleware(OutputMiddleware[str]):
 
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Failed to initialize build log file %s: %s", self.log_file_path, e, exc_info=exc_info)
+            logger.error(
+                "Failed to initialize build log file %s: %s",
+                self.log_file_path,
+                e,
+                exc_info=exc_info,
+            )
             self._file_handle = None
 
     def process(self, line: str, stream_type: str) -> str:
@@ -117,7 +122,9 @@ class BuildLogCaptureMiddleware(OutputMiddleware[str]):
         try:
             with self._lock:
                 if self._file_handle:
-                    self._file_handle.write(f"\n# Build log completed - {datetime.now().isoformat()}\n")
+                    self._file_handle.write(
+                        f"\n# Build log completed - {datetime.now().isoformat()}\n"
+                    )
                     self._file_handle.close()
                     self._file_handle = None
                     logger.debug("Closed build log file: %s", self.log_file_path)
@@ -128,7 +135,12 @@ class BuildLogCaptureMiddleware(OutputMiddleware[str]):
         """Context manager entry."""
         return self
 
-    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: Any,
+    ) -> None:
         """Context manager exit - ensure log file is closed."""
         self.close()
 

@@ -24,7 +24,7 @@ from glovebox.firmware.models import (
 )
 from glovebox.models.docker import DockerUserContext
 from glovebox.models.docker_path import DockerPath
-from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
+from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol, MetricsProtocol
 from glovebox.utils.build_log_middleware import create_build_log_middleware
 from glovebox.utils.stream_process import (
     DefaultOutputMiddleware,
@@ -41,11 +41,15 @@ class MoergoNixService(CompilationServiceProtocol):
     """Ultra-simplified Moergo compilation service (<200 lines)."""
 
     def __init__(
-        self, docker_adapter: DockerAdapterProtocol, file_adapter: FileAdapterProtocol
+        self,
+        docker_adapter: DockerAdapterProtocol,
+        file_adapter: FileAdapterProtocol,
+        session_metrics: MetricsProtocol,
     ) -> None:
-        """Initialize with Docker adapter and file adapter."""
+        """Initialize with Docker adapter, file adapter, and session metrics."""
         self.docker_adapter = docker_adapter
         self.file_adapter = file_adapter
+        self.session_metrics = session_metrics
         self.logger = logging.getLogger(__name__)
 
     def compile(
@@ -65,11 +69,80 @@ class MoergoNixService(CompilationServiceProtocol):
 
         self.logger.info("Starting Moergo compilation")
 
+        # Initialize compilation metrics
+        if self.session_metrics:
+            compilation_operations = self.session_metrics.Counter(
+                "compilation_operations_total",
+                "Total compilation operations",
+                ["keyboard_name", "firmware_version", "strategy"],
+            )
+            compilation_duration = self.session_metrics.Histogram(
+                "compilation_duration_seconds", "Compilation operation duration"
+            )
+
+            compilation_operations.labels(
+                keyboard_profile.keyboard_name,
+                keyboard_profile.firmware_version or "unknown",
+                "moergo",
+            ).inc()
+
+            with compilation_duration.time():
+                return self._compile_internal(
+                    keymap_file,
+                    config_file,
+                    output_dir,
+                    config,
+                    keyboard_profile,
+                    progress_callback,
+                    json_file,
+                    compilation_start_time,
+                )
+        else:
+            return self._compile_internal(
+                keymap_file,
+                config_file,
+                output_dir,
+                config,
+                keyboard_profile,
+                progress_callback,
+                json_file,
+                compilation_start_time,
+            )
+
+    def _compile_internal(
+        self,
+        keymap_file: Path,
+        config_file: Path,
+        output_dir: Path,
+        config: MoergoCompilationConfig,
+        keyboard_profile: "KeyboardProfile",
+        progress_callback: CompilationProgressCallback | None = None,
+        json_file: Path | None = None,
+        compilation_start_time: float = 0.0,
+    ) -> BuildResult:
+        """Internal compilation method with progress tracking."""
         try:
             if not isinstance(config, MoergoCompilationConfig):
                 return BuildResult(
                     success=False, errors=["Invalid config type for Moergo compilation"]
                 )
+
+            # Create progress coordinator for MoErgo compilation
+            progress_coordinator = None
+            if progress_callback:
+                from glovebox.cli.components.unified_progress_coordinator import (
+                    create_unified_progress_coordinator,
+                )
+
+                progress_coordinator = create_unified_progress_coordinator(
+                    tui_callback=progress_callback,
+                    total_boards=2,  # MoErgo typically has left and right halves
+                    board_names=["glove80_lh", "glove80_rh"],
+                    total_repositories=1,  # MoErgo doesn't use west update
+                )
+
+                # Start with building phase since MoErgo doesn't do workspace setup like ZMK
+                progress_coordinator.transition_to_phase("building", "Starting MoErgo compilation")
 
             workspace_path = self._setup_workspace(
                 keymap_file, config_file, keyboard_profile
@@ -78,7 +151,7 @@ class MoergoNixService(CompilationServiceProtocol):
                 return BuildResult(success=False, errors=["Workspace setup failed"])
 
             compilation_success = self._run_compilation(
-                workspace_path, config, output_dir
+                workspace_path, config, output_dir, progress_coordinator
             )
 
             # Always try to collect artifacts, even on build failure (for debugging)
@@ -172,14 +245,8 @@ class MoergoNixService(CompilationServiceProtocol):
                 output_prefix = temp_path / "layout"
 
                 # Generate keymap and config files from JSON
-                # Create NoOp metrics for layout service (MoergoNixService doesn't track metrics yet)
-                from glovebox.core.metrics.session_metrics import (
-                    create_noop_session_metrics,
-                )
-
-                layout_session_metrics = create_noop_session_metrics(
-                    "moergo_nix_service"
-                )
+                # Use session_metrics which is always available
+                layout_session_metrics = self.session_metrics
 
                 layout_result = layout_service.generate_from_file(
                     profile=keyboard_profile,
@@ -269,6 +336,7 @@ class MoergoNixService(CompilationServiceProtocol):
         workspace_path: DockerPath,
         config: MoergoCompilationConfig,
         output_dir: Path,
+        progress_coordinator: Any = None,
     ) -> bool:
         """Run Docker compilation."""
         try:
@@ -279,11 +347,23 @@ class MoergoNixService(CompilationServiceProtocol):
 
             middlewares: list[OutputMiddleware[Any]] = []
 
-            middlewares.append(LoggerOutputMiddleware(self.logger))
-
             # Create build log middleware
             build_log_middleware = create_build_log_middleware(output_dir)
             middlewares.append(build_log_middleware)
+
+            # Add progress middleware if coordinator is available
+            if progress_coordinator:
+                from glovebox.adapters import create_compilation_progress_middleware
+
+                # Create middleware that delegates to existing coordinator
+                # MoErgo skips west update, so start directly with building
+                middleware = create_compilation_progress_middleware(
+                    progress_coordinator=progress_coordinator,
+                    skip_west_update=True,  # MoErgo doesn't use west update
+                )
+                middlewares.append(middleware)
+
+            middlewares.append(LoggerOutputMiddleware(self.logger))
 
             # For Moergo, disable user mapping and pass user info via environment
             user_context = DockerUserContext.detect_current_user()
@@ -515,6 +595,16 @@ class MoergoNixService(CompilationServiceProtocol):
 def create_moergo_nix_service(
     docker_adapter: DockerAdapterProtocol,
     file_adapter: FileAdapterProtocol,
+    session_metrics: MetricsProtocol,
 ) -> MoergoNixService:
-    """Create Moergo nix service."""
-    return MoergoNixService(docker_adapter, file_adapter)
+    """Create Moergo nix service with session metrics for progress tracking.
+
+    Args:
+        docker_adapter: Docker adapter for container operations
+        file_adapter: File adapter for file operations
+        session_metrics: Session metrics for tracking operations
+
+    Returns:
+        Configured MoergoNixService instance
+    """
+    return MoergoNixService(docker_adapter, file_adapter, session_metrics)
