@@ -122,14 +122,14 @@ def mock_config_adapter() -> Mock:
                 "verify": True,
                 "auto_detect": True,
                 "wait_for_device": True,
-                "device_wait_timeout": 60
+                "device_wait_timeout": 60,
             }
         },
         "cache_ttls": {
             "compilation_workspace": 3600,
             "compilation_build": 3600,
-            "layout_diff": 1800
-        }
+            "layout_diff": 1800,
+        },
     }
     return adapter
 

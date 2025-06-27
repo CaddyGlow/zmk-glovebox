@@ -136,7 +136,9 @@ class TestLoggingConfig:
 
     def test_empty_handlers_validation(self):
         """Test that empty handlers list raises validation error."""
-        with pytest.raises(ValueError, match="At least one log handler must be configured"):
+        with pytest.raises(
+            ValueError, match="At least one log handler must be configured"
+        ):
             LoggingConfig(handlers=[])
 
     def test_duplicate_file_paths_validation(self, tmp_path):
@@ -261,6 +263,7 @@ class TestJSONFormatter:
             raise ValueError("Test exception")
         except ValueError:
             import sys
+
             exc_info = sys.exc_info()
             record = logging.LogRecord(
                 name="test.logger",
@@ -581,7 +584,7 @@ class TestIntegrationScenarios:
         assert "Error message" in content
 
         # Verify JSON format in file
-        lines = content.strip().split('\n')
+        lines = content.strip().split("\n")
         for line in lines:
             data = json.loads(line)
             assert "timestamp" in data
@@ -607,7 +610,7 @@ class TestIntegrationScenarios:
 
         # Only errors should be logged
         test_logger.debug("Debug message")  # Should not appear
-        test_logger.info("Info message")    # Should not appear
+        test_logger.info("Info message")  # Should not appear
         test_logger.warning("Warning message")  # Should not appear
         test_logger.error("Error message")  # Should appear
 
@@ -649,7 +652,7 @@ class TestIntegrationScenarios:
         # Verify file contains JSON
         assert log_file.exists()
         content = log_file.read_text()
-        lines = content.strip().split('\n')
+        lines = content.strip().split("\n")
         assert len(lines) == 3  # All three messages should be in file
 
         for line in lines:

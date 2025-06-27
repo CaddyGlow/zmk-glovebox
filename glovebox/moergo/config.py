@@ -205,7 +205,6 @@ class MoErgoServiceConfig(GloveboxBaseModel):
         description="Configuration for AWS Cognito authentication",
     )
 
-
     # Timeout settings (in seconds)
     connection_timeout: int = Field(
         default=30,

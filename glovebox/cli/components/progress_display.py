@@ -43,44 +43,40 @@ ProgressCallback = Callable[[T], None]
 
 
 class ProgressDisplayManager(Generic[T]):
-    """Reusable TUI progress display manager with full terminal support and resizing.
+    """Simplified TUI progress display manager with terminal support and resizing.
 
     This component provides a Rich-based terminal interface that automatically
-    adapts to terminal size changes and displays progress with optional log streaming.
+    adapts to terminal size changes and displays a clean progress bar.
 
     Features:
-    - Full terminal width/height utilization
+    - Full terminal width utilization
     - Automatic terminal resize detection and adaptation
-    - Real-time log streaming with intelligent wrapping
-    - Customizable progress bar and status display
+    - Clean progress bar and status display
     - Thread-safe progress updates via queue
     - Clean lifecycle management with proper cleanup
     """
 
     def __init__(
         self,
-        show_logs: bool = True,
+        show_logs: bool = False,  # Kept for compatibility but not used
         refresh_rate: int = 8,
-        max_log_lines: int = 100,
+        max_log_lines: int = 100,  # Kept for compatibility but not used
         console: Console | None = None,
     ) -> None:
         """Initialize the progress display manager.
 
         Args:
-            show_logs: Whether to show log panel alongside progress
+            show_logs: Whether to show log panel alongside progress (ignored - simplified display)
             refresh_rate: Screen refresh rate in FPS for smooth resizing
-            max_log_lines: Maximum number of log lines to keep in memory
+            max_log_lines: Maximum number of log lines to keep in memory (ignored)
             console: Optional Rich console instance (creates new if None)
         """
-        self.show_logs = show_logs
         self.refresh_rate = refresh_rate
-        self.max_log_lines = max_log_lines
         self.console = console or Console()
 
         # Progress tracking
         self.progress_queue: queue.Queue[T] = queue.Queue()
         self.stop_event = threading.Event()
-        self.recent_logs: deque[tuple[str, str]] = deque(maxlen=max_log_lines)
 
         # Display state
         self.current_status = "Initializing..."
@@ -120,16 +116,6 @@ class ProgressDisplayManager(Generic[T]):
         progress_callback.cleanup = self.stop  # type: ignore[attr-defined]
 
         return progress_callback
-
-    def add_log(self, level: str, message: str) -> None:
-        """Add a log message to the TUI display.
-
-        Args:
-            level: Log level (debug, info, warning, error, critical)
-            message: Log message to display
-        """
-        # Add log to recent_logs deque (thread-safe)
-        self.recent_logs.append((level, message))
 
     def stop(self) -> None:
         """Stop the progress display and clean up resources."""
@@ -174,95 +160,11 @@ class ProgressDisplayManager(Generic[T]):
 
         return lines if lines else [""]
 
-    def _create_log_panel(self) -> Panel:
-        """Create a responsive panel showing recent logs with proper overflow handling."""
-        # Get current terminal dimensions
-        terminal_width = self.console.size.width
-        terminal_height = self.console.size.height
-
-        # Calculate available space for logs (more conservative height calculation)
-        progress_bars_height = 6  # Space for progress bars and status text (increased)
-        panel_border_height = 4  # Top/bottom border + title + padding (increased)
-        min_log_height = 8  # Minimum height for log panel (increased)
-
-        # More conservative height calculation to prevent overflow
-        available_height = terminal_height - progress_bars_height - panel_border_height
-        max_log_height = max(
-            min_log_height, min(available_height, 20)
-        )  # Cap at 20 lines max
-
-        # Content width (accounting for panel borders and padding)
-        content_width = max(40, terminal_width - 6)  # More margin for panel borders
-
-        if not self.recent_logs:
-            log_content: Group | Text = Text("Waiting for logs...", style="dim")
-        else:
-            log_lines: list[Text] = []
-            # Calculate available lines inside the panel (subtract borders and title)
-            available_lines = max_log_height - 3  # Account for borders and title
-            lines_used = 0
-
-            # Process logs from most recent, working backwards
-            recent_logs_list = list(self.recent_logs)
-            if len(recent_logs_list) > 100:  # Limit to most recent 100 logs
-                recent_logs_list = recent_logs_list[-100:]
-
-            # Process logs in reverse order to show most recent first
-            for level, message in reversed(
-                recent_logs_list[-50:]
-            ):  # Show last 50 logs max
-                if (
-                    lines_used >= available_lines - 1
-                ):  # Reserve 1 line for overflow indicator
-                    break
-
-                # Style logs based on level
-                if level == "warning":
-                    style = "yellow"
-                elif level == "error":
-                    style = "red"
-                else:
-                    style = "white"
-
-                # Wrap long lines to fit panel width
-                wrapped_lines = self._wrap_text_to_width(message, content_width)
-
-                # Add wrapped lines, checking available space
-                for wrapped_line in wrapped_lines:
-                    if lines_used >= available_lines - 1:
-                        break
-                    log_lines.insert(
-                        0, Text(wrapped_line, style=style)
-                    )  # Insert at beginning for reverse order
-                    lines_used += 1
-
-            # Add overflow indicator if we have more logs
-            if (
-                len(recent_logs_list) > lines_used or lines_used >= available_lines - 1
-            ) and log_lines:
-                log_lines.append(Text("... (more logs available)", style="dim italic"))
-
-            log_content = (
-                Group(*log_lines)
-                if log_lines
-                else Text("Waiting for logs...", style="dim")
-            )
-
-        return Panel(
-            log_content,
-            title=f"[bold blue]Logs[/bold blue] ({len(self.recent_logs)} total)",
-            border_style="blue",
-            height=max_log_height,
-            width=terminal_width - 2,  # Full width minus small margin
-            padding=(0, 1),  # Add padding inside panel
-        )
-
     def _create_responsive_layout(
         self, progress: Progress, current_file_text: Text
     ) -> Group:
         """Create layout that adapts to current terminal size."""
         terminal_width = self.console.size.width
-        terminal_height = self.console.size.height
 
         # Create status text that fits the terminal width
         status_text = Text(current_file_text.plain, style=current_file_text.style)
@@ -271,16 +173,8 @@ class ProgressDisplayManager(Generic[T]):
             truncated = status_text.plain[: terminal_width - 7] + "..."
             status_text = Text(truncated, style=current_file_text.style)
 
-        if self.show_logs:
-            # Ensure we don't try to show logs if terminal is too small
-            if terminal_height < 12:
-                # Terminal too small for logs, just show progress
-                return Group(status_text, progress)
-            else:
-                log_panel = self._create_log_panel()
-                return Group(status_text, progress, log_panel)
-        else:
-            return Group(status_text, progress)
+        # Always show just progress - no separate log panel
+        return Group(status_text, progress)
 
     def _update_progress_from_data(
         self, progress_data: T, progress: Progress, task_id: Any
@@ -342,8 +236,6 @@ class ProgressDisplayManager(Generic[T]):
                         progress_data, progress, task_id
                     )
 
-                    # Note: Logs are now added directly via add_log() method from TUI handler
-
                     # Always recreate the layout to handle terminal resizing
                     progress_group = self._create_responsive_layout(
                         progress, current_file_text
@@ -358,15 +250,10 @@ class ProgressDisplayManager(Generic[T]):
                     )
                     current_time = time.time()
 
-                    # Update layout if terminal size changed or every 2 seconds for log updates
-                    if (
-                        current_terminal_size != last_terminal_size
-                        or current_time - last_layout_update > 2.0
-                    ):
+                    # Update layout if terminal size changed
+                    if current_terminal_size != last_terminal_size:
                         last_terminal_size = current_terminal_size
                         last_layout_update = current_time
-
-                        # Note: Logs are now added directly via add_log() method from TUI handler
 
                         progress_group = self._create_responsive_layout(
                             progress, current_file_text
@@ -375,6 +262,12 @@ class ProgressDisplayManager(Generic[T]):
                     continue
                 except Exception as e:
                     self.console.print(f"[red]Progress display error: {e}[/red]")
+                    # Log the full traceback for debugging
+                    import traceback
+
+                    self.console.print(
+                        f"[red]Traceback: {traceback.format_exc()}[/red]"
+                    )
                     break
 
 
@@ -543,16 +436,20 @@ class CompilationProgressDisplayManager(ProgressDisplayManager[Any]):
                     )
                     progress.update(
                         task_id,
+                        completed=compilation_progress.overall_progress_percent,
+                        total=100,
                         description=f"Compiling ({compilation_progress.compilation_phase})",
                     )
-            elif compilation_progress.compilation_phase == "collecting":
+            elif compilation_progress.compilation_phase == "cache_saving":
                 current_file_text = Text(
-                    f"📁 Collecting: {compilation_progress.current_repository}",
+                    f"💾 Cache: {compilation_progress.current_repository}",
                     style="green",
                 )
                 progress.update(
                     task_id,
-                    description=f"Collecting Artifacts ({compilation_progress.compilation_phase})",
+                    completed=compilation_progress.overall_progress_percent,
+                    total=100,
+                    description=f"Saving Build Cache ({compilation_progress.compilation_phase})",
                 )
             else:
                 # Fallback for unknown phases
@@ -567,7 +464,7 @@ class CompilationProgressDisplayManager(ProgressDisplayManager[Any]):
 
 
 def create_compilation_progress_display(
-    show_logs: bool = True,
+    show_logs: bool = False,  # Default to False for simplified display
 ) -> Callable[[Any], None]:
     """Factory function to create a compilation progress display (backward compatibility).
 

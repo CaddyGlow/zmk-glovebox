@@ -46,7 +46,7 @@ class TestUserConfigInitialization:
         mock_adapter.load_config.return_value = {
             "profile": "glove80/v25.05",
             "cache_strategy": "shared",
-            "firmware": {"flash": {"timeout": 30}}
+            "firmware": {"flash": {"timeout": 30}},
         }
         mock_adapter.search_config_files.return_value = (
             sample_config_dict,
@@ -76,7 +76,9 @@ class TestUserConfigInitialization:
         # Should include XDG config paths
         assert any(".config/glovebox" in str(path) for path in config_paths)
 
-    def test_cli_config_path_priority(self, clean_environment, temp_config_dir: Path, mock_config_adapter: Mock):
+    def test_cli_config_path_priority(
+        self, clean_environment, temp_config_dir: Path, mock_config_adapter: Mock
+    ):
         """Test that CLI-provided config path has priority."""
         cli_config_path = temp_config_dir / "cli_config.yml"
 
@@ -149,7 +151,7 @@ class TestUserConfigBaseConfig:
         mock_adapter.load_config.return_value = {
             "profile": "base_keyboard/v1.0",
             "cache_strategy": "shared",
-            "icon_mode": "emoji"
+            "icon_mode": "emoji",
         }
 
         config = UserConfig(config_adapter=mock_adapter)
@@ -168,12 +170,7 @@ class TestUserConfigBaseConfig:
             "profile": "base_keyboard/v1.0",
             "cache_strategy": "shared",
             "icon_mode": "emoji",
-            "firmware": {
-                "flash": {
-                    "timeout": 30,
-                    "verify": True
-                }
-            }
+            "firmware": {"flash": {"timeout": 30, "verify": True}},
         }
 
         # Mock user config that overrides some values
@@ -185,9 +182,12 @@ class TestUserConfigBaseConfig:
                     "timeout": 60
                     # verify not specified - should keep base value
                 }
-            }
+            },
         }
-        mock_adapter.search_config_files.return_value = (user_config, Path("/tmp/user.yml"))
+        mock_adapter.search_config_files.return_value = (
+            user_config,
+            Path("/tmp/user.yml"),
+        )
 
         config = UserConfig(config_adapter=mock_adapter)
 
@@ -207,7 +207,7 @@ class TestUserConfigBaseConfig:
         # Mock base config
         mock_adapter.load_config.return_value = {
             "cache_strategy": "shared",
-            "icon_mode": "emoji"
+            "icon_mode": "emoji",
         }
 
         # Mock empty user config
@@ -228,15 +228,9 @@ class TestUserConfigBaseConfig:
             "cache_ttls": {
                 "compilation_workspace": 3600,
                 "compilation_build": 3600,
-                "layout_diff": 1800
+                "layout_diff": 1800,
             },
-            "firmware": {
-                "flash": {
-                    "timeout": 30,
-                    "verify": True,
-                    "auto_detect": True
-                }
-            }
+            "firmware": {"flash": {"timeout": 30, "verify": True, "auto_detect": True}},
         }
 
         # Mock user config that partially overrides nested values
@@ -250,9 +244,12 @@ class TestUserConfigBaseConfig:
                     "timeout": 120,  # Override this
                     # Keep verify and auto_detect from base
                 }
-            }
+            },
         }
-        mock_adapter.search_config_files.return_value = (user_config, Path("/tmp/user.yml"))
+        mock_adapter.search_config_files.return_value = (
+            user_config,
+            Path("/tmp/user.yml"),
+        )
 
         config = UserConfig(config_adapter=mock_adapter)
 
@@ -271,13 +268,15 @@ class TestUserConfigBaseConfig:
         mock_adapter = Mock()
         mock_adapter.search_config_files.return_value = ({}, None)
         # Mock base config file not existing
-        mock_adapter.load_config.side_effect = FileNotFoundError("Base config not found")
+        mock_adapter.load_config.side_effect = FileNotFoundError(
+            "Base config not found"
+        )
 
         config = UserConfig(config_adapter=mock_adapter)
 
         # Should still work with Pydantic model defaults
         assert config._config.profile == "glove80/v25.05"  # Pydantic default
-        assert config._config.cache_strategy == "shared"   # Pydantic default
+        assert config._config.cache_strategy == "shared"  # Pydantic default
 
 
 class TestUserConfigFileOperations:

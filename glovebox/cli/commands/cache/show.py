@@ -104,7 +104,10 @@ def cache_show(
 
         if cached_workspaces:
             total_workspace_size = sum(
-                (workspace.size_bytes or get_directory_size_bytes(workspace.workspace_path))
+                (
+                    workspace.size_bytes
+                    or get_directory_size_bytes(workspace.workspace_path)
+                )
                 for workspace in cached_workspaces
             )
 
@@ -253,7 +256,9 @@ def cache_show(
 
                             console.print(f"\n[bold]Module '{module}' Details:[/bold]")
                             console.print(f"  • Location: {module_dir}")
-                            console.print(f"  • Size: {format_size_display(module_size)}")
+                            console.print(
+                                f"  • Size: {format_size_display(module_size)}"
+                            )
                             console.print(f"  • Files: {file_count}")
 
                             # Try to get cache manager for this module
@@ -326,7 +331,9 @@ def cache_show(
                             table.add_column("Hit Rate", style="yellow")
                             table.add_column("Path", style="dim")
 
-                            for cache_dir_item in sorted(cache_subdirs)[start_idx:end_idx]:
+                            for cache_dir_item in sorted(cache_subdirs)[
+                                start_idx:end_idx
+                            ]:
                                 module_name = cache_dir_item.name
                                 size = get_directory_size_bytes(cache_dir_item)
                                 file_count = len(list(cache_dir_item.rglob("*")))
@@ -357,7 +364,9 @@ def cache_show(
                             console.print(table)
                         else:
                             # Simple list view
-                            for cache_dir_item in sorted(cache_subdirs)[start_idx:end_idx]:
+                            for cache_dir_item in sorted(cache_subdirs)[
+                                start_idx:end_idx
+                            ]:
                                 module_name = cache_dir_item.name
                                 size = get_directory_size_bytes(cache_dir_item)
                                 console.print(

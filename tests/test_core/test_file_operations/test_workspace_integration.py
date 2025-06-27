@@ -43,7 +43,7 @@ class TestWorkspaceCacheIntegration:
         assert workspace_service.copy_service is not None
 
         # Copy service should be configured from user config
-        assert workspace_service.copy_service.use_pipeline == False
+        assert not workspace_service.copy_service.use_pipeline
         # The new interface doesn't have buffer_size_kb attribute
         # Copy service should be configured appropriately
 
@@ -196,7 +196,7 @@ class TestWorkspaceCacheIntegration:
         )
 
         # Verify copy service uses configured strategy
-        assert service.copy_service.use_pipeline == True
+        assert service.copy_service.use_pipeline
         # Verify pipeline strategy is available
         strategies = service.copy_service.get_strategies()
         assert "pipeline" in strategies

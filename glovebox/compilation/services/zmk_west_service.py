@@ -170,7 +170,10 @@ class WorkspaceSetup:
                     )
                     with workspace_restoration_duration.time():
                         self._restore_cached_workspace(
-                            cached_workspace, workspace_path, progress_callback, progress_coordinator
+                            cached_workspace,
+                            workspace_path,
+                            progress_callback,
+                            progress_coordinator,
                         )
                         self.setup_workspace(
                             keymap_file, config_file, config, workspace_path
@@ -179,7 +182,10 @@ class WorkspaceSetup:
                         cache_operations.labels("restoration", "success").inc()
                 else:
                     self._restore_cached_workspace(
-                        cached_workspace, workspace_path, progress_callback, progress_coordinator
+                        cached_workspace,
+                        workspace_path,
+                        progress_callback,
+                        progress_coordinator,
                     )
                     self.setup_workspace(
                         keymap_file, config_file, config, workspace_path
@@ -443,10 +449,37 @@ class ZmkWestService(CompilationServiceProtocol):
             if cached_build_path:
                 if cache_operations:
                     cache_operations.labels("lookup", "hit").inc()
+
+                # Create progress coordinator for cache restoration display
+                progress_coordinator = None
+                if progress_callback:
+                    from glovebox.cli.components.unified_progress_coordinator import (
+                        create_unified_progress_coordinator,
+                    )
+
+                    progress_coordinator = create_unified_progress_coordinator(
+                        tui_callback=progress_callback,
+                        total_boards=1,  # Not relevant for cache restoration
+                        board_names=[],
+                        total_repositories=1,  # Single cache operation
+                    )
+
+                    # Show cache restoration progress
+                    progress_coordinator.transition_to_phase("cache_restoration", "Restoring cached build")
+                    progress_coordinator.update_cache_progress("restoring", 50, 100, "Loading cached build artifacts")
+
                 self.logger.info(
                     "Found cached build - copying artifacts and skipping compilation"
                 )
+
+                if progress_coordinator:
+                    progress_coordinator.update_cache_progress("copying", 75, 100, "Copying cached artifacts")
+
                 output_files = self._collect_files(cached_build_path, output_dir)
+
+                if progress_coordinator:
+                    progress_coordinator.update_cache_progress("completed", 100, 100, "Cache restoration completed")
+
                 return BuildResult(
                     success=True,
                     output_files=output_files,
@@ -462,10 +495,10 @@ class ZmkWestService(CompilationServiceProtocol):
                 from glovebox.cli.components.unified_progress_coordinator import (
                     create_unified_progress_coordinator,
                 )
-                
+
                 # Extract board information for progress tracking
                 board_info = self._extract_board_info_from_config(config)
-                
+
                 progress_coordinator = create_unified_progress_coordinator(
                     tui_callback=progress_callback,
                     total_boards=board_info["total_boards"],
@@ -473,7 +506,7 @@ class ZmkWestService(CompilationServiceProtocol):
                     total_repositories=39,  # Default repository count
                 )
 
-            # Try to use cached workspace  
+            # Try to use cached workspace
             workspace_path, cache_used, cache_type = (
                 self.workspace_setup.get_or_create_workspace(
                     keymap_file,
@@ -513,14 +546,23 @@ class ZmkWestService(CompilationServiceProtocol):
                     docker_operations.labels("compilation", "failed").inc()
             else:
                 compilation_success = self._run_compilation(
-                    workspace_path, config, cache_used, cache_type, progress_callback, progress_coordinator
+                    workspace_path,
+                    config,
+                    cache_used,
+                    cache_type,
+                    progress_callback,
+                    progress_coordinator,
                 )
 
             # Cache workspace dependencies if it was created fresh (not from cache)
             # As per user request: "we never update the two cache once they are created"
             if not cache_used:
-                self._cache_workspace(workspace_path, config)
+                self._cache_workspace(workspace_path, config, progress_coordinator)
             elif cache_type == "repo_only" and self.workspace_cache_service:
+                # Update progress coordinator for workspace cache saving
+                if progress_coordinator:
+                    progress_coordinator.update_cache_saving("workspace", "Starting workspace cache save")
+
                 cache_result = self.workspace_cache_service.cache_workspace_repo_branch(
                     workspace_path, config.repository, config.branch
                 )
@@ -531,11 +573,15 @@ class ZmkWestService(CompilationServiceProtocol):
                         config.branch,
                         cache_result.workspace_path,
                     )
+                    if progress_coordinator:
+                        progress_coordinator.update_cache_saving("workspace", "Workspace cache saved successfully")
                 else:
                     self.logger.warning(
                         "Failed to cache workspace (repo+branch): %s",
                         cache_result.error_message,
                     )
+                    if progress_coordinator:
+                        progress_coordinator.update_cache_saving("workspace", f"Workspace cache failed: {cache_result.error_message}")
 
             # Always try to collect artifacts, even on build failure (for debugging)
             if self.session_metrics:
@@ -567,7 +613,7 @@ class ZmkWestService(CompilationServiceProtocol):
             )
 
             # Cache the successful build result
-            self._cache_build_result(keymap_file, config_file, config, workspace_path)
+            self._cache_build_result(keymap_file, config_file, config, workspace_path, progress_coordinator)
 
             # Record final compilation metrics
             if self.session_metrics:
@@ -775,10 +821,14 @@ class ZmkWestService(CompilationServiceProtocol):
         self,
         workspace_path: Path,
         config: ZmkCompilationConfig,
+        progress_coordinator: Any = None,
     ) -> None:
         """Cache workspace for future use with new dual-level strategy."""
         if not config.use_cache or not self.workspace_cache_service:
             return
+
+        if progress_coordinator:
+            progress_coordinator.update_cache_saving("workspace", "Starting workspace cache")
 
         # Use SessionMetrics if available
         if self.session_metrics:
@@ -791,12 +841,13 @@ class ZmkWestService(CompilationServiceProtocol):
                 config.repository, config.branch, "cache_workspace"
             ).inc()
 
-        self._cache_workspace_internal(workspace_path, config)
+        self._cache_workspace_internal(workspace_path, config, progress_coordinator)
 
     def _cache_workspace_internal(
         self,
         workspace_path: Path,
         config: ZmkCompilationConfig,
+        progress_coordinator: Any = None,
     ) -> None:
         """Internal method for workspace caching."""
         if not self.workspace_cache_service:
@@ -806,6 +857,9 @@ class ZmkWestService(CompilationServiceProtocol):
         try:
             # Cache at both levels: repo+branch (more specific, excludes .git)
             # and repo-only (less specific, includes .git for branch fetching)
+
+            if progress_coordinator:
+                progress_coordinator.update_cache_saving("workspace", "Caching repo+branch workspace")
 
             # Cache repo+branch level first (most commonly used)
             cache_result = self.workspace_cache_service.cache_workspace_repo_branch(
@@ -819,6 +873,8 @@ class ZmkWestService(CompilationServiceProtocol):
                     config.branch,
                     cache_result.workspace_path,
                 )
+                if progress_coordinator:
+                    progress_coordinator.update_cache_saving("workspace", f"Repo+branch cache saved for {config.repository}@{config.branch}")
                 # Track successful cache operation
                 if self.session_metrics:
                     cache_success = self.session_metrics.Counter(
@@ -832,6 +888,11 @@ class ZmkWestService(CompilationServiceProtocol):
                     "Failed to cache workspace (repo+branch): %s",
                     cache_result.error_message,
                 )
+                if progress_coordinator:
+                    progress_coordinator.update_cache_saving("workspace", f"Repo+branch cache failed: {cache_result.error_message}")
+
+            if progress_coordinator:
+                progress_coordinator.update_cache_saving("workspace", "Caching repo-only workspace")
 
             # Cache repo-only level (for branch fetching scenarios)
             cache_result = self.workspace_cache_service.cache_workspace_repo_only(
@@ -844,6 +905,8 @@ class ZmkWestService(CompilationServiceProtocol):
                     config.repository,
                     cache_result.workspace_path,
                 )
+                if progress_coordinator:
+                    progress_coordinator.update_cache_saving("workspace", f"Repo-only cache saved for {config.repository}")
                 # Track successful cache operation
                 if self.session_metrics:
                     cache_success = self.session_metrics.Counter(
@@ -857,10 +920,14 @@ class ZmkWestService(CompilationServiceProtocol):
                     "Failed to cache workspace (repo-only): %s",
                     cache_result.error_message,
                 )
+                if progress_coordinator:
+                    progress_coordinator.update_cache_saving("workspace", f"Repo-only cache failed: {cache_result.error_message}")
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.warning("Failed to cache workspace: %s", e, exc_info=exc_info)
+            if progress_coordinator:
+                progress_coordinator.update_cache_saving("workspace", f"Workspace cache error: {e}")
 
     def _get_cached_build_result(
         self, keymap_file: Path, config_file: Path, config: ZmkCompilationConfig
@@ -893,10 +960,14 @@ class ZmkWestService(CompilationServiceProtocol):
         config_file: Path,
         config: ZmkCompilationConfig,
         workspace_path: Path,
+        progress_coordinator: Any = None,
     ) -> None:
         """Cache successful build directory for future use."""
         if not config.use_cache or not self.build_cache_service:
             return
+
+        if progress_coordinator:
+            progress_coordinator.update_cache_saving("build", "Starting build result cache")
 
         try:
             # Generate cache key using the build cache service
@@ -907,6 +978,9 @@ class ZmkWestService(CompilationServiceProtocol):
                 keymap_file=keymap_file,
             )
 
+            if progress_coordinator:
+                progress_coordinator.update_cache_saving("build", "Caching build artifacts")
+
             # Cache the workspace build directory (contains all build artifacts)
             success = self.build_cache_service.cache_build_result(
                 workspace_path, cache_key
@@ -914,16 +988,22 @@ class ZmkWestService(CompilationServiceProtocol):
 
             if success:
                 self.logger.info("Cached build result for %s", keymap_file.name)
+                if progress_coordinator:
+                    progress_coordinator.update_cache_saving("build", f"Build cache saved for {keymap_file.name}")
             else:
                 self.logger.warning(
                     "Failed to cache build result for %s", keymap_file.name
                 )
+                if progress_coordinator:
+                    progress_coordinator.update_cache_saving("build", f"Build cache failed for {keymap_file.name}")
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.warning(
                 "Failed to cache build result: %s", e, exc_info=exc_info
             )
+            if progress_coordinator:
+                progress_coordinator.update_cache_saving("build", f"Build cache error: {e}")
 
     def _should_run_west_update(
         self,
@@ -1139,7 +1219,9 @@ class ZmkWestService(CompilationServiceProtocol):
             self.logger.warning("Failed to extract board info: %s", e)
             return {"total_boards": 1, "board_names": []}
 
-    def _extract_board_info_from_config(self, config: ZmkCompilationConfig) -> dict[str, Any]:
+    def _extract_board_info_from_config(
+        self, config: ZmkCompilationConfig
+    ) -> dict[str, Any]:
         """Extract board information from ZmkCompilationConfig for early progress tracking.
 
         Args:
@@ -1153,22 +1235,24 @@ class ZmkWestService(CompilationServiceProtocol):
             if config.build_matrix and config.build_matrix.targets:
                 board_names = [target.board for target in config.build_matrix.targets]
                 total_boards = len(board_names)
-                
+
                 self.logger.info(
                     "Detected %d boards from config: %s",
                     total_boards,
                     ", ".join(board_names),
                 )
-                
+
                 return {
                     "total_boards": total_boards,
                     "board_names": board_names,
                 }
             else:
                 # Fallback to default single board
-                self.logger.info("No build matrix in config, using default single board")
+                self.logger.info(
+                    "No build matrix in config, using default single board"
+                )
                 return {"total_boards": 1, "board_names": []}
-                
+
         except Exception as e:
             self.logger.error("Error extracting board info from config: %s", e)
             return {"total_boards": 1, "board_names": []}

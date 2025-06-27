@@ -8,10 +8,6 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 import requests
 
-from glovebox.moergo.config import (
-    MoErgoCredentialConfig,
-    create_moergo_credential_config,
-)
 from glovebox.moergo.client import (
     APIError,
     AuthenticationError,
@@ -28,6 +24,10 @@ from glovebox.moergo.client import (
 from glovebox.moergo.client.credentials import (
     CredentialManager,
     create_credential_manager,
+)
+from glovebox.moergo.config import (
+    MoErgoCredentialConfig,
+    create_moergo_credential_config,
 )
 
 

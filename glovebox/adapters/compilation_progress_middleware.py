@@ -48,7 +48,9 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
 
         # Initialize coordinator to correct phase
         if skip_west_update:
-            self.progress_coordinator.transition_to_phase("building", "Starting compilation")
+            self.progress_coordinator.transition_to_phase(
+                "building", "Starting compilation"
+            )
 
         # Patterns for parsing different types of output
         self.repo_download_pattern = re.compile(
@@ -61,7 +63,7 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
         )
         # Board-specific patterns
         self.board_detection_pattern = re.compile(r"west build.*-b\s+([a-zA-Z0-9_]+)")
-        self.board_complete_pattern = re.compile(r"TOTAL_FLASH|\.uf2.*generated")
+        self.board_complete_pattern = re.compile(r"Wrote \d+ bytes to zmk\.uf2")
 
     def process(self, line: str, stream_type: str) -> str:
         """Process Docker output line and update compilation progress.
@@ -90,14 +92,18 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
                 logger.info(
                     "Detected build activity, transitioning from west_update to building phase"
                 )
-                self.progress_coordinator.transition_to_phase("building", "Starting compilation")
+                self.progress_coordinator.transition_to_phase(
+                    "building", "Starting compilation"
+                )
 
             # Parse repository downloads during west update
             if self.progress_coordinator.current_phase == "west_update":
                 repo_match = self.repo_download_pattern.match(line_stripped)
                 if repo_match:
                     repository_name = repo_match.group(1)
-                    self.progress_coordinator.update_repository_progress(repository_name)
+                    self.progress_coordinator.update_repository_progress(
+                        repository_name
+                    )
 
             # Parse build progress during building phase
             elif self.progress_coordinator.current_phase == "building":
@@ -105,7 +111,9 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
                 board_match = self.board_detection_pattern.search(line_stripped)
                 if board_match:
                     board_name = board_match.group(1)
-                    self.progress_coordinator.update_board_progress(board_name=board_name)
+                    self.progress_coordinator.update_board_progress(
+                        board_name=board_name
+                    )
 
                 # Check for build progress indicators [xx/xx] Building...
                 build_progress_match = self.build_progress_pattern.search(line_stripped)
@@ -113,32 +121,25 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
                     current_step = int(build_progress_match.group(1))
                     total_steps = int(build_progress_match.group(2))
                     self.progress_coordinator.update_board_progress(
-                        current_step=current_step,
-                        total_steps=total_steps
+                        current_step=current_step, total_steps=total_steps
                     )
 
                 # Check for individual board completion
                 if self.board_complete_pattern.search(line_stripped):
                     self.progress_coordinator.update_board_progress(completed=True)
 
-                # Check for overall build completion indicators
-                if self.build_complete_pattern.search(line_stripped):
-                    # Force completion of all boards and transition to collecting
-                    remaining_boards = (
-                        self.progress_coordinator.total_boards -
-                        self.progress_coordinator.boards_completed
-                    )
-                    if remaining_boards > 0:
-                        self.progress_coordinator.boards_completed = self.progress_coordinator.total_boards
+                # Check for individual board completion (Memory region appears per board)
+                # Only transition when all boards are actually done
+                if (
+                    self.build_complete_pattern.search(line_stripped)
+                    and self.progress_coordinator.boards_completed
+                    >= self.progress_coordinator.total_boards
+                ):
+                    # All boards have completed - now we can transition to collecting
+                    self.progress_coordinator.complete_all_builds()
 
-                    self.progress_coordinator.transition_to_phase("collecting", "Collecting artifacts")
-
-            # Handle artifact collection phase
-            elif self.progress_coordinator.current_phase == "collecting":
-                # Look for artifact-related patterns
-                if ".uf2" in line_stripped.lower() or "generated" in line_stripped.lower():
-                    artifact_info = line_stripped.split()[-1] if line_stripped else "firmware"
-                    self.progress_coordinator.update_artifact_collection(artifact_info)
+            # Cache saving phase is handled by the service layer, not Docker output
+            # No need to track it in the middleware
 
         except Exception as e:
             # Don't let progress tracking break the compilation

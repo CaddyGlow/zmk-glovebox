@@ -107,11 +107,13 @@ class CompilationProgress:
             base_progress = 30.0  # West update completed
             board_weight = 60.0 / self.total_boards if self.total_boards > 0 else 60.0
             completed_boards_progress = self.boards_completed * board_weight
-            current_board_progress = self.current_board_progress_percent * (board_weight / 100.0)
+            current_board_progress = self.current_board_progress_percent * (
+                board_weight / 100.0
+            )
             return base_progress + completed_boards_progress + current_board_progress
-        elif self.compilation_phase == "collecting":
-            # Collecting is 10% of total progress
-            return 90.0 + min(10.0, 10.0)  # Assume collecting completes quickly
+        elif self.compilation_phase == "cache_saving":
+            # Cache saving is 10% of total progress (90% to 100%)
+            return 90.0 + min(10.0, 10.0)  # Show progress from 90% to 100%
         return 0.0
 
 

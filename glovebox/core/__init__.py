@@ -1,9 +1,9 @@
 from .errors import BuildError, ConfigError, FlashError, GloveboxError, KeymapError
 from .logging import (
-    setup_logging,
-    setup_logging_from_config,
     TUILogHandler,
     TUIProgressProtocol,
+    setup_logging,
+    setup_logging_from_config,
 )
 
 

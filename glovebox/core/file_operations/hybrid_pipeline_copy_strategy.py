@@ -165,12 +165,12 @@ class FastPipelineCopyStrategy:
                     try:
                         total += item.stat().st_size
                         count += 1
-                    except:
+                    except OSError:
                         pass
                 elif count >= 100:
                     break
             return total
-        except:
+        except OSError:
             return 0
 
     def _fallback_copy(

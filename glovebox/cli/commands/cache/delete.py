@@ -81,17 +81,23 @@ def cache_delete(
             keys_to_delete = [k for k in all_keys if pattern.lower() in k.lower()]
 
             # For compilation module, provide safety check to prevent workspace deletion
-            if module == "compilation" and pattern.lower() in ["compilation_build", "build"]:
+            if module == "compilation" and pattern.lower() in [
+                "compilation_build",
+                "build",
+            ]:
                 # Filter out workspace keys to prevent accidental deletion
                 workspace_prefixes = ["workspace_repo_", "workspace_repo_branch_"]
                 original_count = len(keys_to_delete)
                 keys_to_delete = [
-                    k for k in keys_to_delete
+                    k
+                    for k in keys_to_delete
                     if not any(k.startswith(prefix) for prefix in workspace_prefixes)
                 ]
                 filtered_count = original_count - len(keys_to_delete)
                 if filtered_count > 0:
-                    console.print(f"[yellow]Filtered out {filtered_count} workspace cache keys for safety[/yellow]")
+                    console.print(
+                        f"[yellow]Filtered out {filtered_count} workspace cache keys for safety[/yellow]"
+                    )
         else:
             console.print("[red]Must specify --keys, --json-file, or --pattern[/red]")
             console.print("[dim]Examples:[/dim]")
