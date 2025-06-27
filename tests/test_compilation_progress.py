@@ -285,7 +285,9 @@ class TestCompilationProgressMiddleware:
 
         # Should have transitioned to building phase
         assert middleware.current_phase == "building"
-        assert mock_callback.call_count == 2  # Two callbacks: transition + build start detection
+        assert (
+            mock_callback.call_count == 2
+        )  # Two callbacks: transition + build start detection
 
     def test_multi_board_progress_tracking(self):
         """Test progress tracking for multi-board builds (split keyboards)."""
@@ -294,7 +296,7 @@ class TestCompilationProgressMiddleware:
             mock_callback,
             total_repositories=39,
             total_boards=2,
-            board_names=["glove80_lh", "glove80_rh"]
+            board_names=["glove80_lh", "glove80_rh"],
         )
 
         # Start in building phase for this test
@@ -327,7 +329,9 @@ class TestCompilationProgressMiddleware:
         assert middleware.current_board_step == 20
 
         # Process final completion
-        middleware.process("Memory region         Used Size  Region Size  %age Used", "stdout")
+        middleware.process(
+            "Memory region         Used Size  Region Size  %age Used", "stdout"
+        )
         assert middleware.boards_completed == 2
         assert middleware.current_phase == "collecting"
 
@@ -341,7 +345,7 @@ class TestCompilationProgressMiddleware:
             mock_callback,
             total_repositories=39,
             total_boards=2,
-            board_names=["glove80_lh", "glove80_rh"]
+            board_names=["glove80_lh", "glove80_rh"],
         )
 
         assert middleware.total_boards == 2

@@ -24,7 +24,7 @@ class TestUserConfigLoggingIntegration:
         """Test that default logging configuration is created."""
         config_data = UserConfigData()
 
-        assert hasattr(config_data, 'logging_config')
+        assert hasattr(config_data, "logging_config")
         assert isinstance(config_data.logging_config, LoggingConfig)
         assert len(config_data.logging_config.handlers) == 1
 
@@ -61,17 +61,16 @@ class TestUserConfigLoggingIntegration:
         )
 
         # Create config with both custom logging and log_level
-        config_data = UserConfigData(
-            logging_config=custom_config,
-            log_level="ERROR"
-        )
+        config_data = UserConfigData(logging_config=custom_config, log_level="ERROR")
 
         # Custom config should be preserved, log_level should be ignored
         assert config_data.log_level is None
         assert len(config_data.logging_config.handlers) == 1
 
         handler = config_data.logging_config.handlers[0]
-        assert handler.level == "INFO"  # Should preserve original, not convert log_level
+        assert (
+            handler.level == "INFO"
+        )  # Should preserve original, not convert log_level
         assert handler.format == LogFormat.DETAILED
 
     def test_user_config_get_log_level_int_single_handler(self, isolated_config):
@@ -230,10 +229,13 @@ class TestUserConfigLoggingIntegration:
 
     def test_environment_variable_override(self, isolated_config):
         """Test that environment variables can override logging config."""
-        with patch.dict('os.environ', {
-            'GLOVEBOX_LOGGING__HANDLERS__0__LEVEL': 'DEBUG',
-            'GLOVEBOX_LOGGING__HANDLERS__0__COLORED': 'false',
-        }):
+        with patch.dict(
+            "os.environ",
+            {
+                "GLOVEBOX_LOGGING__HANDLERS__0__LEVEL": "DEBUG",
+                "GLOVEBOX_LOGGING__HANDLERS__0__COLORED": "false",
+            },
+        ):
             config_data = UserConfigData()
 
             # Environment variables should override defaults
@@ -285,27 +287,29 @@ class TestUserConfigLoggingIntegration:
 
     def test_empty_handlers_validation(self):
         """Test that empty handlers list is rejected."""
-        with pytest.raises(ValueError, match="At least one log handler must be configured"):
-            UserConfigData(
-                logging_config={
-                    "handlers": []
-                }
-            )
+        with pytest.raises(
+            ValueError, match="At least one log handler must be configured"
+        ):
+            UserConfigData(logging_config={"handlers": []})
 
 
 class TestCLIIntegration:
     """Test CLI integration with logging configuration."""
 
-    @patch('glovebox.core.logging.setup_logging_from_config')
-    @patch('glovebox.core.logging.setup_logging')
-    def test_cli_uses_config_when_no_flags(self, mock_setup_logging, mock_setup_from_config, isolated_cli_environment):
+    @patch("glovebox.core.logging.setup_logging_from_config")
+    @patch("glovebox.core.logging.setup_logging")
+    def test_cli_uses_config_when_no_flags(
+        self, mock_setup_logging, mock_setup_from_config, isolated_cli_environment
+    ):
         """Test that CLI uses config-based logging when no flags are provided."""
         from glovebox.cli.app import _process_global_options
         from glovebox.config import create_user_config
 
         # Create app context with custom logging config
-        app_context = type('AppContext', (), {})()
-        app_context.user_config = create_user_config(isolated_cli_environment.config_file)
+        app_context = type("AppContext", (), {})()
+        app_context.user_config = create_user_config(
+            isolated_cli_environment.config_file
+        )
         app_context.user_config._config.logging_config = LoggingConfig(
             handlers=[
                 LogHandlerConfig(
@@ -318,63 +322,65 @@ class TestCLIIntegration:
         )
 
         # Mock context object
-        ctx = type('Context', (), {'obj': app_context})()
+        ctx = type("Context", (), {"obj": app_context})()
 
         # Call with no CLI overrides
         _process_global_options(
-            ctx=ctx,
-            debug=False,
-            verbose=0,
-            log_file=None,
-            app_context=app_context
+            ctx=ctx, debug=False, verbose=0, log_file=None, app_context=app_context
         )
 
         # Should use config-based logging
-        mock_setup_from_config.assert_called_once_with(app_context.user_config._config.logging_config)
+        mock_setup_from_config.assert_called_once_with(
+            app_context.user_config._config.logging_config
+        )
         mock_setup_logging.assert_not_called()
 
-    @patch('glovebox.core.logging.setup_logging_from_config')
-    @patch('glovebox.core.logging.setup_logging')
-    def test_cli_uses_legacy_when_flags_provided(self, mock_setup_logging, mock_setup_from_config, isolated_cli_environment):
+    @patch("glovebox.core.logging.setup_logging_from_config")
+    @patch("glovebox.core.logging.setup_logging")
+    def test_cli_uses_legacy_when_flags_provided(
+        self, mock_setup_logging, mock_setup_from_config, isolated_cli_environment
+    ):
         """Test that CLI uses legacy logging when flags are provided."""
         from glovebox.cli.app import _process_global_options
         from glovebox.config import create_user_config
 
         # Create app context
-        app_context = type('AppContext', (), {})()
-        app_context.user_config = create_user_config(isolated_cli_environment.config_file)
+        app_context = type("AppContext", (), {})()
+        app_context.user_config = create_user_config(
+            isolated_cli_environment.config_file
+        )
 
         # Mock context object
-        ctx = type('Context', (), {'obj': app_context})()
+        ctx = type("Context", (), {"obj": app_context})()
 
         # Call with debug flag (CLI override)
         _process_global_options(
-            ctx=ctx,
-            debug=True,
-            verbose=0,
-            log_file=None,
-            app_context=app_context
+            ctx=ctx, debug=True, verbose=0, log_file=None, app_context=app_context
         )
 
         # Should use legacy logging with DEBUG level
         mock_setup_logging.assert_called_once()
         args, kwargs = mock_setup_logging.call_args
-        assert kwargs.get('level') == logging.DEBUG or args[0] == logging.DEBUG
+        assert kwargs.get("level") == logging.DEBUG or args[0] == logging.DEBUG
         mock_setup_from_config.assert_not_called()
 
-    @patch('glovebox.core.logging.setup_logging_from_config')
-    @patch('glovebox.core.logging.setup_logging')
-    def test_cli_uses_legacy_when_log_file_provided(self, mock_setup_logging, mock_setup_from_config, isolated_cli_environment):
+    @patch("glovebox.core.logging.setup_logging_from_config")
+    @patch("glovebox.core.logging.setup_logging")
+    def test_cli_uses_legacy_when_log_file_provided(
+        self, mock_setup_logging, mock_setup_from_config, isolated_cli_environment
+    ):
         """Test that CLI uses legacy logging when log file is provided."""
         from glovebox.cli.app import _process_global_options
         from glovebox.config import create_user_config
 
         # Create app context
-        app_context = type('AppContext', (), {})()
-        app_context.user_config = create_user_config(isolated_cli_environment.config_file)
+        app_context = type("AppContext", (), {})()
+        app_context.user_config = create_user_config(
+            isolated_cli_environment.config_file
+        )
 
         # Mock context object
-        ctx = type('Context', (), {'obj': app_context})()
+        ctx = type("Context", (), {"obj": app_context})()
 
         # Call with log file (CLI override)
         _process_global_options(
@@ -382,13 +388,13 @@ class TestCLIIntegration:
             debug=False,
             verbose=0,
             log_file="/tmp/test.log",
-            app_context=app_context
+            app_context=app_context,
         )
 
         # Should use legacy logging with log file
         mock_setup_logging.assert_called_once()
         args, kwargs = mock_setup_logging.call_args
-        assert kwargs.get('log_file') == "/tmp/test.log"
+        assert kwargs.get("log_file") == "/tmp/test.log"
         mock_setup_from_config.assert_not_called()
 
 

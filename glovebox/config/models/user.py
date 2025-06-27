@@ -12,11 +12,11 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 # Import for icon mode enum
 from glovebox.cli.helpers.theme import IconMode
+from glovebox.moergo.config import MoErgoServiceConfig, create_default_moergo_config
 
 from .cache import CacheTTLConfig
 from .firmware import UserFirmwareConfig
 from .logging import LoggingConfig, create_default_logging_config
-from glovebox.moergo.config import MoErgoServiceConfig, create_default_moergo_config
 
 
 if TYPE_CHECKING:

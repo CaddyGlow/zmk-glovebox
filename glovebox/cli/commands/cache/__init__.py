@@ -11,9 +11,9 @@ cache_app = typer.Typer(help="Cache management commands")
 
 def register_cache_commands(app: typer.Typer) -> None:
     """Register all cache commands with the main app following CLAUDE.md patterns.
-    
+
     This function follows the clean registration pattern described in CLAUDE.md:
-    - Modular CLI structure with focused command modules  
+    - Modular CLI structure with focused command modules
     - Single responsibility per module
     - Consistent registration patterns
     - All modules under 500 lines

@@ -193,5 +193,7 @@ def cache_clear(
         logger.error("Failed to clear cache: %s", e)
 
         icon_mode = "emoji"
-        typer.echo(format_icon_with_message("ERROR", f"Error: {e}", icon_mode), err=True)
+        typer.echo(
+            format_icon_with_message("ERROR", f"Error: {e}", icon_mode), err=True
+        )
         raise typer.Exit(1) from e

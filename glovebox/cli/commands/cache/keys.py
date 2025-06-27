@@ -176,7 +176,9 @@ def cache_keys(
 
                                         row_data.extend(
                                             [
-                                                format_size_display(key_metadata.size_bytes),
+                                                format_size_display(
+                                                    key_metadata.size_bytes
+                                                ),
                                                 age_str,
                                                 str(key_metadata.access_count),
                                                 ttl_str,

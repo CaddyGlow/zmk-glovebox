@@ -51,7 +51,9 @@ def get_console() -> Console:
     return Console()
 
 
-def format_icon_with_message(icon_name: str, message: str, icon_mode: str = "emoji") -> str:
+def format_icon_with_message(
+    icon_name: str, message: str, icon_mode: str = "emoji"
+) -> str:
     """Format message with icon using the theme system."""
     return Icons.format_with_icon(icon_name, message, icon_mode)
 
@@ -61,7 +63,9 @@ def get_icon(icon_name: str, icon_mode: str = "emoji") -> str:
     return Icons.get_icon(icon_name, icon_mode)
 
 
-def log_error_with_debug_stack(logger_instance: logging.Logger, message: str, exception: Exception) -> None:
+def log_error_with_debug_stack(
+    logger_instance: logging.Logger, message: str, exception: Exception
+) -> None:
     """Log error with debug-aware stack trace following CLAUDE.md pattern."""
     exc_info = logger_instance.isEnabledFor(logging.DEBUG)
     logger_instance.error(message, exception, exc_info=exc_info)

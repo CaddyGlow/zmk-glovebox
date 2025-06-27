@@ -22,51 +22,43 @@ except ImportError:
 
 
 class TUIProgressProtocol(Protocol):
-    """Protocol for TUI progress managers that can display logs."""
+    """Protocol for TUI progress managers (simplified - no log display)."""
 
-    def add_log(self, level: str, message: str) -> None:
-        """Add a log message to the TUI display.
-
-        Args:
-            level: Log level (debug, info, warning, error, critical)
-            message: Log message to display
-        """
-        ...
+    pass
 
 
 class TUILogHandler(logging.Handler):
-    """Thread-based async log handler that forwards logs to TUI progress display.
+    """Simplified TUI log handler that consumes logs without display.
 
-    This handler uses a background thread and queue to avoid blocking the main
-    thread while forwarding log messages to a TUI progress display. Follows
-    CLAUDE.md principles of simplicity and pragmatic design.
+    This handler maintains compatibility with existing TUI logging configuration
+    but doesn't forward logs to display since we simplified the TUI to show only
+    progress. Logs still go to their other configured handlers (file, console, etc.).
     """
 
     def __init__(
         self,
-        progress_manager: TUIProgressProtocol | None = None,
+        progress_manager: TUIProgressProtocol | None = None,  # Kept for compatibility
         level: int = logging.NOTSET,
     ) -> None:
         """Initialize TUI log handler.
 
         Args:
-            progress_manager: Progress manager that implements TUIProgressProtocol
+            progress_manager: Progress manager (kept for compatibility, not used)
             level: Minimum log level to handle
         """
         super().__init__(level)
-        self.progress_manager = progress_manager
         self.log_queue: queue.Queue[tuple[str, str]] = queue.Queue(maxsize=1000)
         self.stop_event = threading.Event()
         self.worker_thread: threading.Thread | None = None
         self._setup_worker()
 
     def set_progress_manager(self, progress_manager: TUIProgressProtocol) -> None:
-        """Set or update the progress manager for log display.
+        """Set or update the progress manager (kept for compatibility, not used).
 
         Args:
-            progress_manager: Progress manager that implements TUIProgressProtocol
+            progress_manager: Progress manager (ignored in simplified implementation)
         """
-        self.progress_manager = progress_manager
+        pass  # No-op since we don't use progress manager anymore
 
     def _setup_worker(self) -> None:
         """Set up the background worker thread for async log processing."""
@@ -84,9 +76,9 @@ class TUILogHandler(logging.Handler):
                 # Get log message with timeout
                 level, message = self.log_queue.get(timeout=0.1)
 
-                # Forward to progress manager if available
-                if self.progress_manager:
-                    self.progress_manager.add_log(level, message)
+                # Since we simplified the TUI to not show logs, just consume the queue
+                # The logs will still go to their other configured handlers (file, console, etc.)
+                # No need to forward to progress manager anymore
 
                 # Mark task as done
                 self.log_queue.task_done()
