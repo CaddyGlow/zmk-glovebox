@@ -22,6 +22,7 @@ from glovebox.core.file_operations import (
 )
 from glovebox.protocols import FileAdapterProtocol, MetricsProtocol
 
+
 if TYPE_CHECKING:
     from glovebox.cli.components.unified_progress_coordinator import (
         UnifiedCompilationProgressCoordinator,

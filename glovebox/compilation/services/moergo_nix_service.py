@@ -24,7 +24,11 @@ from glovebox.firmware.models import (
 )
 from glovebox.models.docker import DockerUserContext
 from glovebox.models.docker_path import DockerPath
-from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol, MetricsProtocol
+from glovebox.protocols import (
+    DockerAdapterProtocol,
+    FileAdapterProtocol,
+    MetricsProtocol,
+)
 from glovebox.utils.build_log_middleware import create_build_log_middleware
 from glovebox.utils.stream_process import (
     DefaultOutputMiddleware,
@@ -114,7 +118,7 @@ class MoergoNixService(CompilationServiceProtocol):
         keymap_file: Path,
         config_file: Path,
         output_dir: Path,
-        config: MoergoCompilationConfig,
+        config: CompilationConfigUnion,
         keyboard_profile: "KeyboardProfile",
         progress_callback: CompilationProgressCallback | None = None,
         json_file: Path | None = None,
@@ -142,7 +146,9 @@ class MoergoNixService(CompilationServiceProtocol):
                 )
 
                 # Start with building phase since MoErgo doesn't do workspace setup like ZMK
-                progress_coordinator.transition_to_phase("building", "Starting MoErgo compilation")
+                progress_coordinator.transition_to_phase(
+                    "building", "Starting MoErgo compilation"
+                )
 
             workspace_path = self._setup_workspace(
                 keymap_file, config_file, keyboard_profile
@@ -166,6 +172,8 @@ class MoergoNixService(CompilationServiceProtocol):
             # Create build-info.json in artifacts directory
             if output_files.artifacts_dir:
                 try:
+                    import time
+
                     # Calculate compilation duration
                     compilation_duration = time.time() - compilation_start_time
 

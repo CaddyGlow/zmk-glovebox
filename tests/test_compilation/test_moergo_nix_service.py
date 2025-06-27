@@ -12,6 +12,8 @@ from glovebox.compilation.services.moergo_nix_service import (
     MoergoNixService,
     create_moergo_nix_service,
 )
+from glovebox.core.cache import create_default_cache
+from glovebox.core.metrics.session_metrics import SessionMetrics
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.models.docker import DockerUserContext
 from glovebox.models.docker_path import DockerPath
@@ -40,11 +42,21 @@ def mock_file_adapter():
 
 
 @pytest.fixture
-def moergo_service(mock_docker_adapter, mock_file_adapter):
+def mock_session_metrics():
+    """Create a mock session metrics for testing."""
+    cache_manager = create_default_cache(tag="test")
+    return SessionMetrics(
+        cache_manager=cache_manager, session_uuid="test-session"
+    )
+
+
+@pytest.fixture
+def moergo_service(mock_docker_adapter, mock_file_adapter, mock_session_metrics):
     """Create a MoergoNixService with mocked dependencies."""
     return MoergoNixService(
         docker_adapter=mock_docker_adapter,
         file_adapter=mock_file_adapter,
+        session_metrics=mock_session_metrics,
     )
 
 
@@ -123,10 +135,10 @@ class TestMoergoNixServiceInit:
         assert isinstance(moergo_service.logger, logging.Logger)
 
     def test_create_moergo_nix_service_factory(
-        self, mock_docker_adapter, mock_file_adapter
+        self, mock_docker_adapter, mock_file_adapter, mock_session_metrics
     ):
         """Test factory function creates service correctly."""
-        service = create_moergo_nix_service(mock_docker_adapter, mock_file_adapter)
+        service = create_moergo_nix_service(mock_docker_adapter, mock_file_adapter, mock_session_metrics)
 
         assert isinstance(service, MoergoNixService)
         assert service.docker_adapter is mock_docker_adapter
@@ -175,6 +187,7 @@ class TestMoergoNixServiceBasicMethods:
         service = MoergoNixService(
             docker_adapter=None,  # type: ignore[arg-type]
             file_adapter=None,  # type: ignore[arg-type]
+            session_metrics=Mock(),  # type: ignore[arg-type]
         )
 
         result = service.check_available()
