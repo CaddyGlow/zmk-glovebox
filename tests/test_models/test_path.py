@@ -69,14 +69,14 @@ class TestPreservingPath:
         """Test that PreservingPath behaves like a normal Path for basic operations."""
         original = "~/test/path"
         preserving_path = PreservingPath(original)
-        
+
         # Should resolve like a normal Path
         expected = Path(original).expanduser().resolve()
         assert str(preserving_path) == str(expected)
-        
+
         # Should preserve original notation
         assert preserving_path.original == original
-        
+
         # Should support Path operations
         assert preserving_path.name == "path"
         assert preserving_path.parent.name == "test"
@@ -86,10 +86,10 @@ class TestPreservingPath:
         """Test that tilde expansion works correctly."""
         original = "~/Documents/test.txt"
         preserving_path = PreservingPath(original)
-        
+
         # Original should be preserved
         assert preserving_path.original == original
-        
+
         # Resolved path should expand tilde
         expected = Path.home() / "Documents" / "test.txt"
         assert preserving_path == expected
@@ -100,14 +100,14 @@ class TestPreservingPath:
         original_env = os.environ.get("XDG_CACHE_HOME")
         if "XDG_CACHE_HOME" in os.environ:
             del os.environ["XDG_CACHE_HOME"]
-        
+
         try:
             original = "$XDG_CACHE_HOME/glovebox"
             preserving_path = PreservingPath(original)
-            
+
             # Original should be preserved
             assert preserving_path.original == original
-            
+
             # Should fallback to ~/.cache/glovebox
             expected = Path.home() / ".cache" / "glovebox"
             assert preserving_path == expected
@@ -123,10 +123,10 @@ class TestPreservingPath:
             try:
                 original = "$XDG_CACHE_HOME/glovebox"
                 preserving_path = PreservingPath(original)
-                
+
                 # Original should be preserved
                 assert preserving_path.original == original
-                
+
                 # Should expand to temp directory
                 expected = Path(temp_dir) / "glovebox"
                 assert preserving_path == expected
@@ -140,14 +140,14 @@ class TestPreservingPath:
         original_env = os.environ.get("XDG_CONFIG_HOME")
         if "XDG_CONFIG_HOME" in os.environ:
             del os.environ["XDG_CONFIG_HOME"]
-        
+
         try:
             original = "$XDG_CONFIG_HOME/glovebox"
             preserving_path = PreservingPath(original)
-            
+
             # Original should be preserved
             assert preserving_path.original == original
-            
+
             # Should fallback to ~/.config/glovebox
             expected = Path.home() / ".config" / "glovebox"
             assert preserving_path == expected
@@ -160,14 +160,14 @@ class TestPreservingPath:
         original_env = os.environ.get("XDG_DATA_HOME")
         if "XDG_DATA_HOME" in os.environ:
             del os.environ["XDG_DATA_HOME"]
-        
+
         try:
             original = "$XDG_DATA_HOME/glovebox"
             preserving_path = PreservingPath(original)
-            
+
             # Original should be preserved
             assert preserving_path.original == original
-            
+
             # Should fallback to ~/.local/share/glovebox
             expected = Path.home() / ".local" / "share" / "glovebox"
             assert preserving_path == expected
@@ -179,15 +179,15 @@ class TestPreservingPath:
         """Test expansion of regular environment variables."""
         test_var = "TEST_PATH_VAR"
         test_value = "/tmp/test"
-        
+
         os.environ[test_var] = test_value
         try:
             original = f"${test_var}/subdir"
             preserving_path = PreservingPath(original)
-            
+
             # Original should be preserved
             assert preserving_path.original == original
-            
+
             # Should expand environment variable
             expected = Path(test_value) / "subdir"
             assert preserving_path == expected
@@ -200,14 +200,14 @@ class TestPreservingPath:
         # Test with existing Path
         existing_path = Path("/tmp/test")
         preserving_path = PreservingPath.from_path(existing_path)
-        
+
         assert preserving_path.original == "/tmp/test"
         assert preserving_path == existing_path.resolve()
-        
+
         # Test with custom original
         custom_original = "~/test"
         preserving_path = PreservingPath.from_path(existing_path, custom_original)
-        
+
         assert preserving_path.original == custom_original
         assert preserving_path == existing_path.resolve()
 
@@ -215,10 +215,10 @@ class TestPreservingPath:
         """Test that PreservingPath compares correctly with other paths."""
         preserving_path = PreservingPath("~/test")
         regular_path = Path("~/test").expanduser().resolve()
-        
+
         # Should be equal to resolved regular Path
         assert preserving_path == regular_path
-        
+
         # Should be equal to other PreservingPath with same resolved path
         other_preserving = PreservingPath.from_path(regular_path, "different/original")
         assert preserving_path == other_preserving
@@ -227,10 +227,10 @@ class TestPreservingPath:
         """Test string representations."""
         original = "~/test"
         preserving_path = PreservingPath(original)
-        
+
         # repr should show original
         assert repr(preserving_path) == f"PreservingPath('{original}')"
-        
+
         # str should show resolved path
         expected_str = str(Path(original).expanduser().resolve())
         assert str(preserving_path) == expected_str
@@ -243,33 +243,30 @@ class TestExamplePathModel:
         """Test that model serialization preserves original path notation."""
         model = ExamplePathModel(
             file_path=PreservingPath("~/logs/app.log"),
-            cache_path=PreservingPath("$XDG_CACHE_HOME/myapp")
+            cache_path=PreservingPath("$XDG_CACHE_HOME/myapp"),
         )
-        
+
         # Serialize to dict
         data = model.model_dump(mode="json")
-        
+
         # Should preserve original notation
         assert data["file_path"] == "~/logs/app.log"
         assert data["cache_path"] == "$XDG_CACHE_HOME/myapp"
 
     def test_model_deserialization_from_strings(self):
         """Test that model can be created from string paths."""
-        data = {
-            "file_path": "~/logs/debug.log",
-            "cache_path": "$XDG_CACHE_HOME/test"
-        }
-        
+        data = {"file_path": "~/logs/debug.log", "cache_path": "$XDG_CACHE_HOME/test"}
+
         model = ExamplePathModel.model_validate(data)
-        
+
         # Should create PreservingPath objects
         assert isinstance(model.file_path, PreservingPath)
         assert isinstance(model.cache_path, PreservingPath)
-        
+
         # Should preserve original notation
         assert model.file_path.original == "~/logs/debug.log"
         assert model.cache_path.original == "$XDG_CACHE_HOME/test"
-        
+
         # Should resolve paths correctly
         expected_file = Path("~/logs/debug.log").expanduser().resolve()
         assert model.file_path == expected_file
@@ -278,38 +275,38 @@ class TestExamplePathModel:
         """Test that serialization and deserialization preserves original notation."""
         original_data = {
             "file_path": "~/config/app.conf",
-            "cache_path": "$XDG_CACHE_HOME/app"
+            "cache_path": "$XDG_CACHE_HOME/app",
         }
-        
+
         # Create model from data
         model = ExamplePathModel.model_validate(original_data)
-        
+
         # Serialize back to dict
         serialized = model.model_dump(mode="json")
-        
+
         # Should preserve original notation
         assert serialized["file_path"] == original_data["file_path"]
         assert serialized["cache_path"] == original_data["cache_path"]
-        
+
         # Create new model from serialized data
         model2 = ExamplePathModel.model_validate(serialized)
-        
+
         # Should be equivalent
         assert model2.file_path == model.file_path
         assert model2.cache_path == model.cache_path
+        assert model2.file_path is not None and model.file_path is not None
         assert model2.file_path.original == model.file_path.original
         assert model2.cache_path.original == model.cache_path.original
 
     def test_model_with_none_file_path(self):
         """Test model behavior with None file_path."""
         model = ExamplePathModel(
-            file_path=None,
-            cache_path=PreservingPath("~/.cache/test")
+            file_path=None, cache_path=PreservingPath("~/.cache/test")
         )
-        
+
         # Serialize to dict
         data = model.model_dump(mode="json")
-        
+
         # Should handle None correctly
         assert data["file_path"] is None
         assert data["cache_path"] == "~/.cache/test"
@@ -318,12 +315,12 @@ class TestExamplePathModel:
         """Test that invalid path types raise validation errors."""
         with pytest.raises(ValueError, match="Invalid file path type"):
             ExamplePathModel(
-                file_path=123,  # Invalid type
-                cache_path=PreservingPath("~/.cache/test")
+                file_path=123,  # type: ignore[arg-type]  # Invalid type for testing
+                cache_path=PreservingPath("~/.cache/test"),
             )
-        
+
         with pytest.raises(ValueError, match="Invalid cache path type"):
             ExamplePathModel(
                 file_path=None,
-                cache_path=123  # Invalid type
+                cache_path=123,  # type: ignore[arg-type]  # Invalid type for testing
             )

@@ -90,10 +90,13 @@ class ZmkWestService(CompilationServiceProtocol):
         )
 
         # Initialize services
-        self.workspace_setup_service = workspace_setup_service or create_workspace_setup_service(
-            file_adapter=file_adapter,
-            session_metrics=session_metrics,
-            copy_service=self.copy_service,
+        self.workspace_setup_service = (
+            workspace_setup_service
+            or create_workspace_setup_service(
+                file_adapter=file_adapter,
+                session_metrics=session_metrics,
+                copy_service=self.copy_service,
+            )
         )
 
         self.cache_service = cache_service or create_zmk_cache_service(
@@ -321,8 +324,12 @@ class ZmkWestService(CompilationServiceProtocol):
             # Cache workspace dependencies if it was created fresh (not from cache)
             # As per user request: "we never update the two cache once they are created"
             if not cache_used:
-                self.cache_service.cache_workspace(workspace_path, config, progress_coordinator)
-            elif cache_type == "repo_only" and self.cache_service.workspace_cache_service:
+                self.cache_service.cache_workspace(
+                    workspace_path, config, progress_coordinator
+                )
+            elif (
+                cache_type == "repo_only" and self.cache_service.workspace_cache_service
+            ):
                 # Update progress coordinator for workspace cache saving
                 self.cache_service.cache_workspace_repo_branch_only(
                     workspace_path, config, progress_coordinator

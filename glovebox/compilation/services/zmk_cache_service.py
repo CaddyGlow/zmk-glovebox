@@ -15,6 +15,7 @@ from glovebox.config.user_config import UserConfig
 from glovebox.core.cache.cache_manager import CacheManager
 from glovebox.protocols import MetricsProtocol
 
+
 if TYPE_CHECKING:
     from glovebox.cli.components.unified_progress_coordinator import (
         UnifiedCompilationProgressCoordinator,

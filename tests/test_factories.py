@@ -200,12 +200,14 @@ def create_layout_layer_service_for_tests(file_adapter=None):
     return create_layout_layer_service(file_adapter)
 
 
-def create_moergo_nix_service_for_tests(docker_adapter=None, file_adapter=None):
+def create_moergo_nix_service_for_tests(docker_adapter=None, file_adapter=None, session_metrics=None):
     """Create a MoergoNixService with test-friendly defaults."""
     from glovebox.adapters import create_docker_adapter, create_file_adapter
     from glovebox.compilation.services.moergo_nix_service import (
         create_moergo_nix_service,
     )
+    from glovebox.core.cache import create_default_cache
+    from glovebox.core.metrics.session_metrics import SessionMetrics
 
     if docker_adapter is None:
         docker_adapter = create_docker_adapter()
@@ -213,7 +215,13 @@ def create_moergo_nix_service_for_tests(docker_adapter=None, file_adapter=None):
     if file_adapter is None:
         file_adapter = create_file_adapter()
 
-    return create_moergo_nix_service(docker_adapter, file_adapter)
+    if session_metrics is None:
+        cache_manager = create_default_cache(tag="test")
+        session_metrics = SessionMetrics(
+            cache_manager=cache_manager, session_uuid="test-session"
+        )
+
+    return create_moergo_nix_service(docker_adapter, file_adapter, session_metrics)
 
 
 def create_zmk_west_service_for_tests(

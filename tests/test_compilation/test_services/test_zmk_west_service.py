@@ -89,8 +89,9 @@ class TestZmkWestServiceIntegration:
         )
 
         assert service is not None
-        assert service.workspace_cache_service is not None
-        assert service.build_cache_service is not None
+        assert service.cache_service is not None
+        assert service.cache_service.workspace_cache_service is not None
+        assert service.cache_service.build_cache_service is not None
         assert service.cache_manager is cache_manager
 
     def test_cache_disabled_compilation(
@@ -130,7 +131,7 @@ class TestZmkWestServiceIntegration:
             output_dir = Path(temp_dir)
 
             # Should not use cache when disabled
-            cached_workspace, cache_used, cache_type = service._get_cached_workspace(
+            cached_workspace, cache_used, cache_type = service.cache_service.get_cached_workspace(
                 config
             )
             assert cached_workspace is None
@@ -158,7 +159,7 @@ class TestZmkWestServiceIntegration:
         )
 
         # First call should be cache miss
-        cached_workspace, cache_used, cache_type = service._get_cached_workspace(
+        cached_workspace, cache_used, cache_type = service.cache_service.get_cached_workspace(
             zmk_config
         )
         assert cached_workspace is None
@@ -180,10 +181,10 @@ class TestZmkWestServiceIntegration:
             zephyr_dir.mkdir()
 
             # Cache the workspace
-            service._cache_workspace(workspace_path, zmk_config)
+            service.cache_service.cache_workspace(workspace_path, zmk_config)
 
             # Second call should be cache hit
-            cached_workspace, cache_used, cache_type = service._get_cached_workspace(
+            cached_workspace, cache_used, cache_type = service.cache_service.get_cached_workspace(
                 zmk_config
             )
             assert cached_workspace is not None
@@ -214,7 +215,7 @@ class TestZmkWestServiceIntegration:
         )
 
         # First call should be cache miss
-        cached_build = service._get_cached_build_result(
+        cached_build = service.cache_service.get_cached_build_result(
             keymap_file, config_file, zmk_config
         )
         assert cached_build is None
@@ -228,12 +229,12 @@ class TestZmkWestServiceIntegration:
             (build_path / "zmk.hex").write_text("fake hex")
 
             # Cache the build result
-            service._cache_build_result(
+            service.cache_service.cache_build_result(
                 keymap_file, config_file, zmk_config, build_path
             )
 
             # Second call should be cache hit
-            cached_build = service._get_cached_build_result(
+            cached_build = service.cache_service.get_cached_build_result(
                 keymap_file, config_file, zmk_config
             )
             assert cached_build is not None

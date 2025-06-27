@@ -121,14 +121,14 @@ def create_zmk_west_service(
 def create_moergo_nix_service(
     docker_adapter: "DockerAdapterProtocol",
     file_adapter: "FileAdapterProtocol",
-    session_metrics: "SessionMetrics | None" = None,
+    session_metrics: "SessionMetrics",
 ) -> CompilationServiceProtocol:
     r"""Create simplified Moergo compilation service with explicit dependencies.
 
     Args:
         docker_adapter: Required DockerAdapter instance
         file_adapter: Required FileAdapter instance
-        session_metrics: Optional SessionMetrics instance for metrics integration
+        session_metrics: SessionMetrics instance for metrics integration
 
     Returns:
         CompilationServiceProtocol: Moergo compilation service
@@ -137,7 +137,7 @@ def create_moergo_nix_service(
         create_moergo_nix_service,
     )
 
-    return create_moergo_nix_service(docker_adapter, file_adapter)
+    return create_moergo_nix_service(docker_adapter, file_adapter, session_metrics)
 
 
 __all__ = [
@@ -147,4 +147,7 @@ __all__ = [
     "create_compilation_service",
     "create_zmk_west_service",
     "create_moergo_nix_service",
+    # Additional services can be imported directly from their modules
+    # "create_workspace_setup_service",
+    # "create_zmk_cache_service",
 ]
