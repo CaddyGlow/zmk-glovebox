@@ -21,6 +21,7 @@ from glovebox.adapters.config_file_adapter import (
 from glovebox.config.models import UserConfigData
 from glovebox.core.errors import ConfigError
 from glovebox.core.logging import get_logger
+from glovebox.models.path import PreservingPath
 
 
 logger = get_logger(__name__)
@@ -299,7 +300,8 @@ class UserConfig:
         Returns:
             List of Path objects for user keyboard configurations
         """
-        return [path.expanduser() for path in self._config.profiles_paths]
+        # PreservingPath already expands, so just return as Path objects
+        return [Path(path) for path in self._config.profiles_paths]
 
     def add_keyboard_path(self, path: str | Path) -> None:
         """
@@ -313,7 +315,7 @@ class UserConfig:
 
         if path_obj not in current_paths:
             # Add to the list
-            self._config.profiles_paths.append(Path(path))
+            self._config.profiles_paths.append(PreservingPath(str(path)))
             self._config_sources["keyboard_paths"] = "runtime"
 
     def remove_keyboard_path(self, path: str | Path) -> None:
@@ -323,14 +325,13 @@ class UserConfig:
         Args:
             path: The path to remove
         """
-        path_obj = Path(path)
-        # Remove from list if present
-        try:
-            self._config.profiles_paths.remove(path_obj)
-            self._config_sources["keyboard_paths"] = "runtime"
-        except ValueError:
-            # Path not in list, do nothing
-            pass
+        # Find and remove the path by comparing resolved paths
+        path_to_remove = Path(path).resolve()
+        for i, existing_path in enumerate(self._config.profiles_paths):
+            if Path(existing_path).resolve() == path_to_remove:
+                self._config.profiles_paths.pop(i)
+                self._config_sources["keyboard_paths"] = "runtime"
+                break
 
     def reset_to_defaults(self) -> None:
         """Reset the configuration to default values."""

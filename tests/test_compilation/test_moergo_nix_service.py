@@ -633,7 +633,9 @@ class TestMoergoNixServiceRunCompilation:
             mock_user.enable_user_mapping = False
             mock_detect_user.return_value = mock_user
 
-            result = service._run_compilation(workspace_path, sample_moergo_config, tmp_path / "output")
+            result = service._run_compilation(
+                workspace_path, sample_moergo_config, tmp_path / "output"
+            )
 
             assert result is True
 
@@ -663,7 +665,9 @@ class TestMoergoNixServiceRunCompilation:
         with patch.object(service, "_ensure_docker_image") as mock_ensure:
             mock_ensure.return_value = False
 
-            result = service._run_compilation(workspace_path, sample_moergo_config, tmp_path / "output")
+            result = service._run_compilation(
+                workspace_path, sample_moergo_config, tmp_path / "output"
+            )
 
             assert result is False
 
@@ -695,7 +699,9 @@ class TestMoergoNixServiceRunCompilation:
             mock_user.gid = 1000
             mock_detect_user.return_value = mock_user
 
-            result = service._run_compilation(workspace_path, sample_moergo_config, tmp_path / "output")
+            result = service._run_compilation(
+                workspace_path, sample_moergo_config, tmp_path / "output"
+            )
 
             assert result is False
 
@@ -716,7 +722,9 @@ class TestMoergoNixServiceRunCompilation:
         with patch.object(service, "_ensure_docker_image") as mock_ensure:
             mock_ensure.side_effect = Exception("Docker error")
 
-            result = service._run_compilation(workspace_path, sample_moergo_config, tmp_path / "output")
+            result = service._run_compilation(
+                workspace_path, sample_moergo_config, tmp_path / "output"
+            )
 
             assert result is False
 

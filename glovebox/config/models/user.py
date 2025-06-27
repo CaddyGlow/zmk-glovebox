@@ -12,6 +12,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 # Import for icon mode enum
 from glovebox.cli.helpers.theme import IconMode
+from glovebox.models.path import PreservingPath
 from glovebox.moergo.config import MoErgoServiceConfig, create_default_moergo_config
 
 from .cache import CacheTTLConfig
@@ -77,17 +78,19 @@ class UserConfigData(BaseSettings):
             file_secret_settings,  # Lowest: file secrets
         )
 
-    profiles_paths: Annotated[list[Path], NoDecode] = []
+    profiles_paths: Annotated[list[PreservingPath], NoDecode] = []
 
     # Paths for user-defined keyboards and layouts (stored as string, accessed as list[Path])
     @field_validator("profiles_paths", mode="before")
     @classmethod
-    def decode_profiles_paths(cls, v: Any) -> list[Path]:
+    def decode_profiles_paths(cls, v: Any) -> list[PreservingPath]:
         if isinstance(v, str):
-            return [Path(path.strip()) for path in v.split(",") if path.strip()]
+            return [
+                PreservingPath(path.strip()) for path in v.split(",") if path.strip()
+            ]
         elif isinstance(v, list):
             return [
-                Path(path.strip() if isinstance(path, str) else path)
+                PreservingPath(str(path.strip() if isinstance(path, str) else path))
                 for path in v
                 if str(path).strip()
             ]
@@ -120,12 +123,8 @@ class UserConfigData(BaseSettings):
     # )
 
     # Cache settings
-    cache_path: Path = Field(
-        default_factory=lambda: (
-            Path(os.environ["XDG_CACHE_HOME"]) / "glovebox"
-            if "XDG_CACHE_HOME" in os.environ
-            else Path.home() / ".cache" / "glovebox"
-        ),
+    cache_path: PreservingPath = Field(
+        default_factory=lambda: PreservingPath("$XDG_CACHE_HOME/glovebox"),
         description="Directory for caching build artifacts and dependencies",
     )
     cache_strategy: str = Field(
@@ -204,22 +203,16 @@ class UserConfigData(BaseSettings):
 
     @field_validator("cache_path", mode="before")
     @classmethod
-    def validate_cache_path(cls, v: Any) -> Path:
-        """Validate and expand cache path, respecting XDG_CACHE_HOME."""
-        if isinstance(v, str):
-            # Handle string paths by expanding user home directory
-            path = Path(v).expanduser()
-        elif isinstance(v, Path):
-            path = v.expanduser()
-        else:
-            # Use default XDG cache logic
-            xdg_cache = os.environ.get("XDG_CACHE_HOME")
-            if xdg_cache:
-                path = Path(xdg_cache) / "glovebox"
-            else:
-                path = Path.home() / ".cache" / "glovebox"
+    def validate_cache_path(cls, v: Any) -> PreservingPath:
+        """Validate and create PreservingPath for cache_path."""
+        if isinstance(v, PreservingPath):
+            return v
 
-        return path.resolve()
+        if isinstance(v, str | Path):
+            return PreservingPath(str(v))
+
+        # Fallback to default
+        return PreservingPath("$XDG_CACHE_HOME/glovebox")
 
     @field_validator("cache_strategy")
     @classmethod
@@ -252,6 +245,16 @@ class UserConfigData(BaseSettings):
     def serialize_icon_mode(self, value: "IconMode") -> str:
         """Serialize IconMode enum to string for config file storage."""
         return value.value
+
+    @field_serializer("cache_path", when_used="json")
+    def serialize_cache_path(self, value: PreservingPath) -> str:
+        """Serialize cache_path back to original notation."""
+        return value.original
+
+    @field_serializer("profiles_paths", when_used="json")
+    def serialize_profiles_paths(self, value: list[PreservingPath]) -> list[str]:
+        """Serialize profiles_paths back to original notation."""
+        return [path.original for path in value]
 
 
 # Rebuild model to resolve forward references

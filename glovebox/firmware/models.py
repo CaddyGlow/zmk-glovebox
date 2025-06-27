@@ -93,7 +93,9 @@ class BuildResult(GloveboxBaseModel):
         """Get build information dictionary."""
         return {
             "build_id": self.build_id,
-            "firmware_files": [str(uf2_file) for uf2_file in self.output_files.uf2_files]
+            "firmware_files": [
+                str(uf2_file) for uf2_file in self.output_files.uf2_files
+            ]
             if self.output_files and self.output_files.uf2_files
             else [],
             "artifacts_dir": str(self.output_files.artifacts_dir)
@@ -179,17 +181,39 @@ def generate_build_info(
             data = json.loads(json_path.read_text())
 
             # Extract UUID (prefer layout.id, fallback to uuid field)
-            layout_section = data.get("layout", {}) if isinstance(data.get("layout"), dict) else {}
-            layout_id = layout_section.get("id") if isinstance(layout_section.get("id"), str) else None
-            uuid = layout_id or (data.get("uuid") if isinstance(data.get("uuid"), str) else None)
+            layout_section = (
+                data.get("layout", {}) if isinstance(data.get("layout"), dict) else {}
+            )
+            layout_id = (
+                layout_section.get("id")
+                if isinstance(layout_section.get("id"), str)
+                else None
+            )
+            uuid = layout_id or (
+                data.get("uuid") if isinstance(data.get("uuid"), str) else None
+            )
 
             # Extract parent UUID
-            parent_uuid = layout_section.get("parent_uuid") if isinstance(layout_section.get("parent_uuid"), str) else None
-            parent_uuid = parent_uuid or (data.get("parent_uuid") if isinstance(data.get("parent_uuid"), str) else None)
+            parent_uuid = (
+                layout_section.get("parent_uuid")
+                if isinstance(layout_section.get("parent_uuid"), str)
+                else None
+            )
+            parent_uuid = parent_uuid or (
+                data.get("parent_uuid")
+                if isinstance(data.get("parent_uuid"), str)
+                else None
+            )
 
             # Extract title (prefer layout.title, fallback to top-level title)
-            title = layout_section.get("title") if isinstance(layout_section.get("title"), str) else None
-            title = title or (data.get("title") if isinstance(data.get("title"), str) else None)
+            title = (
+                layout_section.get("title")
+                if isinstance(layout_section.get("title"), str)
+                else None
+            )
+            title = title or (
+                data.get("title") if isinstance(data.get("title"), str) else None
+            )
 
             return {
                 "uuid": uuid,
@@ -197,7 +221,9 @@ def generate_build_info(
                 "title": title,
             }
         except Exception as e:
-            logger.warning("Failed to extract layout metadata from %s: %s", json_path, e)
+            logger.warning(
+                "Failed to extract layout metadata from %s: %s", json_path, e
+            )
             return {"uuid": None, "parent_uuid": None, "title": None}
 
     # Calculate file hashes
