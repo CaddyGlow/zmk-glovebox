@@ -47,7 +47,7 @@ logging:
     - type: "file"
       level: "DEBUG"
       format: "detailed"
-      file_path: "~/.cache/glovebox/logs/glovebox.log"
+      file_path: "$XDG_HOME_CACHE/glovebox/logs/glovebox.log"
       max_size_mb: 10
       backup_count: 3
       colored: false
@@ -65,11 +65,11 @@ firmware:
 moergo:
   # API configuration
   api_base_url: "https://my.glove80.com"
-  
+
   # Connection timeout settings (in seconds)
   connection_timeout: 30
   request_timeout: 60
-  
+
   # Credential storage configuration
   credentials:
     config_dir: "~/.glovebox"
@@ -79,7 +79,7 @@ moergo:
     prefer_keyring: true
     keyring_service: "glovebox-moergo"
     file_permissions: "600"
-  
+
   # AWS Cognito authentication configuration
   cognito:
     client_id: "3hvr36st4kdb6p7kasi1cdnson"

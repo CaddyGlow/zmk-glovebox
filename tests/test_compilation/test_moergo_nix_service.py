@@ -215,7 +215,7 @@ class TestMoergoNixServiceCompile:
             mock_run.return_value = True
             mock_collect.return_value = FirmwareOutputFiles(
                 output_dir=temp_files["output_dir"],
-                main_uf2=temp_files["output_dir"] / "test.uf2",
+                uf2_files=[temp_files["output_dir"] / "test.uf2"],
             )
 
             result = service.compile(
@@ -307,7 +307,7 @@ class TestMoergoNixServiceCompile:
             mock_run.return_value = False  # Compilation fails
             mock_collect.return_value = FirmwareOutputFiles(
                 output_dir=temp_files["output_dir"],
-                main_uf2=None,  # No main firmware
+                uf2_files=[],  # No firmware files
                 artifacts_dir=temp_files["output_dir"],  # But has partial artifacts
             )
 
@@ -611,6 +611,7 @@ class TestMoergoNixServiceRunCompilation:
         moergo_service,
         mock_docker_adapter,
         sample_moergo_config,
+        tmp_path,
     ):
         """Test successful compilation run."""
         service = moergo_service
@@ -632,7 +633,7 @@ class TestMoergoNixServiceRunCompilation:
             mock_user.enable_user_mapping = False
             mock_detect_user.return_value = mock_user
 
-            result = service._run_compilation(workspace_path, sample_moergo_config)
+            result = service._run_compilation(workspace_path, sample_moergo_config, tmp_path / "output")
 
             assert result is True
 
@@ -650,6 +651,7 @@ class TestMoergoNixServiceRunCompilation:
         moergo_service,
         mock_docker_adapter,
         sample_moergo_config,
+        tmp_path,
     ):
         """Test compilation when Docker image ensure fails."""
         service = moergo_service
@@ -661,7 +663,7 @@ class TestMoergoNixServiceRunCompilation:
         with patch.object(service, "_ensure_docker_image") as mock_ensure:
             mock_ensure.return_value = False
 
-            result = service._run_compilation(workspace_path, sample_moergo_config)
+            result = service._run_compilation(workspace_path, sample_moergo_config, tmp_path / "output")
 
             assert result is False
 
@@ -670,6 +672,7 @@ class TestMoergoNixServiceRunCompilation:
         moergo_service,
         mock_docker_adapter,
         sample_moergo_config,
+        tmp_path,
     ):
         """Test compilation when container execution fails."""
         mock_docker_adapter.run_container.return_value = (1, [], ["Build error"])
@@ -692,7 +695,7 @@ class TestMoergoNixServiceRunCompilation:
             mock_user.gid = 1000
             mock_detect_user.return_value = mock_user
 
-            result = service._run_compilation(workspace_path, sample_moergo_config)
+            result = service._run_compilation(workspace_path, sample_moergo_config, tmp_path / "output")
 
             assert result is False
 
@@ -701,6 +704,7 @@ class TestMoergoNixServiceRunCompilation:
         moergo_service,
         mock_docker_adapter,
         sample_moergo_config,
+        tmp_path,
     ):
         """Test compilation exception handling."""
         service = moergo_service
@@ -712,7 +716,7 @@ class TestMoergoNixServiceRunCompilation:
         with patch.object(service, "_ensure_docker_image") as mock_ensure:
             mock_ensure.side_effect = Exception("Docker error")
 
-            result = service._run_compilation(workspace_path, sample_moergo_config)
+            result = service._run_compilation(workspace_path, sample_moergo_config, tmp_path / "output")
 
             assert result is False
 
@@ -750,7 +754,7 @@ class TestMoergoNixServiceCollectFiles:
         result = service._collect_files(workspace_path, output_dir)
 
         assert result.output_dir == output_dir
-        assert result.main_uf2 == output_dir / "glove80.uf2"
+        assert output_dir / "glove80.uf2" in result.uf2_files
         assert result.artifacts_dir == output_dir
 
         # Verify files were copied
@@ -782,7 +786,7 @@ class TestMoergoNixServiceCollectFiles:
         result = service._collect_files(workspace_path, output_dir)
 
         assert result.output_dir == output_dir
-        assert result.main_uf2 is None  # No main firmware
+        assert len(result.uf2_files) == 1  # Found the partial UF2 file
         assert result.artifacts_dir is None
 
         # Verify partial files were copied
@@ -817,7 +821,7 @@ class TestMoergoNixServiceCollectFiles:
 
             # Should still return a result despite copy failures
             assert result.output_dir == output_dir
-            assert result.main_uf2 is None  # No main firmware due to copy failure
+            assert len(result.uf2_files) == 0  # No firmware files due to copy failure
 
     def test_collect_files_existing_output_file_replacement(
         self,
@@ -846,7 +850,7 @@ class TestMoergoNixServiceCollectFiles:
         result = service._collect_files(workspace_path, output_dir)
 
         # Verify file was replaced
-        assert result.main_uf2 == existing_file
+        assert existing_file in result.uf2_files
         assert existing_file.read_text() == "new firmware"
 
 
@@ -1216,7 +1220,7 @@ class TestMoergoNixServiceIntegration:
             # But partial artifacts are collected for debugging
             mock_collect.return_value = FirmwareOutputFiles(
                 output_dir=temp_files["output_dir"],
-                main_uf2=None,
+                uf2_files=[],
                 artifacts_dir=None,
             )
 

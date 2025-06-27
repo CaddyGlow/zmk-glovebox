@@ -1,0 +1,155 @@
+/* Main CSS for Glovebox TUI */
+
+/* Global styles */
+App {
+    background: $background;
+}
+
+/* Header styling */
+Header {
+    dock: top;
+    height: 1;
+    background: $primary;
+    color: $text;
+}
+
+/* Footer styling */
+Footer {
+    dock: bottom;
+    height: 2;
+    background: $primary;
+    color: $text;
+}
+
+/* Main container */
+#main-container {
+    height: 1fr;
+    margin: 1;
+}
+
+/* Tabbed content */
+TabbedContent {
+    height: 1fr;
+}
+
+TabPane {
+    padding: 1;
+}
+
+/* Widget sizing */
+#log-viewer, #system-info {
+height: 1fr;
+}
+
+#settings-panel {
+/* Use fixed height instead of 1fr to prevent stretching */
+height: 1fr;
+}
+
+#settings-container {
+/* Use fixed height based on content instead of filling space */
+height: auto;
+}
+
+#log-display {
+    border: solid $primary;
+    height: 1fr;
+    scrollbar-background: $surface;
+    scrollbar-color: $primary;
+}
+
+/* System info styles */
+.title {
+    text-style: bold;
+    color: $accent;
+}
+
+.subtitle {
+    text-style: bold;
+    color: $secondary;
+}
+
+#cpu-progress, #memory-progress {
+    margin: 1 0;
+}
+
+/* Settings panel styles */
+#settings-container {
+    height: 1fr;
+}
+
+#settings-title {
+    text-style: bold;
+    color: $accent;
+    margin-bottom: 1;
+}
+
+#settings-content {
+    /*height: 1fr;*/
+}
+
+#settings-grid {
+    grid-size: 2;
+    grid-gutter: 1 2;
+    padding: 1 2;
+    width: 80;
+    height: auto;
+    border: thick $primary;
+    background: $surface;
+}
+
+.label {
+    text-align: right;
+    padding-right: 1;
+}
+
+#title {
+    column-span: 2;
+    text-align: center;
+    text-style: bold;
+    margin-bottom: 1;
+}
+.setting-label {
+    width: 20;
+    text-align: right;
+    margin-right: 2;
+}
+
+#auto-scroll-setting, #log-level-setting, #refresh-rate-setting {
+    height: 3;
+    margin-bottom: 1;
+}
+
+#controls-spacer {
+    height: 2;
+}
+
+#controls-title {
+    text-style: bold;
+    color: $warning;
+    margin-bottom: 1;
+}
+
+.control-info {
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+/* Button styles */
+Button {
+    margin: 0 1;
+}
+
+/* Progress bar styling */
+ProgressBar {
+    color: $success;
+}
+
+/* Switch styling */
+Switch {
+    background: $surface;
+}
+
+Switch:focus {
+    background: $surface;
+}

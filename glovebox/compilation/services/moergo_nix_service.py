@@ -6,8 +6,9 @@ import logging
 import shutil
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from glovebox.adapters.docker_adapter import LoggerOutputMiddleware
 from glovebox.compilation.models import (
     CompilationConfigUnion,
     MoergoCompilationConfig,
@@ -16,11 +17,20 @@ from glovebox.compilation.protocols.compilation_protocols import (
     CompilationServiceProtocol,
 )
 from glovebox.core.file_operations import CompilationProgressCallback
-from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
+from glovebox.firmware.models import (
+    BuildResult,
+    FirmwareOutputFiles,
+    create_build_info_file,
+)
 from glovebox.models.docker import DockerUserContext
 from glovebox.models.docker_path import DockerPath
 from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
-from glovebox.utils.stream_process import DefaultOutputMiddleware
+from glovebox.utils.build_log_middleware import create_build_log_middleware
+from glovebox.utils.stream_process import (
+    DefaultOutputMiddleware,
+    OutputMiddleware,
+    create_chained_middleware,
+)
 
 
 if TYPE_CHECKING:
@@ -46,8 +56,13 @@ class MoergoNixService(CompilationServiceProtocol):
         config: CompilationConfigUnion,
         keyboard_profile: "KeyboardProfile",
         progress_callback: "CompilationProgressCallback | None" = None,
+        json_file: Path | None = None,
     ) -> BuildResult:
         """Execute Moergo compilation."""
+        import time
+
+        compilation_start_time = time.time()
+
         self.logger.info("Starting Moergo compilation")
 
         try:
@@ -62,7 +77,9 @@ class MoergoNixService(CompilationServiceProtocol):
             if not workspace_path or not workspace_path.host_path:
                 return BuildResult(success=False, errors=["Workspace setup failed"])
 
-            compilation_success = self._run_compilation(workspace_path, config)
+            compilation_success = self._run_compilation(
+                workspace_path, config, output_dir
+            )
 
             # Always try to collect artifacts, even on build failure (for debugging)
             output_files = self._collect_files(workspace_path.host_path, output_dir)
@@ -73,12 +90,31 @@ class MoergoNixService(CompilationServiceProtocol):
                     errors=["Compilation failed"],
                     output_files=output_files,  # Include partial artifacts for debugging
                 )
+            # Create build-info.json in artifacts directory
+            if output_files.artifacts_dir:
+                try:
+                    # Calculate compilation duration
+                    compilation_duration = time.time() - compilation_start_time
+
+                    create_build_info_file(
+                        artifacts_dir=output_files.artifacts_dir,
+                        keymap_file=keymap_file,
+                        config_file=config_file,
+                        json_file=json_file,
+                        repository=config.repository,
+                        branch=config.branch,
+                        head_hash=None,  # MoErgo doesn't use git workspace like ZMK
+                        build_mode="moergo",
+                        uf2_files=output_files.uf2_files,
+                        compilation_duration=compilation_duration,
+                    )
+                except Exception as e:
+                    self.logger.warning("Failed to create build-info.json: %s", e)
+
             return BuildResult(
                 success=True,
                 output_files=output_files,
-                messages=[
-                    f"Generated {'1' if output_files.main_uf2 else '0'} firmware files"
-                ],
+                messages=[f"Generated {len(output_files.uf2_files)} firmware files"],
             )
 
         except Exception as e:
@@ -179,6 +215,7 @@ class MoergoNixService(CompilationServiceProtocol):
                     output_dir=output_dir,
                     config=config,
                     keyboard_profile=keyboard_profile,
+                    json_file=json_file,
                 )
 
         except Exception as e:
@@ -228,7 +265,10 @@ class MoergoNixService(CompilationServiceProtocol):
             return None
 
     def _run_compilation(
-        self, workspace_path: DockerPath, config: MoergoCompilationConfig
+        self,
+        workspace_path: DockerPath,
+        config: MoergoCompilationConfig,
+        output_dir: Path,
     ) -> bool:
         """Run Docker compilation."""
         try:
@@ -236,6 +276,14 @@ class MoergoNixService(CompilationServiceProtocol):
             if not self._ensure_docker_image(config):
                 self.logger.error("Failed to ensure Docker image is available")
                 return False
+
+            middlewares: list[OutputMiddleware[Any]] = []
+
+            middlewares.append(LoggerOutputMiddleware(self.logger))
+
+            # Create build log middleware
+            build_log_middleware = create_build_log_middleware(output_dir)
+            middlewares.append(build_log_middleware)
 
             # For Moergo, disable user mapping and pass user info via environment
             user_context = DockerUserContext.detect_current_user()
@@ -249,13 +297,18 @@ class MoergoNixService(CompilationServiceProtocol):
                 "BRANCH": config.branch,
             }
 
-            return_code, _, stderr = self.docker_adapter.run_container(
-                image=config.image,
-                command=["build.sh"],  # Use the build script, not direct nix-build
-                volumes=[workspace_path.vol()],
-                environment=environment,
-                user_context=user_context,
-            )
+            try:
+                return_code, _, stderr = self.docker_adapter.run_container(
+                    image=config.image,
+                    command=["build.sh"],  # Use the build script, not direct nix-build
+                    volumes=[workspace_path.vol()],
+                    environment=environment,
+                    user_context=user_context,
+                    middleware=create_chained_middleware(middlewares),
+                )
+            finally:
+                # Always close the build log middleware
+                build_log_middleware.close()
 
             if return_code != 0:
                 self.logger.error("Build failed with exit code %d", return_code)
@@ -271,7 +324,7 @@ class MoergoNixService(CompilationServiceProtocol):
     ) -> FirmwareOutputFiles:
         """Collect firmware files from artifacts directory, including partial artifacts for debugging."""
         output_dir.mkdir(parents=True, exist_ok=True)
-        main_uf2 = None
+        uf2_files: list[Path] = []
         artifacts_dir = None
         collected_items = []
 
@@ -300,10 +353,16 @@ class MoergoNixService(CompilationServiceProtocol):
 
                 artifacts_dir = output_dir
 
-                # Find the main combined firmware file
-                main_firmware = output_dir / "glove80.uf2"
-                if main_firmware.exists():
-                    main_uf2 = main_firmware
+                # Find all UF2 firmware files
+                for uf2_file in output_dir.glob("*.uf2"):
+                    uf2_files.append(uf2_file)
+                    filename_lower = uf2_file.name.lower()
+                    if "lh" in filename_lower or "lf" in filename_lower:
+                        self.logger.debug("Found left hand UF2: %s", uf2_file)
+                    elif "rh" in filename_lower:
+                        self.logger.debug("Found right hand UF2: %s", uf2_file)
+                    else:
+                        self.logger.debug("Found UF2 file: %s", uf2_file)
 
                 self.logger.info(
                     "Collected %d Moergo artifacts: %s",
@@ -335,6 +394,9 @@ class MoergoNixService(CompilationServiceProtocol):
                     try:
                         shutil.copy2(partial_file, output_dir / partial_file.name)
                         collected_items.append(f"partial: {partial_file.name}")
+                        # Add UF2 files to the list
+                        if partial_file.suffix.lower() == ".uf2":
+                            uf2_files.append(output_dir / partial_file.name)
                     except Exception as e:
                         self.logger.warning(
                             "Failed to copy partial file %s: %s", partial_file, e
@@ -342,7 +404,7 @@ class MoergoNixService(CompilationServiceProtocol):
 
         return FirmwareOutputFiles(
             output_dir=output_dir,
-            main_uf2=main_uf2,
+            uf2_files=uf2_files,
             artifacts_dir=artifacts_dir,
         )
 

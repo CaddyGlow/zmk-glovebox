@@ -24,6 +24,7 @@ class CompilationServiceProtocol(Protocol):
         config: "CompilationConfigUnion",
         keyboard_profile: "KeyboardProfile",
         progress_callback: CompilationProgressCallback | None = None,
+        json_file: Path | None = None,
     ) -> BuildResult:
         """Execute compilation using this strategy.
 
@@ -34,6 +35,7 @@ class CompilationServiceProtocol(Protocol):
             config: Compilation configuration
             keyboard_profile: Keyboard profile for dynamic generation
             progress_callback: Optional callback for compilation progress updates
+            json_file: Optional path to original JSON layout file for metadata
 
         Returns:
             BuildResult: Results of compilation

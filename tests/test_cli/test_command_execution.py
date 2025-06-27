@@ -82,7 +82,7 @@ def setup_firmware_command_test(mock_keyboard_profile):
         from glovebox.firmware.models import FirmwareOutputFiles
 
         output_files = FirmwareOutputFiles(
-            main_uf2=Path("/tmp/output/glove80.uf2"), output_dir=Path("/tmp/output")
+            uf2_files=[Path("/tmp/output/glove80.uf2")], output_dir=Path("/tmp/output")
         )
 
         mock_compilation_service.compile.return_value = BuildResult(

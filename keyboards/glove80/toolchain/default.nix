@@ -58,21 +58,10 @@ pkgs.runCommand "${outputName}-firmware" { } ''
   mkdir -p $out
 
   # Copy firmware directories
-  cp -r ${left_processed} $out/glove80_lh
+  # The official nix build creates glove80_lh instead of glove80_lf 
+  # We rename it here to follow west build
+  cp -r ${left_processed} $out/glove80_lf
   cp -r ${right_processed} $out/glove80_rh
 
   cp ${combined}/${outputName}.uf2 $out/${outputName}.uf2
-
-  # mkdir -p $artifactDir
-  # cp -rT $out $artifactDir
-  # Add build metadata
-  # "buildId": "{buildId}",
-  cat > $out/build-info.json <<EOF
-    {
-      "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-      "keymap": "${keymap}",
-      "kconfig": "${kconfig}",
-      "outputFile": "${outputName}.uf2"
-    }
-  EOF
 ''

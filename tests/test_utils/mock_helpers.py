@@ -14,7 +14,7 @@ def create_mock_build_result(
     success: bool = True,
     messages: list[str] | None = None,
     output_dir: Path | None = None,
-    main_uf2: Path | None = None,
+    uf2_files: list[Path] | None = None,
 ) -> BuildResult:
     """Create a standardized BuildResult for testing."""
     if messages is None:
@@ -23,11 +23,11 @@ def create_mock_build_result(
     if output_dir is None:
         output_dir = Path("/tmp/test/output")
 
-    if main_uf2 is None and output_dir is not None:
-        main_uf2 = output_dir / "firmware.uf2"
+    if uf2_files is None and output_dir is not None:
+        uf2_files = [output_dir / "firmware.uf2"]
 
     output_files = FirmwareOutputFiles(
-        main_uf2=main_uf2,
+        uf2_files=uf2_files or [],
         output_dir=output_dir,
     )
 

@@ -294,6 +294,7 @@ class CompilationBuildCacheService:
             "*.dts",
             "*.dts.pre",
             "devicetree_generated.h",
+            "build.yaml",  # Include build.yaml for proper artifact collection
         ]
 
         for pattern in artifact_patterns:
@@ -327,6 +328,7 @@ class CompilationBuildCacheService:
             "*.dts",
             "*.dts.pre",
             "devicetree_generated.h",
+            "build.yaml",  # Include build.yaml for proper artifact collection
         ]
 
         for pattern in artifact_patterns:
