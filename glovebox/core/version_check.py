@@ -221,9 +221,8 @@ class ZmkVersionChecker:
         try:
             data = result.model_dump(by_alias=True, exclude_unset=True, mode="json")
 
-            # Convert datetime to string for JSON serialization
-            if data.get("last_check"):
-                data["last_check"] = data["last_check"].isoformat()
+            # The datetime is already converted to ISO format string by model_dump(mode="json")
+            # No need to call .isoformat() again as data["last_check"] is already a string
 
             cache_key = CacheKey.from_parts(
                 "zmk_version_check", str(include_prereleases)

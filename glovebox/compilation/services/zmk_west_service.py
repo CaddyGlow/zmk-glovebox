@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
+from glovebox.adapters.docker_adapter import LoggerOutputMiddleware
 from glovebox.compilation.cache.compilation_build_cache_service import (
     CompilationBuildCacheService,
 )
@@ -37,13 +38,18 @@ from glovebox.core.file_operations import (
     FileCopyService,
     create_copy_service,
 )
-from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
+from glovebox.firmware.models import (
+    BuildResult,
+    FirmwareOutputFiles,
+    create_build_info_file,
+)
 from glovebox.models.docker import DockerUserContext
 from glovebox.protocols import (
     DockerAdapterProtocol,
     FileAdapterProtocol,
     MetricsProtocol,
 )
+from glovebox.utils.build_log_middleware import create_build_log_middleware
 from glovebox.utils.stream_process import (
     DefaultOutputMiddleware,
     OutputMiddleware,
@@ -365,6 +371,7 @@ class ZmkWestService(CompilationServiceProtocol):
         config: CompilationConfigUnion,
         keyboard_profile: "KeyboardProfile",
         progress_callback: "CompilationProgressCallback | None" = None,
+        json_file: Path | None = None,
     ) -> BuildResult:
         """Execute ZMK compilation."""
         self.logger.info("Starting ZMK config compilation")
@@ -394,6 +401,7 @@ class ZmkWestService(CompilationServiceProtocol):
                     config,
                     keyboard_profile,
                     progress_callback,
+                    json_file,
                 )
         else:
             return self._compile_internal(
@@ -403,6 +411,7 @@ class ZmkWestService(CompilationServiceProtocol):
                 config,
                 keyboard_profile,
                 progress_callback,
+                json_file,
             )
 
     def _compile_internal(
@@ -413,14 +422,20 @@ class ZmkWestService(CompilationServiceProtocol):
         config: CompilationConfigUnion,
         keyboard_profile: "KeyboardProfile",
         progress_callback: CompilationProgressCallback | None = None,
+        json_file: Path | None = None,
     ) -> BuildResult:
         """Execute ZMK compilation."""
+        import time
+
+        compilation_start_time = time.time()
+
         try:
             if not isinstance(config, ZmkCompilationConfig):
                 return BuildResult(
                     success=False, errors=["Invalid config type for ZMK compilation"]
                 )
 
+            self.logger.info("%s@%s", config.repository, config.branch)
             # Initialize cache metrics
             cache_operations = None
             cache_duration = None
@@ -465,20 +480,28 @@ class ZmkWestService(CompilationServiceProtocol):
                     )
 
                     # Show cache restoration progress
-                    progress_coordinator.transition_to_phase("cache_restoration", "Restoring cached build")
-                    progress_coordinator.update_cache_progress("restoring", 50, 100, "Loading cached build artifacts")
+                    progress_coordinator.transition_to_phase(
+                        "cache_restoration", "Restoring cached build"
+                    )
+                    progress_coordinator.update_cache_progress(
+                        "restoring", 50, 100, "Loading cached build artifacts"
+                    )
 
                 self.logger.info(
                     "Found cached build - copying artifacts and skipping compilation"
                 )
 
                 if progress_coordinator:
-                    progress_coordinator.update_cache_progress("copying", 75, 100, "Copying cached artifacts")
+                    progress_coordinator.update_cache_progress(
+                        "copying", 75, 100, "Copying cached artifacts"
+                    )
 
                 output_files = self._collect_files(cached_build_path, output_dir)
 
                 if progress_coordinator:
-                    progress_coordinator.update_cache_progress("completed", 100, 100, "Cache restoration completed")
+                    progress_coordinator.update_cache_progress(
+                        "completed", 100, 100, "Cache restoration completed"
+                    )
 
                 return BuildResult(
                     success=True,
@@ -535,6 +558,7 @@ class ZmkWestService(CompilationServiceProtocol):
                     compilation_success = self._run_compilation(
                         workspace_path,
                         config,
+                        output_dir,
                         cache_used,
                         cache_type,
                         progress_callback,
@@ -548,6 +572,7 @@ class ZmkWestService(CompilationServiceProtocol):
                 compilation_success = self._run_compilation(
                     workspace_path,
                     config,
+                    output_dir,
                     cache_used,
                     cache_type,
                     progress_callback,
@@ -561,7 +586,9 @@ class ZmkWestService(CompilationServiceProtocol):
             elif cache_type == "repo_only" and self.workspace_cache_service:
                 # Update progress coordinator for workspace cache saving
                 if progress_coordinator:
-                    progress_coordinator.update_cache_saving("workspace", "Starting workspace cache save")
+                    progress_coordinator.update_cache_saving(
+                        "workspace", "Starting workspace cache save"
+                    )
 
                 cache_result = self.workspace_cache_service.cache_workspace_repo_branch(
                     workspace_path, config.repository, config.branch
@@ -574,14 +601,19 @@ class ZmkWestService(CompilationServiceProtocol):
                         cache_result.workspace_path,
                     )
                     if progress_coordinator:
-                        progress_coordinator.update_cache_saving("workspace", "Workspace cache saved successfully")
+                        progress_coordinator.update_cache_saving(
+                            "workspace", "Workspace cache saved successfully"
+                        )
                 else:
                     self.logger.warning(
                         "Failed to cache workspace (repo+branch): %s",
                         cache_result.error_message,
                     )
                     if progress_coordinator:
-                        progress_coordinator.update_cache_saving("workspace", f"Workspace cache failed: {cache_result.error_message}")
+                        progress_coordinator.update_cache_saving(
+                            "workspace",
+                            f"Workspace cache failed: {cache_result.error_message}",
+                        )
 
             # Always try to collect artifacts, even on build failure (for debugging)
             if self.session_metrics:
@@ -604,16 +636,56 @@ class ZmkWestService(CompilationServiceProtocol):
                     output_files=output_files,  # Include partial artifacts for debugging
                 )
 
+            # Create build-info.json in artifacts directory
+            if output_files.artifacts_dir:
+                try:
+                    # Get git head hash from the workspace if available
+                    head_hash = None
+                    git_dir = workspace_path / "zmk" / ".git"
+                    if git_dir.exists():
+                        try:
+                            head_file = git_dir / "HEAD"
+                            if head_file.exists():
+                                head_ref = head_file.read_text().strip()
+                                if head_ref.startswith("ref: "):
+                                    # It's a reference, resolve it
+                                    ref_path = git_dir / head_ref[5:]
+                                    if ref_path.exists():
+                                        head_hash = ref_path.read_text().strip()
+                                else:
+                                    # It's a direct hash
+                                    head_hash = head_ref
+                        except Exception as e:
+                            self.logger.debug("Failed to get git head hash: %s", e)
+
+                    # Calculate compilation duration
+                    compilation_duration = time.time() - compilation_start_time
+
+                    create_build_info_file(
+                        artifacts_dir=output_files.artifacts_dir,
+                        keymap_file=keymap_file,
+                        config_file=config_file,
+                        json_file=json_file,
+                        repository=config.repository,
+                        branch=config.branch,
+                        head_hash=head_hash,
+                        build_mode="zmk_config",
+                        uf2_files=output_files.uf2_files,
+                        compilation_duration=compilation_duration,
+                    )
+                except Exception as e:
+                    self.logger.warning("Failed to create build-info.json: %s", e)
+
             build_result = BuildResult(
                 success=True,
                 output_files=output_files,
-                messages=[
-                    f"Generated {'1' if output_files.main_uf2 else '0'} firmware files"
-                ],
+                messages=[f"Generated {len(output_files.uf2_files)} firmware files"],
             )
 
             # Cache the successful build result
-            self._cache_build_result(keymap_file, config_file, config, workspace_path, progress_coordinator)
+            self._cache_build_result(
+                keymap_file, config_file, config, workspace_path, progress_coordinator
+            )
 
             # Record final compilation metrics
             if self.session_metrics:
@@ -624,9 +696,14 @@ class ZmkWestService(CompilationServiceProtocol):
                     "firmware_size_bytes", "Firmware file size in bytes"
                 )
 
-                artifacts_generated.set(1 if output_files.main_uf2 else 0)
-                if output_files.main_uf2 and output_files.main_uf2.exists():
-                    firmware_size.set(output_files.main_uf2.stat().st_size)
+                artifacts_generated.set(len(output_files.uf2_files))
+                # Calculate total firmware size from all UF2 files
+                total_firmware_size = sum(
+                    uf2_file.stat().st_size
+                    for uf2_file in output_files.uf2_files
+                    if uf2_file.exists()
+                )
+                firmware_size.set(total_firmware_size)
 
             self.logger.info("ZMK compilation completed successfully")
             return build_result
@@ -724,6 +801,7 @@ class ZmkWestService(CompilationServiceProtocol):
                     config=config,
                     keyboard_profile=keyboard_profile,
                     progress_callback=progress_callback,
+                    json_file=json_file,
                 )
 
         except Exception as e:
@@ -828,7 +906,9 @@ class ZmkWestService(CompilationServiceProtocol):
             return
 
         if progress_coordinator:
-            progress_coordinator.update_cache_saving("workspace", "Starting workspace cache")
+            progress_coordinator.update_cache_saving(
+                "workspace", "Starting workspace cache"
+            )
 
         # Use SessionMetrics if available
         if self.session_metrics:
@@ -859,7 +939,9 @@ class ZmkWestService(CompilationServiceProtocol):
             # and repo-only (less specific, includes .git for branch fetching)
 
             if progress_coordinator:
-                progress_coordinator.update_cache_saving("workspace", "Caching repo+branch workspace")
+                progress_coordinator.update_cache_saving(
+                    "workspace", "Caching repo+branch workspace"
+                )
 
             # Cache repo+branch level first (most commonly used)
             cache_result = self.workspace_cache_service.cache_workspace_repo_branch(
@@ -874,7 +956,10 @@ class ZmkWestService(CompilationServiceProtocol):
                     cache_result.workspace_path,
                 )
                 if progress_coordinator:
-                    progress_coordinator.update_cache_saving("workspace", f"Repo+branch cache saved for {config.repository}@{config.branch}")
+                    progress_coordinator.update_cache_saving(
+                        "workspace",
+                        f"Repo+branch cache saved for {config.repository}@{config.branch}",
+                    )
                 # Track successful cache operation
                 if self.session_metrics:
                     cache_success = self.session_metrics.Counter(
@@ -889,10 +974,15 @@ class ZmkWestService(CompilationServiceProtocol):
                     cache_result.error_message,
                 )
                 if progress_coordinator:
-                    progress_coordinator.update_cache_saving("workspace", f"Repo+branch cache failed: {cache_result.error_message}")
+                    progress_coordinator.update_cache_saving(
+                        "workspace",
+                        f"Repo+branch cache failed: {cache_result.error_message}",
+                    )
 
             if progress_coordinator:
-                progress_coordinator.update_cache_saving("workspace", "Caching repo-only workspace")
+                progress_coordinator.update_cache_saving(
+                    "workspace", "Caching repo-only workspace"
+                )
 
             # Cache repo-only level (for branch fetching scenarios)
             cache_result = self.workspace_cache_service.cache_workspace_repo_only(
@@ -906,7 +996,9 @@ class ZmkWestService(CompilationServiceProtocol):
                     cache_result.workspace_path,
                 )
                 if progress_coordinator:
-                    progress_coordinator.update_cache_saving("workspace", f"Repo-only cache saved for {config.repository}")
+                    progress_coordinator.update_cache_saving(
+                        "workspace", f"Repo-only cache saved for {config.repository}"
+                    )
                 # Track successful cache operation
                 if self.session_metrics:
                     cache_success = self.session_metrics.Counter(
@@ -921,13 +1013,18 @@ class ZmkWestService(CompilationServiceProtocol):
                     cache_result.error_message,
                 )
                 if progress_coordinator:
-                    progress_coordinator.update_cache_saving("workspace", f"Repo-only cache failed: {cache_result.error_message}")
+                    progress_coordinator.update_cache_saving(
+                        "workspace",
+                        f"Repo-only cache failed: {cache_result.error_message}",
+                    )
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.warning("Failed to cache workspace: %s", e, exc_info=exc_info)
             if progress_coordinator:
-                progress_coordinator.update_cache_saving("workspace", f"Workspace cache error: {e}")
+                progress_coordinator.update_cache_saving(
+                    "workspace", f"Workspace cache error: {e}"
+                )
 
     def _get_cached_build_result(
         self, keymap_file: Path, config_file: Path, config: ZmkCompilationConfig
@@ -967,7 +1064,9 @@ class ZmkWestService(CompilationServiceProtocol):
             return
 
         if progress_coordinator:
-            progress_coordinator.update_cache_saving("build", "Starting build result cache")
+            progress_coordinator.update_cache_saving(
+                "build", "Starting build result cache"
+            )
 
         try:
             # Generate cache key using the build cache service
@@ -979,7 +1078,9 @@ class ZmkWestService(CompilationServiceProtocol):
             )
 
             if progress_coordinator:
-                progress_coordinator.update_cache_saving("build", "Caching build artifacts")
+                progress_coordinator.update_cache_saving(
+                    "build", "Caching build artifacts"
+                )
 
             # Cache the workspace build directory (contains all build artifacts)
             success = self.build_cache_service.cache_build_result(
@@ -989,13 +1090,17 @@ class ZmkWestService(CompilationServiceProtocol):
             if success:
                 self.logger.info("Cached build result for %s", keymap_file.name)
                 if progress_coordinator:
-                    progress_coordinator.update_cache_saving("build", f"Build cache saved for {keymap_file.name}")
+                    progress_coordinator.update_cache_saving(
+                        "build", f"Build cache saved for {keymap_file.name}"
+                    )
             else:
                 self.logger.warning(
                     "Failed to cache build result for %s", keymap_file.name
                 )
                 if progress_coordinator:
-                    progress_coordinator.update_cache_saving("build", f"Build cache failed for {keymap_file.name}")
+                    progress_coordinator.update_cache_saving(
+                        "build", f"Build cache failed for {keymap_file.name}"
+                    )
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
@@ -1003,7 +1108,9 @@ class ZmkWestService(CompilationServiceProtocol):
                 "Failed to cache build result: %s", e, exc_info=exc_info
             )
             if progress_coordinator:
-                progress_coordinator.update_cache_saving("build", f"Build cache error: {e}")
+                progress_coordinator.update_cache_saving(
+                    "build", f"Build cache error: {e}"
+                )
 
     def _should_run_west_update(
         self,
@@ -1039,6 +1146,7 @@ class ZmkWestService(CompilationServiceProtocol):
         self,
         workspace_path: Path,
         config: ZmkCompilationConfig,
+        output_dir: Path,
         cache_was_used: bool = False,
         cache_type: str | None = None,
         progress_callback: CompilationProgressCallback | None = None,
@@ -1088,6 +1196,9 @@ class ZmkWestService(CompilationServiceProtocol):
             # Always run west zephyr-export to set up Zephyr environment variables
             base_commands.append("west zephyr-export")
 
+            base_commands.append("west status")
+            base_commands.append("(cd modules/zmk && git rev-parse HEAD)")
+
             all_commands = base_commands + build_commands
 
             # Use current user context to avoid permission issues
@@ -1097,6 +1208,13 @@ class ZmkWestService(CompilationServiceProtocol):
 
             # Create progress middleware if progress coordinator is provided
             middlewares: list[OutputMiddleware[Any]] = []
+
+            # Create build log middleware
+            build_log_middleware = create_build_log_middleware(output_dir)
+
+            # Add build log middleware first to capture all output
+            middlewares.append(build_log_middleware)
+
             if progress_coordinator:
                 from glovebox.adapters import create_compilation_progress_middleware
 
@@ -1108,27 +1226,31 @@ class ZmkWestService(CompilationServiceProtocol):
 
                 middlewares.append(middleware)
 
-            middlewares.append(DefaultOutputMiddleware())
+            middlewares.append(LoggerOutputMiddleware(self.logger))
 
             chained = create_chained_middleware(middlewares)
-            result: tuple[int, list[str], list[str]] = (
-                self.docker_adapter.run_container(
-                    image=config.image,
-                    command=["sh", "-c", "set -xeu; " + " && ".join(all_commands)],
-                    volumes=[(str(workspace_path), "/workspace")],
-                    environment={},  # {"JOBS": "4"},
-                    user_context=user_context,
-                    middleware=chained,
+            try:
+                result: tuple[int, list[str], list[str]] = (
+                    self.docker_adapter.run_container(
+                        image=config.image,
+                        command=["sh", "-c", "set -xeu; " + " && ".join(all_commands)],
+                        volumes=[(str(workspace_path), "/workspace")],
+                        environment={},  # {"JOBS": "4"},
+                        user_context=user_context,
+                        middleware=chained,
+                    )
                 )
-            )
-            return_code, stdout, stderr = result
+                return_code, stdout, stderr = result
 
-            if return_code != 0:
-                self.logger.error("Build failed with exit code %d", return_code)
-                return False
+                if return_code != 0:
+                    self.logger.error("Build failed with exit code %d", return_code)
+                    return False
 
-            self.logger.info("Build completed successfully")
-            return True
+                self.logger.info("Build completed successfully")
+                return True
+            finally:
+                # Always close the build log middleware
+                build_log_middleware.close()
         except Exception as e:
             self.logger.error("Docker execution failed: %s", e)
             return False
@@ -1262,7 +1384,7 @@ class ZmkWestService(CompilationServiceProtocol):
     ) -> FirmwareOutputFiles:
         """Collect firmware files from build directories determined by build matrix."""
         output_dir.mkdir(parents=True, exist_ok=True)
-        main_uf2 = None
+        uf2_files: list[Path] = []
         artifacts_dir = None
         collected_items = []
 
@@ -1274,12 +1396,12 @@ class ZmkWestService(CompilationServiceProtocol):
                     "build.yaml not found, cannot determine build directories"
                 )
                 return FirmwareOutputFiles(
-                    output_dir=output_dir, main_uf2=None, artifacts_dir=None
+                    output_dir=output_dir, uf2_files=[], artifacts_dir=None
                 )
 
             build_matrix = BuildMatrix.from_yaml(build_yaml)
 
-            # Look for build directories based on build matrix targets
+            # Look for build directories based on build matrix targets and copy artifacts
             for target in build_matrix.targets:
                 build_dir_name = target.artifact_name
                 build_path = workspace_path / build_dir_name
@@ -1302,15 +1424,21 @@ class ZmkWestService(CompilationServiceProtocol):
                     )
                     collected_items.extend(build_collected)
 
-                    # Set main_uf2 to the first .uf2 file found
-                    uf2_file = cur_build_out / "zmk.uf2"
-                    if uf2_file.exists() and main_uf2 is None:
-                        main_uf2 = uf2_file
-
                 except Exception as e:
                     self.logger.warning(
                         "Failed to copy build directory %s: %s", build_path, e
                     )
+
+            # After copying all artifacts, find UF2 files at the base of output directory
+            for uf2_file in output_dir.glob("*.uf2"):
+                uf2_files.append(uf2_file)
+                filename_lower = uf2_file.name.lower()
+                if "lh" in filename_lower or "lf" in filename_lower:
+                    self.logger.debug("Found left hand UF2: %s", uf2_file)
+                elif "rh" in filename_lower:
+                    self.logger.debug("Found right hand UF2: %s", uf2_file)
+                else:
+                    self.logger.debug("Found UF2 file: %s", uf2_file)
 
         except Exception as e:
             self.logger.error(
@@ -1324,7 +1452,7 @@ class ZmkWestService(CompilationServiceProtocol):
 
         return FirmwareOutputFiles(
             output_dir=output_dir,
-            main_uf2=main_uf2,
+            uf2_files=uf2_files,
             artifacts_dir=artifacts_dir,
         )
 

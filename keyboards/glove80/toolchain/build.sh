@@ -122,9 +122,9 @@ main() {
 
   cp -Rf result/* "${ARTIFACTS_DIR}/"
   # The Nix build creates glove80_lh and glove80_rh directories, not lf and rh
-  cp ${ARTIFACTS_DIR}/glove80_lh/zmk.uf2 ${ARTIFACTS_DIR}/${BOARD_NAME}_lf.uf2
+  # We rename glove80_lh to glove80_lf in default.nix
+  cp ${ARTIFACTS_DIR}/glove80_lf/zmk.uf2 ${ARTIFACTS_DIR}/${BOARD_NAME}_lf.uf2
   cp ${ARTIFACTS_DIR}/glove80_rh/zmk.uf2 ${ARTIFACTS_DIR}/${BOARD_NAME}_rh.uf2
-
   log_info "Build artifacts saved to $ARTIFACTS_DIR/"
   log_info "Firmware available at ${ARTIFACTS_DIR}/${BOARD_NAME}.uf2"
 
@@ -133,18 +133,23 @@ main() {
     # GitHub Actions
     {
       echo "firmware_path=${ARTIFACTS_DIR}/${BOARD_NAME}.uf2"
-      echo "build_id=$BUILD_ID"
       echo "artifacts_dir=$ARTIFACTS_DIR"
+      echo "build_id=$BUILD_ID"
+      echo "repository=$REPO"
+      echo "branch=$BRANCH"
+      echo "commit=$GIT_COMMIT"
     } >>"$GITHUB_OUTPUT"
-  elif [ -n "${GITLAB_CI:-}" ]; then
-    # GitLab CI
+  elif [ -n "${GLOVEBOX_BUILD:-}" ]; then
+    # Glovebox
     {
-      echo "FIRMWARE_PATH=${ARTIFACTS_DIR}/${BOARD_NAME}.uf2"
-      echo "BUILD_ID=$BUILD_ID"
-      echo "ARTIFACTS_DIR=$ARTIFACTS_DIR"
-    } >>build.env
+      echo "firmware_path=${ARTIFACTS_DIR}/${BOARD_NAME}.uf2"
+      echo "artifacts_dir=$ARTIFACTS_DIR"
+      echo "build_id=$BUILD_ID"
+      echo "repository=$REPO"
+      echo "branch=$BRANCH"
+      echo "commit=$GIT_COMMIT"
+    } >>"${ARTIFACTS_DIR}/build.env"
   fi
-
   log_info "Build process completed successfully"
 }
 

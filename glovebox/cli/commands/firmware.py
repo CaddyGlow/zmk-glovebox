@@ -1,6 +1,9 @@
 """Firmware-related CLI commands."""
 
 import logging
+import shutil
+import tempfile
+import zipfile
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -249,6 +252,110 @@ def _format_compilation_output(
         raise typer.Exit(1)
 
 
+def _determine_firmware_outputs(
+    result: Any, base_filename: str
+) -> list[tuple[Path, Path]]:
+    """Determine which firmware files to create based on build result.
+
+    Args:
+        result: BuildResult object from compilation
+        base_filename: Base filename without extension for output files
+
+    Returns:
+        List of tuples (source_path, target_path) for firmware files to copy
+    """
+    outputs: list[tuple[Path, Path]] = []
+
+    if not result.success or not result.output_files:
+        return outputs
+
+    # Process all UF2 files
+    for uf2_file in result.output_files.uf2_files:
+        if not uf2_file.exists():
+            continue
+
+        filename_lower = uf2_file.name.lower()
+        if "lh" in filename_lower or "lf" in filename_lower:
+            # Left hand/front firmware
+            outputs.append((uf2_file, Path(f"{base_filename}_lf.uf2")))
+        elif "rh" in filename_lower:
+            # Right hand firmware
+            outputs.append((uf2_file, Path(f"{base_filename}_rh.uf2")))
+        else:
+            # Main/unified firmware or first available firmware
+            outputs.append((uf2_file, Path(f"{base_filename}.uf2")))
+
+    return outputs
+
+
+def _process_compilation_output(
+    result: Any, input_file: Path, output_dir: Path | None
+) -> None:
+    """Process compilation output based on --output flag.
+
+    Args:
+        result: BuildResult object from compilation
+        input_file: Original input file path for base naming
+        output_dir: Output directory if --output flag provided, None otherwise
+    """
+    if not result.success or not result.output_files:
+        return
+
+    if output_dir is not None:
+        # --output flag provided: keep existing behavior (files already in output_dir)
+        return
+
+    # No --output flag: create {filename}.uf2 and {filename}_artefacts.zip
+    base_filename = input_file.stem
+
+    try:
+        # Determine firmware files to create
+        firmware_outputs = _determine_firmware_outputs(result, base_filename)
+
+        # Copy firmware files to current directory
+        for source_path, target_path in firmware_outputs:
+            if source_path.exists():
+                shutil.copy2(source_path, target_path)
+                logger.info("Created firmware file: %s", target_path)
+
+        # Create artifacts zip file
+        artifacts_zip_path = Path(f"{base_filename}_artefacts.zip")
+        if (
+            result.output_files.artifacts_dir
+            and result.output_files.artifacts_dir.exists()
+        ):
+            with zipfile.ZipFile(
+                artifacts_zip_path, "w", zipfile.ZIP_DEFLATED
+            ) as zip_file:
+                for file_path in result.output_files.artifacts_dir.rglob("*"):
+                    if file_path.is_file():
+                        # Store relative path within artifacts directory
+                        arcname = file_path.relative_to(
+                            result.output_files.artifacts_dir
+                        )
+                        zip_file.write(file_path, arcname)
+            logger.info("Created artifacts archive: %s", artifacts_zip_path)
+        elif result.output_files.output_dir and result.output_files.output_dir.exists():
+            # Fallback: archive entire output directory if no specific artifacts_dir
+            with zipfile.ZipFile(
+                artifacts_zip_path, "w", zipfile.ZIP_DEFLATED
+            ) as zip_file:
+                for file_path in result.output_files.output_dir.rglob("*"):
+                    if file_path.is_file():
+                        # Store relative path within output directory
+                        arcname = file_path.relative_to(result.output_files.output_dir)
+                        zip_file.write(file_path, arcname)
+            logger.info(
+                "Created artifacts archive from output directory: %s",
+                artifacts_zip_path,
+            )
+
+    except Exception as e:
+        exc_info = logger.isEnabledFor(logging.DEBUG)
+        logger.error("Failed to process compilation output: %s", e, exc_info=exc_info)
+        print_error_message(f"Failed to create output files: {str(e)}")
+
+
 # Create a typer app for firmware commands
 firmware_app = typer.Typer(
     name="firmware",
@@ -314,6 +421,14 @@ def firmware_compile(
             help="Show debug-level application logs in TUI progress display",
         ),
     ] = False,
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output directory for build files. If not specified, creates {filename}.uf2 and {filename}_artefacts.zip in current directory",
+        ),
+    ] = None,
 ) -> None:
     """Build ZMK firmware from keymap/config files or JSON layout.
 
@@ -323,6 +438,14 @@ def firmware_compile(
     \b
     For JSON input, the layout is automatically converted to .keymap and .conf files
     before compilation. The config_file argument is optional for JSON input.
+
+    \b
+    Output behavior:
+    - With --output: Creates build files in specified directory (traditional behavior)
+    - Without --output: Creates {filename}.uf2 and {filename}_artefacts.zip in current directory
+    - Split keyboards: Creates {filename}_lh.uf2 and {filename}_rh.uf2 for left/right hands
+    - Unified firmware: Creates {filename}.uf2 file (when available)
+    - Both unified and split files can be created simultaneously
 
     \b
     Profile precedence (highest to lowest):
@@ -340,11 +463,14 @@ def firmware_compile(
     parameters are managed through profile configurations and user config files.
     \b
     Examples:
-        # Compile from keymap and config files
-        glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
+        # Default behavior: Creates my_layout.uf2 and my_layout_artefacts.zip
+        glovebox firmware compile my_layout.json
 
-        # Compile directly from JSON layout with auto-profile detection
-        glovebox firmware compile layout.json
+        # Traditional behavior: Creates files in build/ directory
+        glovebox firmware compile my_layout.json --output build/
+
+        # Specify custom output directory
+        glovebox firmware compile keymap.keymap config.conf --output /path/to/output --profile glove80/v25.05
 
         # Disable auto-profile detection
         glovebox firmware compile layout.json --no-auto --profile glove80/v25.05
@@ -460,9 +586,14 @@ def firmware_compile(
                     "Config file provided for JSON input will be ignored (generated automatically)"
                 )
 
-            # Set default output directory to 'build'
-            build_output_dir = Path("build")
-            build_output_dir.mkdir(parents=True, exist_ok=True)
+            # Set output directory based on --output flag
+            if output is not None:
+                # --output flag provided: use specified directory (existing behavior)
+                build_output_dir = output
+                build_output_dir.mkdir(parents=True, exist_ok=True)
+            else:
+                # No --output flag: use temporary directory for compilation
+                build_output_dir = Path(tempfile.mkdtemp(prefix="glovebox_build_"))
 
             # Resolve compilation strategy and configuration
             if progress_callback:
@@ -521,9 +652,15 @@ def firmware_compile(
         if progress_callback and hasattr(progress_callback, "cleanup"):
             progress_callback.cleanup()
 
+        # Clean up temporary build directory if --output was not provided
+        temp_cleanup_needed = output is None
+
         if result.success:
             # Track successful compilation
             firmware_counter.labels("compile", "success").inc()
+
+            # Process compilation output (create .uf2 and _artefacts.zip if --output not provided)
+            _process_compilation_output(result, resolved_input_file, output)
 
             # Format and display results
             _format_compilation_output(result, output_format, build_output_dir)
@@ -534,6 +671,18 @@ def firmware_compile(
             # Format and display results
             _format_compilation_output(result, output_format, build_output_dir)
 
+        # Clean up temporary build directory if needed
+        if temp_cleanup_needed and build_output_dir.exists():
+            try:
+                shutil.rmtree(build_output_dir)
+                logger.debug(
+                    "Cleaned up temporary build directory: %s", build_output_dir
+                )
+            except Exception as cleanup_error:
+                logger.warning(
+                    "Failed to clean up temporary build directory: %s", cleanup_error
+                )
+
     except Exception as e:
         # Clean up progress display if it was used
         if progress_callback and hasattr(progress_callback, "cleanup"):
@@ -543,6 +692,26 @@ def firmware_compile(
         firmware_counter.labels("compile", "error").inc()
         print_error_message(f"Firmware compilation failed: {str(e)}")
         logger.exception("Compilation error details")
+
+        # Clean up temporary build directory if needed
+        if (
+            "temp_cleanup_needed" in locals()
+            and temp_cleanup_needed
+            and "build_output_dir" in locals()
+            and build_output_dir.exists()
+        ):
+            try:
+                shutil.rmtree(build_output_dir)
+                logger.debug(
+                    "Cleaned up temporary build directory after error: %s",
+                    build_output_dir,
+                )
+            except Exception as cleanup_error:
+                logger.warning(
+                    "Failed to clean up temporary build directory after error: %s",
+                    cleanup_error,
+                )
+
         raise typer.Exit(1) from None
 
 
@@ -848,49 +1017,46 @@ def _create_compilation_progress_display(
         debug: Whether to show debug-level application logs in TUI
     """
     from glovebox.cli.components.progress_display import (
-        CompilationProgressDisplayManager,
+        create_compilation_progress_display,
     )
 
-    # Create the progress display manager
-    manager = CompilationProgressDisplayManager(show_logs=show_logs)
+    # Create the progress display using the compilation display
+    progress_callback = create_compilation_progress_display(show_logs=show_logs)
 
-    # Add TUI log handler if debug logging is requested
-    tui_log_handler = None
+    # Add debug logging support if requested
     if debug:
-        from glovebox.core import TUILogHandler
+        import logging
+
         from glovebox.core.logging import get_logger
 
-        # Create TUI log handler and connect to progress manager
-        tui_log_handler = TUILogHandler(progress_manager=manager, level=logging.DEBUG)
-        tui_log_handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
+        # Get the original cleanup function
+        original_cleanup = getattr(progress_callback, "cleanup", lambda: None)
 
-        # Add handler to glovebox logger to capture all debug logs
-        glovebox_logger = get_logger("glovebox")
-        glovebox_logger.addHandler(tui_log_handler)
-
-    # Start and return the progress callback
-    progress_callback = manager.start()
-
-    # Add compatibility for middleware reference (used in ZMK service)
-    progress_callback.manager = manager  # type: ignore[attr-defined]
-
-    # Add cleanup for TUI handler
-    if tui_log_handler:
-        original_cleanup = getattr(progress_callback, "cleanup", manager.stop)
-
+        # Create a simple debug log handler for compatibility
+        # Note: The Textual widget handles its own logging display
         def enhanced_cleanup() -> None:
-            """Cleanup progress display and TUI log handler."""
-            # Remove TUI handler from logger
-            glovebox_logger = get_logger("glovebox")
-            if tui_log_handler in glovebox_logger.handlers:
-                glovebox_logger.removeHandler(tui_log_handler)
-            tui_log_handler.close()
+            """Cleanup progress display with debug logging support."""
+            # Add any debug logging cleanup here if needed
+            logger.debug("Compilation progress display cleanup completed")
             # Call original cleanup
             original_cleanup()
 
         progress_callback.cleanup = enhanced_cleanup  # type: ignore[attr-defined]
 
-    # The manager's start() method already adds the cleanup function
+    # Add compatibility for middleware reference (used in ZMK service)
+    # The Textual-based display maintains the same interface
+    if hasattr(progress_callback, "manager"):
+        # Already has manager reference
+        pass
+    else:
+        # Add a dummy manager for compatibility
+        class DummyManager:
+            def stop(self) -> None:
+                if hasattr(progress_callback, "cleanup"):
+                    progress_callback.cleanup()
+
+        progress_callback.manager = DummyManager()  # type: ignore[attr-defined]
+
     return progress_callback
 
 

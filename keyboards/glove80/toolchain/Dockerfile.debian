@@ -86,6 +86,10 @@ ENV NIX_PROFILES="/nix/var/nix/profiles/default /root/.nix-profile"
 ENV NIX_PATH=moergo-zmk=/src
 ENV NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 
+ARG BUILDTIME
+ENV BUILDTIME=${BUILDTIME:-}
+
+RUN echo "buildtime: $BUILDTIME"
 COPY --chmod=755 entrypoint.sh build.sh libutils.sh /app/bin/
 
 ENTRYPOINT ["entrypoint.sh"]

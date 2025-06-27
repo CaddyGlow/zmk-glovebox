@@ -32,8 +32,15 @@ if [ "$(id -u)" = "0" ] && [ -n "$PUID" ] && [ -n "$PGID" ]; then
     # Cleanup function
     cleanup() {
       log_info "CLEANUP: Running cleanup ..."
+      log_info "CLEANUP: Attempting chmod ${WORKSPACE_DIR}"
+      # poor man find -tf -exec chmod 644 {} \; ${WORKSPACE_DIR} && find -td -exec chmod 755 {} \; ${WORKSPACE_DIR}
+      chmod 644 ${WORKSPACE_DIR}/* || log_warn "CLEANUP: chmod failed"
+      chmod 755 ${WORKSPACE_DIR}/*/ || log_warn "CLEANUP: chmod failed"
+      chmod 644 ${WORKSPACE_DIR}/*/* || log_warn "CLEANUP: chmod failed"
+      chmod 755 ${WORKSPACE_DIR}/*/*/ || log_warn "CLEANUP: chmod failed"
       if [ -n "${PUID:-}" ] && [ -n "${PGID:-}" ]; then
-        log_info "CLEANUP: Attempting chown $PUID:$PGID ${WORKSPACE_DIR}"
+        log_info "CLEANUP: Attempting chown -R "$PUID:$PGID" ${WORKSPACE_DIR}"
+        chown -R "$PUID:$PGID" ${WORKSPACE_DIR} || log_warn "CLEANUP: chown failed"
         chown -R "$PUID:$PGID" ${WORKSPACE_DIR} || log_warn "CLEANUP: chown failed"
       fi
     }

@@ -1,4 +1,4 @@
-.PHONY: test lint format fmt coverage setup clean docs docs-clean docs-serve view-docs build check-package publish publish-test help
+.PHONY: test lint format fmt coverage setup clean docs docs-clean docs-serve view-docs build check-package publish publish-test docker-image help
 
 help:
 	@echo "Available commands:"
@@ -16,6 +16,7 @@ help:
 	@echo "  make check-package - Check package metadata and readiness"
 	@echo "  make publish    - Build and publish package to PyPI"
 	@echo "  make publish-test - Build and publish package to TestPyPI"
+	@echo "  make docker-image - Build docker image with version tag"
 
 test:
 	uv run scripts/test.sh
@@ -67,3 +68,7 @@ publish: build
 publish-test: build
 	@echo "Publishing to TestPyPI..."
 	uv publish --index-url https://test.pypi.org/legacy/
+
+docker-image:
+	$(eval VERSION := $(shell uv run python -c 'import glovebox; print(glovebox.__version__.replace("+", "-").replace("/", "-"))'))
+	docker buildx build --build-arg BUILDTIME=$(shell date +%s) -t glove80-zmk-config-docker:$(VERSION) -f keyboards/glove80/toolchain/Dockerfile keyboards/glove80/toolchain
