@@ -318,3 +318,76 @@ class TestBehaviorParser:
 
         # Should have parsed multiple bindings despite complex syntax
         assert len(macro.bindings) > 0
+
+    def test_macro_parameter_parsing(self, parser):
+        """Test parsing macro parameters from #binding-cells property."""
+        # Test macro with no parameters
+        zero_param_content = """
+        simple_macro: simple_macro {
+            compatible = "zmk,behavior-macro";
+            #binding-cells = <0>;
+            bindings = <&kp A>;
+        };
+        """
+        full_content = f"macros {{ {zero_param_content} }}"
+        macros = parser.parse_macros_section(full_content)
+        assert len(macros) == 1
+        assert macros[0].name == "simple_macro"
+        assert macros[0].params is None
+
+        # Test macro with one parameter
+        one_param_content = """
+        coded_macro: coded_macro {
+            compatible = "zmk,behavior-macro-one-param";
+            #binding-cells = <1>;
+            bindings = <&macro_param_1to1 &kp A>;
+        };
+        """
+        full_content = f"macros {{ {one_param_content} }}"
+        macros = parser.parse_macros_section(full_content)
+        assert len(macros) == 1
+        assert macros[0].name == "coded_macro"
+        assert macros[0].params == ["code"]
+
+        # Test macro with two parameters
+        two_param_content = """
+        complex_macro: complex_macro {
+            compatible = "zmk,behavior-macro-two-param";
+            #binding-cells = <2>;
+            bindings = <&macro_param_1to1 &macro_param_2to1>;
+        };
+        """
+        full_content = f"macros {{ {two_param_content} }}"
+        macros = parser.parse_macros_section(full_content)
+        assert len(macros) == 1
+        assert macros[0].name == "complex_macro"
+        assert macros[0].params == ["param1", "param2"]
+
+        # Test macro without #binding-cells property (should default to None)
+        no_binding_cells_content = """
+        default_macro: default_macro {
+            compatible = "zmk,behavior-macro";
+            bindings = <&kp B>;
+        };
+        """
+        full_content = f"macros {{ {no_binding_cells_content} }}"
+        macros = parser.parse_macros_section(full_content)
+        assert len(macros) == 1
+        assert macros[0].name == "default_macro"
+        assert macros[0].params is None
+
+        # Test macro with invalid #binding-cells value
+        invalid_binding_cells_content = """
+        invalid_macro: invalid_macro {
+            compatible = "zmk,behavior-macro";
+            #binding-cells = <5>;
+            bindings = <&kp C>;
+        };
+        """
+        full_content = f"macros {{ {invalid_binding_cells_content} }}"
+        macros = parser.parse_macros_section(full_content)
+        assert len(macros) == 1
+        assert macros[0].name == "invalid_macro"
+        assert macros[0].params is None  # Should fall back to None for invalid values
+
+

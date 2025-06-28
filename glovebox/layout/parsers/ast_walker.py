@@ -295,6 +295,308 @@ class BehaviorExtractor(DTVisitor):
         return combos
 
 
+class MetadataExtractor:
+    """Extract metadata and comments from device tree AST for round-trip preservation."""
+
+    def __init__(self) -> None:
+        """Initialize metadata extractor."""
+        self.comments: list[dict[str, Any]] = []
+        self.includes: list[dict[str, Any]] = []
+        self.config_directives: list[dict[str, Any]] = []
+        self.original_header: str = ""
+        self.original_footer: str = ""
+        self.custom_sections: dict[str, str] = {}
+        self.logger = logging.getLogger(__name__)
+
+    def extract_metadata(self, roots: list[DTNode], source_content: str = "") -> dict[str, Any]:
+        """Extract comprehensive metadata from AST roots and source content.
+
+        Args:
+            roots: List of AST root nodes
+            source_content: Original source file content for header/footer extraction
+
+        Returns:
+            Dictionary containing extracted metadata
+        """
+        # Extract comments from all nodes
+        self._extract_comments_from_nodes(roots)
+
+        # Extract includes and config directives
+        self._extract_includes_and_directives(roots)
+
+        # Extract header and footer sections from source content
+        if source_content:
+            self._extract_header_footer(source_content)
+
+        # Build dependency information (Phase 4.3)
+        dependencies = self._build_dependency_info()
+
+        return {
+            "comments": self.comments,
+            "includes": self.includes,
+            "config_directives": self.config_directives,
+            "original_header": self.original_header,
+            "original_footer": self.original_footer,
+            "custom_sections": self.custom_sections,
+            "dependencies": dependencies,
+        }
+
+    def _extract_comments_from_nodes(self, roots: list[DTNode]) -> None:
+        """Extract comments from all nodes in the AST."""
+        for root in roots:
+            self._walk_node_for_comments(root, context="root")
+
+    def _walk_node_for_comments(self, node: DTNode, context: str = "") -> None:
+        """Recursively walk node to extract comments."""
+        # Extract comments from this node
+        for comment in node.comments:
+            self.comments.append({
+                "text": comment.text,
+                "line": comment.line,
+                "context": self._determine_comment_context(node, context),
+                "is_block": comment.is_block,
+            })
+
+        # Extract comments from properties
+        for prop in node.properties.values():
+            for comment in prop.comments:
+                self.comments.append({
+                    "text": comment.text,
+                    "line": comment.line,
+                    "context": f"property:{prop.name}",
+                    "is_block": False,  # Property comments are typically line comments
+                })
+
+        # Recursively process children
+        for child in node.children.values():
+            child_context = self._determine_child_context(child)
+            self._walk_node_for_comments(child, child_context)
+
+    def _determine_comment_context(self, node: DTNode, parent_context: str) -> str:
+        """Determine the context of a comment based on its node."""
+        if not node.name:
+            return "header"
+
+        # Check if this is a behavior node
+        compatible_prop = node.get_property("compatible")
+        if compatible_prop and compatible_prop.value:
+            compatible_value = compatible_prop.value.value
+            if isinstance(compatible_value, str):
+                if "zmk,behavior" in compatible_value:
+                    return "behavior"
+
+        # Check for special sections
+        if node.name in ["combos", "behaviors", "keymap"]:
+            return node.name
+
+        return parent_context or "general"
+
+    def _determine_child_context(self, child: DTNode) -> str:
+        """Determine context for child nodes."""
+        if child.name in ["combos", "behaviors", "keymap"]:
+            return child.name
+        return "child"
+
+    def _extract_includes_and_directives(self, roots: list[DTNode]) -> None:
+        """Extract include directives and config directives from AST."""
+        for root in roots:
+            # Look for conditional directives in the AST
+            for conditional in root.conditionals:
+                self.config_directives.append({
+                    "directive": conditional.directive,
+                    "condition": conditional.condition,
+                    "value": "",
+                    "line": conditional.line,
+                })
+
+    def _extract_header_footer(self, source_content: str) -> None:
+        """Extract header and footer sections from source content."""
+        lines = source_content.split('\n')
+
+        # Enhanced extraction with include directive detection (Phase 4.2)
+        self._extract_includes_from_source(lines)
+        self._extract_config_directives_from_source(lines)
+
+        # Find first significant content (usually first node declaration)
+        first_content_line = 0
+        last_content_line = len(lines) - 1
+
+        # Look for first non-comment, non-empty line that looks like node content
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped and not stripped.startswith('//') and not stripped.startswith('/*'):
+                if not stripped.startswith('#'):  # Skip preprocessor directives
+                    if '{' in stripped or stripped.endswith(';'):
+                        first_content_line = i
+                        break
+
+        # Look for last significant content line
+        for i in range(len(lines) - 1, -1, -1):
+            stripped = lines[i].strip()
+            if stripped and not stripped.startswith('//') and not stripped.startswith('*/'):
+                if not stripped.startswith('#'):  # Skip preprocessor directives
+                    if '}' in stripped or stripped.endswith(';'):
+                        last_content_line = i
+                        break
+
+        # Extract header (everything before first content)
+        if first_content_line > 0:
+            self.original_header = '\n'.join(lines[:first_content_line]).strip()
+
+        # Extract footer (everything after last content)
+        if last_content_line < len(lines) - 1:
+            self.original_footer = '\n'.join(lines[last_content_line + 1:]).strip()
+
+    def _extract_includes_from_source(self, lines: list[str]) -> None:
+        """Extract include directives from source lines (Phase 4.2)."""
+        import re
+
+        include_pattern = re.compile(r'^\s*#include\s+[<"]([^>"]+)[>"]')
+
+        for line_num, line in enumerate(lines, 1):
+            match = include_pattern.match(line)
+            if match:
+                include_path = match.group(1)
+                resolved_path = self._resolve_include_path(include_path, line)
+
+                self.includes.append({
+                    "path": include_path,
+                    "line": line_num,
+                    "resolved_path": resolved_path,
+                })
+
+    def _resolve_include_path(self, include_path: str, line: str) -> str:
+        """Resolve include path to actual file path (Phase 4.3).
+
+        Args:
+            include_path: Include path from #include directive
+            line: Full line text for context
+
+        Returns:
+            Resolved file path or empty string if not found
+        """
+        from pathlib import Path
+
+        # Determine include type based on brackets vs quotes
+        is_system_include = '<' in line and '>' in line
+        is_local_include = '"' in line
+
+        # Try common ZMK include search paths
+        search_paths = []
+
+        if is_system_include:
+            # System includes: search in ZMK system directories
+            search_paths.extend([
+                Path("~/zmk/app/include") / include_path,
+                Path("/opt/zmk/include") / include_path,
+                Path("./zmk/app/include") / include_path,
+                Path("./include") / include_path,
+            ])
+
+        if is_local_include:
+            # Local includes: search relative to current directory
+            search_paths.extend([
+                Path(include_path),
+                Path("./config") / include_path,
+                Path("..") / include_path,
+            ])
+
+        # Try to resolve each search path
+        for search_path in search_paths:
+            try:
+                expanded_path = search_path.expanduser().resolve()
+                if expanded_path.exists():
+                    return str(expanded_path)
+            except (OSError, RuntimeError):
+                # Path resolution failed, continue to next
+                continue
+
+        # If no actual file found, return the original path with classification
+        classification = "system" if is_system_include else "local"
+        return f"[{classification}] {include_path}"
+
+    def _extract_config_directives_from_source(self, lines: list[str]) -> None:
+        """Extract configuration directives from source lines (Phase 4.2)."""
+        import re
+
+        # Pattern for various preprocessor directives
+        directive_pattern = re.compile(r'^\s*#(\w+)(?:\s+(.*))?')
+
+        for line_num, line in enumerate(lines, 1):
+            match = directive_pattern.match(line)
+            if match:
+                directive = match.group(1)
+                condition_or_value = match.group(2) or ""
+
+                # Skip include directives as they're handled separately
+                if directive == "include":
+                    continue
+
+                # Categorize directive types
+                if directive in ["ifdef", "ifndef", "if"]:
+                    self.config_directives.append({
+                        "directive": directive,
+                        "condition": condition_or_value,
+                        "value": "",
+                        "line": line_num,
+                    })
+                elif directive in ["define", "undef"]:
+                    # Split define into name and value
+                    parts = condition_or_value.split(None, 1)
+                    condition = parts[0] if parts else ""
+                    value = parts[1] if len(parts) > 1 else ""
+
+                    self.config_directives.append({
+                        "directive": directive,
+                        "condition": condition,
+                        "value": value,
+                        "line": line_num,
+                    })
+                else:
+                    # Handle other directives (else, endif, etc.)
+                    self.config_directives.append({
+                        "directive": directive,
+                        "condition": condition_or_value,
+                        "value": "",
+                        "line": line_num,
+                    })
+
+    def _build_dependency_info(self) -> dict[str, Any]:
+        """Build dependency information from extracted includes (Phase 4.3).
+
+        Returns:
+            Dictionary with dependency information
+        """
+        dependencies: dict[str, Any] = {
+            "include_dependencies": [],
+            "behavior_sources": {},
+            "unresolved_includes": [],
+        }
+
+        for include in self.includes:
+            include_path = include["path"]
+            resolved_path = include["resolved_path"]
+
+            # Add to dependencies list
+            if resolved_path and not resolved_path.startswith("["):
+                # Successfully resolved to actual file
+                dependencies["include_dependencies"].append(resolved_path)
+
+                # Try to infer behavior sources from common ZMK include patterns
+                if "behaviors" in include_path.lower():
+                    # This include likely provides behaviors
+                    dependencies["behavior_sources"]["[behaviors_dtsi]"] = include_path
+                elif "keys" in include_path.lower():
+                    dependencies["behavior_sources"]["[key_definitions]"] = include_path
+                elif "bt" in include_path.lower():
+                    dependencies["behavior_sources"]["[bluetooth]"] = include_path
+            else:
+                # Unresolved include
+                dependencies["unresolved_includes"].append(include_path)
+
+        return dependencies
+
+
 class MacroExtractor:
     """Extract macro definitions from device tree AST."""
 
@@ -411,7 +713,7 @@ class ComboExtractor:
 
 
 class UniversalBehaviorExtractor:
-    """Universal behavior extractor that finds all behavior types."""
+    """Universal behavior extractor that finds all behavior types and metadata."""
 
     def __init__(self) -> None:
         """Initialize extractor."""
@@ -456,6 +758,9 @@ class UniversalBehaviorExtractor:
         # Cache for improved performance
         self._behavior_cache: dict[str, list[DTNode]] = {}
 
+        # Metadata extractor for enhanced preservation (Phase 4.1)
+        self.metadata_extractor = MetadataExtractor()
+
     def extract_all_behaviors(self, root: DTNode) -> dict[str, list[DTNode]]:
         """Extract all behavior types from single device tree root.
 
@@ -477,6 +782,26 @@ class UniversalBehaviorExtractor:
             Dictionary mapping behavior types to node lists
         """
         return self._extract_behaviors_from_roots(roots)
+
+    def extract_behaviors_with_metadata(
+        self, roots: list[DTNode], source_content: str = ""
+    ) -> tuple[dict[str, list[DTNode]], dict]:
+        """Extract behaviors and metadata for enhanced round-trip preservation.
+
+        Args:
+            roots: List of root nodes to search
+            source_content: Original source file content for metadata extraction
+
+        Returns:
+            Tuple of (behaviors dict, metadata dict)
+        """
+        # Extract behaviors using existing logic
+        behaviors = self._extract_behaviors_from_roots(roots)
+
+        # Extract metadata using metadata extractor
+        metadata = self.metadata_extractor.extract_metadata(roots, source_content)
+
+        return behaviors, metadata
 
     def _extract_behaviors_from_roots(self, roots: list[DTNode]) -> dict[str, list[DTNode]]:
         """Extract all behavior types from multiple device tree roots using enhanced patterns.
