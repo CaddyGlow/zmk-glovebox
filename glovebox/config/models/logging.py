@@ -1,6 +1,7 @@
 """Logging configuration models for Glovebox."""
 
 import logging
+import os
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
@@ -8,7 +9,6 @@ from typing import Any, Literal
 from pydantic import Field, field_serializer, field_validator
 
 from glovebox.models.base import GloveboxBaseModel
-from glovebox.models.path import PreservingPath
 
 
 class LogHandlerType(str, Enum):
@@ -44,7 +44,7 @@ class LogHandlerConfig(GloveboxBaseModel):
     colored: bool = Field(
         default=True, description="Enable colored output (console/stderr only)"
     )
-    file_path: PreservingPath | None = Field(
+    file_path: Path | None = Field(
         default=None, description="File path for file handlers (required for type=file)"
     )
 
@@ -68,25 +68,25 @@ class LogHandlerConfig(GloveboxBaseModel):
 
     @field_validator("file_path", mode="before")
     @classmethod
-    def validate_file_path(cls, v: Any, info: Any) -> PreservingPath | None:
-        """Validate and create PreservingPath for file_path."""
+    def validate_file_path(cls, v: Any, info: Any) -> Path | None:
+        """Validate and expand file_path with environment variables."""
         if v is None:
             return None
 
-        if isinstance(v, PreservingPath):
+        if isinstance(v, Path):
             return v
 
-        if isinstance(v, str | Path):
-            return PreservingPath(str(v))
+        if isinstance(v, str):
+            return Path(os.path.expandvars(v)).expanduser()
 
         raise ValueError(f"Invalid file path type: {type(v)}")
 
     @field_serializer("file_path", when_used="json")
-    def serialize_file_path(self, value: PreservingPath | None) -> str | None:
-        """Serialize file_path back to original notation."""
+    def serialize_file_path(self, value: Path | None) -> str | None:
+        """Serialize file_path as string."""
         if value is None:
             return None
-        return value.original
+        return str(value)
 
     def model_post_init(self, __context: Any) -> None:
         """Post-initialization validation."""
@@ -181,7 +181,11 @@ def create_developer_logging_config(
     ]
 
     if debug_file:
-        file_path = PreservingPath(str(debug_file)) if debug_file else None
+        file_path = (
+            Path(os.path.expandvars(str(debug_file))).expanduser()
+            if debug_file
+            else None
+        )
         handlers.append(
             LogHandlerConfig(
                 type=LogHandlerType.FILE,
@@ -214,7 +218,11 @@ def create_tui_logging_config(debug_file: Path | str | None = None) -> LoggingCo
     ]
 
     if debug_file:
-        file_path = PreservingPath(str(debug_file)) if debug_file else None
+        file_path = (
+            Path(os.path.expandvars(str(debug_file))).expanduser()
+            if debug_file
+            else None
+        )
         handlers.append(
             LogHandlerConfig(
                 type=LogHandlerType.FILE,

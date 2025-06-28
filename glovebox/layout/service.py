@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from glovebox.layout.formatting import ViewMode
 
@@ -344,6 +344,64 @@ class LayoutService(BaseService):
             logger.error("Keymap data validation failed: %s", e)
             raise LayoutError(f"Keymap validation failed: {e}") from e
 
+    def flatten_layout(
+        self,
+        keymap_data: LayoutData,
+    ) -> dict[str, Any]:
+        """Flatten keymap data by resolving all variables and removing variables section.
+
+        Args:
+            keymap_data: Layout data with variables to flatten
+
+        Returns:
+            Flattened layout data as dictionary (suitable for JSON serialization)
+        """
+        logger.debug("Flattening layout data")
+        return keymap_data.to_flattened_dict()
+
+    def validate_variables(
+        self,
+        keymap_data: LayoutData,
+        original_json_data: dict[str, Any] | None = None,
+    ) -> list[str]:
+        """Validate all variable references in layout data.
+
+        Args:
+            keymap_data: Layout data to validate
+            original_json_data: Original JSON data for validation context (optional)
+
+        Returns:
+            List of validation error messages (empty if all valid)
+        """
+        logger.debug("Validating variables in layout data")
+
+        # If no variables, return empty error list
+        if not keymap_data.variables:
+            return []
+
+        from glovebox.layout.utils.variable_resolver import VariableResolver
+
+        resolver = VariableResolver(keymap_data.variables)
+
+        # Use provided JSON data or convert from keymap_data
+        if original_json_data is not None:
+            validation_data = original_json_data
+        else:
+            validation_data = keymap_data.model_dump(
+                mode="json", by_alias=True, exclude_unset=True
+            )
+
+        errors = resolver.validate_variables(validation_data)
+
+        if errors:
+            logger.warning("Variable validation found %d issues", len(errors))
+            for error in errors:
+                logger.warning("  - %s", error)
+        else:
+            logger.debug("All variables validated successfully")
+
+        return errors
+
     def flatten_layout_from_file(
         self,
         json_file_path: Path,
@@ -361,8 +419,8 @@ class LayoutService(BaseService):
         logger.info("Flattening layout from %s to %s", json_file_path, output_file_path)
 
         def flatten_process(keymap_data: LayoutData) -> None:
-            # Get the flattened data
-            flattened_data = keymap_data.to_flattened_dict()
+            # Use the data-based flatten_layout method
+            flattened_data = self.flatten_layout(keymap_data)
 
             # Write the flattened JSON
             self._file_adapter.write_json(output_file_path, flattened_data)
@@ -393,26 +451,11 @@ class LayoutService(BaseService):
         logger.info("Validating variables in %s", json_file_path)
 
         def validate_process(keymap_data: LayoutData) -> list[str]:
-            # If no variables, return empty error list
-            if not keymap_data.variables:
-                return []
-
             # Get the original JSON data to validate variable usage
             json_data = self._file_adapter.read_json(json_file_path)
 
-            from glovebox.layout.utils.variable_resolver import VariableResolver
-
-            resolver = VariableResolver(keymap_data.variables)
-            errors = resolver.validate_variables(json_data)
-
-            if errors:
-                logger.warning("Variable validation found %d issues", len(errors))
-                for error in errors:
-                    logger.warning("  - %s", error)
-            else:
-                logger.info("All variables validated successfully")
-
-            return errors
+            # Use the data-based validate_variables method
+            return self.validate_variables(keymap_data, json_data)
 
         return process_json_file(
             json_file_path,

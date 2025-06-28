@@ -233,7 +233,7 @@ class TestComboLayersRendering:
             binding=LayoutBinding(
                 value="&sk", params=[LayoutParam(value="LA(LC(LSHFT))", params=[])]
             ),
-            keyPositions=[73, 74],
+            key_positions=[73, 74],
             timeoutMs=50,
             layers=[0, 2],  # Should render as <0 2>
         )
@@ -254,7 +254,7 @@ class TestComboLayersRendering:
             binding=LayoutBinding(
                 value="&kp", params=[LayoutParam(value="A", params=[])]
             ),
-            keyPositions=[0, 1],
+            key_positions=[0, 1],
             layers=[0, 5],  # 5 is invalid (only 3 layers)
         )
 
@@ -413,7 +413,7 @@ class TestIntegrationScenarios:
                     binding=LayoutBinding(
                         value="&kp", params=[LayoutParam(value="ESC", params=[])]
                     ),
-                    keyPositions=[0, 1],
+                    key_positions=[0, 1],
                     layers=[0, 2],
                 )
             ],

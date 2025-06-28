@@ -290,7 +290,8 @@ class MoergoNixService(CompilationServiceProtocol):
 
             # Mark compilation as fully complete
             progress_coordinator.transition_to_phase(
-                "done", f"Build completed successfully - {len(output_files.uf2_files)} firmware files generated"
+                "done",
+                f"Build completed successfully - {len(output_files.uf2_files)} firmware files generated",
             )
 
             return BuildResult(
@@ -790,9 +791,7 @@ class MoergoNixService(CompilationServiceProtocol):
                 self.logger.info(
                     "Detected %d boards from config: %s (MoErgo builds %d artifacts)",
                     len(config.build_matrix.targets),
-                    ", ".join(
-                        target.board for target in config.build_matrix.targets
-                    ),
+                    ", ".join(target.board for target in config.build_matrix.targets),
                     total_boards,
                 )
 

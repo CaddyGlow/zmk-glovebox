@@ -149,9 +149,11 @@ def logout() -> None:
 def download_layout(
     layout_id: Annotated[str, typer.Argument(help="Layout UUID to download")],
     output: Annotated[
-        Path | None,
+        str | None,
         typer.Option(
-            "--output", "-o", help="Output file path (defaults to <layout_id>.json)"
+            "--output",
+            "-o",
+            help="Output file path for the downloaded layout. Use '-' for stdout. If not specified, generates a smart default filename.",
         ),
     ] = None,
     force: Annotated[
@@ -159,7 +161,11 @@ def download_layout(
     ] = False,
 ) -> None:
     """Download a layout by ID from MoErgo."""
+    import sys
+
     from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
+    from glovebox.utils.filename_generator import FileType, generate_default_filename
+    from glovebox.utils.filename_helpers import extract_layout_dict_data
 
     icon_mode = "emoji"  # Default behavior for this command
 
@@ -182,23 +188,8 @@ def download_layout(
         # Download the layout
         layout = client.get_layout(layout_id)
 
-        # Determine output path
-        if output is None:
-            output = Path(f"{layout_id}.json")
-
-        # Check if file exists
-        if output.exists() and not force:
-            typer.echo(
-                Icons.format_with_icon(
-                    "ERROR",
-                    f"File {output} already exists. Use --force to overwrite.",
-                    icon_mode,
-                )
-            )
-            raise typer.Exit(1)
-
-        # Convert to layout data and save
-        layout_data = layout.config.model_dump(mode="json")
+        # Convert to layout data
+        layout_data = layout.config.model_dump(mode="json", by_alias=True)
 
         # Add metadata from layout_meta
         layout_data["_moergo_meta"] = {
@@ -210,25 +201,62 @@ def download_layout(
             "tags": layout.layout_meta.tags,
         }
 
-        # Write to file
-        with output.open("w") as f:
-            json.dump(layout_data, f, indent=2)
+        # Prepare JSON content
+        layout_json = json.dumps(layout_data, indent=2)
 
-        typer.echo(
-            Icons.format_with_icon(
-                "SUCCESS",
-                f"Layout '{layout.layout_meta.title}' saved to {output}",
-                icon_mode,
+        # Handle output destination
+        if output == "-":
+            # Output to stdout
+            sys.stdout.write(layout_json)
+            sys.stdout.write("\n")
+        else:
+            # Determine output path
+            if output is None:
+                # Generate smart default filename using templates
+                from glovebox.config import create_user_config
+
+                user_config = create_user_config()
+                layout_template_data = extract_layout_dict_data(layout_data)
+
+                default_filename = generate_default_filename(
+                    FileType.LAYOUT_JSON,
+                    user_config._config.filename_templates,
+                    layout_data=layout_template_data,
+                    original_filename=f"{layout_id}.json",
+                )
+                output_path = Path(default_filename)
+            else:
+                output_path = Path(output)
+
+            # Check if file exists
+            if output_path.exists() and not force:
+                typer.echo(
+                    Icons.format_with_icon(
+                        "ERROR",
+                        f"File {output_path} already exists. Use --force to overwrite.",
+                        icon_mode,
+                    )
+                )
+                raise typer.Exit(1)
+
+            # Write to file
+            output_path.write_text(layout_json)
+
+            typer.echo(
+                Icons.format_with_icon(
+                    "SUCCESS",
+                    f"Layout '{layout.layout_meta.title}' saved to {output_path}",
+                    icon_mode,
+                )
             )
-        )
-        typer.echo(f"   Creator: {layout.layout_meta.creator}")
-        typer.echo(f"   Created: {layout.layout_meta.created_datetime}")
+            typer.echo(f"   Creator: {layout.layout_meta.creator}")
+            typer.echo(f"   Created: {layout.layout_meta.created_datetime}")
 
-        if layout.layout_meta.notes:
-            typer.echo(f"   Notes: {layout.layout_meta.notes}")
+            if layout.layout_meta.notes:
+                typer.echo(f"   Notes: {layout.layout_meta.notes}")
 
-        if layout.layout_meta.tags:
-            typer.echo(f"   Tags: {', '.join(layout.layout_meta.tags)}")
+            if layout.layout_meta.tags:
+                typer.echo(f"   Tags: {', '.join(layout.layout_meta.tags)}")
 
     except AuthenticationError as e:
         typer.echo(

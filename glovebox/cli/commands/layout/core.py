@@ -50,7 +50,7 @@ def compile_layout(
         typer.Option(
             "-o",
             "--output",
-            help="Output directory and base filename (e.g., 'config/my_glove80')",
+            help="Output directory and base filename (e.g., 'config/my_glove80'). If not specified, generates smart default filenames.",
         ),
     ] = None,
     profile: ProfileOption = None,
@@ -66,12 +66,18 @@ def compile_layout(
     ] = False,
     output_format: OutputFormatOption = "text",
 ) -> None:
-    """Compile ZMK keymap and config files from a JSON keymap file.
+    """Compile ZMK keymap and config files from a JSON keymap file or stdin.
 
-    Takes a JSON layout file (exported from Layout Editor) and generates
-    ZMK .keymap and .conf files ready for firmware compilation.
+    Takes a JSON layout file (exported from Layout Editor) or JSON data from stdin
+    and generates ZMK .keymap and .conf files ready for firmware compilation.
 
-    \b
+    \\b
+    Input sources:
+    - File path: glovebox layout compile layout.json
+    - Stdin: glovebox layout compile - (or pipe: cat layout.json | glovebox layout compile -)
+    - Environment: GLOVEBOX_JSON_FILE=layout.json glovebox layout compile
+
+    \\b
     Profile precedence (highest to lowest):
     1. CLI --profile flag (overrides all)
     2. Auto-detection from JSON keyboard field (unless --no-auto)
@@ -83,7 +89,11 @@ def compile_layout(
 
     * glovebox layout compile layout.json -o output/glove80 --profile glove80/v25.05
 
-    * glovebox layout compile layout.json -o output/glove80  # Auto-detect profile from JSON
+    * glovebox layout compile layout.json  # Generate smart default filenames
+
+    * cat layout.json | glovebox layout compile - --profile glove80/v25.05
+
+    * echo '{"keyboard": "glove80", ...}' | glovebox layout compile -
 
     * GLOVEBOX_JSON_FILE=layout.json glovebox layout compile -o output/glove80
 
@@ -115,48 +125,155 @@ def compile_layout(
     def compilation_operation(layout_file: Path) -> dict[str, Any]:
         """Compilation operation that returns structured results."""
         with layout_duration.time():
-            # Resolve JSON file path (supports environment variable)
-            resolved_json_file = resolve_json_file_path(json_file, "GLOVEBOX_JSON_FILE")
+            # Handle stdin input or resolve file path
+            from glovebox.cli.helpers.stdin_utils import (
+                is_stdin_input,
+                read_json_input,
+                resolve_input_source_with_env,
+            )
 
-            if resolved_json_file is None:
+            # Resolve input source (file, stdin, or environment variable)
+            input_source = resolve_input_source_with_env(
+                json_file, "GLOVEBOX_JSON_FILE"
+            )
+
+            if input_source is None:
                 raise ValueError(
-                    "JSON file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
+                    "JSON input is required. Provide file path, '-' for stdin, or set GLOVEBOX_JSON_FILE environment variable."
                 )
+
+            # Determine if we're reading from stdin or file
+            using_stdin = is_stdin_input(input_source)
+
+            if using_stdin:
+                # Read JSON data from stdin
+                layout_dict = read_json_input(input_source)
+
+                # Convert to LayoutData object
+                from glovebox.layout.models import LayoutData
+
+                layout_data = LayoutData.model_validate(layout_dict)
+
+                # We don't have a real file path for stdin, use a dummy path for profile resolution
+                resolved_json_file = None
+
+            else:
+                # Handle file input (existing behavior)
+                resolved_json_file = resolve_json_file_path(
+                    input_source, "GLOVEBOX_JSON_FILE"
+                )
+
+                if resolved_json_file is None:
+                    raise ValueError(f"JSON file not found: {input_source}")
+
+                layout_data = None  # Will be loaded by file-based service method
 
             # Use unified profile resolution with auto-detection support
             from glovebox.cli.helpers.parameters import (
                 create_profile_from_param_unified,
             )
 
+            # For stdin input, auto-detection can use the layout_data, for file input use the file path
+            if using_stdin:
+                # For stdin, we can try auto-detection from the loaded layout data
+                json_file_for_profile = None
+                # Create a temporary data dict for auto-detection if needed
+                profile_auto_data = layout_dict if not no_auto else None
+            else:
+                json_file_for_profile = resolved_json_file
+                profile_auto_data = None
+
             keyboard_profile = create_profile_from_param_unified(
                 ctx=ctx,
                 profile=profile,
                 default_profile="glove80/v25.05",
-                json_file=resolved_json_file,
+                json_file=json_file_for_profile,
                 no_auto=no_auto,
+                # TODO: Add support for auto-detection from data dict in the profile utility
             )
 
+            # Generate smart output prefix if not provided
             if output is not None:
                 output_file_prefix_final = output
-            elif json_file is not None:
-                output_file_prefix_final = Path(json_file).stem + "_"
             else:
-                from tempfile import gettempdir
-
-                output_file_prefix_final = str(
-                    Path(gettempdir()) / keyboard_profile.keyboard_name
+                # Use filename generation utility for smart defaults
+                from glovebox.cli.helpers.profile import get_user_config_from_context
+                from glovebox.cli.helpers.stdin_utils import (
+                    get_input_filename_for_templates,
+                )
+                from glovebox.config import create_user_config
+                from glovebox.utils.filename_generator import (
+                    FileType,
+                    generate_default_filename,
+                )
+                from glovebox.utils.filename_helpers import (
+                    extract_layout_dict_data,
+                    extract_profile_data,
                 )
 
-            # Generate keymap using the file-based service method
+                user_config = get_user_config_from_context(ctx) or create_user_config()
+                profile_data = extract_profile_data(keyboard_profile)
+
+                # Get layout data for filename generation
+                if using_stdin:
+                    # Use the already-loaded layout data from stdin
+                    filename_layout_data = extract_layout_dict_data(layout_dict)
+                    original_filename = None  # No original filename for stdin
+                else:
+                    # Read layout data from file
+                    try:
+                        import json
+
+                        with resolved_json_file.open() as f:
+                            file_layout_dict = json.load(f)
+                            filename_layout_data = extract_layout_dict_data(
+                                file_layout_dict
+                            )
+                        original_filename = str(resolved_json_file)
+                    except Exception:
+                        # Fall back to basic data
+                        filename_layout_data = {
+                            "title": resolved_json_file.stem
+                            if resolved_json_file
+                            else "layout"
+                        }
+                        original_filename = (
+                            str(resolved_json_file) if resolved_json_file else None
+                        )
+
+                # Generate keymap filename (without extension)
+                keymap_filename = generate_default_filename(
+                    FileType.KEYMAP,
+                    user_config._config.filename_templates,
+                    layout_data=filename_layout_data,
+                    profile_data=profile_data,
+                    original_filename=original_filename,
+                )
+
+                # Use the stem as output prefix
+                output_file_prefix_final = Path(keymap_filename).stem
+
+            # Generate keymap using appropriate service method
             keymap_service = create_full_layout_service()
 
-            result = keymap_service.generate_from_file(
-                profile=keyboard_profile,
-                json_file_path=resolved_json_file,
-                output_file_prefix=output_file_prefix_final,
-                session_metrics=metrics,
-                force=force,
-            )
+            if using_stdin:
+                # Use data-based service method for stdin input
+                result = keymap_service.compile(
+                    profile=keyboard_profile,
+                    keymap_data=layout_data,
+                    output_file_prefix=output_file_prefix_final,
+                    session_metrics=metrics,
+                    force=force,
+                )
+            else:
+                # Use file-based service method for file input
+                result = keymap_service.generate_from_file(
+                    profile=keyboard_profile,
+                    json_file_path=resolved_json_file,
+                    output_file_prefix=output_file_prefix_final,
+                    session_metrics=metrics,
+                    force=force,
+                )
 
             if result.success:
                 # Track successful compilation

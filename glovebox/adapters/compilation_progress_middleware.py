@@ -60,16 +60,25 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
             from glovebox.compilation.models.compilation_config import (
                 ProgressPhasePatterns,
             )
+
             progress_patterns = ProgressPhasePatterns()
 
         # Compile patterns for parsing different types of output
         self.repo_download_pattern = re.compile(progress_patterns.repo_download_pattern)
         self.build_start_pattern = re.compile(progress_patterns.build_start_pattern)
-        self.build_progress_pattern = re.compile(progress_patterns.build_progress_pattern)
-        self.build_complete_pattern = re.compile(progress_patterns.build_complete_pattern)
+        self.build_progress_pattern = re.compile(
+            progress_patterns.build_progress_pattern
+        )
+        self.build_complete_pattern = re.compile(
+            progress_patterns.build_complete_pattern
+        )
         # Board-specific patterns
-        self.board_detection_pattern = re.compile(progress_patterns.board_detection_pattern)
-        self.board_complete_pattern = re.compile(progress_patterns.board_complete_pattern)
+        self.board_detection_pattern = re.compile(
+            progress_patterns.board_detection_pattern
+        )
+        self.board_complete_pattern = re.compile(
+            progress_patterns.board_complete_pattern
+        )
 
     def process(self, line: str, stream_type: str) -> str:
         """Process Docker output line and update compilation progress.
@@ -97,7 +106,7 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
             ) and self.progress_coordinator.current_phase != "building":
                 logger.info(
                     "Detected build activity, transitioning from %s to building phase",
-                    self.progress_coordinator.current_phase
+                    self.progress_coordinator.current_phase,
                 )
                 self.progress_coordinator.transition_to_phase(
                     "building", "Starting compilation"

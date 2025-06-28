@@ -120,12 +120,21 @@ def upload(
 @cloud_app.command()
 def download(
     layout_uuid: Annotated[str, typer.Argument(help="UUID of the layout to download")],
-    output_file: Annotated[
-        Path, typer.Argument(help="Output file path for the downloaded layout")
-    ],
+    output: Annotated[
+        str | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output file path for the downloaded layout. Use '-' for stdout. If not specified, generates a smart default filename.",
+        ),
+    ] = None,
 ) -> None:
     """Download a layout from Glove80 cloud service."""
+    import sys
+
     from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
+    from glovebox.utils.filename_generator import FileType, generate_default_filename
+    from glovebox.utils.filename_helpers import extract_layout_dict_data
 
     client = create_moergo_client()
 
@@ -142,12 +151,40 @@ def download(
     try:
         layout = client.get_layout(layout_uuid)
 
-        # Save the config part (the actual layout data)
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-        output_file.write_text(layout.config.model_dump_json(by_alias=True, indent=2))
-        typer.echo(
-            Icons.format_with_icon("SAVE", f"Downloaded to: {output_file}", "emoji")
-        )
+        # Prepare the layout JSON content
+        layout_json = layout.config.model_dump_json(by_alias=True, indent=2)
+
+        # Handle output destination
+        if output == "-":
+            # Output to stdout
+            sys.stdout.write(layout_json)
+            sys.stdout.write("\n")
+        else:
+            # Determine output path
+            if output is None:
+                # Generate smart default filename using templates
+                from glovebox.config import create_user_config
+
+                user_config = create_user_config()
+                layout_dict = layout.config.model_dump(by_alias=True)
+                layout_template_data = extract_layout_dict_data(layout_dict)
+
+                default_filename = generate_default_filename(
+                    FileType.LAYOUT_JSON,
+                    user_config._config.filename_templates,
+                    layout_data=layout_template_data,
+                    original_filename=f"{layout_uuid}.json",
+                )
+                output_file = Path(default_filename)
+            else:
+                output_file = Path(output)
+
+            # Save the config part (the actual layout data)
+            output_file.parent.mkdir(parents=True, exist_ok=True)
+            output_file.write_text(layout_json)
+            typer.echo(
+                Icons.format_with_icon("SAVE", f"Downloaded to: {output_file}", "emoji")
+            )
 
     except Exception as e:
         typer.echo(
@@ -219,7 +256,7 @@ def list(
         typer.echo(
             Icons.format_with_icon(
                 "INFO",
-                "Use 'glovebox cloud download <uuid> <output.json>' to download a layout",
+                "Use 'glovebox cloud download <uuid> [--output <file>]' to download a layout",
                 icon_mode,
             )
         )
@@ -314,7 +351,7 @@ def browse(
         typer.echo(
             Icons.format_with_icon(
                 "INFO",
-                "Use 'glovebox cloud download <uuid> <output.json>' to download a layout",
+                "Use 'glovebox cloud download <uuid> [--output <file>]' to download a layout",
                 icon_mode,
             )
         )

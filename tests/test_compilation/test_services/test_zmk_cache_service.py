@@ -34,9 +34,7 @@ class TestZmkCacheService:
     @pytest.fixture
     def mock_session_metrics(self, cache_manager):
         """Mock session metrics for testing."""
-        return SessionMetrics(
-            cache_manager=cache_manager, session_uuid="test-session"
-        )
+        return SessionMetrics(cache_manager=cache_manager, session_uuid="test-session")
 
     @pytest.fixture
     def cache_service(self, mock_user_config, cache_manager, mock_session_metrics):
@@ -98,7 +96,9 @@ class TestZmkCacheService:
 
         return keymap_file, config_file
 
-    def test_service_creation(self, mock_user_config, cache_manager, mock_session_metrics):
+    def test_service_creation(
+        self, mock_user_config, cache_manager, mock_session_metrics
+    ):
         """Test cache service creation."""
         service = create_zmk_cache_service(
             user_config=mock_user_config,
@@ -148,8 +148,8 @@ class TestZmkCacheService:
             cache_service.cache_workspace(workspace_path, zmk_config)
 
             # Retrieve from cache
-            cached_workspace, cache_used, cache_type = cache_service.get_cached_workspace(
-                zmk_config
+            cached_workspace, cache_used, cache_type = (
+                cache_service.get_cached_workspace(zmk_config)
             )
 
             assert cached_workspace is not None

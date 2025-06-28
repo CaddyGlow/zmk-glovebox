@@ -200,7 +200,9 @@ def create_layout_layer_service_for_tests(file_adapter=None):
     return create_layout_layer_service(file_adapter)
 
 
-def create_moergo_nix_service_for_tests(docker_adapter=None, file_adapter=None, session_metrics=None):
+def create_moergo_nix_service_for_tests(
+    docker_adapter=None, file_adapter=None, session_metrics=None
+):
     """Create a MoergoNixService with test-friendly defaults."""
     from glovebox.adapters import create_docker_adapter, create_file_adapter
     from glovebox.compilation.services.moergo_nix_service import (

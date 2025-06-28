@@ -12,10 +12,10 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 # Import for icon mode enum
 from glovebox.cli.helpers.theme import IconMode
-from glovebox.models.path import PreservingPath
 from glovebox.moergo.config import MoErgoServiceConfig, create_default_moergo_config
 
 from .cache import CacheTTLConfig
+from .filename_templates import FilenameTemplateConfig
 from .firmware import UserFirmwareConfig
 from .logging import LoggingConfig, create_default_logging_config
 
@@ -78,19 +78,25 @@ class UserConfigData(BaseSettings):
             file_secret_settings,  # Lowest: file secrets
         )
 
-    profiles_paths: Annotated[list[PreservingPath], NoDecode] = []
+    profiles_paths: Annotated[list[Path], NoDecode] = []
 
     # Paths for user-defined keyboards and layouts (stored as string, accessed as list[Path])
     @field_validator("profiles_paths", mode="before")
     @classmethod
-    def decode_profiles_paths(cls, v: Any) -> list[PreservingPath]:
+    def decode_profiles_paths(cls, v: Any) -> list[Path]:
         if isinstance(v, str):
             return [
-                PreservingPath(path.strip()) for path in v.split(",") if path.strip()
+                Path(os.path.expandvars(path.strip())).expanduser()
+                for path in v.split(",")
+                if path.strip()
             ]
         elif isinstance(v, list):
             return [
-                PreservingPath(str(path.strip() if isinstance(path, str) else path))
+                Path(
+                    os.path.expandvars(
+                        str(path.strip() if isinstance(path, str) else path)
+                    )
+                ).expanduser()
                 for path in v
                 if str(path).strip()
             ]
@@ -123,8 +129,10 @@ class UserConfigData(BaseSettings):
     # )
 
     # Cache settings
-    cache_path: PreservingPath = Field(
-        default_factory=lambda: PreservingPath("$XDG_CACHE_HOME/glovebox"),
+    cache_path: Path = Field(
+        default_factory=lambda: Path(
+            os.path.expandvars("$XDG_CACHE_HOME/glovebox")
+        ).expanduser(),
         description="Directory for caching build artifacts and dependencies",
     )
     cache_strategy: str = Field(
@@ -162,6 +170,12 @@ class UserConfigData(BaseSettings):
     moergo: MoErgoServiceConfig = Field(
         default_factory=create_default_moergo_config,
         description="Configuration for MoErgo service integration and credential management",
+    )
+
+    # Filename template configuration
+    filename_templates: "FilenameTemplateConfig" = Field(
+        default_factory=lambda: FilenameTemplateConfig(),
+        description="Templates for generating default filenames for various file types",
     )
 
     @field_validator("profile")
@@ -203,16 +217,16 @@ class UserConfigData(BaseSettings):
 
     @field_validator("cache_path", mode="before")
     @classmethod
-    def validate_cache_path(cls, v: Any) -> PreservingPath:
-        """Validate and create PreservingPath for cache_path."""
-        if isinstance(v, PreservingPath):
+    def validate_cache_path(cls, v: Any) -> Path:
+        """Validate and expand cache_path with environment variables."""
+        if isinstance(v, Path):
             return v
 
-        if isinstance(v, str | Path):
-            return PreservingPath(str(v))
+        if isinstance(v, str):
+            return Path(os.path.expandvars(v)).expanduser()
 
         # Fallback to default
-        return PreservingPath("$XDG_CACHE_HOME/glovebox")
+        return Path(os.path.expandvars("$XDG_CACHE_HOME/glovebox")).expanduser()
 
     @field_validator("cache_strategy")
     @classmethod
@@ -247,14 +261,14 @@ class UserConfigData(BaseSettings):
         return value.value
 
     @field_serializer("cache_path", when_used="json")
-    def serialize_cache_path(self, value: PreservingPath) -> str:
+    def serialize_cache_path(self, value: Path) -> str:
         """Serialize cache_path back to original notation."""
-        return value.original
+        return str(value)
 
     @field_serializer("profiles_paths", when_used="json")
-    def serialize_profiles_paths(self, value: list[PreservingPath]) -> list[str]:
-        """Serialize profiles_paths back to original notation."""
-        return [path.original for path in value]
+    def serialize_profiles_paths(self, value: list[Path]) -> list[str]:
+        """Serialize profiles_paths as string paths."""
+        return [str(path) for path in value]
 
 
 # Rebuild model to resolve forward references
