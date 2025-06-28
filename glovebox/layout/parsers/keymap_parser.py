@@ -186,6 +186,16 @@ class ZmkKeymapParser:
                 layout_data.custom_devicetree = custom_code.get("devicetree", "")
                 result.extracted_sections["custom"] = custom_code
 
+            # DEBUG: Log metadata extraction summary
+            self.logger.debug("=== FULL MODE METADATA SUMMARY ===")
+            self.logger.debug("Extracted sections: %s", list(result.extracted_sections.keys()))
+            if 'macros' in result.extracted_sections:
+                macros = result.extracted_sections['macros']
+                self.logger.debug("Macros found: %d", len(macros))
+                for i, macro in enumerate(macros[:3]):  # Show first 3
+                    self.logger.debug("  %d. %s - %s", i+1, macro.name, macro.description)
+            self.logger.debug("=== END METADATA SUMMARY ===")
+
             return layout_data
 
         except Exception as e:

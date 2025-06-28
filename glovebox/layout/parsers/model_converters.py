@@ -600,6 +600,20 @@ class MacroConverter(ModelConverter):
             name = node.label or node.name
             if not name.startswith("&"):
                 name = f"&{name}"
+            
+            # DEBUG: Log available metadata for this macro
+            if "mod_tab_v1_TKZ" in name:
+                self.logger.debug("=== Macro %s metadata ===", name)
+                self.logger.debug("Node name: %s", node.name)
+                self.logger.debug("Node label: %s", node.label)
+                self.logger.debug("Node path: %s", node.path)
+                self.logger.debug("Comments (%d total):", len(node.comments))
+                for i, comment in enumerate(node.comments):
+                    self.logger.debug("  %d: %r", i, comment.text)
+                self.logger.debug("Properties (%d total):", len(node.properties))
+                for prop_name, prop_value in node.properties.items():
+                    self.logger.debug("  %s: %r", prop_name, prop_value)
+                self.logger.debug("=== END DEBUG ===")
 
             # Create base behavior
             behavior = MacroBehavior(
