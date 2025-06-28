@@ -133,11 +133,10 @@ class BuildResult(GloveboxBaseModel):
 
 
 def generate_build_info(
-    keymap_file: Path,
-    config_file: Path,
-    json_file: Path | None,
     repository: str,
     branch: str,
+    keymap_content: str,
+    config_content: str,
     head_hash: str | None = None,
     build_mode: str = "compilation",
     layout_uuid: str | None = None,
@@ -147,20 +146,29 @@ def generate_build_info(
     """Generate comprehensive build information for inclusion in artifacts.
 
     Args:
-        keymap_file: Path to the keymap file
-        config_file: Path to the config file
-        json_file: Path to the JSON layout file (optional)
         repository: Git repository name
         branch: Git branch name
+        keymap_content: Keymap content string
+        config_content: Config content string
         head_hash: Git commit hash (optional)
         build_mode: Build mode identifier
-        layout_uuid: Layout UUID from JSON file (optional, will be extracted if not provided)
+        layout_uuid: Layout UUID from JSON file (optional)
         uf2_files: List of generated UF2 firmware files (optional)
         compilation_duration: Compilation duration in seconds (optional)
 
     Returns:
         Dictionary containing build metadata
     """
+
+    def _calculate_sha256_from_content(content: str | None) -> str | None:
+        """Calculate SHA256 hash from content string."""
+        try:
+            if content is None:
+                return None
+            return hashlib.sha256(content.encode('utf-8')).hexdigest()
+        except Exception as e:
+            logger.warning("Failed to calculate SHA256 from content: %s", e)
+            return None
 
     def _calculate_sha256(file_path: Path) -> str | None:
         """Calculate SHA256 hash of a file."""
@@ -226,19 +234,12 @@ def generate_build_info(
             )
             return {"uuid": None, "parent_uuid": None, "title": None}
 
-    # Calculate file hashes
-    keymap_sha256 = _calculate_sha256(keymap_file)
-    config_sha256 = _calculate_sha256(config_file)
-    json_sha256 = _calculate_sha256(json_file) if json_file else None
+    # Calculate content hashes
+    keymap_sha256 = _calculate_sha256_from_content(keymap_content)
+    config_sha256 = _calculate_sha256_from_content(config_content)
 
-    # Extract layout metadata from JSON file
+    # Use provided layout metadata
     layout_metadata = {"uuid": layout_uuid, "parent_uuid": None, "title": None}
-    if json_file:
-        extracted_metadata = _extract_layout_metadata(json_file)
-        # Use provided layout_uuid if available, otherwise use extracted
-        layout_metadata["uuid"] = layout_uuid or extracted_metadata["uuid"]
-        layout_metadata["parent_uuid"] = extracted_metadata["parent_uuid"]
-        layout_metadata["title"] = extracted_metadata["title"]
 
     # Calculate UF2 file hashes
     uf2_file_info = []
@@ -261,11 +262,9 @@ def generate_build_info(
         "compilation_duration_seconds": compilation_duration,
         "files": {
             "keymap": {
-                "path": str(keymap_file.name),
                 "sha256": keymap_sha256,
             },
             "config": {
-                "path": str(config_file.name),
                 "sha256": config_sha256,
             },
         },
@@ -280,43 +279,42 @@ def generate_build_info(
         },
     }
 
-    # Add JSON file info if present
-    if json_file:
-        files_dict = build_info["files"]
-        if isinstance(files_dict, dict):
-            files_dict["json"] = {
-                "path": str(json_file.name),
-                "sha256": json_sha256,
-            }
+    # No JSON file handling for memory-based builds
 
     return build_info
 
 
+
+
 def create_build_info_file(
     artifacts_dir: Path,
-    keymap_file: Path,
-    config_file: Path,
-    json_file: Path | None,
     repository: str,
     branch: str,
+    keymap_file: Path | None = None,
+    config_file: Path | None = None,
+    keymap_content: str | None = None,
+    config_content: str | None = None,
+    json_file: Path | None = None,
     head_hash: str | None = None,
     build_mode: str = "compilation",
     layout_uuid: str | None = None,
     uf2_files: list[Path] | None = None,
     compilation_duration: float | None = None,
 ) -> bool:
-    """Create build-info.json file in the artifacts directory.
+    """Create build-info.json file from either file paths or content.
 
     Args:
         artifacts_dir: Directory where build-info.json should be created
-        keymap_file: Path to the keymap file
-        config_file: Path to the config file
-        json_file: Path to the JSON layout file (optional)
         repository: Git repository name
         branch: Git branch name
+        keymap_file: Path to the keymap file (optional, used if content not provided)
+        config_file: Path to the config file (optional, used if content not provided)
+        keymap_content: Keymap content string (optional, used instead of file)
+        config_content: Config content string (optional, used instead of file)
+        json_file: Path to the JSON layout file (optional)
         head_hash: Git commit hash (optional)
         build_mode: Build mode identifier
-        layout_uuid: Layout UUID from JSON file (optional, will be extracted if not provided)
+        layout_uuid: Layout UUID (optional)
         uf2_files: List of generated UF2 firmware files (optional)
         compilation_duration: Compilation duration in seconds (optional)
 
@@ -324,14 +322,25 @@ def create_build_info_file(
         True if file was created successfully, False otherwise
     """
     try:
+        # Get content either from provided strings or by reading files
+        actual_keymap_content = keymap_content
+        actual_config_content = config_content
+
+        if actual_keymap_content is None and keymap_file is not None:
+            actual_keymap_content = keymap_file.read_text()
+        if actual_config_content is None and config_file is not None:
+            actual_config_content = config_file.read_text()
+
+        if actual_keymap_content is None or actual_config_content is None:
+            raise ValueError("Must provide either file paths or content strings")
+
         artifacts_dir.mkdir(parents=True, exist_ok=True)
 
         build_info = generate_build_info(
-            keymap_file=keymap_file,
-            config_file=config_file,
-            json_file=json_file,
             repository=repository,
             branch=branch,
+            keymap_content=actual_keymap_content,
+            config_content=actual_config_content,
             head_hash=head_hash,
             build_mode=build_mode,
             layout_uuid=layout_uuid,

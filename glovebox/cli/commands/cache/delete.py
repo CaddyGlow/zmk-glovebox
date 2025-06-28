@@ -80,24 +80,48 @@ def cache_delete(
             all_keys = module_cache.keys()
             keys_to_delete = [k for k in all_keys if pattern.lower() in k.lower()]
 
-            # For compilation module, provide safety check to prevent workspace deletion
-            if module == "compilation" and pattern.lower() in [
-                "compilation_build",
-                "build",
-            ]:
-                # Filter out workspace keys to prevent accidental deletion
+            # For compilation module, ALWAYS provide safety check to prevent workspace deletion
+            if module == "compilation":
+                # Check if any workspace keys would be matched
                 workspace_prefixes = ["workspace_repo_", "workspace_repo_branch_"]
-                original_count = len(keys_to_delete)
-                keys_to_delete = [
+                workspace_keys = [
                     k
                     for k in keys_to_delete
-                    if not any(k.startswith(prefix) for prefix in workspace_prefixes)
+                    if any(k.startswith(prefix) for prefix in workspace_prefixes)
                 ]
-                filtered_count = original_count - len(keys_to_delete)
-                if filtered_count > 0:
+
+                if workspace_keys:
+                    # Show warning about workspace keys that would be deleted
                     console.print(
-                        f"[yellow]Filtered out {filtered_count} workspace cache keys for safety[/yellow]"
+                        f"[red]WARNING: Pattern '{pattern}' matches {len(workspace_keys)} workspace cache keys![/red]"
                     )
+                    console.print("[red]Workspace keys contain git repositories and build data.[/red]")
+                    console.print("[yellow]Matched workspace keys:[/yellow]")
+                    for i, key in enumerate(workspace_keys[:5], 1):  # Show first 5
+                        console.print(f"  {i}. {key}")
+                    if len(workspace_keys) > 5:
+                        console.print(f"  ... and {len(workspace_keys) - 5} more")
+
+                    # Require explicit confirmation for workspace deletion
+                    if not force:
+                        console.print(
+                            "\n[red]Deleting workspace keys will permanently remove git repositories and build data![/red]"
+                        )
+                        workspace_confirm = typer.confirm(
+                            "Are you SURE you want to delete workspace cache keys?"
+                        )
+                        if not workspace_confirm:
+                            # Filter out workspace keys for safety
+                            original_count = len(keys_to_delete)
+                            keys_to_delete = [
+                                k
+                                for k in keys_to_delete
+                                if not any(k.startswith(prefix) for prefix in workspace_prefixes)
+                            ]
+                            filtered_count = original_count - len(keys_to_delete)
+                            console.print(
+                                f"[green]Filtered out {filtered_count} workspace cache keys for safety[/green]"
+                            )
         else:
             console.print("[red]Must specify --keys, --json-file, or --pattern[/red]")
             console.print("[dim]Examples:[/dim]")

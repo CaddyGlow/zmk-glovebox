@@ -441,93 +441,35 @@ class ZmkWestService(CompilationServiceProtocol):
         keyboard_profile: "KeyboardProfile",
         progress_callback: CompilationProgressCallback | None = None,
     ) -> BuildResult:
-        """Execute compilation from JSON layout file."""
+        """Execute compilation from JSON layout file (optimized - reduced temp files)."""
         self.logger.info("Starting JSON to firmware compilation")
 
-        try:
-            # Convert JSON to keymap/config files first
-            from glovebox.adapters import create_file_adapter, create_template_adapter
-            from glovebox.layout import (
-                create_behavior_registry,
-                create_grid_layout_formatter,
-                create_layout_component_service,
-                create_layout_display_service,
-                create_layout_service,
-            )
-            from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
-            from glovebox.layout.zmk_generator import ZmkFileContentGenerator
+        # Use optimized helper to get content first, then minimal temp files
+        from glovebox.compilation.helpers import convert_json_to_keymap
 
-            # Create all dependencies for layout service
-            file_adapter = create_file_adapter()
-            template_adapter = create_template_adapter()
-            behavior_registry = create_behavior_registry()
-            behavior_formatter = BehaviorFormatterImpl(behavior_registry)
-            dtsi_generator = ZmkFileContentGenerator(behavior_formatter)
-            layout_generator = create_grid_layout_formatter()
-            component_service = create_layout_component_service(file_adapter)
-            layout_display_service = create_layout_display_service(layout_generator)
+        keymap_file, config_file, conversion_result = convert_json_to_keymap(
+            json_file=json_file,
+            keyboard_profile=keyboard_profile,
+            session_metrics=self.session_metrics,
+        )
 
-            layout_service = create_layout_service(
-                file_adapter=file_adapter,
-                template_adapter=template_adapter,
-                behavior_registry=behavior_registry,
-                component_service=component_service,
-                layout_service=layout_display_service,
-                behavior_formatter=behavior_formatter,
-                dtsi_generator=dtsi_generator,
-            )
+        if not conversion_result.success:
+            return conversion_result
 
-            # Create temporary directory for intermediate files
-            with tempfile.TemporaryDirectory(prefix="json_to_keymap_") as temp_dir:
-                temp_path = Path(temp_dir)
-                output_prefix = temp_path / "layout"
+        # Ensure files were created successfully (type safety)
+        assert keymap_file is not None, "Keymap file should be created on success"
+        assert config_file is not None, "Config file should be created on success"
 
-                # Generate keymap and config files from JSON
-                # Use session_metrics which is always available
-                layout_session_metrics = self.session_metrics
-
-                layout_result = layout_service.generate_from_file(
-                    profile=keyboard_profile,
-                    json_file_path=json_file,
-                    output_file_prefix=str(output_prefix),
-                    session_metrics=layout_session_metrics,
-                    force=True,
-                )
-
-                if not layout_result.success:
-                    return BuildResult(
-                        success=False,
-                        errors=[
-                            f"JSON to keymap conversion failed: {', '.join(layout_result.errors)}"
-                        ],
-                    )
-
-                # Get the generated files
-                output_files = layout_result.get_output_files()
-                keymap_file = output_files.get("keymap")
-                config_file = output_files.get("conf")
-
-                if not keymap_file or not config_file:
-                    return BuildResult(
-                        success=False,
-                        errors=["Failed to generate keymap or config files from JSON"],
-                    )
-
-                # Now compile using the generated files
-                return self.compile(
-                    keymap_file=Path(keymap_file),
-                    config_file=Path(config_file),
-                    output_dir=output_dir,
-                    config=config,
-                    keyboard_profile=keyboard_profile,
-                    progress_callback=progress_callback,
-                    json_file=json_file,
-                )
-
-        except Exception as e:
-            exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("JSON compilation failed: %s", e, exc_info=exc_info)
-            return BuildResult(success=False, errors=[str(e)])
+        # Compile using the generated files (ZMK workspace setup already optimized)
+        return self.compile(
+            keymap_file=keymap_file,
+            config_file=config_file,
+            output_dir=output_dir,
+            config=config,
+            keyboard_profile=keyboard_profile,
+            progress_callback=progress_callback,
+            json_file=json_file,
+        )
 
     def validate_config(self, config: CompilationConfigUnion) -> bool:
         """Validate configuration."""
@@ -608,6 +550,7 @@ class ZmkWestService(CompilationServiceProtocol):
                 # Create middleware that delegates to existing coordinator
                 middleware = create_compilation_progress_middleware(
                     progress_coordinator=progress_coordinator,
+                    progress_patterns=config.progress_patterns,
                     skip_west_update=cache_was_used,  # Skip west update if cache was used
                 )
 

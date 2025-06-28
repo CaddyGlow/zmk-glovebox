@@ -29,7 +29,9 @@ class PreservingPath(Path):
     _original: str
     _resolved_str: str
 
-    def __new__(cls, original: str, _resolved_path: Path | None = None) -> "PreservingPath":
+    def __new__(
+        cls, original: str, _resolved_path: Path | None = None
+    ) -> "PreservingPath":
         """
         Create a new PreservingPath instance.
 
@@ -61,32 +63,16 @@ class PreservingPath(Path):
 
         Handles common XDG variables and provides sensible defaults when they're missing.
         """
-        # Handle XDG_CACHE_HOME specifically
-        if "$XDG_CACHE_HOME" in path_str:
-            xdg_cache = os.environ.get("XDG_CACHE_HOME")
-            if xdg_cache:
-                path_str = path_str.replace("$XDG_CACHE_HOME", xdg_cache)
-            else:
-                # Fallback to ~/.cache
-                path_str = path_str.replace("$XDG_CACHE_HOME", "~/.cache")
+        xdg_fallbacks = {
+            "$XDG_CACHE_HOME": "~/.cache",
+            "$XDG_CONFIG_HOME": "~/.config",
+            "$XDG_DATA_HOME": "~/.local/share",
+        }
 
-        # Handle XDG_CONFIG_HOME specifically
-        if "$XDG_CONFIG_HOME" in path_str:
-            xdg_config = os.environ.get("XDG_CONFIG_HOME")
-            if xdg_config:
-                path_str = path_str.replace("$XDG_CONFIG_HOME", xdg_config)
-            else:
-                # Fallback to ~/.config
-                path_str = path_str.replace("$XDG_CONFIG_HOME", "~/.config")
-
-        # Handle XDG_DATA_HOME specifically
-        if "$XDG_DATA_HOME" in path_str:
-            xdg_data = os.environ.get("XDG_DATA_HOME")
-            if xdg_data:
-                path_str = path_str.replace("$XDG_DATA_HOME", xdg_data)
-            else:
-                # Fallback to ~/.local/share
-                path_str = path_str.replace("$XDG_DATA_HOME", "~/.local/share")
+        for xdg_var, fallback in xdg_fallbacks.items():
+            if xdg_var in path_str:
+                env_value = os.environ.get(xdg_var[1:])  # Remove the $ prefix
+                path_str = path_str.replace(xdg_var, env_value or fallback)
 
         # Expand any remaining environment variables and user home
         return os.path.expandvars(str(Path(path_str).expanduser()))
