@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from glovebox.cli.components.unified_progress_coordinator import (
         UnifiedCompilationProgressCoordinator,
     )
+    from glovebox.compilation.models.compilation_config import ProgressPhasePatterns
 
 
 logger = logging.getLogger(__name__)
@@ -35,12 +36,14 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
     def __init__(
         self,
         progress_coordinator: "UnifiedCompilationProgressCoordinator",
+        progress_patterns: "ProgressPhasePatterns | None" = None,
         skip_west_update: bool = False,  # Set to True if compilation starts directly with building
     ) -> None:
         """Initialize the compilation progress middleware.
 
         Args:
             progress_coordinator: Unified progress coordinator to delegate updates to
+            progress_patterns: Regex patterns for phase detection (defaults to standard patterns)
             skip_west_update: Whether to skip west update phase and start with building
         """
         self.progress_coordinator = progress_coordinator
@@ -52,18 +55,21 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
                 "building", "Starting compilation"
             )
 
-        # Patterns for parsing different types of output
-        self.repo_download_pattern = re.compile(
-            r"^From https://github\.com/([^/]+/[^/\s]+)"
-        )
-        self.build_start_pattern = re.compile(r"west build.*-b\s+(\w+)")
-        self.build_progress_pattern = re.compile(r"\[\s*(\d+)/(\d+)\s*\].*Building")
-        self.build_complete_pattern = re.compile(
-            r"Memory region\s+Used Size|FLASH.*region.*overlaps"
-        )
+        # Use provided patterns or create default ones
+        if progress_patterns is None:
+            from glovebox.compilation.models.compilation_config import (
+                ProgressPhasePatterns,
+            )
+            progress_patterns = ProgressPhasePatterns()
+
+        # Compile patterns for parsing different types of output
+        self.repo_download_pattern = re.compile(progress_patterns.repo_download_pattern)
+        self.build_start_pattern = re.compile(progress_patterns.build_start_pattern)
+        self.build_progress_pattern = re.compile(progress_patterns.build_progress_pattern)
+        self.build_complete_pattern = re.compile(progress_patterns.build_complete_pattern)
         # Board-specific patterns
-        self.board_detection_pattern = re.compile(r"west build.*-b\s+([a-zA-Z0-9_]+)")
-        self.board_complete_pattern = re.compile(r"Wrote \d+ bytes to zmk\.uf2")
+        self.board_detection_pattern = re.compile(progress_patterns.board_detection_pattern)
+        self.board_complete_pattern = re.compile(progress_patterns.board_complete_pattern)
 
     def process(self, line: str, stream_type: str) -> str:
         """Process Docker output line and update compilation progress.
@@ -85,12 +91,13 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
             build_match = self.build_start_pattern.search(line_stripped)
             build_progress_match = self.build_progress_pattern.search(line_stripped)
 
-            # If we detect build activity while in west_update phase, transition to building
+            # If we detect build activity and not already in building phase, transition to building
             if (
                 build_match or build_progress_match
-            ) and self.progress_coordinator.current_phase == "west_update":
+            ) and self.progress_coordinator.current_phase != "building":
                 logger.info(
-                    "Detected build activity, transitioning from west_update to building phase"
+                    "Detected build activity, transitioning from %s to building phase",
+                    self.progress_coordinator.current_phase
                 )
                 self.progress_coordinator.transition_to_phase(
                     "building", "Starting compilation"
@@ -158,12 +165,14 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
 
 def create_compilation_progress_middleware(
     progress_coordinator: "UnifiedCompilationProgressCoordinator",
+    progress_patterns: "ProgressPhasePatterns | None" = None,
     skip_west_update: bool = False,
 ) -> CompilationProgressMiddleware:
     """Factory function to create compilation progress middleware.
 
     Args:
         progress_coordinator: Unified progress coordinator to delegate updates to
+        progress_patterns: Regex patterns for phase detection (defaults to standard patterns)
         skip_west_update: Whether to skip west update phase and start with building
 
     Returns:
@@ -171,5 +180,6 @@ def create_compilation_progress_middleware(
     """
     return CompilationProgressMiddleware(
         progress_coordinator=progress_coordinator,
+        progress_patterns=progress_patterns,
         skip_west_update=skip_west_update,
     )

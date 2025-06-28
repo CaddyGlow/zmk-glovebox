@@ -70,6 +70,46 @@ class ZmkWorkspaceConfig(GloveboxBaseModel):
     )
 
 
+class ProgressPhasePatterns(GloveboxBaseModel):
+    """Regex patterns for detecting compilation progress phases."""
+
+    # Repository download patterns (west update phase)
+    repo_download_pattern: str = Field(
+        default=r"^From https://github\.com/([^/]+/[^/\s]+)",
+        description="Pattern to detect repository downloads during west update"
+    )
+
+    # Build start patterns
+    build_start_pattern: str = Field(
+        default=r"west build.*-b\s+(\w+)",
+        description="Pattern to detect start of build for a specific board"
+    )
+
+    # Build progress patterns
+    build_progress_pattern: str = Field(
+        default=r"\[\s*(\d+)/(\d+)\s*\].*Building",
+        description="Pattern to detect build progress steps [current/total]"
+    )
+
+    # Build completion patterns
+    build_complete_pattern: str = Field(
+        default=r"Memory region\s+Used Size|FLASH.*region.*overlaps",
+        description="Pattern to detect build completion"
+    )
+
+    # Board detection patterns
+    board_detection_pattern: str = Field(
+        default=r"west build.*-b\s+([a-zA-Z0-9_]+)",
+        description="Pattern to extract board name from build output"
+    )
+
+    # Board completion patterns
+    board_complete_pattern: str = Field(
+        default=r"Wrote \d+ bytes to zmk\.uf2",
+        description="Pattern to detect individual board completion"
+    )
+
+
 class CompilationConfig(GloveboxBaseModel):
     """Base compilation configuration for all strategies."""
 
@@ -102,6 +142,12 @@ class CompilationConfig(GloveboxBaseModel):
         description="Settings to drop docker privileges, used to fix volume permission error",
     )
 
+    # Progress tracking patterns
+    progress_patterns: ProgressPhasePatterns = Field(
+        default_factory=ProgressPhasePatterns,
+        description="Regex patterns for tracking compilation progress phases"
+    )
+
     @field_validator("method_type")
     @classmethod
     def validate_method_type(cls, v: str) -> str:
@@ -126,6 +172,12 @@ class ZmkCompilationConfig(CompilationConfig):
         default_factory=lambda: BuildMatrix(board=["nice_nano_v2"])
     )
 
+    # ZMK-specific progress patterns (uses default patterns)
+    progress_patterns: ProgressPhasePatterns = Field(
+        default_factory=ProgressPhasePatterns,
+        description="ZMK-specific progress tracking patterns"
+    )
+
 
 class MoergoCompilationConfig(CompilationConfig):
     """Moergo compilation configuration using Nix toolchain."""
@@ -145,6 +197,21 @@ class MoergoCompilationConfig(CompilationConfig):
         default_factory=lambda: DockerUserConfig(enable_user_mapping=False)
     )
 
+    # MoErgo-specific progress patterns (customized for Nix builds)
+    progress_patterns: ProgressPhasePatterns = Field(
+        default_factory=lambda: ProgressPhasePatterns(
+            # MoErgo doesn't use west update, so no repo download pattern needed
+            repo_download_pattern=r"$^|Never match",  # Never matches
+            # Nix build patterns
+            build_start_pattern=r"building.*glove80|nix-build.*starting",
+            build_progress_pattern=r"\[\s*(\d+)/(\d+)\s*\].*Building|Build progress.*board.*:(\d+)/(\d+)",
+            build_complete_pattern=r"Wrote \d+ bytes to zmk\.uf2|successful build of",
+            board_detection_pattern=r"building.*glove80_([lr]h|unified)|Board:\s*([a-zA-Z0-9_]+)",
+            board_complete_pattern=r"Wrote \d+ bytes to zmk\.uf2|successful build.*glove80"
+        ),
+        description="MoErgo Nix-specific progress tracking patterns"
+    )
+
 
 # Type union for all compilation configurations
 CompilationConfigUnion = MoergoCompilationConfig | ZmkCompilationConfig
@@ -157,4 +224,5 @@ __all__ = [
     "CompilationConfigUnion",
     "DockerUserConfig",
     "ZmkWorkspaceConfig",
+    "ProgressPhasePatterns",
 ]

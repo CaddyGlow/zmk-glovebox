@@ -190,18 +190,18 @@ class UnifiedCompilationProgressCoordinator:
             logger.error("Failed to update board progress: %s", e, exc_info=exc_info)
 
     def complete_all_builds(self) -> None:
-        """Mark all builds as complete and transition to artifact collection."""
+        """Mark all builds as complete and transition to done phase."""
         try:
             if self.current_phase == "building":
                 self.boards_completed = self.total_boards
                 self.current_board = ""
 
                 logger.debug(
-                    "All builds completed successfully (%d/%d). Starting cache saving.",
+                    "All builds completed successfully (%d/%d). Marking as done.",
                     self.boards_completed,
                     self.total_boards,
                 )
-                self.transition_to_phase("cache_saving", "Saving build cache")
+                self.transition_to_phase("done", "Build completed successfully")
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.error("Failed to complete all builds: %s", e, exc_info=exc_info)
@@ -354,13 +354,109 @@ class UnifiedCompilationProgressCoordinator:
             return f"Completed {self.boards_completed}/{self.total_boards} boards"
 
 
+class NoOpProgressCoordinator:
+    """No-operation progress coordinator that implements the same interface but does nothing.
+
+    This eliminates the need for conditional checks throughout the codebase by providing
+    a do-nothing implementation of all progress coordinator methods.
+    """
+
+    def __init__(self) -> None:
+        """Initialize no-op coordinator with minimal state."""
+        self.current_phase = "initialization"
+        self.total_boards = 0
+        self.board_names: list[str] = []
+        self.total_repositories = 0
+        self.repositories_downloaded = 0
+        self.boards_completed = 0
+        self.current_board = ""
+        self.current_repository = ""
+        self.current_board_step = 0
+        self.total_board_steps = 0
+
+    def transition_to_phase(self, phase: str, description: str = "") -> None:
+        """No-op phase transition."""
+        self.current_phase = phase
+
+    def update_cache_progress(
+        self,
+        operation: str,
+        current: int = 0,
+        total: int = 100,
+        description: str = "",
+    ) -> None:
+        """No-op cache progress update."""
+        pass
+
+    def update_workspace_progress(
+        self,
+        files_copied: int = 0,
+        total_files: int = 0,
+        bytes_copied: int = 0,
+        total_bytes: int = 0,
+        current_file: str = "",
+        component: str = "",
+    ) -> None:
+        """No-op workspace progress update."""
+        pass
+
+    def update_repository_progress(self, repository_name: str) -> None:
+        """No-op repository progress update."""
+        pass
+
+    def update_board_progress(
+        self,
+        board_name: str = "",
+        current_step: int = 0,
+        total_steps: int = 0,
+        completed: bool = False,
+    ) -> None:
+        """No-op board progress update."""
+        pass
+
+    def complete_all_builds(self) -> None:
+        """No-op build completion."""
+        pass
+
+    def update_cache_saving(self, operation: str = "", progress_info: str = "") -> None:
+        """No-op cache saving update."""
+        pass
+
+    def get_current_progress(self) -> CompilationProgress:
+        """Return minimal progress object."""
+        return CompilationProgress(
+            repositories_downloaded=0,
+            total_repositories=0,
+            current_repository="",
+            compilation_phase=self.current_phase,
+            current_board="",
+            boards_completed=0,
+            total_boards=0,
+            current_board_step=0,
+            total_board_steps=0,
+        )
+
+
 def create_unified_progress_coordinator(
-    tui_callback: CompilationProgressCallback,
+    tui_callback: CompilationProgressCallback | None,
     total_boards: int = 1,
     board_names: list[str] | None = None,
     total_repositories: int = 39,
-) -> UnifiedCompilationProgressCoordinator:
-    """Factory function to create a unified progress coordinator."""
+) -> UnifiedCompilationProgressCoordinator | NoOpProgressCoordinator:
+    """Factory function to create appropriate progress coordinator.
+
+    Args:
+        tui_callback: TUI callback function, or None for no-op coordinator
+        total_boards: Total number of boards to compile
+        board_names: List of board names for progress tracking
+        total_repositories: Total number of repositories to download
+
+    Returns:
+        NoOpProgressCoordinator if callback is None, otherwise UnifiedCompilationProgressCoordinator
+    """
+    if tui_callback is None:
+        return NoOpProgressCoordinator()
+
     return UnifiedCompilationProgressCoordinator(
         tui_callback=tui_callback,
         total_boards=total_boards,
