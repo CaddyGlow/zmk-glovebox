@@ -326,7 +326,8 @@ class TestModelConverter:
         assert combo.timeout_ms == 50
         assert combo.key_positions == [0, 1]
         assert combo.binding.value == "&kp"
-        assert combo.binding.params == ["ESC"]
+        assert len(combo.binding.params) == 1
+        assert combo.binding.params[0].value == "ESC"
 
 
 class TestIntegratedKeymapParser:
