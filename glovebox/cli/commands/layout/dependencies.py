@@ -12,6 +12,7 @@ from glovebox.layout import (
     create_layout_service,
 )
 from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
+from glovebox.layout.parsers import create_zmk_keymap_parser
 from glovebox.layout.service import LayoutService
 from glovebox.layout.zmk_generator import ZmkFileContentGenerator
 
@@ -47,6 +48,7 @@ def create_full_layout_service() -> LayoutService:
     # Create services
     component_service = create_layout_component_service(file_adapter)
     layout_display_service = create_layout_display_service(layout_generator)
+    keymap_parser = create_zmk_keymap_parser()
 
     # Create and return the main layout service
     return create_layout_service(
@@ -57,6 +59,7 @@ def create_full_layout_service() -> LayoutService:
         layout_service=layout_display_service,
         behavior_formatter=behavior_formatter,
         dtsi_generator=dtsi_generator,
+        keymap_parser=keymap_parser,
     )
 
 

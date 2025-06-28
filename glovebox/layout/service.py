@@ -27,6 +27,7 @@ from glovebox.layout.display_service import (
     create_layout_display_service,
 )
 from glovebox.layout.models import LayoutData, LayoutResult
+from glovebox.layout.parsers import ZmkKeymapParser, create_zmk_keymap_parser
 from glovebox.layout.utils import (
     generate_config_file,
     generate_keymap_file,
@@ -62,6 +63,7 @@ class LayoutService(BaseService):
         dtsi_generator: ZmkFileContentGenerator,
         component_service: LayoutComponentService,
         layout_service: LayoutDisplayService,
+        keymap_parser: ZmkKeymapParser,
     ):
         """Initialize layout service with all dependencies explicitly provided."""
         super().__init__(service_name="LayoutService", service_version="1.0.0")
@@ -74,6 +76,7 @@ class LayoutService(BaseService):
         self._dtsi_generator = dtsi_generator
         self._component_service = component_service
         self._layout_service = layout_service
+        self._keymap_parser = keymap_parser
 
     # File-based public methods
 
@@ -166,6 +169,91 @@ class LayoutService(BaseService):
             lambda data: self.validate(profile, data),
             self._file_adapter,
         )
+
+    def parse_keymap_from_file(
+        self,
+        keymap_file_path: Path,
+        profile: "KeyboardProfile",
+        parsing_mode: str = "template",
+        output_file_path: Path | None = None,
+    ) -> LayoutResult:
+        """Parse ZMK keymap file to JSON layout format.
+
+        Args:
+            keymap_file_path: Path to .keymap file to parse
+            profile: Keyboard profile for template-aware parsing
+            parsing_mode: Parsing mode ("full" or "template")
+            output_file_path: Optional output path for JSON file
+
+        Returns:
+            LayoutResult with parsed layout data or errors
+        """
+        logger.info("Starting keymap parsing for %s", keymap_file_path)
+
+        result = LayoutResult(success=False)
+
+        try:
+            # Import parsing mode enum
+            from glovebox.layout.parsers.keymap_parser import ParsingMode
+
+            # Convert string mode to enum
+            try:
+                mode = ParsingMode(parsing_mode)
+            except ValueError:
+                result.add_error(f"Invalid parsing mode: {parsing_mode}")
+                return result
+
+            # Parse keymap file
+            parse_result = self._keymap_parser.parse_keymap(
+                keymap_file=keymap_file_path,
+                mode=mode,
+                keyboard_profile=f"{profile.keyboard_name}/{profile.firmware_version}"
+                if profile.firmware_version
+                else profile.keyboard_name,
+            )
+
+            if not parse_result.success:
+                for error in parse_result.errors:
+                    result.add_error(error)
+                for warning in parse_result.warnings:
+                    result.add_message(f"Warning: {warning}")
+                return result
+
+            if not parse_result.layout_data:
+                result.add_error("Parsing succeeded but no layout data was extracted")
+                return result
+
+            # Save to output file if specified
+            if output_file_path:
+                try:
+                    json_data = parse_result.layout_data.to_dict()
+                    self._file_adapter.write_json(output_file_path, json_data)
+                    result.json_path = output_file_path
+                    result.add_message(f"Parsed layout saved to {output_file_path}")
+                except Exception as e:
+                    exc_info = self.logger.isEnabledFor(logging.DEBUG)
+                    self.logger.error(
+                        "Failed to save parsed layout: %s", e, exc_info=exc_info
+                    )
+                    result.add_error(f"Failed to save parsed layout: {e}")
+                    return result
+
+            # Success
+            result.success = True
+            result.add_message(f"Successfully parsed keymap using {mode.value} mode")
+
+            # Add extraction details
+            if parse_result.extracted_sections:
+                sections = list(parse_result.extracted_sections.keys())
+                result.add_message(f"Extracted sections: {', '.join(sections)}")
+
+            return result
+
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("Keymap parsing failed: %s", e, exc_info=exc_info)
+            result.add_error(f"Parsing failed: {e}")
+            return result
 
     # Data-based public methods
 
@@ -473,6 +561,7 @@ def create_layout_service(
     layout_service: LayoutDisplayService,
     behavior_formatter: BehaviorFormatterImpl,
     dtsi_generator: ZmkFileContentGenerator,
+    keymap_parser: ZmkKeymapParser | None = None,
 ) -> LayoutService:
     """Create a LayoutService instance with explicit dependency injection.
 
@@ -485,7 +574,11 @@ def create_layout_service(
     - create_layout_display_service() for layout_service
     - BehaviorFormatterImpl(behavior_registry) for behavior_formatter
     - ZmkFileContentGenerator(behavior_formatter) for dtsi_generator
+    - create_zmk_keymap_parser() for keymap_parser (optional)
     """
+    if keymap_parser is None:
+        keymap_parser = create_zmk_keymap_parser()
+
     return LayoutService(
         file_adapter=file_adapter,
         template_adapter=template_adapter,
@@ -494,4 +587,5 @@ def create_layout_service(
         dtsi_generator=dtsi_generator,
         component_service=component_service,
         layout_service=layout_service,
+        keymap_parser=keymap_parser,
     )

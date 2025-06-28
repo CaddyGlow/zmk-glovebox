@@ -279,7 +279,7 @@ class GridLayoutFormatter:
                 layout_config,
             )
         else:
-            # Default grid view
+            # Default grid view (normal or split)
             # Custom grid rendering based on the keyboard layout
             self._generate_grid_view(
                 output_lines,
@@ -287,6 +287,7 @@ class GridLayoutFormatter:
                 layers_to_display_str,
                 layer_names_to_display,
                 layout_config,
+                view_mode,
             )
 
         return "\n".join(output_lines)
@@ -298,6 +299,7 @@ class GridLayoutFormatter:
         layers: list[list[str]],
         layer_names: list[str],
         layout_config: LayoutConfig,
+        view_mode: ViewMode | None = None,
     ) -> None:
         """Generate a grid view of the layout based on layout_config.
 
@@ -307,6 +309,7 @@ class GridLayoutFormatter:
             layers: List of layer data to display
             layer_names: List of layer names to display
             layout_config: Layout configuration
+            view_mode: Optional view mode to control split behavior
         """
         key_width = layout_config.key_width
         key_gap = layout_config.key_gap
@@ -328,8 +331,16 @@ class GridLayoutFormatter:
                 [71, 54, 55, 72],  # Thumb row 3
             ]
 
-        # Check if we should use vertical split layout
-        use_vertical_split = self._should_use_vertical_split(layout_config)
+        # Determine whether to use vertical split layout based on view_mode
+        if view_mode == ViewMode.SPLIT:
+            # User explicitly requested split view
+            use_vertical_split = True
+        elif view_mode == ViewMode.NORMAL:
+            # User explicitly requested normal view (no split)
+            use_vertical_split = False
+        else:
+            # Auto-detect based on console width (fallback for backward compatibility)
+            use_vertical_split = self._should_use_vertical_split(layout_config)
 
         # Iterate through layers
         for _i, (layer_idx, layer_data, layer_name) in enumerate(
@@ -487,13 +498,19 @@ class GridLayoutFormatter:
                     # Add to left side for odd small rows
                     left_rows.append(valid_indices)
 
-        # Calculate section width
+        # Calculate section width - use a generous width for better visual balance
         max_left_keys = max(len(row) for row in left_rows) if left_rows else 0
         max_right_keys = max(len(row) for row in right_rows) if right_rows else 0
         max_keys = max(max_left_keys, max_right_keys)
-        section_width = (
+
+        # Use a more generous section width for better visual presentation
+        # This ensures both halves have consistent, wider formatting
+        base_width = (
             max_keys * key_width + (max_keys - 1) * len(key_gap) if max_keys > 0 else 40
         )
+        # Calculate a wider section that can accommodate about 10-12 keys comfortably
+        ideal_width = 12 * key_width + 11 * len(key_gap)
+        section_width = max(base_width, ideal_width)
 
         # Render left half
         output_lines.append("Left Half:")
@@ -526,14 +543,17 @@ class GridLayoutFormatter:
                 row_parts.append(binding)
 
             row_str = key_gap.join(row_parts)
-            output_lines.append(row_str)
+            # Right-align the right half within the section width
+            aligned_row = row_str.rjust(section_width)
+            output_lines.append(aligned_row)
 
         output_lines.append("-" * section_width)
 
     def _find_split_point(self, row_indices: list[int]) -> int:
         """Find the optimal split point in a row.
 
-        Looks for -1 markers (gaps) to determine split, otherwise uses midpoint.
+        Looks for -1 markers (gaps) to determine split, prioritizing gaps that
+        have actual keys (>= 0) on both sides.
 
         Args:
             row_indices: List of key indices in the row
@@ -541,21 +561,27 @@ class GridLayoutFormatter:
         Returns:
             Index where to split the row
         """
-        # Look for sequences of -1 values to find natural split points
-        for i, idx in enumerate(row_indices):
-            if idx == -1 and i > 0:
-                # Found a gap, check if there are consecutive gaps
-                gap_start = i
-                gap_end = i
-                while gap_end < len(row_indices) and row_indices[gap_end] == -1:
-                    gap_end += 1
+        # Find all valid key positions (not -1)
+        valid_positions = [i for i, idx in enumerate(row_indices) if idx >= 0]
 
-                # If we found a significant gap (or any gap), split there
-                if gap_end > gap_start:
-                    return gap_end
+        if len(valid_positions) < 2:
+            # Not enough keys to split meaningfully
+            return len(row_indices) // 2
 
-        # No obvious gap found, use midpoint
-        return len(row_indices) // 2
+        # Look for gaps between valid keys
+        for i in range(len(valid_positions) - 1):
+            current_pos = valid_positions[i]
+            next_pos = valid_positions[i + 1]
+
+            # Check if there's a gap between these keys
+            if next_pos - current_pos > 1:
+                # Found a gap between valid keys, split after the gap
+                gap_end = next_pos
+                return gap_end
+
+        # No meaningful gap found between keys, split at midpoint of valid keys
+        mid_valid_key = len(valid_positions) // 2
+        return valid_positions[mid_valid_key]
 
     def _format_key(
         self, idx: int, layer_data: list[Any], layer_size: int, key_width: int

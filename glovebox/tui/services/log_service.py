@@ -1,6 +1,7 @@
 """Background service for log generation and management."""
 
 import asyncio
+import contextlib
 import random
 from collections.abc import Callable
 from datetime import datetime
@@ -55,10 +56,8 @@ class LogService:
         self.running = False
         if self.task:
             self.task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self.task
-            except asyncio.CancelledError:
-                pass
 
     async def _log_generation_loop(self) -> None:
         """Main loop for generating log messages."""
@@ -95,7 +94,7 @@ class LogService:
             "Ready for user input",
         ]
 
-        for i, message in enumerate(startup_messages):
+        for _i, message in enumerate(startup_messages):
             if not self.running:
                 break
 
