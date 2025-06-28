@@ -15,8 +15,8 @@ from .edit import edit
 # Import file operations
 from .file_operations import merge, split
 
-
-# Import variable management command
+# Import parsing commands
+from .parsing import register_parsing_commands
 
 
 # Create a typer app for layout commands
@@ -41,6 +41,8 @@ File Operations:
   split       - Split layout into component files (was decompose)
   merge       - Merge component files into layout (was compose)
 
+Parsing:
+  parse       - Parse ZMK keymap files to JSON layouts (keymap, import)
 
 Comparison:
   diff        - Compare layouts with optional patch creation
@@ -67,6 +69,9 @@ layout_app.command()(edit)
 layout_app.command()(split)
 layout_app.command()(merge)
 
+
+# Register parsing commands
+register_parsing_commands(layout_app)
 
 # Register comparison commands
 layout_app.command()(diff)

@@ -392,7 +392,7 @@ class TestLayoutBindingFromStr:
         binding = LayoutBinding.from_str('&macro "unclosed quote param')
         assert binding.value == "&macro"
         assert len(binding.params) == 1
-        assert binding.params[0].value == 'unclosed quote param'
+        assert binding.params[0].value == "unclosed quote param"
 
     def test_nested_quotes_handling(self):
         """Test handling of nested or escaped quotes."""
@@ -525,7 +525,7 @@ class TestLayoutLayerStringConversion:
         assert layer.bindings[0].value == "123"  # int converted to string
         assert layer.bindings[1].value == "None"  # None converted to string
         assert layer.bindings[2].value == "&kp"  # String parsed normally
-        
+
         # Check that warnings were logged about unknown types
         assert "Converting unknown binding type" in caplog.text
 
@@ -548,17 +548,11 @@ class TestLayoutLayerStringConversion:
     def test_layer_accepts_any_binding_count(self):
         """Test that layer accepts any number of bindings."""
         # Short layer
-        short_layer = LayoutLayer(
-            name="Short",
-            bindings=["&kp Q", "&kp W"]
-        )
+        short_layer = LayoutLayer(name="Short", bindings=["&kp Q", "&kp W"])
         assert len(short_layer.bindings) == 2
-        
+
         # Long layer
-        long_layer = LayoutLayer(
-            name="Long", 
-            bindings=["&kp Q"] * 100
-        )
+        long_layer = LayoutLayer(name="Long", bindings=["&kp Q"] * 100)
         assert len(long_layer.bindings) == 100
 
     def test_layer_with_non_list_bindings_raises_error(self):

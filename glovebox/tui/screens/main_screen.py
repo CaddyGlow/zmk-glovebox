@@ -27,16 +27,15 @@ class MainScreen(Screen[None]):
         """Compose the screen layout."""
         yield Header()
 
-        with Container(id="main-container"):
-            with TabbedContent(initial="logs"):
-                with TabPane("Logs", id="logs"):
-                    yield LogViewer(id="log-viewer")
+        with Container(id="main-container"), TabbedContent(initial="logs"):
+            with TabPane("Logs", id="logs"):
+                yield LogViewer(id="log-viewer")
 
-                with TabPane("System", id="system"):
-                    yield SystemInfo(id="system-info")
+            with TabPane("System", id="system"):
+                yield SystemInfo(id="system-info")
 
-                with TabPane("Settings", id="settings"):
-                    yield SettingsPanel(id="settings-panel")
+            with TabPane("Settings", id="settings"):
+                yield SettingsPanel(id="settings-panel")
 
         yield Footer()
 

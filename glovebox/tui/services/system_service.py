@@ -1,6 +1,7 @@
 """Background service for system monitoring."""
 
 import asyncio
+import contextlib
 from collections.abc import Callable
 from typing import Any, Dict, Optional
 
@@ -40,10 +41,8 @@ class SystemService:
         self.running = False
         if self.task:
             self.task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self.task
-            except asyncio.CancelledError:
-                pass
 
     async def _monitoring_loop(self) -> None:
         """Main loop for system monitoring."""
