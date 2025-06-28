@@ -47,7 +47,14 @@ def parse_keymap(
             "-m",
             help="Parsing mode: 'full' for complete parsing, 'template' for template-aware",
         ),
-    ] = "template",
+    ] = "auto",
+    method: Annotated[
+        str,
+        typer.Option(
+            "--method",
+            help="Parsing method: 'ast' for AST-based parsing, 'regex' for legacy regex parsing",
+        ),
+    ] = "ast",
     # Output options
     output: Annotated[
         Path | None,
@@ -67,31 +74,51 @@ def parse_keymap(
 
     Converts .keymap files back to glovebox JSON layout format for editing and management.
 
-    Two parsing modes are available:
-    - template: Uses keyboard profile templates to extract only user data (recommended for Glove80)
+    Parsing modes:
+    - auto: Automatically chooses between full and template mode (default)
     - full: Parses complete keymap structure including all behaviors and custom code
+    - template: Uses keyboard profile templates to extract only user data
+
+    Parsing methods:
+    - ast: Uses AST-based parsing for accurate structure extraction (default)
+    - regex: Uses legacy regex-based parsing for compatibility
 
     Examples:
+        # Parse with automatic mode detection (recommended)
+        glovebox layout parse-keymap my_keymap.keymap
+
         # Parse Glove80 keymap using template-aware mode
-        glovebox layout parse-keymap my_keymap.keymap --profile glove80/v25.05
+        glovebox layout parse-keymap my_keymap.keymap --profile glove80/v25.05 --mode template
 
-        # Parse with custom output location
-        glovebox layout parse-keymap keymap.keymap --profile glove80 -o my_layout.json
-
-        # Full parsing mode for non-glovebox keymaps
-        glovebox layout parse-keymap third_party.keymap --profile glove80 --mode full
+        # Full parsing mode with AST method
+        glovebox layout parse-keymap third_party.keymap --mode full --method ast
     """
     # Validate inputs
     if keymap_file.suffix != ".keymap":
         print_error_message("Input file must have .keymap extension")
         raise typer.Exit(1)
 
-    # Determine profile
-    if not profile:
-        print_error_message("Keyboard profile is required for keymap parsing")
+    # Auto-detect parsing mode if not specified
+    if mode == "auto":
+        if profile:
+            mode = "template"
+            console.print("Auto-detected template mode (profile provided)", style="dim")
+        else:
+            mode = "full"
+            console.print("Auto-detected full mode (no profile provided)", style="dim")
+
+    # Validate mode and profile combination
+    if mode == "template" and not profile:
+        print_error_message("Template mode requires a keyboard profile")
         print_error_message(
-            "Use --profile to specify keyboard (e.g., --profile glove80/v25.05)"
+            "Use --profile to specify keyboard (e.g., --profile glove80/v25.05) or use --mode full"
         )
+        raise typer.Exit(1)
+
+    # Validate method parameter
+    if method not in ["ast", "regex"]:
+        print_error_message(f"Invalid parsing method: {method}")
+        print_error_message("Valid methods: ast, regex")
         raise typer.Exit(1)
 
     # Determine output file
@@ -113,8 +140,10 @@ def parse_keymap(
 
         user_config = get_user_config_from_context(ctx)
 
-        # Create keyboard profile with user config
-        keyboard_profile = create_profile_from_option(profile, user_config)
+        # Create keyboard profile with user config (only for template mode)
+        keyboard_profile = None
+        if profile:
+            keyboard_profile = create_profile_from_option(profile, user_config)
 
         # Create layout service with dependencies
         from glovebox.cli.commands.layout.dependencies import create_full_layout_service
@@ -126,6 +155,7 @@ def parse_keymap(
             keymap_file_path=keymap_file,
             profile=keyboard_profile,
             parsing_mode=mode,
+            parsing_method=method,
             output_file_path=output,
         )
 
@@ -191,7 +221,14 @@ def import_keymap(
             "-m",
             help="Parsing mode: 'full' for complete parsing, 'template' for template-aware",
         ),
-    ] = "template",
+    ] = "auto",
+    method: Annotated[
+        str,
+        typer.Option(
+            "--method",
+            help="Parsing method: 'ast' for AST-based parsing, 'regex' for legacy regex parsing",
+        ),
+    ] = "ast",
     # Output options
     output_dir: Annotated[
         Path | None,
@@ -239,6 +276,29 @@ def import_keymap(
         raise typer.Exit(1)
 
     try:
+        # Auto-detect parsing mode if not specified
+        if mode == "auto":
+            if profile:
+                mode = "template"
+                console.print("Auto-detected template mode (profile provided)", style="dim")
+            else:
+                mode = "full"
+                console.print("Auto-detected full mode (no profile provided)", style="dim")
+
+        # Validate mode and profile combination
+        if mode == "template" and not profile:
+            print_error_message("Template mode requires a keyboard profile")
+            print_error_message(
+                "Use --profile to specify keyboard (e.g., --profile glove80/v25.05) or use --mode full"
+            )
+            raise typer.Exit(1)
+
+        # Validate method parameter
+        if method not in ["ast", "regex"]:
+            print_error_message(f"Invalid parsing method: {method}")
+            print_error_message("Valid methods: ast, regex")
+            raise typer.Exit(1)
+
         # Get user config from context
         from glovebox.cli.helpers.profile import (
             create_profile_from_option,
@@ -247,8 +307,10 @@ def import_keymap(
 
         user_config = get_user_config_from_context(ctx)
 
-        # Create keyboard profile with user config
-        keyboard_profile = create_profile_from_option(profile, user_config)
+        # Create keyboard profile with user config (only for template mode)
+        keyboard_profile = None
+        if profile:
+            keyboard_profile = create_profile_from_option(profile, user_config)
 
         # Create layout service
         from glovebox.cli.commands.layout.dependencies import create_full_layout_service
@@ -260,6 +322,7 @@ def import_keymap(
             keymap_file_path=keymap_file,
             profile=keyboard_profile,
             parsing_mode=mode,
+            parsing_method=method,
             output_file_path=None,  # Don't save yet
         )
 
@@ -285,6 +348,7 @@ def import_keymap(
                 keymap_file_path=keymap_file,
                 profile=keyboard_profile,
                 parsing_mode=mode,
+                parsing_method=method,
                 output_file_path=output_file,
             )
 

@@ -235,6 +235,21 @@ class DTVisitor(ABC):
 
         return result
 
+    def walk_multiple(self, roots: list[DTNode]) -> list[Any]:
+        """Walk multiple ASTs starting from multiple roots.
+
+        Args:
+            roots: List of root nodes to walk
+
+        Returns:
+            List of results from walking each root
+        """
+        results = []
+        for root in roots:
+            result = self.walk(root)
+            results.append(result)
+        return results
+
 
 @dataclass
 class DTParseError:

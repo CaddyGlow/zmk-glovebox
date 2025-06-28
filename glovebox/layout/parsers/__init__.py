@@ -12,6 +12,7 @@ from .ast_nodes import (
 from .ast_walker import (
     BehaviorExtractor,
     ComboExtractor,
+    DTMultiWalker,
     DTWalker,
     HoldTapExtractor,
     MacroExtractor,
@@ -19,7 +20,13 @@ from .ast_walker import (
     create_behavior_extractor,
     create_universal_behavior_extractor,
 )
-from .dt_parser import DTParser, parse_dt, parse_dt_safe
+from .dt_parser import (
+    DTParser,
+    parse_dt,
+    parse_dt_multiple,
+    parse_dt_multiple_safe,
+    parse_dt_safe,
+)
 from .keymap_parser import (
     KeymapParseResult,
     ParsingMethod,
@@ -64,8 +71,11 @@ __all__ = [
     "DTParser",
     "parse_dt",
     "parse_dt_safe",
+    "parse_dt_multiple",
+    "parse_dt_multiple_safe",
     # AST walker and extractors
     "DTWalker",
+    "DTMultiWalker",
     "BehaviorExtractor",
     "MacroExtractor",
     "HoldTapExtractor",

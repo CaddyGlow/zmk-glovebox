@@ -396,6 +396,64 @@ class MacroBehavior(GloveboxBaseModel):
         return v
 
 
+class TapDanceBehavior(GloveboxBaseModel):
+    """Model for tap-dance behavior definitions."""
+
+    name: str
+    description: str | None = ""
+    tapping_term_ms: TemplateNumeric = Field(default=None, alias="tappingTermMs")
+    bindings: list[LayoutBinding] = Field(default_factory=list)
+
+    @field_validator("bindings")
+    @classmethod
+    def validate_bindings_count(cls, v: list[LayoutBinding]) -> list[LayoutBinding]:
+        """Validate tap-dance bindings count."""
+        if len(v) < 2:
+            raise ValueError("Tap-dance must have at least 2 bindings") from None
+        if len(v) > 5:
+            raise ValueError("Tap-dance cannot have more than 5 bindings") from None
+        return v
+
+
+class StickyKeyBehavior(GloveboxBaseModel):
+    """Model for sticky-key behavior definitions."""
+
+    name: str
+    description: str | None = ""
+    release_after_ms: TemplateNumeric = Field(default=None, alias="releaseAfterMs")
+    quick_release: bool = Field(default=False, alias="quickRelease")
+    lazy: bool = Field(default=False)
+    ignore_modifiers: bool = Field(default=False, alias="ignoreModifiers")
+    bindings: list[LayoutBinding] = Field(default_factory=list)
+
+
+class CapsWordBehavior(GloveboxBaseModel):
+    """Model for caps-word behavior definitions."""
+
+    name: str
+    description: str | None = ""
+    continue_list: list[str] = Field(default_factory=list, alias="continueList")
+    mods: int | None = Field(default=None)
+
+
+class ModMorphBehavior(GloveboxBaseModel):
+    """Model for mod-morph behavior definitions."""
+
+    name: str
+    description: str | None = ""
+    mods: int
+    bindings: list[LayoutBinding] = Field(default_factory=list)
+    keep_mods: int | None = Field(default=None, alias="keepMods")
+
+    @field_validator("bindings")
+    @classmethod
+    def validate_bindings_count(cls, v: list[LayoutBinding]) -> list[LayoutBinding]:
+        """Validate mod-morph bindings count."""
+        if len(v) != 2:
+            raise ValueError("Mod-morph must have exactly 2 bindings") from None
+        return v
+
+
 class ConfigParameter(GloveboxBaseModel):
     """Model for configuration parameters."""
 
