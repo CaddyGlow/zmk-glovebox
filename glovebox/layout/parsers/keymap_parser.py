@@ -13,7 +13,7 @@ from glovebox.models.base import GloveboxBaseModel
 from .ast_nodes import DTNode, DTValue
 from .ast_walker import create_universal_behavior_extractor
 from .behavior_parser import create_behavior_parser
-from .dt_parser import parse_dt_safe
+from .dt_parser import parse_dt_lark_safe, parse_dt_multiple_safe, parse_dt_safe
 from .model_converters import create_universal_model_converter
 
 
@@ -529,29 +529,34 @@ class ZmkKeymapParser:
             Parsed LayoutData or None if parsing fails
         """
         try:
-            # Parse content into AST
-            root, parse_errors = parse_dt_safe(keymap_content)
+            # Parse content into AST using Lark parser
+            roots, parse_errors = parse_dt_lark_safe(keymap_content)
 
             if parse_errors:
                 for error in parse_errors:
                     result.warnings.append(str(error))
 
-            if not root:
+            if not roots:
                 result.errors.append("Failed to parse device tree AST")
                 return None
 
             # Extract basic metadata
             layout_data = LayoutData(keyboard="unknown", title="Imported Keymap")
 
-            # Extract layers using AST
-            layers_data = self._extract_layers_from_ast(root)
+            # Extract layers using AST from all roots
+            layers_data = None
+            for root in roots:
+                layers_data = self._extract_layers_from_ast(root)
+                if layers_data:
+                    break  # Use first valid layer data found
+
             if layers_data:
                 layout_data.layer_names = layers_data["layer_names"]
                 layout_data.layers = layers_data["layers"]
                 result.extracted_sections["layers"] = layers_data
 
-            # Extract all behaviors using AST
-            behaviors_dict = self.behavior_extractor.extract_all_behaviors(root)
+            # Extract all behaviors using AST with multiple roots
+            behaviors_dict = self.behavior_extractor.extract_all_behaviors_multiple(roots)
             converted_behaviors = self.model_converter.convert_behaviors(behaviors_dict)
 
             # Populate layout data with converted behaviors
@@ -570,7 +575,7 @@ class ZmkKeymapParser:
                 result.extracted_sections["combos"] = converted_behaviors["combos"]
 
             # Extract custom device tree code (remaining sections)
-            custom_code = self._extract_custom_sections_ast(root)
+            custom_code = self._extract_custom_sections_ast_multiple(roots)
             if custom_code:
                 layout_data.custom_defined_behaviors = custom_code.get("behaviors", "")
                 layout_data.custom_devicetree = custom_code.get("devicetree", "")
@@ -598,14 +603,14 @@ class ZmkKeymapParser:
             Parsed LayoutData or None if parsing fails
         """
         try:
-            # Parse content into AST
-            root, parse_errors = parse_dt_safe(keymap_content)
+            # Parse content into AST using Lark parser
+            roots, parse_errors = parse_dt_lark_safe(keymap_content)
 
             if parse_errors:
                 for error in parse_errors:
                     result.warnings.append(str(error))
 
-            if not root:
+            if not roots:
                 result.errors.append("Failed to parse device tree AST")
                 return None
 
@@ -631,8 +636,13 @@ class ZmkKeymapParser:
             Dictionary with layer_names and layers lists
         """
         try:
-            # Find keymap node
-            keymap_node = root.find_node_by_path("/keymap")
+            # Find keymap node - it could be the root itself or a child
+            keymap_node = None
+            if root.name == "keymap":
+                keymap_node = root
+            else:
+                keymap_node = root.find_node_by_path("/keymap")
+                
             if not keymap_node:
                 self.logger.warning("No keymap node found in AST")
                 return None
@@ -681,9 +691,26 @@ class ZmkKeymapParser:
 
         # Handle array of bindings
         if isinstance(bindings_value.value, list):
-            for binding_item in bindings_value.value:
-                binding_str = str(binding_item).strip()
-                if binding_str:
+            # Group behavior references with their parameters
+            # In device tree syntax, <&kp Q &hm LCTRL A> means two bindings: "&kp Q" and "&hm LCTRL A"
+            i = 0
+            values = bindings_value.value
+            while i < len(values):
+                item = str(values[i]).strip()
+
+                # Check if this is a behavior reference
+                if item.startswith("&"):
+                    # Look for parameters following this behavior
+                    binding_parts = [item]
+                    i += 1
+
+                    # Collect parameters until we hit another behavior reference
+                    while i < len(values) and not str(values[i]).startswith("&"):
+                        binding_parts.append(str(values[i]).strip())
+                        i += 1
+
+                    # Join the parts to form the complete binding
+                    binding_str = " ".join(binding_parts)
                     try:
                         # Use the existing LayoutBinding.from_str method
                         binding = LayoutBinding.from_str(binding_str)
@@ -693,7 +720,12 @@ class ZmkKeymapParser:
                             "Failed to parse binding '%s': %s", binding_str, e
                         )
                         # Create fallback binding
-                        bindings.append(LayoutBinding(value=binding_str, params=[]))
+                        bindings.append(
+                            LayoutBinding(value=binding_parts[0], params=[])
+                        )
+                else:
+                    # Standalone parameter without behavior - skip it
+                    i += 1
         else:
             # Single binding
             binding_str = str(bindings_value.value).strip()
@@ -726,6 +758,31 @@ class ZmkKeymapParser:
         # - etc.
 
         return {"behaviors": "", "devicetree": ""}
+
+    def _extract_custom_sections_ast_multiple(self, roots: list[DTNode]) -> dict[str, str]:
+        """Extract custom device tree sections from multiple AST roots.
+
+        Args:
+            roots: List of parsed device tree root nodes
+
+        Returns:
+            Dictionary with custom sections
+        """
+        # Combine custom sections from all roots
+        combined_behaviors = []
+        combined_devicetree = []
+
+        for root in roots:
+            sections = self._extract_custom_sections_ast(root)
+            if sections.get("behaviors"):
+                combined_behaviors.append(sections["behaviors"])
+            if sections.get("devicetree"):
+                combined_devicetree.append(sections["devicetree"])
+
+        return {
+            "behaviors": "\n".join(combined_behaviors),
+            "devicetree": "\n".join(combined_devicetree),
+        }
 
 
 def create_zmk_keymap_parser() -> ZmkKeymapParser:

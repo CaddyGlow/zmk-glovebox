@@ -15,8 +15,11 @@ from glovebox.layout.parsers import (
     create_zmk_keymap_parser,
     parse_dt,
     parse_dt_safe,
+    parse_dt_multiple,
+    parse_dt_multiple_safe,
     tokenize_dt,
 )
+from glovebox.layout.parsers.ast_walker import DTMultiWalker
 
 
 class TestTokenizer:
@@ -400,10 +403,13 @@ class TestIntegratedKeymapParser:
             
             # Check that bindings are properly parsed
             assert layer_bindings[0].value == "&kp"
-            assert layer_bindings[0].params == ["Q"]
+            assert len(layer_bindings[0].params) == 1
+            assert layer_bindings[0].params[0].value == "Q"
             
             assert layer_bindings[4].value == "&hm"
-            assert layer_bindings[4].params == ["LCTRL", "A"]
+            assert len(layer_bindings[4].params) == 2
+            assert layer_bindings[4].params[0].value == "LCTRL"
+            assert layer_bindings[4].params[1].value == "A"
             
         finally:
             # Clean up temporary file
@@ -522,3 +528,165 @@ class TestComplexDeviceTreeStructures:
         extractor = create_universal_behavior_extractor()
         behaviors = extractor.extract_all_behaviors(root)
         assert len(behaviors["hold_taps"]) >= 1
+
+
+class TestMultipleRootParsing:
+    """Test parsing device tree files with multiple root nodes."""
+
+    def test_parse_multiple_roots_basic(self):
+        """Test parsing a basic file with multiple root nodes."""
+        source = '''
+        / {
+            compatible = "test,device1";
+            property1 = "value1";
+        };
+
+        / {
+            compatible = "test,device2";
+            property2 = "value2";
+        };
+        '''
+        
+        roots = parse_dt_multiple(source)
+        assert len(roots) == 2
+        
+        # Check first root
+        assert len(roots[0].properties) == 2
+        assert "compatible" in roots[0].properties
+        assert "property1" in roots[0].properties
+        
+        # Check second root
+        assert len(roots[1].properties) == 2
+        assert "compatible" in roots[1].properties
+        assert "property2" in roots[1].properties
+
+    def test_parse_multiple_roots_with_standalone_nodes(self):
+        """Test parsing with mixed root and standalone nodes."""
+        source = '''
+        / {
+            compatible = "test,device";
+            prop = "value";
+        };
+
+        standalone_node {
+            property = "standalone_value";
+        };
+        '''
+        
+        roots = parse_dt_multiple(source)
+        assert len(roots) == 2
+        
+        # First root should have explicit properties
+        assert len(roots[0].properties) == 2
+        
+        # Second root should contain the standalone node as a child
+        assert len(roots[1].children) == 1
+        assert "standalone_node" in roots[1].children
+
+    def test_parse_multiple_roots_safe(self):
+        """Test safe parsing of multiple roots."""
+        source = '''
+        / {
+            property = "value1";
+        };
+
+        / {
+            property = "value2";
+        };
+        '''
+        
+        roots, errors = parse_dt_multiple_safe(source)
+        assert len(roots) == 2
+        assert len(errors) == 0
+
+    def test_parse_multiple_roots_with_errors(self):
+        """Test parsing multiple roots with syntax errors."""
+        source = '''
+        / {
+            property = "value1";
+        };
+
+        / {
+            property = invalid_syntax
+        };
+        '''
+        
+        roots, errors = parse_dt_multiple_safe(source)
+        # Should still parse first root successfully
+        assert len(roots) >= 1
+        # May have errors from second root
+        # (Error handling depends on parser recovery capabilities)
+
+    def test_multi_walker_basic(self):
+        """Test DTMultiWalker with multiple root nodes."""
+        source = '''
+        / {
+            behaviors {
+                ht1: hold_tap {
+                    compatible = "zmk,behavior-hold-tap";
+                    label = "HT1";
+                };
+            };
+        };
+
+        / {
+            behaviors {
+                macro1: macro {
+                    compatible = "zmk,behavior-macro";
+                    label = "MACRO1";
+                };
+            };
+        };
+        '''
+        
+        roots = parse_dt_multiple(source)
+        walker = DTMultiWalker(roots)
+        
+        # Test finding behaviors across all roots
+        hold_taps = walker.find_nodes_by_compatible("zmk,behavior-hold-tap")
+        macros = walker.find_nodes_by_compatible("zmk,behavior-macro")
+        
+        assert len(hold_taps) == 1
+        assert len(macros) == 1
+        assert hold_taps[0].name == "hold_tap"
+        assert macros[0].name == "macro"
+
+    def test_multi_walker_property_search(self):
+        """Test DTMultiWalker property search across multiple roots."""
+        source = '''
+        / {
+            compatible = "test,device1";
+            node1 {
+                label = "NODE1";
+            };
+        };
+
+        / {
+            compatible = "test,device2"; 
+            node2 {
+                label = "NODE2";
+            };
+        };
+        '''
+        
+        roots = parse_dt_multiple(source)
+        walker = DTMultiWalker(roots)
+        
+        # Find all compatible properties
+        compatible_props = walker.find_properties_by_name("compatible")
+        assert len(compatible_props) == 2
+        
+        # Find all label properties
+        label_props = walker.find_properties_by_name("label")
+        assert len(label_props) == 2
+
+    def test_empty_multiple_roots(self):
+        """Test parsing empty content for multiple roots."""
+        source = ""
+        
+        roots = parse_dt_multiple(source)
+        assert len(roots) == 0
+        
+        roots, errors = parse_dt_multiple_safe(source)
+        assert len(roots) == 0
+        assert len(errors) == 0

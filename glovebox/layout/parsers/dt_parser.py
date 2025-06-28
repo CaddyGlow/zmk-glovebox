@@ -50,6 +50,12 @@ class DTParser:
             # Parse root node structure
             root = self._parse_root_node()
 
+            # If no root node was parsed, create an empty one
+            if root is None:
+                root = DTNode(
+                    "", line=self._current_line(), column=self._current_column()
+                )
+
             if self.errors:
                 # Return partial result with errors
                 logger.warning("Parsing completed with %d errors", len(self.errors))
@@ -67,12 +73,62 @@ class DTParser:
             self.errors.append(error)
             raise error from e
 
-    def _parse_root_node(self) -> DTNode:
+    def parse_multiple(self) -> list[DTNode]:
+        """Parse tokens into multiple device tree ASTs.
+
+        Returns:
+            List of root device tree nodes
+
+        Raises:
+            DTParseError: If parsing fails
+        """
+        try:
+            roots = []
+
+            # Process any leading comments or preprocessor directives
+            self._consume_comments_and_preprocessor()
+
+            # Parse multiple root nodes
+            while not self._is_at_end():
+                # Skip any comments between root nodes
+                if self._consume_comments_and_preprocessor():
+                    continue
+
+                # Parse next root node
+                root = self._parse_root_node()
+                if root:
+                    roots.append(root)
+
+                # Skip any trailing comments
+                self._consume_comments_and_preprocessor()
+
+            if self.errors:
+                # Return partial result with errors
+                logger.warning("Parsing completed with %d errors", len(self.errors))
+                for error in self.errors:
+                    logger.warning(str(error))
+
+            return roots
+
+        except Exception as e:
+            error = DTParseError(
+                f"Fatal parsing error: {e}",
+                self._current_line(),
+                self._current_column(),
+            )
+            self.errors.append(error)
+            raise error from e
+
+    def _parse_root_node(self) -> DTNode | None:
         """Parse the root device tree node.
 
         Returns:
-            Root DTNode
+            Root DTNode or None if no content found
         """
+        # Check if we're at the end or no tokens to parse
+        if self._is_at_end():
+            return None
+
         root = DTNode("", line=self._current_line(), column=self._current_column())
 
         # Handle preprocessor directives and comments at top level
@@ -82,6 +138,10 @@ class DTParser:
         # Expect root node structure: / { ... };
         if self._match(TokenType.SLASH):
             self._advance()  # consume /
+
+            # Skip any comments or preprocessor directives after /
+            self._consume_comments_and_preprocessor()
+
             if self._match(TokenType.LBRACE):
                 self._advance()  # consume {
                 self._parse_node_body(root)
@@ -90,8 +150,19 @@ class DTParser:
             else:
                 self._error("Expected '{' after '/'")
         else:
-            # Handle nodes without explicit root
-            self._parse_node_body(root)
+            # Check if we have a standalone node (not inside a root)
+            if self._match(TokenType.IDENTIFIER):
+                # This looks like a standalone node, parse it as a child of empty root
+                child = self._parse_child_node()
+                if child:
+                    root.add_child(child)
+            else:
+                # Handle other nodes without explicit root
+                self._parse_node_body(root)
+
+        # Return None if no meaningful content was parsed
+        if not root.properties and not root.children and not root.comments:
+            return None
 
         return root
 
@@ -146,12 +217,59 @@ class DTParser:
         # Handle properties with values
         if self._match(TokenType.EQUALS):
             self._advance()
-            value = self._parse_property_value()
+            value = self._parse_property_values()
             self._expect(TokenType.SEMICOLON)
             return DTProperty(prop_name, value, line, column)
 
         self._error("Expected '=' or ';' after property name")
         return None
+
+    def _parse_property_values(self) -> DTValue:
+        """Parse property values, handling multiple comma-separated values.
+
+        Returns:
+            Single DTValue or array of values
+        """
+        values = []
+        raw_parts = []
+
+        # Parse first value
+        first_value = self._parse_property_value()
+        values.append(first_value)
+        raw_parts.append(first_value.raw)
+
+        # Check for additional comma-separated values
+        while self._match(TokenType.COMMA):
+            raw_parts.append(", ")
+            self._advance()  # consume comma
+
+            # Skip whitespace/comments after comma
+            self._consume_comments_and_preprocessor()
+
+            next_value = self._parse_property_value()
+            values.append(next_value)
+            raw_parts.append(next_value.raw)
+
+        # If only one value, return it directly
+        if len(values) == 1:
+            return values[0]
+
+        # Otherwise return as array of values
+        # For device tree, multiple comma-separated values form an array
+        raw = "".join(raw_parts)
+        # Extract the actual values from DTValue objects
+        actual_values: list[int | str] = []
+        for v in values:
+            if v.type == DTValueType.ARRAY:
+                # If it's an array, extend with its values
+                actual_values.extend(v.value)
+            else:
+                # Otherwise append the value itself
+                actual_values.append(
+                    v.value if v.type != DTValueType.REFERENCE else f"&{v.value}"
+                )
+
+        return DTValue.array(actual_values, raw)
 
     def _parse_property_value(self) -> DTValue:
         """Parse a property value.
@@ -524,3 +642,69 @@ def parse_dt_safe(text: str) -> tuple[DTNode | None, list[DTParseError]]:
     except Exception as e:
         error = DTParseError(f"Parsing failed: {e}")
         return None, [error]
+
+
+def parse_dt_multiple(text: str) -> list[DTNode]:
+    """Parse device tree source text into multiple ASTs.
+
+    Args:
+        text: Device tree source
+
+    Returns:
+        List of root DTNodes
+
+    Raises:
+        DTParseError: If parsing fails
+    """
+    tokens = tokenize_dt(text)
+    parser = DTParser(tokens)
+    return parser.parse_multiple()
+
+
+def parse_dt_multiple_safe(text: str) -> tuple[list[DTNode], list[DTParseError]]:
+    """Parse device tree source into multiple ASTs with error handling.
+
+    Args:
+        text: Device tree source
+
+    Returns:
+        Tuple of (list of root_nodes, errors)
+    """
+    try:
+        tokens = tokenize_dt(text)
+        parser = DTParser(tokens)
+        roots = parser.parse_multiple()
+        return roots, parser.errors
+    except Exception as e:
+        error = DTParseError(f"Parsing failed: {e}")
+        return [], [error]
+
+
+# Lark-based parser integration
+def parse_dt_lark(text: str) -> list[DTNode]:
+    """Parse device tree source using Lark grammar-based parser.
+
+    Args:
+        text: Device tree source
+
+    Returns:
+        List of root DTNodes
+
+    Raises:
+        Exception: If parsing fails
+    """
+    from .lark_dt_parser import parse_dt_lark
+    return parse_dt_lark(text)
+
+
+def parse_dt_lark_safe(text: str) -> tuple[list[DTNode], list[str]]:
+    """Parse device tree source using Lark parser with error handling.
+
+    Args:
+        text: Device tree source
+
+    Returns:
+        Tuple of (list of root_nodes, error_messages)
+    """
+    from .lark_dt_parser import parse_dt_lark_safe
+    return parse_dt_lark_safe(text)

@@ -28,6 +28,7 @@ from glovebox.layout.display_service import (
 )
 from glovebox.layout.models import LayoutData, LayoutResult
 from glovebox.layout.parsers import ZmkKeymapParser, create_zmk_keymap_parser
+from glovebox.layout.parsers.keymap_parser import ParsingMethod, ParsingMode
 from glovebox.layout.utils import (
     generate_config_file,
     generate_keymap_file,
@@ -175,6 +176,7 @@ class LayoutService(BaseService):
         keymap_file_path: Path,
         profile: "KeyboardProfile",
         parsing_mode: str = "template",
+        parsing_method: str = "regex",
         output_file_path: Path | None = None,
     ) -> LayoutResult:
         """Parse ZMK keymap file to JSON layout format.
@@ -183,6 +185,7 @@ class LayoutService(BaseService):
             keymap_file_path: Path to .keymap file to parse
             profile: Keyboard profile for template-aware parsing
             parsing_mode: Parsing mode ("full" or "template")
+            parsing_method: Parsing method ("ast" or "regex")
             output_file_path: Optional output path for JSON file
 
         Returns:
@@ -193,9 +196,6 @@ class LayoutService(BaseService):
         result = LayoutResult(success=False)
 
         try:
-            # Import parsing mode enum
-            from glovebox.layout.parsers.keymap_parser import ParsingMode
-
             # Convert string mode to enum
             try:
                 mode = ParsingMode(parsing_mode)
@@ -203,10 +203,18 @@ class LayoutService(BaseService):
                 result.add_error(f"Invalid parsing mode: {parsing_mode}")
                 return result
 
+            # Convert string method to enum
+            try:
+                method = ParsingMethod(parsing_method)
+            except ValueError:
+                result.add_error(f"Invalid parsing method: {parsing_method}")
+                return result
+
             # Parse keymap file
             parse_result = self._keymap_parser.parse_keymap(
                 keymap_file=keymap_file_path,
                 mode=mode,
+                method=method,
                 keyboard_profile=f"{profile.keyboard_name}/{profile.firmware_version}"
                 if profile.firmware_version
                 else profile.keyboard_name,
@@ -231,8 +239,8 @@ class LayoutService(BaseService):
                     result.json_path = output_file_path
                     result.add_message(f"Parsed layout saved to {output_file_path}")
                 except Exception as e:
-                    exc_info = self.logger.isEnabledFor(logging.DEBUG)
-                    self.logger.error(
+                    exc_info = logger.isEnabledFor(logging.DEBUG)
+                    logger.error(
                         "Failed to save parsed layout: %s", e, exc_info=exc_info
                     )
                     result.add_error(f"Failed to save parsed layout: {e}")
@@ -240,7 +248,9 @@ class LayoutService(BaseService):
 
             # Success
             result.success = True
-            result.add_message(f"Successfully parsed keymap using {mode.value} mode")
+            result.add_message(
+                f"Successfully parsed keymap using {mode.value} mode with {method.value} method"
+            )
 
             # Add extraction details
             if parse_result.extracted_sections:
@@ -250,8 +260,8 @@ class LayoutService(BaseService):
             return result
 
         except Exception as e:
-            exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Keymap parsing failed: %s", e, exc_info=exc_info)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("Keymap parsing failed: %s", e, exc_info=exc_info)
             result.add_error(f"Parsing failed: {e}")
             return result
 

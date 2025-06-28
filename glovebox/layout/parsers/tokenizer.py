@@ -63,7 +63,10 @@ class DTTokenizer:
     PATTERNS = [
         # Comments (must come before other patterns)
         (TokenType.COMMENT, r"//.*?(?=\n|$)"),
-        (TokenType.COMMENT, r"/\*.*?\*/"),
+        (
+            TokenType.COMMENT,
+            r"/\*[\s\S]*?\*/",
+        ),  # [\s\S] matches any character including newlines
         # Preprocessor directives
         (TokenType.PREPROCESSOR, r"#\w+.*?(?=\n|$)"),
         # String literals

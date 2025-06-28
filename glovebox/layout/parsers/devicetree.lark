@@ -1,0 +1,119 @@
+// ZMK Device Tree Grammar for Lark Parser
+// Supports ZMK keymap files, behaviors, combos, macros, and custom sections
+
+start: item*
+
+?item: include_statement
+     | preprocessor_directive  
+     | node
+     | property
+     | comment
+     | deletion
+     | semicolon
+     | NEWLINE
+
+// Include statements (#include)
+include_statement: INCLUDE_DIRECTIVE STRING
+
+// Preprocessor directives
+preprocessor_directive: PREPROCESSOR_LINE
+
+// Node definitions
+node: label? node_path "{" item* "}" [";"]
+    | reference_node_modification
+
+// Node reference modification (e.g., &existing_node { ... })
+reference_node_modification: "&" IDENTIFIER "{" item* "}" [";"]
+
+label: IDENTIFIER ":"
+
+node_path: path_segment ("/" path_segment)*
+         | "/"
+
+path_segment: IDENTIFIER
+            | IDENTIFIER "@" HEX_NUMBER
+
+// Property definitions  
+property: IDENTIFIER "=" property_values ";"
+        | IDENTIFIER ";"
+
+// Property values can be comma-separated
+property_values: value ("," value)*
+
+// Standalone semicolons (common in device tree)
+semicolon: ";"
+
+// Value types
+?value: string_value
+      | number_value
+      | array_value
+      | reference_value
+      | boolean_value
+
+string_value: STRING
+
+number_value: HEX_NUMBER
+            | DEC_NUMBER
+
+array_value: "<" array_content ">"
+
+array_content: [array_token*]
+
+array_token: reference_token    // References like &kp
+           | function_call      // Function calls like LS(END)
+           | IDENTIFIER         // Identifiers like Q, A, etc.
+           | HEX_NUMBER        // Numbers like 0x1234
+           | DEC_NUMBER        // Numbers like 123  
+           | STRING            // Strings like "text"
+
+// Function call syntax (e.g., LS(END), LCTRL(A))
+function_call: IDENTIFIER "(" function_args ")"
+
+function_args: [function_arg ("," function_arg)*]
+
+function_arg: function_call    // Nested function calls
+            | IDENTIFIER
+            | HEX_NUMBER
+            | DEC_NUMBER
+            | STRING
+
+reference_token: AMPERSAND IDENTIFIER
+
+reference_value: "&" IDENTIFIER
+               | "&{" path "}"
+
+path: "/" path_segment*
+    | path_segment ("/" path_segment)*
+
+boolean_value: "true" | "false"
+
+// Node deletions
+deletion: "/delete-node/" IDENTIFIER ";"
+        | "/delete-property/" IDENTIFIER ";"
+
+// Comments
+comment: SINGLE_LINE_COMMENT
+       | MULTI_LINE_COMMENT
+
+// Terminals
+INCLUDE_DIRECTIVE: "#include"
+PREPROCESSOR_LINE: /#[^\r\n]*/
+
+IDENTIFIER: /[a-zA-Z_][a-zA-Z0-9_-]*/
+
+STRING: /"[^"]*"/
+      | /'[^']*'/
+
+HEX_NUMBER: /0x[0-9a-fA-F]+/
+DEC_NUMBER: /[0-9]+/
+
+SINGLE_LINE_COMMENT: /\/\/[^\r\n]*/
+MULTI_LINE_COMMENT: /\/\*(.|\n)*?\*\//
+
+AMPERSAND: "&"
+
+// Whitespace and newlines
+%import common.WS
+%ignore WS
+
+NEWLINE: /\r?\n/
