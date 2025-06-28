@@ -10,7 +10,11 @@ from typing import Any
 
 import pytest
 
-from glovebox.cli.commands.layout.edit import LayoutEditor, parse_zmk_behavior_string
+from glovebox.cli.commands.layout.edit import (
+    LayoutEditor,
+    parse_comma_separated_fields,
+    parse_zmk_behavior_string,
+)
 from glovebox.layout.models import LayoutData
 
 
@@ -476,6 +480,63 @@ class TestZmkBehaviorParsing:
             "params": [{"value": "Q", "params": []}, {"value": "A", "params": []}],
         }
         assert result == expected
+
+
+class TestCommaSeparatedFieldParsing:
+    """Test suite for comma-separated field parsing functionality."""
+
+    def test_parse_comma_separated_empty_list(self):
+        """Test parsing empty field list."""
+        result = parse_comma_separated_fields(None)
+        assert result == []
+
+        result = parse_comma_separated_fields([])
+        assert result == []
+
+    def test_parse_comma_separated_single_field(self):
+        """Test parsing single field."""
+        result = parse_comma_separated_fields(["title"])
+        assert result == ["title"]
+
+    def test_parse_comma_separated_multiple_fields(self):
+        """Test parsing comma-separated fields."""
+        result = parse_comma_separated_fields(["title,keyboard,version"])
+        assert result == ["title", "keyboard", "version"]
+
+    def test_parse_comma_separated_with_spaces(self):
+        """Test parsing comma-separated fields with spaces."""
+        result = parse_comma_separated_fields(["title, keyboard, version"])
+        assert result == ["title", "keyboard", "version"]
+
+    def test_parse_comma_separated_mixed_format(self):
+        """Test parsing mix of single and comma-separated fields."""
+        result = parse_comma_separated_fields(["title,keyboard", "version", "notes"])
+        assert result == ["title", "keyboard", "version", "notes"]
+
+    def test_parse_comma_separated_with_empty_fields(self):
+        """Test parsing with empty fields (should be filtered out)."""
+        result = parse_comma_separated_fields(["title,, keyboard,", "version"])
+        assert result == ["title", "keyboard", "version"]
+
+    def test_parse_comma_separated_nested_fields(self):
+        """Test parsing comma-separated nested field paths."""
+        result = parse_comma_separated_fields(
+            ["variables.tapMs,variables.holdMs,layer_names[0]"]
+        )
+        assert result == ["variables.tapMs", "variables.holdMs", "layer_names[0]"]
+
+    def test_parse_comma_separated_complex_paths(self):
+        """Test parsing complex field paths with comma separation."""
+        result = parse_comma_separated_fields(
+            ["title,keyboard", "variables.tapMs,variables.holdMs", "holdTaps[0].name"]
+        )
+        assert result == [
+            "title",
+            "keyboard",
+            "variables.tapMs",
+            "variables.holdMs",
+            "holdTaps[0].name",
+        ]
 
 
 class TestLayoutEditorIntegration:

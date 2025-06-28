@@ -443,6 +443,7 @@ def complete_field_paths(ctx: typer.Context, incomplete: str) -> list[str]:
     - Top-level fields (title, keyboard, variables, etc.)
     - Nested fields (variables.myVar, holdTaps[0].flavor, etc.)
     - Array indexing (layers[0], combos[1].keyPositions[0], etc.)
+    - Comma-separated field lists (title,keyboard,version)
 
     Args:
         ctx: Typer context for accessing command parameters
@@ -462,6 +463,34 @@ def complete_field_paths(ctx: typer.Context, incomplete: str) -> list[str]:
             # Add dynamic completions based on actual layout content
             dynamic_completions = _get_dynamic_field_completions(json_file, incomplete)
             field_completions.extend(dynamic_completions)
+
+        # Handle comma-separated field completion
+        if "," in incomplete:
+            # Split by comma and complete the last part
+            parts = incomplete.split(",")
+            prefix_parts = parts[:-1]
+            last_part = parts[-1].strip()
+            prefix = ",".join(prefix_parts) + ","
+
+            # Get completions for the last part
+            last_completions = []
+            for comp in field_completions:
+                if comp.startswith(last_part):
+                    last_completions.append(comp)
+                elif "." in last_part:
+                    # For nested paths, also match if the completion starts with the partial path
+                    nested_parts = last_part.split(".")
+                    comp_parts = comp.split(".")
+                    if len(comp_parts) >= len(nested_parts) and all(
+                        cp.startswith(ip)
+                        for cp, ip in zip(
+                            comp_parts[: len(nested_parts)], nested_parts, strict=False
+                        )
+                    ):
+                        last_completions.append(comp)
+
+            # Return completions with the prefix
+            return [prefix + comp for comp in sorted(set(last_completions))]
 
         if not incomplete:
             # Return top-level fields for empty input
@@ -860,7 +889,7 @@ GetFieldOption = Annotated[
     list[str] | None,
     typer.Option(
         "--get",
-        help="Get field value(s) using JSON path notation. Use tab completion for available fields.",
+        help="Get field value(s) using JSON path notation. Supports comma-separated field names. Use tab completion for available fields.",
         autocompletion=complete_field_paths,
     ),
 ]
@@ -922,6 +951,7 @@ def complete_config_field_paths(incomplete: str) -> list[str]:
     Provides completion for UserConfig model fields including:
     - Top-level fields (cache_strategy, emoji_mode, etc.)
     - Nested fields (firmware.flash.timeout, firmware.docker.memory_limit, etc.)
+    - Comma-separated field lists (cache_strategy,emoji_mode)
 
     Args:
         incomplete: Partial field path being typed
@@ -931,6 +961,34 @@ def complete_config_field_paths(incomplete: str) -> list[str]:
     """
     try:
         field_completions = _get_cached_config_field_completions()
+
+        # Handle comma-separated field completion
+        if "," in incomplete:
+            # Split by comma and complete the last part
+            parts = incomplete.split(",")
+            prefix_parts = parts[:-1]
+            last_part = parts[-1].strip()
+            prefix = ",".join(prefix_parts) + ","
+
+            # Get completions for the last part
+            last_completions = []
+            for comp in field_completions:
+                if comp.startswith(last_part):
+                    last_completions.append(comp)
+                elif "." in last_part:
+                    # For nested paths, also match if the completion starts with the partial path
+                    nested_parts = last_part.split(".")
+                    comp_parts = comp.split(".")
+                    if len(comp_parts) >= len(nested_parts) and all(
+                        cp.startswith(ip)
+                        for cp, ip in zip(
+                            comp_parts[: len(nested_parts)], nested_parts, strict=False
+                        )
+                    ):
+                        last_completions.append(comp)
+
+            # Return completions with the prefix
+            return [prefix + comp for comp in sorted(set(last_completions))]
 
         if not incomplete:
             # Return top-level fields for empty input
@@ -1062,7 +1120,7 @@ GetConfigFieldOption = Annotated[
     list[str] | None,
     typer.Option(
         "--get",
-        help="Get configuration field value(s) using dot notation. Use tab completion for available fields.",
+        help="Get configuration field value(s) using dot notation. Supports comma-separated field names. Use tab completion for available fields.",
         autocompletion=complete_config_field_paths,
     ),
 ]

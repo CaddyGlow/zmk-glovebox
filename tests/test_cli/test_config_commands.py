@@ -224,6 +224,114 @@ class TestConfigEdit:
         assert "log_level: WARNING" in result.output
         assert "disable_version_checks: True" in result.output
 
+    def test_get_comma_separated_values(self, isolated_cli_environment, cli_runner):
+        """Test getting multiple configuration values using comma-separated field names."""
+        # Set up some config values first
+        result = cli_runner.invoke(
+            app,
+            [
+                "config",
+                "edit",
+                "--set",
+                "log_level=INFO",
+                "--set",
+                "disable_version_checks=false",
+                "--set",
+                "emoji_mode=true",
+                "--save",
+            ],
+        )
+        assert result.exit_code == 0
+
+        # Now get multiple values using comma-separated syntax
+        result = cli_runner.invoke(
+            app,
+            [
+                "config",
+                "edit",
+                "--get",
+                "log_level,disable_version_checks,emoji_mode",
+                "--no-save",
+            ],
+        )
+        assert result.exit_code == 0
+        assert "log_level: INFO" in result.output
+        assert "disable_version_checks: False" in result.output
+        assert "emoji_mode: True" in result.output
+
+    def test_get_comma_separated_with_spaces(
+        self, isolated_cli_environment, cli_runner
+    ):
+        """Test getting multiple configuration values with spaces in comma-separated field names."""
+        # Set up some config values first
+        result = cli_runner.invoke(
+            app,
+            [
+                "config",
+                "edit",
+                "--set",
+                "log_level=DEBUG",
+                "--set",
+                "emoji_mode=false",
+                "--save",
+            ],
+        )
+        assert result.exit_code == 0
+
+        # Now get multiple values using comma-separated syntax with spaces
+        result = cli_runner.invoke(
+            app,
+            [
+                "config",
+                "edit",
+                "--get",
+                "log_level, emoji_mode",
+                "--no-save",
+            ],
+        )
+        assert result.exit_code == 0
+        assert "log_level: DEBUG" in result.output
+        assert "emoji_mode: False" in result.output
+
+    def test_get_mixed_comma_and_flag_syntax(
+        self, isolated_cli_environment, cli_runner
+    ):
+        """Test mixing comma-separated and multiple flag syntax for getting values."""
+        # Set up some config values first
+        result = cli_runner.invoke(
+            app,
+            [
+                "config",
+                "edit",
+                "--set",
+                "log_level=ERROR",
+                "--set",
+                "disable_version_checks=true",
+                "--set",
+                "emoji_mode=false",
+                "--save",
+            ],
+        )
+        assert result.exit_code == 0
+
+        # Mix comma-separated and individual flags
+        result = cli_runner.invoke(
+            app,
+            [
+                "config",
+                "edit",
+                "--get",
+                "log_level,disable_version_checks",
+                "--get",
+                "emoji_mode",
+                "--no-save",
+            ],
+        )
+        assert result.exit_code == 0
+        assert "log_level: ERROR" in result.output
+        assert "disable_version_checks: True" in result.output
+        assert "emoji_mode: False" in result.output
+
     def test_set_single_value(self, isolated_cli_environment, cli_runner):
         """Test setting a single configuration value."""
         result = cli_runner.invoke(

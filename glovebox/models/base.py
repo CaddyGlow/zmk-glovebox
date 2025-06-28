@@ -4,7 +4,7 @@ This module provides a base model class that enforces consistent serialization
 behavior across all Glovebox models.
 """
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -27,23 +27,43 @@ class GloveboxBaseModel(BaseModel):
         use_enum_values=True,
         # Validate assignment after model creation
         validate_assignment=True,
+        # allow to load without using name instead of alis
+        populate_by_name=True,
     )
 
-    def to_dict(self) -> dict[str, Any]:
+    def model_dump(
+        self,
+        *,
+        mode: Literal["json", "python"] | str = "json",
+        by_alias: bool | None = True,
+        exclude_unset: bool = True,
+        **kwargs,
+    ) -> dict[str, Any]:
+        """
+        Override model_dump to default to using aliases.
+        """
+        # We explicitly set by_alias=True as the default for this method's signature.
+        return super().model_dump(
+            mode=mode, by_alias=by_alias, exclude_unset=exclude_unset, **kwargs
+        )
+
+    def model_dump_json(
+        self, *, by_alias: bool | None = True, exclude_unset: bool = True, **kwargs
+    ) -> str:
+        """
+        Override model_dump_json to default to using aliases.
+        """
+        return super().model_dump_json(
+            by_alias=by_alias, exclude_unset=exclude_unset, **kwargs
+        )
+
+    def to_dict(self, exclude_unset: bool = True) -> dict[str, Any]:
         """Convert model to dictionary with consistent serialization parameters.
 
         Returns:
             Dictionary representation using JSON-compatible serialization
         """
-        return self.model_dump(by_alias=True, exclude_unset=True, mode="json")
-
-    def to_dict_full(self) -> dict[str, Any]:
-        """Convert model to dictionary including all fields (even unset ones).
-
-        Returns:
-            Dictionary representation including all fields
-        """
-        return self.model_dump(by_alias=True, exclude_unset=False, mode="json")
+        return self.model_dump(by_alias=True, exclude_unset=exclude_unset, mode="json")
 
     def to_dict_python(self) -> dict[str, Any]:
         """Convert model to dictionary using Python serialization.
