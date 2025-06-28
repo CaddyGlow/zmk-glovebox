@@ -36,18 +36,18 @@ icon_mode: "emoji"
 
 # Logging configuration
 logging:
-  global_level: "INFO"
+  global_level: "WARNING"
 
   handlers:
     - type: "console"
-      level: "INFO"
+      level: "WARNING"
       format: "simple"
       colored: true
 
     - type: "file"
       level: "DEBUG"
       format: "detailed"
-      file_path: "$XDG_HOME_CACHE/glovebox/logs/glovebox.log"
+      file_path: "/home/rick/.config/glovebox/logs/glovebox.log"
       max_size_mb: 10
       backup_count: 3
       colored: false
@@ -72,7 +72,7 @@ moergo:
 
   # Credential storage configuration
   credentials:
-    config_dir: "~/.glovebox"
+    config_dir: "/home/rick/.config/glovebox"
     credentials_file: "moergo_credentials.json"
     tokens_file: "moergo_tokens.json"
     default_username: null

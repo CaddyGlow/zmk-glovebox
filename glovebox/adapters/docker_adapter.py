@@ -59,7 +59,7 @@ class LoggerOutputMiddleware(OutputMiddleware[str]):
         if stream_type == "stdout":
             logger.debug(f"{self.stdout_prefix}{line}")
         else:
-            logger.warning(f"{self.stderr_prefix}{line}")
+            logger.info(f"{self.stderr_prefix}{line}")
         return line
 
 

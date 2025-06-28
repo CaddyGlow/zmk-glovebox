@@ -253,13 +253,20 @@ def _format_compilation_output(
 
 
 def _determine_firmware_outputs(
-    result: Any, base_filename: str
+    result: Any,
+    base_filename: str,
+    templates: Any = None,
+    layout_data: dict[str, Any] | None = None,
+    original_filename: str | None = None,
 ) -> list[tuple[Path, Path]]:
     """Determine which firmware files to create based on build result.
 
     Args:
         result: BuildResult object from compilation
-        base_filename: Base filename without extension for output files
+        base_filename: Base filename without extension for output files (fallback)
+        templates: Filename template configuration (optional)
+        layout_data: Layout data for template generation (optional)
+        original_filename: Original input filename (optional)
 
     Returns:
         List of tuples (source_path, target_path) for firmware files to copy
@@ -275,15 +282,63 @@ def _determine_firmware_outputs(
             continue
 
         filename_lower = uf2_file.name.lower()
+
+        # Determine board suffix and generate appropriate filename
         if "lh" in filename_lower or "lf" in filename_lower:
             # Left hand/front firmware
-            outputs.append((uf2_file, Path(f"{base_filename}_lf.uf2")))
+            if templates and layout_data:
+                from glovebox.utils.filename_generator import (
+                    FileType,
+                    generate_default_filename,
+                )
+
+                target_filename = generate_default_filename(
+                    FileType.FIRMWARE_UF2,
+                    templates,
+                    layout_data=layout_data,
+                    original_filename=original_filename,
+                    board="lf",
+                )
+            else:
+                target_filename = f"{base_filename}_lf.uf2"
+            outputs.append((uf2_file, Path(target_filename)))
+
         elif "rh" in filename_lower:
             # Right hand firmware
-            outputs.append((uf2_file, Path(f"{base_filename}_rh.uf2")))
+            if templates and layout_data:
+                from glovebox.utils.filename_generator import (
+                    FileType,
+                    generate_default_filename,
+                )
+
+                target_filename = generate_default_filename(
+                    FileType.FIRMWARE_UF2,
+                    templates,
+                    layout_data=layout_data,
+                    original_filename=original_filename,
+                    board="rh",
+                )
+            else:
+                target_filename = f"{base_filename}_rh.uf2"
+            outputs.append((uf2_file, Path(target_filename)))
+
         else:
             # Main/unified firmware or first available firmware
-            outputs.append((uf2_file, Path(f"{base_filename}.uf2")))
+            if templates and layout_data:
+                from glovebox.utils.filename_generator import (
+                    FileType,
+                    generate_default_filename,
+                )
+
+                target_filename = generate_default_filename(
+                    FileType.FIRMWARE_UF2,
+                    templates,
+                    layout_data=layout_data,
+                    original_filename=original_filename,
+                )
+            else:
+                target_filename = f"{base_filename}.uf2"
+            outputs.append((uf2_file, Path(target_filename)))
 
     return outputs
 
@@ -305,12 +360,43 @@ def _process_compilation_output(
         # --output flag provided: keep existing behavior (files already in output_dir)
         return
 
-    # No --output flag: create {filename}.uf2 and {filename}_artefacts.zip
-    base_filename = input_file.stem
+    # No --output flag: create smart default filenames using templates
+    from glovebox.config import create_user_config
+    from glovebox.utils.filename_generator import FileType, generate_default_filename
+    from glovebox.utils.filename_helpers import extract_layout_dict_data
+
+    user_config = create_user_config()
+
+    # Extract layout data if input is JSON
+    layout_data = None
+    if input_file.suffix.lower() == ".json":
+        try:
+            import json
+
+            layout_dict = json.loads(input_file.read_text())
+            layout_data = extract_layout_dict_data(layout_dict)
+        except Exception:
+            # Fallback if JSON parsing fails
+            pass
+
+    # Generate base filename (without extension) for firmware files
+    firmware_filename = generate_default_filename(
+        FileType.FIRMWARE_UF2,
+        user_config._config.filename_templates,
+        layout_data=layout_data,
+        original_filename=str(input_file),
+    )
+    base_filename = Path(firmware_filename).stem
 
     try:
         # Determine firmware files to create
-        firmware_outputs = _determine_firmware_outputs(result, base_filename)
+        firmware_outputs = _determine_firmware_outputs(
+            result,
+            base_filename,
+            templates=user_config._config.filename_templates,
+            layout_data=layout_data,
+            original_filename=str(input_file),
+        )
 
         # Copy firmware files to current directory
         for source_path, target_path in firmware_outputs:
@@ -318,8 +404,14 @@ def _process_compilation_output(
                 shutil.copy2(source_path, target_path)
                 logger.info("Created firmware file: %s", target_path)
 
-        # Create artifacts zip file
-        artifacts_zip_path = Path(f"{base_filename}_artefacts.zip")
+        # Create artifacts zip file using smart filename generation
+        artifacts_filename = generate_default_filename(
+            FileType.ARTIFACTS_ZIP,
+            user_config._config.filename_templates,
+            layout_data=layout_data,
+            original_filename=str(input_file),
+        )
+        artifacts_zip_path = Path(artifacts_filename)
         if (
             result.output_files.artifacts_dir
             and result.output_files.artifacts_dir.exists()

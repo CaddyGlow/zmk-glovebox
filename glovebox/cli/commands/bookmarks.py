@@ -194,7 +194,7 @@ def list(
         typer.echo(
             Icons.format_with_icon(
                 "INFO",
-                "Use 'glovebox bookmarks clone <name> <output.json>' to clone",
+                "Use 'glovebox bookmarks clone <name> [--output <file>]' to clone",
                 icon_mode,
             )
         )
@@ -223,11 +223,23 @@ def clone(
         ),
     ],
     output: Annotated[
-        Path, typer.Argument(help="Output file path for the cloned layout")
-    ],
+        str | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output file path for the cloned layout. Use '-' for stdout. If not specified, generates a smart default filename.",
+        ),
+    ] = None,
 ) -> None:
     """Clone a bookmarked layout to a local file."""
+    import sys
+
     from glovebox.cli.helpers.theme import Icons
+    from glovebox.utils.filename_generator import FileType, generate_default_filename
+    from glovebox.utils.filename_helpers import (
+        extract_bookmark_data,
+        extract_layout_dict_data,
+    )
 
     try:
         from glovebox.cli.helpers.profile import get_user_config_from_context
@@ -254,22 +266,57 @@ def clone(
         # Get full layout data
         layout = bookmark_service.get_layout_by_bookmark(name)
 
-        # Save the config part (the actual layout data)
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(layout.config.model_dump_json(by_alias=True, indent=2))
+        # Prepare the layout JSON content
+        layout_json = layout.config.model_dump_json(by_alias=True, indent=2)
 
-        typer.echo(
-            Icons.format_with_icon("SUCCESS", "Layout cloned successfully!", icon_mode)
-        )
-        typer.echo(
-            Icons.format_with_icon("TAG", f"Bookmark: {bookmark.name}", icon_mode)
-        )
-        typer.echo(
-            Icons.format_with_icon(
-                "DOCUMENT", f"Title: {layout.layout_meta.title}", icon_mode
+        # Handle output destination
+        if output == "-":
+            # Output to stdout
+            sys.stdout.write(layout_json)
+            sys.stdout.write("\n")
+        else:
+            # Determine output path
+            if output is None:
+                # Generate smart default filename using templates
+                layout_dict = layout.config.model_dump(by_alias=True)
+                layout_data = extract_layout_dict_data(layout_dict)
+                bookmark_data = extract_bookmark_data(
+                    name, layout_dict.get("title", "")
+                )
+
+                # Combine layout and bookmark data for better templating
+                combined_data = {**layout_data, **bookmark_data}
+
+                default_filename = generate_default_filename(
+                    FileType.LAYOUT_JSON,
+                    user_config._config.filename_templates,
+                    layout_data=combined_data,
+                    original_filename=f"{name}.json",
+                )
+                output_path = Path(default_filename)
+            else:
+                output_path = Path(output)
+
+            # Save the config part (the actual layout data)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(layout_json)
+
+            typer.echo(
+                Icons.format_with_icon(
+                    "SUCCESS", "Layout cloned successfully!", icon_mode
+                )
             )
-        )
-        typer.echo(Icons.format_with_icon("SAVE", f"Saved to: {output}", icon_mode))
+            typer.echo(
+                Icons.format_with_icon("TAG", f"Bookmark: {bookmark.name}", icon_mode)
+            )
+            typer.echo(
+                Icons.format_with_icon(
+                    "DOCUMENT", f"Title: {layout.layout_meta.title}", icon_mode
+                )
+            )
+            typer.echo(
+                Icons.format_with_icon("SAVE", f"Saved to: {output_path}", icon_mode)
+            )
 
     except Exception as e:
         from glovebox.cli.helpers.theme import get_icon_mode_from_context

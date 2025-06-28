@@ -45,9 +45,7 @@ def mock_file_adapter():
 def mock_session_metrics():
     """Create a mock session metrics for testing."""
     cache_manager = create_default_cache(tag="test")
-    return SessionMetrics(
-        cache_manager=cache_manager, session_uuid="test-session"
-    )
+    return SessionMetrics(cache_manager=cache_manager, session_uuid="test-session")
 
 
 @pytest.fixture
@@ -138,7 +136,9 @@ class TestMoergoNixServiceInit:
         self, mock_docker_adapter, mock_file_adapter, mock_session_metrics
     ):
         """Test factory function creates service correctly."""
-        service = create_moergo_nix_service(mock_docker_adapter, mock_file_adapter, mock_session_metrics)
+        service = create_moergo_nix_service(
+            mock_docker_adapter, mock_file_adapter, mock_session_metrics
+        )
 
         assert isinstance(service, MoergoNixService)
         assert service.docker_adapter is mock_docker_adapter

@@ -95,7 +95,9 @@ def cache_delete(
                     console.print(
                         f"[red]WARNING: Pattern '{pattern}' matches {len(workspace_keys)} workspace cache keys![/red]"
                     )
-                    console.print("[red]Workspace keys contain git repositories and build data.[/red]")
+                    console.print(
+                        "[red]Workspace keys contain git repositories and build data.[/red]"
+                    )
                     console.print("[yellow]Matched workspace keys:[/yellow]")
                     for i, key in enumerate(workspace_keys[:5], 1):  # Show first 5
                         console.print(f"  {i}. {key}")
@@ -116,7 +118,10 @@ def cache_delete(
                             keys_to_delete = [
                                 k
                                 for k in keys_to_delete
-                                if not any(k.startswith(prefix) for prefix in workspace_prefixes)
+                                if not any(
+                                    k.startswith(prefix)
+                                    for prefix in workspace_prefixes
+                                )
                             ]
                             filtered_count = original_count - len(keys_to_delete)
                             console.print(

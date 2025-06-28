@@ -76,37 +76,37 @@ class ProgressPhasePatterns(GloveboxBaseModel):
     # Repository download patterns (west update phase)
     repo_download_pattern: str = Field(
         default=r"^From https://github\.com/([^/]+/[^/\s]+)",
-        description="Pattern to detect repository downloads during west update"
+        description="Pattern to detect repository downloads during west update",
     )
 
     # Build start patterns
     build_start_pattern: str = Field(
         default=r"west build.*-b\s+(\w+)",
-        description="Pattern to detect start of build for a specific board"
+        description="Pattern to detect start of build for a specific board",
     )
 
     # Build progress patterns
     build_progress_pattern: str = Field(
         default=r"\[\s*(\d+)/(\d+)\s*\].*Building",
-        description="Pattern to detect build progress steps [current/total]"
+        description="Pattern to detect build progress steps [current/total]",
     )
 
     # Build completion patterns
     build_complete_pattern: str = Field(
         default=r"Memory region\s+Used Size|FLASH.*region.*overlaps",
-        description="Pattern to detect build completion"
+        description="Pattern to detect build completion",
     )
 
     # Board detection patterns
     board_detection_pattern: str = Field(
         default=r"west build.*-b\s+([a-zA-Z0-9_]+)",
-        description="Pattern to extract board name from build output"
+        description="Pattern to extract board name from build output",
     )
 
     # Board completion patterns
     board_complete_pattern: str = Field(
         default=r"Wrote \d+ bytes to zmk\.uf2",
-        description="Pattern to detect individual board completion"
+        description="Pattern to detect individual board completion",
     )
 
 
@@ -145,7 +145,7 @@ class CompilationConfig(GloveboxBaseModel):
     # Progress tracking patterns
     progress_patterns: ProgressPhasePatterns = Field(
         default_factory=ProgressPhasePatterns,
-        description="Regex patterns for tracking compilation progress phases"
+        description="Regex patterns for tracking compilation progress phases",
     )
 
     @field_validator("method_type")
@@ -175,7 +175,7 @@ class ZmkCompilationConfig(CompilationConfig):
     # ZMK-specific progress patterns (uses default patterns)
     progress_patterns: ProgressPhasePatterns = Field(
         default_factory=ProgressPhasePatterns,
-        description="ZMK-specific progress tracking patterns"
+        description="ZMK-specific progress tracking patterns",
     )
 
 
@@ -207,9 +207,9 @@ class MoergoCompilationConfig(CompilationConfig):
             build_progress_pattern=r"\[\s*(\d+)/(\d+)\s*\].*Building|Build progress.*board.*:(\d+)/(\d+)",
             build_complete_pattern=r"Wrote \d+ bytes to zmk\.uf2|successful build of",
             board_detection_pattern=r"building.*glove80_([lr]h|unified)|Board:\s*([a-zA-Z0-9_]+)",
-            board_complete_pattern=r"Wrote \d+ bytes to zmk\.uf2|successful build.*glove80"
+            board_complete_pattern=r"Wrote \d+ bytes to zmk\.uf2|successful build.*glove80",
         ),
-        description="MoErgo Nix-specific progress tracking patterns"
+        description="MoErgo Nix-specific progress tracking patterns",
     )
 
 

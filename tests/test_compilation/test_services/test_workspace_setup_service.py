@@ -30,9 +30,7 @@ class TestWorkspaceSetupService:
     def mock_session_metrics(self):
         """Mock session metrics for testing."""
         cache_manager = create_default_cache(tag="test")
-        return SessionMetrics(
-            cache_manager=cache_manager, session_uuid="test-session"
-        )
+        return SessionMetrics(cache_manager=cache_manager, session_uuid="test-session")
 
     @pytest.fixture
     def workspace_service(self, mock_file_adapter, mock_session_metrics):
@@ -121,11 +119,13 @@ class TestWorkspaceSetupService:
         def mock_get_cached_workspace(config):
             return None, False, None
 
-        workspace_path, cache_used, cache_type = workspace_service.get_or_create_workspace(
-            keymap_file,
-            config_file,
-            zmk_config,
-            mock_get_cached_workspace,
+        workspace_path, cache_used, cache_type = (
+            workspace_service.get_or_create_workspace(
+                keymap_file,
+                config_file,
+                zmk_config,
+                mock_get_cached_workspace,
+            )
         )
 
         assert workspace_path is not None
@@ -154,11 +154,13 @@ class TestWorkspaceSetupService:
             def mock_get_cached_workspace(config):
                 return cached_workspace, True, "repo_branch"
 
-            workspace_path, cache_used, cache_type = workspace_service.get_or_create_workspace(
-                keymap_file,
-                config_file,
-                zmk_config,
-                mock_get_cached_workspace,
+            workspace_path, cache_used, cache_type = (
+                workspace_service.get_or_create_workspace(
+                    keymap_file,
+                    config_file,
+                    zmk_config,
+                    mock_get_cached_workspace,
+                )
             )
 
             assert workspace_path is not None

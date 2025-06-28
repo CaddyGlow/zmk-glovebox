@@ -92,12 +92,12 @@ def test_generate_kconfig_conf():
         ],
         config_parameters=[
             ConfigParameter(
-                paramName="CONFIG_ZMK_KEYBOARD_NAME",
+                param_name="CONFIG_ZMK_KEYBOARD_NAME",
                 value="Test Keyboard",
                 description="Keyboard name",
             ),
             ConfigParameter(
-                paramName="CONFIG_ZMK_BLE", value="y", description="Enable BLE"
+                param_name="CONFIG_ZMK_BLE", value="y", description="Enable BLE"
             ),
         ],
     )

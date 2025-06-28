@@ -21,7 +21,6 @@ from glovebox.adapters.config_file_adapter import (
 from glovebox.config.models import UserConfigData
 from glovebox.core.errors import ConfigError
 from glovebox.core.logging import get_logger
-from glovebox.models.path import PreservingPath
 
 
 logger = get_logger(__name__)
@@ -300,7 +299,7 @@ class UserConfig:
         Returns:
             List of Path objects for user keyboard configurations
         """
-        # PreservingPath already expands, so just return as Path objects
+        # Return the expanded Path objects
         return [Path(path) for path in self._config.profiles_paths]
 
     def add_keyboard_path(self, path: str | Path) -> None:
@@ -315,7 +314,9 @@ class UserConfig:
 
         if path_obj not in current_paths:
             # Add to the list
-            self._config.profiles_paths.append(PreservingPath(str(path)))
+            self._config.profiles_paths.append(
+                Path(os.path.expandvars(str(path))).expanduser()
+            )
             self._config_sources["keyboard_paths"] = "runtime"
 
     def remove_keyboard_path(self, path: str | Path) -> None:

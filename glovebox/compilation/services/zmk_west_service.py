@@ -526,7 +526,7 @@ class ZmkWestService(CompilationServiceProtocol):
             base_commands.append("west zephyr-export")
 
             base_commands.append("west status")
-            base_commands.append("(cd modules/zmk && git rev-parse HEAD)")
+            # base_commands.append("(cd modules/zmk && git rev-parse HEAD)")
 
             all_commands = base_commands + build_commands
 

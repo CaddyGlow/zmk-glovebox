@@ -165,7 +165,7 @@ def generate_build_info(
         try:
             if content is None:
                 return None
-            return hashlib.sha256(content.encode('utf-8')).hexdigest()
+            return hashlib.sha256(content.encode("utf-8")).hexdigest()
         except Exception as e:
             logger.warning("Failed to calculate SHA256 from content: %s", e)
             return None
@@ -282,8 +282,6 @@ def generate_build_info(
     # No JSON file handling for memory-based builds
 
     return build_info
-
-
 
 
 def create_build_info_file(
