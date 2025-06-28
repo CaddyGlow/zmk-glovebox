@@ -99,13 +99,16 @@ class CompilationProgress:
     @property
     def overall_progress_percent(self) -> float:
         """Calculate overall progress across all phases and boards."""
-        if self.compilation_phase == "west_update":
-            # West update is 30% of total progress
-            return self.repository_progress_percent * 0.3
+        if self.compilation_phase == "initialization":
+            # Initialization is 10% of total progress
+            return 5.0  # Show some progress during initialization
+        elif self.compilation_phase == "west_update":
+            # West update is 30% of total progress (10% to 40%)
+            return 10.0 + (self.repository_progress_percent * 0.3)
         elif self.compilation_phase == "building":
-            # Building is 60% of total progress
-            base_progress = 30.0  # West update completed
-            board_weight = 60.0 / self.total_boards if self.total_boards > 0 else 60.0
+            # Building is 50% of total progress (40% to 90%)
+            base_progress = 40.0  # Initialization + west update completed
+            board_weight = 50.0 / self.total_boards if self.total_boards > 0 else 50.0
             completed_boards_progress = self.boards_completed * board_weight
             current_board_progress = self.current_board_progress_percent * (
                 board_weight / 100.0
@@ -115,6 +118,84 @@ class CompilationProgress:
             # Cache saving is 10% of total progress (90% to 100%)
             return 90.0 + min(10.0, 10.0)  # Show progress from 90% to 100%
         return 0.0
+
+    def get_staged_progress_display(self) -> str:
+        """Get a staged progress display with emojis and status indicators."""
+        stages = [
+            ("🔧 Setting up build environment", "initialization"),
+            ("📦 Resolving dependencies", "west_update"),
+            ("⚙️ Compiling firmware", "building"),
+            ("🔗 Linking binaries", "building"),
+            ("📱 Generating .uf2 files", "cache_saving"),
+        ]
+
+        lines = []
+        for stage_name, stage_phase in stages:
+            if self.compilation_phase == stage_phase:
+                if stage_phase == "initialization":
+                    status = "⚙️"  # Show as in progress during initialization
+                elif stage_phase == "west_update":
+                    progress = int(self.repository_progress_percent)
+                    if progress == 100:
+                        status = "✓"
+                    else:
+                        status = f"{'█' * (progress // 10)}{'░' * (10 - progress // 10)} {progress}%"
+                elif stage_phase == "building":
+                    if self.boards_completed == self.total_boards:
+                        status = "✓"
+                    else:
+                        progress = int(self.current_board_progress_percent)
+                        status = f"{'█' * (progress // 10)}{'░' * (10 - progress // 10)} {progress}%"
+                elif stage_phase == "cache_saving":
+                    status = "✓"
+                else:
+                    status = "(pending)"
+            elif self._is_stage_completed(stage_phase):
+                status = "✓"
+            else:
+                status = "(pending)"
+
+            lines.append(f"{stage_name}... {status}")
+
+        return "\n".join(lines)
+
+    def _is_stage_completed(self, stage_phase: str) -> bool:
+        """Check if a stage has been completed."""
+        phase_order = ["initialization", "west_update", "building", "cache_saving"]
+        if stage_phase not in phase_order:
+            return False
+
+        # Handle case where current phase is not in the list
+        if self.compilation_phase not in phase_order:
+            return False
+
+        current_index = phase_order.index(self.compilation_phase)
+        stage_index = phase_order.index(stage_phase)
+
+        return stage_index < current_index
+
+    def get_status_text(self) -> str:
+        """Get status text for progress display compatibility."""
+        if self.compilation_phase == "initialization":
+            return "🔧 Initializing build environment"
+        elif self.compilation_phase == "west_update":
+            return f"📦 Downloading repositories ({self.repositories_downloaded}/{self.total_repositories})"
+        elif self.compilation_phase == "building":
+            if self.current_board:
+                return f"⚙️ Building {self.current_board} ({self.boards_completed + 1}/{self.total_boards})"
+            else:
+                return f"⚙️ Compiling firmware ({self.boards_completed}/{self.total_boards})"
+        elif self.compilation_phase == "cache_saving":
+            return "💾 Saving build cache"
+        else:
+            return f"🔧 {self.compilation_phase.replace('_', ' ').title()}"
+
+    def get_progress_info(self) -> tuple[int, int, str]:
+        """Get progress info for progress display compatibility."""
+        current = int(self.overall_progress_percent)
+        total = 100
+        description = self.get_status_text()
+        return current, total, description
 
 
 # Type alias for compilation progress callback

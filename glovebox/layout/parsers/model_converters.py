@@ -654,17 +654,22 @@ class MacroConverter(ModelConverter):
 
     def _extract_description(self, node: DTNode) -> str:
         """Extract description from comments or label property."""
-        # Same logic as HoldTapConverter
-        description = self._get_string_property(node, "label")
-        if description:
-            return description
-
+        # First try to find comments (most descriptive)
         for comment in node.comments:
             if not comment.text.startswith("//"):
                 continue
             desc = comment.text[2:].strip()
             if desc and not desc.startswith("TODO") and not desc.startswith("FIXME"):
                 return desc
+
+        # Fall back to label property but clean it up
+        description = self._get_string_property(node, "label")
+        if description:
+            # Clean up label: remove quotes and ampersand prefix
+            clean_desc = description.strip('"').strip("'")
+            if clean_desc.startswith("&"):
+                clean_desc = clean_desc[1:]  # Remove & prefix
+            return clean_desc
 
         return ""
 
