@@ -27,8 +27,9 @@ class GloveboxBaseModel(BaseModel):
         use_enum_values=True,
         # Validate assignment after model creation
         validate_assignment=True,
-        # allow to load without using name instead of alis
-        populate_by_name=True,
+        # allow to load with alias and name
+        validate_by_alias=True,
+        validate_by_name=True,
     )
 
     def model_dump(

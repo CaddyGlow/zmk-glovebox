@@ -13,10 +13,103 @@ start: item*
      | NEWLINE
 
 // Include statements (#include)
-include_statement: INCLUDE_DIRECTIVE STRING
+include_statement: INCLUDE_DIRECTIVE include_path
 
-// Preprocessor directives
-preprocessor_directive: PREPROCESSOR_LINE
+include_path: STRING                    // "file.h"
+            | "<" include_file_path ">" // <dt-bindings/zmk/keys.h>
+
+include_file_path: path_component ("/" path_component)*
+
+path_component: IDENTIFIER ("." IDENTIFIER)?
+
+// Enhanced preprocessor directives support
+preprocessor_directive: preprocessor_if
+                      | preprocessor_ifdef  
+                      | preprocessor_ifndef
+                      | preprocessor_define
+                      | preprocessor_undef
+                      | preprocessor_else
+                      | preprocessor_elif
+                      | preprocessor_endif
+                      | preprocessor_error
+
+// Conditional preprocessor directives
+preprocessor_if: "#if" preprocessor_expression
+preprocessor_ifdef: "#ifdef" IDENTIFIER
+preprocessor_ifndef: "#ifndef" IDENTIFIER
+preprocessor_else: "#else"
+preprocessor_elif: "#elif" preprocessor_expression
+preprocessor_endif: "#endif"
+
+// Define/undefine directives  
+preprocessor_define: "#define" IDENTIFIER [define_value] [SINGLE_LINE_COMMENT]
+preprocessor_undef: "#undef" IDENTIFIER
+preprocessor_error: "#error" STRING
+
+define_value: define_token+
+
+define_token: AMPERSAND IDENTIFIER     // &identifier
+            | function_call            // Function calls like RGB_COLOR_HSB(0,100,50) or _C(LS(Z))
+            | arithmetic_expression    // Arithmetic expressions like ((6 - DIFFICULTY_LEVEL) * 100)
+            | preprocessor_value       // String, number, identifier
+
+// Arithmetic expressions for #define directives
+arithmetic_expression: "(" arithmetic_expr ")"
+
+arithmetic_expr: arithmetic_term (arithmetic_op arithmetic_term)*
+
+arithmetic_op: "+" | "-" | "*" | "/" | "%" | "<<" | ">>"
+
+arithmetic_term: "(" arithmetic_expr ")"     // Parenthetical expressions
+               | IDENTIFIER                   // Variables like DIFFICULTY_LEVEL
+               | HEX_NUMBER                   // Hex numbers
+               | DEC_NUMBER                   // Decimal numbers
+               | function_call                // Function calls
+
+// Simple preprocessor lines (fallback for unknown directives)
+// Note: Removed generic fallback to avoid conflicts with #property syntax
+
+// Preprocessor expressions with logical operators and functions
+preprocessor_expression: preprocessor_term (logical_op preprocessor_term)*
+
+logical_op: "||" | "&&" | "==" | "!=" | "<" | ">" | "<=" | ">="
+
+preprocessor_term: defined_function
+                 | builtin_function
+                 | negation_term
+                 | paren_expression
+                 | simple_term
+
+defined_function: "defined" "(" IDENTIFIER ")"
+
+builtin_function: IDENTIFIER "(" builtin_args ")"
+
+builtin_args: [builtin_arg ("," builtin_arg)*]
+
+builtin_arg: "<" include_file_path ">"  // <file.h>
+           | STRING                     // "file.h"
+           | IDENTIFIER                 // identifier
+           | HEX_NUMBER                 // 0x123
+           | DEC_NUMBER                 // 123
+
+negation_term: "!" preprocessor_term
+
+paren_expression: "(" preprocessor_expression ")"
+
+simple_term: IDENTIFIER
+           | HEX_NUMBER
+           | DEC_NUMBER
+           | STRING
+           | CHAR_LITERAL
+
+CHAR_LITERAL: /'[^']*'/
+
+// Preprocessor values for #define
+preprocessor_value: STRING
+                  | HEX_NUMBER
+                  | DEC_NUMBER
+                  | IDENTIFIER
+                  | CHAR_LITERAL
 
 // Node definitions
 node: label? node_path "{" item* "}" [";"]
@@ -34,11 +127,17 @@ path_segment: IDENTIFIER
             | IDENTIFIER "@" HEX_NUMBER
 
 // Property definitions  
-property: IDENTIFIER "=" property_values ";"
-        | IDENTIFIER ";"
+property: property_name "=" property_values ";"
+        | property_name ";"
 
-// Property values can be comma-separated
-property_values: value ("," value)*
+property_name: IDENTIFIER | hash_property
+
+hash_property: "#" IDENTIFIER
+
+// Property values can be comma-separated with possible preprocessor directives
+property_values: property_value_item ("," property_value_item)*
+
+property_value_item: value | preprocessor_directive
 
 // Standalone semicolons (common in device tree)
 semicolon: ";"
@@ -49,6 +148,9 @@ semicolon: ";"
       | array_value
       | reference_value
       | boolean_value
+      | identifier_value
+
+identifier_value: IDENTIFIER
 
 string_value: STRING
 
@@ -57,7 +159,10 @@ number_value: HEX_NUMBER
 
 array_value: "<" array_content ">"
 
-array_content: [array_token*]
+array_content: [array_item*]
+
+array_item: array_token
+          | preprocessor_directive
 
 array_token: reference_token    // References like &kp
            | function_call      // Function calls like LS(END)
@@ -66,16 +171,17 @@ array_token: reference_token    // References like &kp
            | DEC_NUMBER        // Numbers like 123  
            | STRING            // Strings like "text"
 
-// Function call syntax (e.g., LS(END), LCTRL(A))
+// Function call syntax (e.g., LS(END), LCTRL(A), _C(LS(Z)))
 function_call: IDENTIFIER "(" function_args ")"
 
 function_args: [function_arg ("," function_arg)*]
 
-function_arg: function_call    // Nested function calls
-            | IDENTIFIER
-            | HEX_NUMBER
-            | DEC_NUMBER
-            | STRING
+function_arg: function_call    // Nested function calls like LS(Z) in _C(LS(Z))
+            | IDENTIFIER       // Identifiers like LEFT, RIGHT, Z, etc.
+            | HEX_NUMBER       // Hex numbers
+            | DEC_NUMBER       // Decimal numbers  
+            | STRING           // String literals
+            | CHAR_LITERAL     // Character literals
 
 reference_token: AMPERSAND IDENTIFIER
 
@@ -97,7 +203,9 @@ comment: SINGLE_LINE_COMMENT
 
 // Terminals
 INCLUDE_DIRECTIVE: "#include"
-PREPROCESSOR_LINE: /#[^\r\n]*/
+
+// Support for line continuations in preprocessor directives
+LINE_CONTINUATION: /\\\r?\n/
 
 IDENTIFIER: /[a-zA-Z_][a-zA-Z0-9_-]*/
 
@@ -111,6 +219,7 @@ SINGLE_LINE_COMMENT: /\/\/[^\r\n]*/
 MULTI_LINE_COMMENT: /\/\*(.|\n)*?\*\//
 
 AMPERSAND: "&"
+HASH: "#"
 
 // Whitespace and newlines
 %import common.WS

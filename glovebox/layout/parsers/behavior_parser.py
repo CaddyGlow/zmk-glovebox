@@ -58,22 +58,102 @@ class BehaviorParser:
         """
         macros = []
 
-        # Extract macros node
-        macros_pattern = r"macros\s*\{([^}]*(?:\{[^}]*\}[^}]*)*)\}"
-        macros_match = re.search(macros_pattern, dtsi_content, re.DOTALL)
-
-        if not macros_match:
+        # Find the start of the macros block
+        start_pattern = r"macros\s*\{"
+        start_match = re.search(start_pattern, dtsi_content)
+        if not start_match:
             return macros
 
-        macros_content = macros_match.group(1)
+        # Extract content using brace counting to handle nested braces properly
+        start_pos = start_match.end() - 1  # Position of opening brace
+        brace_count = 0
+        pos = start_pos
 
-        # Parse individual macro definitions
-        macro_pattern = r"(\w+):\s*(\w+)\s*\{([^}]*)\}"
-        macro_matches = re.findall(macro_pattern, macros_content, re.DOTALL)
+        while pos < len(dtsi_content):
+            char = dtsi_content[pos]
+            if char == '{':
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    # Found the end of the macros block
+                    break
+            pos += 1
 
-        for macro_name, macro_type, macro_body in macro_matches:
+        if brace_count != 0:
+            # Unmatched braces
+            return macros
+
+        macros_content = dtsi_content[start_pos + 1:pos]
+
+        # Parse individual macro definitions using a more robust pattern
+        # This pattern handles the case where macro definitions might have nested braces
+        macro_matches = []
+        lines = macros_content.split('\n')
+        current_macro = None
+        brace_level = 0
+        macro_lines = []
+        current_comment = ""
+
+        for line in lines:
+            line_stripped = line.strip()
+            if not line_stripped:
+                continue
+
+            # Check for comments that might contain descriptions
+            comment_match = re.match(r'//\s*(.+)', line_stripped)
+            if comment_match and brace_level == 0:
+                current_comment = comment_match.group(1).strip()
+                continue
+
+            # Check if this line starts a new macro definition
+            macro_start_match = re.match(r'(\w+):\s*(\w+)\s*\{', line_stripped)
+            if macro_start_match and brace_level == 0:
+                # Save previous macro if exists
+                if current_macro:
+                    macro_matches.append((current_macro[0], current_macro[1], '\n'.join(macro_lines), current_macro[2]))
+
+                # Start new macro
+                current_macro = (macro_start_match.group(1), macro_start_match.group(2), current_comment)
+                macro_lines = []
+                brace_level = 1
+                current_comment = ""  # Reset comment after using it
+
+                # Check if there's content after the opening brace on the same line
+                remaining = line[macro_start_match.end():]
+                if remaining.strip():
+                    macro_lines.append(remaining.strip())
+            else:
+                # Continue building current macro
+                if current_macro:
+                    macro_lines.append(line)
+                    # Count braces to track nesting
+                    brace_level += line.count('{') - line.count('}')
+
+                    # If we've closed all braces, this macro is complete
+                    if brace_level == 0:
+                        # Remove the final closing brace from the content
+                        if macro_lines and '}' in macro_lines[-1]:
+                            macro_lines[-1] = macro_lines[-1].replace('}', '').strip()
+                            if not macro_lines[-1]:
+                                macro_lines.pop()
+
+                        macro_matches.append((current_macro[0], current_macro[1], '\n'.join(macro_lines), current_macro[2]))
+                        current_macro = None
+                        macro_lines = []
+
+        # Handle any remaining macro
+        if current_macro and macro_lines:
+            if macro_lines and '}' in macro_lines[-1]:
+                macro_lines[-1] = macro_lines[-1].replace('}', '').strip()
+                if not macro_lines[-1]:
+                    macro_lines.pop()
+            macro_matches.append((current_macro[0], current_macro[1], '\n'.join(macro_lines), current_macro[2]))
+
+        # Parse each macro definition
+        for macro_name, macro_type, macro_body, comment in macro_matches:
             try:
-                macro = self._parse_macro_definition(macro_name, macro_type, macro_body)
+                macro = self._parse_macro_definition(macro_name, macro_type, macro_body, comment)
                 if macro:
                     macros.append(macro)
             except Exception as e:
@@ -207,7 +287,7 @@ class BehaviorParser:
             return None
 
     def _parse_macro_definition(
-        self, name: str, macro_type: str, body: str
+        self, name: str, macro_type: str, body: str, comment: str = ""
     ) -> MacroBehavior | None:
         """Parse individual macro definition.
 
@@ -222,17 +302,32 @@ class BehaviorParser:
         try:
             properties = self._extract_dt_properties(body)
 
+            # Try to get description from various sources (comment preferred, then properties)
+            description = ""
+            if comment:
+                # Use the comment as description (most descriptive)
+                description = comment
+            elif "description" in properties:
+                description = properties["description"]
+            elif "label" in properties:
+                # Use label but clean it up (remove quotes and ampersand)
+                label = properties["label"].strip('"').strip("'")
+                if label.startswith("&"):
+                    description = label
+                else:
+                    description = label
+
             macro = MacroBehavior(
                 name=name,
-                description=properties.get("description", ""),
+                description=description,
             )
 
             # Map timing properties
-            if "wait-ms" in properties:
-                macro.wait_ms = self._parse_numeric_value(properties["wait-ms"])
+            if "wait_ms" in properties:
+                macro.wait_ms = self._parse_numeric_value(properties["wait_ms"])
 
-            if "tap-ms" in properties:
-                macro.tap_ms = self._parse_numeric_value(properties["tap-ms"])
+            if "tap_ms" in properties:
+                macro.tap_ms = self._parse_numeric_value(properties["tap_ms"])
 
             # Parse bindings
             if "bindings" in properties:
@@ -240,6 +335,30 @@ class BehaviorParser:
                 # Parse macro bindings (more complex than hold-tap)
                 bindings = self._parse_macro_bindings(bindings_value)
                 macro.bindings = bindings
+
+            # Parse macro parameters from #binding-cells property
+            if "#binding_cells" in properties:
+                binding_cells_str = properties["#binding_cells"]
+                try:
+                    # Extract number from angle brackets format like "<1>" or "<2>"
+                    binding_cells = self._parse_numeric_value(binding_cells_str)
+                    if binding_cells == 0:
+                        macro.params = None
+                    elif binding_cells == 1:
+                        macro.params = ["code"]
+                    elif binding_cells == 2:
+                        macro.params = ["param1", "param2"]
+                    else:
+                        self.logger.warning(
+                            "Unexpected binding-cells value for macro %s: %s",
+                            name, binding_cells
+                        )
+                        macro.params = None
+                except (ValueError, TypeError) as e:
+                    self.logger.warning(
+                        "Failed to parse binding-cells for macro %s: %s", name, e
+                    )
+                    macro.params = None
 
             return macro
 
@@ -313,7 +432,7 @@ class BehaviorParser:
 
         # Pattern for device tree properties
         # Handles: property = value; and property;
-        prop_pattern = r"([a-zA-Z][a-zA-Z0-9_-]*)\s*(?:=\s*([^;]+))?\s*;"
+        prop_pattern = r"([#a-zA-Z][a-zA-Z0-9_-]*)\s*(?:=\s*([^;]+))?\s*;"
         prop_matches = re.findall(prop_pattern, body)
 
         for prop_name, prop_value in prop_matches:

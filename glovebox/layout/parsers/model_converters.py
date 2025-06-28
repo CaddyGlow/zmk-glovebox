@@ -79,18 +79,18 @@ class ModelConverter:
             "release-after-ms": ["release_after_ms", "release-time"],
             "wait-ms": ["wait_ms", "wait", "delay-ms"],
             "tap-ms": ["tap_ms", "tap", "tap-time"],
-
             # Boolean properties
             "hold-trigger-on-release": ["hold_trigger_on_release", "hold-on-release"],
             "retro-tap": ["retro_tap", "retroTap"],
             "quick-release": ["quick_release", "quickRelease"],
             "ignore-modifiers": ["ignore_modifiers", "ignoreModifiers"],
-
             # Array properties
-            "hold-trigger-key-positions": ["hold_trigger_key_positions", "hold-triggers"],
+            "hold-trigger-key-positions": [
+                "hold_trigger_key_positions",
+                "hold-triggers",
+            ],
             "key-positions": ["key_positions", "keyPositions", "positions"],
             "continue-list": ["continue_list", "continueList"],
-
             # Value properties
             "flavor": ["flavour", "type"],
             "mods": ["modifiers", "modifier"],
@@ -143,9 +143,14 @@ class ModelConverter:
             Converted value (string, int, or float)
         """
         # Remove surrounding quotes if present
-        if (isinstance(value, str) and len(value) >= 2 and
-            ((value.startswith('"') and value.endswith('"')) or
-             (value.startswith("'") and value.endswith("'")))):
+        if (
+            isinstance(value, str)
+            and len(value) >= 2
+            and (
+                (value.startswith('"') and value.endswith('"'))
+                or (value.startswith("'") and value.endswith("'"))
+            )
+        ):
             value = value[1:-1]
 
         # Try to convert to number if it looks like one
@@ -611,6 +616,22 @@ class MacroConverter(ModelConverter):
             if bindings:
                 behavior.bindings = bindings
 
+            # Parse macro parameters from #binding-cells property
+            binding_cells = self._get_int_property(node, "#binding-cells")
+            if binding_cells is not None:
+                if binding_cells == 0:
+                    behavior.params = None
+                elif binding_cells == 1:
+                    behavior.params = ["code"]
+                elif binding_cells == 2:
+                    behavior.params = ["param1", "param2"]
+                else:
+                    self.logger.warning(
+                        "Unexpected binding-cells value for macro %s: %s",
+                        name, binding_cells
+                    )
+                    behavior.params = None
+
             return behavior
 
         except Exception as e:
@@ -951,7 +972,9 @@ class StickyKeyConverter(ModelConverter):
             behavior.release_after_ms = self._get_int_property(node, "release-after-ms")
             behavior.quick_release = self._get_bool_property(node, "quick-release")
             behavior.lazy = self._get_bool_property(node, "lazy")
-            behavior.ignore_modifiers = self._get_bool_property(node, "ignore-modifiers")
+            behavior.ignore_modifiers = self._get_bool_property(
+                node, "ignore-modifiers"
+            )
 
             # Parse bindings with enhanced parsing
             bindings = self._parse_sticky_key_bindings(node)
@@ -961,7 +984,9 @@ class StickyKeyConverter(ModelConverter):
             return behavior
 
         except Exception as e:
-            self.logger.error("Failed to convert sticky-key node '%s': %s", node.name, e)
+            self.logger.error(
+                "Failed to convert sticky-key node '%s': %s", node.name, e
+            )
             return None
 
     def _extract_description(self, node: DTNode) -> str:
@@ -1173,7 +1198,11 @@ class ModMorphConverter(ModelConverter):
                     i += 1
 
                     # Collect parameters until we hit another behavior reference or end
-                    while i < len(value) and not str(value[i]).startswith("&") and len(bindings) < 1:
+                    while (
+                        i < len(value)
+                        and not str(value[i]).startswith("&")
+                        and len(bindings) < 1
+                    ):
                         binding_parts.append(str(value[i]).strip())
                         i += 1
 
@@ -1284,7 +1313,7 @@ class UniversalModelConverter:
             "Converted %d/%d behaviors: %s",
             total_converted,
             total_input,
-            {k: len(v) for k, v in results.items() if v}
+            {k: len(v) for k, v in results.items() if v},
         )
 
         return results

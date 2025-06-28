@@ -237,7 +237,7 @@ class TestZmkKeymapParser:
         """Test template-aware parsing mode."""
         # Mock profile and template
         mock_profile = MagicMock()
-        mock_profile.keyboard = "glove80"
+        mock_profile.keyboard_name = "glove80"
         mock_profile.config_path = "/mock/path/config.yaml"
 
         # Mock template path
