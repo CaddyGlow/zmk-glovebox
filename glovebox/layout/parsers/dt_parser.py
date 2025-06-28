@@ -28,7 +28,7 @@ class DTParser:
             tokens: List of tokens from tokenizer
         """
         self.tokens = tokens
-        self.pos = 0
+        self.pos = -1  # Start at -1 so first _advance() goes to 0
         self.current_token: Token | None = None
         self.errors: list[DTParseError] = []
         self.comments: list[DTComment] = []
@@ -116,6 +116,10 @@ class DTParser:
                     child = self._parse_child_node()
                     if child:
                         node.add_child(child)
+                    else:
+                        # Safety: if we can't parse anything, advance to avoid infinite loop
+                        self._error(f"Unexpected token: {self.current_token}")
+                        self._advance()
             except Exception as e:
                 self._error(f"Failed to parse node body: {e}")
                 self._synchronize()
@@ -126,7 +130,7 @@ class DTParser:
         Returns:
             Parsed DTProperty or None if parsing fails
         """
-        if not self._match(TokenType.IDENTIFIER):
+        if not (self._match(TokenType.IDENTIFIER) or self._match(TokenType.COMPATIBLE)):
             return None
 
         prop_name = self.current_token.value
@@ -326,7 +330,8 @@ class DTParser:
         Returns:
             True if current position looks like a property
         """
-        if not self._match(TokenType.IDENTIFIER):
+        # Properties can be identifiers or special keywords
+        if not (self._match(TokenType.IDENTIFIER) or self._match(TokenType.COMPATIBLE)):
             return False
 
         # Look ahead to see if this is property (= or ;) or node ({)
@@ -391,11 +396,11 @@ class DTParser:
             Previous token
         """
         previous = self.current_token
-        if not self._is_at_end():
-            self.pos += 1
-            self.current_token = (
-                self.tokens[self.pos] if self.pos < len(self.tokens) else None
-            )
+        self.pos += 1
+        if self.pos < len(self.tokens):
+            self.current_token = self.tokens[self.pos]
+        else:
+            self.current_token = None
         return previous
 
     def _is_at_end(self) -> bool:

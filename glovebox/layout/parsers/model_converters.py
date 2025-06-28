@@ -102,6 +102,9 @@ class ModelConverter:
             return default
 
         try:
+            # Handle array values (single-element arrays are common in device tree)
+            if isinstance(value, list) and len(value) == 1:
+                return int(value[0])
             return int(value)
         except (ValueError, TypeError):
             self.logger.warning(
@@ -502,16 +505,24 @@ class ComboConverter(ModelConverter):
         if not value:
             return None
 
-        # Combos typically have single bindings
+        # Handle array bindings (e.g., ['&kp', 'ESC'])
         if isinstance(value, list) and value:
-            binding_str = str(value[0]).strip()
+            if len(value) >= 1:
+                behavior = str(value[0]).strip()
+                if not behavior.startswith("&"):
+                    behavior = f"&{behavior}"
+                
+                # Parameters are the remaining elements
+                params = [LayoutParam(value=str(param)) for param in value[1:]]
+                return LayoutBinding(value=behavior, params=params)
+            else:
+                return LayoutBinding(value="&none", params=[])
         else:
+            # Single string binding
             binding_str = str(value).strip()
+            if not binding_str:
+                return None
 
-        if not binding_str:
-            return None
-
-        try:
             # Parse binding string
             parts = binding_str.split()
             if not parts:
@@ -523,12 +534,6 @@ class ComboConverter(ModelConverter):
 
             params = [LayoutParam(value=param) for param in parts[1:]] if len(parts) > 1 else []
             return LayoutBinding(value=behavior, params=params)
-
-        except Exception as e:
-            self.logger.warning(
-                "Failed to parse combo binding '%s': %s", binding_str, e
-            )
-            return LayoutBinding(value=binding_str, params=[])
 
 
 class UniversalModelConverter:
