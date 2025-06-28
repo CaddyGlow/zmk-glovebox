@@ -22,7 +22,7 @@ from glovebox.cli.helpers.parameters import (
     OutputFormatOption,
     complete_field_paths,
 )
-from glovebox.layout.models import LayoutData
+from glovebox.layout.models import LayoutBinding, LayoutData
 from glovebox.layout.utils.field_parser import (
     extract_field_value_from_model,
     set_field_value_on_model,
@@ -329,6 +329,33 @@ class LayoutEditor:
         return resolver.get_variable_usage(self.layout_data.model_dump())
 
 
+def parse_comma_separated_fields(field_list: list[str] | None) -> list[str]:
+    """Parse comma-separated field names from a list of strings.
+
+    Args:
+        field_list: List of field specifications, which may contain comma-separated values
+
+    Returns:
+        Flattened list of individual field names
+
+    Examples:
+        ["title,description", "version"] -> ["title", "description", "version"]
+        ["title", "description"] -> ["title", "description"]
+    """
+    if not field_list:
+        return []
+
+    parsed_fields = []
+    for field_spec in field_list:
+        # Split by comma and strip whitespace
+        fields = [field.strip() for field in field_spec.split(",")]
+        # Filter out empty strings
+        fields = [field for field in fields if field]
+        parsed_fields.extend(fields)
+
+    return parsed_fields
+
+
 def deep_merge_dicts(dict1: dict[str, Any], dict2: dict[str, Any]) -> dict[str, Any]:
     """Deep merge two dictionaries."""
     result = dict1.copy()
@@ -355,7 +382,7 @@ def parse_value(value_str: str) -> Any:
 
     # Handle ZMK behavior strings (like "&kp Q", "&trans", "&none")
     if value_str.startswith("&"):
-        return parse_zmk_behavior_string(value_str)
+        return LayoutBinding.from_str(value_str).model_dump()
 
     # Boolean values
     if value_str.lower() in ("true", "false"):
@@ -372,37 +399,6 @@ def parse_value(value_str: str) -> Any:
 
     # Default to string
     return value_str
-
-
-def parse_zmk_behavior_string(behavior_str: str) -> dict[str, Any]:
-    """Parse ZMK behavior string into LayoutBinding format.
-
-    Args:
-        behavior_str: ZMK behavior string like "&kp Q", "&trans", "&mt LCTRL A"
-
-    Returns:
-        Dictionary representing a LayoutBinding
-
-    Examples:
-        "&kp Q" -> {"value": "&kp", "params": [{"value": "Q", "params": []}]}
-        "&trans" -> {"value": "&trans", "params": []}
-        "&mt LCTRL A" -> {"value": "&mt", "params": [{"value": "LCTRL", "params": []}, {"value": "A", "params": []}]}
-    """
-    # Split the behavior string into parts
-    parts = behavior_str.split()
-
-    if not parts:
-        raise ValueError(f"Invalid behavior string: {behavior_str}")
-
-    # First part is the behavior name
-    behavior = parts[0]
-    params = parts[1:] if len(parts) > 1 else []
-
-    # Create LayoutBinding structure
-    return {
-        "value": behavior,
-        "params": [{"value": param, "params": []} for param in params],
-    }
 
 
 def resolve_import(source: str, base_path: Path) -> Any:
@@ -507,11 +503,9 @@ def _collect_field_operations(
 
     # Handle read operations
     if get:
-        from glovebox.cli.commands.layout.edit import LayoutEditor
-
-        # Note: Read operations are handled separately in the main function
-        # This is just for consistency
-        pass
+        parsed_fields = parse_comma_separated_fields(get)
+        for field_path in parsed_fields:
+            operations.append(("get", field_path, None))
 
     # Handle write operations
     if set:
@@ -594,7 +588,8 @@ def _execute_read_operations(
     results = {}
 
     if get:
-        for field_path in get:
+        parsed_fields = parse_comma_separated_fields(get)
+        for field_path in parsed_fields:
             try:
                 value = editor.get_field(field_path)
                 results[f"get:{field_path}"] = value
@@ -728,8 +723,10 @@ def edit(
     Use --dry-run to preview changes without saving.
 
     Examples:
-        # Get field values
+        # Get field values (multiple ways)
         glovebox layout edit layout.json --get title --get keyboard
+        glovebox layout edit layout.json --get title,keyboard,version
+        glovebox layout edit layout.json --get variables.tapMs,variables.holdMs
 
         # Set fields
         glovebox layout edit layout.json --set title="My Layout" --set version="2.0"

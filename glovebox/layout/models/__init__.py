@@ -69,6 +69,133 @@ class LayoutBinding(GloveboxBaseModel):
         """Get the behavior code."""
         return self.value
 
+    @classmethod
+    def from_str(cls, behavior_str: str) -> "LayoutBinding":
+        """Parse ZMK behavior string into LayoutBinding.
+
+        Args:
+            behavior_str: ZMK behavior string like "&kp Q", "&trans", "&mt LCTRL A"
+
+        Returns:
+            LayoutBinding instance
+
+        Raises:
+            ValueError: If behavior string is invalid or malformed
+
+        Examples:
+            "&kp Q" -> LayoutBinding(value="&kp", params=[LayoutParam(value="Q")])
+            "&trans" -> LayoutBinding(value="&trans", params=[])
+            "&mt LCTRL A" -> LayoutBinding(value="&mt", params=[LayoutParam(value="LCTRL"), LayoutParam(value="A")])
+        """
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        # Handle empty or whitespace-only strings
+        if not behavior_str or not behavior_str.strip():
+            raise ValueError("Behavior string cannot be empty")
+
+        # Split the behavior string into parts, handling quoted parameters
+        parts = cls._parse_behavior_parts(behavior_str.strip())
+
+        if not parts:
+            raise ValueError(f"Invalid behavior string: {behavior_str}")
+
+        # First part is the behavior name
+        behavior = parts[0]
+        param_parts = parts[1:] if len(parts) > 1 else []
+
+        # Validate behavior name format
+        if not behavior.startswith("&"):
+            logger.warning("Behavior '%s' does not start with '&'", behavior)
+
+        # Create LayoutParam objects from parameter parts
+        try:
+            params = [
+                LayoutParam(value=cls._parse_param_value(param), params=[])
+                for param in param_parts
+            ]
+        except Exception as e:
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "Failed to parse parameters in '%s': %s",
+                behavior_str,
+                e,
+                exc_info=exc_info,
+            )
+            raise ValueError(
+                f"Invalid parameters in behavior string: {behavior_str}"
+            ) from e
+
+        return cls(value=behavior, params=params)
+
+    @staticmethod
+    def _parse_behavior_parts(behavior_str: str) -> list[str]:
+        """Parse behavior string into parts, handling quoted parameters.
+
+        Args:
+            behavior_str: Raw behavior string
+
+        Returns:
+            List of string parts (behavior + parameters)
+        """
+        parts = []
+        current_part = ""
+        in_quotes = False
+        quote_char = None
+
+        i = 0
+        while i < len(behavior_str):
+            char = behavior_str[i]
+
+            if char in ('"', "'") and not in_quotes:
+                # Start of quoted section
+                in_quotes = True
+                quote_char = char
+            elif char == quote_char and in_quotes:
+                # End of quoted section
+                in_quotes = False
+                quote_char = None
+            elif char.isspace() and not in_quotes:
+                # Whitespace outside quotes - end current part
+                if current_part:
+                    parts.append(current_part)
+                    current_part = ""
+            else:
+                # Regular character or whitespace inside quotes
+                current_part += char
+
+            i += 1
+
+        # Add final part if exists
+        if current_part:
+            parts.append(current_part)
+
+        return parts
+
+    @staticmethod
+    def _parse_param_value(param_str: str) -> ParamValue:
+        """Parse parameter string into appropriate type.
+
+        Args:
+            param_str: Parameter string
+
+        Returns:
+            ParamValue (str or int)
+        """
+        # Remove quotes if present
+        if (param_str.startswith('"') and param_str.endswith('"')) or (
+            param_str.startswith("'") and param_str.endswith("'")
+        ):
+            return param_str[1:-1]
+
+        # Try to parse as integer
+        try:
+            return int(param_str)
+        except ValueError:
+            # Return as string if not an integer
+            return param_str
+
 
 class LayoutLayer(GloveboxBaseModel):
     """Model for keyboard layers."""
@@ -76,16 +203,72 @@ class LayoutLayer(GloveboxBaseModel):
     name: str
     bindings: list[LayoutBinding]
 
-    @field_validator("bindings")
+    @field_validator("bindings", mode="before")
     @classmethod
-    def validate_bindings_count(cls, v: list[LayoutBinding]) -> list[LayoutBinding]:
-        """Validate that layer has expected number of bindings."""
-        if len(v) != 80:  # Glove80 specific
-            import logging
+    def convert_string_bindings(
+        cls, v: list[str | LayoutBinding | dict[str, Any]] | Any
+    ) -> list[LayoutBinding]:
+        """Convert string bindings to LayoutBinding objects.
 
-            logger = logging.getLogger(__name__)
-            logger.warning(f"Layer has {len(v)} bindings, expected 80")
-        return v
+        Supports mixed input types:
+        - str: ZMK behavior strings like "&kp Q", "&trans"
+        - LayoutBinding: Pass through unchanged
+        - dict: Legacy format, convert to LayoutBinding
+
+        Args:
+            v: Input bindings in various formats
+
+        Returns:
+            List of LayoutBinding objects
+
+        Raises:
+            ValueError: If input format is invalid or conversion fails
+        """
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        if not isinstance(v, list):
+            raise ValueError(f"Bindings must be a list, got {type(v)}")
+
+        converted_bindings = []
+
+        for i, binding in enumerate(v):
+            try:
+                if isinstance(binding, LayoutBinding):
+                    # Already a LayoutBinding object, use as-is
+                    converted_bindings.append(binding)
+                elif isinstance(binding, str):
+                    # String format - parse into LayoutBinding
+                    converted_bindings.append(LayoutBinding.from_str(binding))
+                elif isinstance(binding, dict):
+                    # Dictionary format - validate and convert
+                    if "value" not in binding:
+                        raise ValueError("Binding dict must have 'value' field")
+                    converted_bindings.append(LayoutBinding.model_validate(binding))
+                else:
+                    # Unknown format - try to convert to string first
+                    str_binding = str(binding)
+                    logger.warning(
+                        "Converting unknown binding type %s to string: %s",
+                        type(binding).__name__,
+                        str_binding,
+                    )
+                    converted_bindings.append(LayoutBinding.from_str(str_binding))
+
+            except Exception as e:
+                exc_info = logger.isEnabledFor(logging.DEBUG)
+                logger.error(
+                    "Failed to convert binding %d in layer: %s",
+                    i,
+                    e,
+                    exc_info=exc_info,
+                )
+                raise ValueError(
+                    f"Invalid binding at position {i}: {binding}. Error: {e}"
+                ) from e
+
+        return converted_bindings
 
 
 class HoldTapBehavior(GloveboxBaseModel):

@@ -238,7 +238,9 @@ def convert_layout_data_to_keymap_content(
 
         # Create a dummy session metrics if none provided
         if session_metrics is None:
-            from glovebox.core.cache_v2 import create_default_cache  # type: ignore[import-untyped]
+            from glovebox.core.cache_v2 import (
+                create_default_cache,  # type: ignore[import-untyped]
+            )
             from glovebox.core.metrics.session_metrics import SessionMetrics
 
             cache_manager = create_default_cache(tag="compilation_helpers")

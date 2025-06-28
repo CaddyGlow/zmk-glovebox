@@ -112,13 +112,27 @@ class FilenameGenerator:
 
         # Add layout data
         if layout_data:
+            # Handle date field that might be an integer timestamp or datetime
+            date_value = layout_data.get("date")
+            if isinstance(date_value, int):
+                # Convert timestamp to datetime
+                date_value = datetime.fromtimestamp(date_value)
+            elif not isinstance(date_value, datetime) and date_value is not None:
+                # If it's a string or other type, try to parse or use current time
+                try:
+                    # Try parsing as ISO format first
+                    date_value = datetime.fromisoformat(str(date_value))
+                except (ValueError, TypeError):
+                    # Fall back to current time
+                    date_value = datetime.now()
+
             context.update(
                 {
                     "title": layout_data.get("title", ""),
                     "keyboard": layout_data.get("keyboard", ""),
                     "version": layout_data.get("version", ""),
                     "creator": layout_data.get("creator", ""),
-                    "date": layout_data.get("date"),
+                    "date": date_value,
                     "uuid": layout_data.get("uuid", ""),
                 }
             )
@@ -145,10 +159,27 @@ class FilenameGenerator:
 
         # Add build data
         if build_data:
+            # Handle build_date field that might be an integer timestamp or datetime
+            build_date_value = build_data.get("build_date")
+            if isinstance(build_date_value, int):
+                # Convert timestamp to datetime
+                build_date_value = datetime.fromtimestamp(build_date_value)
+            elif (
+                not isinstance(build_date_value, datetime)
+                and build_date_value is not None
+            ):
+                # If it's a string or other type, try to parse or use current time
+                try:
+                    # Try parsing as ISO format first
+                    build_date_value = datetime.fromisoformat(str(build_date_value))
+                except (ValueError, TypeError):
+                    # Fall back to current time
+                    build_date_value = datetime.now()
+
             context.update(
                 {
                     "build_id": build_data.get("build_id", ""),
-                    "build_date": build_data.get("build_date"),
+                    "build_date": build_date_value,
                 }
             )
 

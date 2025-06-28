@@ -208,6 +208,33 @@ def parse_value(value_str: str) -> Any:
     return value_str
 
 
+def parse_comma_separated_fields(field_list: list[str] | None) -> list[str]:
+    """Parse comma-separated field names from a list of strings.
+
+    Args:
+        field_list: List of field specifications, which may contain comma-separated values
+
+    Returns:
+        Flattened list of individual field names
+
+    Examples:
+        ["title,description", "version"] -> ["title", "description", "version"]
+        ["title", "description"] -> ["title", "description"]
+    """
+    if not field_list:
+        return []
+
+    parsed_fields = []
+    for field_spec in field_list:
+        # Split by comma and strip whitespace
+        fields = [field.strip() for field in field_spec.split(",")]
+        # Filter out empty strings
+        fields = [field for field in fields if field]
+        parsed_fields.extend(fields)
+
+    return parsed_fields
+
+
 def get_field_info(key: str) -> tuple[Any, str]:
     """Get default value and description for a configuration key."""
     default_val = None
@@ -275,8 +302,10 @@ def edit(
 
     \b
     Examples:
-        # Get field values
+        # Get field values (multiple ways)
         glovebox config edit --get cache_strategy --get firmware.flash.timeout
+        glovebox config edit --get cache_strategy,firmware.flash.timeout
+        glovebox config edit --get title,description,version
         # Set fields
         glovebox config edit --set cache_strategy=docker --set emoji_mode=true
         # Append to arrays
@@ -322,7 +351,8 @@ def edit(
 
             # Execute read operations
             if get:
-                for field_path in get:
+                parsed_fields = parse_comma_separated_fields(get)
+                for field_path in parsed_fields:
                     try:
                         value = editor.get_field(field_path)
                         if isinstance(value, list):
@@ -354,7 +384,8 @@ def edit(
         operations: list[tuple[str, str, str | None]] = []
 
         if get:
-            for field_path in get:
+            parsed_fields = parse_comma_separated_fields(get)
+            for field_path in parsed_fields:
                 operations.append(("get", field_path, None))
 
         if set:
