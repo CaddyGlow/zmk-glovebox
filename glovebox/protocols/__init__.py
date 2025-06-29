@@ -20,6 +20,7 @@ from .flash_os_protocol import FlashOSProtocol
 from .layout_protocols import TemplateServiceProtocol
 from .metrics_protocol import MetricsProtocol
 from .mount_cache_protocol import MountCacheProtocol
+from .progress_coordinator_protocol import ProgressCoordinatorProtocol
 from .template_adapter_protocol import TemplateAdapterProtocol
 from .usb_adapter_protocol import USBAdapterProtocol
 
@@ -36,6 +37,7 @@ __all__ = [
     "FlashOSProtocol",
     "MetricsProtocol",
     "MountCacheProtocol",
+    "ProgressCoordinatorProtocol",
     "TemplateAdapterProtocol",
     "TemplateServiceProtocol",
     "USBAdapterProtocol",

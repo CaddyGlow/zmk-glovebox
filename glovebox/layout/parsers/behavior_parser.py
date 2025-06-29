@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class BehaviorParser:
     """Parser for extracting behavior definitions from ZMK DTSI content."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize behavior parser."""
         self.logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class BehaviorParser:
         Returns:
             Dictionary with parsed behavior definitions
         """
-        behaviors = {"hold_taps": [], "macros": [], "combos": []}
+        behaviors: dict[str, list[Any]] = {"hold_taps": [], "macros": [], "combos": []}
 
         # Extract behaviors node
         behaviors_pattern = r"behaviors\s*\{([^}]*(?:\{[^}]*\}[^}]*)*)\}"
@@ -47,6 +47,32 @@ class BehaviorParser:
 
         return behaviors
 
+    def _extract_comment_for_definition(self, lines: list[str], start_index: int) -> str:
+        """Extract comment above a behavior definition.
+
+        Args:
+            lines: List of content lines
+            start_index: Index where definition starts
+
+        Returns:
+            Comment text if found, empty string otherwise
+        """
+        # Look backwards from start_index for comment lines
+        for i in range(start_index - 1, -1, -1):
+            line_stripped = lines[i].strip()
+            if not line_stripped:
+                continue
+
+            # Check for comment line
+            comment_match = re.match(r"//\s*(.+)", line_stripped)
+            if comment_match:
+                return comment_match.group(1).strip()
+            else:
+                # Non-comment, non-empty line - stop looking
+                break
+
+        return ""
+
     def parse_macros_section(self, dtsi_content: str) -> list[MacroBehavior]:
         """Parse macros section from DTSI content.
 
@@ -56,7 +82,7 @@ class BehaviorParser:
         Returns:
             List of parsed macro behaviors
         """
-        macros = []
+        macros: list[MacroBehavior] = []
 
         # Find the start of the macros block
         start_pattern = r"macros\s*\{"
@@ -92,18 +118,15 @@ class BehaviorParser:
         lines = macros_content.split("\n")
         current_macro = None
         brace_level = 0
-        macro_lines = []
-        current_comment = ""
+        macro_lines: list[str] = []
 
-        for line in lines:
+        for line_index, line in enumerate(lines):
             line_stripped = line.strip()
             if not line_stripped:
                 continue
 
-            # Check for comments that might contain descriptions
-            comment_match = re.match(r"//\s*(.+)", line_stripped)
-            if comment_match and brace_level == 0:
-                current_comment = comment_match.group(1).strip()
+            # Skip comment lines - they will be extracted separately
+            if line_stripped.startswith("//") and brace_level == 0:
                 continue
 
             # Check if this line starts a new macro definition
@@ -120,15 +143,17 @@ class BehaviorParser:
                         )
                     )
 
+                # Extract comment for this macro definition
+                comment = self._extract_comment_for_definition(lines, line_index)
+
                 # Start new macro
                 current_macro = (
                     macro_start_match.group(1),
                     macro_start_match.group(2),
-                    current_comment,
+                    comment,
                 )
                 macro_lines = []
                 brace_level = 1
-                current_comment = ""  # Reset comment after using it
 
                 # Check if there's content after the opening brace on the same line
                 remaining = line[macro_start_match.end() :]
@@ -197,24 +222,130 @@ class BehaviorParser:
         Returns:
             List of parsed combo behaviors
         """
-        combos = []
+        combos: list[ComboBehavior] = []
 
-        # Extract combos node
-        combos_pattern = r"combos\s*\{([^}]*(?:\{[^}]*\}[^}]*)*)\}"
-        combos_match = re.search(combos_pattern, dtsi_content, re.DOTALL)
-
-        if not combos_match:
+        # Find combos node using the same approach as macros
+        combos_start = dtsi_content.find("combos")
+        if combos_start == -1:
             return combos
 
-        combos_content = combos_match.group(1)
+        # Find the opening brace
+        start_pos = dtsi_content.find("{", combos_start)
+        if start_pos == -1:
+            return combos
 
-        # Parse individual combo definitions
-        combo_pattern = r"(\w+):\s*(\w+)\s*\{([^}]*)\}"
-        combo_matches = re.findall(combo_pattern, combos_content, re.DOTALL)
+        # Find the matching closing brace
+        brace_count = 1
+        pos = start_pos + 1
+        while pos < len(dtsi_content) and brace_count > 0:
+            char = dtsi_content[pos]
+            if char == "{":
+                brace_count += 1
+            elif char == "}":
+                brace_count -= 1
+                if brace_count == 0:
+                    break
+            pos += 1
 
-        for combo_name, combo_type, combo_body in combo_matches:
+        if brace_count != 0:
+            # Unmatched braces
+            return combos
+
+        combos_content = dtsi_content[start_pos + 1 : pos]
+
+        # Parse individual combo definitions using robust pattern with comment extraction
+        combo_matches = []
+        lines = combos_content.split("\n")
+        current_combo = None
+        brace_level = 0
+        combo_lines: list[str] = []
+
+        for line_index, line in enumerate(lines):
+            line_stripped = line.strip()
+            if not line_stripped:
+                continue
+
+            # Skip comment lines - they will be extracted separately
+            if line_stripped.startswith("//") and brace_level == 0:
+                continue
+
+            # Check if this line starts a new combo definition
+            combo_start_match = re.match(r"(\w+):\s*(\w+)\s*\{", line_stripped)
+            if combo_start_match and brace_level == 0:
+                # Save previous combo if exists
+                if current_combo:
+                    combo_matches.append(
+                        (
+                            current_combo[0],
+                            current_combo[1],
+                            "\n".join(combo_lines),
+                            current_combo[2],
+                        )
+                    )
+
+                # Extract comment for this combo definition
+                comment = self._extract_comment_for_definition(lines, line_index)
+
+                # Start new combo
+                current_combo = (
+                    combo_start_match.group(1),
+                    combo_start_match.group(2),
+                    comment,
+                )
+                combo_lines = []
+                brace_level = 1
+
+                # Check if there's content after the opening brace on the same line
+                remaining = line[combo_start_match.end() :]
+                if remaining.strip():
+                    combo_lines.append(remaining.strip())
+            else:
+                # Continue building current combo
+                if current_combo:
+                    combo_lines.append(line)
+                    # Count braces to track nesting
+                    brace_level += line.count("{") - line.count("}")
+
+                    # If we've closed all braces, this combo is complete
+                    if brace_level == 0:
+                        # Remove the final closing brace from the content
+                        if combo_lines and "}" in combo_lines[-1]:
+                            combo_lines[-1] = combo_lines[-1].replace("}", "").strip()
+                            if not combo_lines[-1]:
+                                combo_lines.pop()
+
+                        combo_matches.append(
+                            (
+                                current_combo[0],
+                                current_combo[1],
+                                "\n".join(combo_lines),
+                                current_combo[2],
+                            )
+                        )
+                        current_combo = None
+                        combo_lines = []
+
+        # Handle any remaining combo
+        if current_combo and combo_lines:
+            if combo_lines and "}" in combo_lines[-1]:
+                combo_lines[-1] = combo_lines[-1].replace("}", "").strip()
+                if not combo_lines[-1]:
+                    combo_lines.pop()
+            combo_matches.append(
+                (
+                    current_combo[0],
+                    current_combo[1],
+                    "\n".join(combo_lines),
+                    current_combo[2],
+                )
+            )
+
+        # Parse each combo definition
+        for combo_name, combo_type, combo_body, comment in combo_matches:
             try:
-                combo = self._parse_combo_definition(combo_name, combo_type, combo_body)
+                combo = self._parse_combo_definition(
+                    combo_name, combo_type, combo_body, comment
+                )
                 if combo:
                     combos.append(combo)
             except Exception as e:
@@ -395,7 +526,7 @@ class BehaviorParser:
             return None
 
     def _parse_combo_definition(
-        self, name: str, combo_type: str, body: str
+        self, name: str, combo_type: str, body: str, comment: str = ""
     ) -> ComboBehavior | None:
         """Parse individual combo definition.
 
@@ -403,6 +534,7 @@ class BehaviorParser:
             name: Combo name
             combo_type: Combo type (e.g., zmk,behavior-combo)
             body: Combo body content
+            comment: Comment text for description
 
         Returns:
             Parsed ComboBehavior or None if parsing fails
@@ -411,11 +543,11 @@ class BehaviorParser:
             properties = self._extract_dt_properties(body)
 
             # Key positions are required for combos
-            if "key-positions" not in properties:
+            if "key_positions" not in properties:
                 self.logger.warning("Combo '%s' missing key-positions", name)
                 return None
 
-            key_positions = self._parse_array_property(properties["key-positions"])
+            key_positions = self._parse_array_property(properties["key_positions"])
 
             # Binding is required
             if "bindings" not in properties:
@@ -427,14 +559,14 @@ class BehaviorParser:
 
             combo = ComboBehavior(
                 name=name,
-                description=properties.get("description", ""),
-                key_positions=key_positions,
+                description=comment or properties.get("description", ""),
+                keyPositions=key_positions,
                 binding=binding,
             )
 
             # Optional timeout
-            if "timeout-ms" in properties:
-                combo.timeout_ms = self._parse_numeric_value(properties["timeout-ms"])
+            if "timeout_ms" in properties:
+                combo.timeout_ms = self._parse_numeric_value(properties["timeout_ms"])
 
             # Optional layers
             if "layers" in properties:

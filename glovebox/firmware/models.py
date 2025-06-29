@@ -131,6 +131,41 @@ class BuildResult(GloveboxBaseModel):
 
         return True
 
+    def set_success_messages(self, compilation_strategy: str, was_cached: bool = False) -> None:
+        """Set unified success messages based on compilation strategy and cache status.
+
+        Args:
+            compilation_strategy: The compilation strategy used ('zmk_west', 'moergo_nix', etc.)
+            was_cached: Whether this was a cached build result
+        """
+        if not self.success or not self.output_files:
+            return
+
+        uf2_count = len(self.output_files.uf2_files)
+
+        # Generate unified success message
+        if was_cached:
+            cache_msg = "Used cached build result"
+            if uf2_count > 0:
+                self.messages = [f"{cache_msg} • Generated {uf2_count} firmware file{'s' if uf2_count != 1 else ''}"]
+            else:
+                self.messages = [cache_msg]
+        else:
+            if uf2_count > 0:
+                self.messages = [f"Generated {uf2_count} firmware file{'s' if uf2_count != 1 else ''}"]
+            else:
+                self.messages = ["Build completed successfully"]
+
+        # Add file details for better user feedback
+        if uf2_count > 0:
+            file_names = [f.name for f in self.output_files.uf2_files]
+            if uf2_count <= 3:  # Show individual files for small counts
+                self.messages.extend(f"  • {name}" for name in file_names)
+            else:
+                # Show first few files and count for many files
+                self.messages.extend(f"  • {name}" for name in file_names[:2])
+                self.messages.append(f"  • ... and {uf2_count - 2} more files")
+
 
 def generate_build_info(
     repository: str,

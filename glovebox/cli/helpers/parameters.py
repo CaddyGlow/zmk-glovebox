@@ -823,7 +823,8 @@ OutputFormatOption = Annotated[
     str,
     typer.Option(
         "--output-format",
-        help="Output format: text|json|markdown|table|rich-table|rich-panel|rich-grid (default: text)",
+        "-t",
+        help="Output format: rich-table|text|json|markdown",
         autocompletion=complete_output_formats,
     ),
 ]

@@ -14,8 +14,9 @@ import os
 from pathlib import Path
 from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import Field, computed_field, field_validator
 
+from glovebox import __version__
 from glovebox.compilation.models.build_matrix import BuildMatrix
 from glovebox.models.base import GloveboxBaseModel
 from glovebox.models.docker_path import DockerPath
@@ -119,8 +120,10 @@ class CompilationConfig(GloveboxBaseModel):
     )
 
     # Docker configuration
-    image: str = Field(
-        default="zmkfirmware/zmk-build-arm:stable", description="docker image to use"
+    image_: str = Field(
+        default="zmkfirmware/zmk-build-arm:stable",
+        description="docker image to use",
+        exclude=True,
     )
 
     # Repository configuration (used by services)
@@ -156,12 +159,35 @@ class CompilationConfig(GloveboxBaseModel):
             raise ValueError("Compilation method type cannot be empty")
         return v.strip()
 
+    @property
+    def image(self) -> str:
+        """Return the versioned image name."""
+        if ":" in self.image_:
+            return self.image_
+        return f"{self.image_}:{self.get_versioned_docker_tag()}"
+
+    @image.setter
+    def image(self, value: str) -> None:
+        """Set the base image name by extracting from full image string."""
+        self.image_ = value
+
+    def get_versioned_docker_tag(self) -> str:
+        """Generate Docker tag based on glovebox version."""
+        try:
+            from glovebox._version import __version__
+
+            # Convert version to valid Docker tag (replace + with -, remove invalid chars)
+            return __version__.replace("+", "-").replace("/", "-")
+        except ImportError:
+            # Fallback if version module not available
+            return "latest"
+
 
 class ZmkCompilationConfig(CompilationConfig):
     """ZMK compilation configuration with west workspace support."""
 
     method_type: str = "zmk_config"
-    image: str = "zmkfirmware/zmk-build-arm:stable"
+    image_: str = "zmkfirmware/zmk-build-arm:stable"
     repository: str = "zmkfirmware/zmk"
     branch: str = "main"
     use_cache: bool = Field(
@@ -183,7 +209,7 @@ class MoergoCompilationConfig(CompilationConfig):
     """Moergo compilation configuration using Nix toolchain."""
 
     method_type: str = "moergo"
-    image: str = "glove80-zmk-config-docker"
+    image_: str = "glove80-zmk-config-docker"
     repository: str = "moergo-sc/zmk"
     branch: str = "v25.05"
 

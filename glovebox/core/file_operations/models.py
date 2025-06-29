@@ -56,7 +56,14 @@ class CompilationProgress:
     boards_completed: int = 0  # Number of boards completed
     total_boards: int = 1  # Total boards to build (default 1 for non-split)
     current_board_step: int = 0  # Current build step within board
-    total_board_steps: int = 0  # Total build steps for current board
+    total_board_steps: int = 0
+
+    # Cache operation progress tracking
+    cache_operation_progress: int = 0
+    cache_operation_total: int = 100
+    cache_operation_status: str = "pending"  # "pending", "in_progress", "success", "failed"
+    compilation_strategy: str = "zmk_west"  # "zmk_west", "moergo_nix"
+    docker_image_name: str = ""  # For MoErgo: shows docker image being verified
 
     @property
     def repository_progress_percent(self) -> float:
@@ -99,41 +106,102 @@ class CompilationProgress:
     @property
     def overall_progress_percent(self) -> float:
         """Calculate overall progress across all phases and boards."""
+        # Handle completion phases first
+        if self.compilation_phase in ["done", "completed", "finished", "success"]:
+            return 100.0
+        
+        # Define phase weights (percentages of total progress)
+        phase_weights = {
+            "initialization": (0, 5),      # 0-5%
+            "cache_restoration": (5, 15),  # 5-15%
+            "docker_verification": (15, 25), # 15-25% (MoErgo only)
+            "nix_build": (25, 40),        # 25-40% (MoErgo only)
+            "west_update": (15, 40),       # 15-40% (ZMK only)
+            "building": (40, 90),          # 40-90%
+            "cache_saving": (90, 100),     # 90-100%
+        }
+
+        if self.compilation_phase not in phase_weights:
+            return 0.0
+
+        start_percent, end_percent = phase_weights[self.compilation_phase]
+        phase_range = end_percent - start_percent
+
         if self.compilation_phase == "initialization":
-            # Initialization is 10% of total progress
-            return 5.0  # Show some progress during initialization
+            return float(start_percent)
+        elif self.compilation_phase == "cache_restoration":
+            if self.cache_operation_total > 0:
+                phase_progress = self.cache_operation_progress / self.cache_operation_total
+                return start_percent + (phase_progress * phase_range)
+            return float(start_percent)
+        elif self.compilation_phase == "docker_verification":
+            return float(start_percent + phase_range * 0.5)  # Assume halfway through
+        elif self.compilation_phase == "nix_build":
+            return float(start_percent + phase_range * 0.5)  # Assume halfway through
         elif self.compilation_phase == "west_update":
-            # West update is 30% of total progress (10% to 40%)
-            return 10.0 + (self.repository_progress_percent * 0.3)
+            if self.total_repositories > 0:
+                phase_progress = self.repositories_downloaded / self.total_repositories
+                return start_percent + (phase_progress * phase_range)
+            return float(start_percent)
         elif self.compilation_phase == "building":
-            # Building is 50% of total progress (40% to 90%)
-            base_progress = 40.0  # Initialization + west update completed
-            board_weight = 50.0 / self.total_boards if self.total_boards > 0 else 50.0
-            completed_boards_progress = self.boards_completed * board_weight
-            current_board_progress = self.current_board_progress_percent * (
-                board_weight / 100.0
-            )
-            return base_progress + completed_boards_progress + current_board_progress
+            if self.total_boards > 0:
+                phase_progress = self.boards_completed / self.total_boards
+                return start_percent + (phase_progress * phase_range)
+            return float(start_percent)
         elif self.compilation_phase == "cache_saving":
-            # Cache saving is 10% of total progress (90% to 100%)
-            return 90.0 + min(10.0, 10.0)  # Show progress from 90% to 100%
-        return 0.0
+            return float(end_percent)
+        else:
+            return 0.0
 
     def get_staged_progress_display(self) -> str:
         """Get a staged progress display with emojis and status indicators."""
-        stages = [
-            ("🔧 Setting up build environment", "initialization"),
-            ("📦 Resolving dependencies", "west_update"),
-            ("⚙️ Compiling firmware", "building"),
-            ("🔗 Linking binaries", "building"),
-            ("📱 Generating .uf2 files", "cache_saving"),
-        ]
+        # Different stages based on compilation strategy
+        if self.compilation_strategy == "moergo_nix":
+            # MoErgo Nix compilation stages
+            stages = [
+                ("🔧 Setting up build environment", "initialization"),
+                ("💾 Restoring workspace cache", "cache_restoration"),
+                (f"🐳 Verifying Docker image{f' ({self.docker_image_name})' if self.docker_image_name else ''}", "docker_verification"),
+                ("🛠️ Building Nix environment", "nix_build"),
+                ("⚙️ Compiling firmware", "building"),
+                ("📱 Generating .uf2 files", "cache_saving"),
+            ]
+        else:
+            # ZMK West compilation stages (default)
+            stages = [
+                ("🔧 Setting up build environment", "initialization"),
+                ("💾 Restoring workspace cache", "cache_restoration"),
+                ("📦 Downloading dependencies (west update)", "west_update"),
+                ("⚙️ Compiling firmware", "building"),
+                ("🔗 Linking binaries", "building"),
+                ("📱 Generating .uf2 files", "cache_saving"),
+            ]
 
         lines = []
         for stage_name, stage_phase in stages:
             if self.compilation_phase == stage_phase:
                 if stage_phase == "initialization":
                     status = "⚙️"  # Show as in progress during initialization
+                elif stage_phase == "cache_restoration":
+                    if hasattr(self, "cache_operation_status") and self.cache_operation_status == "failed":
+                        status = "❌"  # Show failure icon
+                    elif hasattr(self, "cache_operation_progress") and hasattr(self, "cache_operation_total"):
+                        if self.cache_operation_total > 0:
+                            progress = int((self.cache_operation_progress / self.cache_operation_total) * 100)
+                            if hasattr(self, "cache_operation_status") and self.cache_operation_status == "success":
+                                status = "✓"  # Show success when completed
+                            else:
+                                status = f"{'█' * (progress // 10)}{'░' * (10 - progress // 10)} {progress}%"
+                        else:
+                            status = "⚙️"
+                    else:
+                        status = "⚙️"
+                elif stage_phase == "docker_verification":
+                    # For MoErgo docker verification phase
+                    status = "⚙️"
+                elif stage_phase == "nix_build":
+                    # For MoErgo nix build phase  
+                    status = "⚙️"
                 elif stage_phase == "west_update":
                     progress = int(self.repository_progress_percent)
                     if progress == 100:
@@ -145,13 +213,23 @@ class CompilationProgress:
                         status = "✓"
                     else:
                         progress = int(self.current_board_progress_percent)
-                        status = f"{'█' * (progress // 10)}{'░' * (10 - progress // 10)} {progress}%"
+                        # Show board count for multi-board builds
+                        if self.total_boards > 1:
+                            current_board_num = self.boards_completed + 1
+                            board_info = f" ({current_board_num}/{self.total_boards})"
+                        else:
+                            board_info = ""
+                        status = f"{'█' * (progress // 10)}{'░' * (10 - progress // 10)} {progress}%{board_info}"
                 elif stage_phase == "cache_saving":
                     status = "✓"
                 else:
                     status = "(pending)"
             elif self._is_stage_completed(stage_phase):
-                status = "✓"
+                # Check for specific failure states
+                if stage_phase == "cache_restoration" and hasattr(self, "cache_operation_status") and self.cache_operation_status == "failed":
+                    status = "❌"
+                else:
+                    status = "✓"
             else:
                 status = "(pending)"
 
@@ -161,7 +239,16 @@ class CompilationProgress:
 
     def _is_stage_completed(self, stage_phase: str) -> bool:
         """Check if a stage has been completed."""
-        phase_order = ["initialization", "west_update", "building", "cache_saving"]
+        # If we're in a completion phase, all stages are completed
+        if self.compilation_phase in ["done", "completed", "finished", "success"]:
+            return True
+            
+        # Different phase orders based on compilation strategy
+        if self.compilation_strategy == "moergo_nix":
+            phase_order = ["initialization", "cache_restoration", "docker_verification", "nix_build", "building", "cache_saving"]
+        else:
+            phase_order = ["initialization", "cache_restoration", "west_update", "building", "cache_saving"]
+            
         if stage_phase not in phase_order:
             return False
 
@@ -178,8 +265,17 @@ class CompilationProgress:
         """Get status text for progress display compatibility."""
         if self.compilation_phase == "initialization":
             return "🔧 Initializing build environment"
+        elif self.compilation_phase == "cache_restoration":
+            return "💾 Restoring workspace from cache"
+        elif self.compilation_phase == "docker_verification":
+            if self.docker_image_name:
+                return f"🐳 Verifying Docker image ({self.docker_image_name})"
+            else:
+                return "🐳 Verifying Docker image"
+        elif self.compilation_phase == "nix_build":
+            return "🛠️ Building Nix environment"
         elif self.compilation_phase == "west_update":
-            return f"📦 Downloading repositories ({self.repositories_downloaded}/{self.total_repositories})"
+            return f"📦 Downloading dependencies ({self.repositories_downloaded}/{self.total_repositories})"
         elif self.compilation_phase == "building":
             if self.current_board:
                 return f"⚙️ Building {self.current_board} ({self.boards_completed + 1}/{self.total_boards})"

@@ -15,6 +15,7 @@ DockerResult: TypeAlias = tuple[
 ]  # (return_code, stdout, stderr)
 
 
+# TODO: add get_version, image_info,
 @runtime_checkable
 class DockerAdapterProtocol(Protocol):
     """Protocol for Docker operations."""

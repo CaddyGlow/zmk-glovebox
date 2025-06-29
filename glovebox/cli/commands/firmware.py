@@ -36,6 +36,7 @@ from glovebox.core.file_operations import (
     CompilationProgressCallback,
 )
 from glovebox.firmware.flash import create_flash_service
+from glovebox.firmware.flash.models import FlashResult
 
 
 logger = logging.getLogger(__name__)
@@ -740,10 +741,6 @@ def firmware_compile(
                     progress_callback=progress_callback,
                 )
 
-        # Clean up progress display if it was used
-        if progress_callback and hasattr(progress_callback, "cleanup"):
-            progress_callback.cleanup()
-
         # Clean up temporary build directory if --output was not provided
         temp_cleanup_needed = output is None
 
@@ -762,6 +759,10 @@ def firmware_compile(
 
             # Format and display results
             _format_compilation_output(result, output_format, build_output_dir)
+
+        # Clean up progress display after all processing is complete
+        if progress_callback and hasattr(progress_callback, "cleanup"):
+            progress_callback.cleanup()
 
         # Clean up temporary build directory if needed
         if temp_cleanup_needed and build_output_dir.exists():
@@ -812,7 +813,9 @@ def firmware_compile(
 @with_profile()
 def flash(
     ctx: typer.Context,
-    firmware_file: Annotated[Path, typer.Argument(help="Path to firmware (.uf2) file")],
+    firmware_files: Annotated[
+        list[Path], typer.Argument(help="Path(s) to firmware (.uf2) file(s)")
+    ],
     profile: ProfileOption = None,
     query: Annotated[
         str,
@@ -859,10 +862,11 @@ def flash(
     ] = None,
     output_format: OutputFormatOption = "text",
 ) -> None:
-    """Flash firmware file to connected keyboard devices.
+    """Flash firmware file(s) to connected keyboard devices.
 
     Automatically detects USB keyboards in bootloader mode and flashes
-    the firmware file. Supports flashing multiple devices simultaneously.
+    the firmware file(s) sequentially. Supports flashing multiple devices
+    simultaneously and multiple firmware files one after the other.
 
     Wait mode uses real-time USB device monitoring for immediate detection
     when devices are connected. Configure defaults in user config file.
@@ -870,6 +874,9 @@ def flash(
     Examples:
         # Basic flash (uses config defaults)
         glovebox firmware flash firmware.uf2 --profile glove80/v25.05
+
+        # Flash multiple firmwares sequentially (e.g., left and right halves)
+        glovebox firmware flash left.uf2 right.uf2 --profile glove80/v25.05
 
         # Enable wait mode with CLI flags
         glovebox firmware flash firmware.uf2 --wait --timeout 120
@@ -974,19 +981,59 @@ def flash(
             file_adapter = create_file_adapter()
             device_wait_service = create_device_wait_service()
             flash_service = create_flash_service(file_adapter, device_wait_service)
-            result = flash_service.flash_from_file(
-                firmware_file_path=firmware_file,
-                profile=keyboard_profile,
-                query=query,  # query parameter will override profile's query if provided
-                timeout=effective_timeout,
-                count=effective_count,
-                track_flashed=effective_track_flashed,
-                skip_existing=effective_skip_existing,
-                # NEW: Add wait parameters
-                wait=effective_wait,
-                poll_interval=effective_poll_interval,
-                show_progress=effective_show_progress,
-            )
+
+            # Flash multiple firmware files sequentially
+            all_results = []
+            total_devices_flashed = 0
+            total_devices_failed = 0
+
+            for i, firmware_file in enumerate(firmware_files):
+                print_success_message(
+                    f"Flashing firmware {i + 1}/{len(firmware_files)}: {firmware_file.name}"
+                )
+
+                result = flash_service.flash_from_file(
+                    firmware_file_path=firmware_file,
+                    profile=keyboard_profile,
+                    query=query,  # query parameter will override profile's query if provided
+                    timeout=effective_timeout,
+                    count=effective_count,
+                    track_flashed=effective_track_flashed,
+                    skip_existing=effective_skip_existing,
+                    # NEW: Add wait parameters
+                    wait=effective_wait,
+                    poll_interval=effective_poll_interval,
+                    show_progress=effective_show_progress,
+                )
+
+                all_results.append(result)
+                total_devices_flashed += result.devices_flashed
+                total_devices_failed += result.devices_failed
+
+                # Show result for this firmware file
+                if result.success:
+                    print_success_message(
+                        f"Firmware {firmware_file.name}: {result.devices_flashed} device(s) flashed"
+                    )
+                else:
+                    print_error_message(
+                        f"Firmware {firmware_file.name}: {result.devices_failed} device(s) failed"
+                    )
+
+            # Create combined result
+            result = FlashResult(success=True)
+            result.devices_flashed = total_devices_flashed
+            result.devices_failed = total_devices_failed
+
+            # Combine all device details
+            for individual_result in all_results:
+                result.device_details.extend(individual_result.device_details)
+                result.messages.extend(individual_result.messages)
+                result.errors.extend(individual_result.errors)
+
+            # Overall success if we flashed any devices and no failures
+            if total_devices_flashed == 0 or total_devices_failed > 0:
+                result.success = False
 
         if result.success:
             # Track successful flash
@@ -997,6 +1044,7 @@ def flash(
                 result_data = {
                     "success": True,
                     "devices_flashed": result.devices_flashed,
+                    "firmware_files_processed": len(firmware_files),
                     "device_details": result.device_details,
                 }
                 from glovebox.cli.helpers.output_formatter import OutputFormatter
@@ -1006,7 +1054,7 @@ def flash(
             else:
                 # Rich text output (default)
                 print_success_message(
-                    f"Successfully flashed {result.devices_flashed} device(s)"
+                    f"Successfully flashed {len(firmware_files)} firmware file(s) to {result.devices_flashed} device(s) total"
                 )
                 if result.device_details:
                     for device in result.device_details:
@@ -1017,7 +1065,7 @@ def flash(
             flash_counter.labels("flash", "failure").inc()
 
             print_error_message(
-                f"Flash completed with {result.devices_failed} failure(s)"
+                f"Flash completed with {result.devices_failed} failure(s) across {len(firmware_files)} firmware file(s)"
             )
             if result.device_details:
                 for device in result.device_details:
