@@ -161,7 +161,86 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
             # Don't let progress tracking break the compilation
             logger.warning("Error processing compilation progress: %s", e)
 
+        # Forward interesting Docker output to the TUI display
+        # This captures build tool output (west, cmake, gcc) that doesn't go through glovebox loggers
+        try:
+            if (
+                hasattr(self.progress_coordinator, 'tui_callback')
+                and hasattr(self.progress_coordinator.tui_callback, 'add_log_line')
+                and self._should_forward_docker_output(line_stripped)
+            ):
+                self.progress_coordinator.tui_callback.add_log_line(line_stripped)
+        except Exception as e:
+            # Don't let log forwarding break the compilation
+            logger.debug("Error forwarding Docker output to display: %s", e)
+
         return line
+
+    def _should_forward_docker_output(self, line: str) -> bool:
+        """Check if a Docker output line should be forwarded to the log display."""
+        if not line.strip():
+            return False
+
+        # Filter out common Docker/infrastructure noise
+        noise_filters = [
+            # Docker noise
+            "WARNING: The requested image's platform",
+            "Unable to find image",
+            "Pulling from",
+            "Pull complete",
+            "Digest: sha256:",
+            "Status: Downloaded",
+            # Git noise that's not useful
+            "remote: Enumerating objects:",
+            "remote: Counting objects:",
+            "remote: Compressing objects:",
+            "Receiving objects:",
+            "Resolving deltas:",
+            # Very verbose build system output
+            "-- Cache files will be written to:",
+            "-- Configuring done",
+            "-- Generating done",
+        ]
+
+        for noise in noise_filters:
+            if noise in line:
+                return False
+
+        # Filter very short lines (probably not useful)
+        if len(line.strip()) < 8:
+            return False
+
+        # Forward lines that look like interesting build output
+        interesting_patterns = [
+            # Build progress indicators
+            "[",  # Like [150/200] Building...
+            "Building",
+            "Compiling",
+            "Linking",
+            # Build tools
+            "west ",
+            "cmake",
+            "ninja",
+            "make",
+            "gcc",
+            "clang",
+            # Status messages
+            "✓",
+            "✗",
+            "Error",
+            "Warning",
+            "Failed",
+            "Success",
+            # Memory/size info
+            "Memory region",
+            "FLASH:",
+            "SRAM:",
+            # west specific
+            "Updating",
+            "From https://",
+        ]
+
+        return any(pattern in line for pattern in interesting_patterns)
 
     def get_current_progress(self) -> CompilationProgress:
         """Get the current progress state from the coordinator.

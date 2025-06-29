@@ -132,6 +132,10 @@ class DTParser:
         root = DTNode("", line=self._current_line(), column=self._current_column())
 
         # Handle preprocessor directives and comments at top level
+        if self.comments:
+            logger.debug("Adding %d comments to root node", len(self.comments))
+            for comment in self.comments:
+                logger.debug("Root comment: %s", comment.text)
         root.comments.extend(self.comments)
         self.comments = []
 
@@ -172,18 +176,50 @@ class DTParser:
         Args:
             node: Node to populate with properties and children
         """
+        pending_comments: list[DTComment] = []
+
         while not self._match(TokenType.RBRACE) and not self._is_at_end():
-            # Skip comments and preprocessor directives
+            # Collect comments and preprocessor directives
             if self._consume_comments_and_preprocessor():
+                # Store comments as pending instead of immediately attaching
+                if self.comments:
+                    logger.debug(
+                        "Collected %d pending comments in node %s",
+                        len(self.comments),
+                        node.name,
+                    )
+                    for comment in self.comments:
+                        logger.debug("Pending comment: %s", comment.text)
+                pending_comments.extend(self.comments)
+                self.comments = []
                 continue
 
             # Try to parse property or child node
             try:
                 if self._is_property():
+                    # For properties, attach pending comments to current node
+                    if pending_comments:
+                        logger.debug(
+                            "Attaching %d pending comments to node %s (property context)",
+                            len(pending_comments),
+                            node.name,
+                        )
+                        node.comments.extend(pending_comments)
+                        pending_comments = []
+
                     prop = self._parse_property()
                     if prop:
                         node.add_property(prop)
                 else:
+                    # For child nodes, let the child node take the pending comments
+                    if pending_comments:
+                        logger.debug(
+                            "Transferring %d pending comments to upcoming child node",
+                            len(pending_comments),
+                        )
+                        self.comments.extend(pending_comments)
+                        pending_comments = []
+
                     child = self._parse_child_node()
                     if child:
                         node.add_child(child)
@@ -195,6 +231,15 @@ class DTParser:
                 self._error(f"Failed to parse node body: {e}")
                 self._synchronize()
 
+        # Attach any remaining pending comments to the current node
+        if pending_comments:
+            logger.debug(
+                "Attaching %d remaining pending comments to node %s",
+                len(pending_comments),
+                node.name,
+            )
+            node.comments.extend(pending_comments)
+
     def _parse_property(self) -> DTProperty | None:
         """Parse a device tree property.
 
@@ -202,6 +247,9 @@ class DTParser:
             Parsed DTProperty or None if parsing fails
         """
         if not (self._match(TokenType.IDENTIFIER) or self._match(TokenType.COMPATIBLE)):
+            return None
+
+        if self.current_token is None:
             return None
 
         prop_name = self.current_token.value
@@ -278,27 +326,33 @@ class DTParser:
             Parsed DTValue
         """
         if self._match(TokenType.STRING):
+            if self.current_token is None:
+                return DTValue.string("", "")
             value = self.current_token.value
             raw = self.current_token.raw
             self._advance()
             return DTValue.string(value, raw)
 
         elif self._match(TokenType.NUMBER):
+            if self.current_token is None:
+                return DTValue.string("", "")
             value_str = self.current_token.value
             raw = self.current_token.raw
             self._advance()
             try:
                 # Handle hex numbers
                 if value_str.startswith("0x"):
-                    value = int(value_str, 16)
+                    int_value = int(value_str, 16)
                 else:
-                    value = int(value_str)
-                return DTValue.integer(value, raw)
+                    int_value = int(value_str)
+                return DTValue.integer(int_value, raw)
             except ValueError:
                 self._error(f"Invalid number: {value_str}")
                 return DTValue.string(value_str, raw)
 
         elif self._match(TokenType.REFERENCE):
+            if self.current_token is None:
+                return DTValue.string("", "")
             ref = self.current_token.value
             raw = self.current_token.raw
             self._advance()
@@ -308,6 +362,8 @@ class DTParser:
             return self._parse_array_value()
 
         elif self._match(TokenType.IDENTIFIER):
+            if self.current_token is None:
+                return DTValue.string("", "")
             # Handle identifiers as string values
             value = self.current_token.value
             raw = self.current_token.raw
@@ -331,11 +387,13 @@ class DTParser:
         start_pos = self.pos
         self._advance()  # consume <
 
-        values = []
+        values: list[int | str] = []
         raw_parts = ["<"]
 
         while not self._match(TokenType.ANGLE_CLOSE) and not self._is_at_end():
             if self._match(TokenType.NUMBER):
+                if self.current_token is None:
+                    break
                 value_str = self.current_token.value
                 raw_parts.append(value_str)
                 try:
@@ -348,12 +406,16 @@ class DTParser:
                 self._advance()
 
             elif self._match(TokenType.REFERENCE):
+                if self.current_token is None:
+                    break
                 ref = self.current_token.raw
                 raw_parts.append(ref)
                 values.append(ref)
                 self._advance()
 
             elif self._match(TokenType.IDENTIFIER):
+                if self.current_token is None:
+                    break
                 ident = self.current_token.value
                 raw_parts.append(ident)
                 values.append(ident)
@@ -398,6 +460,9 @@ class DTParser:
 
         # Check for label (identifier followed by colon)
         if self._match(TokenType.IDENTIFIER):
+            if self.current_token is None:
+                self._error("Expected node name")
+                return None
             first_ident = self.current_token.value
             self._advance()
 
@@ -407,7 +472,7 @@ class DTParser:
                 self._advance()  # consume :
 
                 # Parse the actual node name
-                if self._match(TokenType.IDENTIFIER):
+                if self._match(TokenType.IDENTIFIER) and self.current_token is not None:
                     name = self.current_token.value
                     self._advance()
                 else:
@@ -420,7 +485,9 @@ class DTParser:
             # Check for unit address
             if self._match(TokenType.AT):
                 self._advance()  # consume @
-                if self._match(TokenType.IDENTIFIER) or self._match(TokenType.NUMBER):
+                if (
+                    self._match(TokenType.IDENTIFIER) or self._match(TokenType.NUMBER)
+                ) and self.current_token is not None:
                     unit_address = self.current_token.value
                     self._advance()
                 else:
@@ -434,6 +501,19 @@ class DTParser:
         if self._match(TokenType.LBRACE):
             self._advance()  # consume {
             node = DTNode(name, label, unit_address, line, column)
+
+            # Add any pending comments to this node
+            if self.comments:
+                logger.debug(
+                    "Adding %d transferred comments to child node %s",
+                    len(self.comments),
+                    name,
+                )
+                for comment in self.comments:
+                    logger.debug("Child node %s comment: %s", name, comment.text)
+                node.comments.extend(self.comments)
+                self.comments = []
+
             self._parse_node_body(node)
             self._expect(TokenType.RBRACE)
             self._expect(TokenType.SEMICOLON)
@@ -466,19 +546,25 @@ class DTParser:
             True if any were consumed
         """
         consumed = False
+        initial_comment_count = len(self.comments)
 
         while self._match(TokenType.COMMENT) or self._match(TokenType.PREPROCESSOR):
             if self._match(TokenType.COMMENT):
+                if self.current_token is None:
+                    break
                 comment_text = self.current_token.value
                 line = self._current_line()
                 column = self._current_column()
                 is_block = comment_text.startswith("/*")
                 comment = DTComment(comment_text, line, column, is_block)
                 self.comments.append(comment)
+                logger.debug("Consumed comment at line %d: %s", line, comment_text)
                 consumed = True
                 self._advance()
 
             elif self._match(TokenType.PREPROCESSOR):
+                if self.current_token is None:
+                    break
                 directive_text = self.current_token.value
                 line = self._current_line()
                 column = self._current_column()
@@ -489,10 +575,24 @@ class DTParser:
                 condition = parts[1] if len(parts) > 1 else ""
 
                 conditional = DTConditional(directive, condition, line, column)
-                # Store in current comments for now
-                # TODO: Properly handle conditional compilation
+                # Convert conditional to comment for consistent handling
+                comment_text = f"#{directive} {condition}".strip()
+                comment = DTComment(comment_text, line, column, False)
+                self.comments.append(comment)
+                logger.debug(
+                    "Consumed preprocessor directive at line %d: %s", line, comment_text
+                )
                 consumed = True
                 self._advance()
+
+        if consumed:
+            final_comment_count = len(self.comments)
+            logger.debug(
+                "Comments consumed: %d -> %d (added %d)",
+                initial_comment_count,
+                final_comment_count,
+                final_comment_count - initial_comment_count,
+            )
 
         return consumed
 
@@ -505,7 +605,11 @@ class DTParser:
         Returns:
             True if current token matches
         """
-        return not self._is_at_end() and self.current_token.type == token_type
+        return (
+            not self._is_at_end()
+            and self.current_token is not None
+            and self.current_token.type == token_type
+        )
 
     def _advance(self) -> Token | None:
         """Advance to next token.
@@ -564,7 +668,10 @@ class DTParser:
     def _synchronize(self) -> None:
         """Synchronize parser after error by advancing to next statement."""
         while not self._is_at_end():
-            if self.current_token.type in (TokenType.SEMICOLON, TokenType.RBRACE):
+            if self.current_token is not None and self.current_token.type in (
+                TokenType.SEMICOLON,
+                TokenType.RBRACE,
+            ):
                 self._advance()
                 return
             self._advance()
@@ -694,6 +801,7 @@ def parse_dt_lark(text: str) -> list[DTNode]:
         Exception: If parsing fails
     """
     from .lark_dt_parser import parse_dt_lark
+
     return parse_dt_lark(text)
 
 
@@ -707,4 +815,5 @@ def parse_dt_lark_safe(text: str) -> tuple[list[DTNode], list[str]]:
         Tuple of (list of root_nodes, error_messages)
     """
     from .lark_dt_parser import parse_dt_lark_safe
+
     return parse_dt_lark_safe(text)

@@ -1099,57 +1099,88 @@ def list_devices(
 def _create_compilation_progress_display(
     show_logs: bool = True, debug: bool = False
 ) -> CompilationProgressCallback:
-    """Create a compilation progress display callback using the reusable TUI component.
+    """Create a staged compilation progress display callback.
 
-    This function provides a simple progress display with optional debug logging
-    integration, following CLAUDE.md principles of simplicity.
+    This function provides a cool staged progress display with emojis and visual indicators,
+    showing build progress through multiple phases with clear visual feedback.
 
     Args:
-        show_logs: Whether to show compilation logs in progress display
+        show_logs: Whether to show compilation logs in progress display (compatibility)
         debug: Whether to show debug-level application logs in TUI
     """
-    from glovebox.cli.components.progress_display import (
-        create_compilation_progress_display,
+    from glovebox.cli.components.staged_progress_display import (
+        create_staged_compilation_progress_display,
     )
 
-    # Create the progress display using the compilation display
-    progress_callback = create_compilation_progress_display(show_logs=show_logs)
+    # Create the staged progress display
+    display = create_staged_compilation_progress_display(show_logs=show_logs)
+    progress_callback = display.start()
 
-    # Add debug logging support if requested
-    if debug:
-        import logging
+    # Set up logger handler for build output if logs are enabled
+    log_handler = None
+    if show_logs:
+        from glovebox.cli.components.progress_log_handler import (
+            create_progress_log_handler,
+        )
 
-        from glovebox.core.logging import get_logger
+        # Create a wrapper to expose add_log_line for the handler
+        class LogLineWrapper:
+            def __init__(self, display_instance: Any):
+                self._display = display_instance
 
-        # Get the original cleanup function
-        original_cleanup = getattr(progress_callback, "cleanup", lambda: None)
+            def add_log_line(self, line: str) -> None:
+                self._display.add_log_line(line)
 
-        # Create a simple debug log handler for compatibility
-        # Note: The Textual widget handles its own logging display
-        def enhanced_cleanup() -> None:
-            """Cleanup progress display with debug logging support."""
-            # Add any debug logging cleanup here if needed
-            logger.debug("Compilation progress display cleanup completed")
-            # Call original cleanup
-            original_cleanup()
+        wrapper = LogLineWrapper(display)
+        log_handler = create_progress_log_handler(wrapper, level=logging.INFO)
 
-        progress_callback.cleanup = enhanced_cleanup  # type: ignore[attr-defined]
+        # Add handler to root logger to capture all build-related logs
+        root_logger = logging.getLogger()
+        root_logger.addHandler(log_handler)
+
+    # Create a wrapper class to add the required interface
+    class ProgressCallbackWrapper:
+        def __init__(self, callback_func: Any, display_instance: Any, log_handler_instance: Any = None, debug_mode: bool = False) -> None:
+            self._callback = callback_func
+            self._display = display_instance
+            self._log_handler = log_handler_instance
+            self._debug = debug_mode
+
+        def __call__(self, progress_data: Any) -> None:
+            """Call the underlying callback."""
+            self._callback(progress_data)
+
+        def add_log_line(self, line: str) -> None:
+            """Add a log line to the display (for backward compatibility)."""
+            self._display.add_log_line(line)
+
+        def cleanup(self) -> None:
+            """Cleanup the display with optional debug logging."""
+            if self._debug:
+                logger.debug("Staged compilation progress display cleanup completed")
+
+            # Remove log handler from root logger
+            if self._log_handler:
+                root_logger = logging.getLogger()
+                root_logger.removeHandler(self._log_handler)
+
+            self._display.stop()
+
+        @property
+        def manager(self) -> "DisplayManager":
+            """Compatibility manager for middleware reference."""
+            return DisplayManager(self._display)
 
     # Add compatibility for middleware reference (used in ZMK service)
-    # The Textual-based display maintains the same interface
-    if hasattr(progress_callback, "manager"):
-        # Already has manager reference
-        pass
-    else:
-        # Add a dummy manager for compatibility
-        class DummyManager:
-            def stop(self) -> None:
-                if hasattr(progress_callback, "cleanup"):
-                    progress_callback.cleanup()
+    class DisplayManager:
+        def __init__(self, display_instance: Any) -> None:
+            self._display = display_instance
 
-        progress_callback.manager = DummyManager()  # type: ignore[attr-defined]
+        def stop(self) -> None:
+            self._display.stop()
 
-    return progress_callback
+    # Return the wrapped callback
+    return ProgressCallbackWrapper(progress_callback, display, log_handler, debug)
 
 
 def register_commands(app: typer.Typer) -> None:
