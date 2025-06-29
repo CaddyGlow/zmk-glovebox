@@ -17,6 +17,7 @@ from glovebox.cli.helpers import (
     print_list_item,
     print_success_message,
 )
+from glovebox.cli.helpers.parameters import OutputFormatOption
 from glovebox.cli.helpers.theme import Colors, Icons, TableStyles
 from glovebox.config.keyboard_profile import (
     get_available_keyboards,
@@ -608,9 +609,7 @@ def list_profiles(
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show detailed information"
     ),
-    format: str = typer.Option(
-        "text", "--format", "-f", help="Output format (text, json)"
-    ),
+    output_format: OutputFormatOption = "text",
 ) -> None:
     """List available profile configurations."""
     # Get app context with user config
@@ -621,7 +620,7 @@ def list_profiles(
         print("No keyboards found")
         return
 
-    if format.lower() == "json":
+    if output_format.lower() == "json":
         # JSON output
         output: dict[str, list[dict[str, Any]]] = {"keyboards": []}
         for keyboard_name in keyboards:
@@ -750,9 +749,7 @@ def show_profile(
         "-p",
         help="Profile in format 'profile' or 'profile/firmware' (overrides positional args)",
     ),
-    format: str = typer.Option(
-        "text", "--format", "-f", help="Output format (text, json, markdown, table)"
-    ),
+    output_format: OutputFormatOption = "text",
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show detailed configuration information"
     ),
@@ -838,7 +835,7 @@ def show_profile(
                 )
 
     # Use rich formatting for text output or unified formatter for other formats
-    if format.lower() == "text":
+    if output_format.lower() == "text":
         # Handle sources and defaults flags for text output
         if show_sources or show_defaults:
             _print_keyboard_config_table(
@@ -865,4 +862,4 @@ def show_profile(
                 show_defaults,
             )
         # Use the unified output formatter for other formats
-        formatter.print_formatted(config_data, format)
+        formatter.print_formatted(config_data, output_format)

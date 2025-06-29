@@ -869,7 +869,7 @@ sudo usermod -a -G plugdev,dialout $USER
 diskutil list
 
 # Check if device matches query
-glovebox firmware flash --list-devices --profile glove80/v25.05
+glovebox firmware devices --profile glove80/v25.05
 ```
 
 ### Debug Logging

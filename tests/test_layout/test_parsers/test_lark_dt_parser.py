@@ -2,7 +2,12 @@
 
 import pytest
 
-from glovebox.layout.parsers.ast_nodes import DTConditional, DTNode, DTValue, DTValueType
+from glovebox.layout.parsers.ast_nodes import (
+    DTConditional,
+    DTNode,
+    DTValue,
+    DTValueType,
+)
 from glovebox.layout.parsers.lark_dt_parser import LarkDTParser, create_lark_dt_parser
 
 
@@ -17,25 +22,25 @@ class TestBasicLarkParsing:
 
     def test_parse_simple_node(self):
         """Test parsing a simple device tree node."""
-        content = '''
+        content = """
         / {
             test_node {
                 property = "value";
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         assert len(roots) == 1
         root = roots[0]
         assert isinstance(root, DTNode)
-        
+
         # Check that test_node is a child
         test_node = root.get_child("test_node")
         assert test_node is not None
-        
+
         # Check property
         prop = test_node.get_property("property")
         assert prop is not None
@@ -43,26 +48,26 @@ class TestBasicLarkParsing:
 
     def test_parse_array_values(self):
         """Test parsing array values."""
-        content = '''
+        content = """
         / {
             node {
                 positions = <0 1 2 3>;
                 bindings = <&kp Q>, <&kp W>;
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         root = roots[0]
         node = root.get_child("node")
-        
+
         # Test numeric array
         positions = node.get_property("positions")
         assert positions.value.type == DTValueType.ARRAY
         assert positions.value.value == ["0", "1", "2", "3"]
-        
+
         # Test reference array
         bindings = node.get_property("bindings")
         assert bindings.value.type == DTValueType.ARRAY
@@ -71,14 +76,14 @@ class TestBasicLarkParsing:
 
 class TestEnhancedPreprocessorDirectives:
     """Test enhanced preprocessor directive parsing."""
-    
+
     def _find_conditionals_root(self, roots: list[DTNode]) -> DTNode | None:
         """Helper to find root node containing conditionals."""
         for root in roots:
             if root.conditionals:
                 return root
         return None
-    
+
     def _find_content_root(self, roots: list[DTNode]) -> DTNode | None:
         """Helper to find root node containing actual content."""
         for root in roots:
@@ -88,7 +93,7 @@ class TestEnhancedPreprocessorDirectives:
 
     def test_basic_preprocessor_parsing(self):
         """Test basic preprocessor directive parsing."""
-        content = '''
+        content = """
         #if defined(CONFIG_FEATURE)
         / {
             node {
@@ -96,17 +101,17 @@ class TestEnhancedPreprocessorDirectives:
             };
         };
         #endif
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should parse successfully
         assert len(roots) >= 1
 
     def test_logical_operators_in_preprocessor(self):
         """Test logical operators in preprocessor expressions."""
-        content = '''
+        content = """
         #if defined(RED) || defined(GREEN)
         / {
             node {
@@ -114,62 +119,62 @@ class TestEnhancedPreprocessorDirectives:
             };
         };
         #endif
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should parse successfully
         assert len(roots) >= 1
 
     def test_hash_prefixed_properties(self):
         """Test properties with hash prefixes like #binding-cells."""
-        content = '''
+        content = """
         / {
             behavior {
                 #binding-cells = <2>;
                 #foo-bar = <1>;
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         assert len(roots) == 1
         root = roots[0]
         behavior = root.get_child("behavior")
-        
+
         # Check hash-prefixed properties
         binding_cells = behavior.get_property("#binding-cells")
         assert binding_cells is not None
         assert binding_cells.value.type == DTValueType.ARRAY
         assert binding_cells.value.value == ["2"]
-        
+
         foo_bar = behavior.get_property("#foo-bar")
         assert foo_bar is not None
         assert foo_bar.value.value == ["1"]
 
     def test_define_with_references(self):
         """Test #define directives with reference tokens."""
-        content = '''
+        content = """
         #define RED &ug RED_RGB
         / {
             node {
                 property = "value";
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should parse successfully
         assert len(roots) >= 1
 
     def test_builtin_functions_in_preprocessor(self):
         """Test builtin functions like __has_include() in preprocessor directives."""
-        content = '''
+        content = """
         #if __has_include(<dt-bindings/zmk/rgb_colors.h>)
         / {
             node {
@@ -177,11 +182,11 @@ class TestEnhancedPreprocessorDirectives:
             };
         };
         #endif
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should parse successfully
         assert len(roots) >= 1
 
@@ -191,7 +196,7 @@ class TestLineContinuationHandling:
 
     def test_simple_line_continuation(self):
         """Test simple line continuation with backslash."""
-        content = '''
+        content = """
         #if defined(RED) || defined(RED_RGB) || \\
             defined(BLUE) || defined(BLUE_RGB)
         / {
@@ -200,17 +205,17 @@ class TestLineContinuationHandling:
             };
         };
         #endif
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should parse successfully with line continuations processed
         assert len(roots) >= 1
 
     def test_define_with_line_continuation(self):
         """Test #define directive with line continuation."""
-        content = '''
+        content = """
         #define LONG_MACRO_NAME \\
             &some_long_behavior_reference
         / {
@@ -218,11 +223,11 @@ class TestLineContinuationHandling:
                 property = "value";
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should parse successfully
         assert len(roots) >= 1
 
@@ -232,7 +237,7 @@ class TestIncludeStatements:
 
     def test_quoted_include(self):
         """Test quoted include statements."""
-        content = '''
+        content = """
         #include "behaviors.dtsi"
         #include "dt-bindings/zmk/keys.h"
         / {
@@ -240,17 +245,17 @@ class TestIncludeStatements:
                 property = "value";
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should parse successfully with includes
         assert len(roots) >= 1
 
     def test_angle_bracket_include(self):
         """Test angle bracket include statements."""
-        content = '''
+        content = """
         #include <dt-bindings/zmk/keys.h>
         #include <dt-bindings/zmk/bt.h>
         / {
@@ -258,11 +263,11 @@ class TestIncludeStatements:
                 property = "value";
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should parse successfully with includes
         assert len(roots) >= 1
 
@@ -272,7 +277,7 @@ class TestIdentifierValues:
 
     def test_identifier_property_values(self):
         """Test identifier values like LEFT_PINKY_HOLDING_TYPE."""
-        content = '''
+        content = """
         / {
             behavior {
                 flavor = tap_preferred;
@@ -280,24 +285,24 @@ class TestIdentifierValues:
                 mode = CUSTOM_MODE_VALUE;
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         assert len(roots) == 1
         root = roots[0]
         behavior = root.get_child("behavior")
-        
+
         # Check identifier values
         flavor = behavior.get_property("flavor")
         assert flavor is not None
         assert flavor.value.value == "tap_preferred"
-        
+
         type_prop = behavior.get_property("type")
         assert type_prop is not None
         assert type_prop.value.value == "LEFT_PINKY_HOLDING_TYPE"
-        
+
         mode = behavior.get_property("mode")
         assert mode is not None
         assert mode.value.value == "CUSTOM_MODE_VALUE"
@@ -308,7 +313,7 @@ class TestComplexRealWorldExamples:
 
     def test_simple_color_definitions(self):
         """Test simplified color definition pattern."""
-        content = '''
+        content = """
         #define RED &ug RED_RGB
         / {
             behaviors {
@@ -318,14 +323,14 @@ class TestComplexRealWorldExamples:
                 };
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should parse successfully
         assert len(roots) >= 1
-        
+
         # Should find the behavior in one of the roots
         found_behavior = False
         for root in roots:
@@ -335,12 +340,12 @@ class TestComplexRealWorldExamples:
                 if custom_behavior:
                     found_behavior = True
                     break
-        
+
         assert found_behavior
 
     def test_nested_function_calls(self):
         """Test nested function calls in array values."""
-        content = '''
+        content = """
         / {
             macro {
                 bindings = <&macro_wait_time 500>,
@@ -349,16 +354,16 @@ class TestComplexRealWorldExamples:
                           <&kp L &kp O>;
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should parse successfully
         assert len(roots) == 1
         root = roots[0]
         macro = root.get_child("macro")
-        
+
         bindings = macro.get_property("bindings")
         assert bindings is not None
         assert bindings.value.type == DTValueType.ARRAY
@@ -371,32 +376,32 @@ class TestErrorHandling:
 
     def test_parse_safe_basic(self):
         """Test safe parsing with valid content."""
-        content = '''
+        content = """
         / {
             node {
                 property = "value";
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots, errors = parser.parse_safe(content)
-        
+
         assert len(roots) == 1
         assert len(errors) == 0
 
     def test_parse_safe_with_syntax_error(self):
         """Test safe parsing with syntax errors."""
-        content = '''
+        content = """
         / {
             node {
                 property = invalid_syntax_here
             };
-        '''  # Missing closing brace
-        
+        """  # Missing closing brace
+
         parser = create_lark_dt_parser()
         roots, errors = parser.parse_safe(content)
-        
+
         # Should capture errors
         assert len(errors) > 0
 
@@ -406,7 +411,7 @@ class TestRegressionPrevention:
 
     def test_basic_device_tree_still_works(self):
         """Ensure basic device tree parsing still works after grammar enhancements."""
-        content = '''
+        content = """
         / {
             compatible = "test,device";
             
@@ -433,30 +438,30 @@ class TestRegressionPrevention:
                 };
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         assert len(roots) == 1
         root = roots[0]
-        
+
         # Check basic structure
         assert root.get_property("compatible") is not None
         assert root.get_child("behaviors") is not None
         assert root.get_child("keymap") is not None
-        
+
         # Check behavior extraction
         behaviors = root.get_child("behaviors")
         hold_tap = behaviors.get_child("hold_tap")
         assert hold_tap is not None
         assert hold_tap.label == "ht"
-        
+
         # Check keymap structure
         keymap = root.get_child("keymap")
         layer = keymap.get_child("default_layer")
         assert layer is not None
-        
+
         bindings = layer.get_property("bindings")
         assert bindings is not None
         assert bindings.value.type == DTValueType.ARRAY

@@ -174,7 +174,7 @@ class LayoutService(BaseService):
     def parse_keymap_from_file(
         self,
         keymap_file_path: Path,
-        profile: "KeyboardProfile",
+        profile: "KeyboardProfile | None",
         parsing_mode: str = "template",
         parsing_method: str = "ast",
         output_file_path: Path | None = None,
@@ -211,13 +211,19 @@ class LayoutService(BaseService):
                 return result
 
             # Parse keymap file
+            keyboard_profile_str = None
+            if profile is not None:
+                keyboard_profile_str = (
+                    f"{profile.keyboard_name}/{profile.firmware_version}"
+                    if profile.firmware_version
+                    else profile.keyboard_name
+                )
+
             parse_result = self._keymap_parser.parse_keymap(
                 keymap_file=keymap_file_path,
                 mode=mode,
                 method=method,
-                keyboard_profile=f"{profile.keyboard_name}/{profile.firmware_version}"
-                if profile.firmware_version
-                else profile.keyboard_name,
+                keyboard_profile=keyboard_profile_str,
             )
 
             if not parse_result.success:

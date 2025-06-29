@@ -11,6 +11,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from glovebox.cli.helpers.parameters import OutputFormatOption
 from glovebox.config.user_config import create_user_config
 
 from .utils import format_size_display
@@ -26,7 +27,7 @@ def cache_keys(
         typer.Option(
             "-m",
             "--module",
-            help="Show keys for specific module (e.g., 'layout', 'compilation', 'metrics')",
+            help="Show keys for specific module (layout, compilation, metrics)",
         ),
     ] = None,
     pattern: Annotated[
@@ -40,10 +41,7 @@ def cache_keys(
         int | None,
         typer.Option("--limit", help="Limit number of keys displayed"),
     ] = None,
-    json_output: Annotated[
-        bool,
-        typer.Option("--json", help="Output keys in JSON format"),
-    ] = False,
+    output_format: OutputFormatOption = "text",
     metadata: Annotated[
         bool,
         typer.Option("--metadata", help="Include metadata for each key"),
@@ -53,7 +51,32 @@ def cache_keys(
         typer.Option("--values", help="Include actual cached values for each key"),
     ] = False,
 ) -> None:
-    """List cache keys with optional filtering, metadata, and actual cached values."""
+    """List cache keys with optional filtering, metadata, and cached values.
+
+    Displays cache keys from specific modules or all modules with support for
+    pattern filtering, metadata inspection, and value examination. Useful for
+    debugging cache behavior and understanding what data is cached.
+
+    \\b
+    Information available:
+    - Key names: All cached keys matching filters
+    - Metadata: Size, age, access count, TTL (with --metadata)
+    - Values: Actual cached data with truncation (with --values)
+    - Pattern filtering: Case-insensitive substring matching
+
+    Examples:
+        # List all keys in compilation module
+        glovebox cache keys -m compilation
+
+        # Show keys with metadata and values
+        glovebox cache keys -m layout --metadata --values
+
+        # Filter keys by pattern across all modules
+        glovebox cache keys --pattern "build" --output-format json
+
+        # Show limited keys with detailed info
+        glovebox cache keys -m metrics --limit 5 --metadata
+    """
     try:
         if module:
             # Show keys for specific module
@@ -73,7 +96,7 @@ def cache_keys(
                 if limit:
                     cache_keys = cache_keys[:limit]
 
-                if json_output:
+                if output_format == "json":
                     # JSON output format
                     output_data: dict[str, Any] = {
                         "module": module,
@@ -123,7 +146,10 @@ def cache_keys(
 
                         output_data["keys"].append(key_data)
 
-                    print(json.dumps(output_data, indent=2, ensure_ascii=False))
+                    from glovebox.cli.helpers.output_formatter import OutputFormatter
+
+                    formatter = OutputFormatter()
+                    print(formatter.format(output_data, "json"))
                 else:
                     # Human-readable output
                     if cache_keys:
@@ -267,7 +293,7 @@ def cache_keys(
                 console.print("[yellow]No cache modules found[/yellow]")
                 return
 
-            if json_output:
+            if output_format == "json":
                 # JSON output for all modules
                 all_modules_data: dict[str, Any] = {
                     "total_modules": len(cache_subdirs),
@@ -302,7 +328,10 @@ def cache_keys(
                             "error": "Unable to access cache",
                         }
 
-                print(json.dumps(all_modules_data, indent=2, ensure_ascii=False))
+                from glovebox.cli.helpers.output_formatter import OutputFormatter
+
+                formatter = OutputFormatter()
+                print(formatter.format(all_modules_data, "json"))
             else:
                 # Human-readable output for all modules
                 console.print("[bold]Cache Keys by Module[/bold]")

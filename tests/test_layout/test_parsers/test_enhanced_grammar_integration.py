@@ -10,7 +10,7 @@ class TestEnhancedGrammarIntegration:
 
     def test_complex_preprocessor_suite(self):
         """Test comprehensive suite of enhanced preprocessor features."""
-        content = '''
+        content = """
         #if __has_include(<dt-bindings/zmk/rgb_colors.h>)
         #include <dt-bindings/zmk/rgb_colors.h>
         
@@ -46,33 +46,33 @@ class TestEnhancedGrammarIntegration:
                 };
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should parse successfully - this represents the level of complexity
         # we successfully handle with our enhanced grammar
         assert len(roots) >= 1
-        
+
         # Should find actual device tree content
         content_root = None
         for root in roots:
             if root.children:
                 content_root = root
                 break
-        
+
         assert content_root is not None
         assert content_root.get_child("behaviors") is not None
         assert content_root.get_child("keymap") is not None
-        
+
         # Check that hash-prefixed properties work
         behaviors = content_root.get_child("behaviors")
         custom_behavior = behaviors.get_child("custom_behavior")
         binding_cells = custom_behavior.get_property("#binding-cells")
         assert binding_cells is not None
         assert binding_cells.value.value == ["2"]
-        
+
         # Check identifier values work
         flavor = custom_behavior.get_property("flavor")
         assert flavor is not None
@@ -80,7 +80,7 @@ class TestEnhancedGrammarIntegration:
 
     def test_line_continuation_comprehensive(self):
         """Test comprehensive line continuation handling."""
-        content = '''
+        content = """
         #if defined(COLOR_A) || defined(COLOR_B) || \\
             defined(COLOR_C) || defined(COLOR_D) || \\
             defined(COLOR_E)
@@ -95,17 +95,17 @@ class TestEnhancedGrammarIntegration:
                 property = "value";
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should successfully handle multiple line continuations
         assert len(roots) >= 1
 
     def test_include_statement_variations(self):
         """Test various include statement formats."""
-        content = '''
+        content = """
         #include <behaviors.dtsi>
         #include "custom_behaviors.dtsi" 
         #include <dt-bindings/zmk/keys.h>
@@ -117,17 +117,17 @@ class TestEnhancedGrammarIntegration:
                 property = "value";
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should handle mixed include formats
         assert len(roots) >= 1
 
     def test_complex_property_patterns(self):
         """Test complex property name and value patterns."""
-        content = '''
+        content = """
         / {
             behavior {
                 #binding-cells = <2>;
@@ -140,18 +140,18 @@ class TestEnhancedGrammarIntegration:
                 mixed_Case_Property = mixed_Case_Value;
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         assert len(roots) == 1
         root = roots[0]
         behavior = root.get_child("behavior")
-        
+
         # All property types should be parsed correctly
         assert behavior.get_property("#binding-cells") is not None
-        assert behavior.get_property("#foo-bar-baz") is not None  
+        assert behavior.get_property("#foo-bar-baz") is not None
         assert behavior.get_property("compatible") is not None
         assert behavior.get_property("flavor") is not None
         assert behavior.get_property("tapping-term-ms") is not None
@@ -161,7 +161,7 @@ class TestEnhancedGrammarIntegration:
 
     def test_builtin_function_patterns(self):
         """Test various builtin function patterns in preprocessor directives."""
-        content = '''
+        content = """
         #if __has_include(<dt-bindings/zmk/rgb_colors.h>)
         #include <dt-bindings/zmk/rgb_colors.h>
         #endif
@@ -179,17 +179,17 @@ class TestEnhancedGrammarIntegration:
                 property = "value";
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should handle various builtin function patterns
         assert len(roots) >= 1
 
     def test_character_literal_comparisons(self):
         """Test character literal comparisons in preprocessor expressions."""
-        content = '''
+        content = """
         #if OS_TYPE == 'M'
         #define OS_MODIFIER &kp LCMD
         #elif OS_TYPE == 'L'
@@ -207,18 +207,18 @@ class TestEnhancedGrammarIntegration:
                 };
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should handle character literal comparisons
         assert len(roots) >= 1
 
     def test_progress_vs_original_failure(self):
         """Test that we've made significant progress from the original parsing failures."""
         # This represents the type of complex content that was failing originally
-        content = '''
+        content = """
         #if defined(RED) || defined(RED_RGB) || \\
             defined(GREEN) || defined(BLUE)
         #error "Color conflict detected!"
@@ -257,42 +257,42 @@ class TestEnhancedGrammarIntegration:
                 };
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # This content would have failed completely before our enhancements
         # Now it should parse successfully, representing major progress
         assert len(roots) >= 1
-        
+
         # Find the actual device tree content
         content_root = None
         for root in roots:
             if root.children:
                 content_root = root
                 break
-        
+
         assert content_root is not None
-        
+
         # Verify structure is correctly parsed
         behaviors = content_root.get_child("behaviors")
         assert behaviors is not None
-        
+
         custom_ht = behaviors.get_child("custom_hold_tap")
         assert custom_ht is not None
         assert custom_ht.label == "custom_ht"
-        
+
         # Check hash-prefixed property works
         binding_cells = custom_ht.get_property("#binding-cells")
         assert binding_cells is not None
-        
+
         # Check keymap structure
         keymap = content_root.get_child("keymap")
         assert keymap is not None
-        
+
         layer = keymap.get_child("default_layer")
         assert layer is not None
-        
+
         bindings = layer.get_property("bindings")
         assert bindings is not None

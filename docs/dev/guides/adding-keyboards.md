@@ -338,7 +338,7 @@ flash:
 
 ```bash
 # Test device detection with your configuration
-glovebox firmware flash --list-devices --profile my_custom_board/stable
+glovebox firmware devices --profile my_custom_board/stable
 
 # Test flash operation (with dummy firmware file for testing)
 touch test_firmware.uf2
@@ -524,7 +524,7 @@ Error: No devices found matching query
 **Solution**: 
 1. Check device is in bootloader/flash mode
 2. Verify USB VID/PID are correct
-3. Test device query with `--list-devices`
+3. Test device query with `devices` command
 
 ### Profile Creation Errors
 ```

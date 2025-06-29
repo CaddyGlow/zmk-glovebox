@@ -24,8 +24,8 @@ def test_firmware_flash_command(cli_runner, create_keyboard_profile_fixture, tmp
     pass
 
 
-def test_firmware_list_devices_command(cli_runner):
-    """Test firmware list-devices command which is easier to mock."""
+def test_firmware_devices_command(cli_runner):
+    """Test firmware devices command which is easier to mock."""
     # Register commands
     from glovebox.cli.commands import register_all_commands
 
@@ -75,7 +75,7 @@ def test_firmware_list_devices_command(cli_runner):
         # Run the command with profile
         cmd_result = cli_runner.invoke(
             app,
-            ["firmware", "list-devices", "--profile", "glove80/v25.05"],
+            ["firmware", "devices", "--profile", "glove80/v25.05"],
             catch_exceptions=False,
         )
 

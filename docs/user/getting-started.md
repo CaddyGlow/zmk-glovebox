@@ -252,7 +252,7 @@ docker run hello-world
 **Device not detected:**
 ```bash
 # List detected devices
-glovebox firmware flash --list-devices --profile glove80/v25.05
+glovebox firmware devices --profile glove80/v25.05
 
 # Check device is in bootloader mode
 # Verify USB query matches your device

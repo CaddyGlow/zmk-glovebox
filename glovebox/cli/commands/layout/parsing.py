@@ -69,6 +69,12 @@ def parse_keymap(
         bool,
         typer.Option("--force", help="Overwrite existing output files"),
     ] = False,
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            "--verbose", "-v", help="Show detailed parsing information and debug output"
+        ),
+    ] = False,
 ) -> None:
     """Parse ZMK keymap file to JSON layout format.
 
@@ -102,10 +108,16 @@ def parse_keymap(
     if mode == "auto":
         if profile:
             mode = "template"
-            console.print("Auto-detected template mode (profile provided)", style="dim")
+            if verbose:
+                console.print(
+                    "Auto-detected template mode (profile provided)", style="dim"
+                )
         else:
             mode = "full"
-            console.print("Auto-detected full mode (no profile provided)", style="dim")
+            if verbose:
+                console.print(
+                    "Auto-detected full mode (no profile provided)", style="dim"
+                )
 
     # Validate mode and profile combination
     if mode == "template" and not profile:
@@ -144,11 +156,21 @@ def parse_keymap(
         keyboard_profile = None
         if profile:
             keyboard_profile = create_profile_from_option(profile, user_config)
+            if verbose:
+                console.print(
+                    f"Using keyboard profile: {keyboard_profile.keyboard_name}",
+                    style="dim",
+                )
 
         # Create layout service with dependencies
         from glovebox.cli.commands.layout.dependencies import create_full_layout_service
 
         layout_service = create_full_layout_service()
+
+        if verbose:
+            console.print(f"Parsing mode: {mode}, method: {method}", style="dim")
+            console.print(f"Input file: {keymap_file}", style="dim")
+            console.print(f"Output file: {output}", style="dim")
 
         # Parse keymap file
         result = layout_service.parse_keymap_from_file(
@@ -169,8 +191,9 @@ def parse_keymap(
         print_success_message(f"Successfully parsed keymap to {output}")
 
         # Show additional information
-        for message in result.messages:
-            console.print(f"  • {message}", style="dim")
+        if verbose or result.messages:
+            for message in result.messages:
+                console.print(f"  • {message}", style="dim")
 
         # Format output if JSON requested
         if output_format == "json":
@@ -280,10 +303,14 @@ def import_keymap(
         if mode == "auto":
             if profile:
                 mode = "template"
-                console.print("Auto-detected template mode (profile provided)", style="dim")
+                console.print(
+                    "Auto-detected template mode (profile provided)", style="dim"
+                )
             else:
                 mode = "full"
-                console.print("Auto-detected full mode (no profile provided)", style="dim")
+                console.print(
+                    "Auto-detected full mode (no profile provided)", style="dim"
+                )
 
         # Validate mode and profile combination
         if mode == "template" and not profile:

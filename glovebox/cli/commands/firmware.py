@@ -1033,7 +1033,7 @@ def flash(
         raise typer.Exit(1) from None
 
 
-@firmware_app.command()
+@firmware_app.command(name="devices")
 @handle_errors
 @with_profile()
 def list_devices(
@@ -1044,7 +1044,29 @@ def list_devices(
     ] = "",
     output_format: OutputFormatOption = "text",
 ) -> None:
-    """List available devices for flashing."""
+    """List available devices for firmware flashing.
+
+    Detects and displays USB devices that can be used for flashing firmware.
+    Shows device information including name, vendor, mount status, and connection
+    details. Supports filtering by device query string and multiple output formats.
+
+    \\b
+    Device information displayed:
+    - Device name and vendor identification
+    - Mount point and connection status
+    - Device query string for targeting specific devices
+    - Compatibility with keyboard profile flash methods
+
+    Examples:
+        # List all available devices
+        glovebox firmware devices
+
+        # Filter devices by query string
+        glovebox firmware devices --query "nice_nano"
+
+        # Show device list in JSON format
+        glovebox firmware devices --output-format json --profile glove80
+    """
     from glovebox.adapters import create_file_adapter
     from glovebox.firmware.flash.device_wait_service import create_device_wait_service
 
@@ -1140,7 +1162,13 @@ def _create_compilation_progress_display(
 
     # Create a wrapper class to add the required interface
     class ProgressCallbackWrapper:
-        def __init__(self, callback_func: Any, display_instance: Any, log_handler_instance: Any = None, debug_mode: bool = False) -> None:
+        def __init__(
+            self,
+            callback_func: Any,
+            display_instance: Any,
+            log_handler_instance: Any = None,
+            debug_mode: bool = False,
+        ) -> None:
             self._callback = callback_func
             self._display = display_instance
             self._log_handler = log_handler_instance

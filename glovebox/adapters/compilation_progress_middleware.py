@@ -165,8 +165,8 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
         # This captures build tool output (west, cmake, gcc) that doesn't go through glovebox loggers
         try:
             if (
-                hasattr(self.progress_coordinator, 'tui_callback')
-                and hasattr(self.progress_coordinator.tui_callback, 'add_log_line')
+                hasattr(self.progress_coordinator, "tui_callback")
+                and hasattr(self.progress_coordinator.tui_callback, "add_log_line")
                 and self._should_forward_docker_output(line_stripped)
             ):
                 self.progress_coordinator.tui_callback.add_log_line(line_stripped)

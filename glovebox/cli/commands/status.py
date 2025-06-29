@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 from rich.console import Console
@@ -12,6 +12,7 @@ from rich.text import Text
 
 from glovebox.cli.app import AppContext
 from glovebox.cli.decorators import handle_errors
+from glovebox.cli.helpers.parameters import OutputFormatOption
 from glovebox.config.user_config import UserConfig
 from glovebox.utils.diagnostics import collect_all_diagnostics
 
@@ -582,12 +583,10 @@ def _print_layout_diagnostics_table(
 @handle_errors
 def status_command(
     ctx: typer.Context,
-    format: str = typer.Option(
-        "table",
-        "--format",
-        "-f",
-        help="Output format (table, json, markdown, diagnostics, diag-json)",
-    ),
+    output_format: OutputFormatOption = "table",
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Show comprehensive diagnostics")
+    ] = False,
 ) -> None:
     """Show system status and diagnostics.
 
@@ -597,6 +596,8 @@ def status_command(
     - markdown: Basic status as Markdown
     - diagnostics: Comprehensive diagnostics table
     - diag-json: Full diagnostics as JSON
+
+    When --verbose is used with table format, automatically shows comprehensive diagnostics.
     """
     # Get app context with user config
     app_ctx: AppContext = ctx.obj
@@ -607,20 +608,24 @@ def status_command(
     # Get icon mode setting from app context
     icon_mode = app_ctx.icon_mode
 
-    # Format and display based on format option
-    if format.lower() == "json":
+    # Format and display based on output_format option
+    if output_format.lower() == "json":
         _format_status_json(data)
-    elif format.lower() in ("markdown", "md"):
+    elif output_format.lower() in ("markdown", "md"):
         _format_status_markdown(data, icon_mode)
-    elif format.lower() == "table":
-        _format_status_table(data, icon_mode)
-    elif format.lower() in ("diagnostics", "diag"):
+    elif output_format.lower() == "table":
+        # Use comprehensive diagnostics if verbose is enabled
+        if verbose:
+            _format_diagnostics_table(data, icon_mode)
+        else:
+            _format_status_table(data, icon_mode)
+    elif output_format.lower() in ("diagnostics", "diag"):
         _format_diagnostics_table(data, icon_mode)
-    elif format.lower() in ("diag-json", "diagnostics-json"):
+    elif output_format.lower() in ("diag-json", "diagnostics-json"):
         _format_diagnostics_json(data)
     else:
         print(
-            f"Error: Unknown format '{format}'. Supported formats: table, json, markdown, diagnostics, diag-json"
+            f"Error: Unknown format '{output_format}'. Supported formats: table, json, markdown, diagnostics, diag-json"
         )
         raise typer.Exit(1)
 

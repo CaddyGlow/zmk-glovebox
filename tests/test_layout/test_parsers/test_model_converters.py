@@ -190,8 +190,18 @@ class TestMacroConverter:
         bindings_prop = ast_nodes.DTProperty(
             name="bindings",
             value=ast_nodes.DTValue.array(
-                ["&macro_press", "&kp", "LALT", "&macro_tap", "&kp", "TAB", "&macro_release", "&kp", "LALT"],
-                "<&macro_press &kp LALT &macro_tap &kp TAB &macro_release &kp LALT>"
+                [
+                    "&macro_press",
+                    "&kp",
+                    "LALT",
+                    "&macro_tap",
+                    "&kp",
+                    "TAB",
+                    "&macro_release",
+                    "&kp",
+                    "LALT",
+                ],
+                "<&macro_press &kp LALT &macro_tap &kp TAB &macro_release &kp LALT>",
             ),
             line=4,
         )

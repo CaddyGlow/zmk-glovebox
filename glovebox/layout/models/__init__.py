@@ -520,16 +520,15 @@ class DependencyInfo(GloveboxBaseModel):
     """Dependency tracking information for behaviors and includes."""
 
     include_dependencies: list[str] = Field(
-        default_factory=list,
-        description="List of include files this keymap depends on"
+        default_factory=list, description="List of include files this keymap depends on"
     )
     behavior_sources: dict[str, str] = Field(
         default_factory=dict,
-        description="Mapping of behavior names to their source files"
+        description="Mapping of behavior names to their source files",
     )
     unresolved_includes: list[str] = Field(
         default_factory=list,
-        description="Include paths that could not be resolved to actual files"
+        description="Include paths that could not be resolved to actual files",
     )
 
 
@@ -545,7 +544,7 @@ class KeymapMetadata(GloveboxBaseModel):
 
     # Parsing metadata
     parsing_method: str = Field(default="ast")  # "ast" or "regex"
-    parsing_mode: str = Field(default="full")   # "full", "template", "auto"
+    parsing_mode: str = Field(default="full")  # "full", "template", "auto"
     parse_timestamp: datetime = Field(default_factory=datetime.now)
     source_file: str = Field(default="")
 
@@ -554,13 +553,13 @@ class KeymapMetadata(GloveboxBaseModel):
     original_footer: str = Field(default="")  # Comments after last node
     custom_sections: dict[str, str] = Field(
         default_factory=dict,
-        description="Custom sections with their content for round-trip preservation"
+        description="Custom sections with their content for round-trip preservation",
     )
 
     # Dependency tracking (Phase 4.3)
     dependencies: DependencyInfo = Field(
         default_factory=DependencyInfo,
-        description="Dependency tracking for include files and behaviors"
+        description="Dependency tracking for include files and behaviors",
     )
 
     @field_serializer("parse_timestamp", when_used="json")
@@ -614,12 +613,12 @@ class LayoutMetadata(GloveboxBaseModel):
     keymap_metadata: KeymapMetadata = Field(
         default_factory=KeymapMetadata,
         alias="keymapMetadata",
-        description="Enhanced metadata for ZMK keymap round-trip preservation"
+        description="Enhanced metadata for ZMK keymap round-trip preservation",
     )
 
 
 class LayoutData(LayoutMetadata):
-    """Complete layout data model with Pydantic v2."""
+    """Complete layout data model following Moergo API field names with aliases."""
 
     # User behavior definitions
     hold_taps: list[HoldTapBehavior] = Field(default_factory=list, alias="holdTaps")
@@ -748,7 +747,7 @@ class LayoutData(LayoutMetadata):
             "base_version",
             "base_layout",
             "last_firmware_build",
-            # Enhanced metadata for keymap reconstruction (Phase 4.1)
+            # Enhanced metadata for full keymap reconstruction in layout parser
             "keymapMetadata",
             # Normal layout structure
             "layer_names",

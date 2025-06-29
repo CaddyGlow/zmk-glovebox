@@ -13,6 +13,7 @@ from rich.table import Table
 
 from glovebox.cli.decorators import handle_errors
 from glovebox.cli.helpers import print_error_message, print_success_message
+from glovebox.cli.helpers.parameters import OutputFormatOption
 from glovebox.cli.helpers.theme import Icons
 from glovebox.config.user_config import create_user_config
 from glovebox.core.cache import create_default_cache
@@ -130,9 +131,7 @@ def _format_timestamp(iso_timestamp: str) -> str:
 @handle_errors
 def list_sessions(
     ctx: typer.Context,
-    json_output: Annotated[
-        bool, typer.Option("--json", help="Output in JSON format")
-    ] = False,
+    output_format: OutputFormatOption = "table",
     limit: Annotated[
         int, typer.Option("--limit", "-n", help="Limit number of sessions shown")
     ] = 10,
@@ -152,10 +151,10 @@ def list_sessions(
         ]
 
         if not session_keys:
-            if not json_output:
-                console.print("[yellow]No metrics sessions found.[/yellow]")
-            else:
+            if output_format == "json":
                 print(json.dumps({"sessions": [], "total": 0}))
+            else:
+                console.print("[yellow]No metrics sessions found.[/yellow]")
             return
 
         # Get session data for each key
@@ -196,7 +195,7 @@ def list_sessions(
         if limit > 0:
             sessions = sessions[:limit]
 
-        if json_output:
+        if output_format == "json":
             output_data = {
                 "sessions": sessions,
                 "total": len(sessions),
@@ -269,9 +268,7 @@ def show_session(
             autocompletion=_complete_session_uuid,
         ),
     ],
-    json_output: Annotated[
-        bool, typer.Option("--json", help="Output in JSON format")
-    ] = False,
+    output_format: OutputFormatOption = "table",
     include_activity: Annotated[
         bool, typer.Option("--activity", help="Include activity log")
     ] = False,
@@ -304,7 +301,7 @@ def show_session(
             print_error_message(f"Invalid session data for: {session_uuid}")
             raise typer.Exit(1)
 
-        if json_output:
+        if output_format == "json":
             if not include_activity and "activity_log" in data:
                 # Remove activity log for cleaner output unless requested
                 data_copy = data.copy()
