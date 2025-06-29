@@ -72,7 +72,9 @@ class ProgressCoordinatorProtocol(Protocol):
         """Mark all builds as complete and transition to done phase."""
         ...
 
-    def complete_build_success(self, reason: str = "Build completed successfully") -> None:
+    def complete_build_success(
+        self, reason: str = "Build completed successfully"
+    ) -> None:
         """Mark build as complete regardless of current phase (for cached builds)."""
         ...
 
@@ -80,11 +82,15 @@ class ProgressCoordinatorProtocol(Protocol):
         """Update cache saving progress."""
         ...
 
-    def update_docker_verification(self, image_name: str, status: str = "verifying") -> None:
+    def update_docker_verification(
+        self, image_name: str, status: str = "verifying"
+    ) -> None:
         """Update Docker image verification progress (MoErgo specific)."""
         ...
 
-    def update_nix_build_progress(self, operation: str, status: str = "building") -> None:
+    def update_nix_build_progress(
+        self, operation: str, status: str = "building"
+    ) -> None:
         """Update Nix environment build progress (MoErgo specific)."""
         ...
 

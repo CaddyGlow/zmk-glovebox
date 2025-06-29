@@ -107,8 +107,14 @@ class FullKeymapProcessor(BaseKeymapProcessor):
             Parsed LayoutData or None if parsing fails
         """
         try:
-            # Parse content into AST using Lark parser
-            roots, parse_errors = parse_dt_lark_safe(context.keymap_content)
+            # Parse content into AST using enhanced parser for comment support
+            try:
+                from .dt_parser import parse_dt_multiple_safe
+
+                roots, parse_errors = parse_dt_multiple_safe(context.keymap_content)
+            except ImportError:
+                # Fallback to Lark parser if enhanced parser not available
+                roots, parse_errors = parse_dt_lark_safe(context.keymap_content)
 
             if parse_errors:
                 context.warnings.extend([str(error) for error in parse_errors])
@@ -138,9 +144,16 @@ class FullKeymapProcessor(BaseKeymapProcessor):
                 )
 
             # Convert and populate behaviors
-            converted_behaviors = (
-                self.section_extractor.model_converter.convert_behaviors(behaviors_dict)
-            )
+            if hasattr(
+                self.section_extractor.behavior_extractor, "extract_behaviors_as_models"
+            ):
+                # Already converted to behavior models, use directly
+                converted_behaviors = behaviors_dict
+            else:
+                # Convert from raw behavior nodes to models
+                converted_behaviors = (
+                    self.section_extractor.model_converter.convert_behaviors(behaviors_dict)
+                )
             self._populate_behaviors_in_layout(layout_data, converted_behaviors)
 
             # Populate keymap metadata for round-trip preservation
@@ -196,11 +209,23 @@ class FullKeymapProcessor(BaseKeymapProcessor):
         Returns:
             Tuple of (behaviors_dict, metadata_dict)
         """
-        return (
-            self.section_extractor.behavior_extractor.extract_behaviors_with_metadata(
+        # Use enhanced behavior extraction if available
+        if hasattr(
+            self.section_extractor.behavior_extractor, "extract_behaviors_as_models"
+        ):
+            behavior_models, metadata = (
+                self.section_extractor.behavior_extractor.extract_behaviors_as_models(
+                    roots, content
+                )
+            )
+            # Convert behavior models back to the expected format for compatibility
+            behaviors_dict = behavior_models
+            return behaviors_dict, metadata
+        else:
+            # Fallback to legacy method
+            return self.section_extractor.behavior_extractor.extract_behaviors_with_metadata(
                 roots, content
             )
-        )
 
     def _populate_behaviors_in_layout(
         self, layout_data: LayoutData, converted_behaviors: dict[str, object]
@@ -350,21 +375,28 @@ class TemplateAwareProcessor(BaseKeymapProcessor):
 
                 if roots:
                     # Extract global comments metadata
-                    _, metadata_dict = self.section_extractor.behavior_extractor.extract_behaviors_with_metadata(
-                        roots, context.keymap_content
+                    _, metadata_dict = (
+                        self.section_extractor.behavior_extractor.extract_behaviors_with_metadata(
+                            roots, context.keymap_content
+                        )
                     )
 
                     # Set global comments on model converters if available
                     if metadata_dict and "comments" in metadata_dict:
                         self._set_global_comments_on_converters(
-                            self.section_extractor.model_converter, metadata_dict["comments"]
+                            self.section_extractor.model_converter,
+                            metadata_dict["comments"],
                         )
                     else:
-                        self.logger.debug("No comments found in metadata_dict for template mode")
+                        self.logger.debug(
+                            "No comments found in metadata_dict for template mode"
+                        )
             except Exception as e:
                 exc_info = self.logger.isEnabledFor(logging.DEBUG)
                 self.logger.warning(
-                    "Failed to extract global comments for template mode: %s", e, exc_info=exc_info
+                    "Failed to extract global comments for template mode: %s",
+                    e,
+                    exc_info=exc_info,
                 )
 
             # Extract sections using hybrid approach
@@ -538,6 +570,25 @@ def create_full_keymap_processor(
     )
 
 
+def create_full_keymap_processor_with_comments(
+    template_adapter: "TemplateAdapterProtocol | None" = None,
+) -> FullKeymapProcessor:
+    """Create full keymap processor with AST converter for comment support.
+
+    Args:
+        template_adapter: Optional template adapter
+
+    Returns:
+        Configured FullKeymapProcessor instance with comment support
+    """
+    from .section_extractor import create_section_extractor_with_ast_converter
+
+    return FullKeymapProcessor(
+        section_extractor=create_section_extractor_with_ast_converter(),
+        template_adapter=template_adapter,
+    )
+
+
 def create_template_aware_processor(
     section_extractor: "SectionExtractorProtocol | None" = None,
     template_adapter: "TemplateAdapterProtocol | None" = None,
@@ -553,5 +604,24 @@ def create_template_aware_processor(
     """
     return TemplateAwareProcessor(
         section_extractor=section_extractor,
+        template_adapter=template_adapter,
+    )
+
+
+def create_template_aware_processor_with_comments(
+    template_adapter: "TemplateAdapterProtocol | None" = None,
+) -> TemplateAwareProcessor:
+    """Create template-aware processor with AST converter for comment support.
+
+    Args:
+        template_adapter: Optional template adapter
+
+    Returns:
+        Configured TemplateAwareProcessor instance with comment support
+    """
+    from .section_extractor import create_section_extractor_with_ast_converter
+
+    return TemplateAwareProcessor(
+        section_extractor=create_section_extractor_with_ast_converter(),
         template_adapter=template_adapter,
     )

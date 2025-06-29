@@ -744,6 +744,10 @@ def firmware_compile(
         # Clean up temporary build directory if --output was not provided
         temp_cleanup_needed = output is None
 
+        # Clean up progress display FIRST before showing results
+        if progress_callback and hasattr(progress_callback, "cleanup"):
+            progress_callback.cleanup()
+
         if result.success:
             # Track successful compilation
             firmware_counter.labels("compile", "success").inc()
@@ -759,10 +763,6 @@ def firmware_compile(
 
             # Format and display results
             _format_compilation_output(result, output_format, build_output_dir)
-
-        # Clean up progress display after all processing is complete
-        if progress_callback and hasattr(progress_callback, "cleanup"):
-            progress_callback.cleanup()
 
         # Clean up temporary build directory if needed
         if temp_cleanup_needed and build_output_dir.exists():

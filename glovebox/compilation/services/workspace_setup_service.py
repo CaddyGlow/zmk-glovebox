@@ -168,7 +168,9 @@ class WorkspaceSetupService:
                 self.logger.info("Successfully restored workspace from cache")
 
                 # Mark cache restoration as successful in progress coordinator
-                if progress_coordinator and hasattr(progress_coordinator, 'update_cache_progress'):
+                if progress_coordinator and hasattr(
+                    progress_coordinator, "update_cache_progress"
+                ):
                     progress_coordinator.update_cache_progress(
                         "completed", 100, 100, "Cache restoration completed", "success"
                     )
@@ -181,9 +183,15 @@ class WorkspaceSetupService:
                 )
 
                 # Mark cache restoration as failed in progress coordinator
-                if progress_coordinator and hasattr(progress_coordinator, 'update_cache_progress'):
+                if progress_coordinator and hasattr(
+                    progress_coordinator, "update_cache_progress"
+                ):
                     progress_coordinator.update_cache_progress(
-                        "failed", 0, 100, f"Cache restoration failed: {str(e)[:50]}", "failed"
+                        "failed",
+                        0,
+                        100,
+                        f"Cache restoration failed: {str(e)[:50]}",
+                        "failed",
                     )
 
                 shutil.rmtree(workspace_path, ignore_errors=True)
@@ -221,7 +229,7 @@ class WorkspaceSetupService:
                     current=copy_progress.bytes_copied or 0,
                     total=copy_progress.total_bytes or 100,
                     description=copy_progress.current_file,
-                    status="in_progress"
+                    status="in_progress",
                 )
 
         self.logger.info("Restoring workspace from cache: %s", cached_workspace)

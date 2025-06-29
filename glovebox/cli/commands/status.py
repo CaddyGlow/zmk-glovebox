@@ -28,10 +28,6 @@ def _collect_status_data(user_config: "UserConfig | None" = None) -> dict[str, A
     return full_diagnostics
 
 
-
-
-
-
 def _format_diagnostics_table(data: dict[str, Any], icon_mode: str = "emoji") -> None:
     """Format comprehensive diagnostics data as Rich tables."""
     from glovebox.cli.helpers.theme import Icons
@@ -61,7 +57,6 @@ def _format_diagnostics_table(data: dict[str, Any], icon_mode: str = "emoji") ->
 
     # Configuration Diagnostics
     _print_config_diagnostics_table(console, data.get("configuration", {}), icon_mode)
-
 
 
 def _print_system_diagnostics_table(
@@ -161,7 +156,11 @@ def _print_system_diagnostics_table(
             swap_details = f"{memory_info['swap_used_gb']} GB used / {swap_total} GB total ({swap_usage_percent}%)"
             system_table.add_row("Swap", swap_status, swap_details)
         else:
-            system_table.add_row("Swap", f"{Icons.get_icon('INFO', icon_mode)} No swap", "Swap not configured")
+            system_table.add_row(
+                "Swap",
+                f"{Icons.get_icon('INFO', icon_mode)} No swap",
+                "Swap not configured",
+            )
     elif "error" in memory_info:
         error_icon = Icons.get_icon("ERROR", icon_mode)
         system_table.add_row("Memory", f"{error_icon} Error", memory_info["error"])
@@ -233,7 +232,9 @@ def _print_docker_diagnostics_table(
             if has_update:
                 latest_ver = version_info.get("latest_version", "unknown")
                 details = f"v{current_ver} (update to v{latest_ver} available)"
-                status_display = Icons.format_with_icon("WARNING", "Update available", icon_mode)
+                status_display = Icons.format_with_icon(
+                    "WARNING", "Update available", icon_mode
+                )
             elif version_info.get("check_disabled", False):
                 details = f"v{current_ver} (version checks disabled)"
                 status_display = base_status
@@ -430,7 +431,6 @@ def _print_config_diagnostics_table(
     console.print()
 
 
-
 @handle_errors
 def status_command(
     ctx: typer.Context,
@@ -469,7 +469,9 @@ def status_command(
         output = formatter.format(data, "text")
         print(output)
     else:
-        print(f"Error: Unknown format '{output_format}'. Supported formats: table, json, text")
+        print(
+            f"Error: Unknown format '{output_format}'. Supported formats: table, json, text"
+        )
         raise typer.Exit(1)
 
 

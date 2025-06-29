@@ -131,7 +131,9 @@ class BuildResult(GloveboxBaseModel):
 
         return True
 
-    def set_success_messages(self, compilation_strategy: str, was_cached: bool = False) -> None:
+    def set_success_messages(
+        self, compilation_strategy: str, was_cached: bool = False
+    ) -> None:
         """Set unified success messages based on compilation strategy and cache status.
 
         Args:
@@ -147,23 +149,27 @@ class BuildResult(GloveboxBaseModel):
         if was_cached:
             cache_msg = "Used cached build result"
             if uf2_count > 0:
-                self.messages = [f"{cache_msg} • Generated {uf2_count} firmware file{'s' if uf2_count != 1 else ''}"]
+                self.messages = [
+                    f"{cache_msg} • Generated {uf2_count} firmware file{'s' if uf2_count != 1 else ''}"
+                ]
             else:
                 self.messages = [cache_msg]
         else:
             if uf2_count > 0:
-                self.messages = [f"Generated {uf2_count} firmware file{'s' if uf2_count != 1 else ''}"]
+                self.messages = [
+                    f"Generated {uf2_count} firmware file{'s' if uf2_count != 1 else ''}"
+                ]
             else:
                 self.messages = ["Build completed successfully"]
 
-        # Add file details for better user feedback
+        # Add file details with full paths for better user feedback
         if uf2_count > 0:
-            file_names = [f.name for f in self.output_files.uf2_files]
+            file_paths = [str(f) for f in self.output_files.uf2_files]
             if uf2_count <= 3:  # Show individual files for small counts
-                self.messages.extend(f"  • {name}" for name in file_names)
+                self.messages.extend(f"  • {path}" for path in file_paths)
             else:
                 # Show first few files and count for many files
-                self.messages.extend(f"  • {name}" for name in file_names[:2])
+                self.messages.extend(f"  • {path}" for path in file_paths[:2])
                 self.messages.append(f"  • ... and {uf2_count - 2} more files")
 
 

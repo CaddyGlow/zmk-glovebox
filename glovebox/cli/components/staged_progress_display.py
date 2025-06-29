@@ -199,11 +199,12 @@ class StagedCompilationProgressDisplay:
         """Worker thread for staged progress display updates."""
         last_progress: CompilationProgress | None = None
         last_update_time = 0
+        last_display_hash: str | None = None
 
         with Live(
             Text("Initializing build...", style="cyan"),
             console=self.console,
-            refresh_per_second=2,  # Reduce refresh rate to prevent display issues
+            refresh_per_second=1,  # Reduce refresh rate further to prevent conflicts
             transient=False,
             auto_refresh=True,
         ) as live:
@@ -211,12 +212,22 @@ class StagedCompilationProgressDisplay:
                 try:
                     # Get the latest progress update (non-blocking)
                     progress_data = self.progress_queue.get(timeout=0.5)
+
+                    # Skip duplicate updates based on phase and progress to prevent panel conflicts
+                    current_display_hash = f"{progress_data.compilation_phase}_{progress_data.overall_progress_percent}_{progress_data.current_board}_{progress_data.boards_completed}"
+                    if current_display_hash == last_display_hash:
+                        continue
+
                     last_progress = progress_data
                     self.current_progress = progress_data
+                    last_display_hash = current_display_hash
 
-                    # Throttle updates to prevent display flashing (max 2 updates per second)
+                    # Throttle updates to prevent display flashing (max 1 update per second)
+                    # But allow immediate updates for completion states
                     current_time = time.time()
-                    if current_time - last_update_time < 0.5:
+                    is_completion_state = progress_data.compilation_phase in ["done", "completed", "finished", "success"]
+
+                    if not is_completion_state and current_time - last_update_time < 1.0:
                         continue
 
                     last_update_time = current_time
@@ -233,10 +244,7 @@ class StagedCompilationProgressDisplay:
                     self.console.print(f"[red]Display error: {e}")
                     continue
 
-        # Final update if we have progress data
-        if last_progress is not None:
-            final_display = self._create_staged_display(last_progress)
-            self.console.print(final_display)
+        # Do not print final display to avoid duplication - the Live display already shows the final state
 
 
 def create_staged_compilation_progress_display(

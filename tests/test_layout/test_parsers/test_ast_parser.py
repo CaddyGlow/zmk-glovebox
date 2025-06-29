@@ -512,7 +512,7 @@ class TestComplexDeviceTreeStructures:
                     label = "CUSTOM";
                 };
                 #endif
-                
+
                 regular_behavior {
                     compatible = "zmk,behavior-hold-tap";
                     label = "REGULAR";
@@ -663,7 +663,7 @@ class TestMultipleRootParsing:
         };
 
         / {
-            compatible = "test,device2"; 
+            compatible = "test,device2";
             node2 {
                 label = "NODE2";
             };

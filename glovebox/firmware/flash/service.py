@@ -381,7 +381,10 @@ class FlashService:
         """
         try:
             flasher = flasher_registry.create_method(
-                "usb", config, file_adapter=self.file_adapter, usb_adapter=self.usb_adapter
+                "usb",
+                config,
+                file_adapter=self.file_adapter,
+                usb_adapter=self.usb_adapter,
             )
             # Check if flasher is available
             if hasattr(flasher, "check_available") and not flasher.check_available():

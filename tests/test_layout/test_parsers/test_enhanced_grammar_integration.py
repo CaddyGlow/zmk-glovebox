@@ -13,7 +13,7 @@ class TestEnhancedGrammarIntegration:
         content = """
         #if __has_include(<dt-bindings/zmk/rgb_colors.h>)
         #include <dt-bindings/zmk/rgb_colors.h>
-        
+
         #define RED_RGB  RGB_COLOR_HSB(0,100,50)
         #if defined(RED) || defined(RED_RGB) || \\
             defined(R)
@@ -21,15 +21,15 @@ class TestEnhancedGrammarIntegration:
         #endif
         #define RED &ug RED_RGB
         #endif
-        
+
         #if OPERATING_SYSTEM == 'M'
         #define OS_SPECIFIC_KEY &kp LCMD
-        #elif OPERATING_SYSTEM == 'L'  
+        #elif OPERATING_SYSTEM == 'L'
         #define OS_SPECIFIC_KEY &kp LCTRL
         #else
         #define OS_SPECIFIC_KEY &kp LWIN
         #endif
-        
+
         / {
             behaviors {
                 custom_behavior {
@@ -39,7 +39,7 @@ class TestEnhancedGrammarIntegration:
                     flavor = tap_preferred;
                 };
             };
-            
+
             keymap {
                 layer {
                     bindings = <&kp Q &OS_SPECIFIC_KEY>;
@@ -86,10 +86,10 @@ class TestEnhancedGrammarIntegration:
             defined(COLOR_E)
         #define MULTI_COLOR_SUPPORT true
         #endif
-        
+
         #define COMPLEX_MACRO_WITH_CONTINUATION \\
             &some_behavior_reference PARAM1 PARAM2
-        
+
         / {
             node {
                 property = "value";
@@ -107,11 +107,11 @@ class TestEnhancedGrammarIntegration:
         """Test various include statement formats."""
         content = """
         #include <behaviors.dtsi>
-        #include "custom_behaviors.dtsi" 
+        #include "custom_behaviors.dtsi"
         #include <dt-bindings/zmk/keys.h>
         #include <dt-bindings/zmk/bt.h>
         #include "local/path/file.h"
-        
+
         / {
             node {
                 property = "value";
@@ -165,15 +165,15 @@ class TestEnhancedGrammarIntegration:
         #if __has_include(<dt-bindings/zmk/rgb_colors.h>)
         #include <dt-bindings/zmk/rgb_colors.h>
         #endif
-        
+
         #if __has_include("local_config.h")
         #include "local_config.h"
         #endif
-        
+
         #if defined(FEATURE_A) && __has_include(<optional_feature.h>)
         #define FEATURE_A_ENABLED
         #endif
-        
+
         / {
             node {
                 property = "value";
@@ -199,7 +199,7 @@ class TestEnhancedGrammarIntegration:
         #else
         #define OS_MODIFIER &kp LALT
         #endif
-        
+
         / {
             keymap {
                 layer {
@@ -223,18 +223,18 @@ class TestEnhancedGrammarIntegration:
             defined(GREEN) || defined(BLUE)
         #error "Color conflict detected!"
         #endif
-        
+
         #if __has_include(<dt-bindings/zmk/rgb_colors.h>)
         #include <dt-bindings/zmk/rgb_colors.h>
         #define RED &ug RED_RGB
         #endif
-        
+
         #if OPERATING_SYSTEM == 'M'
-        #define CMD_KEY &kp LCMD  
+        #define CMD_KEY &kp LCMD
         #else
         #define CMD_KEY &kp LCTRL
         #endif
-        
+
         / {
             behaviors {
                 custom_ht: custom_hold_tap {
@@ -245,10 +245,10 @@ class TestEnhancedGrammarIntegration:
                     bindings = <&kp>, <&kp>;
                 };
             };
-            
+
             keymap {
                 compatible = "zmk,keymap";
-                
+
                 default_layer {
                     bindings = <
                         &kp Q     &kp W     &kp E

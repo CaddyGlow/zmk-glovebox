@@ -47,7 +47,9 @@ class BehaviorParser:
 
         return behaviors
 
-    def _extract_comment_for_definition(self, lines: list[str], start_index: int) -> str:
+    def _extract_comment_for_definition(
+        self, lines: list[str], start_index: int
+    ) -> str:
         """Extract comment above a behavior definition.
 
         Args:

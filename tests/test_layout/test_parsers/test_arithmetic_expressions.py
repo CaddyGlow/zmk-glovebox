@@ -114,7 +114,7 @@ class TestArithmeticExpressions:
         #define INDEX_HOLDING_TIME (TAPPING_RESOLUTION + 20)
         #define MIDDY_HOLDING_TIME (TAPPING_RESOLUTION + 60)
         #define PINKY_HOLDING_TIME (TAPPING_RESOLUTION + 110)
-        
+
         / {
             behaviors {
                 custom_ht: custom_hold_tap {
@@ -163,10 +163,10 @@ class TestArithmeticExpressions:
         #ifndef TAPPING_RESOLUTION
         #define TAPPING_RESOLUTION ((6 - DIFFICULTY_LEVEL) * 100)
         #endif
-        
+
         #define HOMEY_HOLDING_TIME (TAPPING_RESOLUTION + 90)
         #define INDEX_HOLDING_TIME (TAPPING_RESOLUTION + 20)
-        
+
         / {
             behaviors {
                 homey_behavior {

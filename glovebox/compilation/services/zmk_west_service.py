@@ -237,7 +237,11 @@ class ZmkWestService(CompilationServiceProtocol):
                         "cache_restoration", "Restoring cached build"
                     )
                     progress_coordinator.update_cache_progress(
-                        "restoring", 50, 100, "Loading cached build artifacts", "in_progress"
+                        "restoring",
+                        50,
+                        100,
+                        "Loading cached build artifacts",
+                        "in_progress",
                     )
 
                 self.logger.info(
@@ -256,7 +260,12 @@ class ZmkWestService(CompilationServiceProtocol):
                         "completed", 100, 100, "Cache restoration completed", "success"
                     )
                     # Signal overall build completion for cached builds
-                    progress_coordinator.complete_build_success("Used cached build result")
+                    progress_coordinator.complete_build_success(
+                        "Used cached build result"
+                    )
+                    # Small delay to ensure progress update is processed
+                    import time
+                    time.sleep(0.1)
 
                 result = BuildResult(
                     success=True,
@@ -411,6 +420,10 @@ class ZmkWestService(CompilationServiceProtocol):
                     )
                 except Exception as e:
                     self.logger.warning("Failed to create build-info.json: %s", e)
+
+            # Signal completion to progress coordinator
+            if progress_coordinator:
+                progress_coordinator.complete_all_builds()
 
             build_result = BuildResult(
                 success=True,

@@ -651,8 +651,12 @@ class ModelConverter:
         # Since line proximity doesn't work well in template mode due to section extraction,
         # we'll try to match comments that contain the node name or similar keywords
         if hasattr(self, "_global_comments") and self._global_comments:
-            node_name_clean = node.name.replace("_v1_TKZ", "").replace("_v2_TKZ", "").replace("_v1B_TKZ", "")
-            
+            node_name_clean = (
+                node.name.replace("_v1_TKZ", "")
+                .replace("_v2_TKZ", "")
+                .replace("_v1B_TKZ", "")
+            )
+
             # Look for comments that mention this behavior
             for comment_data in self._global_comments:
                 comment_text = comment_data.get("text", "")
@@ -669,10 +673,15 @@ class ModelConverter:
                             node_name_clean.lower(),
                             node.name.lower(),
                         ]
-                        
+
                         # Add specific keyword matching for common behavior patterns
-                        if "autoshift" in node.name.lower() or "as_" in node.name.lower():
-                            node_keywords.extend(["autoshift", "auto shift", "auto-shift"])
+                        if (
+                            "autoshift" in node.name.lower()
+                            or "as_" in node.name.lower()
+                        ):
+                            node_keywords.extend(
+                                ["autoshift", "auto shift", "auto-shift"]
+                            )
                         if "hrm" in node.name.lower():
                             node_keywords.extend(["hrm", "home row", "homerow"])
                         if "caps" in node.name.lower():
@@ -685,7 +694,7 @@ class ModelConverter:
                             node_keywords.extend(["select"])
                         if "extend" in node.name.lower():
                             node_keywords.extend(["extend"])
-                        
+
                         # Check if any keyword matches
                         for keyword in node_keywords:
                             if keyword and keyword in comment_lower:

@@ -43,7 +43,7 @@ class ZmkWestProgressCoordinator(BaseCompilationProgressCoordinator):
             "cache_restoration",
             "west_update",
             "building",
-            "cache_saving"
+            "cache_saving",
         ]
 
     def update_repository_progress(self, repository_name: str) -> None:
@@ -104,14 +104,18 @@ class MoergoNixProgressCoordinator(BaseCompilationProgressCoordinator):
             "docker_verification",
             "nix_build",
             "building",
-            "cache_saving"
+            "cache_saving",
         ]
 
-    def update_docker_verification(self, image_name: str, status: str = "verifying") -> None:
+    def update_docker_verification(
+        self, image_name: str, status: str = "verifying"
+    ) -> None:
         """Update Docker image verification progress."""
         try:
             if self.current_phase != "docker_verification":
-                self.transition_to_phase("docker_verification", "Verifying Docker image")
+                self.transition_to_phase(
+                    "docker_verification", "Verifying Docker image"
+                )
 
             self.docker_image_name = image_name
             self.current_repository = f"Verifying {image_name}: {status}"
@@ -120,9 +124,13 @@ class MoergoNixProgressCoordinator(BaseCompilationProgressCoordinator):
             self._send_progress_update()
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Failed to update docker verification: %s", e, exc_info=exc_info)
+            logger.error(
+                "Failed to update docker verification: %s", e, exc_info=exc_info
+            )
 
-    def update_nix_build_progress(self, operation: str, status: str = "building") -> None:
+    def update_nix_build_progress(
+        self, operation: str, status: str = "building"
+    ) -> None:
         """Update Nix environment build progress."""
         try:
             if self.current_phase != "nix_build":
@@ -134,11 +142,15 @@ class MoergoNixProgressCoordinator(BaseCompilationProgressCoordinator):
             self._send_progress_update()
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Failed to update nix build progress: %s", e, exc_info=exc_info)
+            logger.error(
+                "Failed to update nix build progress: %s", e, exc_info=exc_info
+            )
 
     def update_repository_progress(self, repository_name: str) -> None:
         """MoErgo doesn't use west repositories, so this is a no-op."""
-        logger.debug("MoErgo strategy doesn't use repository downloads: %s", repository_name)
+        logger.debug(
+            "MoErgo strategy doesn't use repository downloads: %s", repository_name
+        )
 
 
 class NoOpProgressCoordinator(ProgressCoordinatorProtocol):
@@ -218,7 +230,9 @@ class NoOpProgressCoordinator(ProgressCoordinatorProtocol):
         """No-op build completion."""
         pass
 
-    def complete_build_success(self, reason: str = "Build completed successfully") -> None:
+    def complete_build_success(
+        self, reason: str = "Build completed successfully"
+    ) -> None:
         """No-op build success completion."""
         pass
 
@@ -226,11 +240,15 @@ class NoOpProgressCoordinator(ProgressCoordinatorProtocol):
         """No-op cache saving update."""
         pass
 
-    def update_docker_verification(self, image_name: str, status: str = "verifying") -> None:
+    def update_docker_verification(
+        self, image_name: str, status: str = "verifying"
+    ) -> None:
         """No-op docker verification update."""
         pass
 
-    def update_nix_build_progress(self, operation: str, status: str = "building") -> None:
+    def update_nix_build_progress(
+        self, operation: str, status: str = "building"
+    ) -> None:
         """No-op nix build progress update."""
         pass
 

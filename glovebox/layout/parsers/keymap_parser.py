@@ -15,7 +15,9 @@ from .dt_parser import parse_dt_lark_safe
 from .keymap_converters import ModelFactory
 from .keymap_processors import (
     create_full_keymap_processor,
+    create_full_keymap_processor_with_comments,
     create_template_aware_processor,
+    create_template_aware_processor_with_comments,
 )
 from .parsing_models import ParsingContext, get_default_extraction_config
 
@@ -81,10 +83,10 @@ class ZmkKeymapParser:
 
         # Initialize processors for different parsing modes
         self.processors = processors or {
-            ParsingMode.FULL: create_full_keymap_processor(
+            ParsingMode.FULL: create_full_keymap_processor_with_comments(
                 template_adapter=self.template_adapter
             ),
-            ParsingMode.TEMPLATE_AWARE: create_template_aware_processor(
+            ParsingMode.TEMPLATE_AWARE: create_template_aware_processor_with_comments(
                 template_adapter=self.template_adapter
             ),
         }

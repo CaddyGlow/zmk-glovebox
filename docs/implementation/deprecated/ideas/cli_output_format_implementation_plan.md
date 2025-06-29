@@ -96,8 +96,8 @@ def layout_show(
 **File:** `glovebox/cli/commands/firmware.py`
 
 Updates needed:
-- Add `OutputFormatOption` to `list-devices` and other output commands
-- `firmware list-devices`: Rich table showing device info, mount status
+- Add `OutputFormatOption` to `devices` and other output commands
+- `firmware devices`: Rich table showing device info, mount status
 - `firmware compile/flash`: Enhanced progress and result formatting
 - Consistent error/success messaging with Rich
 

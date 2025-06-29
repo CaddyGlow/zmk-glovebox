@@ -13,11 +13,11 @@ from glovebox.cli.components.progress_coordinators import (
     ZmkWestProgressCoordinator,
     create_progress_coordinator,
 )
-from glovebox.protocols.progress_coordinator_protocol import ProgressCoordinatorProtocol
 from glovebox.core.file_operations import (
     CompilationProgress,
     CompilationProgressCallback,
 )
+from glovebox.protocols.progress_coordinator_protocol import ProgressCoordinatorProtocol
 
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,7 @@ class UnifiedCompilationProgressCoordinator(ZmkWestProgressCoordinator):
     This class provides backward compatibility with the original implementation
     while delegating to the new ZmkWestProgressCoordinator base class.
     """
+
     pass
 
 
