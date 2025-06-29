@@ -96,6 +96,32 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
             return line
 
         try:
+            # Enhanced initialization detection for cache vs west init
+            if self.progress_coordinator.current_phase == "initialization":
+                init_type = self._detect_initialization_type(line_stripped)
+                package_count = self._extract_package_count(line_stripped)
+
+                if init_type == "cache_restore":
+                    self.progress_coordinator.transition_to_phase(
+                        "cache_restoration", "Restoring cached workspace"
+                    )
+                    self.progress_coordinator.update_cache_progress(
+                        "restoring", 25, 100, "Loading cached workspace"
+                    )
+                elif init_type == "west_init":
+                    # Show warning about long duration for west init
+                    if package_count:
+                        desc = f"Downloading dependencies ({package_count} packages - this may take 15+ minutes)"
+                    else:
+                        desc = "Downloading dependencies (west update - this may take 15+ minutes)"
+
+                    self.progress_coordinator.transition_to_phase(
+                        "west_update", desc
+                    )
+                    if package_count:
+                        # Update total repositories count with actual package count
+                        self.progress_coordinator.total_repositories = package_count
+
             # Check for build start patterns to detect phase transitions
             build_match = self.build_start_pattern.search(line_stripped)
             build_progress_match = self.build_progress_pattern.search(line_stripped)
@@ -238,9 +264,85 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
             # west specific
             "Updating",
             "From https://",
+            # West init patterns for package counting
+            "west init",
+            "Initialized",
+            "Importing projects",
+            "projects:",
+            "revision",
+            "manifest:",
+            "Cloning",
+            "repository",
+            # Cache operations
+            "Restoring",
+            "cached",
+            "cache",
         ]
 
         return any(pattern in line for pattern in interesting_patterns)
+
+    def _detect_initialization_type(self, line: str) -> str | None:
+        """Detect whether the initialization is cache restore or west init.
+
+        Returns:
+            "cache_restore" if cache is being restored
+            "west_init" if west init is being performed
+            None if neither is detected
+        """
+        line_lower = line.lower()
+
+        # Cache restore patterns
+        cache_patterns = [
+            "restoring cached",
+            "copying cached",
+            "cache restoration",
+            "cached workspace",
+            "loading cached",
+        ]
+
+        # West init patterns
+        west_init_patterns = [
+            "west init",
+            "initialized empty",
+            "importing projects",
+            "manifest repository",
+            "cloning into",
+            "--- zmk (path: zmk, revision:",
+            "updating zmk",
+        ]
+
+        if any(pattern in line_lower for pattern in cache_patterns):
+            return "cache_restore"
+        elif any(pattern in line_lower for pattern in west_init_patterns):
+            return "west_init"
+
+        return None
+
+    def _extract_package_count(self, line: str) -> int | None:
+        """Extract package/project count from west init output.
+
+        Returns:
+            Number of packages/projects if detected, None otherwise
+        """
+        # Look for patterns like "=== (X projects) ===" or "X projects:"
+        import re
+
+        patterns = [
+            r"=== \((\d+) projects?\) ===",
+            r"(\d+) projects?:",
+            r"importing (\d+) projects?",
+            r"processing (\d+) projects?",
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, line, re.IGNORECASE)
+            if match:
+                try:
+                    return int(match.group(1))
+                except (ValueError, IndexError):
+                    continue
+
+        return None
 
     def get_current_progress(self) -> CompilationProgress:
         """Get the current progress state from the coordinator.

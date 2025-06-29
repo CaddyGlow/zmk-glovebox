@@ -16,7 +16,6 @@ from glovebox.utils.diagnostics import (
     collect_all_diagnostics,
     collect_config_diagnostics,
     collect_docker_diagnostics,
-    collect_layout_diagnostics,
     collect_system_diagnostics,
     collect_usb_flash_diagnostics,
 )

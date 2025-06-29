@@ -24,8 +24,8 @@ from glovebox.protocols import FileAdapterProtocol, MetricsProtocol
 
 
 if TYPE_CHECKING:
-    from glovebox.cli.components.unified_progress_coordinator import (
-        UnifiedCompilationProgressCoordinator,
+    from glovebox.protocols.progress_coordinator_protocol import (
+        ProgressCoordinatorProtocol,
     )
 
 
@@ -54,7 +54,7 @@ class WorkspaceSetupService:
             [ZmkCompilationConfig], tuple[Path | None, bool, str | None]
         ],
         progress_callback: CompilationProgressCallback | None = None,
-        progress_coordinator: "UnifiedCompilationProgressCoordinator | None" = None,
+        progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
     ) -> tuple[Path | None, bool, str | None]:
         """Get cached workspace or create new one.
 
@@ -166,12 +166,26 @@ class WorkspaceSetupService:
                     )
 
                 self.logger.info("Successfully restored workspace from cache")
+
+                # Mark cache restoration as successful in progress coordinator
+                if progress_coordinator and hasattr(progress_coordinator, 'update_cache_progress'):
+                    progress_coordinator.update_cache_progress(
+                        "completed", 100, 100, "Cache restoration completed", "success"
+                    )
+
                 return workspace_path, True, cache_type
             except Exception as e:
                 exc_info = self.logger.isEnabledFor(logging.DEBUG)
                 self.logger.error(
                     "Failed to use cached workspace: %s", e, exc_info=exc_info
                 )
+
+                # Mark cache restoration as failed in progress coordinator
+                if progress_coordinator and hasattr(progress_coordinator, 'update_cache_progress'):
+                    progress_coordinator.update_cache_progress(
+                        "failed", 0, 100, f"Cache restoration failed: {str(e)[:50]}", "failed"
+                    )
+
                 shutil.rmtree(workspace_path, ignore_errors=True)
                 if cache_operations:
                     cache_operations.labels("restoration", "failed").inc()
@@ -207,6 +221,7 @@ class WorkspaceSetupService:
                     current=copy_progress.bytes_copied or 0,
                     total=copy_progress.total_bytes or 100,
                     description=copy_progress.current_file,
+                    status="in_progress"
                 )
 
         self.logger.info("Restoring workspace from cache: %s", cached_workspace)

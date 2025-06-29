@@ -65,7 +65,17 @@ if TYPE_CHECKING:
 
 
 class ZmkWestService(CompilationServiceProtocol):
-    """Ultra-simplified ZMK config compilation service with intelligent caching."""
+    """ZMK config compilation service with workspace and build caching.
+
+    This service uses the ZMK docker image to compile with the west framwork.
+
+    Workspace folder are created in tmp folder for the time of the operation
+
+    3 layers of caching are used implemented in ZmkCacheService:
+        * Workspace: using the reposition name for key
+        * Workspace repo+branch: using the repo+branch name for key
+        * Build: Build output folder using repository, branch, hash of keymap and kconfig file.
+    """
 
     def __init__(
         self,
@@ -219,6 +229,7 @@ class ZmkWestService(CompilationServiceProtocol):
                         total_boards=1,  # Not relevant for cache restoration
                         board_names=[],
                         total_repositories=1,  # Single cache operation
+                        strategy="zmk_west",
                     )
 
                     # Show cache restoration progress
@@ -226,7 +237,7 @@ class ZmkWestService(CompilationServiceProtocol):
                         "cache_restoration", "Restoring cached build"
                     )
                     progress_coordinator.update_cache_progress(
-                        "restoring", 50, 100, "Loading cached build artifacts"
+                        "restoring", 50, 100, "Loading cached build artifacts", "in_progress"
                     )
 
                 self.logger.info(
@@ -235,21 +246,25 @@ class ZmkWestService(CompilationServiceProtocol):
 
                 if progress_coordinator:
                     progress_coordinator.update_cache_progress(
-                        "copying", 75, 100, "Copying cached artifacts"
+                        "copying", 75, 100, "Copying cached artifacts", "in_progress"
                     )
 
                 output_files = self._collect_files(cached_build_path, output_dir)
 
                 if progress_coordinator:
                     progress_coordinator.update_cache_progress(
-                        "completed", 100, 100, "Cache restoration completed"
+                        "completed", 100, 100, "Cache restoration completed", "success"
                     )
+                    # Signal overall build completion for cached builds
+                    progress_coordinator.complete_build_success("Used cached build result")
 
-                return BuildResult(
+                result = BuildResult(
                     success=True,
                     output_files=output_files,
-                    messages=["Used cached build result"],
                 )
+                # Set unified success messages for cached builds
+                result.set_success_messages("zmk_west", was_cached=True)
+                return result
 
             if cache_operations:
                 cache_operations.labels("lookup", "miss").inc()
@@ -269,6 +284,7 @@ class ZmkWestService(CompilationServiceProtocol):
                     total_boards=board_info["total_boards"],
                     board_names=board_info["board_names"],
                     total_repositories=39,  # Default repository count
+                    strategy="zmk_west",
                 )
 
             # Try to use cached workspace
@@ -399,8 +415,9 @@ class ZmkWestService(CompilationServiceProtocol):
             build_result = BuildResult(
                 success=True,
                 output_files=output_files,
-                messages=[f"Generated {len(output_files.uf2_files)} firmware files"],
             )
+            # Set unified success messages for fresh builds
+            build_result.set_success_messages("zmk_west", was_cached=False)
 
             # Cache the successful build result
             self.cache_service.cache_build_result(

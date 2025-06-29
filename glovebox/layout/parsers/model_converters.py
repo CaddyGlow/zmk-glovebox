@@ -647,39 +647,49 @@ class ModelConverter:
                 )
                 return desc
 
-        # Try to find description from global metadata comments by line proximity
+        # Try to find description from global metadata comments by content matching
+        # Since line proximity doesn't work well in template mode due to section extraction,
+        # we'll try to match comments that contain the node name or similar keywords
         if hasattr(self, "_global_comments") and self._global_comments:
-            node_line = getattr(node, "line", 0)
-
-            if node_line > 0:
-                # Look for comments within a few lines before this node
-                best_comment = None
-                best_distance = float("inf")
-
-                for comment_data in self._global_comments:
-                    comment_line = comment_data.get("line", 0)
-                    comment_text = comment_data.get("text", "")
-                    distance = node_line - comment_line
-
-                    # Check if comment is 1-10 lines before the node
-                    if 0 < distance <= 10 and comment_text.startswith("//"):
-                        if distance < best_distance:
-                            desc = comment_text[2:].strip()
-                            if (
-                                desc
-                                and not desc.startswith("TODO")
-                                and not desc.startswith("FIXME")
-                            ):
-                                best_comment = desc
-                                best_distance = distance
-
-                if best_comment:
-                    self.logger.debug(
-                        "Using nearby comment as description for %s: %s",
-                        node.name,
-                        best_comment[:50],
-                    )
-                    return best_comment
+            node_name_clean = node.name.replace("_v1_TKZ", "").replace("_v2_TKZ", "").replace("_v1B_TKZ", "")
+            
+            # Look for comments that mention this behavior
+            for comment_data in self._global_comments:
+                comment_text = comment_data.get("text", "")
+                if comment_text.startswith("//"):
+                    desc = comment_text[2:].strip()
+                    if (
+                        desc
+                        and not desc.startswith("TODO")
+                        and not desc.startswith("FIXME")
+                    ):
+                        # Check if comment mentions this behavior name or similar keywords
+                        comment_lower = desc.lower()
+                        node_keywords = [
+                            node_name_clean.lower(),
+                            node.name.lower(),
+                        ]
+                        
+                        # Add specific keyword matching for common behavior patterns
+                        if "autoshift" in node.name.lower() or "as_" in node.name.lower():
+                            node_keywords.extend(["autoshift", "auto shift", "auto-shift"])
+                        if "hrm" in node.name.lower():
+                            node_keywords.extend(["hrm", "home row", "homerow"])
+                        if "caps" in node.name.lower():
+                            node_keywords.extend(["caps", "capsword", "caps word"])
+                        if "combo" in node.name.lower():
+                            node_keywords.extend(["combo"])
+                        if "cursor" in node.name.lower() or "cur_" in node.name.lower():
+                            node_keywords.extend(["cursor"])
+                        if "select" in node.name.lower():
+                            node_keywords.extend(["select"])
+                        if "extend" in node.name.lower():
+                            node_keywords.extend(["extend"])
+                        
+                        # Check if any keyword matches
+                        for keyword in node_keywords:
+                            if keyword and keyword in comment_lower:
+                                return desc
 
         # Fall back to label property
         description = self._get_string_property(node, "label")

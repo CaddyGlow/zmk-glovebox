@@ -14,7 +14,7 @@ from glovebox.config.flash_methods import USBFlashConfig
 from glovebox.firmware.flash.device_wait_service import create_device_wait_service
 from glovebox.firmware.flash.models import FlashResult
 from glovebox.firmware.method_registry import flasher_registry
-from glovebox.protocols import FileAdapterProtocol
+from glovebox.protocols import FileAdapterProtocol, USBAdapterProtocol
 from glovebox.protocols.flash_protocols import FlasherProtocol
 
 
@@ -32,6 +32,7 @@ class FlashService:
         self,
         file_adapter: FileAdapterProtocol,
         device_wait_service: "DeviceWaitService",
+        usb_adapter: USBAdapterProtocol,
         loglevel: str = "INFO",
     ):
         """Initialize flash service with dependencies.
@@ -39,12 +40,14 @@ class FlashService:
         Args:
             file_adapter: File adapter for file operations
             device_wait_service: Device wait service for device operations
+            usb_adapter: USB adapter for device operations
             loglevel: Log level for flash operations
         """
         self._service_name = "FlashService"
         self._service_version = "2.0.0"
         self.file_adapter = file_adapter
         self.device_wait_service = device_wait_service
+        self.usb_adapter = usb_adapter
         self.loglevel = loglevel
 
     def flash_from_file(
@@ -378,7 +381,7 @@ class FlashService:
         """
         try:
             flasher = flasher_registry.create_method(
-                "usb", config, file_adapter=self.file_adapter
+                "usb", config, file_adapter=self.file_adapter, usb_adapter=self.usb_adapter
             )
             # Check if flasher is available
             if hasattr(flasher, "check_available") and not flasher.check_available():
@@ -391,6 +394,7 @@ class FlashService:
 def create_flash_service(
     file_adapter: FileAdapterProtocol,
     device_wait_service: "DeviceWaitService",
+    usb_adapter: USBAdapterProtocol | None = None,
     loglevel: str = "INFO",
 ) -> FlashService:
     """Create a FlashService instance for USB firmware flashing.
@@ -398,13 +402,35 @@ def create_flash_service(
     Args:
         file_adapter: Required FileAdapterProtocol instance for file operations
         device_wait_service: Required DeviceWaitService for device operations
+        usb_adapter: USB adapter for device operations (creates default if None)
         loglevel: Log level for flash operations
 
     Returns:
         Configured FlashService instance
     """
+    if usb_adapter is None:
+        # Import here to avoid circular import when using default
+        from glovebox.adapters.usb_adapter import create_usb_adapter
+        from glovebox.firmware.flash.device_detector import (
+            MountPointCache,
+            create_device_detector,
+        )
+        from glovebox.firmware.flash.flash_operations import create_flash_operations
+        from glovebox.firmware.flash.os_adapters import create_flash_os_adapter
+        from glovebox.firmware.flash.usb_monitor import create_usb_monitor
+
+        # Create required dependencies for USB adapter
+        os_adapter = create_flash_os_adapter()
+        flash_operations = create_flash_operations(os_adapter)
+        mount_cache = MountPointCache()
+        usb_monitor = create_usb_monitor()
+        detector = create_device_detector(usb_monitor, mount_cache)
+
+        usb_adapter = create_usb_adapter(flash_operations, detector)
+
     return FlashService(
         file_adapter=file_adapter,
         device_wait_service=device_wait_service,
+        usb_adapter=usb_adapter,
         loglevel=loglevel,
     )

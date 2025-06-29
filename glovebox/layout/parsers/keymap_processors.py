@@ -84,6 +84,11 @@ class BaseKeymapProcessor:
                 converter = getattr(model_converter, converter_name)
                 if hasattr(converter, "_global_comments"):
                     converter._global_comments = global_comments
+                else:
+                    # Force set the attribute even if it doesn't exist
+                    converter._global_comments = global_comments
+            else:
+                pass
 
 
 class FullKeymapProcessor(BaseKeymapProcessor):
@@ -333,6 +338,34 @@ class TemplateAwareProcessor(BaseKeymapProcessor):
             extraction_config = (
                 context.extraction_config or get_default_extraction_config()
             )
+
+            # Extract global comments for model converters BEFORE section processing
+            # Parse content into AST to get global comments (similar to FullKeymapProcessor)
+            try:
+                from .dt_parser import parse_dt_lark_safe
+
+                roots, parse_errors = parse_dt_lark_safe(context.keymap_content)
+                if parse_errors:
+                    context.warnings.extend([str(error) for error in parse_errors])
+
+                if roots:
+                    # Extract global comments metadata
+                    _, metadata_dict = self.section_extractor.behavior_extractor.extract_behaviors_with_metadata(
+                        roots, context.keymap_content
+                    )
+
+                    # Set global comments on model converters if available
+                    if metadata_dict and "comments" in metadata_dict:
+                        self._set_global_comments_on_converters(
+                            self.section_extractor.model_converter, metadata_dict["comments"]
+                        )
+                    else:
+                        self.logger.debug("No comments found in metadata_dict for template mode")
+            except Exception as e:
+                exc_info = self.logger.isEnabledFor(logging.DEBUG)
+                self.logger.warning(
+                    "Failed to extract global comments for template mode: %s", e, exc_info=exc_info
+                )
 
             # Extract sections using hybrid approach
             extracted_sections = self.section_extractor.extract_sections(

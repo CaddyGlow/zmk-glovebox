@@ -1,8 +1,7 @@
 """Status command for Glovebox CLI."""
 
-import json
 import logging
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Any
 
 import typer
 from rich.console import Console
@@ -12,6 +11,7 @@ from rich.text import Text
 
 from glovebox.cli.app import AppContext
 from glovebox.cli.decorators import handle_errors
+from glovebox.cli.helpers.output_formatter import OutputFormatter
 from glovebox.cli.helpers.parameters import OutputFormatOption
 from glovebox.config.user_config import UserConfig
 from glovebox.utils.diagnostics import collect_all_diagnostics
@@ -28,166 +28,8 @@ def _collect_status_data(user_config: "UserConfig | None" = None) -> dict[str, A
     return full_diagnostics
 
 
-def _format_status_json(data: dict[str, Any]) -> None:
-    """Format status data as JSON."""
-    print(json.dumps(data, indent=2))
 
 
-def _format_diagnostics_json(data: dict[str, Any]) -> None:
-    """Format full diagnostics data as JSON."""
-    full_diagnostics = data.get("full_diagnostics", {})
-    print(json.dumps(full_diagnostics, indent=2))
-
-
-def _format_status_markdown(data: dict[str, Any], icon_mode: str = "emoji") -> None:
-    """Format status data as Markdown."""
-    from glovebox.cli.helpers.theme import Icons
-
-    print(f"# Glovebox Status v{data['version']}")
-    print()
-
-    # Dependencies section
-    link_icon = Icons.get_icon("ARROW", icon_mode)
-    print(f"## {link_icon} System Dependencies")
-    print()
-    print("| Tool | Status | Version |")
-    print("|------|--------|---------|")
-
-    for name, info in data["dependencies"].items():
-        success_icon = Icons.get_icon("SUCCESS", icon_mode)
-        error_icon = Icons.get_icon("ERROR", icon_mode)
-        status_icon = (
-            f"{success_icon} Available"
-            if info["status"] == "available"
-            else f"{error_icon} Missing"
-        )
-        print(f"| {name} | {status_icon} | {info['version']} |")
-
-    print()
-
-    # Keyboards section
-    keyboard_icon = Icons.get_icon("KEYBOARD", icon_mode)
-    print(f"## {keyboard_icon} Available Keyboards ({len(data['keyboards'])})")
-    print()
-
-    if data["keyboards"]:
-        for kb in data["keyboards"]:
-            print(f"### {kb['name']}")
-
-            if kb["status"] == "error":
-                error_icon = Icons.get_icon("ERROR", icon_mode)
-                print(f"{error_icon} **Error**: {kb['error']}")
-            elif kb["firmwares"]:
-                print(f"**Firmwares**: {len(kb['firmwares'])} available")
-                print()
-                for fw in kb["firmwares"]:
-                    print(f"- **{fw['name']}**: {fw['description']}")
-            else:
-                print("No firmwares available")
-
-            print()
-    else:
-        print("No keyboards found")
-        print()
-
-    # Environment section
-    system_icon = Icons.get_icon("SYSTEM", icon_mode)
-    print(f"## {system_icon} Environment Information")
-    print()
-    print("| Property | Value |")
-    print("|----------|-------|")
-
-    for key, value in data["environment"].items():
-        formatted_key = key.replace("_", " ").title()
-        print(f"| {formatted_key} | {value} |")
-
-
-def _format_status_table(data: dict[str, Any], icon_mode: str = "emoji") -> None:
-    """Format status data as Rich tables (default format)."""
-    from glovebox.cli.helpers.theme import Icons
-
-    console = Console()
-
-    # Header with version
-    header = Text(f"Glovebox v{data['version']}", style="bold magenta")
-    firmware_icon = Icons.get_icon("FIRMWARE", icon_mode)
-    console.print(
-        Panel(header, title=f"{firmware_icon} Glovebox Status", border_style="blue")
-    )
-    console.print()
-
-    # Dependencies table
-    link_icon = Icons.get_icon("ARROW", icon_mode)
-    deps_table = Table(
-        title=f"{link_icon} System Dependencies",
-        show_header=True,
-        header_style="bold blue",
-    )
-    deps_table.add_column("Tool", style="cyan", no_wrap=True)
-    deps_table.add_column("Status", style="bold")
-    deps_table.add_column("Version", style="dim")
-
-    docker_info = data.get("docker", {})
-    if docker_info.get("availability") == "available":
-        version = docker_info.get("version_info", {}).get("client", "Unknown")
-        status_text = Icons.format_with_icon("SUCCESS", "Available", icon_mode)
-        deps_table.add_row("Docker", status_text, version)
-    else:
-        status_text = Icons.format_with_icon("ERROR", "Missing", icon_mode)
-        deps_table.add_row("Docker", status_text, "Not found")
-
-    console.print(deps_table)
-    console.print()
-
-    # Keyboards table
-    config_info = data.get("configuration", {})
-    keyboard_status = config_info.get("keyboard_discovery", {}).get(
-        "keyboard_status", []
-    )
-    if keyboard_status:
-        keyboard_icon = Icons.get_icon("KEYBOARD", icon_mode)
-        keyboards_table = Table(
-            title=f"{keyboard_icon} Available Keyboards ({len(keyboard_status)})",
-            show_header=True,
-            header_style="bold green",
-        )
-        keyboards_table.add_column("Keyboard", style="cyan", no_wrap=True)
-        keyboards_table.add_column("Status", style="yellow")
-        keyboards_table.add_column("Description", style="dim")
-
-        for kb in keyboard_status:
-            name = kb.get("name", "Unknown")
-            if kb.get("status") == "error":
-                status_text = Icons.format_with_icon("ERROR", "Error", icon_mode)
-                keyboards_table.add_row(
-                    name, status_text, kb.get("error", "Unknown error")
-                )
-            else:
-                status_text = Icons.format_with_icon("SUCCESS", "Available", icon_mode)
-                keyboards_table.add_row(name, status_text, "")
-
-        console.print(keyboards_table)
-    else:
-        console.print("[yellow]No keyboards found[/yellow]")
-
-    console.print()
-
-    # Environment table
-    system_icon = Icons.get_icon("SYSTEM", icon_mode)
-    env_table = Table(
-        title=f"{system_icon} Environment Information",
-        show_header=True,
-        header_style="bold cyan",
-    )
-    env_table.add_column("Property", style="cyan", no_wrap=True)
-    env_table.add_column("Value", style="white")
-
-    env_info = data.get("system", {}).get("environment", {})
-    for key, value in env_info.items():
-        formatted_key = key.replace("_", " ").title()
-        env_table.add_row(formatted_key, str(value))
-
-    console.print(env_table)
 
 
 def _format_diagnostics_table(data: dict[str, Any], icon_mode: str = "emoji") -> None:
@@ -220,8 +62,6 @@ def _format_diagnostics_table(data: dict[str, Any], icon_mode: str = "emoji") ->
     # Configuration Diagnostics
     _print_config_diagnostics_table(console, data.get("configuration", {}), icon_mode)
 
-    # Layout Diagnostics
-    _print_layout_diagnostics_table(console, data.get("layout", {}), icon_mode)
 
 
 def _print_system_diagnostics_table(
@@ -254,6 +94,11 @@ def _print_system_diagnostics_table(
         f"{success_icon} Available",
         f"v{environment.get('python_version', 'Unknown')}",
     )
+    system_table.add_row(
+        "Package Install Path",
+        f"{success_icon} Available",
+        environment.get("package_install_path", "Unknown"),
+    )
 
     # File system checks
     for key in ["temp_directory", "config_directory", "working_directory"]:
@@ -281,6 +126,45 @@ def _print_system_diagnostics_table(
             status = f"{status_icon} Low space"
         details = f"{disk_space['available_gb']} GB available"
         system_table.add_row("Disk Space", status, details)
+
+    # Memory information
+    memory_info = system_data.get("memory", {})
+    if "total_gb" in memory_info and "error" not in memory_info:
+        usage_percent = memory_info.get("usage_percent", 0)
+        if usage_percent < 80:
+            status_icon = Icons.get_icon("SUCCESS", icon_mode)
+            status = f"{status_icon} Available"
+        elif usage_percent < 90:
+            status_icon = Icons.get_icon("WARNING", icon_mode)
+            status = f"{status_icon} High usage"
+        else:
+            status_icon = Icons.get_icon("ERROR", icon_mode)
+            status = f"{status_icon} Critical"
+
+        details = f"{memory_info['used_gb']} GB used / {memory_info['total_gb']} GB total ({usage_percent}%)"
+        system_table.add_row("Memory", status, details)
+
+        # Swap information (if swap is configured)
+        swap_total = memory_info.get("swap_total_gb", 0)
+        if swap_total > 0:
+            swap_usage_percent = memory_info.get("swap_usage_percent", 0)
+            if swap_usage_percent < 50:
+                swap_status_icon = Icons.get_icon("SUCCESS", icon_mode)
+                swap_status = f"{swap_status_icon} Available"
+            elif swap_usage_percent < 80:
+                swap_status_icon = Icons.get_icon("WARNING", icon_mode)
+                swap_status = f"{swap_status_icon} High usage"
+            else:
+                swap_status_icon = Icons.get_icon("ERROR", icon_mode)
+                swap_status = f"{swap_status_icon} Critical"
+
+            swap_details = f"{memory_info['swap_used_gb']} GB used / {swap_total} GB total ({swap_usage_percent}%)"
+            system_table.add_row("Swap", swap_status, swap_details)
+        else:
+            system_table.add_row("Swap", f"{Icons.get_icon('INFO', icon_mode)} No swap", "Swap not configured")
+    elif "error" in memory_info:
+        error_icon = Icons.get_icon("ERROR", icon_mode)
+        system_table.add_row("Memory", f"{error_icon} Error", memory_info["error"])
 
     console.print(system_table)
     console.print()
@@ -327,17 +211,42 @@ def _print_docker_diagnostics_table(
 
     docker_table.add_row("Docker Daemon", daemon_display, server_version)
 
-    # Docker images
+    # Docker images with version information
     images = docker_data.get("images", {})
+    image_versions = docker_data.get("image_versions", {})
+
     for image_name, image_status in images.items():
         if image_status == "available":
-            status_display = Icons.format_with_icon("SUCCESS", "Available", icon_mode)
+            base_status = Icons.format_with_icon("SUCCESS", "Available", icon_mode)
         elif image_status == "missing":
-            status_display = Icons.format_with_icon("ERROR", "Missing", icon_mode)
+            base_status = Icons.format_with_icon("ERROR", "Missing", icon_mode)
         else:
-            status_display = Icons.format_with_icon("WARNING", "Error", icon_mode)
+            base_status = Icons.format_with_icon("WARNING", "Error", icon_mode)
 
-        docker_table.add_row(f"Image: {image_name}", status_display, "")
+        # Add version information if available
+        details = ""
+        if image_name in image_versions and image_status == "available":
+            version_info = image_versions[image_name]
+            current_ver = version_info.get("current_version", "unknown")
+            has_update = version_info.get("has_update", False)
+
+            if has_update:
+                latest_ver = version_info.get("latest_version", "unknown")
+                details = f"v{current_ver} (update to v{latest_ver} available)"
+                status_display = Icons.format_with_icon("WARNING", "Update available", icon_mode)
+            elif version_info.get("check_disabled", False):
+                details = f"v{current_ver} (version checks disabled)"
+                status_display = base_status
+            elif "error" in version_info:
+                details = f"v{current_ver} (version check failed)"
+                status_display = base_status
+            else:
+                details = f"v{current_ver} (up to date)"
+                status_display = base_status
+        else:
+            status_display = base_status
+
+        docker_table.add_row(f"Image: {image_name}", status_display, details)
 
     # Docker capabilities
     capabilities = docker_data.get("capabilities", {})
@@ -521,83 +430,20 @@ def _print_config_diagnostics_table(
     console.print()
 
 
-def _print_layout_diagnostics_table(
-    console: Console, layout_data: dict[str, Any], icon_mode: str = "emoji"
-) -> None:
-    """Print layout processing diagnostics table."""
-    from glovebox.cli.helpers.theme import Icons
-
-    layout_icon = Icons.get_icon("LAYOUT", icon_mode)
-    layout_table = Table(
-        title=f"{layout_icon} Layout Processing",
-        show_header=True,
-        header_style="bold magenta",
-    )
-    layout_table.add_column("Component", style="cyan", no_wrap=True)
-    layout_table.add_column("Status", style="bold")
-    layout_table.add_column("Details", style="dim")
-
-    processing = layout_data.get("processing", {})
-    zmk_generation = layout_data.get("zmk_generation", {})
-
-    # Processing capabilities
-    for component, status in processing.items():
-        if component.endswith("_error"):
-            continue
-
-        if status == "available":
-            status_display = Icons.format_with_icon("SUCCESS", "Available", icon_mode)
-            details = "Working correctly"
-        elif status == "error":
-            status_display = Icons.format_with_icon("ERROR", "Error", icon_mode)
-            error_key = f"{component}_error"
-            details = layout_data.get(error_key, "Unknown error")
-        else:
-            status_display = Icons.format_with_icon("WARNING", "Unknown", icon_mode)
-            details = "Status unclear"
-
-        layout_table.add_row(
-            component.replace("_", " ").title(), status_display, details
-        )
-
-    # ZMK generation capabilities
-    for component, status in zmk_generation.items():
-        if status == "available":
-            status_display = Icons.format_with_icon("SUCCESS", "Available", icon_mode)
-            details = "Ready for generation"
-        elif status == "error":
-            status_display = Icons.format_with_icon("ERROR", "Error", icon_mode)
-            details = "Generation not available"
-        else:
-            status_display = Icons.format_with_icon("WARNING", "Unknown", icon_mode)
-            details = "Status unclear"
-
-        layout_table.add_row(
-            f"ZMK {component.replace('_', ' ').title()}", status_display, details
-        )
-
-    console.print(layout_table)
-    console.print()
-
 
 @handle_errors
 def status_command(
     ctx: typer.Context,
     output_format: OutputFormatOption = "table",
-    verbose: Annotated[
-        bool, typer.Option("--verbose", "-v", help="Show comprehensive diagnostics")
-    ] = False,
 ) -> None:
     """Show system status and diagnostics.
 
     Formats:
-    - table: Basic status table (default)
-    - json: Basic status as JSON
-    - markdown: Basic status as Markdown
-    - diagnostics: Comprehensive diagnostics table
-    - diag-json: Full diagnostics as JSON
+    - table: Comprehensive diagnostics table (default)
+    - json: Status data as JSON
+    - text: Simple text output
 
-    When --verbose is used with table format, automatically shows comprehensive diagnostics.
+    Shows comprehensive diagnostics for better troubleshooting.
     """
     # Get app context with user config
     app_ctx: AppContext = ctx.obj
@@ -608,25 +454,22 @@ def status_command(
     # Get icon mode setting from app context
     icon_mode = app_ctx.icon_mode
 
+    # Use the standard OutputFormatter utility
+    formatter = OutputFormatter()
+
     # Format and display based on output_format option
     if output_format.lower() == "json":
-        _format_status_json(data)
-    elif output_format.lower() in ("markdown", "md"):
-        _format_status_markdown(data, icon_mode)
+        output = formatter.format(data, "json")
+        print(output)
     elif output_format.lower() == "table":
-        # Use comprehensive diagnostics if verbose is enabled
-        if verbose:
-            _format_diagnostics_table(data, icon_mode)
-        else:
-            _format_status_table(data, icon_mode)
-    elif output_format.lower() in ("diagnostics", "diag"):
+        # Use Rich table format for comprehensive diagnostics
         _format_diagnostics_table(data, icon_mode)
-    elif output_format.lower() in ("diag-json", "diagnostics-json"):
-        _format_diagnostics_json(data)
+    elif output_format.lower() == "text":
+        # Simple text output using the formatter
+        output = formatter.format(data, "text")
+        print(output)
     else:
-        print(
-            f"Error: Unknown format '{output_format}'. Supported formats: table, json, markdown, diagnostics, diag-json"
-        )
+        print(f"Error: Unknown format '{output_format}'. Supported formats: table, json, text")
         raise typer.Exit(1)
 
 

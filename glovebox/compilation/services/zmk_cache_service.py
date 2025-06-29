@@ -17,8 +17,8 @@ from glovebox.protocols import MetricsProtocol
 
 
 if TYPE_CHECKING:
-    from glovebox.cli.components.unified_progress_coordinator import (
-        UnifiedCompilationProgressCoordinator,
+    from glovebox.protocols.progress_coordinator_protocol import (
+        ProgressCoordinatorProtocol,
     )
 
 
@@ -136,7 +136,7 @@ class ZmkCacheService:
         self,
         workspace_path: Path,
         config: ZmkCompilationConfig,
-        progress_coordinator: "UnifiedCompilationProgressCoordinator | None" = None,
+        progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
     ) -> None:
         """Cache workspace for future use with new dual-level strategy."""
         if not config.use_cache or not self.workspace_cache_service:
@@ -267,7 +267,7 @@ class ZmkCacheService:
         self,
         workspace_path: Path,
         config: ZmkCompilationConfig,
-        progress_coordinator: "UnifiedCompilationProgressCoordinator | None" = None,
+        progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
     ) -> None:
         """Cache workspace for repo+branch only (used when upgrading from repo-only cache)."""
         if not config.use_cache or not self.workspace_cache_service:
@@ -335,7 +335,7 @@ class ZmkCacheService:
         config_file: Path,
         config: ZmkCompilationConfig,
         workspace_path: Path,
-        progress_coordinator: "UnifiedCompilationProgressCoordinator | None" = None,
+        progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
     ) -> None:
         """Cache successful build directory for future use."""
         if not config.use_cache or not self.build_cache_service:

@@ -198,20 +198,27 @@ class MoergoNixService(CompilationServiceProtocol):
                 total_boards=board_info["total_boards"],
                 board_names=board_info["board_names"],
                 total_repositories=1,  # MoErgo doesn't use west update
+                strategy="moergo_nix",
             )
 
-            # Start with Docker setup phase
+            # Start with initialization phase
             progress_coordinator.transition_to_phase(
-                "docker_setup", "Setting up Docker environment"
+                "initialization", "Setting up build environment"
             )
 
             # Check/build Docker image with progress
+            progress_coordinator.transition_to_phase(
+                "docker_verification", "Verifying Docker image"
+            )
+            # Set the docker image name for display
+            progress_coordinator.docker_image_name = config.image
+
             if not self._ensure_docker_image(config, progress_coordinator):
                 return BuildResult(success=False, errors=["Docker image setup failed"])
 
             # Setup workspace with progress
             progress_coordinator.transition_to_phase(
-                "workspace_setup", "Setting up MoErgo workspace"
+                "nix_build", "Building Nix environment"
             )
             workspace_path = self._setup_workspace(
                 keyboard_profile=keyboard_profile,
@@ -234,7 +241,7 @@ class MoergoNixService(CompilationServiceProtocol):
 
             # Collect artifacts with progress
             progress_coordinator.transition_to_phase(
-                "collecting", "Collecting build artifacts"
+                "cache_saving", "Generating .uf2 files"
             )
             output_files = self._collect_files(
                 workspace_path.host_path, output_dir, progress_coordinator
@@ -294,11 +301,13 @@ class MoergoNixService(CompilationServiceProtocol):
                 f"Build completed successfully - {len(output_files.uf2_files)} firmware files generated",
             )
 
-            return BuildResult(
+            result = BuildResult(
                 success=True,
                 output_files=output_files,
-                messages=[f"Generated {len(output_files.uf2_files)} firmware files"],
             )
+            # Set unified success messages for MoErgo builds
+            result.set_success_messages("moergo_nix", was_cached=False)
+            return result
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
@@ -655,7 +664,9 @@ class MoergoNixService(CompilationServiceProtocol):
             )
 
             # Generate version-based image tag using glovebox version
-            versioned_image_name, versioned_tag = self._get_versioned_image_name(config)
+            base_image_name = config.image.split(":")[0]
+            versioned_tag = config.get_versioned_docker_tag()
+            versioned_image_name = base_image_name
 
             # Check if versioned image exists
             if self.docker_adapter.image_exists(versioned_image_name, versioned_tag):
@@ -740,24 +751,7 @@ class MoergoNixService(CompilationServiceProtocol):
             self.logger.error("Error ensuring Docker image: %s", e)
             return False
 
-    def _get_versioned_image_name(
-        self, config: MoergoCompilationConfig
-    ) -> tuple[str, str]:
-        """Generate versioned image name and tag based on glovebox version."""
-        # Get base image name (remove any existing tag)
-        base_image_name = config.image.split(":")[0]
 
-        # Get glovebox version for tagging
-        try:
-            from glovebox._version import __version__
-
-            # Convert version to valid Docker tag (replace + with -, remove invalid chars)
-            docker_tag = __version__.replace("+", "-").replace("/", "-")
-            return base_image_name, docker_tag
-        except ImportError:
-            # Fallback if version module not available
-            self.logger.warning("Could not import glovebox version, using 'latest' tag")
-            return base_image_name, "latest"
 
     def _get_keyboard_profile_for_dockerfile(self) -> "KeyboardProfile | None":
         """Get keyboard profile for accessing Dockerfile location."""

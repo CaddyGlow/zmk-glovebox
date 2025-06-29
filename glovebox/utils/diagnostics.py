@@ -1,6 +1,5 @@
 """Comprehensive diagnostic data collection for Glovebox."""
 
-import json
 import logging
 import os
 import platform
@@ -35,7 +34,18 @@ def collect_system_diagnostics() -> dict[str, Any]:
         },
         "file_system": {},
         "disk_space": {},
+        "memory": {},
     }
+
+    # Package installation path
+    try:
+        import glovebox
+
+        package_path = Path(glovebox.__file__).parent
+        diagnostics["environment"]["package_install_path"] = str(package_path)
+    except Exception as e:
+        logger.debug("Error getting package install path: %s", e)
+        diagnostics["environment"]["package_install_path"] = "unknown"
 
     # XDG directories
     try:
@@ -91,10 +101,196 @@ def collect_system_diagnostics() -> dict[str, Any]:
         logger.debug("Error getting disk usage: %s", e)
         diagnostics["disk_space"]["error"] = str(e)
 
+    # Memory and swap information
+    try:
+        if platform.system() == "Linux":
+            # Read /proc/meminfo for detailed memory information
+            meminfo_path = Path("/proc/meminfo")
+            if meminfo_path.exists():
+                meminfo = {}
+                with meminfo_path.open() as f:
+                    for line in f:
+                        if ":" in line:
+                            key, value = line.split(":", 1)
+                            # Extract numeric value (remove kB and whitespace)
+                            value_kb = int(value.strip().split()[0])
+                            meminfo[key.strip()] = value_kb
+
+                # Convert to GB and calculate useful metrics
+                total_memory_gb = round(meminfo.get("MemTotal", 0) / (1024**2), 2)
+                available_memory_gb = round(
+                    meminfo.get("MemAvailable", 0) / (1024**2), 2
+                )
+                used_memory_gb = round(
+                    (meminfo.get("MemTotal", 0) - meminfo.get("MemAvailable", 0))
+                    / (1024**2),
+                    2,
+                )
+
+                total_swap_gb = round(meminfo.get("SwapTotal", 0) / (1024**2), 2)
+                free_swap_gb = round(meminfo.get("SwapFree", 0) / (1024**2), 2)
+                used_swap_gb = round(total_swap_gb - free_swap_gb, 2)
+
+                diagnostics["memory"]["total_gb"] = total_memory_gb
+                diagnostics["memory"]["available_gb"] = available_memory_gb
+                diagnostics["memory"]["used_gb"] = used_memory_gb
+                diagnostics["memory"]["usage_percent"] = round(
+                    (used_memory_gb / total_memory_gb * 100)
+                    if total_memory_gb > 0
+                    else 0,
+                    1,
+                )
+
+                diagnostics["memory"]["swap_total_gb"] = total_swap_gb
+                diagnostics["memory"]["swap_used_gb"] = used_swap_gb
+                diagnostics["memory"]["swap_free_gb"] = free_swap_gb
+                diagnostics["memory"]["swap_usage_percent"] = round(
+                    (used_swap_gb / total_swap_gb * 100) if total_swap_gb > 0 else 0, 1
+                )
+            else:
+                diagnostics["memory"]["error"] = "/proc/meminfo not accessible"
+        else:
+            # For non-Linux systems, use psutil if available
+            try:
+                import psutil
+
+                memory = psutil.virtual_memory()
+                swap = psutil.swap_memory()
+
+                diagnostics["memory"]["total_gb"] = round(memory.total / (1024**3), 2)
+                diagnostics["memory"]["available_gb"] = round(
+                    memory.available / (1024**3), 2
+                )
+                diagnostics["memory"]["used_gb"] = round(memory.used / (1024**3), 2)
+                diagnostics["memory"]["usage_percent"] = round(memory.percent, 1)
+
+                diagnostics["memory"]["swap_total_gb"] = round(
+                    swap.total / (1024**3), 2
+                )
+                diagnostics["memory"]["swap_used_gb"] = round(swap.used / (1024**3), 2)
+                diagnostics["memory"]["swap_free_gb"] = round(swap.free / (1024**3), 2)
+                diagnostics["memory"]["swap_usage_percent"] = round(swap.percent, 1)
+            except ImportError:
+                diagnostics["memory"]["error"] = (
+                    "psutil not available for non-Linux systems"
+                )
+    except Exception as e:
+        logger.debug("Error getting memory information: %s", e)
+        diagnostics["memory"]["error"] = str(e)
+
     return diagnostics
 
 
-def collect_docker_diagnostics() -> dict[str, Any]:
+def _get_required_docker_images(user_config: "UserConfig | None" = None) -> list[str]:
+    """Extract Docker images from MoergoCompilationConfig and ZmkCompilationConfig.
+
+    Args:
+        user_config: User configuration to get keyboard paths from
+
+    Returns:
+        List of unique Docker image names from compilation configurations
+    """
+    images = set()
+
+    try:
+        # Import compilation config models
+        from glovebox.compilation.models.compilation_config import (
+            MoergoCompilationConfig,
+            ZmkCompilationConfig,
+        )
+
+        # Get default images from the compilation config models
+        zmk_config = ZmkCompilationConfig()
+        moergo_config = MoergoCompilationConfig()
+
+        # Add images from default configurations
+        if zmk_config.image:
+            images.add(zmk_config.image)
+        if moergo_config.image:
+            images.add(moergo_config.image)
+
+    except Exception as e:
+        logger.debug(
+            "Error getting Docker images from compilation configurations: %s", e
+        )
+
+    return list(images)
+
+
+def _check_docker_image_versions(
+    images: list[str], user_config: "UserConfig"
+) -> dict[str, Any]:
+    """Check Docker image versions and provide current version information.
+
+    Args:
+        images: List of Docker images to check
+        user_config: User configuration for cache and settings
+
+    Returns:
+        Dictionary with version information for each image
+    """
+    version_results = {}
+
+    # Always provide current version information from image tags
+    for image in images:
+        current_version = "latest"
+        if ":" in image:
+            current_version = image.split(":")[-1]
+
+        version_results[image] = {
+            "current_version": current_version,
+            "latest_version": "unknown",
+            "has_update": False,
+            "check_disabled": False,
+        }
+
+    # Try to get online version information for ZMK images only
+    try:
+        zmk_images = [img for img in images if "zmk" in img.lower()]
+
+        if zmk_images:
+            logger.debug("Checking online versions for ZMK images: %s", zmk_images)
+
+            # Use the existing ZMK version checker
+            from glovebox.core.cache import create_cache_from_user_config
+            from glovebox.core.version_check import ZmkVersionChecker
+
+            cache = create_cache_from_user_config(user_config, tag="version_check")
+            version_checker = ZmkVersionChecker(user_config, cache)
+
+            # Check for ZMK updates (use cached results to avoid repeated API calls)
+            version_result = version_checker.check_for_updates(
+                force=False, include_prereleases=True
+            )
+
+            # Update ZMK image results with online information
+            for image in zmk_images:
+                if image in version_results:
+                    version_results[image].update(
+                        {
+                            "latest_version": version_result.latest_version,
+                            "has_update": version_result.has_update,
+                            "check_disabled": version_result.check_disabled,
+                            "last_check": version_result.last_check.isoformat()
+                            if version_result.last_check
+                            else None,
+                        }
+                    )
+
+    except Exception as e:
+        logger.debug("Error checking online ZMK versions: %s", e)
+        # Update ZMK images with error information
+        zmk_images = [img for img in images if "zmk" in img.lower()]
+        for image in zmk_images:
+            if image in version_results:
+                version_results[image]["error"] = str(e)
+
+    return version_results
+
+
+def collect_docker_diagnostics(
+    user_config: "UserConfig | None" = None,
+) -> dict[str, Any]:
     """Collect comprehensive Docker environment diagnostics.
 
     Returns:
@@ -145,10 +341,10 @@ def collect_docker_diagnostics() -> dict[str, Any]:
             ["docker", "info"], check=True, capture_output=True, text=True, timeout=10
         )
         diagnostics["daemon_status"] = "running"
-    except subprocess.SubprocessError:
-        diagnostics["daemon_status"] = "stopped"
     except subprocess.TimeoutExpired:
         diagnostics["daemon_status"] = "timeout"
+    except subprocess.SubprocessError:
+        diagnostics["daemon_status"] = "stopped"
     except Exception as e:
         logger.debug("Error checking Docker daemon: %s", e)
         diagnostics["daemon_status"] = "error"
@@ -168,11 +364,8 @@ def collect_docker_diagnostics() -> dict[str, Any]:
             logger.debug("Error getting Docker server version: %s", e)
             diagnostics["version_info"]["server"] = "unknown"
 
-    # Check for required images
-    required_images = [
-        "moergo-zmk-build:latest",
-        "moergo-zmk-build:v25.05",
-    ]
+    # Check for required images from configuration
+    required_images = _get_required_docker_images(user_config)
 
     for image in required_images:
         try:
@@ -189,6 +382,12 @@ def collect_docker_diagnostics() -> dict[str, Any]:
         except Exception as e:
             logger.debug("Error checking image %s: %s", image, e)
             diagnostics["images"][image] = "error"
+
+    # Check image versions against online versions (if images are available)
+    if diagnostics["daemon_status"] == "running" and user_config:
+        diagnostics["image_versions"] = _check_docker_image_versions(
+            required_images, user_config
+        )
 
     # Test Docker capabilities using DockerAdapter
     if diagnostics["daemon_status"] == "running":
@@ -372,97 +571,6 @@ def collect_config_diagnostics(
     return diagnostics
 
 
-def collect_layout_diagnostics() -> dict[str, Any]:
-    """Collect layout processing and ZMK generation diagnostics.
-
-    Returns:
-        Dictionary containing layout processing capabilities, template engine
-        status, behavior registry, and ZMK generation capabilities.
-    """
-    diagnostics: dict[str, Any] = {
-        "processing": {
-            "json_parser": "available",
-            "template_engine": "unknown",
-            "behavior_registry": "unknown",
-            "component_extraction": "unknown",
-        },
-        "zmk_generation": {
-            "keymap_generation": "unknown",
-            "config_generation": "unknown",
-            "dtsi_generation": "unknown",
-        },
-    }
-
-    # Test JSON parsing (basic Python capability)
-    try:
-        json.loads('{"test": "value"}')
-        diagnostics["processing"]["json_parser"] = "available"
-    except Exception:
-        diagnostics["processing"]["json_parser"] = "error"
-
-    # Test template engine using TemplateAdapter
-    try:
-        from glovebox.adapters.template_adapter import create_template_adapter
-
-        template_adapter = create_template_adapter()
-        # Simple template test
-        result = template_adapter.render_string("Hello {{ name }}", {"name": "World"})
-        if "Hello World" in result:
-            diagnostics["processing"]["template_engine"] = "available"
-        else:
-            diagnostics["processing"]["template_engine"] = "error"
-    except Exception as e:
-        logger.debug("Error testing template engine: %s", e)
-        diagnostics["processing"]["template_engine"] = "error"
-        diagnostics["processing"]["template_error"] = str(e)
-
-    # Test layout service creation
-    try:
-        from glovebox.adapters import create_file_adapter, create_template_adapter
-        from glovebox.layout import (
-            create_behavior_registry,
-            create_grid_layout_formatter,
-            create_layout_component_service,
-            create_layout_display_service,
-            create_layout_service,
-        )
-        from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
-        from glovebox.layout.zmk_generator import ZmkFileContentGenerator
-
-        # Create all dependencies for layout service
-        file_adapter = create_file_adapter()
-        template_adapter = create_template_adapter()
-        behavior_registry = create_behavior_registry()
-        behavior_formatter = BehaviorFormatterImpl(behavior_registry)
-        dtsi_generator = ZmkFileContentGenerator(behavior_formatter)
-        layout_generator = create_grid_layout_formatter()
-        component_service = create_layout_component_service(file_adapter)
-        layout_display_service = create_layout_display_service(layout_generator)
-
-        layout_service = create_layout_service(
-            file_adapter=file_adapter,
-            template_adapter=template_adapter,
-            behavior_registry=behavior_registry,
-            component_service=component_service,
-            layout_service=layout_display_service,
-            behavior_formatter=behavior_formatter,
-            dtsi_generator=dtsi_generator,
-        )
-        diagnostics["processing"]["component_extraction"] = "available"
-        diagnostics["zmk_generation"]["keymap_generation"] = "available"
-        diagnostics["zmk_generation"]["config_generation"] = "available"
-        diagnostics["zmk_generation"]["dtsi_generation"] = "available"
-    except Exception as e:
-        logger.debug("Error creating layout service: %s", e)
-        diagnostics["processing"]["component_extraction"] = "error"
-        diagnostics["zmk_generation"]["keymap_generation"] = "error"
-        diagnostics["zmk_generation"]["config_generation"] = "error"
-        diagnostics["zmk_generation"]["dtsi_generation"] = "error"
-        diagnostics["layout_service_error"] = str(e)
-
-    return diagnostics
-
-
 def collect_all_diagnostics(user_config: "UserConfig | None" = None) -> dict[str, Any]:
     """Collect all diagnostic data in a structured format.
 
@@ -486,16 +594,14 @@ def collect_all_diagnostics(user_config: "UserConfig | None" = None) -> dict[str
         "docker": {},
         "usb_flash": {},
         "configuration": {},
-        "layout": {},
     }
 
     # Collect all diagnostic data with error handling
     collectors = [
         ("system", collect_system_diagnostics),
-        ("docker", collect_docker_diagnostics),
+        ("docker", lambda: collect_docker_diagnostics(user_config)),
         ("usb_flash", collect_usb_flash_diagnostics),
         ("configuration", lambda: collect_config_diagnostics(user_config)),
-        ("layout", collect_layout_diagnostics),
     ]
 
     for section_name, collector_func in collectors:
