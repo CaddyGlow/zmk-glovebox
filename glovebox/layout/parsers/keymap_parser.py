@@ -284,11 +284,6 @@ class ZmkKeymapParser:
                     global_comments
                 )
 
-                self.logger.debug(
-                    "Set %d global comments on all model converters for description extraction",
-                    len(global_comments),
-                )
-
             converted_behaviors = self.model_converter.convert_behaviors(behaviors_dict)
 
             # Populate layout data with converted behaviors
@@ -310,35 +305,10 @@ class ZmkKeymapParser:
             if metadata_dict:
                 # Convert metadata to proper model instances
                 comments_raw = metadata_dict.get("comments", [])
-                self.logger.debug("=== COMMENT EXTRACTION DEBUG ===")
-                self.logger.debug(
-                    "Raw comments from metadata_dict: %d", len(comments_raw)
-                )
-
-                for i, comment in enumerate(comments_raw[:5]):  # Show first 5
-                    self.logger.debug("  Comment %d: %s", i + 1, comment)
 
                 layout_data.keymap_metadata.comments = [
                     self._convert_comment_to_model(comment) for comment in comments_raw
                 ]
-
-                self.logger.debug(
-                    "Converted to KeymapComment models: %d",
-                    len(layout_data.keymap_metadata.comments),
-                )
-
-                # Show a sample of the final comments
-                for i, comment in enumerate(layout_data.keymap_metadata.comments[:3]):
-                    self.logger.debug(
-                        "  Final comment %d: Line %d [%s]: %s",
-                        i + 1,
-                        comment.line,
-                        comment.context,
-                        comment.text[:50],
-                    )
-
-                self.logger.debug("=== END COMMENT DEBUG ===")
-                self.logger.debug("")
                 layout_data.keymap_metadata.includes = [
                     self._convert_include_to_model(include)
                     for include in metadata_dict.get("includes", [])
@@ -435,7 +405,6 @@ class ZmkKeymapParser:
                 keymap_content, template_vars, result
             )
 
-            self.logger.debug("Extracted template sections %s", extracted_data)
             if extracted_data and "behaviors" in extracted_data:
                 behaviors = extracted_data["behaviors"]
                 self.logger.debug("BEHAVIORS DEBUG: %s", behaviors)
@@ -767,10 +736,10 @@ class ZmkKeymapParser:
             all_possible_vars = [
                 "custom_devicetree",
                 "input_listeners_dtsi",
-                "user_behaviors_dtsi",
-                "user_behaviors_dtsi_alt",
-                "custom_defined_behaviors",
+                "system_behaviors_dts",
+                "custom_defined_behaviors_dtsi",
                 "user_macros_dtsi",
+                "user_behaviors_dtsi",
                 "combos_dtsi",
             ]
             comment_sections = self._extract_sections_by_comment_delimiters(
