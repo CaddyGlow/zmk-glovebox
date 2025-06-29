@@ -20,11 +20,6 @@ if TYPE_CHECKING:
         def process_extracted_sections(self, sections: dict, context) -> dict: ...
         @property
         def behavior_extractor(self) -> object: ...
-        @property
-        def model_converter(self) -> "ModelConverterProtocol": ...
-
-    class ModelConverterProtocol(Protocol):
-        def convert_behaviors(self, behaviors_dict: dict) -> dict: ...
 
 
 class BaseKeymapProcessor:
@@ -58,37 +53,6 @@ class BaseKeymapProcessor:
 
         return LayoutData(keyboard=keyboard_name, title="Imported Keymap")
 
-    def _set_global_comments_on_converters(
-        self,
-        model_converter: "ModelConverterProtocol",
-        global_comments: list[dict[str, object]],
-    ) -> None:
-        """Set global comments on all converter instances.
-
-        Args:
-            model_converter: Universal model converter
-            global_comments: List of comment dictionaries
-        """
-        converter_names = [
-            "hold_tap_converter",
-            "macro_converter",
-            "combo_converter",
-            "tap_dance_converter",
-            "sticky_key_converter",
-            "caps_word_converter",
-            "mod_morph_converter",
-        ]
-
-        for converter_name in converter_names:
-            if hasattr(model_converter, converter_name):
-                converter = getattr(model_converter, converter_name)
-                if hasattr(converter, "_global_comments"):
-                    converter._global_comments = global_comments
-                else:
-                    # Force set the attribute even if it doesn't exist
-                    converter._global_comments = global_comments
-            else:
-                pass
 
 
 class FullKeymapProcessor(BaseKeymapProcessor):
@@ -137,24 +101,8 @@ class FullKeymapProcessor(BaseKeymapProcessor):
                 roots, context.keymap_content
             )
 
-            # Set global comments on converters if available
-            if metadata_dict and "comments" in metadata_dict:
-                self._set_global_comments_on_converters(
-                    self.section_extractor.model_converter, metadata_dict["comments"]
-                )
-
-            # Convert and populate behaviors
-            if hasattr(
-                self.section_extractor.behavior_extractor, "extract_behaviors_as_models"
-            ):
-                # Already converted to behavior models, use directly
-                converted_behaviors = behaviors_dict
-            else:
-                # Convert from raw behavior nodes to models
-                converted_behaviors = (
-                    self.section_extractor.model_converter.convert_behaviors(behaviors_dict)
-                )
-            self._populate_behaviors_in_layout(layout_data, converted_behaviors)
+            # Populate behaviors directly (already converted by AST converter)
+            self._populate_behaviors_in_layout(layout_data, behaviors_dict)
 
             # Populate keymap metadata for round-trip preservation
             if metadata_dict:
@@ -209,23 +157,13 @@ class FullKeymapProcessor(BaseKeymapProcessor):
         Returns:
             Tuple of (behaviors_dict, metadata_dict)
         """
-        # Use enhanced behavior extraction if available
-        if hasattr(
-            self.section_extractor.behavior_extractor, "extract_behaviors_as_models"
-        ):
-            behavior_models, metadata = (
-                self.section_extractor.behavior_extractor.extract_behaviors_as_models(
-                    roots, content
-                )
-            )
-            # Convert behavior models back to the expected format for compatibility
-            behaviors_dict = behavior_models
-            return behaviors_dict, metadata
-        else:
-            # Fallback to legacy method
-            return self.section_extractor.behavior_extractor.extract_behaviors_with_metadata(
+        # Extract behaviors using AST converter with comment support
+        behavior_models, metadata = (
+            self.section_extractor.behavior_extractor.extract_behaviors_as_models(
                 roots, content
             )
+        )
+        return behavior_models, metadata
 
     def _populate_behaviors_in_layout(
         self, layout_data: LayoutData, converted_behaviors: dict[str, object]
@@ -381,16 +319,8 @@ class TemplateAwareProcessor(BaseKeymapProcessor):
                         )
                     )
 
-                    # Set global comments on model converters if available
-                    if metadata_dict and "comments" in metadata_dict:
-                        self._set_global_comments_on_converters(
-                            self.section_extractor.model_converter,
-                            metadata_dict["comments"],
-                        )
-                    else:
-                        self.logger.debug(
-                            "No comments found in metadata_dict for template mode"
-                        )
+                    # Global comments are now handled directly by the AST converter
+                    self.logger.debug("Global comments handled by AST converter")
             except Exception as e:
                 exc_info = self.logger.isEnabledFor(logging.DEBUG)
                 self.logger.warning(
@@ -555,73 +485,47 @@ def create_full_keymap_processor(
     section_extractor: "SectionExtractorProtocol | None" = None,
     template_adapter: "TemplateAdapterProtocol | None" = None,
 ) -> FullKeymapProcessor:
-    """Create full keymap processor with dependency injection.
+    """Create full keymap processor with AST converter for comment support.
 
     Args:
-        section_extractor: Optional section extractor
+        section_extractor: Optional section extractor (creates default with comment support if None)
         template_adapter: Optional template adapter
 
     Returns:
-        Configured FullKeymapProcessor instance
+        Configured FullKeymapProcessor instance with comment support
     """
+    if section_extractor is None:
+        from .section_extractor import create_section_extractor
+        section_extractor = create_section_extractor()
+
     return FullKeymapProcessor(
         section_extractor=section_extractor,
         template_adapter=template_adapter,
     )
 
 
-def create_full_keymap_processor_with_comments(
-    template_adapter: "TemplateAdapterProtocol | None" = None,
-) -> FullKeymapProcessor:
-    """Create full keymap processor with AST converter for comment support.
-
-    Args:
-        template_adapter: Optional template adapter
-
-    Returns:
-        Configured FullKeymapProcessor instance with comment support
-    """
-    from .section_extractor import create_section_extractor_with_ast_converter
-
-    return FullKeymapProcessor(
-        section_extractor=create_section_extractor_with_ast_converter(),
-        template_adapter=template_adapter,
-    )
 
 
 def create_template_aware_processor(
     section_extractor: "SectionExtractorProtocol | None" = None,
     template_adapter: "TemplateAdapterProtocol | None" = None,
 ) -> TemplateAwareProcessor:
-    """Create template-aware processor with dependency injection.
+    """Create template-aware processor with AST converter for comment support.
 
     Args:
-        section_extractor: Optional section extractor
+        section_extractor: Optional section extractor (creates default with comment support if None)
         template_adapter: Optional template adapter
 
     Returns:
-        Configured TemplateAwareProcessor instance
+        Configured TemplateAwareProcessor instance with comment support
     """
+    if section_extractor is None:
+        from .section_extractor import create_section_extractor
+        section_extractor = create_section_extractor()
+
     return TemplateAwareProcessor(
         section_extractor=section_extractor,
         template_adapter=template_adapter,
     )
 
 
-def create_template_aware_processor_with_comments(
-    template_adapter: "TemplateAdapterProtocol | None" = None,
-) -> TemplateAwareProcessor:
-    """Create template-aware processor with AST converter for comment support.
-
-    Args:
-        template_adapter: Optional template adapter
-
-    Returns:
-        Configured TemplateAwareProcessor instance with comment support
-    """
-    from .section_extractor import create_section_extractor_with_ast_converter
-
-    return TemplateAwareProcessor(
-        section_extractor=create_section_extractor_with_ast_converter(),
-        template_adapter=template_adapter,
-    )

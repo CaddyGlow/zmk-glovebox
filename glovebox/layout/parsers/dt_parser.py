@@ -1,7 +1,6 @@
 """Recursive descent parser for device tree source files."""
 
 import logging
-from typing import Any
 
 from glovebox.layout.parsers.ast_nodes import (
     DTComment,

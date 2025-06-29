@@ -293,34 +293,6 @@ class HoldTapBehavior(GloveboxBaseModel):
     tap_behavior: str | None = Field(default=None, alias="tapBehavior")
     hold_behavior: str | None = Field(default=None, alias="holdBehavior")
 
-    @field_validator("bindings", mode="before")
-    @classmethod
-    def convert_legacy_bindings(cls, v: Any) -> Any:
-        """Convert legacy LayoutBinding objects to strings for backward compatibility.
-
-        This handles JSON data that still uses the old format:
-        bindings: [{"value": "&kp", "params": []}, {"value": "&lt", "params": []}]
-
-        And converts it to the new format:
-        bindings: ["&kp", "&lt"]
-        """
-        if isinstance(v, list):
-            result = []
-            for item in v:
-                if isinstance(item, str):
-                    # Already a string, keep as-is
-                    result.append(item)
-                elif isinstance(item, dict) and "value" in item:
-                    # Legacy LayoutBinding dict format, extract value
-                    result.append(item["value"])
-                elif hasattr(item, "value"):
-                    # Legacy LayoutBinding object, extract value
-                    result.append(item.value)
-                else:
-                    # Unknown format, try to convert to string
-                    result.append(str(item))
-            return result
-        return v
 
     @field_validator("flavor")
     @classmethod

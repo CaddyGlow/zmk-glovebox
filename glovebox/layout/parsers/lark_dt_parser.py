@@ -2,7 +2,6 @@
 
 import logging
 from pathlib import Path
-from typing import Any
 
 from lark import Lark, Token, Tree, UnexpectedCharacters, UnexpectedEOF, UnexpectedToken
 
@@ -1103,7 +1102,6 @@ class LarkDTParser:
         Returns:
             Preprocessed content with line continuations resolved
         """
-        import re
 
         lines = content.split("\n")
         processed_lines = []
