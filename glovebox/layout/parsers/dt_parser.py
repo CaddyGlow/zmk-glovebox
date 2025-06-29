@@ -132,10 +132,6 @@ class DTParser:
         root = DTNode("", line=self._current_line(), column=self._current_column())
 
         # Handle preprocessor directives and comments at top level
-        if self.comments:
-            logger.debug("Adding %d comments to root node", len(self.comments))
-            for comment in self.comments:
-                logger.debug("Root comment: %s", comment.text)
         root.comments.extend(self.comments)
         self.comments = []
 
@@ -182,14 +178,6 @@ class DTParser:
             # Collect comments and preprocessor directives
             if self._consume_comments_and_preprocessor():
                 # Store comments as pending instead of immediately attaching
-                if self.comments:
-                    logger.debug(
-                        "Collected %d pending comments in node %s",
-                        len(self.comments),
-                        node.name,
-                    )
-                    for comment in self.comments:
-                        logger.debug("Pending comment: %s", comment.text)
                 pending_comments.extend(self.comments)
                 self.comments = []
                 continue
@@ -199,11 +187,6 @@ class DTParser:
                 if self._is_property():
                     # For properties, attach pending comments to current node
                     if pending_comments:
-                        logger.debug(
-                            "Attaching %d pending comments to node %s (property context)",
-                            len(pending_comments),
-                            node.name,
-                        )
                         node.comments.extend(pending_comments)
                         pending_comments = []
 
@@ -213,10 +196,6 @@ class DTParser:
                 else:
                     # For child nodes, let the child node take the pending comments
                     if pending_comments:
-                        logger.debug(
-                            "Transferring %d pending comments to upcoming child node",
-                            len(pending_comments),
-                        )
                         self.comments.extend(pending_comments)
                         pending_comments = []
 
@@ -233,11 +212,6 @@ class DTParser:
 
         # Attach any remaining pending comments to the current node
         if pending_comments:
-            logger.debug(
-                "Attaching %d remaining pending comments to node %s",
-                len(pending_comments),
-                node.name,
-            )
             node.comments.extend(pending_comments)
 
     def _parse_property(self) -> DTProperty | None:
@@ -503,17 +477,6 @@ class DTParser:
             node = DTNode(name, label, unit_address, line, column)
 
             # Add any pending comments to this node
-            if self.comments:
-                logger.debug(
-                    "Adding %d transferred comments to child node %s",
-                    len(self.comments),
-                    name,
-                )
-                for comment in self.comments:
-                    logger.debug("Child node %s comment: %s", name, comment.text)
-                node.comments.extend(self.comments)
-                self.comments = []
-
             self._parse_node_body(node)
             self._expect(TokenType.RBRACE)
             self._expect(TokenType.SEMICOLON)
@@ -558,7 +521,6 @@ class DTParser:
                 is_block = comment_text.startswith("/*")
                 comment = DTComment(comment_text, line, column, is_block)
                 self.comments.append(comment)
-                logger.debug("Consumed comment at line %d: %s", line, comment_text)
                 consumed = True
                 self._advance()
 
@@ -579,20 +541,11 @@ class DTParser:
                 comment_text = f"#{directive} {condition}".strip()
                 comment = DTComment(comment_text, line, column, False)
                 self.comments.append(comment)
-                logger.debug(
-                    "Consumed preprocessor directive at line %d: %s", line, comment_text
-                )
                 consumed = True
                 self._advance()
 
         if consumed:
             final_comment_count = len(self.comments)
-            logger.debug(
-                "Comments consumed: %d -> %d (added %d)",
-                initial_comment_count,
-                final_comment_count,
-                final_comment_count - initial_comment_count,
-            )
 
         return consumed
 

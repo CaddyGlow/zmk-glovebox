@@ -176,7 +176,7 @@ class LayoutService(BaseService):
         keymap_file_path: Path,
         profile: "KeyboardProfile",
         parsing_mode: str = "template",
-        parsing_method: str = "regex",
+        parsing_method: str = "ast",
         output_file_path: Path | None = None,
     ) -> LayoutResult:
         """Parse ZMK keymap file to JSON layout format.

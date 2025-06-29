@@ -380,7 +380,9 @@ class ModelConverter:
         try:
             return self._parse_nested_binding(binding_str)
         except Exception as e:
-            self.logger.warning("Failed to parse nested binding '%s': %s", binding_str, e)
+            self.logger.warning(
+                "Failed to parse nested binding '%s': %s", binding_str, e
+            )
             # Fall back to simple parsing
             parts = self._parse_binding_parts(binding_str)
             if not parts:
@@ -473,31 +475,31 @@ class ModelConverter:
 
     def _parse_nested_binding(self, binding_str: str) -> LayoutBinding:
         """Parse binding string with nested parameter support.
-        
+
         Handles structures like:
         - &sk LA(LC(LSHFT))
         - &mt LCTRL A
         - &kp Q
-        
+
         Args:
             binding_str: Binding string to parse
-            
+
         Returns:
             LayoutBinding with nested parameter structure
         """
         if not binding_str.strip():
             return LayoutBinding(value="&none", params=[])
-        
+
         # Tokenize the binding string
         tokens = self._tokenize_binding(binding_str)
         if not tokens:
             return LayoutBinding(value="&none", params=[])
-        
+
         # First token should be the behavior
         behavior = tokens[0]
         if not behavior.startswith("&"):
             behavior = f"&{behavior}"
-        
+
         # Parse remaining tokens as nested parameters
         params = []
         i = 1
@@ -505,114 +507,116 @@ class ModelConverter:
             param, i = self._parse_nested_parameter(tokens, i)
             if param:
                 params.append(param)
-        
+
         return LayoutBinding(value=behavior, params=params)
 
     def _tokenize_binding(self, binding_str: str) -> list[str]:
         """Tokenize binding string preserving parentheses structure.
-        
+
         For '&sk LA(LC(LSHFT))', this should produce:
         ['&sk', 'LA(LC(LSHFT))']
-        
+
         Args:
             binding_str: Raw binding string
-            
+
         Returns:
             List of tokens
         """
         tokens = []
         current_token = ""
         paren_depth = 0
-        
+
         i = 0
         while i < len(binding_str):
             char = binding_str[i]
-            
+
             if char.isspace() and paren_depth == 0:
                 # Space outside parentheses - end current token
                 if current_token:
                     tokens.append(current_token)
                     current_token = ""
-            elif char == '(':
+            elif char == "(":
                 # Start of nested parameters - include in current token
                 current_token += char
                 paren_depth += 1
-            elif char == ')':
+            elif char == ")":
                 # End of nested parameters - include in current token
                 current_token += char
                 paren_depth -= 1
             else:
                 current_token += char
-            
+
             i += 1
-        
+
         # Add final token
         if current_token:
             tokens.append(current_token)
-        
+
         return tokens
 
-    def _parse_nested_parameter(self, tokens: list[str], start_index: int) -> tuple[LayoutParam | None, int]:
+    def _parse_nested_parameter(
+        self, tokens: list[str], start_index: int
+    ) -> tuple[LayoutParam | None, int]:
         """Parse a single parameter which may contain nested sub-parameters.
-        
+
         Handles tokens like:
         - 'LA(LC(LSHFT))' -> LA with nested LC(LSHFT)
         - 'LCTRL' -> Simple parameter
-        
+
         Args:
             tokens: List of tokens
             start_index: Index to start parsing from
-            
+
         Returns:
             Tuple of (LayoutParam or None, next_index)
         """
         if start_index >= len(tokens):
             return None, start_index
-        
+
         token = tokens[start_index]
-        
+
         # Check if this token has nested parameters (contains parentheses)
-        if '(' in token and ')' in token:
+        if "(" in token and ")" in token:
             # Find the first parenthesis to split parameter name from nested content
-            paren_pos = token.find('(')
+            paren_pos = token.find("(")
             param_name = token[:paren_pos]
-            
+
             # Extract everything inside the outermost parentheses
             # Find matching closing parenthesis
             paren_depth = 0
             start_content = paren_pos + 1
             end_content = len(token)
-            
+
             for i in range(paren_pos, len(token)):
-                if token[i] == '(':
+                if token[i] == "(":
                     paren_depth += 1
-                elif token[i] == ')':
+                elif token[i] == ")":
                     paren_depth -= 1
                     if paren_depth == 0:
                         end_content = i
                         break
-            
+
             inner_content = token[start_content:end_content]
-            
+
             if not param_name or not inner_content:
                 # Fall back to simple parameter
                 param_value = self._convert_binding_parameter(token)
                 return LayoutParam(value=param_value, params=[]), start_index + 1
-            
+
             # Parameter name becomes the value
             param_value = self._convert_binding_parameter(param_name)
-            
+
             # Parse nested content recursively
             # The inner content should be treated as parameters, not as a full binding
             inner_tokens = self._tokenize_binding(inner_content)
-            
+
             sub_params = []
             i = 0
             while i < len(inner_tokens):
                 sub_param, i = self._parse_nested_parameter(inner_tokens, i)
                 if sub_param:
                     sub_params.append(sub_param)
-            
+
             return LayoutParam(value=param_value, params=sub_params), start_index + 1
         else:
             # Simple parameter without nesting
@@ -638,40 +642,51 @@ class ModelConverter:
             # Remove // and clean up
             desc = comment.text[2:].strip()
             if desc and not desc.startswith("TODO") and not desc.startswith("FIXME"):
-                self.logger.debug("Using comment as description for %s: %s", node.name, desc[:50])
+                self.logger.debug(
+                    "Using comment as description for %s: %s", node.name, desc[:50]
+                )
                 return desc
 
         # Try to find description from global metadata comments by line proximity
-        if hasattr(self, '_global_comments') and self._global_comments:
-            node_line = getattr(node, 'line', 0)
-            
+        if hasattr(self, "_global_comments") and self._global_comments:
+            node_line = getattr(node, "line", 0)
+
             if node_line > 0:
                 # Look for comments within a few lines before this node
                 best_comment = None
-                best_distance = float('inf')
-                
+                best_distance = float("inf")
+
                 for comment_data in self._global_comments:
-                    comment_line = comment_data.get('line', 0)
-                    comment_text = comment_data.get('text', '')
+                    comment_line = comment_data.get("line", 0)
+                    comment_text = comment_data.get("text", "")
                     distance = node_line - comment_line
-                    
+
                     # Check if comment is 1-10 lines before the node
-                    if 0 < distance <= 10 and comment_text.startswith('//'):
+                    if 0 < distance <= 10 and comment_text.startswith("//"):
                         if distance < best_distance:
                             desc = comment_text[2:].strip()
-                            if desc and not desc.startswith("TODO") and not desc.startswith("FIXME"):
+                            if (
+                                desc
+                                and not desc.startswith("TODO")
+                                and not desc.startswith("FIXME")
+                            ):
                                 best_comment = desc
                                 best_distance = distance
-                
+
                 if best_comment:
-                    self.logger.debug("Using nearby comment as description for %s: %s", 
-                                    node.name, best_comment[:50])
+                    self.logger.debug(
+                        "Using nearby comment as description for %s: %s",
+                        node.name,
+                        best_comment[:50],
+                    )
                     return best_comment
 
         # Fall back to label property
         description = self._get_string_property(node, "label")
         if description:
-            self.logger.debug("Using label as description for %s: %s", node.name, description)
+            self.logger.debug(
+                "Using label as description for %s: %s", node.name, description
+            )
             return description
 
         return ""
@@ -784,7 +799,7 @@ class MacroConverter(ModelConverter):
             name = node.label or node.name
             if not name.startswith("&"):
                 name = f"&{name}"
-            
+
             # DEBUG: Log available metadata for this macro
             if "mod_tab_v1_TKZ" in name:
                 self.logger.debug("=== Macro %s metadata ===", name)
@@ -826,7 +841,8 @@ class MacroConverter(ModelConverter):
                 else:
                     self.logger.warning(
                         "Unexpected binding-cells value for macro %s: %s",
-                        name, binding_cells
+                        name,
+                        binding_cells,
                     )
                     behavior.params = None
 
