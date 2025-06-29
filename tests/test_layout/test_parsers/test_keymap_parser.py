@@ -248,29 +248,28 @@ class TestZmkKeymapParser:
 
         with patch(
             "glovebox.config.create_keyboard_profile", return_value=mock_profile
-        ):
-            with patch.object(parser, "_get_template_path", return_value=template_path):
-                with patch.object(
-                    parser.template_adapter,
-                    "get_template_variables",
-                    return_value=["keymap_node"],
-                ):
-                    keymap_file = tmp_path / "test.keymap"
-                    keymap_file.write_text(sample_keymap_content)
+        ), patch.object(parser, "_get_template_path", return_value=template_path):
+            with patch.object(
+                parser.template_adapter,
+                "get_template_variables",
+                return_value=["keymap_node"],
+            ):
+                keymap_file = tmp_path / "test.keymap"
+                keymap_file.write_text(sample_keymap_content)
 
-                    result = parser.parse_keymap(
-                        keymap_file=keymap_file,
-                        mode=ParsingMode.TEMPLATE_AWARE,
-                        keyboard_profile="glove80/v25.05",
-                    )
+                result = parser.parse_keymap(
+                    keymap_file=keymap_file,
+                    mode=ParsingMode.TEMPLATE_AWARE,
+                    keyboard_profile="glove80/v25.05",
+                )
 
-                assert result.success is True
-                assert result.layout_data is not None
-                assert result.parsing_mode == ParsingMode.TEMPLATE_AWARE
+            assert result.success is True
+            assert result.layout_data is not None
+            assert result.parsing_mode == ParsingMode.TEMPLATE_AWARE
 
-                layout_data = result.layout_data
-                assert layout_data.keyboard == "glove80"
-                assert len(layout_data.layer_names) == 2
+            layout_data = result.layout_data
+            assert layout_data.keyboard == "glove80"
+            assert len(layout_data.layer_names) == 2
 
     def test_behavior_parsing_integration(
         self, parser, tmp_path, sample_keymap_with_behaviors

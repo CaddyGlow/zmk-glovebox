@@ -12,6 +12,10 @@ from glovebox.compilation.models.compilation_config import (
     ZmkCompilationConfig,
     ZmkWorkspaceConfig,
 )
+from glovebox.compilation.models.progress import (
+    CompilationProgress,
+    CompilationState,
+)
 from glovebox.compilation.models.west_config import (
     WestCommandsConfig,
     WestDefaults,
@@ -34,6 +38,9 @@ __all__: list[str] = [
     "CompilationConfigUnion",
     "DockerUserConfig",
     "ZmkWorkspaceConfig",
+    # Progress tracking models
+    "CompilationProgress",
+    "CompilationState",
     # West configuration models
     "WestCommandsConfig",
     "WestDefaults",

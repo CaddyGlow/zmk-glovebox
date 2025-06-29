@@ -414,7 +414,7 @@ class TestRegressionPrevention:
         content = """
         / {
             compatible = "test,device";
-            
+
             behaviors {
                 ht: hold_tap {
                     compatible = "zmk,behavior-hold-tap";
@@ -426,10 +426,10 @@ class TestRegressionPrevention:
                     bindings = <&kp>, <&kp>;
                 };
             };
-            
+
             keymap {
                 compatible = "zmk,keymap";
-                
+
                 default_layer {
                     bindings = <
                         &kp Q    &kp W    &kp E

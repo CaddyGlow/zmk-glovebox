@@ -115,9 +115,7 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
                     else:
                         desc = "Downloading dependencies (west update - this may take 15+ minutes)"
 
-                    self.progress_coordinator.transition_to_phase(
-                        "west_update", desc
-                    )
+                    self.progress_coordinator.transition_to_phase("west_update", desc)
                     if package_count:
                         # Update total repositories count with actual package count
                         self.progress_coordinator.total_repositories = package_count

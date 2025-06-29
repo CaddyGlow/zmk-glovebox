@@ -61,7 +61,9 @@ class CompilationProgress:
     # Cache operation progress tracking
     cache_operation_progress: int = 0
     cache_operation_total: int = 100
-    cache_operation_status: str = "pending"  # "pending", "in_progress", "success", "failed"
+    cache_operation_status: str = (
+        "pending"  # "pending", "in_progress", "success", "failed"
+    )
     compilation_strategy: str = "zmk_west"  # "zmk_west", "moergo_nix"
     docker_image_name: str = ""  # For MoErgo: shows docker image being verified
 
@@ -109,16 +111,16 @@ class CompilationProgress:
         # Handle completion phases first
         if self.compilation_phase in ["done", "completed", "finished", "success"]:
             return 100.0
-        
+
         # Define phase weights (percentages of total progress)
         phase_weights = {
-            "initialization": (0, 5),      # 0-5%
+            "initialization": (0, 5),  # 0-5%
             "cache_restoration": (5, 15),  # 5-15%
-            "docker_verification": (15, 25), # 15-25% (MoErgo only)
-            "nix_build": (25, 40),        # 25-40% (MoErgo only)
-            "west_update": (15, 40),       # 15-40% (ZMK only)
-            "building": (40, 90),          # 40-90%
-            "cache_saving": (90, 100),     # 90-100%
+            "docker_verification": (15, 25),  # 15-25% (MoErgo only)
+            "nix_build": (25, 40),  # 25-40% (MoErgo only)
+            "west_update": (15, 40),  # 15-40% (ZMK only)
+            "building": (40, 90),  # 40-90%
+            "cache_saving": (90, 100),  # 90-100%
         }
 
         if self.compilation_phase not in phase_weights:
@@ -131,12 +133,15 @@ class CompilationProgress:
             return float(start_percent)
         elif self.compilation_phase == "cache_restoration":
             if self.cache_operation_total > 0:
-                phase_progress = self.cache_operation_progress / self.cache_operation_total
+                phase_progress = (
+                    self.cache_operation_progress / self.cache_operation_total
+                )
                 return start_percent + (phase_progress * phase_range)
             return float(start_percent)
-        elif self.compilation_phase == "docker_verification":
-            return float(start_percent + phase_range * 0.5)  # Assume halfway through
-        elif self.compilation_phase == "nix_build":
+        elif (
+            self.compilation_phase == "docker_verification"
+            or self.compilation_phase == "nix_build"
+        ):
             return float(start_percent + phase_range * 0.5)  # Assume halfway through
         elif self.compilation_phase == "west_update":
             if self.total_repositories > 0:
@@ -161,7 +166,10 @@ class CompilationProgress:
             stages = [
                 ("🔧 Setting up build environment", "initialization"),
                 ("💾 Restoring workspace cache", "cache_restoration"),
-                (f"🐳 Verifying Docker image{f' ({self.docker_image_name})' if self.docker_image_name else ''}", "docker_verification"),
+                (
+                    f"🐳 Verifying Docker image{f' ({self.docker_image_name})' if self.docker_image_name else ''}",
+                    "docker_verification",
+                ),
                 ("🛠️ Building Nix environment", "nix_build"),
                 ("⚙️ Compiling firmware", "building"),
                 ("📱 Generating .uf2 files", "cache_saving"),
@@ -183,12 +191,26 @@ class CompilationProgress:
                 if stage_phase == "initialization":
                     status = "⚙️"  # Show as in progress during initialization
                 elif stage_phase == "cache_restoration":
-                    if hasattr(self, "cache_operation_status") and self.cache_operation_status == "failed":
+                    if (
+                        hasattr(self, "cache_operation_status")
+                        and self.cache_operation_status == "failed"
+                    ):
                         status = "❌"  # Show failure icon
-                    elif hasattr(self, "cache_operation_progress") and hasattr(self, "cache_operation_total"):
+                    elif hasattr(self, "cache_operation_progress") and hasattr(
+                        self, "cache_operation_total"
+                    ):
                         if self.cache_operation_total > 0:
-                            progress = int((self.cache_operation_progress / self.cache_operation_total) * 100)
-                            if hasattr(self, "cache_operation_status") and self.cache_operation_status == "success":
+                            progress = int(
+                                (
+                                    self.cache_operation_progress
+                                    / self.cache_operation_total
+                                )
+                                * 100
+                            )
+                            if (
+                                hasattr(self, "cache_operation_status")
+                                and self.cache_operation_status == "success"
+                            ):
                                 status = "✓"  # Show success when completed
                             else:
                                 status = f"{'█' * (progress // 10)}{'░' * (10 - progress // 10)} {progress}%"
@@ -200,7 +222,7 @@ class CompilationProgress:
                     # For MoErgo docker verification phase
                     status = "⚙️"
                 elif stage_phase == "nix_build":
-                    # For MoErgo nix build phase  
+                    # For MoErgo nix build phase
                     status = "⚙️"
                 elif stage_phase == "west_update":
                     progress = int(self.repository_progress_percent)
@@ -226,7 +248,11 @@ class CompilationProgress:
                     status = "(pending)"
             elif self._is_stage_completed(stage_phase):
                 # Check for specific failure states
-                if stage_phase == "cache_restoration" and hasattr(self, "cache_operation_status") and self.cache_operation_status == "failed":
+                if (
+                    stage_phase == "cache_restoration"
+                    and hasattr(self, "cache_operation_status")
+                    and self.cache_operation_status == "failed"
+                ):
                     status = "❌"
                 else:
                     status = "✓"
@@ -242,13 +268,26 @@ class CompilationProgress:
         # If we're in a completion phase, all stages are completed
         if self.compilation_phase in ["done", "completed", "finished", "success"]:
             return True
-            
+
         # Different phase orders based on compilation strategy
         if self.compilation_strategy == "moergo_nix":
-            phase_order = ["initialization", "cache_restoration", "docker_verification", "nix_build", "building", "cache_saving"]
+            phase_order = [
+                "initialization",
+                "cache_restoration",
+                "docker_verification",
+                "nix_build",
+                "building",
+                "cache_saving",
+            ]
         else:
-            phase_order = ["initialization", "cache_restoration", "west_update", "building", "cache_saving"]
-            
+            phase_order = [
+                "initialization",
+                "cache_restoration",
+                "west_update",
+                "building",
+                "cache_saving",
+            ]
+
         if stage_phase not in phase_order:
             return False
 

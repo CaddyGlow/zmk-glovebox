@@ -296,10 +296,8 @@ class MoergoNixService(CompilationServiceProtocol):
                     self.logger.warning("Failed to create build-info.json: %s", e)
 
             # Mark compilation as fully complete
-            progress_coordinator.transition_to_phase(
-                "done",
-                f"Build completed successfully - {len(output_files.uf2_files)} firmware files generated",
-            )
+            # Signal completion to progress coordinator for 100% display
+            progress_coordinator.complete_all_builds()
 
             result = BuildResult(
                 success=True,
@@ -750,8 +748,6 @@ class MoergoNixService(CompilationServiceProtocol):
         except Exception as e:
             self.logger.error("Error ensuring Docker image: %s", e)
             return False
-
-
 
     def _get_keyboard_profile_for_dockerfile(self) -> "KeyboardProfile | None":
         """Get keyboard profile for accessing Dockerfile location."""

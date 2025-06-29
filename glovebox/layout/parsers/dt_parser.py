@@ -131,12 +131,12 @@ class DTParser:
 
         root = DTNode("", line=self._current_line(), column=self._current_column())
 
-        # Handle preprocessor directives and comments at top level
-        root.comments.extend(self.comments)
-        self.comments = []
-
         # Expect root node structure: / { ... };
         if self._match(TokenType.SLASH):
+            # Handle preprocessor directives and comments for explicit root
+            root.comments.extend(self.comments)
+            self.comments = []
+
             self._advance()  # consume /
 
             # Skip any comments or preprocessor directives after /
@@ -151,13 +151,20 @@ class DTParser:
                 self._error("Expected '{' after '/'")
         else:
             # Check if we have a standalone node (not inside a root)
-            if self._match(TokenType.IDENTIFIER):
+            if self._match(TokenType.IDENTIFIER) or self._match(TokenType.REFERENCE):
                 # This looks like a standalone node, parse it as a child of empty root
+                # Keep comments available for association with the standalone node
                 child = self._parse_child_node()
                 if child:
                     root.add_child(child)
+                # Only attach remaining comments to root after parsing standalone nodes
+                root.comments.extend(self.comments)
+                self.comments = []
             else:
                 # Handle other nodes without explicit root
+                # For other cases, attach comments to root
+                root.comments.extend(self.comments)
+                self.comments = []
                 self._parse_node_body(root)
 
         # Return None if no meaningful content was parsed
@@ -231,20 +238,28 @@ class DTParser:
         column = self._current_column()
         self._advance()
 
+        # Create property object
+        prop = None
+
         # Handle boolean properties (no value)
         if self._match(TokenType.SEMICOLON):
             self._advance()
-            return DTProperty(prop_name, DTValue.boolean(True), line, column)
-
+            prop = DTProperty(prop_name, DTValue.boolean(True), line, column)
         # Handle properties with values
-        if self._match(TokenType.EQUALS):
+        elif self._match(TokenType.EQUALS):
             self._advance()
             value = self._parse_property_values()
             self._expect(TokenType.SEMICOLON)
-            return DTProperty(prop_name, value, line, column)
+            prop = DTProperty(prop_name, value, line, column)
+        else:
+            self._error("Expected '=' or ';' after property name")
+            return None
 
-        self._error("Expected '=' or ';' after property name")
-        return None
+        # Associate any pending comments with this property
+        if prop:
+            self._associate_pending_comments_with_property(prop, line)
+
+        return prop
 
     def _parse_property_values(self) -> DTValue:
         """Parse property values, handling multiple comma-separated values.
@@ -432,7 +447,7 @@ class DTParser:
         name = ""
         unit_address = ""
 
-        # Check for label (identifier followed by colon)
+        # Check for node name - can be identifier or reference
         if self._match(TokenType.IDENTIFIER):
             if self.current_token is None:
                 self._error("Expected node name")
@@ -467,6 +482,14 @@ class DTParser:
                 else:
                     self._error("Expected unit address after '@'")
 
+        elif self._match(TokenType.REFERENCE):
+            # Handle reference nodes like &node_reference { ... }
+            if self.current_token is None:
+                self._error("Expected reference name")
+                return None
+            name = self.current_token.value  # This will be the reference name without &
+            self._advance()
+
         else:
             self._error("Expected node name")
             return None
@@ -476,7 +499,9 @@ class DTParser:
             self._advance()  # consume {
             node = DTNode(name, label, unit_address, line, column)
 
-            # Add any pending comments to this node
+            # Associate pending comments with this node based on line proximity
+            self._associate_pending_comments_with_node(node, line)
+
             self._parse_node_body(node)
             self._expect(TokenType.RBRACE)
             self._expect(TokenType.SEMICOLON)
@@ -548,6 +573,93 @@ class DTParser:
             final_comment_count = len(self.comments)
 
         return consumed
+
+    def _associate_pending_comments_with_node(
+        self, node: DTNode, node_line: int
+    ) -> None:
+        """Associate pending comments with a node based on line proximity.
+
+        Comments are associated if they appear immediately before the node
+        (within a few lines and with no other content in between).
+
+        Args:
+            node: Node to associate comments with
+            node_line: Line number where the node starts
+        """
+        if not self.comments:
+            return
+
+        # Find comments that should be associated with this node
+        # Comments are eligible if they're close to the node line (within 3-5 lines based on type)
+        # and there's no significant content between the comment and the node
+        associated_comments = []
+
+        for comment in self.comments:
+            line_distance = node_line - comment.line
+
+            # Determine proximity limit based on comment type
+            # Block comments can be further away than line comments
+            max_distance = 5 if comment.is_block else 3
+
+            # Comment must be before the node and within reasonable proximity
+            if 0 < line_distance <= max_distance:
+                # Check if this comment is the closest preceding comment
+                # (no other comments between this one and the node)
+                is_closest = True
+                for other_comment in self.comments:
+                    if (
+                        comment.line < other_comment.line < node_line
+                        and other_comment not in associated_comments
+                    ):
+                        is_closest = False
+                        break
+
+                if is_closest:
+                    associated_comments.append(comment)
+
+        # Associate the most relevant comments (usually the ones closest to the node)
+        if associated_comments:
+            # Sort by line number (closest first) and take up to 2 comments
+            associated_comments.sort(key=lambda c: c.line, reverse=True)
+            node.comments.extend(associated_comments[:2])
+
+            # Remove associated comments from pending list
+            for comment in associated_comments:
+                if comment in self.comments:
+                    self.comments.remove(comment)
+
+    def _associate_pending_comments_with_property(
+        self, prop: DTProperty, prop_line: int
+    ) -> None:
+        """Associate pending comments with a property based on line proximity.
+
+        Args:
+            prop: Property to associate comments with
+            prop_line: Line number where the property starts
+        """
+        if not self.comments:
+            return
+
+        # For properties, we're more restrictive - only associate comments
+        # that are immediately preceding (within 1-2 lines)
+        associated_comments = []
+
+        for comment in self.comments:
+            line_distance = prop_line - comment.line
+
+            # Property comments should be very close (within 2 lines)
+            if 0 < line_distance <= 2:
+                associated_comments.append(comment)
+
+        # Associate the closest comment to the property
+        if associated_comments:
+            # Sort by line number (closest first) and take only the closest one
+            associated_comments.sort(key=lambda c: c.line, reverse=True)
+            prop.comments.append(associated_comments[0])
+
+            # Remove associated comment from pending list
+            if associated_comments[0] in self.comments:
+                self.comments.remove(associated_comments[0])
 
     def _match(self, token_type: TokenType) -> bool:
         """Check if current token matches given type.

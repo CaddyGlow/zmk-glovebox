@@ -387,9 +387,8 @@ class MetadataExtractor:
         compatible_prop = node.get_property("compatible")
         if compatible_prop and compatible_prop.value:
             compatible_value = compatible_prop.value.value
-            if isinstance(compatible_value, str):
-                if "zmk,behavior" in compatible_value:
-                    return "behavior"
+            if isinstance(compatible_value, str) and "zmk,behavior" in compatible_value:
+                return "behavior"
 
         # Check for special sections
         if node.name in ["combos", "behaviors", "keymap"]:
@@ -436,11 +435,11 @@ class MetadataExtractor:
                 stripped
                 and not stripped.startswith("//")
                 and not stripped.startswith("/*")
+                and not stripped.startswith("#")  # Skip preprocessor directives
+                and ("{" in stripped or stripped.endswith(";"))
             ):
-                if not stripped.startswith("#"):  # Skip preprocessor directives
-                    if "{" in stripped or stripped.endswith(";"):
-                        first_content_line = i
-                        break
+                first_content_line = i
+                break
 
         # Look for last significant content line
         for i in range(len(lines) - 1, -1, -1):
@@ -449,11 +448,11 @@ class MetadataExtractor:
                 stripped
                 and not stripped.startswith("//")
                 and not stripped.startswith("*/")
+                and not stripped.startswith("#")  # Skip preprocessor directives
+                and ("}" in stripped or stripped.endswith(";"))
             ):
-                if not stripped.startswith("#"):  # Skip preprocessor directives
-                    if "}" in stripped or stripped.endswith(";"):
-                        last_content_line = i
-                        break
+                last_content_line = i
+                break
 
         # Extract header (everything before first content)
         if first_content_line > 0:
@@ -789,6 +788,9 @@ class UniversalBehaviorExtractor:
         # Metadata extractor for enhanced preservation (Phase 4.1)
         self.metadata_extractor = MetadataExtractor()
 
+        # AST behavior converter for comment-aware conversion
+        self.ast_converter: Any = None
+
     def extract_all_behaviors(self, root: DTNode) -> dict[str, list[DTNode]]:
         """Extract all behavior types from single device tree root.
 
@@ -832,6 +834,89 @@ class UniversalBehaviorExtractor:
         metadata = self.metadata_extractor.extract_metadata(roots, source_content)
 
         return behaviors, metadata
+
+    def extract_behaviors_as_models(
+        self, roots: list[DTNode], source_content: str = ""
+    ) -> tuple[dict[str, list[Any]], dict]:
+        """Extract behaviors as behavior model objects with comments.
+
+        Args:
+            roots: List of root nodes to search
+            source_content: Original source file content for metadata extraction
+
+        Returns:
+            Tuple of (behavior_models_dict, metadata_dict)
+        """
+        # Get the AST converter instance
+        if self.ast_converter is None:
+            from .ast_behavior_converter import create_ast_behavior_converter
+
+            self.ast_converter = create_ast_behavior_converter()
+
+        # Extract behavior nodes using existing logic
+        behavior_nodes = self._extract_behaviors_from_roots(roots)
+
+        # Convert nodes to behavior models
+        behavior_models: dict[str, list[Any]] = {
+            "hold_taps": [],
+            "macros": [],
+            "combos": [],
+            "tap_dances": [],
+            "caps_word": [],
+            "sticky_keys": [],
+            "layers": [],
+            "mods": [],
+            "other_behaviors": [],
+        }
+
+        # Convert hold-tap nodes
+        for node in behavior_nodes.get("hold_taps", []):
+            hold_tap = self.ast_converter.convert_hold_tap_node(node)
+            if hold_tap:
+                behavior_models["hold_taps"].append(hold_tap)
+
+        # Convert macro nodes
+        for node in behavior_nodes.get("macros", []):
+            macro = self.ast_converter.convert_macro_node(node)
+            if macro:
+                behavior_models["macros"].append(macro)
+
+        # Convert combo nodes
+        for node in behavior_nodes.get("combos", []):
+            combo = self.ast_converter.convert_combo_node(node)
+            if combo:
+                behavior_models["combos"].append(combo)
+
+        # For other behavior types, we'll keep them as nodes for now
+        # (could be extended with specific converters later)
+        for behavior_type in [
+            "tap_dances",
+            "caps_word",
+            "sticky_keys",
+            "layers",
+            "mods",
+            "other_behaviors",
+        ]:
+            behavior_models[behavior_type] = behavior_nodes.get(behavior_type, [])
+
+        # Extract metadata using metadata extractor
+        metadata = self.metadata_extractor.extract_metadata(roots, source_content)
+
+        # Log conversion summary
+        converted_count = (
+            len(behavior_models["hold_taps"])
+            + len(behavior_models["macros"])
+            + len(behavior_models["combos"])
+        )
+        self.logger.debug(
+            "Converted %d behavior nodes to model objects: %d hold-taps, %d macros, %d combos",
+            converted_count,
+            len(behavior_models["hold_taps"]),
+            len(behavior_models["macros"]),
+            len(behavior_models["combos"]),
+        )
+
+        return behavior_models, metadata
 
     def _extract_behaviors_from_roots(
         self, roots: list[DTNode]
@@ -1076,3 +1161,19 @@ def create_universal_behavior_extractor() -> UniversalBehaviorExtractor:
         Configured UniversalBehaviorExtractor
     """
     return UniversalBehaviorExtractor()
+
+
+def create_universal_behavior_extractor_with_converter() -> UniversalBehaviorExtractor:
+    """Create universal behavior extractor with AST converter for comment support.
+
+    Returns:
+        Configured UniversalBehaviorExtractor with AST converter
+    """
+    extractor = UniversalBehaviorExtractor()
+
+    # Initialize the AST converter for comment-aware behavior extraction
+    from .ast_behavior_converter import create_ast_behavior_converter
+
+    extractor.ast_converter = create_ast_behavior_converter()
+
+    return extractor

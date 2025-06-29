@@ -115,7 +115,9 @@ class BaseCompilationProgressCoordinator(ABC, ProgressCoordinatorProtocol):
                 f"{operation}: {description}" if description else operation
             )
 
-            logger.debug("Cache progress: %s (%d/%d) [%s]", operation, current, total, status)
+            logger.debug(
+                "Cache progress: %s (%d/%d) [%s]", operation, current, total, status
+            )
             self._send_progress_update()
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
@@ -184,21 +186,24 @@ class BaseCompilationProgressCoordinator(ABC, ProgressCoordinatorProtocol):
     def complete_all_builds(self) -> None:
         """Mark all builds as complete and transition to done phase."""
         try:
-            if self.current_phase == "building":
-                self.boards_completed = self.total_boards
-                self.current_board = ""
+            self.boards_completed = self.total_boards
+            self.current_board = ""
 
-                logger.debug(
-                    "All builds completed successfully (%d/%d). Marking as done.",
-                    self.boards_completed,
-                    self.total_boards,
-                )
-                self.transition_to_phase("done", "Build completed successfully")
+            logger.debug(
+                "All builds completed successfully (%d/%d). Marking as done.",
+                self.boards_completed,
+                self.total_boards,
+            )
+            self.transition_to_phase("done", "Build completed successfully")
+            # Send additional progress update to ensure 100% completion is shown
+            self._send_progress_update("Build completed successfully")
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.error("Failed to complete all builds: %s", e, exc_info=exc_info)
 
-    def complete_build_success(self, reason: str = "Build completed successfully") -> None:
+    def complete_build_success(
+        self, reason: str = "Build completed successfully"
+    ) -> None:
         """Mark build as complete regardless of current phase (for cached builds)."""
         try:
             self.boards_completed = self.total_boards
@@ -210,6 +215,8 @@ class BaseCompilationProgressCoordinator(ABC, ProgressCoordinatorProtocol):
                 self.current_phase,
             )
             self.transition_to_phase("done", reason)
+            # Send additional progress update to ensure 100% completion is shown
+            self._send_progress_update(reason)
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.error("Failed to complete build: %s", e, exc_info=exc_info)
@@ -229,12 +236,16 @@ class BaseCompilationProgressCoordinator(ABC, ProgressCoordinatorProtocol):
             exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.error("Failed to update cache saving: %s", e, exc_info=exc_info)
 
-    def update_docker_verification(self, image_name: str, status: str = "verifying") -> None:
+    def update_docker_verification(
+        self, image_name: str, status: str = "verifying"
+    ) -> None:
         """Update Docker image verification progress (default implementation)."""
         # Default implementation - can be overridden by strategy-specific coordinators
         logger.debug("Docker verification: %s (%s)", image_name, status)
 
-    def update_nix_build_progress(self, operation: str, status: str = "building") -> None:
+    def update_nix_build_progress(
+        self, operation: str, status: str = "building"
+    ) -> None:
         """Update Nix environment build progress (default implementation)."""
         # Default implementation - can be overridden by strategy-specific coordinators
         logger.debug("Nix build: %s (%s)", operation, status)

@@ -275,8 +275,14 @@ class SectionExtractor:
             Processing result with parsed data
         """
         try:
+            # Use raw content for AST parsing to preserve comments
+            # Fall back to cleaned content if raw content is not available
+            content_to_parse = (
+                section.raw_content if section.raw_content else section.content
+            )
+
             # Parse section content as AST
-            root, parse_errors = parse_dt_safe(section.content)
+            root, parse_errors = parse_dt_safe(content_to_parse)
 
             if not root:
                 return SectionProcessingResult(
@@ -286,12 +292,26 @@ class SectionExtractor:
                     warnings=[str(e) for e in parse_errors] if parse_errors else [],
                 )
 
-            # Extract behaviors using existing infrastructure
-            behaviors_dict, _ = self.behavior_extractor.extract_behaviors_with_metadata(
-                [root], section.content
-            )
-
-            converted_behaviors = self.model_converter.convert_behaviors(behaviors_dict)
+            # Extract behaviors using enhanced infrastructure with comment support
+            if hasattr(self.behavior_extractor, "extract_behaviors_as_models"):
+                # Use new AST converter method for comment-aware behavior extraction
+                behavior_models, _ = (
+                    self.behavior_extractor.extract_behaviors_as_models(
+                        [root], content_to_parse
+                    )
+                )
+                # Behavior models are already converted, no need for model converter
+                converted_behaviors = behavior_models
+            else:
+                # Fallback to legacy method for compatibility
+                behaviors_dict, _ = (
+                    self.behavior_extractor.extract_behaviors_with_metadata(
+                        [root], content_to_parse
+                    )
+                )
+                converted_behaviors = self.model_converter.convert_behaviors(
+                    behaviors_dict
+                )
 
             # Return appropriate data based on section type
             if section.type == "behavior":
@@ -398,5 +418,27 @@ def create_section_extractor(
     return SectionExtractor(
         behavior_parser=behavior_parser,
         behavior_extractor=behavior_extractor,
+        model_converter=model_converter,
+    )
+
+
+def create_section_extractor_with_ast_converter(
+    behavior_parser: "BehaviorParserProtocol | None" = None,
+    model_converter: "ModelConverterProtocol | None" = None,
+) -> SectionExtractor:
+    """Create a section extractor with AST converter for comment support.
+
+    Args:
+        behavior_parser: Optional behavior parser (uses factory if None)
+        model_converter: Optional model converter (uses factory if None)
+
+    Returns:
+        Configured SectionExtractor instance with AST converter support
+    """
+    from .ast_walker import create_universal_behavior_extractor_with_converter
+
+    return SectionExtractor(
+        behavior_parser=behavior_parser,
+        behavior_extractor=create_universal_behavior_extractor_with_converter(),
         model_converter=model_converter,
     )
