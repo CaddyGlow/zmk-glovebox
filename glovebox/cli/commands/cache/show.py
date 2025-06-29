@@ -7,6 +7,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from glovebox.cli.helpers.parameters import OutputFormatOption
 from glovebox.config.user_config import create_user_config
 
 from .utils import (
@@ -24,7 +25,9 @@ console = Console()
 def cache_show(
     module: Annotated[
         str | None,
-        typer.Option("-m", "--module", help="Show detailed info for specific module"),
+        typer.Option(
+            "-m", "--module", help="Show detailed information for specific module"
+        ),
     ] = None,
     limit: Annotated[
         int | None,
@@ -46,10 +49,157 @@ def cache_show(
         bool,
         typer.Option("--stats", help="Show detailed performance statistics"),
     ] = False,
+    output_format: OutputFormatOption = "text",
 ) -> None:
-    """Show detailed cache information and statistics with enhanced details."""
+    """Show detailed cache information and statistics.
+
+    Displays comprehensive cache system overview including performance statistics,
+    workspace cache information, and DiskCache module details. Supports filtering
+    by module and pagination for large datasets.
+
+    \\b
+    Cache types displayed:
+    - DiskCache system: Domain modules with hit rates and sizes
+    - Workspace cache: ZMK compilation workspace information
+    - Performance stats: Hit/miss rates, evictions, and errors
+
+    Examples:
+        # Show complete cache overview
+        glovebox cache show
+
+        # Show with detailed statistics and keys
+        glovebox cache show --stats --keys --verbose
+
+        # Filter by specific module with JSON output
+        glovebox cache show -m compilation --output-format json
+
+        # Show limited entries with pagination
+        glovebox cache show --limit 10 --offset 20
+    """
     try:
         cache_manager = get_cache_manager()
+
+        # For JSON output, collect all data first
+        if output_format == "json":
+            from glovebox.cli.helpers.output_formatter import OutputFormatter
+
+            cache_data = {}
+
+            # Collect cache statistics
+            cache_stats = cache_manager.get_stats()
+            cache_data["cache_stats"] = {
+                "total_entries": cache_stats.total_entries,
+                "total_size_bytes": cache_stats.total_size_bytes,
+                "hit_count": cache_stats.hit_count,
+                "miss_count": cache_stats.miss_count,
+                "hit_rate": cache_stats.hit_rate,
+                "miss_rate": cache_stats.miss_rate,
+                "eviction_count": cache_stats.eviction_count,
+                "error_count": cache_stats.error_count,
+            }
+
+            # Collect workspace cache information
+            try:
+                cache_manager, workspace_cache_service, user_config = (
+                    get_cache_manager_and_service()
+                )
+                cached_workspaces = workspace_cache_service.list_cached_workspaces()
+
+                workspace_data = {
+                    "cache_directory": str(
+                        workspace_cache_service.get_cache_directory()
+                    ),
+                    "cached_workspaces_count": len(cached_workspaces),
+                    "total_size_bytes": sum(
+                        (
+                            workspace.size_bytes
+                            or get_directory_size_bytes(workspace.workspace_path)
+                        )
+                        for workspace in cached_workspaces
+                    ),
+                    "workspaces": [],
+                }
+
+                for workspace in cached_workspaces:
+                    workspace_info = {
+                        "repository": workspace.repository,
+                        "branch": workspace.branch,
+                        "cache_level": workspace.cache_level.value
+                        if hasattr(workspace.cache_level, "value")
+                        else str(workspace.cache_level),
+                        "size_bytes": workspace.size_bytes
+                        or get_directory_size_bytes(workspace.workspace_path),
+                        "age_hours": workspace.age_hours,
+                        "auto_detected": workspace.auto_detected,
+                        "cached_components": workspace.cached_components,
+                        "workspace_path": str(workspace.workspace_path),
+                    }
+                    workspace_data["workspaces"].append(workspace_info)
+
+                cache_data["workspace_cache"] = workspace_data
+            except Exception as e:
+                cache_data["workspace_cache"] = {"error": str(e)}
+
+            # Collect DiskCache information
+            try:
+                user_config = create_user_config()
+                diskcache_root = user_config._config.cache_path
+
+                if diskcache_root.exists():
+                    cache_subdirs = [d for d in diskcache_root.iterdir() if d.is_dir()]
+                    diskcache_data = {
+                        "location": str(diskcache_root),
+                        "cache_strategy": user_config._config.cache_strategy,
+                        "cached_modules_count": len(cache_subdirs),
+                        "total_size_bytes": sum(
+                            get_directory_size_bytes(d) for d in cache_subdirs
+                        ),
+                        "modules": [],
+                    }
+
+                    for cache_dir_item in cache_subdirs:
+                        module_name = cache_dir_item.name
+                        size = get_directory_size_bytes(cache_dir_item)
+                        file_count = len(list(cache_dir_item.rglob("*")))
+
+                        module_info = {
+                            "name": module_name,
+                            "size_bytes": size,
+                            "file_count": file_count,
+                            "path": str(cache_dir_item),
+                        }
+
+                        # Try to get cache stats
+                        try:
+                            from glovebox.core.cache import create_default_cache
+
+                            module_cache = create_default_cache(tag=module_name)
+                            module_stats = module_cache.get_stats()
+                            module_info.update(
+                                {
+                                    "cache_entries": module_stats.total_entries,
+                                    "hit_rate": module_stats.hit_rate,
+                                }
+                            )
+                        except Exception:
+                            module_info.update(
+                                {
+                                    "cache_entries": None,
+                                    "hit_rate": None,
+                                }
+                            )
+
+                        diskcache_data["modules"].append(module_info)
+
+                    cache_data["diskcache"] = diskcache_data
+                else:
+                    cache_data["diskcache"] = {"error": "No cache directory found"}
+            except Exception as e:
+                cache_data["diskcache"] = {"error": str(e)}
+
+            formatter = OutputFormatter()
+            print(formatter.format(cache_data, "json"))
+            return
 
         console.print("[bold]Glovebox Cache System Overview[/bold]")
         console.print("=" * 60)

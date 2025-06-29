@@ -38,7 +38,7 @@ class StagedCompilationProgressDisplay:
         console: Console | None = None,
         refresh_rate: int = 8,
         show_logs: bool = True,
-        max_log_lines: int = 10
+        max_log_lines: int = 10,
     ) -> None:
         """Initialize the staged progress display.
 
@@ -110,7 +110,7 @@ class StagedCompilationProgressDisplay:
 
                 # Keep only the most recent lines
                 if len(self.log_lines) > self.max_log_lines:
-                    self.log_lines = self.log_lines[-self.max_log_lines:]
+                    self.log_lines = self.log_lines[-self.max_log_lines :]
 
     def _create_staged_display(self, progress_data: CompilationProgress) -> Group:
         """Create the staged progress display layout."""

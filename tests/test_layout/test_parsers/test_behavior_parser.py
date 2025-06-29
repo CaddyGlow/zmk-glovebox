@@ -389,5 +389,3 @@ class TestBehaviorParser:
         assert len(macros) == 1
         assert macros[0].name == "invalid_macro"
         assert macros[0].params is None  # Should fall back to None for invalid values
-
-

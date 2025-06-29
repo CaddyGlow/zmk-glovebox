@@ -50,18 +50,18 @@ from glovebox.layout.models import (
     LayoutParam,
     MacroBehavior,
 )
-from glovebox.layout.service import create_layout_service
-from glovebox.layout.template_service import (
-    create_jinja2_template_service,
-    create_template_service,
-)
-from glovebox.layout.zmk_generator import create_zmk_file_generator
 
 # Import parser factory functions
 from glovebox.layout.parsers import (
     create_zmk_keymap_parser,
     create_zmk_keymap_parser_from_profile,
 )
+from glovebox.layout.service import create_layout_service
+from glovebox.layout.template_service import (
+    create_jinja2_template_service,
+    create_template_service,
+)
+from glovebox.layout.zmk_generator import create_zmk_file_generator
 
 
 if TYPE_CHECKING:

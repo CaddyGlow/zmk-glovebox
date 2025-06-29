@@ -74,6 +74,7 @@ def show_config(
     # If specific fields requested, use ConfigEditor for consistent behavior
     if get:
         try:
+            console = Console()
             editor = ConfigEditor(app_ctx.user_config)
 
             for field_path in get:
@@ -81,15 +82,17 @@ def show_config(
                     value = editor.get_field(field_path)
                     if isinstance(value, list):
                         if not value:
-                            print(f"{field_path}: (empty list)")
+                            console.print(
+                                f"[cyan]{field_path}[/cyan]: [dim](empty list)[/dim]"
+                            )
                         else:
-                            print(f"{field_path}:")
+                            console.print(f"[cyan]{field_path}[/cyan]:")
                             for item in value:
-                                print(f"  - {item}")
+                                console.print(f"  [dim]-[/dim] {item}")
                     elif value is None:
-                        print(f"{field_path}: null")
+                        console.print(f"[cyan]{field_path}[/cyan]: [dim]null[/dim]")
                     else:
-                        print(f"{field_path}: {value}")
+                        console.print(f"[cyan]{field_path}[/cyan]: {value}")
                 except Exception as e:
                     print_error_message(f"Cannot get field '{field_path}': {e}")
             return

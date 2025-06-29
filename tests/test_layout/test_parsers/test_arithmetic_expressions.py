@@ -10,24 +10,24 @@ class TestArithmeticExpressions:
 
     def test_simple_arithmetic_expression(self):
         """Test simple arithmetic expression like (6 - 3)."""
-        content = '''
+        content = """
         #define SIMPLE_CALC (6 - 3)
         / {
             node {
                 property = "value";
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should parse successfully
         assert len(roots) >= 1
 
     def test_complex_arithmetic_expression(self):
         """Test complex arithmetic expression like ((6 - DIFFICULTY_LEVEL) * 100)."""
-        content = '''
+        content = """
         #define DIFFICULTY_LEVEL 3
         #define TAPPING_RESOLUTION ((6 - DIFFICULTY_LEVEL) * 100)
         #define ADJUSTED_TIME (TAPPING_RESOLUTION + 50)
@@ -36,17 +36,17 @@ class TestArithmeticExpressions:
                 property = "value";
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should parse successfully
         assert len(roots) >= 1
 
     def test_arithmetic_with_nested_function_calls(self):
         """Test arithmetic combined with nested function calls."""
-        content = '''
+        content = """
         #define BASE_TIME 100
         #define MODIFIER_CALC (BASE_TIME * 2)
         #define NESTED_FUNC _C(LS(Z))
@@ -56,17 +56,17 @@ class TestArithmeticExpressions:
                 property = "value";
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should parse successfully
         assert len(roots) >= 1
 
     def test_arithmetic_operators_comprehensive(self):
         """Test all arithmetic operators."""
-        content = '''
+        content = """
         #define ADD_RESULT (10 + 5)
         #define SUB_RESULT (10 - 5)
         #define MUL_RESULT (10 * 5)
@@ -79,17 +79,17 @@ class TestArithmeticExpressions:
                 property = "value";
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should parse successfully
         assert len(roots) >= 1
 
     def test_nested_parentheses_arithmetic(self):
         """Test deeply nested parentheses in arithmetic expressions."""
-        content = '''
+        content = """
         #define DEEPLY_NESTED (((6 - 2) * (3 + 1)) / 2)
         #define MIXED_CALC ((BASE_VALUE - OFFSET) * MULTIPLIER)
         / {
@@ -97,17 +97,17 @@ class TestArithmeticExpressions:
                 property = "value";
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should parse successfully
         assert len(roots) >= 1
 
     def test_real_world_zmk_calculations(self):
         """Test real-world ZMK timing calculations."""
-        content = '''
+        content = """
         #define DIFFICULTY_LEVEL 3
         #define TAPPING_RESOLUTION ((6 - DIFFICULTY_LEVEL) * 100)
         #define HOMEY_HOLDING_TIME (TAPPING_RESOLUTION + 90)
@@ -125,27 +125,27 @@ class TestArithmeticExpressions:
                 };
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # Should parse successfully
         assert len(roots) >= 1
-        
+
         # Find the actual device tree content
         content_root = None
         for root in roots:
             if root.children:
                 content_root = root
                 break
-        
+
         assert content_root is not None
-        
+
         # Verify structure is correctly parsed
         behaviors = content_root.get_child("behaviors")
         assert behaviors is not None
-        
+
         custom_ht = behaviors.get_child("custom_hold_tap")
         assert custom_ht is not None
         assert custom_ht.label == "custom_ht"
@@ -153,7 +153,7 @@ class TestArithmeticExpressions:
     def test_arithmetic_progression_from_original_failure(self):
         """Test that arithmetic expressions represent significant progress."""
         # This represents the type of arithmetic that was failing at line 1759
-        content = '''
+        content = """
         #if OPERATING_SYSTEM == 'M'
         #define _C      LG
         #define _REDO   _C(LS(Z))
@@ -177,35 +177,35 @@ class TestArithmeticExpressions:
                 };
             };
         };
-        '''
-        
+        """
+
         parser = create_lark_dt_parser()
         roots = parser.parse(content)
-        
+
         # This content would have failed completely before arithmetic expression support
         # Now it should parse successfully, representing major progress
         assert len(roots) >= 1
-        
+
         # Find the actual device tree content
         content_root = None
         for root in roots:
             if root.children:
                 content_root = root
                 break
-        
+
         assert content_root is not None
-        
+
         # Verify structure is correctly parsed
         behaviors = content_root.get_child("behaviors")
         assert behaviors is not None
-        
+
         homey_behavior = behaviors.get_child("homey_behavior")
         assert homey_behavior is not None
-        
+
         # Check that hash-prefixed property works
         binding_cells = homey_behavior.get_property("#binding-cells")
         assert binding_cells is not None
-        
+
         # Check identifier values work
         flavor = homey_behavior.get_property("flavor")
         assert flavor is not None
