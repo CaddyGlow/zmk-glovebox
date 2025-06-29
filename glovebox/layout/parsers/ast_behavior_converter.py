@@ -1,7 +1,6 @@
 """AST-based behavior converter for extracting behaviors from device tree nodes."""
 
 import logging
-from typing import Any
 
 from glovebox.layout.models import (
     ComboBehavior,
@@ -9,7 +8,7 @@ from glovebox.layout.models import (
     LayoutBinding,
     MacroBehavior,
 )
-from glovebox.layout.parsers.ast_nodes import DTNode, DTProperty, DTValue, DTValueType
+from glovebox.layout.parsers.ast_nodes import DTNode, DTProperty, DTValueType
 
 
 logger = logging.getLogger(__name__)
@@ -165,46 +164,49 @@ class ASTBehaviorConverter:
         """
         # Priority 1: Comments attached to the node itself
         if node.comments:
-            # Use the first (most relevant) comment
-            comment_text = node.comments[0].text
-            # Skip property-like comments (they're not descriptions)
-            if not comment_text.strip().startswith("#"):
-                # Clean up comment markers
-                if comment_text.startswith("//"):
-                    return comment_text[2:].strip()
-                elif comment_text.startswith("/*") and comment_text.endswith("*/"):
-                    return comment_text[2:-2].strip()
-                return comment_text.strip()
+            comment_text = self._clean_comment_text(node.comments[0].text)
+            if comment_text:
+                return comment_text
 
         # Priority 2: Comments from parent node (for behaviors in behaviors blocks)
         if hasattr(node, "parent") and node.parent and node.parent.comments:
-            # Look for the most recent comment in the parent that could describe this node
             for comment in reversed(node.parent.comments):
-                comment_text = comment.text
-                # Skip property-like comments
-                if not comment_text.strip().startswith("#"):
-                    # Clean up comment markers
-                    if comment_text.startswith("//"):
-                        return comment_text[2:].strip()
-                    elif comment_text.startswith("/*") and comment_text.endswith("*/"):
-                        return comment_text[2:-2].strip()
-                    return comment_text.strip()
+                comment_text = self._clean_comment_text(comment.text)
+                if comment_text:
+                    return comment_text
 
         # Priority 3: Description property
         description_prop = node.get_property("description")
         if description_prop and description_prop.value:
             return self._extract_string_from_property(description_prop)
 
-        # Priority 4: Label property (cleaned up)
+        # Priority 4: Label property
         label_prop = node.get_property("label")
         if label_prop and label_prop.value:
-            label_value = self._extract_string_from_property(label_prop)
-            # Clean up common label patterns
-            if label_value.startswith("&"):
-                return label_value
-            return label_value
+            return self._extract_string_from_property(label_prop)
 
         return ""
+
+    def _clean_comment_text(self, comment_text: str) -> str:
+        """Clean comment text by removing markers and filtering out non-descriptive comments.
+
+        Args:
+            comment_text: Raw comment text
+
+        Returns:
+            Cleaned comment text or empty string if not descriptive
+        """
+        # Skip property-like comments (they're not descriptions)
+        if not comment_text or comment_text.strip().startswith("#"):
+            return ""
+
+        # Clean up comment markers
+        if comment_text.startswith("//"):
+            return comment_text[2:].strip()
+        elif comment_text.startswith("/*") and comment_text.endswith("*/"):
+            return comment_text[2:-2].strip()
+
+        return comment_text.strip()
 
     def _populate_hold_tap_properties(
         self, hold_tap: HoldTapBehavior, node: DTNode

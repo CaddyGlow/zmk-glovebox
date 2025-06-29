@@ -11,18 +11,14 @@ if TYPE_CHECKING:
         pass
 
     class BehaviorExtractorProtocol(Protocol):
-        def extract_behaviors_with_metadata(
+        def extract_behaviors_as_models(
             self, roots: list, content: str
         ) -> tuple[dict, dict]: ...
 
-    class ModelConverterProtocol(Protocol):
-        def convert_behaviors(self, behaviors_dict: dict) -> dict: ...
 
-
-from .ast_walker import create_universal_behavior_extractor
+from .ast_walker import create_universal_behavior_extractor_with_converter
 from .behavior_parser import create_behavior_parser
 from .dt_parser import parse_dt_safe
-from .model_converters import create_universal_model_converter
 from .parsing_models import (
     ExtractedSection,
     ExtractionConfig,
@@ -38,15 +34,13 @@ class SectionExtractor:
         self,
         behavior_parser: "BehaviorParserProtocol | None" = None,
         behavior_extractor: "BehaviorExtractorProtocol | None" = None,
-        model_converter: "ModelConverterProtocol | None" = None,
     ) -> None:
         """Initialize section extractor with dependencies."""
         self.logger = logging.getLogger(__name__)
         self.behavior_parser = behavior_parser or create_behavior_parser()
         self.behavior_extractor = (
-            behavior_extractor or create_universal_behavior_extractor()
+            behavior_extractor or create_universal_behavior_extractor_with_converter()
         )
-        self.model_converter = model_converter or create_universal_model_converter()
 
     def extract_sections(
         self, content: str, configs: list[ExtractionConfig]
@@ -292,26 +286,13 @@ class SectionExtractor:
                     warnings=[str(e) for e in parse_errors] if parse_errors else [],
                 )
 
-            # Extract behaviors using enhanced infrastructure with comment support
-            if hasattr(self.behavior_extractor, "extract_behaviors_as_models"):
-                # Use new AST converter method for comment-aware behavior extraction
-                behavior_models, _ = (
-                    self.behavior_extractor.extract_behaviors_as_models(
-                        [root], content_to_parse
-                    )
+            # Extract behaviors using AST converter with comment support
+            behavior_models, _ = (
+                self.behavior_extractor.extract_behaviors_as_models(
+                    [root], content_to_parse
                 )
-                # Behavior models are already converted, no need for model converter
-                converted_behaviors = behavior_models
-            else:
-                # Fallback to legacy method for compatibility
-                behaviors_dict, _ = (
-                    self.behavior_extractor.extract_behaviors_with_metadata(
-                        [root], content_to_parse
-                    )
-                )
-                converted_behaviors = self.model_converter.convert_behaviors(
-                    behaviors_dict
-                )
+            )
+            converted_behaviors = behavior_models
 
             # Return appropriate data based on section type
             if section.type == "behavior":
@@ -403,42 +384,17 @@ class SectionExtractor:
 def create_section_extractor(
     behavior_parser: "BehaviorParserProtocol | None" = None,
     behavior_extractor: "BehaviorExtractorProtocol | None" = None,
-    model_converter: "ModelConverterProtocol | None" = None,
-) -> SectionExtractor:
-    """Create a section extractor with dependency injection.
-
-    Args:
-        behavior_parser: Optional behavior parser (uses factory if None)
-        behavior_extractor: Optional behavior extractor (uses factory if None)
-        model_converter: Optional model converter (uses factory if None)
-
-    Returns:
-        Configured SectionExtractor instance
-    """
-    return SectionExtractor(
-        behavior_parser=behavior_parser,
-        behavior_extractor=behavior_extractor,
-        model_converter=model_converter,
-    )
-
-
-def create_section_extractor_with_ast_converter(
-    behavior_parser: "BehaviorParserProtocol | None" = None,
-    model_converter: "ModelConverterProtocol | None" = None,
 ) -> SectionExtractor:
     """Create a section extractor with AST converter for comment support.
 
     Args:
         behavior_parser: Optional behavior parser (uses factory if None)
-        model_converter: Optional model converter (uses factory if None)
+        behavior_extractor: Optional behavior extractor (uses factory if None)
 
     Returns:
         Configured SectionExtractor instance with AST converter support
     """
-    from .ast_walker import create_universal_behavior_extractor_with_converter
-
     return SectionExtractor(
         behavior_parser=behavior_parser,
-        behavior_extractor=create_universal_behavior_extractor_with_converter(),
-        model_converter=model_converter,
+        behavior_extractor=behavior_extractor,
     )
