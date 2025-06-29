@@ -22,6 +22,7 @@ class ProgressDisplayType(str, Enum):
     """Types of progress displays available."""
 
     STAGED = "staged"
+    STAGED_WITH_LOGS = "staged_with_logs"
     SIMPLE = "simple"
     NONE = "none"
 
@@ -98,6 +99,11 @@ class ProgressDisplayConfig(GloveboxBaseModel):
     show_cache_operations: bool = True
     update_interval: float = 0.1
     custom_stages: list[str] | None = None
+
+    # Log panel configuration
+    log_panel_height: int = 15
+    max_log_lines: int = 100
+    auto_scroll_logs: bool = True
 
 
 class ProgressCallbacks(GloveboxBaseModel):
