@@ -57,6 +57,12 @@ from glovebox.layout.template_service import (
 )
 from glovebox.layout.zmk_generator import create_zmk_file_generator
 
+# Import parser factory functions
+from glovebox.layout.parsers import (
+    create_zmk_keymap_parser,
+    create_zmk_keymap_parser_from_profile,
+)
+
 
 if TYPE_CHECKING:
     from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
@@ -101,6 +107,8 @@ __all__ = [
     "create_behavior_registry",
     "create_template_service",
     "create_jinja2_template_service",
+    "create_zmk_keymap_parser",
+    "create_zmk_keymap_parser_from_profile",
     # Behavior analysis functions
     "extract_behavior_codes_from_layout",
     "get_required_includes_for_layout",

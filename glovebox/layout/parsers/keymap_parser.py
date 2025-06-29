@@ -19,6 +19,7 @@ from .model_converters import create_universal_model_converter
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
+    from glovebox.protocols import TemplateAdapterProtocol
 
 
 class ParsingMode(str, Enum):
@@ -31,8 +32,7 @@ class ParsingMode(str, Enum):
 class ParsingMethod(str, Enum):
     """Keymap parsing method."""
 
-    REGEX = "regex"  # Legacy regex-based parsing
-    AST = "ast"  # New AST-based parsing
+    AST = "ast"  # AST-based parsing
 
 
 class KeymapParseResult(GloveboxBaseModel):
@@ -43,7 +43,7 @@ class KeymapParseResult(GloveboxBaseModel):
     errors: list[str] = []
     warnings: list[str] = []
     parsing_mode: ParsingMode
-    parsing_method: ParsingMethod = ParsingMethod.REGEX
+    parsing_method: ParsingMethod = ParsingMethod.AST
     extracted_sections: dict[str, Any] = {}
 
 
@@ -55,22 +55,37 @@ class ZmkKeymapParser:
     2. TEMPLATE_AWARE: Use keyboard profile templates to extract only user data
     """
 
-    def __init__(self) -> None:
-        """Initialize the keymap parser."""
-        self.logger = logging.getLogger(__name__)
-        self.template_adapter = create_template_adapter()
-        self.behavior_parser = create_behavior_parser()
+    def __init__(
+        self,
+        template_adapter: "TemplateAdapterProtocol | None" = None,
+        behavior_parser: Any | None = None,
+        behavior_extractor: Any | None = None,
+        model_converter: Any | None = None,
+    ) -> None:
+        """Initialize the keymap parser with explicit dependencies.
 
-        # AST-based parsing components
-        self.behavior_extractor = create_universal_behavior_extractor()
-        self.model_converter = create_universal_model_converter()
+        Args:
+            template_adapter: Template adapter for processing template files
+            behavior_parser: Parser for behavior sections
+            behavior_extractor: AST-based behavior extractor
+            model_converter: Model converter for behaviors
+        """
+        self.logger = logging.getLogger(__name__)
+
+        # Initialize dependencies with factory functions if not provided
+        self.template_adapter = template_adapter or create_template_adapter()
+        self.behavior_parser = behavior_parser or create_behavior_parser()
+        self.behavior_extractor = (
+            behavior_extractor or create_universal_behavior_extractor()
+        )
+        self.model_converter = model_converter or create_universal_model_converter()
 
     def parse_keymap(
         self,
         keymap_file: Path,
         mode: ParsingMode = ParsingMode.TEMPLATE_AWARE,
         keyboard_profile: str | None = None,
-        method: ParsingMethod = ParsingMethod.REGEX,
+        method: ParsingMethod = ParsingMethod.AST,
     ) -> KeymapParseResult:
         """Parse ZMK keymap file to JSON layout.
 
@@ -104,12 +119,9 @@ class ZmkKeymapParser:
                 )
                 return result
 
-            # Parse based on mode and method
+            # Parse based on mode using AST method
             if mode == ParsingMode.FULL:
-                if method == ParsingMethod.AST:
-                    layout_data = self._parse_full_keymap_ast(keymap_content, result)
-                else:
-                    layout_data = self._parse_full_keymap(keymap_content, result)
+                layout_data = self._parse_full_keymap_ast(keymap_content, result)
             else:
                 # Ensure keyboard_profile is not None for template-aware parsing
                 if not keyboard_profile:
@@ -118,14 +130,9 @@ class ZmkKeymapParser:
                     )
                     return result
 
-                if method == ParsingMethod.AST:
-                    layout_data = self._parse_template_aware_ast(
-                        keymap_content, keyboard_profile, result
-                    )
-                else:
-                    layout_data = self._parse_template_aware(
-                        keymap_content, keyboard_profile, result
-                    )
+                layout_data = self._parse_template_aware_ast(
+                    keymap_content, keyboard_profile, result
+                )
 
             if layout_data:
                 result.layout_data = layout_data
@@ -137,162 +144,6 @@ class ZmkKeymapParser:
             result.errors.append(f"Parsing failed: {e}")
 
         return result
-
-    def _parse_full_keymap(
-        self, keymap_content: str, result: KeymapParseResult
-    ) -> LayoutData | None:
-        """Parse complete keymap file extracting all structure.
-
-        Args:
-            keymap_content: Full keymap file content
-            result: Result object to populate with warnings/errors
-
-        Returns:
-            Parsed LayoutData or None if parsing fails
-        """
-        try:
-            # Extract basic metadata
-            layout_data = LayoutData(keyboard="unknown", title="Imported Keymap")
-
-            # Extract layers from keymap node
-            layers_data = self._extract_layers_from_keymap(keymap_content)
-            if layers_data:
-                layout_data.layer_names = layers_data["layer_names"]
-                layout_data.layers = layers_data["layers"]
-                result.extracted_sections["layers"] = layers_data
-
-            # Extract custom behaviors using behavior parser
-            behaviors = self.behavior_parser.parse_behaviors_section(keymap_content)
-            if behaviors:
-                layout_data.hold_taps = behaviors.get("hold_taps", [])
-                result.extracted_sections["behaviors"] = behaviors
-
-            # Extract macros
-            macros = self.behavior_parser.parse_macros_section(keymap_content)
-            if macros:
-                layout_data.macros = macros
-                result.extracted_sections["macros"] = macros
-
-            # Extract combos
-            combos = self.behavior_parser.parse_combos_section(keymap_content)
-            if combos:
-                layout_data.combos = combos
-                result.extracted_sections["combos"] = combos
-
-            # Extract custom device tree code
-            custom_code = self._extract_custom_sections(keymap_content)
-            if custom_code:
-                layout_data.custom_defined_behaviors = custom_code.get("behaviors", "")
-                layout_data.custom_devicetree = custom_code.get("devicetree", "")
-                result.extracted_sections["custom"] = custom_code
-
-            return layout_data
-
-        except Exception as e:
-            exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Full keymap parsing failed: %s", e, exc_info=exc_info)
-            result.errors.append(f"Full parsing failed: {e}")
-            return None
-
-    def _parse_template_aware(
-        self, keymap_content: str, keyboard_profile: str, result: KeymapParseResult
-    ) -> LayoutData | None:
-        """Parse keymap using keyboard profile template for structure identification.
-
-        Args:
-            keymap_content: Keymap file content
-            keyboard_profile: Keyboard profile identifier
-            result: Result object to populate
-
-        Returns:
-            Parsed LayoutData or None if parsing fails
-        """
-        try:
-            # Load keyboard profile and template
-            from glovebox.config import create_keyboard_profile
-
-            profile = create_keyboard_profile(keyboard_profile)
-            template_path = self._get_template_path(profile)
-
-            if not template_path or not template_path.exists():
-                result.errors.append(
-                    f"Template not found for profile: {keyboard_profile}"
-                )
-                return None
-
-            # Load template and get variable structure
-            template_content = template_path.read_text(encoding="utf-8")
-            template_vars = self.template_adapter.get_template_variables(
-                template_content
-            )
-
-            # Create base layout data with profile info
-            layout_data = LayoutData(
-                keyboard=profile.keyboard_name, title="Imported Layout"
-            )
-
-            # Extract user data sections using template knowledge
-            extracted_data = self._extract_template_sections(
-                keymap_content, template_vars, profile, result
-            )
-
-            if extracted_data:
-                # Populate layout data with extracted sections
-                if "layers" in extracted_data:
-                    layers = extracted_data["layers"]
-                    layout_data.layer_names = layers["layer_names"]
-                    layout_data.layers = layers["layers"]
-
-                if "behaviors" in extracted_data:
-                    behaviors = extracted_data["behaviors"]
-                    layout_data.hold_taps = behaviors.get("hold_taps", [])
-
-                if "macros" in extracted_data:
-                    layout_data.macros = extracted_data["macros"]
-
-                if "combos" in extracted_data:
-                    layout_data.combos = extracted_data["combos"]
-
-                if "custom" in extracted_data:
-                    custom = extracted_data["custom"]
-                    layout_data.custom_defined_behaviors = custom.get("behaviors", "")
-                    layout_data.custom_devicetree = custom.get("devicetree", "")
-                    
-                    # Handle input listeners if present
-                    if "input_listeners" in custom:
-                        # Store input listeners in variables section for template usage
-                        if not hasattr(layout_data, 'variables') or layout_data.variables is None:
-                            layout_data.variables = {}
-                        layout_data.variables["input_listeners_dtsi"] = custom["input_listeners"]
-
-                if "variables" in extracted_data:
-                    layout_data.variables = extracted_data["variables"]
-                    
-                # Store raw sections in variables for template rendering if not already present
-                if "behaviors_raw" in extracted_data:
-                    if not hasattr(layout_data, 'variables') or layout_data.variables is None:
-                        layout_data.variables = {}
-                    layout_data.variables["user_behaviors_dtsi"] = extracted_data["behaviors_raw"]
-                    
-                if "macros_raw" in extracted_data:
-                    if not hasattr(layout_data, 'variables') or layout_data.variables is None:
-                        layout_data.variables = {}
-                    layout_data.variables["user_macros_dtsi"] = extracted_data["macros_raw"]
-                    
-                if "combos_raw" in extracted_data:
-                    if not hasattr(layout_data, 'variables') or layout_data.variables is None:
-                        layout_data.variables = {}
-                    layout_data.variables["combos_dtsi"] = extracted_data["combos_raw"]
-
-                result.extracted_sections = extracted_data
-
-            return layout_data
-
-        except Exception as e:
-            exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Template-aware parsing failed: %s", e, exc_info=exc_info)
-            result.errors.append(f"Template-aware parsing failed: {e}")
-            return None
 
     def _get_template_path(self, profile: Any) -> Path | None:
         """Get template file path from keyboard profile.
@@ -326,341 +177,6 @@ class ZmkKeymapParser:
         except Exception as e:
             self.logger.warning("Could not determine template path: %s", e)
             return None
-
-    def _extract_layers_from_keymap(self, keymap_content: str) -> dict[str, Any] | None:
-        """Extract layer definitions from keymap node.
-
-        Args:
-            keymap_content: Keymap file content
-
-        Returns:
-            Dictionary with layer_names and layers lists
-        """
-        try:
-            # Find keymap node using balanced brace matching
-            keymap_node = self._extract_balanced_node(keymap_content, "keymap")
-
-            if not keymap_node:
-                self.logger.warning("No keymap node found")
-                return None
-
-            # Extract individual layer definitions
-            layer_pattern = r"layer_(\w+)\s*\{([^}]*)\}"
-            layer_matches = re.findall(layer_pattern, keymap_node, re.DOTALL)
-
-            if not layer_matches:
-                self.logger.warning("No layer definitions found")
-                return None
-
-            layer_names = []
-            layers = []
-
-            for layer_name, layer_body in layer_matches:
-                layer_names.append(layer_name)
-
-                # Extract bindings from layer body
-                bindings_pattern = r"bindings\s*=\s*<([^>]*)>"
-                bindings_match = re.search(bindings_pattern, layer_body, re.DOTALL)
-
-                if bindings_match:
-                    bindings_content = bindings_match.group(1)
-                    bindings = self._parse_bindings_content(bindings_content)
-                    layers.append(bindings)
-                else:
-                    # Empty layer
-                    layers.append([])
-
-            return {"layer_names": layer_names, "layers": layers}
-
-        except Exception as e:
-            exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Failed to extract layers: %s", e, exc_info=exc_info)
-            return None
-
-    def _parse_bindings_content(self, bindings_content: str) -> list[LayoutBinding]:
-        """Parse bindings content string to LayoutBinding objects.
-
-        Args:
-            bindings_content: Raw bindings content from keymap
-
-        Returns:
-            List of LayoutBinding objects
-        """
-        bindings = []
-
-        # Remove comments and clean up content
-        cleaned_content = re.sub(r"//.*$", "", bindings_content, flags=re.MULTILINE)
-
-        # Split by semicolons first to properly separate behaviors
-        # Handle semicolons as primary separators in ZMK bindings
-        semicolon_parts = [
-            part.strip() for part in cleaned_content.split(";") if part.strip()
-        ]
-
-        for part in semicolon_parts:
-            # Find all behavior patterns within each semicolon-separated part
-            # This regex finds complete behaviors like &kp Q, &mt LSHIFT A, &trans, etc.
-            # Updated pattern to stop at semicolons and handle parameters properly
-            behavior_pattern = r"&[a-zA-Z_][a-zA-Z0-9_]*(?:\s+[^\s&;]+)*"
-            behavior_matches = re.findall(behavior_pattern, part)
-
-            # Parse each complete behavior
-            for behavior_str in behavior_matches:
-                behavior_str = behavior_str.strip()
-                if behavior_str:
-                    try:
-                        binding = LayoutBinding.from_str(behavior_str)
-                        bindings.append(binding)
-                    except Exception as e:
-                        self.logger.warning(
-                            "Failed to parse binding '%s': %s", behavior_str, e
-                        )
-                        # Create a fallback binding
-                        bindings.append(
-                            LayoutBinding(value=behavior_str.split()[0], params=[])
-                        )
-
-        return bindings
-
-    def _extract_custom_sections(self, keymap_content: str) -> dict[str, Any] | None:
-        """Extract custom device tree and behavior code.
-
-        Args:
-            keymap_content: Keymap file content
-
-        Returns:
-            Dictionary with custom code sections
-        """
-        custom = {}
-
-        # Extract custom behaviors section (outside of standard nodes)
-        # Look for behaviors not in behaviors/macros/combos nodes
-        custom_behaviors = self._extract_custom_behavior_code(keymap_content)
-        if custom_behaviors:
-            custom["behaviors"] = custom_behaviors
-
-        # Extract custom device tree code
-        custom_dt = self._extract_custom_devicetree_code(keymap_content)
-        if custom_dt:
-            custom["devicetree"] = custom_dt
-
-        return custom if custom else None
-
-    def _extract_custom_behavior_code(self, keymap_content: str) -> str:
-        """Extract custom behavior definitions outside standard nodes."""
-        # This would identify custom behavior code that's not in
-        # standard behaviors/macros/combos sections
-        # For now, return empty string - this is complex parsing
-        return ""
-
-    def _extract_custom_devicetree_code(self, keymap_content: str) -> str:
-        """Extract custom device tree code outside keymap structure."""
-        # This would identify custom DT code outside standard template sections
-        # For now, return empty string - this is complex parsing
-        return ""
-
-    def _extract_template_sections(
-        self,
-        keymap_content: str,
-        template_vars: list[str],
-        profile: Any,
-        result: KeymapParseResult,
-    ) -> dict[str, Any] | None:
-        """Extract user data sections using template variable knowledge.
-
-        Args:
-            keymap_content: Keymap file content
-            template_vars: List of template variable names
-            profile: Keyboard profile object
-            result: Result object for warnings/errors
-
-        Returns:
-            Dictionary with extracted user data sections
-        """
-        extracted = {}
-
-        # Debug: Log template variables
-        self.logger.debug("Template variables found: %s", template_vars)
-
-        # First, try to extract sections using comment delimiters
-        # Always try to extract all possible sections, not just those in template_vars
-        all_possible_vars = [
-            "custom_devicetree", 
-            "input_listeners_dtsi", 
-            "user_behaviors_dtsi",
-            "user_behaviors_dtsi_alt",
-            "custom_defined_behaviors",
-            "user_macros_dtsi",
-            "combos_dtsi"
-        ]
-        
-        comment_sections = self._extract_sections_by_comment_delimiters(
-            keymap_content, all_possible_vars
-        )
-        
-        # Debug: Log what was extracted
-        if comment_sections:
-            self.logger.debug("Comment sections extracted: %s", list(comment_sections.keys()))
-            for section_name, content in comment_sections.items():
-                self.logger.debug("Section %s: %d characters", section_name, len(content))
-        else:
-            self.logger.debug("No comment sections extracted")
-
-        # Extract layers (always needed)
-        layers_data = self._extract_layers_from_keymap(keymap_content)
-        if layers_data:
-            extracted["layers"] = layers_data
-
-        # Extract behaviors - prefer comment delimited content, parse it to structured data
-        if "user_behaviors_dtsi" in template_vars or "user_behaviors_dtsi" in comment_sections:
-            if "user_behaviors_dtsi" in comment_sections:
-                # Store raw content for template usage
-                extracted["behaviors_raw"] = comment_sections["user_behaviors_dtsi"]
-                self.logger.debug("Using comment-delimited behaviors content")
-                
-                # Parse raw content to structured data for LayoutData
-                self.logger.debug("Attempting AST parsing for behaviors section...")
-                parsed_behaviors = self._parse_behaviors_section_ast(comment_sections["user_behaviors_dtsi"])
-                if parsed_behaviors:
-                    extracted["behaviors"] = parsed_behaviors
-                    self.logger.debug("Successfully parsed behaviors from comment-delimited content: %s", parsed_behaviors)
-                else:
-                    self.logger.debug("AST parsing returned None for behaviors, trying regex fallback...")
-                    # Fallback to regex parser if AST parsing fails
-                    behaviors = self.behavior_parser.parse_behaviors_section(comment_sections["user_behaviors_dtsi"])
-                    if behaviors:
-                        extracted["behaviors"] = behaviors
-                        self.logger.debug("Used regex parser for behaviors: %s", behaviors)
-                    else:
-                        self.logger.debug("No behaviors found by either AST or regex parsing")
-                        
-            
-            # Also check alternative behaviors section for additional hold-taps/behaviors
-            if "user_behaviors_dtsi_alt" in comment_sections:
-                self.logger.debug("Found alternative behaviors section, processing...")
-                
-                # Parse alternative content  
-                alt_parsed_behaviors = self._parse_behaviors_section_ast(comment_sections["user_behaviors_dtsi_alt"])
-                if alt_parsed_behaviors:
-                    self.logger.debug("Successfully parsed alternative behaviors: %s", alt_parsed_behaviors)
-                    
-                    # Merge with existing behaviors or create new
-                    if "behaviors" in extracted and extracted["behaviors"]:
-                        # Merge hold_taps if both sections have them
-                        if "hold_taps" in alt_parsed_behaviors:
-                            if "hold_taps" not in extracted["behaviors"]:
-                                extracted["behaviors"]["hold_taps"] = []
-                            extracted["behaviors"]["hold_taps"].extend(alt_parsed_behaviors["hold_taps"])
-                            self.logger.debug("Merged %d hold_taps from alternative section", len(alt_parsed_behaviors["hold_taps"]))
-                    else:
-                        # Use alternative behaviors as primary
-                        extracted["behaviors"] = alt_parsed_behaviors
-                        self.logger.debug("Using alternative behaviors as primary behaviors")
-                        
-                # Store alternative raw content too
-                if not extracted.get("behaviors_raw"):
-                    extracted["behaviors_raw"] = comment_sections["user_behaviors_dtsi_alt"]
-                    self.logger.debug("Using alternative section for behaviors_raw")
-                        
-            
-            # Fallback to regex parser on full content if no behaviors found
-            if "behaviors" not in extracted:
-                behaviors = self.behavior_parser.parse_behaviors_section(keymap_content)
-                if behaviors:
-                    extracted["behaviors"] = behaviors
-                    self.logger.debug("Using parsed behaviors content")
-
-        # Extract macros - prefer comment delimited content, parse it to structured data
-        if "user_macros_dtsi" in template_vars or "user_macros_dtsi" in comment_sections:
-            if "user_macros_dtsi" in comment_sections:
-                # Store raw content for template usage
-                extracted["macros_raw"] = comment_sections["user_macros_dtsi"]
-                self.logger.debug("Using comment-delimited macros content")
-                
-                # Parse raw content to structured data for LayoutData
-                parsed_macros = self._parse_macros_section_ast(comment_sections["user_macros_dtsi"])
-                if parsed_macros:
-                    extracted["macros"] = parsed_macros
-                    self.logger.debug("Successfully parsed macros from comment-delimited content: %d macros", len(parsed_macros))
-                else:
-                    # Fallback to regex parser if AST parsing fails
-                    macros = self.behavior_parser.parse_macros_section(comment_sections["user_macros_dtsi"])
-                    if macros:
-                        extracted["macros"] = macros  # type: ignore[assignment]
-                        self.logger.debug("Used regex parser for macros: %d macros", len(macros))
-            else:
-                # Fallback to behavior parser on full content
-                macros = self.behavior_parser.parse_macros_section(keymap_content)
-                if macros:
-                    extracted["macros"] = macros  # type: ignore[assignment]
-                    self.logger.debug("Using parsed macros content")
-
-        # Extract combos - prefer comment delimited content, parse it to structured data
-        if "combos_dtsi" in template_vars or "combos_dtsi" in comment_sections:
-            if "combos_dtsi" in comment_sections:
-                # Store raw content for template usage
-                extracted["combos_raw"] = comment_sections["combos_dtsi"]
-                self.logger.debug("Using comment-delimited combos content")
-                
-                # Parse raw content to structured data for LayoutData
-                parsed_combos = self._parse_combos_section_ast(comment_sections["combos_dtsi"])
-                if parsed_combos:
-                    extracted["combos"] = parsed_combos
-                    self.logger.debug("Successfully parsed combos from comment-delimited content: %d combos", len(parsed_combos))
-                else:
-                    # Fallback to regex parser if AST parsing fails
-                    combos = self.behavior_parser.parse_combos_section(comment_sections["combos_dtsi"])
-                    if combos:
-                        extracted["combos"] = combos  # type: ignore[assignment]
-                        self.logger.debug("Used regex parser for combos: %d combos", len(combos))
-            else:
-                # Fallback to behavior parser on full content
-                combos = self.behavior_parser.parse_combos_section(keymap_content)
-                if combos:
-                    extracted["combos"] = combos  # type: ignore[assignment]
-                    self.logger.debug("Using parsed combos content")
-
-        # Extract custom sections - prefer comment delimited content, fallback to regex
-        custom_sections = {}
-        
-        # Custom behaviors
-        if "custom_defined_behaviors" in template_vars or "custom_defined_behaviors" in comment_sections:
-            if "custom_defined_behaviors" in comment_sections:
-                custom_sections["behaviors"] = comment_sections["custom_defined_behaviors"]
-                self.logger.debug("Using comment-delimited custom behaviors")
-        
-        # Custom devicetree  
-        if "custom_devicetree" in template_vars or "custom_devicetree" in comment_sections:
-            if "custom_devicetree" in comment_sections:
-                custom_sections["devicetree"] = comment_sections["custom_devicetree"]
-                self.logger.debug("Using comment-delimited custom devicetree")
-                
-        # Input listeners
-        if "input_listeners_dtsi" in template_vars or "input_listeners_dtsi" in comment_sections:
-            if "input_listeners_dtsi" in comment_sections:
-                custom_sections["input_listeners"] = comment_sections["input_listeners_dtsi"]
-                self.logger.debug("Using comment-delimited input listeners")
-
-        # Fallback to old custom sections extraction if comment delimiters didn't work
-        if not custom_sections and any(
-            var in template_vars
-            for var in ["custom_defined_behaviors", "custom_devicetree"]
-        ):
-            custom = self._extract_custom_sections(keymap_content)
-            if custom:
-                custom_sections.update(custom)
-                self.logger.debug("Using fallback custom sections extraction")
-
-        if custom_sections:
-            extracted["custom"] = custom_sections
-
-        # Store raw comment sections for template variable usage
-        if comment_sections:
-            extracted["comment_sections"] = comment_sections
-
-        self.logger.debug("Final extracted sections: %s", list(extracted.keys()))
-
-        return extracted if extracted else None
 
     def _extract_balanced_node(self, content: str, node_name: str) -> str | None:
         """Extract a device tree node with balanced brace matching.
@@ -924,9 +440,15 @@ class ZmkKeymapParser:
                 behaviors = extracted_data["behaviors"]
                 self.logger.debug("BEHAVIORS DEBUG: %s", behaviors)
                 if isinstance(behaviors, dict) and "hold_taps" in behaviors:
-                    self.logger.debug("HOLD_TAPS DEBUG: Found %d hold_taps", len(behaviors["hold_taps"]))
+                    self.logger.debug(
+                        "HOLD_TAPS DEBUG: Found %d hold_taps",
+                        len(behaviors["hold_taps"]),
+                    )
                 else:
-                    self.logger.debug("HOLD_TAPS DEBUG: No hold_taps found - behaviors type: %s", type(behaviors))
+                    self.logger.debug(
+                        "HOLD_TAPS DEBUG: No hold_taps found - behaviors type: %s",
+                        type(behaviors),
+                    )
             if extracted_data:
                 # Populate layout data with extracted sections
                 if "layers" in extracted_data:
@@ -948,30 +470,48 @@ class ZmkKeymapParser:
                     custom = extracted_data["custom"]
                     layout_data.custom_defined_behaviors = custom.get("behaviors", "")
                     layout_data.custom_devicetree = custom.get("devicetree", "")
-                    
+
                     # Handle input listeners if present
                     if "input_listeners" in custom:
                         # Store input listeners in variables section for template usage
-                        if not hasattr(layout_data, 'variables') or layout_data.variables is None:
+                        if (
+                            not hasattr(layout_data, "variables")
+                            or layout_data.variables is None
+                        ):
                             layout_data.variables = {}
-                        layout_data.variables["input_listeners_dtsi"] = custom["input_listeners"]
+                        layout_data.variables["input_listeners_dtsi"] = custom[
+                            "input_listeners"
+                        ]
 
                 if "variables" in extracted_data:
                     layout_data.variables = extracted_data["variables"]
-                    
+
                 # Store raw sections in variables for template rendering if not already present
                 if "behaviors_raw" in extracted_data:
-                    if not hasattr(layout_data, 'variables') or layout_data.variables is None:
+                    if (
+                        not hasattr(layout_data, "variables")
+                        or layout_data.variables is None
+                    ):
                         layout_data.variables = {}
-                    layout_data.variables["user_behaviors_dtsi"] = extracted_data["behaviors_raw"]
-                    
+                    layout_data.variables["user_behaviors_dtsi"] = extracted_data[
+                        "behaviors_raw"
+                    ]
+
                 if "macros_raw" in extracted_data:
-                    if not hasattr(layout_data, 'variables') or layout_data.variables is None:
+                    if (
+                        not hasattr(layout_data, "variables")
+                        or layout_data.variables is None
+                    ):
                         layout_data.variables = {}
-                    layout_data.variables["user_macros_dtsi"] = extracted_data["macros_raw"]
-                    
+                    layout_data.variables["user_macros_dtsi"] = extracted_data[
+                        "macros_raw"
+                    ]
+
                 if "combos_raw" in extracted_data:
-                    if not hasattr(layout_data, 'variables') or layout_data.variables is None:
+                    if (
+                        not hasattr(layout_data, "variables")
+                        or layout_data.variables is None
+                    ):
                         layout_data.variables = {}
                     layout_data.variables["combos_dtsi"] = extracted_data["combos_raw"]
 
@@ -1225,18 +765,18 @@ class ZmkKeymapParser:
             # First, try to extract sections using comment delimiters
             # Always try to extract all possible sections, not just those in template_vars
             all_possible_vars = [
-                "custom_devicetree", 
-                "input_listeners_dtsi", 
+                "custom_devicetree",
+                "input_listeners_dtsi",
                 "user_behaviors_dtsi",
                 "user_behaviors_dtsi_alt",
                 "custom_defined_behaviors",
                 "user_macros_dtsi",
-                "combos_dtsi"
+                "combos_dtsi",
             ]
             comment_sections = self._extract_sections_by_comment_delimiters(
                 keymap_content, all_possible_vars
             )
-            
+
             # Then extract remaining sections using regex approach for fallback
             regex_sections = self._extract_sections_by_regex(
                 keymap_content, template_vars
@@ -1251,22 +791,34 @@ class ZmkKeymapParser:
                     extracted["layers"] = layers_data
 
             # Extract behaviors - prefer comment delimited content, parse it to structured data
-            if "user_behaviors_dtsi" in template_vars or "user_behaviors_dtsi" in comment_sections:
+            if (
+                "user_behaviors_dtsi" in template_vars
+                or "user_behaviors_dtsi" in comment_sections
+            ):
                 if "user_behaviors_dtsi" in comment_sections:
                     # Store raw content for template usage
                     extracted["behaviors_raw"] = comment_sections["user_behaviors_dtsi"]
-                    
+
                     # Parse raw content to structured data for LayoutData
-                    parsed_behaviors = self._parse_behaviors_section_ast(comment_sections["user_behaviors_dtsi"])
+                    parsed_behaviors = self._parse_behaviors_section_ast(
+                        comment_sections["user_behaviors_dtsi"]
+                    )
                     if parsed_behaviors:
                         extracted["behaviors"] = parsed_behaviors
-                        self.logger.debug("HYBRID: Successfully parsed behaviors from comment-delimited content: %s", parsed_behaviors)
+                        self.logger.debug(
+                            "HYBRID: Successfully parsed behaviors from comment-delimited content: %s",
+                            parsed_behaviors,
+                        )
                     else:
                         # Fallback to regex parser if AST parsing fails
-                        behaviors = self.behavior_parser.parse_behaviors_section(comment_sections["user_behaviors_dtsi"])
+                        behaviors = self.behavior_parser.parse_behaviors_section(
+                            comment_sections["user_behaviors_dtsi"]
+                        )
                         if behaviors:
                             extracted["behaviors"] = behaviors
-                            self.logger.debug("HYBRID: Used regex parser for behaviors: %s", behaviors)
+                            self.logger.debug(
+                                "HYBRID: Used regex parser for behaviors: %s", behaviors
+                            )
                 elif "behaviors" in regex_sections:
                     # Parse AST from regex-extracted section
                     behaviors = self._parse_behaviors_section_ast(
@@ -1274,51 +826,82 @@ class ZmkKeymapParser:
                     )
                     if behaviors:
                         extracted["behaviors"] = behaviors
-                        
+
             # Also check alternative behaviors section for additional hold-taps/behaviors
             if "user_behaviors_dtsi_alt" in comment_sections:
-                self.logger.debug("HYBRID: Found alternative behaviors section, processing...")
-                
-                # Parse alternative content  
-                alt_parsed_behaviors = self._parse_behaviors_section_ast(comment_sections["user_behaviors_dtsi_alt"])
+                self.logger.debug(
+                    "HYBRID: Found alternative behaviors section, processing..."
+                )
+
+                # Parse alternative content
+                alt_parsed_behaviors = self._parse_behaviors_section_ast(
+                    comment_sections["user_behaviors_dtsi_alt"]
+                )
                 if alt_parsed_behaviors:
-                    self.logger.debug("HYBRID: Successfully parsed alternative behaviors: %s", alt_parsed_behaviors)
-                    
+                    self.logger.debug(
+                        "HYBRID: Successfully parsed alternative behaviors: %s",
+                        alt_parsed_behaviors,
+                    )
+
                     # Merge with existing behaviors or create new
                     if "behaviors" in extracted and extracted["behaviors"]:
                         # Merge hold_taps if both sections have them
                         if "hold_taps" in alt_parsed_behaviors:
                             if "hold_taps" not in extracted["behaviors"]:
                                 extracted["behaviors"]["hold_taps"] = []
-                            extracted["behaviors"]["hold_taps"].extend(alt_parsed_behaviors["hold_taps"])
-                            self.logger.debug("HYBRID: Merged %d hold_taps from alternative section", len(alt_parsed_behaviors["hold_taps"]))
+                            extracted["behaviors"]["hold_taps"].extend(
+                                alt_parsed_behaviors["hold_taps"]
+                            )
+                            self.logger.debug(
+                                "HYBRID: Merged %d hold_taps from alternative section",
+                                len(alt_parsed_behaviors["hold_taps"]),
+                            )
                     else:
                         # Use alternative behaviors as primary
                         extracted["behaviors"] = alt_parsed_behaviors
-                        self.logger.debug("HYBRID: Using alternative behaviors as primary behaviors")
-                        
-                # Store alternative raw content too  
+                        self.logger.debug(
+                            "HYBRID: Using alternative behaviors as primary behaviors"
+                        )
+
+                # Store alternative raw content too
                 if not extracted.get("behaviors_raw"):
-                    extracted["behaviors_raw"] = comment_sections["user_behaviors_dtsi_alt"]
-                    self.logger.debug("HYBRID: Using alternative section for behaviors_raw")
+                    extracted["behaviors_raw"] = comment_sections[
+                        "user_behaviors_dtsi_alt"
+                    ]
+                    self.logger.debug(
+                        "HYBRID: Using alternative section for behaviors_raw"
+                    )
 
             # Extract macros - prefer comment delimited content, parse it to structured data
-            if "user_macros_dtsi" in template_vars or "user_macros_dtsi" in comment_sections:
+            if (
+                "user_macros_dtsi" in template_vars
+                or "user_macros_dtsi" in comment_sections
+            ):
                 if "user_macros_dtsi" in comment_sections:
                     # Store raw content for template usage
                     extracted["macros_raw"] = comment_sections["user_macros_dtsi"]
-                    
+
                     # Parse raw content to structured data for LayoutData
-                    parsed_macros = self._parse_macros_section_ast(comment_sections["user_macros_dtsi"])
+                    parsed_macros = self._parse_macros_section_ast(
+                        comment_sections["user_macros_dtsi"]
+                    )
                     if parsed_macros:
                         extracted["macros"] = parsed_macros
-                        self.logger.debug("HYBRID: Successfully parsed macros from comment-delimited content: %d macros", len(parsed_macros))
+                        self.logger.debug(
+                            "HYBRID: Successfully parsed macros from comment-delimited content: %d macros",
+                            len(parsed_macros),
+                        )
                     else:
                         # Fallback to regex parser if AST parsing fails
-                        macros = self.behavior_parser.parse_macros_section(comment_sections["user_macros_dtsi"])
+                        macros = self.behavior_parser.parse_macros_section(
+                            comment_sections["user_macros_dtsi"]
+                        )
                         if macros:
                             extracted["macros"] = macros  # type: ignore[assignment]
-                            self.logger.debug("HYBRID: Used regex parser for macros: %d macros", len(macros))
+                            self.logger.debug(
+                                "HYBRID: Used regex parser for macros: %d macros",
+                                len(macros),
+                            )
                 elif "macros" in regex_sections:
                     macros = self._parse_macros_section_ast(regex_sections["macros"])
                     if macros:
@@ -1329,18 +912,28 @@ class ZmkKeymapParser:
                 if "combos_dtsi" in comment_sections:
                     # Store raw content for template usage
                     extracted["combos_raw"] = comment_sections["combos_dtsi"]
-                    
+
                     # Parse raw content to structured data for LayoutData
-                    parsed_combos = self._parse_combos_section_ast(comment_sections["combos_dtsi"])
+                    parsed_combos = self._parse_combos_section_ast(
+                        comment_sections["combos_dtsi"]
+                    )
                     if parsed_combos:
                         extracted["combos"] = parsed_combos
-                        self.logger.debug("HYBRID: Successfully parsed combos from comment-delimited content: %d combos", len(parsed_combos))
+                        self.logger.debug(
+                            "HYBRID: Successfully parsed combos from comment-delimited content: %d combos",
+                            len(parsed_combos),
+                        )
                     else:
                         # Fallback to regex parser if AST parsing fails
-                        combos = self.behavior_parser.parse_combos_section(comment_sections["combos_dtsi"])
+                        combos = self.behavior_parser.parse_combos_section(
+                            comment_sections["combos_dtsi"]
+                        )
                         if combos:
                             extracted["combos"] = combos  # type: ignore[assignment]
-                            self.logger.debug("HYBRID: Used regex parser for combos: %d combos", len(combos))
+                            self.logger.debug(
+                                "HYBRID: Used regex parser for combos: %d combos",
+                                len(combos),
+                            )
                 elif "combos" in regex_sections:
                     combos = self._parse_combos_section_ast(regex_sections["combos"])
                     if combos:
@@ -1348,25 +941,31 @@ class ZmkKeymapParser:
 
             # Extract custom sections - prefer comment delimited content
             custom_sections = {}
-            
+
             # Custom behaviors
             if "custom_defined_behaviors" in template_vars:
                 if "custom_defined_behaviors" in comment_sections:
-                    custom_sections["behaviors"] = comment_sections["custom_defined_behaviors"]
+                    custom_sections["behaviors"] = comment_sections[
+                        "custom_defined_behaviors"
+                    ]
                 elif "custom_behaviors" in regex_sections:
                     custom_sections["behaviors"] = regex_sections["custom_behaviors"]
 
-            # Custom devicetree  
+            # Custom devicetree
             if "custom_devicetree" in template_vars:
                 if "custom_devicetree" in comment_sections:
-                    custom_sections["devicetree"] = comment_sections["custom_devicetree"]
+                    custom_sections["devicetree"] = comment_sections[
+                        "custom_devicetree"
+                    ]
                 elif "custom_devicetree" in regex_sections:
                     custom_sections["devicetree"] = regex_sections["custom_devicetree"]
-                    
+
             # Input listeners
             if "input_listeners_dtsi" in template_vars:
                 if "input_listeners_dtsi" in comment_sections:
-                    custom_sections["input_listeners"] = comment_sections["input_listeners_dtsi"]
+                    custom_sections["input_listeners"] = comment_sections[
+                        "input_listeners_dtsi"
+                    ]
 
             if custom_sections:
                 extracted["custom"] = custom_sections
@@ -1660,82 +1259,95 @@ class ZmkKeymapParser:
         self, keymap_content: str, template_vars: list[str]
     ) -> dict[str, str]:
         """Extract sections from keymap content using comment-based delimiters.
-        
+
         This method extracts content between comment delimiters like:
         /* Custom Device-tree */
         [actual device tree content]
-        
+
         /* Input Listeners */
-        
+
         Args:
             keymap_content: Full keymap file content
             template_vars: List of template variable names to guide extraction
-            
+
         Returns:
             Dictionary mapping template variable names to their extracted content
         """
         sections = {}
-        
+
         # Debug: Log that method is being called
-        self.logger.debug("_extract_sections_by_comment_delimiters called with template_vars: %s", template_vars)
-        
+        self.logger.debug(
+            "_extract_sections_by_comment_delimiters called with template_vars: %s",
+            template_vars,
+        )
+
         # Define comment delimiter patterns - these match actual generated content
         delimiter_patterns = {
             "custom_devicetree": {
                 "start": r"/\*\s*Custom\s+Device-tree\s*\*/",
-                "end": r"/\*\s*Input\s+Listeners\s*\*/"
+                "end": r"/\*\s*Input\s+Listeners\s*\*/",
             },
             "input_listeners_dtsi": {
-                "start": r"/\*\s*Input\s+Listeners\s*\*/", 
-                "end": r"/\*\s*System\s+behavior\s+and\s+Macros\s*\*/"
+                "start": r"/\*\s*Input\s+Listeners\s*\*/",
+                "end": r"/\*\s*System\s+behavior\s+and\s+Macros\s*\*/",
             },
-            "user_behaviors_dtsi": {
+            "system_behaviors_dts": {
                 "start": r"/\*\s*System\s+behavior\s+and\s+Macros\s*\*/",
-                "end": r"/\*\s*(?:#define\s+for\s+key\s+positions|Custom\s+Defined\s+Behaviors|Automatically\s+generated\s+macro|$)"
+                "end": r"/\*\s*(?:#define\s+for\s+key\s+positions|Custom\s+Defined\s+Behaviors|Automatically\s+generated\s+macro|$)",
             },
-            "custom_defined_behaviors": {
+            "custom_defined_behaviors_dtsi": {
                 "start": r"/\*\s*Custom\s+Defined\s+Behaviors\s*\*/",
-                "end": r"/\*\s*(?:Automatically\s+generated\s+macro|Automatically\s+generated\s+behavior|Automatically\s+generated\s+combos|Automatically\s+generated\s+keymap|$)"
+                "end": r"/\*\s*(?:Automatically\s+generated\s+macro|Automatically\s+generated\s+behavior|Automatically\s+generated\s+combos|Automatically\s+generated\s+keymap|$)",
             },
             "user_macros_dtsi": {
                 "start": r"/\*\s*Automatically\s+generated\s+macro\s+definitions\s*\*/",
-                "end": r"/\*\s*(?:Automatically\s+generated\s+behavior|Automatically\s+generated\s+combos|Automatically\s+generated\s+keymap|$)"
+                "end": r"/\*\s*(?:Automatically\s+generated\s+behavior|Automatically\s+generated\s+combos|Automatically\s+generated\s+keymap|$)",
             },
-            "user_behaviors_dtsi_alt": {
+            "user_behaviors_dtsi": {
                 "start": r"/\*\s*Automatically\s+generated\s+behavior\s+definitions\s*\*/",
-                "end": r"/\*\s*(?:Automatically\s+generated\s+combos|Automatically\s+generated\s+keymap|$)"
+                "end": r"/\*\s*(?:Automatically\s+generated\s+combos|Automatically\s+generated\s+keymap|$)",
             },
             "combos_dtsi": {
                 "start": r"/\*\s*Automatically\s+generated\s+combos\s+definitions\s*\*/",
-                "end": r"/\*\s*(?:Automatically\s+generated\s+keymap|$)"
-            }
+                "end": r"/\*\s*(?:Automatically\s+generated\s+keymap|$)",
+            },
         }
-        
+
         # Only extract sections that are needed by the template
         for var_name, pattern in delimiter_patterns.items():
             if var_name not in template_vars:
                 self.logger.debug("Skipping %s - not in template_vars", var_name)
                 continue
-            
+
             self.logger.debug("Processing section: %s", var_name)
-                
+
             try:
                 # Create regex pattern to capture content between delimiters
                 start_pattern = pattern["start"]
                 end_pattern = pattern["end"]
-                
+
                 # Find the start delimiter
-                start_match = re.search(start_pattern, keymap_content, re.IGNORECASE | re.MULTILINE)
+                start_match = re.search(
+                    start_pattern, keymap_content, re.IGNORECASE | re.MULTILINE
+                )
                 if not start_match:
                     self.logger.debug("No start delimiter found for %s", var_name)
                     continue
-                
-                self.logger.debug("Found start delimiter for %s at position %d", var_name, start_match.start())
-                    
+
+                self.logger.debug(
+                    "Found start delimiter for %s at position %d",
+                    var_name,
+                    start_match.start(),
+                )
+
                 # Find the end delimiter after the start position
                 search_start = start_match.end()
-                end_match = re.search(end_pattern, keymap_content[search_start:], re.IGNORECASE | re.MULTILINE)
-                
+                end_match = re.search(
+                    end_pattern,
+                    keymap_content[search_start:],
+                    re.IGNORECASE | re.MULTILINE,
+                )
+
                 if end_match:
                     # Extract content between delimiters
                     content_start = search_start
@@ -1744,61 +1356,145 @@ class ZmkKeymapParser:
                 else:
                     # If no end delimiter found, extract to end of file
                     section_content = keymap_content[search_start:].strip()
-                
+
                 if section_content:
-                    self.logger.debug("Found content for %s: %d chars", var_name, len(section_content))
+                    self.logger.debug(
+                        "Found content for %s: %d chars", var_name, len(section_content)
+                    )
                     # Clean up the content - remove template variables and empty content
-                    cleaned_content = self._clean_extracted_section_content(section_content, var_name)
+                    cleaned_content = self._clean_extracted_section_content(
+                        section_content, var_name
+                    )
                     if cleaned_content:
                         sections[var_name] = cleaned_content
-                        self.logger.debug("Added %s to sections after cleaning: %d chars", var_name, len(cleaned_content))
+                        self.logger.debug(
+                            "Added %s to sections after cleaning: %d chars",
+                            var_name,
+                            len(cleaned_content),
+                        )
                     else:
-                        self.logger.debug("Content for %s was empty after cleaning", var_name)
+                        self.logger.debug(
+                            "Content for %s was empty after cleaning", var_name
+                        )
                 else:
                     self.logger.debug("No content found for %s", var_name)
-                        
+
             except re.error as e:
-                self.logger.warning("Regex error extracting section %s: %s", var_name, e)
+                self.logger.warning(
+                    "Regex error extracting section %s: %s", var_name, e
+                )
                 continue
-                
+
         return sections
 
     def _clean_extracted_section_content(self, content: str, section_type: str) -> str:
         """Clean extracted section content by removing empty lines and comments.
-        
+
         Args:
             content: Raw extracted content
             section_type: Type of section being cleaned
-            
+
         Returns:
             Cleaned content or empty string if nothing meaningful found
         """
         # Split into lines and process
         lines = []
-        for line in content.split('\n'):
+        for line in content.split("\n"):
             stripped = line.strip()
-            
+
             # Skip empty lines
             if not stripped:
                 continue
-                
+
             # Skip pure comment lines (but keep lines with code + comments)
-            if stripped.startswith('//') or (stripped.startswith('/*') and stripped.endswith('*/')):
+            if stripped.startswith("//") or (
+                stripped.startswith("/*") and stripped.endswith("*/")
+            ):
                 continue
-                
+
             # Skip lines that look like template comments
-            if '{#' in stripped and '#}' in stripped:
+            if "{#" in stripped and "#}" in stripped:
                 continue
-                
+
             lines.append(line)
-        
-        return '\n'.join(lines) if lines else ""
+
+        return "\n".join(lines) if lines else ""
+
+    def _extract_layers_from_regex_section(
+        self, keymap_section: str
+    ) -> dict[str, Any] | None:
+        """Extract layer data from a regex-extracted keymap section.
+
+        This method is deprecated and now uses AST parsing internally.
+        """
+        # Use AST parsing instead of regex
+        roots, _ = parse_dt_multiple_safe(keymap_section)
+        if roots:
+            for root in roots:
+                layers_data = self._extract_layers_from_ast(root)
+                if layers_data:
+                    return layers_data
+        return None
 
 
-def create_zmk_keymap_parser() -> ZmkKeymapParser:
-    """Create ZMK keymap parser instance.
+def create_zmk_keymap_parser(
+    template_adapter: "TemplateAdapterProtocol | None" = None,
+    behavior_parser: Any | None = None,
+    behavior_extractor: Any | None = None,
+    model_converter: Any | None = None,
+) -> ZmkKeymapParser:
+    """Create ZMK keymap parser instance with explicit dependencies.
+
+    Args:
+        template_adapter: Optional template adapter (uses create_template_adapter() if None)
+        behavior_parser: Optional behavior parser (uses create_behavior_parser() if None)
+        behavior_extractor: Optional behavior extractor (uses create_universal_behavior_extractor() if None)
+        model_converter: Optional model converter (uses create_universal_model_converter() if None)
 
     Returns:
-        Configured ZmkKeymapParser instance
+        Configured ZmkKeymapParser instance with all dependencies injected
     """
-    return ZmkKeymapParser()
+    return ZmkKeymapParser(
+        template_adapter=template_adapter,
+        behavior_parser=behavior_parser,
+        behavior_extractor=behavior_extractor,
+        model_converter=model_converter,
+    )
+
+
+def create_zmk_keymap_parser_from_profile(
+    profile: "KeyboardProfile",
+    template_adapter: "TemplateAdapterProtocol | None" = None,
+    behavior_parser: Any | None = None,
+    behavior_extractor: Any | None = None,
+    model_converter: Any | None = None,
+) -> ZmkKeymapParser:
+    """Create ZMK keymap parser instance configured for a specific keyboard profile.
+
+    This factory function follows the CLAUDE.md pattern of profile-based configuration
+    loading, similar to other domains in the codebase.
+
+    Args:
+        profile: Keyboard profile containing configuration for the parser
+        template_adapter: Optional template adapter (uses create_template_adapter() if None)
+        behavior_parser: Optional behavior parser (uses create_behavior_parser() if None)
+        behavior_extractor: Optional behavior extractor (uses create_universal_behavior_extractor() if None)
+        model_converter: Optional model converter (uses create_universal_model_converter() if None)
+
+    Returns:
+        Configured ZmkKeymapParser instance with profile-specific settings
+    """
+    # Create parser with dependencies
+    parser = create_zmk_keymap_parser(
+        template_adapter=template_adapter,
+        behavior_parser=behavior_parser,
+        behavior_extractor=behavior_extractor,
+        model_converter=model_converter,
+    )
+
+    # Configure parser based on profile settings
+    # This could include profile-specific parsing preferences, template paths, etc.
+    # For now, we return the standard parser, but this provides the extension point
+    # for profile-based configuration
+
+    return parser

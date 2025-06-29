@@ -308,7 +308,9 @@ class MetadataExtractor:
         self.custom_sections: dict[str, str] = {}
         self.logger = logging.getLogger(__name__)
 
-    def extract_metadata(self, roots: list[DTNode], source_content: str = "") -> dict[str, Any]:
+    def extract_metadata(
+        self, roots: list[DTNode], source_content: str = ""
+    ) -> dict[str, Any]:
         """Extract comprehensive metadata from AST roots and source content.
 
         Args:
@@ -350,22 +352,26 @@ class MetadataExtractor:
         """Recursively walk node to extract comments."""
         # Extract comments from this node
         for comment in node.comments:
-            self.comments.append({
-                "text": comment.text,
-                "line": comment.line,
-                "context": self._determine_comment_context(node, context),
-                "is_block": comment.is_block,
-            })
+            self.comments.append(
+                {
+                    "text": comment.text,
+                    "line": comment.line,
+                    "context": self._determine_comment_context(node, context),
+                    "is_block": comment.is_block,
+                }
+            )
 
         # Extract comments from properties
         for prop in node.properties.values():
             for comment in prop.comments:
-                self.comments.append({
-                    "text": comment.text,
-                    "line": comment.line,
-                    "context": f"property:{prop.name}",
-                    "is_block": False,  # Property comments are typically line comments
-                })
+                self.comments.append(
+                    {
+                        "text": comment.text,
+                        "line": comment.line,
+                        "context": f"property:{prop.name}",
+                        "is_block": False,  # Property comments are typically line comments
+                    }
+                )
 
         # Recursively process children
         for child in node.children.values():
@@ -402,16 +408,18 @@ class MetadataExtractor:
         for root in roots:
             # Look for conditional directives in the AST
             for conditional in root.conditionals:
-                self.config_directives.append({
-                    "directive": conditional.directive,
-                    "condition": conditional.condition,
-                    "value": "",
-                    "line": conditional.line,
-                })
+                self.config_directives.append(
+                    {
+                        "directive": conditional.directive,
+                        "condition": conditional.condition,
+                        "value": "",
+                        "line": conditional.line,
+                    }
+                )
 
     def _extract_header_footer(self, source_content: str) -> None:
         """Extract header and footer sections from source content."""
-        lines = source_content.split('\n')
+        lines = source_content.split("\n")
 
         # Enhanced extraction with include directive detection (Phase 4.2)
         self._extract_includes_from_source(lines)
@@ -424,28 +432,36 @@ class MetadataExtractor:
         # Look for first non-comment, non-empty line that looks like node content
         for i, line in enumerate(lines):
             stripped = line.strip()
-            if stripped and not stripped.startswith('//') and not stripped.startswith('/*'):
-                if not stripped.startswith('#'):  # Skip preprocessor directives
-                    if '{' in stripped or stripped.endswith(';'):
+            if (
+                stripped
+                and not stripped.startswith("//")
+                and not stripped.startswith("/*")
+            ):
+                if not stripped.startswith("#"):  # Skip preprocessor directives
+                    if "{" in stripped or stripped.endswith(";"):
                         first_content_line = i
                         break
 
         # Look for last significant content line
         for i in range(len(lines) - 1, -1, -1):
             stripped = lines[i].strip()
-            if stripped and not stripped.startswith('//') and not stripped.startswith('*/'):
-                if not stripped.startswith('#'):  # Skip preprocessor directives
-                    if '}' in stripped or stripped.endswith(';'):
+            if (
+                stripped
+                and not stripped.startswith("//")
+                and not stripped.startswith("*/")
+            ):
+                if not stripped.startswith("#"):  # Skip preprocessor directives
+                    if "}" in stripped or stripped.endswith(";"):
                         last_content_line = i
                         break
 
         # Extract header (everything before first content)
         if first_content_line > 0:
-            self.original_header = '\n'.join(lines[:first_content_line]).strip()
+            self.original_header = "\n".join(lines[:first_content_line]).strip()
 
         # Extract footer (everything after last content)
         if last_content_line < len(lines) - 1:
-            self.original_footer = '\n'.join(lines[last_content_line + 1:]).strip()
+            self.original_footer = "\n".join(lines[last_content_line + 1 :]).strip()
 
     def _extract_includes_from_source(self, lines: list[str]) -> None:
         """Extract include directives from source lines (Phase 4.2)."""
@@ -459,11 +475,13 @@ class MetadataExtractor:
                 include_path = match.group(1)
                 resolved_path = self._resolve_include_path(include_path, line)
 
-                self.includes.append({
-                    "path": include_path,
-                    "line": line_num,
-                    "resolved_path": resolved_path,
-                })
+                self.includes.append(
+                    {
+                        "path": include_path,
+                        "line": line_num,
+                        "resolved_path": resolved_path,
+                    }
+                )
 
     def _resolve_include_path(self, include_path: str, line: str) -> str:
         """Resolve include path to actual file path (Phase 4.3).
@@ -478,7 +496,7 @@ class MetadataExtractor:
         from pathlib import Path
 
         # Determine include type based on brackets vs quotes
-        is_system_include = '<' in line and '>' in line
+        is_system_include = "<" in line and ">" in line
         is_local_include = '"' in line
 
         # Try common ZMK include search paths
@@ -486,20 +504,24 @@ class MetadataExtractor:
 
         if is_system_include:
             # System includes: search in ZMK system directories
-            search_paths.extend([
-                Path("~/zmk/app/include") / include_path,
-                Path("/opt/zmk/include") / include_path,
-                Path("./zmk/app/include") / include_path,
-                Path("./include") / include_path,
-            ])
+            search_paths.extend(
+                [
+                    Path("~/zmk/app/include") / include_path,
+                    Path("/opt/zmk/include") / include_path,
+                    Path("./zmk/app/include") / include_path,
+                    Path("./include") / include_path,
+                ]
+            )
 
         if is_local_include:
             # Local includes: search relative to current directory
-            search_paths.extend([
-                Path(include_path),
-                Path("./config") / include_path,
-                Path("..") / include_path,
-            ])
+            search_paths.extend(
+                [
+                    Path(include_path),
+                    Path("./config") / include_path,
+                    Path("..") / include_path,
+                ]
+            )
 
         # Try to resolve each search path
         for search_path in search_paths:
@@ -520,7 +542,7 @@ class MetadataExtractor:
         import re
 
         # Pattern for various preprocessor directives
-        directive_pattern = re.compile(r'^\s*#(\w+)(?:\s+(.*))?')
+        directive_pattern = re.compile(r"^\s*#(\w+)(?:\s+(.*))?")
 
         for line_num, line in enumerate(lines, 1):
             match = directive_pattern.match(line)
@@ -534,32 +556,38 @@ class MetadataExtractor:
 
                 # Categorize directive types
                 if directive in ["ifdef", "ifndef", "if"]:
-                    self.config_directives.append({
-                        "directive": directive,
-                        "condition": condition_or_value,
-                        "value": "",
-                        "line": line_num,
-                    })
+                    self.config_directives.append(
+                        {
+                            "directive": directive,
+                            "condition": condition_or_value,
+                            "value": "",
+                            "line": line_num,
+                        }
+                    )
                 elif directive in ["define", "undef"]:
                     # Split define into name and value
                     parts = condition_or_value.split(None, 1)
                     condition = parts[0] if parts else ""
                     value = parts[1] if len(parts) > 1 else ""
 
-                    self.config_directives.append({
-                        "directive": directive,
-                        "condition": condition,
-                        "value": value,
-                        "line": line_num,
-                    })
+                    self.config_directives.append(
+                        {
+                            "directive": directive,
+                            "condition": condition,
+                            "value": value,
+                            "line": line_num,
+                        }
+                    )
                 else:
                     # Handle other directives (else, endif, etc.)
-                    self.config_directives.append({
-                        "directive": directive,
-                        "condition": condition_or_value,
-                        "value": "",
-                        "line": line_num,
-                    })
+                    self.config_directives.append(
+                        {
+                            "directive": directive,
+                            "condition": condition_or_value,
+                            "value": "",
+                            "line": line_num,
+                        }
+                    )
 
     def _build_dependency_info(self) -> dict[str, Any]:
         """Build dependency information from extracted includes (Phase 4.3).
@@ -772,7 +800,9 @@ class UniversalBehaviorExtractor:
         """
         return self._extract_behaviors_from_roots([root])
 
-    def extract_all_behaviors_multiple(self, roots: list[DTNode]) -> dict[str, list[DTNode]]:
+    def extract_all_behaviors_multiple(
+        self, roots: list[DTNode]
+    ) -> dict[str, list[DTNode]]:
         """Extract all behavior types from multiple device tree roots.
 
         Args:
@@ -803,7 +833,9 @@ class UniversalBehaviorExtractor:
 
         return behaviors, metadata
 
-    def _extract_behaviors_from_roots(self, roots: list[DTNode]) -> dict[str, list[DTNode]]:
+    def _extract_behaviors_from_roots(
+        self, roots: list[DTNode]
+    ) -> dict[str, list[DTNode]]:
         """Extract all behavior types from multiple device tree roots using enhanced patterns.
 
         Args:
@@ -862,7 +894,7 @@ class UniversalBehaviorExtractor:
         self.logger.debug(
             "Extracted %d behaviors: %s",
             total_behaviors,
-            {k: len(v) for k, v in results.items() if v}
+            {k: len(v) for k, v in results.items() if v},
         )
 
         return results
@@ -935,7 +967,10 @@ class UniversalBehaviorExtractor:
                 prop.name == "compatible"
                 and prop.value
                 and isinstance(prop.value.value, str)
-                and any(pattern in prop.value.value for pattern in self.behavior_patterns["combos"])
+                and any(
+                    pattern in prop.value.value
+                    for pattern in self.behavior_patterns["combos"]
+                )
             )
         )
 
@@ -985,7 +1020,9 @@ class UniversalBehaviorExtractor:
         patterns["input_listeners"] = input_listeners
 
         # Detect sensor configurations
-        sensor_nodes = multi_walker.find_nodes_by_compatible("zmk,behavior-sensor-rotate")
+        sensor_nodes = multi_walker.find_nodes_by_compatible(
+            "zmk,behavior-sensor-rotate"
+        )
         patterns["sensor_configs"] = sensor_nodes
 
         # Detect underglow/RGB configurations

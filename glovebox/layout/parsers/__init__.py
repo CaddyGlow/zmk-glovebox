@@ -33,6 +33,7 @@ from .keymap_parser import (
     ParsingMode,
     ZmkKeymapParser,
     create_zmk_keymap_parser,
+    create_zmk_keymap_parser_from_profile,
 )
 from .model_converters import (
     ComboConverter,
@@ -51,6 +52,7 @@ __all__ = [
     # Enhanced keymap parser with AST support
     "ZmkKeymapParser",
     "create_zmk_keymap_parser",
+    "create_zmk_keymap_parser_from_profile",
     "ParsingMode",
     "ParsingMethod",
     "KeymapParseResult",

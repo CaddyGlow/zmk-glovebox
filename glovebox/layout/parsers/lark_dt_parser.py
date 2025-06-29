@@ -309,7 +309,10 @@ class LarkDTParser:
                     for name_child in child.children:
                         if isinstance(name_child, Token):
                             name_parts.append(str(name_child))
-                        elif isinstance(name_child, Tree) and name_child.data == "hash_property":
+                        elif (
+                            isinstance(name_child, Tree)
+                            and name_child.data == "hash_property"
+                        ):
                             # Handle hash-prefixed properties like #binding-cells
                             name_parts.append("#")
                             for hash_child in name_child.children:
@@ -359,8 +362,12 @@ class LarkDTParser:
                         for item_child in child.children:
                             if isinstance(item_child, Tree):
                                 if item_child.data in [
-                                    "string_value", "number_value", "array_value",
-                                    "reference_value", "boolean_value", "identifier_value"
+                                    "string_value",
+                                    "number_value",
+                                    "array_value",
+                                    "reference_value",
+                                    "boolean_value",
+                                    "identifier_value",
                                 ]:
                                     value = self._transform_value(item_child)
                                     if value:
@@ -370,8 +377,12 @@ class LarkDTParser:
                                     # They will be handled at the node level
                                     continue
                     elif child.data in [
-                        "string_value", "number_value", "array_value",
-                        "reference_value", "boolean_value", "identifier_value"
+                        "string_value",
+                        "number_value",
+                        "array_value",
+                        "reference_value",
+                        "boolean_value",
+                        "identifier_value",
                     ]:
                         # Handle direct values (backwards compatibility)
                         value = self._transform_value(child)
@@ -482,14 +493,18 @@ class LarkDTParser:
                         if isinstance(item_child, Tree):
                             if item_child.data == "array_token":
                                 # Process the array token normally
-                                current_behavior = self._process_array_token(item_child, tokens, current_behavior)
+                                current_behavior = self._process_array_token(
+                                    item_child, tokens, current_behavior
+                                )
                             elif item_child.data == "preprocessor_directive":
                                 # Skip preprocessor directives in array content for now
                                 # They will be handled at the node level
                                 continue
                 elif child.data == "array_token":
                     # Handle direct array_token (for backwards compatibility)
-                    current_behavior = self._process_array_token(child, tokens, current_behavior)
+                    current_behavior = self._process_array_token(
+                        child, tokens, current_behavior
+                    )
 
         # Don't forget the last behavior
         if current_behavior is not None:
@@ -497,7 +512,9 @@ class LarkDTParser:
 
         return tokens
 
-    def _process_array_token(self, token_tree: Tree, tokens: list[str], current_behavior: str | None) -> str | None:
+    def _process_array_token(
+        self, token_tree: Tree, tokens: list[str], current_behavior: str | None
+    ) -> str | None:
         """Process a single array token and update the tokens list.
 
         Args:
@@ -594,7 +611,10 @@ class LarkDTParser:
         for child in args_tree.children:
             if isinstance(child, Tree) and child.data == "function_arg":
                 for arg_child in child.children:
-                    if isinstance(arg_child, Tree) and arg_child.data == "function_call":
+                    if (
+                        isinstance(arg_child, Tree)
+                        and arg_child.data == "function_call"
+                    ):
                         # Nested function call
                         nested_func = self._extract_function_call(arg_child)
                         args.append(nested_func)
@@ -654,7 +674,10 @@ class LarkDTParser:
     def _transform_comment(self, comment_tree: Tree) -> DTComment | None:
         """Transform comment tree to DTComment."""
         for child in comment_tree.children:
-            if isinstance(child, Token) and child.type in ("SINGLE_LINE_COMMENT", "MULTI_LINE_COMMENT"):
+            if isinstance(child, Token) and child.type in (
+                "SINGLE_LINE_COMMENT",
+                "MULTI_LINE_COMMENT",
+            ):
                 text = str(child)
                 return DTComment(
                     text=text,
@@ -663,7 +686,9 @@ class LarkDTParser:
                 )
         return None
 
-    def _transform_preprocessor_directive(self, preprocessor_tree: Tree) -> DTConditional | None:
+    def _transform_preprocessor_directive(
+        self, preprocessor_tree: Tree
+    ) -> DTConditional | None:
         """Transform preprocessor directive tree to DTConditional.
 
         Args:
@@ -712,7 +737,6 @@ class LarkDTParser:
                 elif directive_type == "preprocessor_error":
                     condition = self._extract_error_message(child)
                     return DTConditional("error", condition, line, column)
-
 
         return None
 
@@ -773,9 +797,15 @@ class LarkDTParser:
                     function_name = ""
                     args = []
                     for func_child in child.children:
-                        if isinstance(func_child, Token) and func_child.type == "IDENTIFIER":
+                        if (
+                            isinstance(func_child, Token)
+                            and func_child.type == "IDENTIFIER"
+                        ):
                             function_name = str(func_child)
-                        elif isinstance(func_child, Tree) and func_child.data == "builtin_args":
+                        elif (
+                            isinstance(func_child, Tree)
+                            and func_child.data == "builtin_args"
+                        ):
                             args = self._extract_builtin_args(func_child)
                     return f"{function_name}({', '.join(args)})"
                 elif child.data == "negation_term":
@@ -881,7 +911,15 @@ class LarkDTParser:
                     continue
                 elif child.type == "IDENTIFIER":
                     # Check if this is part of &IDENTIFIER pattern
-                    return f"&{child}" if any(t.type == "AMPERSAND" for t in token_tree.children if isinstance(t, Token)) else str(child)
+                    return (
+                        f"&{child}"
+                        if any(
+                            t.type == "AMPERSAND"
+                            for t in token_tree.children
+                            if isinstance(t, Token)
+                        )
+                        else str(child)
+                    )
         return ""
 
     def _extract_arithmetic_expression(self, expr_tree: Tree) -> str:
@@ -992,11 +1030,16 @@ class LarkDTParser:
                                 # Handle angle-bracket include path
                                 path_parts = []
                                 for path_child in arg_child.children:
-                                    if isinstance(path_child, Tree) and path_child.data == "path_component":
+                                    if (
+                                        isinstance(path_child, Tree)
+                                        and path_child.data == "path_component"
+                                    ):
                                         component_parts = []
                                         for component_child in path_child.children:
                                             if isinstance(component_child, Token):
-                                                component_parts.append(str(component_child))
+                                                component_parts.append(
+                                                    str(component_child)
+                                                )
                                         path_parts.append("".join(component_parts))
                                     elif isinstance(path_child, Token):
                                         path_parts.append(str(path_child))
@@ -1037,7 +1080,10 @@ class LarkDTParser:
                 # Angle-bracket include path - reconstruct it
                 path_parts = []
                 for path_child in child.children:
-                    if isinstance(path_child, Tree) and path_child.data == "path_component":
+                    if (
+                        isinstance(path_child, Tree)
+                        and path_child.data == "path_component"
+                    ):
                         component_parts = []
                         for component_child in path_child.children:
                             if isinstance(component_child, Token):
@@ -1059,7 +1105,7 @@ class LarkDTParser:
         """
         import re
 
-        lines = content.split('\n')
+        lines = content.split("\n")
         processed_lines = []
 
         i = 0
@@ -1067,15 +1113,15 @@ class LarkDTParser:
             line = lines[i]
 
             # Check if this is a preprocessor directive
-            if line.strip().startswith('#'):
+            if line.strip().startswith("#"):
                 # Collect the full preprocessor directive (including continuations)
                 full_directive = line.rstrip()
 
                 # Handle line continuations
-                while full_directive.endswith('\\') and i + 1 < len(lines):
+                while full_directive.endswith("\\") and i + 1 < len(lines):
                     i += 1
                     # Remove the backslash and append next line
-                    full_directive = full_directive[:-1] + ' ' + lines[i].strip()
+                    full_directive = full_directive[:-1] + " " + lines[i].strip()
 
                 processed_lines.append(full_directive)
             else:
@@ -1084,7 +1130,7 @@ class LarkDTParser:
             i += 1
 
         # Apply additional preprocessing for macro expansion
-        preprocessed_content = '\n'.join(processed_lines)
+        preprocessed_content = "\n".join(processed_lines)
         return self._preprocess_macro_expansion(preprocessed_content)
 
     def _preprocess_macro_expansion(self, content: str) -> str:
@@ -1102,27 +1148,39 @@ class LarkDTParser:
         macro_definitions = {}
 
         # Find RIGHT_HAND_KEYS definition
-        right_hand_match = re.search(r'#define\s+RIGHT_HAND_KEYS\s+(.*?)(?=\n\s*#define|\n\s*$|\n\s*/)', content, re.DOTALL)
+        right_hand_match = re.search(
+            r"#define\s+RIGHT_HAND_KEYS\s+(.*?)(?=\n\s*#define|\n\s*$|\n\s*/)",
+            content,
+            re.DOTALL,
+        )
         if right_hand_match:
             # Extract all numbers from the definition
-            numbers = re.findall(r'\b\d+\b', right_hand_match.group(1))
+            numbers = re.findall(r"\b\d+\b", right_hand_match.group(1))
             if numbers:
-                macro_definitions['RIGHT_HAND_KEYS'] = ' '.join(numbers)
+                macro_definitions["RIGHT_HAND_KEYS"] = " ".join(numbers)
 
-        # Find THUMB_KEYS definition  
-        thumb_match = re.search(r'#define\s+THUMB_KEYS\s+(.*?)(?=\n\s*#define|\n\s*$|\n\s*/)', content, re.DOTALL)
+        # Find THUMB_KEYS definition
+        thumb_match = re.search(
+            r"#define\s+THUMB_KEYS\s+(.*?)(?=\n\s*#define|\n\s*$|\n\s*/)",
+            content,
+            re.DOTALL,
+        )
         if thumb_match:
             # Extract all numbers from the definition
-            numbers = re.findall(r'\b\d+\b', thumb_match.group(1))
+            numbers = re.findall(r"\b\d+\b", thumb_match.group(1))
             if numbers:
-                macro_definitions['THUMB_KEYS'] = ' '.join(numbers)
+                macro_definitions["THUMB_KEYS"] = " ".join(numbers)
 
         # Find LEFT_HAND_KEYS definition (if present)
-        left_hand_match = re.search(r'#define\s+LEFT_HAND_KEYS\s+(.*?)(?=\n\s*#define|\n\s*$|\n\s*/)', content, re.DOTALL)
+        left_hand_match = re.search(
+            r"#define\s+LEFT_HAND_KEYS\s+(.*?)(?=\n\s*#define|\n\s*$|\n\s*/)",
+            content,
+            re.DOTALL,
+        )
         if left_hand_match:
-            numbers = re.findall(r'\b\d+\b', left_hand_match.group(1))
+            numbers = re.findall(r"\b\d+\b", left_hand_match.group(1))
             if numbers:
-                macro_definitions['LEFT_HAND_KEYS'] = ' '.join(numbers)
+                macro_definitions["LEFT_HAND_KEYS"] = " ".join(numbers)
 
         # Apply macro expansion in array contexts
         if macro_definitions:
@@ -1130,20 +1188,26 @@ class LarkDTParser:
             def expand_array_macros(match):
                 array_content = match.group(1).strip()
                 expanded_parts = []
-                
+
                 for part in array_content.split():
                     if part in macro_definitions:
                         expanded_parts.append(macro_definitions[part])
                     else:
                         # Keep non-macro tokens as-is
                         expanded_parts.append(part)
-                
+
                 return f"<{' '.join(expanded_parts)}>"
 
             # Find and replace array expressions with macro references
-            content = re.sub(r'<([^<>]*(?:RIGHT_HAND_KEYS|LEFT_HAND_KEYS|THUMB_KEYS)[^<>]*)>', expand_array_macros, content)
+            content = re.sub(
+                r"<([^<>]*(?:RIGHT_HAND_KEYS|LEFT_HAND_KEYS|THUMB_KEYS)[^<>]*)>",
+                expand_array_macros,
+                content,
+            )
 
-            self.logger.debug("Applied macro expansion for %d macros", len(macro_definitions))
+            self.logger.debug(
+                "Applied macro expansion for %d macros", len(macro_definitions)
+            )
 
         return content
 

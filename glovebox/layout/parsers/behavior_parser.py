@@ -71,9 +71,9 @@ class BehaviorParser:
 
         while pos < len(dtsi_content):
             char = dtsi_content[pos]
-            if char == '{':
+            if char == "{":
                 brace_count += 1
-            elif char == '}':
+            elif char == "}":
                 brace_count -= 1
                 if brace_count == 0:
                     # Found the end of the macros block
@@ -84,12 +84,12 @@ class BehaviorParser:
             # Unmatched braces
             return macros
 
-        macros_content = dtsi_content[start_pos + 1:pos]
+        macros_content = dtsi_content[start_pos + 1 : pos]
 
         # Parse individual macro definitions using a more robust pattern
         # This pattern handles the case where macro definitions might have nested braces
         macro_matches = []
-        lines = macros_content.split('\n')
+        lines = macros_content.split("\n")
         current_macro = None
         brace_level = 0
         macro_lines = []
@@ -101,26 +101,37 @@ class BehaviorParser:
                 continue
 
             # Check for comments that might contain descriptions
-            comment_match = re.match(r'//\s*(.+)', line_stripped)
+            comment_match = re.match(r"//\s*(.+)", line_stripped)
             if comment_match and brace_level == 0:
                 current_comment = comment_match.group(1).strip()
                 continue
 
             # Check if this line starts a new macro definition
-            macro_start_match = re.match(r'(\w+):\s*(\w+)\s*\{', line_stripped)
+            macro_start_match = re.match(r"(\w+):\s*(\w+)\s*\{", line_stripped)
             if macro_start_match and brace_level == 0:
                 # Save previous macro if exists
                 if current_macro:
-                    macro_matches.append((current_macro[0], current_macro[1], '\n'.join(macro_lines), current_macro[2]))
+                    macro_matches.append(
+                        (
+                            current_macro[0],
+                            current_macro[1],
+                            "\n".join(macro_lines),
+                            current_macro[2],
+                        )
+                    )
 
                 # Start new macro
-                current_macro = (macro_start_match.group(1), macro_start_match.group(2), current_comment)
+                current_macro = (
+                    macro_start_match.group(1),
+                    macro_start_match.group(2),
+                    current_comment,
+                )
                 macro_lines = []
                 brace_level = 1
                 current_comment = ""  # Reset comment after using it
 
                 # Check if there's content after the opening brace on the same line
-                remaining = line[macro_start_match.end():]
+                remaining = line[macro_start_match.end() :]
                 if remaining.strip():
                     macro_lines.append(remaining.strip())
             else:
@@ -128,32 +139,48 @@ class BehaviorParser:
                 if current_macro:
                     macro_lines.append(line)
                     # Count braces to track nesting
-                    brace_level += line.count('{') - line.count('}')
+                    brace_level += line.count("{") - line.count("}")
 
                     # If we've closed all braces, this macro is complete
                     if brace_level == 0:
                         # Remove the final closing brace from the content
-                        if macro_lines and '}' in macro_lines[-1]:
-                            macro_lines[-1] = macro_lines[-1].replace('}', '').strip()
+                        if macro_lines and "}" in macro_lines[-1]:
+                            macro_lines[-1] = macro_lines[-1].replace("}", "").strip()
                             if not macro_lines[-1]:
                                 macro_lines.pop()
 
-                        macro_matches.append((current_macro[0], current_macro[1], '\n'.join(macro_lines), current_macro[2]))
+                        macro_matches.append(
+                            (
+                                current_macro[0],
+                                current_macro[1],
+                                "\n".join(macro_lines),
+                                current_macro[2],
+                            )
+                        )
                         current_macro = None
                         macro_lines = []
 
         # Handle any remaining macro
         if current_macro and macro_lines:
-            if macro_lines and '}' in macro_lines[-1]:
-                macro_lines[-1] = macro_lines[-1].replace('}', '').strip()
+            if macro_lines and "}" in macro_lines[-1]:
+                macro_lines[-1] = macro_lines[-1].replace("}", "").strip()
                 if not macro_lines[-1]:
                     macro_lines.pop()
-            macro_matches.append((current_macro[0], current_macro[1], '\n'.join(macro_lines), current_macro[2]))
+            macro_matches.append(
+                (
+                    current_macro[0],
+                    current_macro[1],
+                    "\n".join(macro_lines),
+                    current_macro[2],
+                )
+            )
 
         # Parse each macro definition
         for macro_name, macro_type, macro_body, comment in macro_matches:
             try:
-                macro = self._parse_macro_definition(macro_name, macro_type, macro_body, comment)
+                macro = self._parse_macro_definition(
+                    macro_name, macro_type, macro_body, comment
+                )
                 if macro:
                     macros.append(macro)
             except Exception as e:
@@ -351,7 +378,8 @@ class BehaviorParser:
                     else:
                         self.logger.warning(
                             "Unexpected binding-cells value for macro %s: %s",
-                            name, binding_cells
+                            name,
+                            binding_cells,
                         )
                         macro.params = None
                 except (ValueError, TypeError) as e:
