@@ -29,6 +29,8 @@ def create_progress_context(
     show_workspace_details: bool = True,
     total_stages: int | None = None,
     operation_type: str = "compilation",
+    log_panel_height: int = 15,
+    max_log_lines: int = 100,
     **options: Any,
 ) -> ProgressContext:
     """Create unified progress context for command execution.
@@ -40,6 +42,8 @@ def create_progress_context(
         show_workspace_details: Whether to show detailed workspace operations
         total_stages: Total number of stages for staged display
         operation_type: Type of operation (compilation, flash, etc.)
+        log_panel_height: Height of log panel in lines
+        max_log_lines: Maximum number of log lines to retain
         **options: Additional strategy-specific options
 
     Returns:
@@ -57,6 +61,8 @@ def create_progress_context(
         display_type=display_type,
         show_logs=show_logs,
         show_workspace_details=show_workspace_details,
+        log_panel_height=log_panel_height,
+        max_log_lines=max_log_lines,
     )
 
     # Initialize compilation progress
@@ -122,6 +128,7 @@ def create_progress_display(
         create_noop_display,
         create_simple_display,
         create_staged_display,
+        create_staged_with_logs_display,
     )
 
     display_type = context.display_config.display_type
@@ -130,6 +137,10 @@ def create_progress_display(
         return create_simple_display(context)
     elif display_type == ProgressDisplayType.STAGED:
         return create_staged_display(context)
+    elif display_type == ProgressDisplayType.STAGED_WITH_LOGS:
+        # Use adaptive display that handles Rich Live conflicts
+        from glovebox.cli.progress.displays.adaptive import AdaptiveProgressDisplay
+        return AdaptiveProgressDisplay(context)
 
     # Default to no-op for NONE or unknown display types
     return create_noop_display(context)

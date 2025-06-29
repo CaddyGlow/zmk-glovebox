@@ -601,20 +601,15 @@ def firmware_compile(
             # Determine if progress should be shown (default: enabled)
             show_progress = progress if progress is not None else True
 
-            # Create progress callback early if progress is enabled
+            # Create progress display and callback if progress is enabled
+            progress_display = None
             progress_callback = None
             if show_progress:
-                progress_callback = _create_compilation_progress_display(
-                    show_logs=show_logs, debug=debug
+                progress_display, progress_callback = (
+                    _create_compilation_progress_display(
+                        show_logs=show_logs, debug=debug
+                    )
                 )
-                # Start with initial status
-                initial_progress = CompilationProgress(
-                    repositories_downloaded=0,
-                    total_repositories=100,  # We'll update this later when we know the actual count
-                    current_repository="Initializing...",
-                    compilation_phase="initialization",
-                )
-                progress_callback(initial_progress)
 
             # Resolve input file path (supports environment variable for JSON files)
             if progress_callback:
@@ -715,38 +710,67 @@ def firmware_compile(
                 )
                 progress_callback(compilation_start_progress)
 
-            # Execute compilation based on input type
-            if is_json_input:
-                result = _execute_compilation_from_json(
-                    compilation_type,
-                    resolved_input_file,
-                    build_output_dir,
-                    compile_config,
-                    keyboard_profile,
-                    session_metrics=ctx.obj.session_metrics,
-                    user_config=get_user_config_from_context(ctx),
-                    progress_callback=progress_callback,
-                )
+            # Execute compilation with proper display lifecycle
+            if progress_display:
+                with progress_display:
+                    logger.info("🚀 Starting firmware compilation...")
+
+                    # Execute compilation based on input type
+                    if is_json_input:
+                        result = _execute_compilation_from_json(
+                            compilation_type,
+                            resolved_input_file,
+                            build_output_dir,
+                            compile_config,
+                            keyboard_profile,
+                            session_metrics=ctx.obj.session_metrics,
+                            user_config=get_user_config_from_context(ctx),
+                            progress_callback=progress_callback,
+                        )
+                    else:
+                        assert config_file is not None  # Already validated above
+                        result = _execute_compilation_service(
+                            compilation_type,
+                            resolved_input_file,  # keymap_file
+                            config_file,  # kconfig_file
+                            build_output_dir,
+                            compile_config,
+                            keyboard_profile,
+                            session_metrics=ctx.obj.session_metrics,
+                            user_config=get_user_config_from_context(ctx),
+                            progress_callback=progress_callback,
+                        )
             else:
-                assert config_file is not None  # Already validated above
-                result = _execute_compilation_service(
-                    compilation_type,
-                    resolved_input_file,  # keymap_file
-                    config_file,  # kconfig_file
-                    build_output_dir,
-                    compile_config,
-                    keyboard_profile,
-                    session_metrics=ctx.obj.session_metrics,
-                    user_config=get_user_config_from_context(ctx),
-                    progress_callback=progress_callback,
-                )
+                # Execute compilation without display
+                if is_json_input:
+                    result = _execute_compilation_from_json(
+                        compilation_type,
+                        resolved_input_file,
+                        build_output_dir,
+                        compile_config,
+                        keyboard_profile,
+                        session_metrics=ctx.obj.session_metrics,
+                        user_config=get_user_config_from_context(ctx),
+                        progress_callback=progress_callback,
+                    )
+                else:
+                    assert config_file is not None  # Already validated above
+                    result = _execute_compilation_service(
+                        compilation_type,
+                        resolved_input_file,  # keymap_file
+                        config_file,  # kconfig_file
+                        build_output_dir,
+                        compile_config,
+                        keyboard_profile,
+                        session_metrics=ctx.obj.session_metrics,
+                        user_config=get_user_config_from_context(ctx),
+                        progress_callback=progress_callback,
+                    )
 
         # Clean up temporary build directory if --output was not provided
         temp_cleanup_needed = output is None
 
-        # Clean up progress display FIRST before showing results
-        if progress_callback and hasattr(progress_callback, "cleanup"):
-            progress_callback.cleanup()
+        # Progress display cleanup is handled by context manager
 
         if result.success:
             # Track successful compilation
@@ -1169,94 +1193,79 @@ def list_devices(
 def _create_compilation_progress_display(
     show_logs: bool = True, debug: bool = False
 ) -> CompilationProgressCallback:
-    """Create a staged compilation progress display callback.
+    """Create a compilation progress display callback with scrollable logs.
 
-    This function provides a cool staged progress display with emojis and visual indicators,
-    showing build progress through multiple phases with clear visual feedback.
+    This function provides an enhanced progress display with scrollable logs above
+    progress bars, giving users full visibility into compilation operations.
 
     Args:
-        show_logs: Whether to show compilation logs in progress display (compatibility)
-        debug: Whether to show debug-level application logs in TUI
+        show_logs: Whether to show compilation logs in progress display
+        debug: Whether to show debug-level application logs
     """
-    from glovebox.cli.components.staged_progress_display import (
-        create_staged_compilation_progress_display,
+    from glovebox.cli.progress import (
+        create_progress_context,
+        create_progress_coordinator,
+        create_progress_display,
+    )
+    from glovebox.cli.progress.models import ProgressDisplayType
+
+    # Create context with scrollable logs for compilation
+    context = create_progress_context(
+        strategy="zmk_west",  # Default strategy, will be updated based on profile
+        display_enabled=True,
+        show_logs=show_logs,
+        log_panel_height=15 if show_logs else 0,
+        max_log_lines=200,
+        operation_type="firmware_compilation",
+        total_stages=5,  # init, workspace, dependencies, compilation, packaging
     )
 
-    # Create the staged progress display
-    display = create_staged_compilation_progress_display(show_logs=show_logs)
-    progress_callback = display.start()
-
-    # Set up logger handler for build output if logs are enabled
-    log_handler = None
+    # Use logs display if requested
     if show_logs:
-        from glovebox.cli.components.progress_log_handler import (
-            create_progress_log_handler,
-        )
+        context.display_config.display_type = ProgressDisplayType.STAGED_WITH_LOGS
+    else:
+        context.display_config.display_type = ProgressDisplayType.STAGED
 
-        # Create a wrapper to expose add_log_line for the handler
-        class LogLineWrapper:
-            def __init__(self, display_instance: Any):
-                self._display = display_instance
+    # Create display and coordinator
+    display = create_progress_display(context)
+    coordinator = create_progress_coordinator(context)
 
-            def add_log_line(self, line: str) -> None:
-                self._display.add_log_line(line)
+    # Don't start the display here - let the calling code manage it
 
-        wrapper = LogLineWrapper(display)
-        log_handler = create_progress_log_handler(wrapper, level=logging.INFO)
+    # Create callback that bridges old CompilationProgress to new system
+    def compilation_progress_callback(old_progress: Any) -> None:
+        """Bridge old CompilationProgress to new progress system."""
+        try:
+            if (
+                hasattr(old_progress, "compilation_phase")
+                and old_progress.compilation_phase
+            ):
+                phase = old_progress.compilation_phase
+                logger.info(f"📋 Phase: {phase}")
 
-        # Add handler to root logger to capture all build-related logs
-        root_logger = logging.getLogger()
-        root_logger.addHandler(log_handler)
+            if (
+                hasattr(old_progress, "current_repository")
+                and old_progress.current_repository
+            ):
+                logger.info(f"🔄 {old_progress.current_repository}")
 
-    # Create a wrapper class to add the required interface
-    class ProgressCallbackWrapper:
-        def __init__(
-            self,
-            callback_func: Any,
-            display_instance: Any,
-            log_handler_instance: Any = None,
-            debug_mode: bool = False,
-        ) -> None:
-            self._callback = callback_func
-            self._display = display_instance
-            self._log_handler = log_handler_instance
-            self._debug = debug_mode
+            # Update progress based on repositories downloaded
+            if (hasattr(old_progress, "repositories_downloaded") and hasattr(
+                old_progress, "total_repositories"
+            ) and old_progress.total_repositories > 0):
+                percentage = (
+                    old_progress.repositories_downloaded
+                    / old_progress.total_repositories
+                ) * 100
+                logger.debug(
+                    f"📊 Progress: {old_progress.repositories_downloaded}/{old_progress.total_repositories} repos ({percentage:.1f}%)"
+                )
 
-        def __call__(self, progress_data: Any) -> None:
-            """Call the underlying callback."""
-            self._callback(progress_data)
+        except Exception as e:
+            logger.debug(f"Progress callback error: {e}")
 
-        def add_log_line(self, line: str) -> None:
-            """Add a log line to the display (for backward compatibility)."""
-            self._display.add_log_line(line)
-
-        def cleanup(self) -> None:
-            """Cleanup the display with optional debug logging."""
-            if self._debug:
-                logger.debug("Staged compilation progress display cleanup completed")
-
-            # Remove log handler from root logger
-            if self._log_handler:
-                root_logger = logging.getLogger()
-                root_logger.removeHandler(self._log_handler)
-
-            self._display.stop()
-
-        @property
-        def manager(self) -> "DisplayManager":
-            """Compatibility manager for middleware reference."""
-            return DisplayManager(self._display)
-
-    # Add compatibility for middleware reference (used in ZMK service)
-    class DisplayManager:
-        def __init__(self, display_instance: Any) -> None:
-            self._display = display_instance
-
-        def stop(self) -> None:
-            self._display.stop()
-
-    # Return the wrapped callback
-    return ProgressCallbackWrapper(progress_callback, display, log_handler, debug)
+    # Return both display and callback for proper lifecycle management
+    return display, compilation_progress_callback
 
 
 def register_commands(app: typer.Typer) -> None:

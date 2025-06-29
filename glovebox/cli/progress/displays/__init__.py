@@ -24,6 +24,17 @@ def create_simple_display(context: ProgressContext) -> ProgressDisplayProtocol:
     return SimpleProgressDisplay(context)
 
 
+def create_staged_with_logs_display(
+    context: ProgressContext,
+) -> ProgressDisplayProtocol:
+    """Create staged progress display with logs."""
+    from glovebox.cli.progress.displays.staged_with_logs import (
+        StagedProgressWithLogsDisplay,
+    )
+
+    return StagedProgressWithLogsDisplay(context)
+
+
 def create_noop_display(context: ProgressContext) -> ProgressDisplayProtocol:
     """Create no-op progress display."""
     from glovebox.cli.progress.displays.noop import NoOpProgressDisplay
@@ -33,6 +44,7 @@ def create_noop_display(context: ProgressContext) -> ProgressDisplayProtocol:
 
 __all__ = [
     "create_staged_display",
+    "create_staged_with_logs_display",
     "create_simple_display",
     "create_noop_display",
 ]

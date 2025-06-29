@@ -436,29 +436,37 @@ def workspace_add(
             )
             raise typer.Exit(1)
 
-        # Setup progress tracking using the new reusable TUI component
+        # Setup progress tracking using the new scrollable logs display
         start_time = time.time()
         progress_callback = None
 
         if progress:
-            from glovebox.cli.components.progress_display import (
-                create_workspace_progress_display,
-            )
+            from glovebox.cli.progress.workspace import create_workspace_cache_progress
 
-            # Create workspace progress display using the reusable TUI component
-            progress_callback = create_workspace_progress_display(show_logs=True)
+            # Create display and callback using the factory function
+            display, progress_callback = create_workspace_cache_progress(
+                operation_type="workspace_add", repository=repository
+            )
 
         try:
-            result = workspace_cache_service.inject_existing_workspace(
-                workspace_path=workspace_path,
-                repository=repository,
-                progress_callback=progress_callback,
-            )
-        finally:
-            # Clean up progress display if it was used
-            if progress_callback and hasattr(progress_callback, "cleanup"):
-                progress_callback.cleanup()
+            if progress and "display" in locals():
+                # Use the display context manager for clean lifecycle
+                with display:
+                    logger.info(f"Adding workspace cache for {repository}")
+                    logger.info(f"Source: {workspace_source}")
 
+                    result = workspace_cache_service.inject_existing_workspace(
+                        workspace_path=workspace_path,
+                        repository=repository,
+                        progress_callback=progress_callback,
+                    )
+            else:
+                result = workspace_cache_service.inject_existing_workspace(
+                    workspace_path=workspace_path,
+                    repository=repository,
+                    progress_callback=progress_callback,
+                )
+        finally:
             # Cleanup temporary directories from zip extraction
             cleanup_temp_directories(temp_cleanup_dirs)
 

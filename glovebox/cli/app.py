@@ -288,8 +288,21 @@ def _run_startup_checks(app_context: AppContext) -> None:
     try:
         from glovebox.core.startup_service import create_startup_service
 
-        startup_service = create_startup_service(app_context.user_config)
-        startup_service.run_startup_checks()
+        # Show early progress display if any cache-related operations might happen
+        # For now, default to False - this can be made configurable later
+        show_early_display = False
+
+        if show_early_display:
+            from glovebox.cli.progress.workspace import create_early_workspace_display
+
+            with create_early_workspace_display("Startup Checks"):
+                logger.info("🔧 Running startup checks...")
+                startup_service = create_startup_service(app_context.user_config)
+                startup_service.run_startup_checks()
+                logger.info("✅ Startup checks completed")
+        else:
+            startup_service = create_startup_service(app_context.user_config)
+            startup_service.run_startup_checks()
 
     except Exception as e:
         # Silently fail for startup checks - don't interrupt user workflow
