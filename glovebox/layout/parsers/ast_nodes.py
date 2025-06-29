@@ -251,14 +251,23 @@ class DTVisitor(ABC):
         return results
 
 
-@dataclass
-class DTParseError:
+class DTParseError(Exception):
     """Device tree parsing error."""
 
     message: str
     line: int = 0
     column: int = 0
     context: str = ""
+
+    def __init__(
+        self, message: str, line: int = 0, column: int = 0, context: str = ""
+    ) -> None:
+        """Initialize DTParseError."""
+        super().__init__(message)
+        self.message = message
+        self.line = line
+        self.column = column
+        self.context = context
 
     def __str__(self) -> str:
         """String representation of error."""

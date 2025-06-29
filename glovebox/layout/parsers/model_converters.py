@@ -362,13 +362,13 @@ class ModelConverter:
                 return default
 
     def _parse_enhanced_binding(self, binding_str: str) -> LayoutBinding:
-        """Enhanced binding parser with better parameter type detection.
+        """Enhanced binding parser with nested parameter support.
 
         Args:
             binding_str: Binding string to parse
 
         Returns:
-            LayoutBinding with properly typed parameters
+            LayoutBinding with properly typed and nested parameters
         """
         if not binding_str or not binding_str.strip():
             return LayoutBinding(value="&none", params=[])
@@ -376,23 +376,27 @@ class ModelConverter:
         # Clean up the binding string
         binding_str = binding_str.strip()
 
-        # Handle quoted parameters and complex expressions
-        parts = self._parse_binding_parts(binding_str)
-        if not parts:
-            return LayoutBinding(value="&none", params=[])
+        # Parse with nested parameter support
+        try:
+            return self._parse_nested_binding(binding_str)
+        except Exception as e:
+            self.logger.warning("Failed to parse nested binding '%s': %s", binding_str, e)
+            # Fall back to simple parsing
+            parts = self._parse_binding_parts(binding_str)
+            if not parts:
+                return LayoutBinding(value="&none", params=[])
 
-        # First part is the behavior
-        behavior = parts[0]
-        if not behavior.startswith("&"):
-            behavior = f"&{behavior}"
+            behavior = parts[0]
+            if not behavior.startswith("&"):
+                behavior = f"&{behavior}"
 
-        # Convert remaining parts to LayoutParam objects with proper typing
-        params = []
-        for param_str in parts[1:]:
-            param_value = self._convert_binding_parameter(param_str)
-            params.append(LayoutParam(value=param_value, params=[]))
+            # Convert remaining parts to simple flat parameters
+            params = []
+            for param_str in parts[1:]:
+                param_value = self._convert_binding_parameter(param_str)
+                params.append(LayoutParam(value=param_value, params=[]))
 
-        return LayoutBinding(value=behavior, params=params)
+            return LayoutBinding(value=behavior, params=params)
 
     def _parse_binding_parts(self, binding_str: str) -> list[str]:
         """Parse binding string into parts, handling quoted parameters.
@@ -467,6 +471,211 @@ class ModelConverter:
             # Return as string if not numeric
             return cleaned
 
+    def _parse_nested_binding(self, binding_str: str) -> LayoutBinding:
+        """Parse binding string with nested parameter support.
+        
+        Handles structures like:
+        - &sk LA(LC(LSHFT))
+        - &mt LCTRL A
+        - &kp Q
+        
+        Args:
+            binding_str: Binding string to parse
+            
+        Returns:
+            LayoutBinding with nested parameter structure
+        """
+        if not binding_str.strip():
+            return LayoutBinding(value="&none", params=[])
+        
+        # Tokenize the binding string
+        tokens = self._tokenize_binding(binding_str)
+        if not tokens:
+            return LayoutBinding(value="&none", params=[])
+        
+        # First token should be the behavior
+        behavior = tokens[0]
+        if not behavior.startswith("&"):
+            behavior = f"&{behavior}"
+        
+        # Parse remaining tokens as nested parameters
+        params = []
+        i = 1
+        while i < len(tokens):
+            param, i = self._parse_nested_parameter(tokens, i)
+            if param:
+                params.append(param)
+        
+        return LayoutBinding(value=behavior, params=params)
+
+    def _tokenize_binding(self, binding_str: str) -> list[str]:
+        """Tokenize binding string preserving parentheses structure.
+        
+        For '&sk LA(LC(LSHFT))', this should produce:
+        ['&sk', 'LA(LC(LSHFT))']
+        
+        Args:
+            binding_str: Raw binding string
+            
+        Returns:
+            List of tokens
+        """
+        tokens = []
+        current_token = ""
+        paren_depth = 0
+        
+        i = 0
+        while i < len(binding_str):
+            char = binding_str[i]
+            
+            if char.isspace() and paren_depth == 0:
+                # Space outside parentheses - end current token
+                if current_token:
+                    tokens.append(current_token)
+                    current_token = ""
+            elif char == '(':
+                # Start of nested parameters - include in current token
+                current_token += char
+                paren_depth += 1
+            elif char == ')':
+                # End of nested parameters - include in current token
+                current_token += char
+                paren_depth -= 1
+            else:
+                current_token += char
+            
+            i += 1
+        
+        # Add final token
+        if current_token:
+            tokens.append(current_token)
+        
+        return tokens
+
+    def _parse_nested_parameter(self, tokens: list[str], start_index: int) -> tuple[LayoutParam | None, int]:
+        """Parse a single parameter which may contain nested sub-parameters.
+        
+        Handles tokens like:
+        - 'LA(LC(LSHFT))' -> LA with nested LC(LSHFT)
+        - 'LCTRL' -> Simple parameter
+        
+        Args:
+            tokens: List of tokens
+            start_index: Index to start parsing from
+            
+        Returns:
+            Tuple of (LayoutParam or None, next_index)
+        """
+        if start_index >= len(tokens):
+            return None, start_index
+        
+        token = tokens[start_index]
+        
+        # Check if this token has nested parameters (contains parentheses)
+        if '(' in token and ')' in token:
+            # Find the first parenthesis to split parameter name from nested content
+            paren_pos = token.find('(')
+            param_name = token[:paren_pos]
+            
+            # Extract everything inside the outermost parentheses
+            # Find matching closing parenthesis
+            paren_depth = 0
+            start_content = paren_pos + 1
+            end_content = len(token)
+            
+            for i in range(paren_pos, len(token)):
+                if token[i] == '(':
+                    paren_depth += 1
+                elif token[i] == ')':
+                    paren_depth -= 1
+                    if paren_depth == 0:
+                        end_content = i
+                        break
+            
+            inner_content = token[start_content:end_content]
+            
+            if not param_name or not inner_content:
+                # Fall back to simple parameter
+                param_value = self._convert_binding_parameter(token)
+                return LayoutParam(value=param_value, params=[]), start_index + 1
+            
+            # Parameter name becomes the value
+            param_value = self._convert_binding_parameter(param_name)
+            
+            # Parse nested content recursively
+            # The inner content should be treated as parameters, not as a full binding
+            inner_tokens = self._tokenize_binding(inner_content)
+            
+            sub_params = []
+            i = 0
+            while i < len(inner_tokens):
+                sub_param, i = self._parse_nested_parameter(inner_tokens, i)
+                if sub_param:
+                    sub_params.append(sub_param)
+            
+            return LayoutParam(value=param_value, params=sub_params), start_index + 1
+        else:
+            # Simple parameter without nesting
+            param_value = self._convert_binding_parameter(token)
+            return LayoutParam(value=param_value, params=[]), start_index + 1
+
+    def _extract_description(self, node: DTNode) -> str:
+        """Extract description from comments or label property.
+
+        Args:
+            node: Device tree node
+
+        Returns:
+            Description string
+        """
+        # Debug logging for description extraction
+        self.logger.debug("Extracting description for node %s", node.name)
+
+        # First try to find description in comments attached to this node
+        for comment in node.comments:
+            if not comment.text.startswith("//"):
+                continue
+            # Remove // and clean up
+            desc = comment.text[2:].strip()
+            if desc and not desc.startswith("TODO") and not desc.startswith("FIXME"):
+                self.logger.debug("Using comment as description for %s: %s", node.name, desc[:50])
+                return desc
+
+        # Try to find description from global metadata comments by line proximity
+        if hasattr(self, '_global_comments') and self._global_comments:
+            node_line = getattr(node, 'line', 0)
+            
+            if node_line > 0:
+                # Look for comments within a few lines before this node
+                best_comment = None
+                best_distance = float('inf')
+                
+                for comment_data in self._global_comments:
+                    comment_line = comment_data.get('line', 0)
+                    comment_text = comment_data.get('text', '')
+                    distance = node_line - comment_line
+                    
+                    # Check if comment is 1-10 lines before the node
+                    if 0 < distance <= 10 and comment_text.startswith('//'):
+                        if distance < best_distance:
+                            desc = comment_text[2:].strip()
+                            if desc and not desc.startswith("TODO") and not desc.startswith("FIXME"):
+                                best_comment = desc
+                                best_distance = distance
+                
+                if best_comment:
+                    self.logger.debug("Using nearby comment as description for %s: %s", 
+                                    node.name, best_comment[:50])
+                    return best_comment
+
+        # Fall back to label property
+        description = self._get_string_property(node, "label")
+        if description:
+            self.logger.debug("Using label as description for %s: %s", node.name, description)
+            return description
+
+        return ""
+
 
 class HoldTapConverter(ModelConverter):
     """Convert device tree hold-tap nodes to HoldTapBehavior models."""
@@ -525,31 +734,6 @@ class HoldTapConverter(ModelConverter):
         except Exception as e:
             self.logger.error("Failed to convert hold-tap node '%s': %s", node.name, e)
             return None
-
-    def _extract_description(self, node: DTNode) -> str:
-        """Extract description from comments or label property.
-
-        Args:
-            node: Device tree node
-
-        Returns:
-            Description string
-        """
-        # Try label property first
-        description = self._get_string_property(node, "label")
-        if description:
-            return description
-
-        # Try to find description in comments
-        for comment in node.comments:
-            if not comment.text.startswith("//"):
-                continue
-            # Remove // and clean up
-            desc = comment.text[2:].strip()
-            if desc and not desc.startswith("TODO") and not desc.startswith("FIXME"):
-                return desc
-
-        return ""
 
     def _parse_bindings_property(self, node: DTNode, prop_name: str) -> list[str]:
         """Parse bindings property for hold-tap behaviors with enhanced reference handling.
@@ -652,26 +836,7 @@ class MacroConverter(ModelConverter):
             self.logger.error("Failed to convert macro node '%s': %s", node.name, e)
             return None
 
-    def _extract_description(self, node: DTNode) -> str:
-        """Extract description from comments or label property."""
-        # First try to find comments (most descriptive)
-        for comment in node.comments:
-            if not comment.text.startswith("//"):
-                continue
-            desc = comment.text[2:].strip()
-            if desc and not desc.startswith("TODO") and not desc.startswith("FIXME"):
-                return desc
-
-        # Fall back to label property but clean it up
-        description = self._get_string_property(node, "label")
-        if description:
-            # Clean up label: remove quotes and ampersand prefix
-            clean_desc = description.strip('"').strip("'")
-            if clean_desc.startswith("&"):
-                clean_desc = clean_desc[1:]  # Remove & prefix
-            return clean_desc
-
-        return ""
+    # Inherit _extract_description from base class for global comment lookup
 
     def _parse_macro_bindings(self, node: DTNode) -> list[LayoutBinding]:
         """Parse macro bindings into LayoutBinding objects.
@@ -801,15 +966,7 @@ class ComboConverter(ModelConverter):
             self.logger.error("Failed to convert combo node '%s': %s", node.name, e)
             return None
 
-    def _extract_description(self, node: DTNode) -> str:
-        """Extract description from comments."""
-        for comment in node.comments:
-            if not comment.text.startswith("//"):
-                continue
-            desc = comment.text[2:].strip()
-            if desc and not desc.startswith("TODO") and not desc.startswith("FIXME"):
-                return desc
-        return ""
+    # Inherit _extract_description from base class for global comment lookup
 
     def _parse_combo_binding(self, node: DTNode) -> LayoutBinding | None:
         """Parse combo binding into LayoutBinding object with enhanced parsing.
@@ -824,19 +981,13 @@ class ComboConverter(ModelConverter):
         if not value:
             return None
 
-        # Handle array bindings (e.g., ['&kp', 'ESC'])
+        # Handle array bindings (e.g., ['&sk', 'LA(LC(LSHFT))'])
         if isinstance(value, list) and value:
             if len(value) >= 1:
-                behavior = str(value[0]).strip()
-                if not behavior.startswith("&"):
-                    behavior = f"&{behavior}"
-
-                # Convert parameters with proper typing
-                params = []
-                for param in value[1:]:
-                    param_value = self._convert_binding_parameter(str(param))
-                    params.append(LayoutParam(value=param_value, params=[]))
-                return LayoutBinding(value=behavior, params=params)
+                # Reconstruct the full binding string and parse with enhanced parser
+                binding_parts = [str(part) for part in value]
+                binding_str = " ".join(binding_parts)
+                return self._parse_enhanced_binding(binding_str)
             else:
                 return LayoutBinding(value="&none", params=[])
         else:
@@ -886,20 +1037,7 @@ class TapDanceConverter(ModelConverter):
             self.logger.error("Failed to convert tap-dance node '%s': %s", node.name, e)
             return None
 
-    def _extract_description(self, node: DTNode) -> str:
-        """Extract description from comments or label property."""
-        description = self._get_string_property(node, "label")
-        if description:
-            return description
-
-        for comment in node.comments:
-            if not comment.text.startswith("//"):
-                continue
-            desc = comment.text[2:].strip()
-            if desc and not desc.startswith("TODO") and not desc.startswith("FIXME"):
-                return desc
-
-        return ""
+    # Inherit _extract_description from base class for global comment lookup
 
     def _parse_tap_dance_bindings(self, node: DTNode) -> list[LayoutBinding]:
         """Parse tap-dance bindings into LayoutBinding objects.
@@ -1008,20 +1146,7 @@ class StickyKeyConverter(ModelConverter):
             )
             return None
 
-    def _extract_description(self, node: DTNode) -> str:
-        """Extract description from comments or label property."""
-        description = self._get_string_property(node, "label")
-        if description:
-            return description
-
-        for comment in node.comments:
-            if not comment.text.startswith("//"):
-                continue
-            desc = comment.text[2:].strip()
-            if desc and not desc.startswith("TODO") and not desc.startswith("FIXME"):
-                return desc
-
-        return ""
+    # Inherit _extract_description from base class for global comment lookup
 
     def _parse_sticky_key_bindings(self, node: DTNode) -> list[LayoutBinding]:
         """Parse sticky-key bindings into LayoutBinding objects.
@@ -1121,20 +1246,7 @@ class CapsWordConverter(ModelConverter):
             self.logger.error("Failed to convert caps-word node '%s': %s", node.name, e)
             return None
 
-    def _extract_description(self, node: DTNode) -> str:
-        """Extract description from comments or label property."""
-        description = self._get_string_property(node, "label")
-        if description:
-            return description
-
-        for comment in node.comments:
-            if not comment.text.startswith("//"):
-                continue
-            desc = comment.text[2:].strip()
-            if desc and not desc.startswith("TODO") and not desc.startswith("FIXME"):
-                return desc
-
-        return ""
+    # Inherit _extract_description from base class for global comment lookup
 
 
 class ModMorphConverter(ModelConverter):
@@ -1182,20 +1294,7 @@ class ModMorphConverter(ModelConverter):
             self.logger.error("Failed to convert mod-morph node '%s': %s", node.name, e)
             return None
 
-    def _extract_description(self, node: DTNode) -> str:
-        """Extract description from comments or label property."""
-        description = self._get_string_property(node, "label")
-        if description:
-            return description
-
-        for comment in node.comments:
-            if not comment.text.startswith("//"):
-                continue
-            desc = comment.text[2:].strip()
-            if desc and not desc.startswith("TODO") and not desc.startswith("FIXME"):
-                return desc
-
-        return ""
+    # Inherit _extract_description from base class for global comment lookup
 
     def _parse_mod_morph_bindings(self, node: DTNode) -> list[LayoutBinding]:
         """Parse mod-morph bindings (should be exactly 2)."""

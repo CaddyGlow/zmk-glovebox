@@ -584,6 +584,22 @@ class ZmkKeymapParser:
                     roots, keymap_content
                 )
             )
+            
+            # Pass global comments to model converter for description extraction
+            if metadata_dict and 'comments' in metadata_dict:
+                # Set global comments on all individual converter instances
+                global_comments = metadata_dict['comments']
+                self.model_converter.hold_tap_converter._global_comments = global_comments
+                self.model_converter.macro_converter._global_comments = global_comments
+                self.model_converter.combo_converter._global_comments = global_comments
+                self.model_converter.tap_dance_converter._global_comments = global_comments
+                self.model_converter.sticky_key_converter._global_comments = global_comments
+                self.model_converter.caps_word_converter._global_comments = global_comments
+                self.model_converter.mod_morph_converter._global_comments = global_comments
+                
+                self.logger.debug("Set %d global comments on all model converters for description extraction", 
+                                len(global_comments))
+            
             converted_behaviors = self.model_converter.convert_behaviors(behaviors_dict)
 
             # Populate layout data with converted behaviors
@@ -604,10 +620,27 @@ class ZmkKeymapParser:
             # Populate keymap metadata for round-trip preservation (Phase 4.1)
             if metadata_dict:
                 # Convert metadata to proper model instances
+                comments_raw = metadata_dict.get("comments", [])
+                self.logger.debug("=== COMMENT EXTRACTION DEBUG ===")
+                self.logger.debug("Raw comments from metadata_dict: %d", len(comments_raw))
+                
+                for i, comment in enumerate(comments_raw[:5]):  # Show first 5
+                    self.logger.debug("  Comment %d: %s", i+1, comment)
+                
                 layout_data.keymap_metadata.comments = [
                     self._convert_comment_to_model(comment)
-                    for comment in metadata_dict.get("comments", [])
+                    for comment in comments_raw
                 ]
+                
+                self.logger.debug("Converted to KeymapComment models: %d", len(layout_data.keymap_metadata.comments))
+                
+                # Show a sample of the final comments
+                for i, comment in enumerate(layout_data.keymap_metadata.comments[:3]):
+                    self.logger.debug("  Final comment %d: Line %d [%s]: %s", 
+                               i+1, comment.line, comment.context, comment.text[:50])
+                
+                self.logger.debug("=== END COMMENT DEBUG ===")
+                self.logger.debug("")
                 layout_data.keymap_metadata.includes = [
                     self._convert_include_to_model(include)
                     for include in metadata_dict.get("includes", [])
