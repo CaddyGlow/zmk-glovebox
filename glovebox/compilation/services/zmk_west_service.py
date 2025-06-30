@@ -63,14 +63,6 @@ if TYPE_CHECKING:
 
 
 class ZmkWestService(CompilationServiceProtocol):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._external_progress_coordinator = None
-
-    def set_progress_coordinator(self, coordinator):
-        """Set an external progress coordinator to use instead of creating our own."""
-        self._external_progress_coordinator = coordinator
-
     """ZMK config compilation service with workspace and build caching.
 
     This service uses the ZMK docker image to compile with the west framwork.
@@ -246,32 +238,20 @@ class ZmkWestService(CompilationServiceProtocol):
                         "copying", 75, 100, "Copying cached artifacts", "in_progress"
                     )
 
-                if progress_coordinator:
-                    if progress_coordinator:
-                        progress_coordinator.update_cache_progress(
-                            "copying",
-                            75,
-                            100,
-                            "Copying cached artifacts",
-                            "in_progress",
-                        )
-
                 output_files = self._collect_files(cached_build_path, output_dir)
 
                 if progress_coordinator:
-                    if progress_coordinator:
-                        progress_coordinator.update_cache_progress(
-                            "completed",
-                            100,
-                            100,
-                            "Cache restoration completed",
-                            "success",
-                        )
+                    progress_coordinator.update_cache_progress(
+                        "completed",
+                        100,
+                        100,
+                        "Cache restoration completed",
+                        "success",
+                    )
                     # Signal overall build completion for cached builds
-                    if progress_coordinator:
-                        progress_coordinator.complete_build_success(
-                            "Used cached build result"
-                        )
+                    progress_coordinator.complete_build_success(
+                        "Used cached build result"
+                    )
                     # Small delay to ensure progress update is processed
                     import time
 

@@ -264,12 +264,43 @@ class ZmkKeymapParser:
         """Extract layer definitions from AST."""
         try:
             keymap_node = None
+
+            # Log the root node structure for debugging
+            if self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.debug(
+                    "Searching for keymap node in root: name='%s', children=%s",
+                    root.name,
+                    list(root.children.keys()),
+                )
+
+            # Method 1: Direct check if root is keymap
             if root.name == "keymap":
                 keymap_node = root
-            else:
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    self.logger.debug("Found keymap node as root node")
+
+            # Method 2: Try direct path lookup
+            if not keymap_node:
                 keymap_node = root.find_node_by_path("/keymap")
+                if keymap_node and self.logger.isEnabledFor(logging.DEBUG):
+                    self.logger.debug("Found keymap node via path /keymap")
+
+            # Method 3: For main root nodes (name=""), look for keymap child directly
+            if not keymap_node and root.name == "":
+                keymap_node = root.get_child("keymap")
+                if keymap_node and self.logger.isEnabledFor(logging.DEBUG):
+                    self.logger.debug("Found keymap node as direct child of main root")
+
+            # Method 4: Recursive search through all child nodes
+            if not keymap_node:
+                keymap_node = self._find_keymap_node_recursive(root)
+                if keymap_node and self.logger.isEnabledFor(logging.DEBUG):
+                    self.logger.debug("Found keymap node via recursive search")
 
             if not keymap_node:
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    # Log the full tree structure for debugging
+                    self._log_ast_structure(root, level=0, max_level=2)
                 self.logger.warning("No keymap node found in AST")
                 return None
 
@@ -297,6 +328,53 @@ class ZmkKeymapParser:
         except Exception as e:
             self.logger.warning("Failed to extract layers from AST: %s", e)
             return None
+
+    def _find_keymap_node_recursive(self, node: DTNode) -> DTNode | None:
+        """Recursively search for keymap node in the AST.
+
+        Args:
+            node: Node to search from
+
+        Returns:
+            Keymap DTNode if found, None otherwise
+        """
+        # Check all children of current node
+        for child_name, child_node in node.children.items():
+            if child_name == "keymap":
+                return child_node
+
+            # Recursively search in child nodes
+            found = self._find_keymap_node_recursive(child_node)
+            if found:
+                return found
+
+        return None
+
+    def _log_ast_structure(
+        self, node: DTNode, level: int = 0, max_level: int = 2
+    ) -> None:
+        """Log AST structure for debugging.
+
+        Args:
+            node: Node to log
+            level: Current depth level
+            max_level: Maximum depth to log
+        """
+        if level > max_level:
+            return
+
+        indent = "  " * level
+        self.logger.debug(
+            "%sNode: name='%s', children=%s, properties=%s",
+            indent,
+            node.name,
+            list(node.children.keys()),
+            list(node.properties.keys()),
+        )
+
+        # Log children recursively
+        for _child_name, child_node in node.children.items():
+            self._log_ast_structure(child_node, level + 1, max_level)
 
     def _convert_ast_bindings(self, bindings_value: DTValue) -> list[LayoutBinding]:
         """Convert AST bindings value to LayoutBinding objects.
@@ -339,25 +417,36 @@ class ZmkKeymapParser:
 
                     # Join the parts to form the complete binding
                     binding_str = " ".join(binding_parts)
-                    
+
                     # Log the binding string for debugging parameter issues
                     if self.logger.isEnabledFor(logging.DEBUG):
-                        self.logger.debug("Converting binding: '%s' from parts: %s", binding_str, binding_parts)
-                    
+                        self.logger.debug(
+                            "Converting binding: '%s' from parts: %s",
+                            binding_str,
+                            binding_parts,
+                        )
+
                     try:
                         # Use the existing LayoutBinding.from_str method
                         binding = LayoutBinding.from_str(binding_str)
                         bindings.append(binding)
-                        
+
                         # Debug log the parsed parameters
                         if self.logger.isEnabledFor(logging.DEBUG):
                             param_strs = [str(p.value) for p in binding.params]
-                            self.logger.debug("Parsed binding '%s' with %d params: %s", 
-                                            binding.value, len(binding.params), param_strs)
+                            self.logger.debug(
+                                "Parsed binding '%s' with %d params: %s",
+                                binding.value,
+                                len(binding.params),
+                                param_strs,
+                            )
                     except Exception as e:
                         exc_info = self.logger.isEnabledFor(logging.DEBUG)
                         self.logger.error(
-                            "Failed to parse binding '%s': %s", binding_str, e, exc_info=exc_info
+                            "Failed to parse binding '%s': %s",
+                            binding_str,
+                            e,
+                            exc_info=exc_info,
                         )
                         # Create fallback binding with empty params
                         bindings.append(
@@ -365,7 +454,10 @@ class ZmkKeymapParser:
                         )
                 else:
                     # Standalone parameter without behavior - this shouldn't happen in well-formed keymap
-                    self.logger.warning("Found standalone parameter '%s' without behavior reference", item)
+                    self.logger.warning(
+                        "Found standalone parameter '%s' without behavior reference",
+                        item,
+                    )
                     i += 1
         else:
             # Single binding
@@ -377,7 +469,10 @@ class ZmkKeymapParser:
                 except Exception as e:
                     exc_info = self.logger.isEnabledFor(logging.DEBUG)
                     self.logger.error(
-                        "Failed to parse single binding '%s': %s", binding_str, e, exc_info=exc_info
+                        "Failed to parse single binding '%s': %s",
+                        binding_str,
+                        e,
+                        exc_info=exc_info,
                     )
                     bindings.append(LayoutBinding(value=binding_str, params=[]))
 

@@ -116,7 +116,10 @@ class ASTBehaviorConverter:
                 return None
 
             # Combos use plain names without & prefix in JSON format
+            # Also strip "combo_" prefix if present (device tree vs JSON format difference)
             behavior_name = name
+            if behavior_name.startswith("combo_"):
+                behavior_name = behavior_name[6:]  # Remove "combo_" prefix
 
             # Get description from comments or properties
             description = self._extract_description_from_node(node)
@@ -187,10 +190,10 @@ class ASTBehaviorConverter:
                         cleaned_text = comment_text[2:-2].strip()
                     else:
                         cleaned_text = comment_text.strip()
-                    
+
                     if cleaned_text:
                         comment_lines.append(cleaned_text)
-            
+
             if comment_lines:
                 return "\n".join(comment_lines)
 
@@ -209,10 +212,10 @@ class ASTBehaviorConverter:
                         cleaned_text = comment_text[2:-2].strip()
                     else:
                         cleaned_text = comment_text.strip()
-                    
+
                     if cleaned_text:
                         comment_lines.append(cleaned_text)
-            
+
             if comment_lines:
                 # Reverse to get original order since we processed in reverse
                 comment_lines.reverse()
@@ -307,12 +310,18 @@ class ASTBehaviorConverter:
             bindings = self._extract_macro_bindings_from_property(bindings_prop)
             macro.bindings = bindings
 
-        # Binding cells for parameter configuration
-        binding_cells_prop = node.get_property("#binding-cells")
+        # Binding cells for parameter configuration - this has highest priority
+
+        # Try different property name formats for #binding-cells
+        binding_cells_prop = (
+            node.get_property("#binding-cells")
+            or node.get_property("binding-cells")
+            or node.get_property("binding_cells")
+        )
         if binding_cells_prop:
             binding_cells = self._extract_int_from_property(binding_cells_prop)
             if binding_cells == 0:
-                macro.params = None
+                macro.params = []
             elif binding_cells == 1:
                 macro.params = ["code"]
             elif binding_cells == 2:
@@ -323,6 +332,48 @@ class ASTBehaviorConverter:
                     macro.name,
                     binding_cells,
                 )
+            self.logger.debug(
+                "Using #binding-cells=%d for macro %s: %s",
+                binding_cells,
+                macro.name,
+                macro.params,
+            )
+        else:
+            # Fallback: infer from compatible property when #binding-cells is missing
+            compatible_prop = node.get_property("compatible")
+            if compatible_prop:
+                compatible_value = self._extract_string_from_property(compatible_prop)
+
+                if compatible_value == "zmk,behavior-macro-one-param":
+                    macro.params = ["code"]
+                    self.logger.warning(
+                        "Missing #binding-cells for macro %s, inferred 1 parameter from compatible property '%s'. Consider adding #binding-cells = <1>; to the macro definition.",
+                        macro.name,
+                        compatible_value,
+                    )
+                elif compatible_value == "zmk,behavior-macro-two-param":
+                    macro.params = ["param1", "param2"]
+                    self.logger.warning(
+                        "Missing #binding-cells for macro %s, inferred 2 parameters from compatible property '%s'. Consider adding #binding-cells = <2>; to the macro definition.",
+                        macro.name,
+                        compatible_value,
+                    )
+                elif compatible_value == "zmk,behavior-macro":
+                    # Standard macro with no parameters by default
+                    macro.params = []
+                    self.logger.warning(
+                        "Missing #binding-cells for macro %s, inferred 0 parameters from compatible property '%s'. Consider adding #binding-cells = <0>; to the macro definition.",
+                        macro.name,
+                        compatible_value,
+                    )
+
+        # If we haven't set params yet, warn and default to empty
+        if not hasattr(macro, "params") or macro.params is None:
+            self.logger.warning(
+                "Unable to determine parameter count for macro %s - missing #binding-cells and unrecognized compatible property. Defaulting to no parameters. Please add #binding-cells property to the macro definition.",
+                macro.name,
+            )
+            macro.params = []
 
     def _populate_combo_properties(self, combo: ComboBehavior, node: DTNode) -> None:
         """Populate combo behavior properties from device tree node.
@@ -341,6 +392,11 @@ class ASTBehaviorConverter:
         if layers_prop:
             layers = self._extract_array_from_property(layers_prop)
             combo.layers = layers
+        else:
+            # Fallback: when layers property is missing, add placeholder
+            # This ensures combos have the required layers field with a default value
+            combo.layers = [-1]
+            self.logger.debug("Added placeholder layers [-1] for combo %s", combo.name)
 
     def _extract_string_from_property(self, prop: DTProperty) -> str:
         """Extract string value from device tree property.
@@ -383,6 +439,15 @@ class ASTBehaviorConverter:
                 return int(value_str)
             except ValueError:
                 return None
+        elif prop.value.type == DTValueType.ARRAY:
+            # Handle array values like ['1']
+            try:
+                if prop.value.value and len(prop.value.value) > 0:
+                    # Take the first element of the array
+                    first_value = prop.value.value[0]
+                    return int(str(first_value).strip("<>"))
+            except (ValueError, IndexError):
+                return None
         else:
             # Try to parse from raw value
             try:
@@ -390,6 +455,8 @@ class ASTBehaviorConverter:
                 return int(raw_value)
             except ValueError:
                 return None
+
+        return None
 
     def _extract_array_from_property(self, prop: DTProperty) -> list[int]:
         """Extract array of integers from device tree property.
@@ -456,8 +523,8 @@ class ASTBehaviorConverter:
                 import re
 
                 # Remove outer angle brackets and split by comma
-                cleaned_raw = re.sub(r'<\s*([^>]+)\s*>', r'\1', raw_value)
-                parts = [part.strip() for part in cleaned_raw.split(',')]
+                cleaned_raw = re.sub(r"<\s*([^>]+)\s*>", r"\1", raw_value)
+                parts = [part.strip() for part in cleaned_raw.split(",")]
 
                 result = []
                 for part in parts:
@@ -485,19 +552,72 @@ class ASTBehaviorConverter:
         try:
             # For array values, extract the actual array elements
             if prop.value.type == DTValueType.ARRAY:
-                for value in prop.value.value:
-                    if isinstance(value, str) and value.strip():
-                        cleaned_value = value.strip()
-                        if cleaned_value and cleaned_value.startswith("&"):
-                            try:
-                                binding = LayoutBinding.from_str(cleaned_value)
-                                bindings.append(binding)
-                            except Exception as e:
-                                self.logger.warning(
-                                    "Failed to parse macro binding '%s': %s", cleaned_value, e
+                # Group behavior references with their parameters like in keymap_parser.py
+                # In device tree syntax, <&kp HOME &kp LS(END)> means two bindings: "&kp HOME" and "&kp LS(END)"
+                i = 0
+                values = prop.value.value
+                while i < len(values):
+                    item = str(values[i]).strip()
+
+                    # Check if this is a behavior reference
+                    if item.startswith("&"):
+                        # Look for parameters following this behavior
+                        binding_parts = [item]
+                        i += 1
+
+                        # Collect parameters until we hit another behavior reference or end of array
+                        while i < len(values):
+                            next_item = str(values[i]).strip()
+                            # Stop if we hit another behavior reference
+                            if next_item.startswith("&"):
+                                break
+                            # Collect this parameter
+                            binding_parts.append(next_item)
+                            i += 1
+
+                        # Join the parts to form the complete binding
+                        binding_str = " ".join(binding_parts)
+
+                        # Log the binding string for debugging parameter issues
+                        if self.logger.isEnabledFor(logging.DEBUG):
+                            self.logger.debug(
+                                "Converting macro binding: '%s' from parts: %s",
+                                binding_str,
+                                binding_parts,
+                            )
+
+                        try:
+                            binding = LayoutBinding.from_str(binding_str)
+                            bindings.append(binding)
+
+                            # Debug log the parsed parameters
+                            if self.logger.isEnabledFor(logging.DEBUG):
+                                param_strs = [str(p.value) for p in binding.params]
+                                self.logger.debug(
+                                    "Parsed macro binding '%s' with %d params: %s",
+                                    binding.value,
+                                    len(binding.params),
+                                    param_strs,
                                 )
-                                # Create fallback binding
-                                bindings.append(LayoutBinding(value=cleaned_value, params=[]))
+                        except Exception as e:
+                            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+                            self.logger.error(
+                                "Failed to parse macro binding '%s': %s",
+                                binding_str,
+                                e,
+                                exc_info=exc_info,
+                            )
+                            # Create fallback binding with empty params
+                            bindings.append(
+                                LayoutBinding(value=binding_parts[0], params=[])
+                            )
+                    else:
+                        # Standalone parameter without behavior - this shouldn't happen in well-formed macro
+                        self.logger.warning(
+                            "Found standalone parameter '%s' without behavior reference in macro",
+                            item,
+                        )
+                        i += 1
             else:
                 # Fallback to raw parsing for non-array values
                 raw_value = prop.value.raw.strip()
@@ -505,8 +625,8 @@ class ASTBehaviorConverter:
                 import re
 
                 # Remove angle brackets and split by comma
-                cleaned_raw = re.sub(r'<\s*([^>]+)\s*>', r'\1', raw_value)
-                binding_parts = [part.strip() for part in cleaned_raw.split(',')]
+                cleaned_raw = re.sub(r"<\s*([^>]+)\s*>", r"\1", raw_value)
+                binding_parts = [part.strip() for part in cleaned_raw.split(",")]
 
                 for part in binding_parts:
                     if part and part.startswith("&"):
@@ -540,36 +660,41 @@ class ASTBehaviorConverter:
             return None
 
         try:
-            # Debug: log the raw value and array value 
+            # Debug: log the raw value and array value
             self.logger.debug(
-                "Processing combo binding - raw: '%s', type: %s", 
-                prop.value.raw if prop.value else "None", 
-                prop.value.type if prop.value else "None"
+                "Processing combo binding - raw: '%s', type: %s",
+                prop.value.raw if prop.value else "None",
+                prop.value.type if prop.value else "None",
             )
             if prop.value and prop.value.type == DTValueType.ARRAY:
                 self.logger.debug("Array value: %s", prop.value.value)
-            
+
             # Try raw parsing first to preserve complex nested structures like LG(LA(LC(LSHFT)))
             raw_value = prop.value.raw.strip()
             # Remove angle brackets properly
             import re
-            cleaned_raw = re.sub(r'<\s*([^>]+)\s*>', r'\1', raw_value).strip()
-            
+
+            cleaned_raw = re.sub(r"<\s*([^>]+)\s*>", r"\1", raw_value).strip()
+
             # Check if this looks like a malformed nested structure before parsing
             if cleaned_raw and cleaned_raw.startswith("&"):
                 # If it contains spaced parentheses, fix them and try parsing
                 if "( " in cleaned_raw or " )" in cleaned_raw:
-                    self.logger.debug("Raw value has spaced parentheses, attempting to fix and parse directly")
+                    self.logger.debug(
+                        "Raw value has spaced parentheses, attempting to fix and parse directly"
+                    )
                     # Fix the spaced parentheses by removing spaces around them
                     fixed_raw = cleaned_raw.replace(" ( ", "(").replace(" )", ")")
                     try:
                         return LayoutBinding.from_str(fixed_raw)
                     except Exception as e:
-                        self.logger.debug("Failed to parse fixed raw value '%s': %s", fixed_raw, e)
+                        self.logger.debug(
+                            "Failed to parse fixed raw value '%s': %s", fixed_raw, e
+                        )
                         # Fall through to array reconstruction
                 else:
                     return LayoutBinding.from_str(cleaned_raw)
-            
+
             # Fallback to array parsing for simpler cases
             if prop.value.type == DTValueType.ARRAY and prop.value.value:
                 # Reconstruct complete binding string from array elements
@@ -577,10 +702,12 @@ class ASTBehaviorConverter:
                 for value in prop.value.value:
                     if isinstance(value, str) and value.strip():
                         binding_parts.append(str(value).strip())
-                
+
                 if binding_parts and binding_parts[0].startswith("&"):
                     # Smart reconstruction for nested function calls
-                    complete_binding = self._reconstruct_nested_function_call(binding_parts)
+                    complete_binding = self._reconstruct_nested_function_call(
+                        binding_parts
+                    )
                     return LayoutBinding.from_str(complete_binding)
 
             # Return fallback binding
@@ -594,47 +721,47 @@ class ASTBehaviorConverter:
 
     def _reconstruct_nested_function_call(self, parts: list[str]) -> str:
         """Reconstruct nested function call from tokenized parts.
-        
+
         Converts ['&sk', 'LG', '(', 'LA', '(', 'LC', '(', 'LSHFT', ')', ')', ')']
         to '&sk LG(LA(LC(LSHFT)))'
-        
+
         Args:
             parts: List of string tokens
-            
+
         Returns:
             Reconstructed function call string
         """
         if not parts:
             return ""
-        
+
         # Simple case: no parentheses, just join with spaces
-        if '(' not in parts and ')' not in parts:
+        if "(" not in parts and ")" not in parts:
             return " ".join(parts)
-        
+
         # Complex case: reconstruct nested function calls
         result = []
         i = 0
-        
+
         while i < len(parts):
             part = parts[i]
-            
+
             # If we find an opening parenthesis after a function name
-            if i + 1 < len(parts) and parts[i + 1] == '(':
+            if i + 1 < len(parts) and parts[i + 1] == "(":
                 # This is a function call, find the matching closing parenthesis
                 func_name = part
                 paren_depth = 0
                 j = i + 1
                 func_parts = []
-                
+
                 while j < len(parts):
-                    if parts[j] == '(':
+                    if parts[j] == "(":
                         paren_depth += 1
                         if paren_depth == 1:
                             # Skip the opening parenthesis
                             pass
                         else:
                             func_parts.append(parts[j])
-                    elif parts[j] == ')':
+                    elif parts[j] == ")":
                         paren_depth -= 1
                         if paren_depth == 0:
                             # Found matching closing parenthesis
@@ -644,20 +771,20 @@ class ASTBehaviorConverter:
                     else:
                         func_parts.append(parts[j])
                     j += 1
-                
+
                 # Recursively reconstruct the function arguments
                 if func_parts:
                     inner_call = self._reconstruct_nested_function_call(func_parts)
                     result.append(f"{func_name}({inner_call})")
                 else:
                     result.append(f"{func_name}()")
-                
+
                 i = j + 1  # Skip past the closing parenthesis
             else:
                 # Regular part, add as-is
                 result.append(part)
                 i += 1
-        
+
         return " ".join(result)
 
 

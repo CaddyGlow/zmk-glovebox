@@ -223,35 +223,88 @@ class LayoutBinding(GloveboxBaseModel):
             # For "&kp LC X", create LC containing X
             # For "&mt LCTRL A", create LCTRL and A as separate params
             params = []
-            
-            # Check if this looks like a modifier chain (common ZMK pattern)
-            if len(tokens) == 3 and not any("(" in token for token in tokens[1:]):
-                # For certain behaviors, keep flat structure
-                behavior_name = behavior.lower()
-                if behavior_name in ("&mt", "&lt", "&caps_word"):
-                    # These behaviors expect flat parameters
+
+            # Check behavior type to determine parameter structure
+            behavior_name = behavior.lower()
+
+            # Behaviors that should have flat parameters (multiple separate params)
+            flat_param_behaviors = ("&mt", "&lt", "&caps_word")
+            # Add HRM behaviors and other custom behaviors that expect flat params
+            if any(
+                hrm in behavior_name for hrm in ("&hrm_", "&caps", "&thumb", "&space")
+            ):
+                flat_param_behaviors = flat_param_behaviors + (behavior_name,)
+
+            if behavior_name in flat_param_behaviors:
+                # These behaviors expect flat parameters
+                for i in range(1, len(tokens)):
+                    param_value = cls._parse_param_value(tokens[i])
+                    params.append(LayoutParam(value=param_value, params=[]))
+            elif behavior_name in ("&kp", "&key_repeat") and not any(
+                "(" in token for token in tokens[1:]
+            ):
+                # These behaviors use nested structure for modifier patterns
+                # Check if this is a modifier chain (LC, LS, G -> LC(LS(G)))
+                modifier_commands = ("lc", "la", "lg", "ls", "rc", "ra", "rg", "rs")
+                param_tokens = tokens[1:]
+
+                # Check if all parameters are modifiers or if first parameter is a modifier
+                if param_tokens and param_tokens[0].lower() in modifier_commands:
+                    # Create nested modifier chain for any length
+                    params.append(cls._create_modifier_chain(param_tokens))
+                else:
+                    # Single parameter for non-modifier cases
+                    param_value = cls._parse_param_value(tokens[1])
+                    params.append(LayoutParam(value=param_value, params=[]))
+            else:
+                # Handle complex cases with parentheses or other behaviors
+                if any("(" in token for token in tokens[1:]):
+                    # Use the existing nested parameter parsing for complex parenthetical structures
+                    i = 1
+                    while i < len(tokens):
+                        param, i = cls._parse_nested_parameter(tokens, i)
+                        if param:
+                            params.append(param)
+                else:
+                    # Default: most other behaviors with 2+ parameters expect flat structure
                     for i in range(1, len(tokens)):
                         param_value = cls._parse_param_value(tokens[i])
                         params.append(LayoutParam(value=param_value, params=[]))
-                else:
-                    # Create nested structure: first param contains second param
-                    first_param_value = cls._parse_param_value(tokens[1])
-                    second_param_value = cls._parse_param_value(tokens[2])
-                    
-                    nested_param = LayoutParam(
-                        value=first_param_value,
-                        params=[LayoutParam(value=second_param_value, params=[])]
-                    )
-                    params.append(nested_param)
-            else:
-                # Handle complex cases or more than 2 parameters normally
-                i = 1
-                while i < len(tokens):
-                    param, i = cls._parse_nested_parameter(tokens, i)
-                    if param:
-                        params.append(param)
 
             return cls(value=behavior, params=params)
+
+    @classmethod
+    def _create_modifier_chain(cls, param_tokens: list[str]) -> LayoutParam:
+        """Create nested modifier chain from parameter tokens.
+
+        Converts ["LC", "LS", "G"] to LC(LS(G)) structure.
+
+        Args:
+            param_tokens: List of parameter tokens where first tokens are modifiers
+
+        Returns:
+            LayoutParam with nested modifier structure
+        """
+        if not param_tokens:
+            return LayoutParam(value="", params=[])
+
+        if len(param_tokens) == 1:
+            # Single parameter, no nesting needed
+            param_value = cls._parse_param_value(param_tokens[0])
+            return LayoutParam(value=param_value, params=[])
+
+        # Start with the last parameter (the actual key)
+        innermost_param = LayoutParam(
+            value=cls._parse_param_value(param_tokens[-1]), params=[]
+        )
+
+        # Work backwards through modifiers, wrapping each level
+        current_param = innermost_param
+        for modifier_token in reversed(param_tokens[:-1]):
+            modifier_value = cls._parse_param_value(modifier_token)
+            current_param = LayoutParam(value=modifier_value, params=[current_param])
+
+        return current_param
 
     @staticmethod
     def _tokenize_binding(binding_str: str) -> list[str]:
