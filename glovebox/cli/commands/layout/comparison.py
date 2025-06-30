@@ -7,13 +7,14 @@ import typer
 
 from glovebox.adapters import create_file_adapter
 from glovebox.cli.commands.layout.base import LayoutOutputCommand
-from glovebox.cli.decorators import handle_errors
+from glovebox.cli.decorators import handle_errors, with_metrics
 from glovebox.cli.helpers.auto_profile import resolve_json_file_path
 from glovebox.cli.helpers.parameters import OutputFormatOption, ProfileOption
 from glovebox.layout.comparison import create_layout_comparison_service
 
 
 @handle_errors
+@with_metrics("diff")
 def diff(
     ctx: typer.Context,
     layout2: Annotated[Path, typer.Argument(help="Second layout file to compare")],
@@ -160,6 +161,7 @@ def diff(
 
 
 @handle_errors
+@with_metrics("patch")
 def patch(
     ctx: typer.Context,
     layout_file: Annotated[Path, typer.Argument(help="Source layout file to patch")],

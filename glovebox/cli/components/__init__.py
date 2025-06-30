@@ -1,9 +1,5 @@
 """CLI components for reusable UI elements."""
 
-from .progress_display import ProgressDisplayManager, WorkspaceProgressDisplayManager
+# Note: Progress components have been simplified and moved to glovebox.compilation.simple_progress
 
-
-__all__ = [
-    "ProgressDisplayManager",
-    "WorkspaceProgressDisplayManager",
-]
+__all__ = []

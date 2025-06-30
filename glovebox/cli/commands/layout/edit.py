@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from glovebox.adapters import create_file_adapter
-from glovebox.cli.decorators import handle_errors
+from glovebox.cli.decorators import handle_errors, with_metrics
 from glovebox.cli.helpers import (
     print_error_message,
     print_list_item,
@@ -624,6 +624,7 @@ def _has_write_operations(
 
 
 @handle_errors
+@with_metrics("edit")
 def edit(
     layout_file: JsonFileArgument = None,
     # Field operations

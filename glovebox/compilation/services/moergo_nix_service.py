@@ -189,34 +189,34 @@ class MoergoNixService(CompilationServiceProtocol):
             board_info = self._extract_board_info_from_config(config)
 
             # Always create progress coordinator (no conditional checks)
-            from glovebox.cli.components.unified_progress_coordinator import (
-                create_unified_progress_coordinator,
-            )
-
-            progress_coordinator = create_unified_progress_coordinator(
-                tui_callback=progress_callback,
-                total_boards=board_info["total_boards"],
-                board_names=board_info["board_names"],
-                total_repositories=1,  # MoErgo doesn't use west update
-                strategy="moergo_nix",
-            )
+            # TODO: Integrate with simple progress system
+            progress_coordinator = None
+            # progress_coordinator = create_simple_progress_coordinator(display)
 
             # Start with initialization phase
+            if progress_coordinator:
+                if progress_coordinator:
             progress_coordinator.transition_to_phase(
                 "initialization", "Setting up build environment"
             )
 
             # Check/build Docker image with progress
+            if progress_coordinator:
+                if progress_coordinator:
             progress_coordinator.transition_to_phase(
                 "docker_verification", "Verifying Docker image"
             )
             # Set the docker image name for display
+            if progress_coordinator:
+                if progress_coordinator:
             progress_coordinator.docker_image_name = config.image
 
             if not self._ensure_docker_image(config, progress_coordinator):
                 return BuildResult(success=False, errors=["Docker image setup failed"])
 
             # Setup workspace with progress
+            if progress_coordinator:
+                if progress_coordinator:
             progress_coordinator.transition_to_phase(
                 "nix_build", "Building Nix environment"
             )
@@ -232,6 +232,8 @@ class MoergoNixService(CompilationServiceProtocol):
                 return BuildResult(success=False, errors=["Workspace setup failed"])
 
             # Run compilation with progress (existing integration)
+            if progress_coordinator:
+                if progress_coordinator:
             progress_coordinator.transition_to_phase(
                 "building", "Starting MoErgo Nix compilation"
             )
@@ -240,6 +242,8 @@ class MoergoNixService(CompilationServiceProtocol):
             )
 
             # Collect artifacts with progress
+            if progress_coordinator:
+                if progress_coordinator:
             progress_coordinator.transition_to_phase(
                 "cache_saving", "Generating .uf2 files"
             )
@@ -297,6 +301,8 @@ class MoergoNixService(CompilationServiceProtocol):
 
             # Mark compilation as fully complete
             # Signal completion to progress coordinator for 100% display
+            if progress_coordinator:
+                if progress_coordinator:
             progress_coordinator.complete_all_builds()
 
             result = BuildResult(
@@ -375,6 +381,8 @@ class MoergoNixService(CompilationServiceProtocol):
     ) -> DockerPath | None:
         """Setup temporary workspace from files or content."""
         try:
+            if progress_coordinator:
+                if progress_coordinator:
             progress_coordinator.update_workspace_progress(
                 0, 4, 0, 0, "", "Creating workspace directory"
             )
@@ -388,6 +396,8 @@ class MoergoNixService(CompilationServiceProtocol):
             config_dir = workspace_path.host_path / "config"
             config_dir.mkdir(parents=True)
 
+            if progress_coordinator:
+                if progress_coordinator:
             progress_coordinator.update_workspace_progress(
                 1, 4, 0, 0, "glove80.keymap", "Copying keymap file"
             )
@@ -408,6 +418,8 @@ class MoergoNixService(CompilationServiceProtocol):
                     "Either keymap_file or keymap_content must be provided"
                 )
 
+            if progress_coordinator:
+                if progress_coordinator:
             progress_coordinator.update_workspace_progress(
                 2, 4, 0, 0, "glove80.conf", "Copying config file"
             )
@@ -428,6 +440,8 @@ class MoergoNixService(CompilationServiceProtocol):
                     "Either config_file or config_content must be provided"
                 )
 
+            if progress_coordinator:
+                if progress_coordinator:
             progress_coordinator.update_workspace_progress(
                 3, 4, 0, 0, "default.nix", "Loading Nix toolchain"
             )
@@ -442,6 +456,8 @@ class MoergoNixService(CompilationServiceProtocol):
                 config_dir / "default.nix", default_nix_content
             )
 
+            if progress_coordinator:
+                if progress_coordinator:
             progress_coordinator.update_workspace_progress(
                 4, 4, 0, 0, "", "Workspace setup completed"
             )
@@ -529,7 +545,8 @@ class MoergoNixService(CompilationServiceProtocol):
         artifacts_dir = None
         collected_items = []
 
-        progress_coordinator.update_cache_progress(
+        if progress_coordinator:
+            progress_coordinator.update_cache_progress(
             "scanning", 25, 100, "Scanning for build artifacts"
         )
 
@@ -541,7 +558,9 @@ class MoergoNixService(CompilationServiceProtocol):
                 items_to_copy = list(build_artifacts_dir.iterdir())
                 total_items = len(items_to_copy)
 
-                progress_coordinator.update_cache_progress(
+                if progress_coordinator:
+                if progress_coordinator:
+            progress_coordinator.update_cache_progress(
                     "copying",
                     50,
                     100,
@@ -574,7 +593,9 @@ class MoergoNixService(CompilationServiceProtocol):
                         # Update progress during copying
                         if i % 5 == 0 or i == total_items - 1:  # Update every 5 items
                             current_progress = 50 + (25 * i // total_items)
-                            progress_coordinator.update_cache_progress(
+                            if progress_coordinator:
+                if progress_coordinator:
+            progress_coordinator.update_cache_progress(
                                 "copying",
                                 current_progress,
                                 100,
@@ -612,6 +633,8 @@ class MoergoNixService(CompilationServiceProtocol):
                 build_artifacts_dir,
             )
 
+            if progress_coordinator:
+                if progress_coordinator:
             progress_coordinator.update_cache_progress(
                 "scanning", 75, 100, "Searching for partial build files"
             )
@@ -641,7 +664,8 @@ class MoergoNixService(CompilationServiceProtocol):
                             "Failed to copy partial file %s: %s", partial_file, e
                         )
 
-        progress_coordinator.update_cache_progress(
+        if progress_coordinator:
+            progress_coordinator.update_cache_progress(
             "completed", 100, 100, f"Collected {len(uf2_files)} firmware files"
         )
 
@@ -657,6 +681,8 @@ class MoergoNixService(CompilationServiceProtocol):
         """Ensure Docker image exists, build if not found."""
         try:
             # Check image existence
+            if progress_coordinator:
+                if progress_coordinator:
             progress_coordinator.update_cache_progress(
                 "checking", 25, 100, "Checking Docker image availability"
             )
@@ -676,11 +702,15 @@ class MoergoNixService(CompilationServiceProtocol):
                 # Update config to use the versioned image
                 config.image = f"{versioned_image_name}:{versioned_tag}"
 
-                progress_coordinator.update_cache_progress(
+                if progress_coordinator:
+                if progress_coordinator:
+            progress_coordinator.update_cache_progress(
                     "completed", 100, 100, "Docker image ready"
                 )
                 return True
 
+            if progress_coordinator:
+                if progress_coordinator:
             progress_coordinator.update_cache_progress(
                 "building", 50, 100, f"Building Docker image: {versioned_image_name}"
             )
@@ -709,6 +739,8 @@ class MoergoNixService(CompilationServiceProtocol):
                 self.logger.error("Toolchain directory not found: %s", dockerfile_dir)
                 return False
 
+            if progress_coordinator:
+                if progress_coordinator:
             progress_coordinator.update_cache_progress(
                 "building", 75, 100, f"Building image from {dockerfile_dir}"
             )
@@ -733,7 +765,9 @@ class MoergoNixService(CompilationServiceProtocol):
                 # Update config to use the versioned image
                 config.image = f"{versioned_image_name}:{versioned_tag}"
 
-                progress_coordinator.update_cache_progress(
+                if progress_coordinator:
+                if progress_coordinator:
+            progress_coordinator.update_cache_progress(
                     "completed", 100, 100, "Docker image built successfully"
                 )
                 return True

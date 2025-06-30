@@ -7,7 +7,7 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-from glovebox.cli.decorators import handle_errors, with_profile
+from glovebox.cli.decorators import handle_errors, with_metrics, with_profile
 from glovebox.cli.helpers import (
     print_error_message,
     print_success_message,
@@ -27,6 +27,7 @@ console = Console()
 
 @handle_errors
 @with_profile(required=False, firmware_optional=True)
+@with_metrics("parse_keymap")
 def parse_keymap(
     ctx: typer.Context,
     keymap_file: Annotated[

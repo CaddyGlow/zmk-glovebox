@@ -7,9 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from glovebox.adapters.docker_adapter import LoggerOutputMiddleware
-from glovebox.cli.components.unified_progress_coordinator import (
-    UnifiedCompilationProgressCoordinator,
-)
+from glovebox.protocols.progress_coordinator_protocol import ProgressCoordinatorProtocol
 from glovebox.compilation.cache.compilation_build_cache_service import (
     CompilationBuildCacheService,
 )
@@ -217,50 +215,30 @@ class ZmkWestService(CompilationServiceProtocol):
                 if cache_operations:
                     cache_operations.labels("lookup", "hit").inc()
 
-                # Create progress coordinator for cache restoration display
+                # Progress coordinator for cache restoration - simplified for now
                 progress_coordinator = None
-                if progress_callback:
-                    from glovebox.cli.components.unified_progress_coordinator import (
-                        create_unified_progress_coordinator,
-                    )
-
-                    progress_coordinator = create_unified_progress_coordinator(
-                        tui_callback=progress_callback,
-                        total_boards=1,  # Not relevant for cache restoration
-                        board_names=[],
-                        total_repositories=1,  # Single cache operation
-                        strategy="zmk_west",
-                    )
-
-                    # Show cache restoration progress
-                    progress_coordinator.transition_to_phase(
-                        "cache_restoration", "Restoring cached build"
-                    )
-                    progress_coordinator.update_cache_progress(
-                        "restoring",
-                        50,
-                        100,
-                        "Loading cached build artifacts",
-                        "in_progress",
-                    )
+                # TODO: Integrate with simple progress system if needed
 
                 self.logger.info(
                     "Found cached build - copying artifacts and skipping compilation"
                 )
 
                 if progress_coordinator:
-                    progress_coordinator.update_cache_progress(
+                    if progress_coordinator:
+                        progress_coordinator.update_cache_progress(
                         "copying", 75, 100, "Copying cached artifacts", "in_progress"
                     )
 
                 output_files = self._collect_files(cached_build_path, output_dir)
 
                 if progress_coordinator:
-                    progress_coordinator.update_cache_progress(
+                    if progress_coordinator:
+                        progress_coordinator.update_cache_progress(
                         "completed", 100, 100, "Cache restoration completed", "success"
                     )
                     # Signal overall build completion for cached builds
-                    progress_coordinator.complete_build_success(
+                    if progress_coordinator:
+                        progress_coordinator.complete_build_success(
                         "Used cached build result"
                     )
                     # Small delay to ensure progress update is processed
@@ -279,23 +257,9 @@ class ZmkWestService(CompilationServiceProtocol):
             if cache_operations:
                 cache_operations.labels("lookup", "miss").inc()
 
-            # Create unified progress coordinator early for workspace setup
+            # Progress coordinator for compilation - simplified for now
             progress_coordinator = None
-            if progress_callback:
-                from glovebox.cli.components.unified_progress_coordinator import (
-                    create_unified_progress_coordinator,
-                )
-
-                # Extract board information for progress tracking
-                board_info = self._extract_board_info_from_config(config)
-
-                progress_coordinator = create_unified_progress_coordinator(
-                    tui_callback=progress_callback,
-                    total_boards=board_info["total_boards"],
-                    board_names=board_info["board_names"],
-                    total_repositories=39,  # Default repository count
-                    strategy="zmk_west",
-                )
+            # TODO: Integrate with simple progress system if needed
 
             # Try to use cached workspace
             workspace_path, cache_used, cache_type = (

@@ -23,34 +23,6 @@ __version__ = distribution("glovebox").version
 
 logger = logging.getLogger(__name__)
 
-# Global reference to session metrics for exit code capture
-_global_session_metrics = None
-
-
-def _set_global_session_metrics(session_metrics: Any) -> None:
-    """Set global reference to session metrics for exit code capture."""
-    global _global_session_metrics
-    _global_session_metrics = session_metrics
-
-
-def _set_exit_code_in_session_metrics(exit_code: int) -> None:
-    """Set exit code in global session metrics if available."""
-    global _global_session_metrics
-    if _global_session_metrics:
-        try:
-            _global_session_metrics.set_exit_code(exit_code)
-        except Exception as e:
-            logger.debug("Failed to set exit code in session metrics: %s", e)
-
-
-def _set_cli_args_in_session_metrics(cli_args: list[str]) -> None:
-    """Set CLI args in global session metrics if available."""
-    global _global_session_metrics
-    if _global_session_metrics:
-        try:
-            _global_session_metrics.set_cli_args(cli_args)
-        except Exception as e:
-            logger.debug("Failed to set CLI args in session metrics: %s", e)
 
 
 # Context object for sharing state
@@ -153,10 +125,6 @@ class AppContext:
             # Default to emoji if neither field exists
             return "emoji"
 
-    def save_session_metrics(self) -> None:
-        """Save session metrics to file."""
-        if hasattr(self, "session_metrics"):
-            self.session_metrics.save()
 
 
 # Create a custom exception handler that will print stack traces
@@ -259,28 +227,7 @@ def main_callback(
     # Run startup checks (version updates, etc.)
     _run_startup_checks(app_context)
 
-    # CLI session setup for metrics
-    if ctx.invoked_subcommand is not None:
-        # Set up auto-save for session metrics when CLI exits
-        import atexit
-
-        def save_metrics_on_exit() -> None:
-            """Save session metrics when CLI exits."""
-            try:
-                app_context.save_session_metrics()
-            except Exception as e:
-                # Don't let metrics saving break CLI exit
-                logger.debug("Failed to save session metrics on exit: %s", e)
-
-        atexit.register(save_metrics_on_exit)
-
-        # Set global reference for exit code capture
-        _set_global_session_metrics(app_context.session_metrics)
-
-        # Capture CLI args for this session
-        import sys
-
-        app_context.session_metrics.set_cli_args(sys.argv)
+    # CLI session setup complete
 
 
 def _run_startup_checks(app_context: AppContext) -> None:
@@ -335,8 +282,8 @@ def main() -> int:
         exit_code = 1
 
     finally:
-        # Set exit code in global session metrics for this session
-        _set_exit_code_in_session_metrics(exit_code)
+        # CLI cleanup complete
+        pass
 
     return exit_code
 

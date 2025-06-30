@@ -109,7 +109,7 @@ def _execute_compilation_service(
     keyboard_profile: KeyboardProfile,
     session_metrics: Any = None,
     user_config: Any = None,
-    progress_callback: Any = None,
+    progress_coordinator: Any = None,
 ) -> Any:
     """Execute the compilation service."""
     from glovebox.adapters import create_docker_adapter, create_file_adapter
@@ -125,14 +125,14 @@ def _execute_compilation_service(
 
     if compilation_strategy == "zmk_config":
         # Update progress for cache service initialization
-        if progress_callback:
+        if progress_coordinator:
             cache_progress = CompilationProgress(
                 repositories_downloaded=35,
                 total_repositories=100,
                 current_repository="Setting up cache services...",
                 compilation_phase="initialization",
             )
-            progress_callback(cache_progress)
+            # Progress will be updated through coordinator if available
 
         from glovebox.compilation.cache import create_compilation_cache_service
 
@@ -158,7 +158,7 @@ def _execute_compilation_service(
         output_dir=build_output_dir,
         config=compile_config,
         keyboard_profile=keyboard_profile,
-        progress_callback=progress_callback,
+        progress_callback=None,
     )
 
 
@@ -174,7 +174,7 @@ def _execute_compilation_from_json(
     keyboard_profile: KeyboardProfile,
     session_metrics: Any = None,
     user_config: Any = None,
-    progress_callback: Any = None,
+    progress_coordinator: Any = None,
 ) -> Any:
     """Execute compilation from JSON layout file."""
     from glovebox.adapters import create_docker_adapter, create_file_adapter
@@ -190,14 +190,14 @@ def _execute_compilation_from_json(
 
     if compilation_strategy == "zmk_config":
         # Update progress for cache service initialization
-        if progress_callback:
+        if progress_coordinator:
             cache_progress = CompilationProgress(
                 repositories_downloaded=35,
                 total_repositories=100,
                 current_repository="Setting up cache services...",
                 compilation_phase="initialization",
             )
-            progress_callback(cache_progress)
+            # Progress will be updated through coordinator if available
 
         from glovebox.compilation.cache import create_compilation_cache_service
 
@@ -222,7 +222,7 @@ def _execute_compilation_from_json(
         output_dir=build_output_dir,
         config=compile_config,
         keyboard_profile=keyboard_profile,
-        progress_callback=progress_callback,
+        progress_callback=None,
     )
 
 
@@ -589,29 +589,26 @@ def firmware_compile(
         # Determine if progress should be shown (default: enabled)
         show_progress = progress if progress is not None else True
 
-        # Create progress display and callback if progress is enabled
+        # Create simple progress display if progress is enabled
         progress_display = None
-        progress_callback = None
-        # if show_progress:
-        #     progress_display, progress_callback = _create_compilation_progress_display(
-        #         show_logs=show_logs, debug=debug
-        #     )
-        #
-        # # Resolve input file path (supports environment variable for JSON files)
-        # if progress_callback:
-        #     early_progress = CompilationProgress(
-        #         repositories_downloaded=5,
-        #         total_repositories=100,
-        #         current_repository="Resolving input file path...",
-        #         compilation_phase="initialization",
-        #     )
-        #     progress_callback(early_progress)
+        progress_coordinator = None
+        if show_progress:
+            from rich.console import Console
+            from glovebox.compilation.simple_progress import (
+                create_simple_compilation_display,
+                create_simple_progress_coordinator,
+            )
+            
+            console = Console()
+            progress_display = create_simple_compilation_display(console)
+            progress_coordinator = create_simple_progress_coordinator(progress_display)
+            progress_display.start()
 
         resolved_input_file = resolve_json_file_path(input_file, "GLOVEBOX_JSON_FILE")
 
         if resolved_input_file is None:
-            if progress_callback and hasattr(progress_callback, "cleanup"):
-                progress_callback.cleanup()
+            if progress_display:
+                progress_display.stop()
             print_error_message(
                 "Input file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
             )
@@ -624,8 +621,8 @@ def firmware_compile(
         is_json_input = resolved_input_file.suffix.lower() == ".json"
 
         if not is_json_input and config_file is None:
-            if progress_callback and hasattr(progress_callback, "cleanup"):
-                progress_callback.cleanup()
+            if progress_display:
+                progress_display.stop()
             print_error_message("Config file is required when input is a .keymap file")
             raise typer.Exit(1)
 
@@ -653,65 +650,31 @@ def firmware_compile(
         # Execute compilation
         logger.info("🚀 Starting firmware compilation...")
 
-        from glovebox.cli.progress.displays.staged_with_logs import (
-            StagedProgressWithLogsDisplay,
-        )
-
-        progress_display = StagedProgressWithLogsDisplay(progress_callback)
-        # Use progress display as context manager if enabled
-        if progress_display is not None:
-            with progress_display:
-                # Execute compilation based on input type
-                if is_json_input:
-                    result = _execute_compilation_from_json(
-                        compilation_type,
-                        resolved_input_file,
-                        build_output_dir,
-                        compile_config,
-                        keyboard_profile,
-                        session_metrics=ctx.obj.session_metrics,
-                        user_config=get_user_config_from_context(ctx),
-                        progress_callback=progress_callback,
-                    )
-                else:
-                    assert config_file is not None  # Already validated above
-                    result = _execute_compilation_service(
-                        compilation_type,
-                        resolved_input_file,  # keymap_file
-                        config_file,  # kconfig_file
-                        build_output_dir,
-                        compile_config,
-                        keyboard_profile,
-                        session_metrics=ctx.obj.session_metrics,
-                        user_config=get_user_config_from_context(ctx),
-                        progress_callback=progress_callback,
-                    )
+        # Execute compilation based on input type
+        if is_json_input:
+            result = _execute_compilation_from_json(
+                compilation_type,
+                resolved_input_file,
+                build_output_dir,
+                compile_config,
+                keyboard_profile,
+                session_metrics=ctx.obj.session_metrics,
+                user_config=get_user_config_from_context(ctx),
+                progress_coordinator=progress_coordinator,
+            )
         else:
-            # Execute compilation without progress display
-            if is_json_input:
-                result = _execute_compilation_from_json(
-                    compilation_type,
-                    resolved_input_file,
-                    build_output_dir,
-                    compile_config,
-                    keyboard_profile,
-                    session_metrics=ctx.obj.session_metrics,
-                    user_config=get_user_config_from_context(ctx),
-                    progress_callback=progress_callback,
-                )
-            else:
-                assert config_file is not None  # Already validated above
-                result = _execute_compilation_service(
-                    compilation_type,
-                    resolved_input_file,  # keymap_file
-                    config_file,  # kconfig_file
-                    build_output_dir,
-                    compile_config,
-                    keyboard_profile,
-                    session_metrics=ctx.obj.session_metrics,
-                    user_config=get_user_config_from_context(ctx),
-                    progress_callback=progress_callback,
-                )
+            assert config_file is not None  # Already validated above
+            result = _execute_compilation_service(
+                compilation_type,
+                resolved_input_file,  # keymap_file
+                config_file,  # kconfig_file
+                build_output_dir,
+                compile_config,
+                keyboard_profile,
+                session_metrics=ctx.obj.session_metrics,
+                user_config=get_user_config_from_context(ctx),
+                progress_coordinator=progress_coordinator,
+            )
 
         # Clean up temporary build directory if --output was not provided
         temp_cleanup_needed = output is None
@@ -742,8 +705,8 @@ def firmware_compile(
 
     except Exception as e:
         # Clean up progress display if it was used
-        if progress_callback and hasattr(progress_callback, "cleanup"):
-            progress_callback.cleanup()
+        if progress_display:
+            progress_display.stop()
 
         print_error_message(f"Firmware compilation failed: {str(e)}")
         logger.exception("Compilation error details")
