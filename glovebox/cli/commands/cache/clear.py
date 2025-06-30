@@ -7,6 +7,8 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
+from glovebox.cli.decorators import handle_errors, with_cache, with_metrics
+from glovebox.cli.decorators.profile import get_cache_manager_from_context
 from glovebox.config.user_config import create_user_config
 
 from .utils import (
@@ -22,7 +24,11 @@ logger = logging.getLogger(__name__)
 console = Console()
 
 
+@handle_errors
+@with_metrics("cache_clear")
+@with_cache("cache", required=False)
 def cache_clear(
+    ctx: typer.Context,
     module: Annotated[
         str | None,
         typer.Option(
