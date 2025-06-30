@@ -195,9 +195,11 @@ class ASTBehaviorConverter:
                     comment_lines.append(cleaned_text)
 
             if comment_lines:
-                # Join all lines and clean up excessive whitespace while preserving structure
-                description = "\n".join(comment_lines).strip()
-                # Remove excessive empty lines but preserve single empty lines for formatting
+                # Join all lines preserving empty lines for proper multi-line formatting
+                description = "\n".join(comment_lines)
+                # Only strip leading whitespace, preserve trailing empty lines for formatting
+                description = description.lstrip()
+                # Clean up excessive consecutive empty lines (3+ becomes 2)
                 import re
                 description = re.sub(r'\n\s*\n\s*\n+', '\n\n', description)
                 return description
@@ -224,9 +226,11 @@ class ASTBehaviorConverter:
             if comment_lines:
                 # Reverse to get original order since we processed in reverse
                 comment_lines.reverse()
-                # Join all lines and clean up excessive whitespace while preserving structure
-                description = "\n".join(comment_lines).strip()
-                # Remove excessive empty lines but preserve single empty lines for formatting
+                # Join all lines preserving empty lines for proper multi-line formatting
+                description = "\n".join(comment_lines)
+                # Only strip leading whitespace, preserve trailing empty lines for formatting
+                description = description.lstrip()
+                # Clean up excessive consecutive empty lines (3+ becomes 2)
                 import re
                 description = re.sub(r'\n\s*\n\s*\n+', '\n\n', description)
                 return description

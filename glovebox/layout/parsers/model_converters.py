@@ -636,16 +636,29 @@ class ModelConverter:
         self.logger.debug("Extracting description for node %s", node.name)
 
         # First try to find description in comments attached to this node
+        comment_lines = []
         for comment in node.comments:
             if not comment.text.startswith("//"):
                 continue
             # Remove // and clean up
             desc = comment.text[2:].strip()
-            if desc and not desc.startswith("TODO") and not desc.startswith("FIXME"):
+            # Include empty lines and non-TODO/FIXME comments for multi-line descriptions
+            if not desc.startswith("TODO") and not desc.startswith("FIXME"):
+                comment_lines.append(desc)
+        
+        if comment_lines:
+            # Join all comment lines preserving empty lines for multi-line formatting
+            description = "\n".join(comment_lines)
+            # Only strip leading whitespace, preserve trailing empty lines for formatting
+            description = description.lstrip()
+            # Clean up excessive consecutive empty lines (3+ becomes 2)
+            import re
+            description = re.sub(r'\n\s*\n\s*\n+', '\n\n', description)
+            if description:  # Only return if final description is not empty
                 self.logger.debug(
-                    "Using comment as description for %s: %s", node.name, desc[:50]
+                    "Using comment as description for %s: %s", node.name, description[:50]
                 )
-                return desc
+                return description
 
         # Try to find description from global metadata comments by content matching
         # Since line proximity doesn't work well in template mode due to section extraction,

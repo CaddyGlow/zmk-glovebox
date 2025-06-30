@@ -154,10 +154,10 @@ class TestZmkWorkspaceCacheServiceSimplified:
         assert result.metadata.branch is None
         assert result.metadata.cache_level == CacheLevel.REPO
 
-        # Verify cache manager was called with repo TTL
+        # Verify cache manager was called with repo TTL (maps to workspace_base = 30 days)
         mock_cache_manager.set.assert_called_once()
         call_args = mock_cache_manager.set.call_args
-        assert call_args[1]["ttl"] == 7 * 24 * 3600  # 7 days
+        assert call_args[1]["ttl"] == 30 * 24 * 3600  # 30 days (workspace_base default)
 
     def test_cache_workspace_repo_branch_success(
         self,

@@ -171,6 +171,9 @@ class CacheTTLConfig(GloveboxBaseModel):
             CacheLevel.FIRMWARE: self.firmware_build,
             CacheLevel.MOERGO: self.moergo_layouts,
             CacheLevel.CORE: self.core_templates,
+            # New simplified workspace cache levels
+            CacheLevel.REPO: self.workspace_base,  # Map repo to base (same concept)
+            CacheLevel.REPO_BRANCH: self.workspace_branch,  # Map repo_branch to branch
         }
 
         if cache_level not in level_mapping:
@@ -189,4 +192,7 @@ class CacheTTLConfig(GloveboxBaseModel):
             "branch": self.workspace_branch,
             "full": self.workspace_full,
             "build": self.workspace_build,
+            # New simplified workspace cache levels
+            "repo": self.workspace_base,  # Map repo to base (same concept - repository clone)
+            "repo_branch": self.workspace_branch,  # Map repo_branch to branch (same concept)
         }
