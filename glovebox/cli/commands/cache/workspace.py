@@ -408,6 +408,13 @@ def workspace_add(
             "--progress/--no-progress", help="Show progress bar during copy operations"
         ),
     ] = True,
+    show_logs: Annotated[
+        bool,
+        typer.Option(
+            "--show-logs/--no-show-logs",
+            help="Show detailed operation logs in progress display (default: enabled when progress is shown)",
+        ),
+    ] = True,
 ) -> None:
     """Add an existing ZMK workspace to cache from directory, zip file, or URL.
 
@@ -443,9 +450,11 @@ def workspace_add(
         if progress:
             from glovebox.cli.progress.workspace import create_workspace_cache_progress
 
-            # Create display and callback using the factory function
+            # Create display and callback using the factory function with show_logs parameter
             display, progress_callback = create_workspace_cache_progress(
-                operation_type="workspace_add", repository=repository
+                operation_type="workspace_add",
+                repository=repository,
+                show_logs=show_logs
             )
 
         try:

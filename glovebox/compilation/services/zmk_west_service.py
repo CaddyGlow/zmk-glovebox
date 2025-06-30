@@ -265,6 +265,7 @@ class ZmkWestService(CompilationServiceProtocol):
                     )
                     # Small delay to ensure progress update is processed
                     import time
+
                     time.sleep(0.1)
 
                 result = BuildResult(

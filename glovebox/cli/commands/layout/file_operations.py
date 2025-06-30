@@ -27,6 +27,7 @@ from glovebox.layout.service import LayoutService
 
 
 @handle_errors
+@with_profile(required=True, firmware_optional=True, support_auto_detection=True)
 def split(
     ctx: typer.Context,
     output_dir: Annotated[Path, typer.Argument(help="Directory to save split files")],
@@ -85,16 +86,8 @@ def split(
     command.validate_layout_file(resolved_layout_file)
 
     try:
-        # Use unified profile resolution with auto-detection support
-        from glovebox.cli.helpers.parameters import create_profile_from_param_unified
-
-        keyboard_profile = create_profile_from_param_unified(
-            ctx=ctx,
-            profile=profile,
-            default_profile="glove80/v25.05",
-            json_file=resolved_layout_file,
-            no_auto=no_auto,
-        )
+        # Profile is already handled by the @with_profile decorator
+        keyboard_profile = get_keyboard_profile_from_context(ctx)
 
         layout_service = create_full_layout_service()
 
@@ -142,7 +135,7 @@ def split(
 
 
 @handle_errors
-@with_profile(default_profile="glove80/v25.05")
+@with_profile(default_profile="glove80/v25.05", required=True, firmware_optional=True)
 def merge(
     ctx: typer.Context,
     input_dir: Annotated[

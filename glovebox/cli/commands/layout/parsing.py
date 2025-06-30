@@ -7,7 +7,7 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-from glovebox.cli.decorators import handle_errors
+from glovebox.cli.decorators import handle_errors, with_profile
 from glovebox.cli.helpers import (
     print_error_message,
     print_success_message,
@@ -26,6 +26,7 @@ console = Console()
 
 
 @handle_errors
+@with_profile(required=False, firmware_optional=True)
 def parse_keymap(
     ctx: typer.Context,
     keymap_file: Annotated[
@@ -144,23 +145,15 @@ def parse_keymap(
         raise typer.Exit(1)
 
     try:
-        # Get user config from context
-        from glovebox.cli.helpers.profile import (
-            create_profile_from_option,
-            get_user_config_from_context,
-        )
+        # Profile is handled by the @with_profile decorator (may be None)
+        from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
 
-        user_config = get_user_config_from_context(ctx)
-
-        # Create keyboard profile with user config (only for template mode)
-        keyboard_profile = None
-        if profile:
-            keyboard_profile = create_profile_from_option(profile, user_config)
-            if verbose:
-                console.print(
-                    f"Using keyboard profile: {keyboard_profile.keyboard_name}",
-                    style="dim",
-                )
+        keyboard_profile = get_keyboard_profile_from_context(ctx)
+        if verbose and keyboard_profile:
+            console.print(
+                f"Using keyboard profile: {keyboard_profile.keyboard_name}",
+                style="dim",
+            )
 
         # Create layout service with dependencies
         from glovebox.cli.commands.layout.dependencies import create_full_layout_service
@@ -215,6 +208,7 @@ def parse_keymap(
 
 
 @handle_errors
+@with_profile(required=False, firmware_optional=True)
 def import_keymap(
     ctx: typer.Context,
     keymap_file: Annotated[
@@ -326,18 +320,10 @@ def import_keymap(
             print_error_message("Valid methods: ast, regex")
             raise typer.Exit(1)
 
-        # Get user config from context
-        from glovebox.cli.helpers.profile import (
-            create_profile_from_option,
-            get_user_config_from_context,
-        )
+        # Profile is handled by the @with_profile decorator (may be None)
+        from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
 
-        user_config = get_user_config_from_context(ctx)
-
-        # Create keyboard profile with user config (only for template mode)
-        keyboard_profile = None
-        if profile:
-            keyboard_profile = create_profile_from_option(profile, user_config)
+        keyboard_profile = get_keyboard_profile_from_context(ctx)
 
         # Create layout service
         from glovebox.cli.commands.layout.dependencies import create_full_layout_service

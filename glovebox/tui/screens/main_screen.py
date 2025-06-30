@@ -1,6 +1,6 @@
 """Main screen for the Glovebox TUI application."""
 
-from typing import Any, Dict
+from typing import Any
 
 from textual.app import ComposeResult
 from textual.containers import Container
