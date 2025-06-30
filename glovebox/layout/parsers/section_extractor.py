@@ -287,10 +287,8 @@ class SectionExtractor:
                 )
 
             # Extract behaviors using AST converter with comment support
-            behavior_models, _ = (
-                self.behavior_extractor.extract_behaviors_as_models(
-                    [root], content_to_parse
-                )
+            behavior_models, _ = self.behavior_extractor.extract_behaviors_as_models(
+                [root], content_to_parse
             )
             converted_behaviors = behavior_models
 

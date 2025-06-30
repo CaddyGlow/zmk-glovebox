@@ -293,7 +293,6 @@ class HoldTapBehavior(GloveboxBaseModel):
     tap_behavior: str | None = Field(default=None, alias="tapBehavior")
     hold_behavior: str | None = Field(default=None, alias="holdBehavior")
 
-
     @field_validator("flavor")
     @classmethod
     def validate_flavor(cls, v: str | None) -> str | None:

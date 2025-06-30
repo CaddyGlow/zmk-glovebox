@@ -423,8 +423,8 @@ class ASTBehaviorConverter:
                 import re
 
                 # Remove outer angle brackets and split by comma
-                cleaned_raw = re.sub(r'<\s*([^>]+)\s*>', r'\1', raw_value)
-                parts = [part.strip() for part in cleaned_raw.split(',')]
+                cleaned_raw = re.sub(r"<\s*([^>]+)\s*>", r"\1", raw_value)
+                parts = [part.strip() for part in cleaned_raw.split(",")]
 
                 result = []
                 for part in parts:
@@ -461,10 +461,14 @@ class ASTBehaviorConverter:
                                 bindings.append(binding)
                             except Exception as e:
                                 self.logger.warning(
-                                    "Failed to parse macro binding '%s': %s", cleaned_value, e
+                                    "Failed to parse macro binding '%s': %s",
+                                    cleaned_value,
+                                    e,
                                 )
                                 # Create fallback binding
-                                bindings.append(LayoutBinding(value=cleaned_value, params=[]))
+                                bindings.append(
+                                    LayoutBinding(value=cleaned_value, params=[])
+                                )
             else:
                 # Fallback to raw parsing for non-array values
                 raw_value = prop.value.raw.strip()
@@ -472,8 +476,8 @@ class ASTBehaviorConverter:
                 import re
 
                 # Remove angle brackets and split by comma
-                cleaned_raw = re.sub(r'<\s*([^>]+)\s*>', r'\1', raw_value)
-                binding_parts = [part.strip() for part in cleaned_raw.split(',')]
+                cleaned_raw = re.sub(r"<\s*([^>]+)\s*>", r"\1", raw_value)
+                binding_parts = [part.strip() for part in cleaned_raw.split(",")]
 
                 for part in binding_parts:
                     if part and part.startswith("&"):
@@ -519,7 +523,8 @@ class ASTBehaviorConverter:
                 raw_value = prop.value.raw.strip()
                 # Remove angle brackets properly
                 import re
-                cleaned_raw = re.sub(r'<\s*([^>]+)\s*>', r'\1', raw_value).strip()
+
+                cleaned_raw = re.sub(r"<\s*([^>]+)\s*>", r"\1", raw_value).strip()
                 if cleaned_raw and cleaned_raw.startswith("&"):
                     return LayoutBinding.from_str(cleaned_raw)
 
