@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Protocol
 
 from glovebox.layout.models import LayoutData
 
-from .dt_parser import parse_dt_lark_safe
+from .dt_parser import parse_dt_safe
 from .parsing_models import ParsingContext, get_default_extraction_config
 from .section_extractor import create_section_extractor
 
@@ -77,7 +77,7 @@ class FullKeymapProcessor(BaseKeymapProcessor):
                 roots, parse_errors = parse_dt_multiple_safe(context.keymap_content)
             except ImportError:
                 # Fallback to Lark parser if enhanced parser not available
-                roots, parse_errors = parse_dt_lark_safe(context.keymap_content)
+                roots, parse_errors = parse_dt_safe(context.keymap_content)
 
             if parse_errors:
                 context.warnings.extend([str(error) for error in parse_errors])
@@ -304,9 +304,9 @@ class TemplateAwareProcessor(BaseKeymapProcessor):
             # Extract global comments for model converters BEFORE section processing
             # Parse content into AST to get global comments (similar to FullKeymapProcessor)
             try:
-                from .dt_parser import parse_dt_lark_safe
+                from .dt_parser import parse_dt_safe
 
-                roots, parse_errors = parse_dt_lark_safe(context.keymap_content)
+                roots, parse_errors = parse_dt_safe(context.keymap_content)
                 if parse_errors:
                     context.warnings.extend([str(error) for error in parse_errors])
 
