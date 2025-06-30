@@ -330,7 +330,7 @@ class TestModelConverter:
         combo = converted["combos"][0]
 
         assert isinstance(combo, ComboBehavior)
-        assert combo.name == "combo_esc"
+        assert combo.name == "esc"  # combo_ prefix is removed
         assert combo.timeout_ms == 50
         assert combo.key_positions == [0, 1]
         assert combo.binding.value == "&kp"
@@ -691,3 +691,196 @@ class TestMultipleRootParsing:
         roots, errors = parse_dt_multiple_safe(source)
         assert len(roots) == 0
         assert len(errors) == 0
+
+
+class TestBehaviorConverterRegressionFixes:
+    """Test behavior converter regression fixes."""
+
+    def test_combo_naming_prefix_removal(self):
+        """Test that combo naming correctly removes 'combo_' prefix.
+        
+        Regression fix: Combos were generated with 'combo_' prefix in device tree format
+        but should use plain names in JSON format.
+        """
+        from glovebox.layout.parsers import create_universal_model_converter
+        from glovebox.layout.parsers.ast_nodes import (
+            DTNode,
+            DTProperty,
+            DTValue,
+            DTValueType,
+        )
+
+        # Create a combo AST node with 'combo_' prefix as it appears in device tree
+        combo_node = DTNode(name="combo_escape", label="combo_escape")
+
+        # Add properties
+        combo_node.add_property(DTProperty(
+            name="timeout-ms",
+            value=DTValue(type=DTValueType.INTEGER, value=50, raw="<50>")
+        ))
+        combo_node.add_property(DTProperty(
+            name="key-positions",
+            value=DTValue(type=DTValueType.ARRAY, value=[0, 1], raw="<0 1>")
+        ))
+        combo_node.add_property(DTProperty(
+            name="bindings",
+            value=DTValue(type=DTValueType.ARRAY, value=["&kp", "ESC"], raw="<&kp ESC>")
+        ))
+
+        # Convert using the model converter
+        converter = create_universal_model_converter()
+        combo_behavior = converter.combo_converter.convert(combo_node)
+
+        # Check that the 'combo_' prefix was removed
+        assert combo_behavior.name == "escape"
+        assert combo_behavior.name != "combo_escape"
+
+        # Also test with another combo name pattern
+        combo_node2 = DTNode(name="combo_ctrl_c", label="combo_ctrl_c")
+
+        # Add properties
+        combo_node2.add_property(DTProperty(
+            name="timeout-ms",
+            value=DTValue(type=DTValueType.INTEGER, value=40, raw="<40>")
+        ))
+        combo_node2.add_property(DTProperty(
+            name="key-positions",
+            value=DTValue(type=DTValueType.ARRAY, value=[5, 6], raw="<5 6>")
+        ))
+        combo_node2.add_property(DTProperty(
+            name="bindings",
+            value=DTValue(type=DTValueType.ARRAY, value=["&kp", "LC", "(", "C", ")"], raw="<&kp LC(C)>")
+        ))
+
+        combo_behavior2 = converter.combo_converter.convert(combo_node2)
+        assert combo_behavior2.name == "ctrl_c"
+        assert combo_behavior2.name != "combo_ctrl_c"
+
+    def test_hold_tap_behavior_conversion_with_all_properties(self):
+        """Test hold-tap behavior conversion handles all properties correctly.
+        
+        Regression fix: Ensure all hold-tap properties are properly extracted and converted.
+        """
+        from glovebox.layout.parsers import create_universal_model_converter
+        from glovebox.layout.parsers.ast_nodes import (
+            DTNode,
+            DTProperty,
+            DTValue,
+            DTValueType,
+        )
+
+        # Create comprehensive hold-tap AST node
+        ht_node = DTNode(name="homerow_mods", label="hm")
+
+        # Add properties
+        ht_node.add_property(DTProperty(
+            name="compatible",
+            value=DTValue(type=DTValueType.STRING, value="zmk,behavior-hold-tap", raw='"zmk,behavior-hold-tap"')
+        ))
+        ht_node.add_property(DTProperty(
+            name="label",
+            value=DTValue(type=DTValueType.STRING, value="HOMEROW_MODS", raw='"HOMEROW_MODS"')
+        ))
+        ht_node.add_property(DTProperty(
+            name="#binding-cells",
+            value=DTValue(type=DTValueType.INTEGER, value=2, raw="<2>")
+        ))
+        ht_node.add_property(DTProperty(
+            name="tapping-term-ms",
+            value=DTValue(type=DTValueType.INTEGER, value=150, raw="<150>")
+        ))
+        ht_node.add_property(DTProperty(
+            name="quick-tap-ms",
+            value=DTValue(type=DTValueType.INTEGER, value=0, raw="<0>")
+        ))
+        ht_node.add_property(DTProperty(
+            name="flavor",
+            value=DTValue(type=DTValueType.STRING, value="tap-preferred", raw='"tap-preferred"')
+        ))
+        ht_node.add_property(DTProperty(
+            name="bindings",
+            value=DTValue(type=DTValueType.ARRAY, value=["&kp", "&kp"], raw="<&kp>, <&kp>")
+        ))
+
+        # Convert using the model converter
+        converter = create_universal_model_converter()
+        ht_behavior = converter.hold_tap_converter.convert(ht_node)
+
+        # Check all properties were converted correctly
+        assert ht_behavior.name == "&hm"  # Uses label with & prefix
+        assert ht_behavior.tapping_term_ms == 150
+        assert ht_behavior.quick_tap_ms == 0
+        assert ht_behavior.flavor == "tap-preferred"
+        assert len(ht_behavior.bindings) == 2
+
+        # Bindings may be strings or LayoutBinding objects depending on converter implementation
+        if hasattr(ht_behavior.bindings[0], 'value'):
+            assert ht_behavior.bindings[0].value == "&kp"
+            assert ht_behavior.bindings[1].value == "&kp"
+        else:
+            assert ht_behavior.bindings[0] == "&kp"
+            assert ht_behavior.bindings[1] == "&kp"
+
+    def test_macro_behavior_conversion_with_complex_bindings(self):
+        """Test macro behavior conversion handles complex binding arrays.
+        
+        Regression fix: Macro bindings with multiple parameters and comma-separated
+        format should be properly parsed and converted.
+        """
+        from glovebox.layout.parsers import create_universal_model_converter
+        from glovebox.layout.parsers.ast_nodes import (
+            DTNode,
+            DTProperty,
+            DTValue,
+            DTValueType,
+        )
+
+        # Create macro AST node with complex bindings
+        macro_node = DTNode(name="hello_world", label="hello")
+
+        # Add properties
+        macro_node.add_property(DTProperty(
+            name="compatible",
+            value=DTValue(type=DTValueType.STRING, value="zmk,behavior-macro", raw='"zmk,behavior-macro"')
+        ))
+        macro_node.add_property(DTProperty(
+            name="label",
+            value=DTValue(type=DTValueType.STRING, value="hello_world", raw='"hello_world"')
+        ))
+        macro_node.add_property(DTProperty(
+            name="#binding-cells",
+            value=DTValue(type=DTValueType.INTEGER, value=0, raw="<0>")
+        ))
+        macro_node.add_property(DTProperty(
+            name="wait-ms",
+            value=DTValue(type=DTValueType.INTEGER, value=30, raw="<30>")
+        ))
+        macro_node.add_property(DTProperty(
+            name="tap-ms",
+            value=DTValue(type=DTValueType.INTEGER, value=40, raw="<40>")
+        ))
+        macro_node.add_property(DTProperty(
+            name="bindings",
+            value=DTValue(
+                type=DTValueType.ARRAY,
+                value=["&macro_tap", "&kp", "H", "&kp", "E", "&kp", "L", "&kp", "L", "&kp", "O"],
+                raw="<&macro_tap &kp H &kp E &kp L &kp L &kp O>"
+            )
+        ))
+
+        # Convert using the model converter
+        converter = create_universal_model_converter()
+        macro_behavior = converter.macro_converter.convert(macro_node)
+
+        # Check all properties were converted correctly
+        assert macro_behavior.name == "&hello"  # Uses label with & prefix
+        assert macro_behavior.wait_ms == 30
+        assert macro_behavior.tap_ms == 40
+        assert len(macro_behavior.bindings) == 6  # &macro_tap + 5 &kp bindings
+
+        # Check specific bindings
+        assert macro_behavior.bindings[0].value == "&macro_tap"
+        assert macro_behavior.bindings[1].value == "&kp"
+        assert macro_behavior.bindings[1].params[0].value == "H"
+        assert macro_behavior.bindings[2].value == "&kp"
+        assert macro_behavior.bindings[2].params[0].value == "E"

@@ -191,11 +191,16 @@ class ASTBehaviorConverter:
                     else:
                         cleaned_text = comment_text.strip()
 
-                    if cleaned_text:
-                        comment_lines.append(cleaned_text)
+                    # Add all comment lines, including empty ones for proper formatting
+                    comment_lines.append(cleaned_text)
 
             if comment_lines:
-                return "\n".join(comment_lines)
+                # Join all lines and clean up excessive whitespace while preserving structure
+                description = "\n".join(comment_lines).strip()
+                # Remove excessive empty lines but preserve single empty lines for formatting
+                import re
+                description = re.sub(r'\n\s*\n\s*\n+', '\n\n', description)
+                return description
 
         # Priority 2: Comments from parent node (for behaviors in behaviors blocks)
         if hasattr(node, "parent") and node.parent and node.parent.comments:
@@ -213,13 +218,18 @@ class ASTBehaviorConverter:
                     else:
                         cleaned_text = comment_text.strip()
 
-                    if cleaned_text:
-                        comment_lines.append(cleaned_text)
+                    # Add all comment lines, including empty ones for proper formatting
+                    comment_lines.append(cleaned_text)
 
             if comment_lines:
                 # Reverse to get original order since we processed in reverse
                 comment_lines.reverse()
-                return "\n".join(comment_lines)
+                # Join all lines and clean up excessive whitespace while preserving structure
+                description = "\n".join(comment_lines).strip()
+                # Remove excessive empty lines but preserve single empty lines for formatting
+                import re
+                description = re.sub(r'\n\s*\n\s*\n+', '\n\n', description)
+                return description
 
         # Priority 3: Description property
         description_prop = node.get_property("description")

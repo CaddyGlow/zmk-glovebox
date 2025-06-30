@@ -73,11 +73,15 @@ def get_shared_cache_instance(
     return _shared_cache_instances[cache_key]
 
 
-def reset_shared_cache_instances() -> None:
+def reset_shared_cache_instances(user_config: Any = None) -> None:
     """Reset all shared cache instances.
 
     This is primarily used for testing to ensure clean state between tests.
     Follows the testing isolation requirements from CLAUDE.md.
+    
+    Args:
+        user_config: Optional user configuration to get cache path from.
+                    If None, uses default cache path.
     """
     import shutil
 
@@ -99,18 +103,24 @@ def reset_shared_cache_instances() -> None:
     # Clear the registry
     _shared_cache_instances.clear()
 
-    # Clean up workspace cache directories for test isolation
+    # Clean up cache directories for test isolation
     try:
-        workspace_cache_dir = Path.home() / ".cache" / "glovebox" / "workspace"
-        if workspace_cache_dir.exists():
-            shutil.rmtree(workspace_cache_dir, ignore_errors=True)
-            logger.debug(
-                "Cleaned up workspace cache directory: %s", workspace_cache_dir
-            )
+        # Use user config cache path if provided, otherwise fall back to default
+        if user_config and hasattr(user_config, "cache_path"):
+            cache_root = user_config.cache_path
+        elif user_config and hasattr(user_config, "_config") and hasattr(user_config._config, "cache_path"):
+            cache_root = user_config._config.cache_path
+        else:
+            # Default fallback for backward compatibility
+            cache_root = Path.home() / ".cache" / "glovebox"
+        
+        if cache_root.exists():
+            shutil.rmtree(cache_root, ignore_errors=True)
+            logger.debug("Cleaned up cache directory: %s", cache_root)
     except Exception as e:
         exc_info = logger.isEnabledFor(logging.DEBUG)
         logger.warning(
-            "Error cleaning workspace cache directory: %s", e, exc_info=exc_info
+            "Error cleaning cache directory: %s", e, exc_info=exc_info
         )
 
 

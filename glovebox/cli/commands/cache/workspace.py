@@ -9,6 +9,7 @@ from typing import Annotated, Any
 import typer
 from rich.console import Console
 
+from glovebox.cli.decorators import with_metrics
 from glovebox.cli.workspace_display_utils import (
     filter_workspaces,
     format_workspace_entry,
@@ -431,52 +432,74 @@ def workspace_add(
         )
         icon_mode = "emoji"  # Default icon mode
 
-        # Determine source type and process accordingly
-        workspace_path, temp_cleanup_dirs = process_workspace_source(
-            workspace_source, progress=progress, console=console
-        )
-
-        # Use the new workspace cache service for adding external workspace
-        if not repository:
-            typer.echo(
-                "Error: Repository must be specified when injecting workspace", err=True
-            )
-            raise typer.Exit(1)
-
         # Setup progress tracking using the new scrollable logs display
         start_time = time.time()
         progress_callback = None
+        temp_cleanup_dirs = []  # Initialize to avoid undefined variable
 
-        progress = False
+        # Progress is enabled by default unless explicitly disabled
+        display = None
+        progress_coordinator = None
+
         if progress:
-            from glovebox.cli.progress.workspace import create_workspace_cache_progress
+            # Use simple progress display for cache operations
+            from glovebox.compilation.simple_progress import (
+                create_simple_compilation_display,
+                create_simple_progress_coordinator,
+            )
 
-            # Create display and callback using the factory function with show_logs parameter
-            display, progress_callback = create_workspace_cache_progress(
-                operation_type="workspace_add",
-                repository=repository,
-                show_logs=show_logs,
+            display = create_simple_compilation_display(console)
+            progress_coordinator = create_simple_progress_coordinator(display)
+
+            # Start display immediately to show all operations
+            display.start()
+
+            # Set initial phase for workspace processing
+            progress_coordinator.transition_to_phase(
+                "workspace_setup", "Processing workspace source"
             )
 
         try:
-            if progress and "display" in locals():
-                # Use the display context manager for clean lifecycle
-                with display:
-                    logger.info(f"Adding workspace cache for {repository}")
-                    logger.info(f"Source: {workspace_source}")
+            # Determine source type and process accordingly
+            # Disable visual progress in process_workspace_source to avoid competing displays
+            workspace_path, temp_cleanup_dirs = process_workspace_source(
+                workspace_source, progress=False, console=console, progress_coordinator=progress_coordinator
+            )
 
-                    result = workspace_cache_service.inject_existing_workspace(
-                        workspace_path=workspace_path,
-                        repository=repository,
-                        progress_callback=progress_callback,
-                    )
-            else:
-                result = workspace_cache_service.inject_existing_workspace(
-                    workspace_path=workspace_path,
-                    repository=repository,
-                    progress_callback=progress_callback,
+            # Use the new workspace cache service for adding external workspace
+            if not repository:
+                typer.echo(
+                    "Error: Repository must be specified when injecting workspace", err=True
                 )
+                raise typer.Exit(1)
+
+            # Set phase for workspace injection
+            if progress_coordinator:
+                progress_coordinator.transition_to_phase(
+                    "workspace_setup", "Adding workspace to cache"
+                )
+
+            logger.info(f"Adding workspace cache for {repository}")
+            logger.info(f"Source: {workspace_source}")
+
+            result = workspace_cache_service.inject_existing_workspace(
+                workspace_path=workspace_path,
+                repository=repository,
+                progress_callback=progress_callback,
+                progress_coordinator=progress_coordinator,
+            )
+
+            # Mark as completed
+            if progress_coordinator:
+                progress_coordinator.transition_to_phase(
+                    "complete", "Workspace successfully added to cache"
+                )
+
         finally:
+            # Stop display if it was started
+            if display is not None:
+                display.stop()
+
             # Cleanup temporary directories from zip extraction
             cleanup_temp_directories(temp_cleanup_dirs)
 
@@ -545,6 +568,236 @@ def workspace_add(
 
     except Exception as e:
         logger.error("Failed to add workspace to cache: %s", e)
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1) from e
+
+
+@workspace_app.command(name="export")
+@with_metrics("workspace_export")
+def workspace_export(
+    ctx: typer.Context,
+    repository: Annotated[
+        str,
+        typer.Argument(help="Repository name (e.g., 'zmkfirmware/zmk')"),
+    ],
+    branch: Annotated[
+        str | None,
+        typer.Argument(help="Branch name (optional, for repo+branch cache level)"),
+    ] = None,
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output archive path (auto-generated if not specified)",
+        ),
+    ] = None,
+    format: Annotated[
+        str,
+        typer.Option(
+            "--format",
+            help="Archive format (zip, tar, tar.gz, tar.bz2, tar.xz)",
+        ),
+    ] = "zip",
+    compression_level: Annotated[
+        int | None,
+        typer.Option(
+            "--compression-level",
+            "-c",
+            help="Compression level (1-9, default varies by format)",
+            min=1,
+            max=9,
+        ),
+    ] = None,
+    include_git: Annotated[
+        bool,
+        typer.Option(
+            "--include-git/--no-include-git",
+            help="Include .git folders in export (if available in cached workspace)",
+        ),
+    ] = True,
+    force: Annotated[
+        bool,
+        typer.Option("--force", "-f", help="Overwrite existing output file"),
+    ] = False,
+    progress: Annotated[
+        bool,
+        typer.Option(
+            "--progress/--no-progress", help="Show progress bar during export"
+        ),
+    ] = True,
+) -> None:
+    """Export cached workspace to compressed archive.
+
+    This command exports a cached ZMK workspace to various archive formats:
+    - ZIP with configurable compression levels
+    - TAR with optional compression (gzip, bzip2, xz)
+
+    Examples:
+        glovebox cache workspace export zmkfirmware/zmk main
+        glovebox cache workspace export zmkfirmware/zmk --format tar.gz
+        glovebox cache workspace export zmkfirmware/zmk main -o my_workspace.zip
+    """
+    try:
+        # Import here to avoid circular dependencies
+        from glovebox.compilation.cache.models import ArchiveFormat
+
+        # Get session_metrics from context
+        session_metrics = getattr(ctx.obj, 'session_metrics', None)
+        
+        cache_manager, workspace_cache_service, user_config = (
+            get_cache_manager_and_service(session_metrics=session_metrics)
+        )
+        icon_mode = "emoji"
+
+        # Validate archive format
+        try:
+            archive_format = ArchiveFormat(format.lower())
+        except ValueError:
+            console.print(f"[red]Invalid archive format: {format}[/red]")
+            console.print(
+                "[dim]Supported formats: zip, tar, tar.gz, tar.bz2, tar.xz[/dim]"
+            )
+            raise typer.Exit(1) from None
+
+        # Check if workspace exists in cache
+        cache_result = workspace_cache_service.get_cached_workspace(repository, branch)
+        if not cache_result.success or not cache_result.metadata:
+            cache_type = "repo+branch" if branch else "repo-only"
+            console.print(
+                f"[red]No cached workspace found for {repository} ({cache_type})[/red]"
+            )
+            console.print(
+                "[dim]Use 'glovebox cache workspace show' to see available workspaces[/dim]"
+            )
+            raise typer.Exit(1)
+
+        metadata = cache_result.metadata
+
+        # Generate output path if not provided
+        if output is None:
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            repo_name = repository.replace("/", "_")
+            branch_part = f"_{branch}" if branch else ""
+            filename = f"{repo_name}{branch_part}_workspace_{timestamp}{archive_format.file_extension}"
+            output = Path.cwd() / filename
+
+        # Check if output file exists and handle force flag
+        if output.exists() and not force:
+            confirm = typer.confirm(f"Output file {output} already exists. Overwrite?")
+            if not confirm:
+                console.print("[yellow]Export cancelled[/yellow]")
+                return
+
+        # Setup progress tracking
+        start_time = time.time()
+        display = None
+        progress_coordinator = None
+
+        if progress:
+            from glovebox.compilation.simple_progress import (
+                create_simple_compilation_display,
+                create_simple_progress_coordinator,
+            )
+
+            display = create_simple_compilation_display(console)
+            progress_coordinator = create_simple_progress_coordinator(display)
+            display.start()
+
+            # Set initial phase for export
+            cache_type = "repo+branch" if branch else "repo-only"
+            progress_coordinator.transition_to_phase(
+                "initialization", f"Preparing export for {repository} ({cache_type})"
+            )
+            
+            # Set workspace export task as active
+            if hasattr(progress_coordinator, "set_enhanced_task_status"):
+                progress_coordinator.set_enhanced_task_status(
+                    "workspace_export", "active", f"Exporting to {archive_format.value}"
+                )
+
+        try:
+            # Perform the export
+            export_result = workspace_cache_service.export_cached_workspace(
+                repository=repository,
+                branch=branch,
+                output_path=output,
+                archive_format=archive_format,
+                compression_level=compression_level,
+                include_git=include_git,
+                progress_coordinator=progress_coordinator,
+            )
+
+            # Mark as completed
+            if progress_coordinator:
+                if export_result.success:
+                    progress_coordinator.transition_to_phase(
+                        "complete", "Export completed successfully"
+                    )
+                else:
+                    progress_coordinator.transition_to_phase(
+                        "error", f"Export failed: {export_result.error_message}"
+                    )
+
+        finally:
+            # Stop display if it was started
+            if display is not None:
+                display.stop()
+
+        if export_result.success:
+            # Display success information
+            end_time = time.time()
+            total_time = end_time - start_time
+
+            console.print(
+                f"[green]{format_icon_with_message('SUCCESS', 'Workspace exported successfully', icon_mode)}[/green]"
+            )
+            console.print(f"[bold]Repository:[/bold] {repository}")
+            if branch:
+                console.print(f"[bold]Branch:[/bold] {branch}")
+            console.print(f"[bold]Output file:[/bold] {export_result.export_path}")
+            console.print(f"[bold]Archive format:[/bold] {archive_format.value}")
+
+            if export_result.original_size_bytes and export_result.archive_size_bytes:
+                console.print(
+                    f"[bold]Original size:[/bold] {format_size_display(export_result.original_size_bytes)}"
+                )
+                console.print(
+                    f"[bold]Compressed size:[/bold] {format_size_display(export_result.archive_size_bytes)}"
+                )
+
+                if export_result.compression_percentage:
+                    console.print(
+                        f"[bold]Compression:[/bold] {export_result.compression_percentage:.1f}% reduction"
+                    )
+
+            if export_result.files_count:
+                console.print(f"[bold]Files exported:[/bold] {export_result.files_count:,}")
+
+            if export_result.export_speed_mb_s and export_result.export_speed_mb_s > 0:
+                console.print(
+                    f"[bold]Export speed:[/bold] {export_result.export_speed_mb_s:.1f} MB/s"
+                )
+
+            console.print(f"[bold]Export time:[/bold] {total_time:.1f}s")
+
+            # Show workspace metadata info
+            if metadata.cached_components:
+                console.print(
+                    f"[bold]Components exported:[/bold] {', '.join(metadata.cached_components)}"
+                )
+
+            git_status = "included" if include_git else "excluded"
+            console.print(f"[bold]Git folders:[/bold] {git_status}")
+
+        else:
+            console.print(
+                f"[red]Failed to export workspace: {export_result.error_message}[/red]"
+            )
+            raise typer.Exit(1)
+
+    except Exception as e:
+        logger.error("Failed to export workspace: %s", e)
         console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(1) from e
 

@@ -50,8 +50,23 @@ class ProgressCoordinatorProtocol(Protocol):
         total_bytes: int = 0,
         current_file: str = "",
         component: str = "",
+        transfer_speed_mb_s: float = 0.0,
+        eta_seconds: float = 0.0,
     ) -> None:
         """Update workspace setup progress."""
+        ...
+
+    def update_export_progress(
+        self,
+        files_processed: int = 0,
+        total_files: int = 0,
+        current_file: str = "",
+        archive_format: str = "",
+        compression_level: int = 0,
+        speed_mb_s: float = 0.0,
+        eta_seconds: float = 0.0,
+    ) -> None:
+        """Update workspace export progress."""
         ...
 
     def update_repository_progress(self, repository_name: str) -> None:

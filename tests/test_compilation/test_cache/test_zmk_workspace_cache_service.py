@@ -625,3 +625,146 @@ class TestZmkWorkspaceCacheServiceSimplified:
         assert not (
             retrieved_result.workspace_path / "zmk" / ".git"
         ).exists()  # .git excluded
+
+    def test_export_cached_workspace_success(
+        self,
+        service: ZmkWorkspaceCacheService,
+        mock_cache_manager: Mock,
+        tmp_path: Path,
+    ):
+        """Test successful workspace export."""
+        from glovebox.compilation.cache.models import ArchiveFormat, WorkspaceExportResult
+
+        repository = "zmkfirmware/zmk"
+        branch = "main"
+        
+        # Create a mock workspace directory with test files
+        workspace_path = tmp_path / "workspace"
+        workspace_path.mkdir()
+        (workspace_path / "zmk").mkdir()
+        (workspace_path / "zephyr").mkdir()
+        (workspace_path / "zmk" / "CMakeLists.txt").write_text("test content")
+        (workspace_path / "zephyr" / "Kconfig").write_text("test content")
+
+        # Create metadata
+        metadata = self._create_metadata(
+            workspace_path=workspace_path,
+            repository=repository,
+            branch=branch,
+            cached_components=["zmk", "zephyr"],
+            size_bytes=1024,
+        )
+
+        # Mock cache lookup
+        mock_cache_manager.get.return_value = metadata.to_cache_value()
+
+        # Test export
+        output_path = tmp_path / "test_export.zip"
+        result = service.export_cached_workspace(
+            repository=repository,
+            branch=branch,
+            output_path=output_path,
+            archive_format=ArchiveFormat.ZIP,
+            include_git=True,  # Default behavior
+        )
+
+        assert result.success is True
+        assert result.export_path == output_path
+        assert result.archive_format == ArchiveFormat.ZIP
+        assert output_path.exists()
+        assert result.archive_size_bytes > 0
+        assert result.original_size_bytes > 0
+        assert result.compression_ratio is not None
+
+    def test_export_cached_workspace_not_found(
+        self,
+        service: ZmkWorkspaceCacheService,
+        mock_cache_manager: Mock,
+    ):
+        """Test export when workspace is not in cache."""
+        from glovebox.compilation.cache.models import ArchiveFormat
+
+        repository = "nonexistent/repo"
+        mock_cache_manager.get.return_value = None
+
+        result = service.export_cached_workspace(
+            repository=repository,
+            archive_format=ArchiveFormat.ZIP,
+        )
+
+        assert result.success is False
+        assert "Failed to get cached workspace" in result.error_message
+
+    def test_export_cached_workspace_tar_gz(
+        self,
+        service: ZmkWorkspaceCacheService,
+        mock_cache_manager: Mock,
+        tmp_path: Path,
+    ):
+        """Test workspace export with tar.gz format."""
+        from glovebox.compilation.cache.models import ArchiveFormat
+
+        repository = "zmkfirmware/zmk"
+        
+        # Create a mock workspace directory
+        workspace_path = tmp_path / "workspace"
+        workspace_path.mkdir()
+        (workspace_path / "zmk").mkdir()
+        (workspace_path / "zmk" / "CMakeLists.txt").write_text("test content")
+
+        # Create metadata
+        metadata = self._create_metadata(
+            workspace_path=workspace_path,
+            repository=repository,
+            cached_components=["zmk"],
+            size_bytes=512,
+        )
+
+        # Mock cache lookup
+        mock_cache_manager.get.return_value = metadata.to_cache_value()
+
+        # Test export with tar.gz
+        output_path = tmp_path / "test_export.tar.gz"
+        result = service.export_cached_workspace(
+            repository=repository,
+            output_path=output_path,
+            archive_format=ArchiveFormat.TAR_GZ,
+        )
+
+        assert result.success is True
+        assert result.export_path == output_path
+        assert result.archive_format == ArchiveFormat.TAR_GZ
+        assert output_path.exists()
+        assert result.archive_size_bytes > 0
+
+    def test_export_archive_format_enum(self):
+        """Test ArchiveFormat enum properties."""
+        from glovebox.compilation.cache.models import ArchiveFormat
+
+        # Test ZIP format
+        assert ArchiveFormat.ZIP.file_extension == ".zip"
+        assert ArchiveFormat.ZIP.uses_compression is True
+        assert ArchiveFormat.ZIP.default_compression_level == 6
+
+        # Test TAR format
+        assert ArchiveFormat.TAR.file_extension == ".tar"
+        assert ArchiveFormat.TAR.uses_compression is False
+
+        # Test TAR_GZ format
+        assert ArchiveFormat.TAR_GZ.file_extension == ".tar.gz"
+        assert ArchiveFormat.TAR_GZ.uses_compression is True
+
+    def test_workspace_export_result_properties(self):
+        """Test WorkspaceExportResult computed properties."""
+        from glovebox.compilation.cache.models import WorkspaceExportResult
+
+        result = WorkspaceExportResult(
+            success=True,
+            archive_size_bytes=500,
+            original_size_bytes=1000,
+            export_duration_seconds=2.5,
+        )
+
+        assert result.compression_ratio == 0.5
+        assert result.compression_percentage == 50.0
+        assert result.export_speed_mb_s is not None

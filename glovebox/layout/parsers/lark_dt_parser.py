@@ -99,18 +99,32 @@ class LarkDTParser:
             List of DTNode objects
         """
         roots: list[DTNode] = []
+        pending_comments: list[DTComment] = []
 
-        # Process top-level items
+        # Process top-level items and associate comments with following nodes
         for item in tree.children:
             if isinstance(item, Tree):
                 if item.data == "node":
                     node = self._transform_node(item)
                     if node:
+                        # Associate any pending comments with this node
+                        if pending_comments:
+                            node.comments.extend(pending_comments)
+                            pending_comments = []
                         roots.append(node)
                 elif item.data == "reference_node_modification":
                     node = self._transform_reference_node_modification(item)
                     if node:
+                        # Associate any pending comments with this node
+                        if pending_comments:
+                            node.comments.extend(pending_comments)
+                            pending_comments = []
                         roots.append(node)
+                elif item.data == "comment":
+                    # Collect comments that appear before nodes
+                    comment = self._transform_comment(item)
+                    if comment:
+                        pending_comments.append(comment)
                 elif item.data == "preprocessor_directive":
                     # Store preprocessor directives as conditionals in the first root node
                     if not roots:
@@ -121,7 +135,7 @@ class LarkDTParser:
                     conditional = self._transform_preprocessor_directive(item)
                     if conditional:
                         roots[0].conditionals.append(conditional)
-                # Skip other top-level items like includes, comments, etc. for now
+                # Skip other top-level items like includes for now
 
         return roots
 

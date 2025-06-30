@@ -6,6 +6,11 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+if TYPE_CHECKING:
+    from glovebox.protocols.progress_coordinator_protocol import (
+        ProgressCoordinatorProtocol,
+    )
+
 from glovebox.adapters.docker_adapter import LoggerOutputMiddleware
 from glovebox.compilation.cache.compilation_build_cache_service import (
     CompilationBuildCacheService,
@@ -96,6 +101,9 @@ class ZmkWestService(CompilationServiceProtocol):
         self.copy_service = copy_service or create_copy_service(
             use_pipeline=True, max_workers=3
         )
+        
+        # Progress coordinator for enhanced progress tracking
+        self._external_progress_coordinator: "ProgressCoordinatorProtocol | None" = None
 
         # Initialize services
         self.workspace_setup_service = (
@@ -112,6 +120,16 @@ class ZmkWestService(CompilationServiceProtocol):
             cache_manager=cache_manager,
             session_metrics=session_metrics,
         )
+
+    def set_progress_coordinator(
+        self, progress_coordinator: "ProgressCoordinatorProtocol | None"
+    ) -> None:
+        """Set the external progress coordinator for enhanced progress tracking.
+        
+        Args:
+            progress_coordinator: Progress coordinator for tracking compilation phases
+        """
+        self._external_progress_coordinator = progress_coordinator
 
     def compile(
         self,

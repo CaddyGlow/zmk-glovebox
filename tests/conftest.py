@@ -157,7 +157,12 @@ def isolated_cache_environment(
         # Reset shared cache instances for test isolation
         from glovebox.core.cache import reset_shared_cache_instances
 
-        reset_shared_cache_instances()
+        # Use isolated cache path for proper test isolation
+        from types import SimpleNamespace
+        mock_config = SimpleNamespace()
+        mock_config.cache_path = cache_context["cache_root"]
+        
+        reset_shared_cache_instances(user_config=mock_config)
 
 
 @pytest.fixture
@@ -236,7 +241,7 @@ def isolated_cli_environment(
 
 
 @pytest.fixture(autouse=True)
-def reset_shared_cache() -> Generator[None, None, None]:
+def reset_shared_cache(request: pytest.FixtureRequest) -> Generator[None, None, None]:
     """Reset shared cache instances before each test for isolation.
 
     This fixture ensures test isolation by resetting all shared cache instances
@@ -246,13 +251,22 @@ def reset_shared_cache() -> Generator[None, None, None]:
     """
     from glovebox.core.cache import reset_shared_cache_instances
 
+    # Try to get isolated_config if available, otherwise use None for default behavior
+    user_config = None
+    if hasattr(request, 'getfixturevalue'):
+        try:
+            user_config = request.getfixturevalue('isolated_config')
+        except pytest.FixtureLookupError:
+            # isolated_config not available, use default behavior
+            pass
+
     # Reset cache before test
-    reset_shared_cache_instances()
+    reset_shared_cache_instances(user_config=user_config)
 
     yield
 
     # Reset cache after test for extra safety
-    reset_shared_cache_instances()
+    reset_shared_cache_instances(user_config=user_config)
 
 
 @pytest.fixture
