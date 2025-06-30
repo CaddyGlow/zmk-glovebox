@@ -1,23 +1,38 @@
 """Workspace processing utilities for cache commands."""
 
 import contextlib
+import json
 import logging
 import shutil
+import tarfile
 import tempfile
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import typer
 from rich.console import Console
 
 
+if TYPE_CHECKING:
+    from glovebox.compilation.cache.models import (
+        ArchiveFormat,
+        WorkspaceCacheMetadata,
+    )
+    from glovebox.core.file_operations import CopyProgressCallback
+    from glovebox.protocols.progress_coordinator_protocol import (
+        ProgressCoordinatorProtocol,
+    )
+
+
 logger = logging.getLogger(__name__)
 
 
 def process_workspace_source(
-    source: str, progress: bool = True, console: Console | None = None
+    source: str, progress: bool = True, console: Console | None = None, progress_coordinator=None
 ) -> tuple[Path, list[Path]]:
     """Process workspace source (directory, zip file, or URL) and return workspace path.
 
@@ -25,6 +40,7 @@ def process_workspace_source(
         source: Source path, zip file, or URL
         progress: Whether to show progress bars
         console: Rich console for output
+        progress_coordinator: Optional progress coordinator for enhanced tracking
 
     Returns:
         Tuple of (workspace_path, temp_dirs_to_cleanup)
@@ -38,7 +54,7 @@ def process_workspace_source(
     # Check if it's a URL
     parsed_url = urlparse(source)
     if parsed_url.scheme in ["http", "https"]:
-        workspace_path, temp_dir = download_and_extract_zip(source, progress, console)
+        workspace_path, temp_dir = download_and_extract_zip(source, progress, console, progress_coordinator)
         return workspace_path, [temp_dir]
 
     # Convert to Path for local processing
@@ -55,7 +71,7 @@ def process_workspace_source(
 
     # If it's a zip file, extract it
     if source_path.suffix.lower() == ".zip":
-        workspace_path, temp_dir = extract_local_zip(source_path, progress, console)
+        workspace_path, temp_dir = extract_local_zip(source_path, progress, console, progress_coordinator)
         return workspace_path, [temp_dir]
 
     # Unknown file type
@@ -67,7 +83,7 @@ def process_workspace_source(
 
 
 def download_and_extract_zip(
-    url: str, progress: bool, console: Console
+    url: str, progress: bool, console: Console, progress_coordinator=None
 ) -> tuple[Path, Path]:
     """Download zip file from URL and extract workspace.
 
@@ -75,6 +91,7 @@ def download_and_extract_zip(
         url: URL to zip file
         progress: Whether to show progress bar
         console: Rich console for output
+        progress_coordinator: Optional progress coordinator for enhanced tracking
 
     Returns:
         Path to extracted workspace directory
@@ -92,6 +109,10 @@ def download_and_extract_zip(
     zip_path = temp_dir / "workspace.zip"
 
     try:
+        # Set download task as active if coordinator available
+        if progress_coordinator and hasattr(progress_coordinator, "set_enhanced_task_status"):
+            progress_coordinator.set_enhanced_task_status("download", "active", f"Downloading from {url}")
+
         if progress:
             # Create progress bar for download
             progress_bar = Progress(
@@ -144,20 +165,27 @@ def download_and_extract_zip(
                 console.print(f"[red]Download failed: {e}[/red]")
                 raise typer.Exit(1) from e
 
+        # Mark download as completed
+        if progress_coordinator and hasattr(progress_coordinator, "set_enhanced_task_status"):
+            progress_coordinator.set_enhanced_task_status("download", "completed")
+
         # Extract the downloaded zip
-        workspace_path = extract_zip_file(zip_path, progress, console)
+        workspace_path = extract_zip_file(zip_path, progress, console, progress_coordinator)
 
         # Return both workspace path and temp directory for cleanup
         return workspace_path, temp_dir
 
     except Exception as e:
+        # Mark download as failed
+        if progress_coordinator and hasattr(progress_coordinator, "set_enhanced_task_status"):
+            progress_coordinator.set_enhanced_task_status("download", "failed")
         # Cleanup temp directory on error
         shutil.rmtree(temp_dir, ignore_errors=True)
         raise
 
 
 def extract_local_zip(
-    zip_path: Path, progress: bool, console: Console
+    zip_path: Path, progress: bool, console: Console, progress_coordinator=None
 ) -> tuple[Path, Path]:
     """Extract local zip file to temporary directory.
 
@@ -165,6 +193,7 @@ def extract_local_zip(
         zip_path: Path to local zip file
         progress: Whether to show progress bar
         console: Rich console for output
+        progress_coordinator: Optional progress coordinator for enhanced tracking
 
     Returns:
         Path to extracted workspace directory
@@ -180,7 +209,7 @@ def extract_local_zip(
         temp_zip = temp_dir / zip_path.name
         shutil.copy2(zip_path, temp_zip)
 
-        workspace_path = extract_zip_file(temp_zip, progress, console)
+        workspace_path = extract_zip_file(temp_zip, progress, console, progress_coordinator)
 
         # Return both workspace path and temp directory for cleanup
         return workspace_path, temp_dir
@@ -191,17 +220,20 @@ def extract_local_zip(
         raise
 
 
-def extract_zip_file(zip_path: Path, progress: bool, console: Console) -> Path:
-    """Extract zip file and find workspace directory.
+def extract_zip_file(zip_path: Path, progress: bool, console: Console, progress_coordinator=None) -> Path:
+    """Extract zip file and find workspace directory with enhanced progress tracking.
 
     Args:
         zip_path: Path to zip file
         progress: Whether to show progress bar
         console: Rich console for output
+        progress_coordinator: Optional progress coordinator for enhanced tracking
 
     Returns:
         Path to workspace directory
     """
+    import time
+
     from rich.progress import (
         BarColumn,
         Progress,
@@ -217,33 +249,71 @@ def extract_zip_file(zip_path: Path, progress: bool, console: Console) -> Path:
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
             file_list = zip_ref.namelist()
 
-            if progress:
-                progress_bar = Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    BarColumn(),
-                    TaskProgressColumn(),
-                    console=console,
-                    transient=True,
-                )
+            # Calculate total uncompressed size for byte-level progress
+            total_uncompressed_size = sum(info.file_size for info in zip_ref.infolist())
+            archive_name = zip_path.name
 
-                with progress_bar:
-                    task_id = progress_bar.add_task(
-                        "Extracting...", total=len(file_list)
+            # Set ZIP extraction task as active if coordinator available
+            if progress_coordinator and hasattr(progress_coordinator, "set_enhanced_task_status"):
+                progress_coordinator.set_enhanced_task_status("zip_extraction", "active")
+
+            # Enhanced extraction with byte-level tracking - only use coordinator, no separate progress bar
+            extracted_bytes = 0
+            start_time = time.time()
+
+            for i, file_info in enumerate(zip_ref.infolist()):
+                # Extract file
+                zip_ref.extract(file_info, extract_dir)
+                extracted_bytes += file_info.file_size
+
+                # Calculate extraction speed
+                elapsed_time = time.time() - start_time
+                extraction_speed_mb_s = 0.0
+                eta_seconds = 0.0
+
+                if elapsed_time > 0 and extracted_bytes > 0:
+                    extraction_speed_mb_s = (
+                        extracted_bytes / (1024 * 1024)
+                    ) / elapsed_time
+
+                    if extraction_speed_mb_s > 0:
+                        remaining_bytes = (
+                            total_uncompressed_size - extracted_bytes
+                        )
+                        eta_seconds = remaining_bytes / (
+                            extraction_speed_mb_s * 1024 * 1024
+                        )
+
+                # Update progress coordinator if available
+                if progress_coordinator and hasattr(progress_coordinator, "update_cache_extraction_progress"):
+                    progress_coordinator.update_cache_extraction_progress(
+                        operation="cache workspace",
+                        files_extracted=i + 1,
+                        total_files=len(file_list),
+                        bytes_extracted=extracted_bytes,
+                        total_bytes=total_uncompressed_size,
+                        current_file=file_info.filename,
+                        archive_name=archive_name,
+                        extraction_speed_mb_s=extraction_speed_mb_s,
+                        eta_seconds=eta_seconds,
                     )
 
-                    for i, file_info in enumerate(zip_ref.infolist()):
-                        zip_ref.extract(file_info, extract_dir)
-                        progress_bar.update(task_id, completed=i + 1)
-            else:
-                console.print("[blue]Extracting zip file...[/blue]")
-                zip_ref.extractall(extract_dir)
+            # Show simple message if no coordinator available
+            if not progress_coordinator:
+                console.print(f"[blue]Extracting {archive_name}...[/blue]")
+
+            # Mark ZIP extraction as completed
+            if progress_coordinator and hasattr(progress_coordinator, "set_enhanced_task_status"):
+                progress_coordinator.set_enhanced_task_status("zip_extraction", "completed")
 
         # Find workspace directory in extracted content
         workspace_path = find_workspace_in_directory(extract_dir, console)
         return workspace_path
 
     except Exception as e:
+        # Mark ZIP extraction as failed
+        if progress_coordinator and hasattr(progress_coordinator, "set_enhanced_task_status"):
+            progress_coordinator.set_enhanced_task_status("zip_extraction", "failed")
         console.print(f"[red]Extraction failed: {e}[/red]")
         shutil.rmtree(extract_dir, ignore_errors=True)
         raise typer.Exit(1) from e
@@ -315,3 +385,170 @@ def cleanup_temp_directories(temp_dirs: list[Path]) -> None:
             logger.debug("Cleaned up temp directory: %s", temp_dir)
         except Exception as e:
             logger.debug("Failed to cleanup temp directory %s: %s", temp_dir, e)
+
+
+def create_zip_archive(
+    workspace_path: Path,
+    output_path: Path,
+    compression_level: int,
+    include_git: bool,
+    metadata: "WorkspaceCacheMetadata",
+    progress_callback: "CopyProgressCallback | None" = None,
+    progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
+) -> None:
+    """Create ZIP archive from workspace directory.
+
+    Args:
+        workspace_path: Path to workspace directory to archive
+        output_path: Path for output archive file
+        compression_level: Compression level (0-9)
+        include_git: Whether to include .git folders
+        metadata: Workspace metadata to include in archive
+        progress_callback: Optional progress callback
+        progress_coordinator: Optional progress coordinator
+    """
+    # Calculate total files for progress tracking
+    total_files = sum(
+        1 for file_path in workspace_path.rglob("*")
+        if file_path.is_file() and (include_git or ".git" not in file_path.parts)
+    )
+
+    processed_files = 0
+    start_time = time.time()
+
+    with zipfile.ZipFile(
+        output_path,
+        'w',
+        compression=zipfile.ZIP_DEFLATED,
+        compresslevel=compression_level
+    ) as zipf:
+        # Add workspace metadata as JSON
+        metadata_json = json.dumps(metadata.model_dump(mode="json"), indent=2)
+        zipf.writestr(".glovebox_export_metadata.json", metadata_json)
+
+        # Add all workspace files
+        for file_path in workspace_path.rglob("*"):
+            if file_path.is_file():
+                # Skip .git files if not included
+                if not include_git and ".git" in file_path.parts:
+                    continue
+
+                # Calculate relative path for archive
+                rel_path = file_path.relative_to(workspace_path)
+                archive_path = f"workspace/{rel_path}"
+
+                # Add file to zip
+                zipf.write(file_path, archive_path)
+                processed_files += 1
+
+                # Update progress
+                if progress_coordinator and hasattr(progress_coordinator, "update_export_progress"):
+                    elapsed = time.time() - start_time
+                    speed_mb_s = 0.0
+                    eta_seconds = 0.0
+
+                    if elapsed > 0 and processed_files > 0:
+                        files_per_second = processed_files / elapsed
+                        if files_per_second > 0:
+                            eta_seconds = (total_files - processed_files) / files_per_second
+
+                    progress_coordinator.update_export_progress(
+                        files_processed=processed_files,
+                        total_files=total_files,
+                        current_file=str(rel_path),
+                        archive_format="zip",
+                        compression_level=compression_level,
+                        speed_mb_s=speed_mb_s,
+                        eta_seconds=eta_seconds,
+                    )
+
+
+def create_tar_archive(
+    workspace_path: Path,
+    output_path: Path,
+    archive_format: "ArchiveFormat",
+    compression_level: int,
+    include_git: bool,
+    metadata: "WorkspaceCacheMetadata",
+    progress_callback: "CopyProgressCallback | None" = None,
+    progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
+) -> None:
+    """Create TAR archive from workspace directory.
+
+    Args:
+        workspace_path: Path to workspace directory to archive
+        output_path: Path for output archive file
+        archive_format: Archive format (TAR, TAR_GZ, TAR_BZ2, TAR_XZ)
+        compression_level: Compression level (0-9)
+        include_git: Whether to include .git folders
+        metadata: Workspace metadata to include in archive
+        progress_callback: Optional progress callback
+        progress_coordinator: Optional progress coordinator
+    """
+    # Map archive format to tarfile mode
+    mode_map = {
+        "tar": "w",
+        "tar.gz": "w:gz",
+        "tar.bz2": "w:bz2",
+        "tar.xz": "w:xz",
+    }
+
+    mode = mode_map.get(archive_format.value, "w")
+
+    # Calculate total files for progress tracking
+    total_files = sum(
+        1 for file_path in workspace_path.rglob("*")
+        if file_path.is_file() and (include_git or ".git" not in file_path.parts)
+    )
+
+    processed_files = 0
+    start_time = time.time()
+
+    with tarfile.open(output_path, mode) as tar:
+        # Add workspace metadata as JSON
+        metadata_json = json.dumps(metadata.model_dump(mode="json"), indent=2)
+        metadata_bytes = metadata_json.encode('utf-8')
+
+        # Create tarinfo for metadata file
+        metadata_info = tarfile.TarInfo(name=".glovebox_export_metadata.json")
+        metadata_info.size = len(metadata_bytes)
+        metadata_info.mtime = int(time.time())
+
+        import io
+        tar.addfile(metadata_info, io.BytesIO(metadata_bytes))
+
+        # Add all workspace files
+        for file_path in workspace_path.rglob("*"):
+            if file_path.is_file():
+                # Skip .git files if not included
+                if not include_git and ".git" in file_path.parts:
+                    continue
+
+                # Calculate relative path for archive
+                rel_path = file_path.relative_to(workspace_path)
+                archive_path = f"workspace/{rel_path}"
+
+                # Add file to tar with custom arcname
+                tar.add(file_path, arcname=archive_path)
+                processed_files += 1
+
+                # Update progress
+                if progress_coordinator and hasattr(progress_coordinator, "update_export_progress"):
+                    elapsed = time.time() - start_time
+                    speed_mb_s = 0.0
+                    eta_seconds = 0.0
+
+                    if elapsed > 0 and processed_files > 0:
+                        files_per_second = processed_files / elapsed
+                        if files_per_second > 0:
+                            eta_seconds = (total_files - processed_files) / files_per_second
+
+                    progress_coordinator.update_export_progress(
+                        files_processed=processed_files,
+                        total_files=total_files,
+                        current_file=str(rel_path),
+                        archive_format=archive_format.value,
+                        compression_level=compression_level,
+                        speed_mb_s=speed_mb_s,
+                        eta_seconds=eta_seconds,
+                    )

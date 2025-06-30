@@ -955,6 +955,13 @@ class ComboConverter(ModelConverter):
         try:
             # Extract name
             name = node.label or node.name
+            
+            # Combos use plain names without & prefix in JSON format
+            # Also strip "combo_" prefix if present (device tree vs JSON format difference)
+            behavior_name = name
+            if behavior_name.startswith("combo_"):
+                behavior_name = behavior_name[6:]  # Remove "combo_" prefix
+            name = behavior_name
 
             # Get required properties
             key_positions = self._get_array_property(node, "key-positions")

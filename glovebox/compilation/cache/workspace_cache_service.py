@@ -4,11 +4,19 @@ import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    from glovebox.protocols.progress_coordinator_protocol import (
+        ProgressCoordinatorProtocol,
+    )
 
 from glovebox.compilation.cache.models import (
+    ArchiveFormat,
     WorkspaceCacheMetadata,
     WorkspaceCacheResult,
+    WorkspaceExportResult,
 )
 from glovebox.config.models.cache import CacheLevel
 from glovebox.config.user_config import UserConfig
@@ -91,6 +99,7 @@ class ZmkWorkspaceCacheService:
         workspace_path: Path,
         repository: str,
         progress_callback: CopyProgressCallback | None = None,
+        progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
     ) -> WorkspaceCacheResult:
         """Cache workspace for repository-only (includes .git folders).
 
@@ -118,6 +127,7 @@ class ZmkWorkspaceCacheService:
                 cache_level=CacheLevel.REPO,
                 include_git=True,
                 progress_callback=progress_callback,
+                progress_coordinator=progress_coordinator,
             )
 
     def cache_workspace_repo_branch(
@@ -126,6 +136,7 @@ class ZmkWorkspaceCacheService:
         repository: str,
         branch: str,
         progress_callback: CopyProgressCallback | None = None,
+        progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
     ) -> WorkspaceCacheResult:
         """Cache workspace for repository+branch (excludes .git folders).
 
@@ -151,8 +162,9 @@ class ZmkWorkspaceCacheService:
                 repository=repository,
                 branch=branch,
                 cache_level=CacheLevel.REPO_BRANCH,
-                include_git=True,
+                include_git=False,
                 progress_callback=progress_callback,
+                progress_coordinator=progress_coordinator,
             )
 
     def get_cached_workspace(
@@ -265,6 +277,7 @@ class ZmkWorkspaceCacheService:
         repository: str,
         branch: str | None = None,
         progress_callback: CopyProgressCallback | None = None,
+        progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
     ) -> WorkspaceCacheResult:
         """Inject an existing workspace into cache.
 
@@ -301,6 +314,7 @@ class ZmkWorkspaceCacheService:
                 cache_level=cache_level,
                 include_git=include_git,
                 progress_callback=progress_callback,
+                progress_coordinator=progress_coordinator,
             )
 
         except Exception as e:
@@ -437,6 +451,161 @@ class ZmkWorkspaceCacheService:
             )
             return 0
 
+    def export_cached_workspace(
+        self,
+        repository: str,
+        branch: str | None = None,
+        output_path: Path | None = None,
+        archive_format: ArchiveFormat = ArchiveFormat.ZIP,
+        compression_level: int | None = None,
+        include_git: bool = False,
+        progress_callback: CopyProgressCallback | None = None,
+        progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
+    ) -> WorkspaceExportResult:
+        """Export cached workspace to an archive file.
+
+        Args:
+            repository: Git repository name
+            branch: Git branch name (None for repo-only lookup)
+            output_path: Output archive path (auto-generated if None)
+            archive_format: Archive format to create
+            compression_level: Compression level (None for default)
+            include_git: Whether to include .git folders (if available)
+            progress_callback: Optional progress callback for tracking
+            progress_coordinator: Optional progress coordinator for enhanced tracking
+
+        Returns:
+            WorkspaceExportResult with export operation results
+        """
+        import json
+        import time
+
+        # Set metrics context
+        self.metrics.set_context(
+            repository=repository,
+            branch=branch,
+            archive_format=str(archive_format),
+            operation="export_cached_workspace",
+        )
+
+        start_time = time.time()
+
+        with self.metrics.time_operation("workspace_export"):
+            try:
+                # Get cached workspace
+                cache_result = self._get_cached_workspace_internal(repository, branch, self.metrics)
+                if not cache_result.success or not cache_result.metadata:
+                    return WorkspaceExportResult(
+                        success=False,
+                        error_message=cache_result.error_message or "Failed to get cached workspace",
+                    )
+
+                metadata = cache_result.metadata
+                workspace_path = metadata.workspace_path
+
+                # Generate output path if not provided
+                if output_path is None:
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    repo_name = repository.replace("/", "_")
+                    branch_part = f"_{branch}" if branch else ""
+                    filename = f"{repo_name}{branch_part}_workspace_{timestamp}{archive_format.file_extension}"
+                    output_path = Path.cwd() / filename
+
+                # Ensure output directory exists
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+
+                # Set compression level
+                if compression_level is None:
+                    compression_level = archive_format.default_compression_level
+
+                # Set export task as active if coordinator available
+                if progress_coordinator and hasattr(progress_coordinator, "set_enhanced_task_status"):
+                    progress_coordinator.set_enhanced_task_status(
+                        "workspace_export", "active", f"Exporting to {archive_format.value}"
+                    )
+
+                # Calculate workspace size for progress tracking
+                original_size = self._calculate_directory_size(workspace_path)
+                files_count = sum(1 for _ in workspace_path.rglob("*") if _.is_file())
+
+                # Create the archive
+                from glovebox.cli.commands.cache.workspace_processing import (
+                    create_tar_archive,
+                    create_zip_archive,
+                )
+
+                if archive_format == ArchiveFormat.ZIP:
+                    create_zip_archive(
+                        workspace_path,
+                        output_path,
+                        compression_level,
+                        include_git,
+                        metadata,
+                        progress_callback,
+                        progress_coordinator,
+                    )
+                else:
+                    create_tar_archive(
+                        workspace_path,
+                        output_path,
+                        archive_format,
+                        compression_level,
+                        include_git,
+                        metadata,
+                        progress_callback,
+                        progress_coordinator,
+                    )
+
+                # Calculate final statistics
+                export_duration = time.time() - start_time
+                archive_size = output_path.stat().st_size if output_path.exists() else 0
+                compression_ratio = archive_size / original_size if original_size > 0 else 0.0
+
+                # Mark export as completed
+                if progress_coordinator and hasattr(progress_coordinator, "set_enhanced_task_status"):
+                    progress_coordinator.set_enhanced_task_status("workspace_export", "completed")
+
+                # Update metrics
+                self.metrics.set_context(
+                    export_duration_seconds=export_duration,
+                    archive_size_mb=archive_size / (1024 * 1024),
+                    compression_ratio=compression_ratio,
+                )
+
+                self.logger.info(
+                    "Successfully exported workspace %s (%s) to %s (%.1f MB -> %.1f MB, %.1f%% compression)",
+                    repository,
+                    "repo+branch" if branch else "repo-only",
+                    output_path,
+                    original_size / (1024 * 1024),
+                    archive_size / (1024 * 1024),
+                    (1 - compression_ratio) * 100,
+                )
+
+                return WorkspaceExportResult(
+                    success=True,
+                    export_path=output_path,
+                    metadata=metadata,
+                    archive_format=archive_format,
+                    archive_size_bytes=archive_size,
+                    original_size_bytes=original_size,
+                    compression_ratio=compression_ratio,
+                    export_duration_seconds=export_duration,
+                    files_count=files_count,
+                )
+
+            except Exception as e:
+                # Mark export as failed
+                if progress_coordinator and hasattr(progress_coordinator, "set_enhanced_task_status"):
+                    progress_coordinator.set_enhanced_task_status("workspace_export", "failed")
+
+                exc_info = self.logger.isEnabledFor(logging.DEBUG)
+                self.logger.error("Failed to export cached workspace: %s", e, exc_info=exc_info)
+                return WorkspaceExportResult(
+                    success=False,
+                    error_message=f"Failed to export cached workspace: {e}",
+                )
+
     def _cache_workspace_internal(
         self,
         workspace_path: Path,
@@ -445,6 +614,7 @@ class ZmkWorkspaceCacheService:
         cache_level: CacheLevel,
         include_git: bool,
         progress_callback: CopyProgressCallback | None = None,
+        progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
     ) -> WorkspaceCacheResult:
         """Internal method to cache workspace with specified options.
 
@@ -481,8 +651,29 @@ class ZmkWorkspaceCacheService:
                 if component_path.exists() and component_path.is_dir():
                     detected_components.append(component)
 
+            # Set workspace injection task as active if coordinator available
+            if progress_coordinator and hasattr(progress_coordinator, "set_enhanced_task_status"):
+                progress_coordinator.set_enhanced_task_status("workspace_injection", "active", "Copying workspace components")
+
             # Copy workspace components with progress tracking
             total_components = len(detected_components)
+            total_files_copied = 0
+            total_bytes_copied = 0
+
+            # Calculate total files and bytes for accurate progress
+            component_stats = {}
+            for component in detected_components:
+                src_component = workspace_path / component
+                try:
+                    files_count = sum(1 for _ in src_component.rglob("*") if _.is_file())
+                    bytes_count = sum(f.stat().st_size for f in src_component.rglob("*") if f.is_file())
+                    component_stats[component] = {"files": files_count, "bytes": bytes_count}
+                except (PermissionError, OSError):
+                    component_stats[component] = {"files": 100, "bytes": 10 * 1024 * 1024}  # 10MB estimate
+
+            total_estimated_files = sum(stats["files"] for stats in component_stats.values())
+            total_estimated_bytes = sum(stats["bytes"] for stats in component_stats.values())
+
             for component_idx, component in enumerate(detected_components):
                 src_component = workspace_path / component
                 dest_component = cached_workspace_dir / component
@@ -491,29 +682,51 @@ class ZmkWorkspaceCacheService:
                 if dest_component.exists():
                     shutil.rmtree(dest_component)
 
-                # Create component-specific progress callback
+                # Create enhanced progress callback that updates both old and new progress systems
                 component_progress_callback = None
-                if progress_callback:
+                if progress_callback or progress_coordinator:
 
-                    def make_component_callback(
-                        comp_name: str, comp_idx: int
+                    def make_enhanced_callback(
+                        comp_name: str, comp_idx: int, files_offset: int, bytes_offset: int
                     ) -> CopyProgressCallback:
-                        def component_callback(progress: CopyProgress) -> None:
-                            # Update progress with component-level information
-                            overall_progress = CopyProgress(
-                                files_processed=progress.files_processed,
-                                total_files=progress.total_files,
-                                bytes_copied=progress.bytes_copied,
-                                total_bytes=progress.total_bytes,
-                                current_file=progress.current_file,
-                                component_name=f"{comp_name} ({comp_idx + 1}/{total_components})",
-                            )
-                            progress_callback(overall_progress)
+                        def enhanced_callback(progress: CopyProgress) -> None:
+                            # Update running totals
+                            current_files = progress.files_processed or 0
+                            current_bytes = progress.bytes_copied or 0
 
-                        return component_callback
+                            # Calculate overall progress across all components
+                            overall_files = files_offset + current_files
+                            overall_bytes = bytes_offset + current_bytes
 
-                    component_progress_callback = make_component_callback(
-                        component, component_idx
+                            # Update progress coordinator if available
+                            if progress_coordinator and hasattr(progress_coordinator, "update_workspace_progress"):
+                                progress_coordinator.update_workspace_progress(
+                                    files_copied=overall_files,
+                                    total_files=total_estimated_files,
+                                    bytes_copied=overall_bytes,
+                                    total_bytes=total_estimated_bytes,
+                                    current_file=progress.current_file or "",
+                                    component=f"{comp_name} ({comp_idx + 1}/{total_components})",
+                                    transfer_speed_mb_s=0.0,  # Will be calculated by progress coordinator
+                                    eta_seconds=0.0,
+                                )
+
+                            # Also call original callback if provided
+                            if progress_callback:
+                                overall_progress = CopyProgress(
+                                    files_processed=overall_files,
+                                    total_files=total_estimated_files,
+                                    bytes_copied=overall_bytes,
+                                    total_bytes=total_estimated_bytes,
+                                    current_file=progress.current_file,
+                                    component_name=f"{comp_name} ({comp_idx + 1}/{total_components})",
+                                )
+                                progress_callback(overall_progress)
+
+                        return enhanced_callback
+
+                    component_progress_callback = make_enhanced_callback(
+                        component, component_idx, total_files_copied, total_bytes_copied
                     )
 
                 # Copy component directory
@@ -523,6 +736,11 @@ class ZmkWorkspaceCacheService:
                     include_git,
                     component_progress_callback,
                 )
+
+                # Update totals after component completion
+                if component in component_stats:
+                    total_files_copied += component_stats[component]["files"]
+                    total_bytes_copied += component_stats[component]["bytes"]
                 self.logger.debug(
                     "Copied component %s to %s (include_git=%s)",
                     component,
@@ -554,6 +772,10 @@ class ZmkWorkspaceCacheService:
                 created_at=datetime.now(),
                 last_accessed=datetime.now(),
             )
+
+            # Mark workspace injection as completed
+            if progress_coordinator and hasattr(progress_coordinator, "set_enhanced_task_status"):
+                progress_coordinator.set_enhanced_task_status("workspace_injection", "completed")
 
             # Store metadata in cache manager
             ttls = self.get_ttls_for_cache_levels()
@@ -641,4 +863,4 @@ class ZmkWorkspaceCacheService:
         return total
 
 
-__all__ = ["ZmkWorkspaceCacheService", "WorkspaceCacheMetadata", "WorkspaceCacheResult"]
+__all__ = ["ZmkWorkspaceCacheService", "WorkspaceCacheMetadata", "WorkspaceCacheResult", "WorkspaceExportResult"]

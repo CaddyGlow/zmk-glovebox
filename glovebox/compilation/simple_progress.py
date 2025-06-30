@@ -66,8 +66,19 @@ class SimpleCompilationDisplay:
             },
         }
 
+        # Additional task states for enhanced operations
+        self._enhanced_tasks = {
+            "download": {"name": "Download", "status": "pending"},
+            "zip_extraction": {"name": "ZIP Extraction", "status": "pending"},
+            "cache_restoration": {"name": "Cache Restoration", "status": "pending"},
+            "cache_analysis": {"name": "Cache Analysis", "status": "pending"},
+            "workspace_injection": {"name": "Workspace Injection", "status": "pending"},
+            "workspace_export": {"name": "Workspace Export", "status": "pending"},
+        }
+
         self._current_state = CompilationState.IDLE
         self._current_description = ""
+        self._current_enhanced_task = None  # Track which enhanced task is active
         self._start_time = time.time()
 
     def start(self) -> None:
@@ -126,8 +137,14 @@ class SimpleCompilationDisplay:
             for task in self._tasks.values():
                 if task["status"] == "active":
                     task["status"] = "completed"
+            for task in self._enhanced_tasks.values():
+                if task["status"] == "active":
+                    task["status"] = "completed"
         elif compilation_progress.state == CompilationState.FAILED:
             for task in self._tasks.values():
+                if task["status"] == "active":
+                    task["status"] = "failed"
+            for task in self._enhanced_tasks.values():
                 if task["status"] == "active":
                     task["status"] = "failed"
 
@@ -159,19 +176,32 @@ class SimpleCompilationDisplay:
         table.add_column(style="white", no_wrap=True)
         table.add_column(style="white")
 
-        # Add task status rows
+        # Add task status rows - combine regular and enhanced tasks
+        all_tasks = []
+
+        # Add regular compilation tasks
         for state, task_info in self._tasks.items():
+            all_tasks.append((state, task_info, "regular"))
+
+        # Add enhanced tasks that are active or completed
+        for enhanced_state, task_info in self._enhanced_tasks.items():
+            if task_info["status"] != "pending":
+                all_tasks.append((enhanced_state, task_info, "enhanced"))
+
+        for state, task_info, task_type in all_tasks:
             status_icon = self._get_status_icon(task_info["status"])
             task_name = task_info["name"]
 
             # Add extra info for active tasks
             extra_info = ""
-            if (
-                task_info["status"] == "active"
-                and state == self._current_state
-                and self._current_description
-            ):
-                extra_info = f" - {self._current_description}"
+            if task_info["status"] == "active" and self._current_description:
+                if task_type == "regular" and state == self._current_state:
+                    # Only show description for regular tasks if no enhanced task is active
+                    if self._current_enhanced_task is None:
+                        extra_info = f" - {self._current_description}"
+                elif task_type == "enhanced" and state == self._current_enhanced_task:
+                    # Only show description for the currently active enhanced task
+                    extra_info = f" - {self._current_description}"
 
             table.add_row(status_icon, f"{task_name}{extra_info}")
 
@@ -276,6 +306,27 @@ class SimpleProgressCoordinator:
         """Set the compilation strategy name."""
         self._compilation_strategy = value
 
+    def set_enhanced_task_status(self, task_name: str, status: str, description: str = "") -> None:
+        """Set status for enhanced tasks like download, zip_extraction, cache_restoration.
+
+        Args:
+            task_name: Name of the enhanced task (download, zip_extraction, cache_restoration, etc.)
+            status: Task status (pending, active, completed, failed)
+            description: Optional description for the task
+        """
+        if task_name in self.display._enhanced_tasks:
+            self.display._enhanced_tasks[task_name]["status"] = status
+            if status == "active":
+                # Set this as the current active enhanced task
+                self.display._current_enhanced_task = task_name
+                if description:
+                    self._progress.description = description
+            elif status in ("completed", "failed"):
+                # Clear current enhanced task if this was the active one
+                if self.display._current_enhanced_task == task_name:
+                    self.display._current_enhanced_task = None
+            self.display.update(self._progress)
+
     def transition_to_phase(self, phase: str, description: str = "") -> None:
         """Transition to a new compilation phase."""
         self.current_phase = phase
@@ -327,16 +378,52 @@ class SimpleProgressCoordinator:
         total_bytes: int = 0,
         current_file: str = "",
         component: str = "",
+        transfer_speed_mb_s: float = 0.0,
+        eta_seconds: float = 0.0,
     ) -> None:
-        """Update workspace setup progress."""
-        if total_files > 0:
+        """Update workspace setup progress with enhanced file-level details.
+
+        Args:
+            files_copied: Number of files copied so far
+            total_files: Total number of files to copy
+            bytes_copied: Number of bytes copied so far
+            total_bytes: Total number of bytes to copy
+            current_file: Name of the current file being copied
+            component: Name of the current component (zmk, zephyr, modules, etc.)
+            transfer_speed_mb_s: Current transfer speed in MB/s
+            eta_seconds: Estimated time remaining in seconds
+        """
+        # Use bytes for more accurate progress if available
+        if total_bytes > 0:
+            self._progress.percentage = (bytes_copied / total_bytes) * 100
+        elif total_files > 0:
             self._progress.percentage = (files_copied / total_files) * 100
 
         desc_parts = []
         if component:
             desc_parts.append(component)
-        if current_file:
-            desc_parts.append(f"({current_file})")
+
+        # Add file info if available
+        if files_copied > 0 and total_files > 0:
+            desc_parts.append(f"({files_copied}/{total_files} files)")
+
+        # Add size info if available
+        if bytes_copied > 0 and total_bytes > 0:
+            mb_copied = bytes_copied / (1024 * 1024)
+            mb_total = total_bytes / (1024 * 1024)
+            desc_parts.append(f"{mb_copied:.1f}/{mb_total:.1f} MB")
+
+        # Add transfer speed if available
+        if transfer_speed_mb_s > 0:
+            desc_parts.append(f"{transfer_speed_mb_s:.1f} MB/s")
+
+        # Add ETA if available
+        if eta_seconds > 0:
+            if eta_seconds < 60:
+                desc_parts.append(f"ETA: {eta_seconds:.0f}s")
+            else:
+                minutes = eta_seconds / 60
+                desc_parts.append(f"ETA: {minutes:.1f}m")
 
         self._progress.description = " ".join(desc_parts) or "Setting up workspace"
         self.display.update(self._progress)
@@ -351,6 +438,311 @@ class SimpleProgressCoordinator:
             ) * 100
 
         self._progress.description = f"Downloading {repository_name} ({self.downloaded_repositories}/{self.total_repositories})"
+        self.display.update(self._progress)
+
+    def update_git_clone_progress(
+        self,
+        repository_name: str,
+        objects_received: int = 0,
+        total_objects: int = 0,
+        deltas_resolved: int = 0,
+        total_deltas: int = 0,
+        transfer_speed_kb_s: float = 0.0,
+    ) -> None:
+        """Update detailed git clone progress during repository downloads.
+
+        Args:
+            repository_name: Name of the repository being cloned
+            objects_received: Number of objects received
+            total_objects: Total number of objects to receive
+            deltas_resolved: Number of deltas resolved
+            total_deltas: Total number of deltas to resolve
+            transfer_speed_kb_s: Current transfer speed in KB/s
+        """
+        # Calculate progress based on objects and deltas
+        objects_percent = (
+            (objects_received / total_objects * 100) if total_objects > 0 else 0
+        )
+        deltas_percent = (
+            (deltas_resolved / total_deltas * 100) if total_deltas > 0 else 0
+        )
+
+        # Average the two phases (receiving objects + resolving deltas)
+        if deltas_resolved > 0:
+            # If we're resolving deltas, we're in phase 2
+            self._progress.percentage = 50 + (deltas_percent / 2)
+            phase = f"Resolving deltas: {deltas_resolved}/{total_deltas}"
+        else:
+            # Still receiving objects, phase 1
+            self._progress.percentage = objects_percent / 2
+            phase = f"Receiving objects: {objects_received}/{total_objects}"
+
+        desc_parts = [f"Cloning {repository_name}", phase]
+
+        if transfer_speed_kb_s > 0:
+            if transfer_speed_kb_s > 1024:
+                desc_parts.append(f"{transfer_speed_kb_s / 1024:.1f} MB/s")
+            else:
+                desc_parts.append(f"{transfer_speed_kb_s:.0f} KB/s")
+
+        self._progress.description = " | ".join(desc_parts)
+        self.display.update(self._progress)
+
+    def update_cache_extraction_progress(
+        self,
+        operation: str,
+        files_extracted: int = 0,
+        total_files: int = 0,
+        bytes_extracted: int = 0,
+        total_bytes: int = 0,
+        current_file: str = "",
+        archive_name: str = "",
+        extraction_speed_mb_s: float = 0.0,
+        eta_seconds: float = 0.0,
+    ) -> None:
+        """Update progress for cache extraction operations with enhanced details.
+
+        Args:
+            operation: Type of extraction operation
+            files_extracted: Number of files extracted so far
+            total_files: Total number of files to extract
+            bytes_extracted: Number of bytes extracted so far
+            total_bytes: Total number of bytes to extract
+            current_file: Current file being extracted
+            archive_name: Name of the archive being extracted
+            extraction_speed_mb_s: Current extraction speed in MB/s
+            eta_seconds: Estimated time remaining in seconds
+        """
+        # Set ZIP extraction task as active
+        self.set_enhanced_task_status("zip_extraction", "active")
+
+        # Use bytes for more accurate progress if available
+        if total_bytes > 0:
+            self._progress.percentage = (bytes_extracted / total_bytes) * 100
+        elif total_files > 0:
+            self._progress.percentage = (files_extracted / total_files) * 100
+
+        desc_parts = [f"Extracting {operation}"]
+
+        if archive_name:
+            desc_parts.append(f"from {archive_name}")
+
+        # Add file count info
+        if files_extracted > 0 and total_files > 0:
+            desc_parts.append(f"({files_extracted}/{total_files} files)")
+
+        # Add size info if available
+        if bytes_extracted > 0 and total_bytes > 0:
+            mb_extracted = bytes_extracted / (1024 * 1024)
+            mb_total = total_bytes / (1024 * 1024)
+            desc_parts.append(f"{mb_extracted:.1f}/{mb_total:.1f} MB")
+
+        # Add extraction speed if available
+        if extraction_speed_mb_s > 0:
+            desc_parts.append(f"{extraction_speed_mb_s:.1f} MB/s")
+
+        # Add ETA if available
+        if eta_seconds > 0:
+            if eta_seconds < 60:
+                desc_parts.append(f"ETA: {eta_seconds:.0f}s")
+            else:
+                minutes = eta_seconds / 60
+                desc_parts.append(f"ETA: {minutes:.1f}m")
+
+        # Add current file info if available
+        if current_file:
+            # Truncate long file paths
+            display_file = current_file
+            if len(display_file) > 30:
+                display_file = "..." + display_file[-27:]
+            desc_parts.append(f"[{display_file}]")
+
+        self._progress.description = " ".join(desc_parts)
+        self.display.update(self._progress)
+
+    def update_folder_scan_progress(
+        self,
+        operation: str,
+        directories_scanned: int = 0,
+        total_directories: int = 0,
+        files_found: int = 0,
+        current_directory: str = "",
+    ) -> None:
+        """Update progress for folder scanning operations before copying.
+
+        Args:
+            operation: Type of scan operation (e.g., "workspace analysis", "cache preparation")
+            directories_scanned: Number of directories scanned so far
+            total_directories: Total number of directories to scan
+            files_found: Total number of files found so far
+            current_directory: Current directory being scanned
+        """
+        if total_directories > 0:
+            self._progress.percentage = (directories_scanned / total_directories) * 100
+
+        desc_parts = [f"Scanning {operation}"]
+
+        if directories_scanned > 0 and total_directories > 0:
+            desc_parts.append(f"({directories_scanned}/{total_directories} dirs)")
+
+        if files_found > 0:
+            desc_parts.append(f"{files_found} files found")
+
+        if current_directory:
+            # Truncate long directory paths
+            display_dir = current_directory
+            if len(display_dir) > 25:
+                display_dir = "..." + display_dir[-22:]
+            desc_parts.append(f"[{display_dir}]")
+
+        self._progress.description = " ".join(desc_parts)
+        self.display.update(self._progress)
+
+    def update_cache_restoration_progress(
+        self,
+        operation: str,
+        component: str = "",
+        files_copied: int = 0,
+        total_files: int = 0,
+        bytes_copied: int = 0,
+        total_bytes: int = 0,
+        current_file: str = "",
+        transfer_speed_mb_s: float = 0.0,
+        eta_seconds: float = 0.0,
+    ) -> None:
+        """Update progress for cache restoration operations with detailed tracking.
+
+        Args:
+            operation: Type of restoration operation (restoring, validating, verifying)
+            component: Current component being restored (zmk, zephyr, modules, .west)
+            files_copied: Number of files restored so far
+            total_files: Total number of files to restore
+            bytes_copied: Number of bytes restored so far
+            total_bytes: Total number of bytes to restore
+            current_file: Current file being restored
+            transfer_speed_mb_s: Current restoration speed in MB/s
+            eta_seconds: Estimated time remaining in seconds
+        """
+        # Set appropriate enhanced task status
+        if operation == "restoring":
+            self.set_enhanced_task_status("cache_restoration", "active")
+        elif operation in ("validating", "verifying"):
+            # Mark restoration as completed and show validation
+            self.set_enhanced_task_status("cache_restoration", "completed")
+
+        # Use bytes for more accurate progress if available
+        if total_bytes > 0:
+            self._progress.percentage = (bytes_copied / total_bytes) * 100
+        elif total_files > 0:
+            self._progress.percentage = (files_copied / total_files) * 100
+
+        desc_parts = [f"Cache {operation}"]
+
+        # Add component info if available
+        if component:
+            desc_parts.append(f"({component})")
+
+        # Add file count info
+        if files_copied > 0 and total_files > 0:
+            desc_parts.append(f"{files_copied}/{total_files} files")
+
+        # Add size info if available
+        if bytes_copied > 0 and total_bytes > 0:
+            mb_copied = bytes_copied / (1024 * 1024)
+            mb_total = total_bytes / (1024 * 1024)
+            desc_parts.append(f"{mb_copied:.1f}/{mb_total:.1f} MB")
+
+        # Add transfer speed if available
+        if transfer_speed_mb_s > 0:
+            desc_parts.append(f"{transfer_speed_mb_s:.1f} MB/s")
+
+        # Add ETA if available
+        if eta_seconds > 0:
+            if eta_seconds < 60:
+                desc_parts.append(f"ETA: {eta_seconds:.0f}s")
+            else:
+                minutes = eta_seconds / 60
+                desc_parts.append(f"ETA: {minutes:.1f}m")
+
+        # Add current file info if available
+        if current_file:
+            # Truncate long file paths
+            display_file = current_file
+            if len(display_file) > 25:
+                display_file = "..." + display_file[-22:]
+            desc_parts.append(f"[{display_file}]")
+
+        self._progress.description = " ".join(desc_parts)
+        self.display.update(self._progress)
+
+        # Also log cache operations for visibility
+        if operation in ("restoring", "validating"):
+            log_msg = f"Cache {operation}"
+            if component:
+                log_msg += f": {component}"
+            if transfer_speed_mb_s > 0:
+                log_msg += f" ({transfer_speed_mb_s:.1f} MB/s)"
+            self.display.print_log(log_msg, "info")
+
+    def update_export_progress(
+        self,
+        files_processed: int = 0,
+        total_files: int = 0,
+        current_file: str = "",
+        archive_format: str = "",
+        compression_level: int = 0,
+        speed_mb_s: float = 0.0,
+        eta_seconds: float = 0.0,
+    ) -> None:
+        """Update workspace export progress with detailed tracking.
+
+        Args:
+            files_processed: Number of files processed so far
+            total_files: Total number of files to process
+            current_file: Current file being processed
+            archive_format: Archive format being created
+            compression_level: Compression level being used
+            speed_mb_s: Current processing speed in MB/s
+            eta_seconds: Estimated time remaining in seconds
+        """
+        # Set workspace export task as active
+        self.set_enhanced_task_status("workspace_export", "active")
+        
+        # Use files for progress tracking
+        if total_files > 0:
+            self._progress.percentage = (files_processed / total_files) * 100
+
+        desc_parts = [f"Exporting to {archive_format}"]
+
+        # Add file count info
+        if files_processed > 0 and total_files > 0:
+            desc_parts.append(f"({files_processed}/{total_files} files)")
+
+        # Add compression level info
+        if compression_level > 0:
+            desc_parts.append(f"level {compression_level}")
+
+        # Add processing speed if available
+        if speed_mb_s > 0:
+            desc_parts.append(f"{speed_mb_s:.1f} MB/s")
+
+        # Add ETA if available
+        if eta_seconds > 0:
+            if eta_seconds < 60:
+                desc_parts.append(f"ETA: {eta_seconds:.0f}s")
+            else:
+                minutes = eta_seconds / 60
+                desc_parts.append(f"ETA: {minutes:.1f}m")
+
+        # Add current file info if available
+        if current_file:
+            # Truncate long file paths
+            display_file = current_file
+            if len(display_file) > 25:
+                display_file = "..." + display_file[-22:]
+            desc_parts.append(f"[{display_file}]")
+
+        self._progress.description = " ".join(desc_parts)
         self.display.update(self._progress)
 
     def update_board_progress(

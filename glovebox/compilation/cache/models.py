@@ -2,6 +2,7 @@
 
 import hashlib
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -9,6 +10,44 @@ from pydantic import Field
 
 from glovebox.config.models.cache import CacheLevel
 from glovebox.models.base import GloveboxBaseModel
+
+
+class ArchiveFormat(str, Enum):
+    """Supported archive formats for workspace export."""
+
+    ZIP = "zip"
+    TAR = "tar"
+    TAR_GZ = "tar.gz"
+    TAR_BZ2 = "tar.bz2"
+    TAR_XZ = "tar.xz"
+
+    @property
+    def file_extension(self) -> str:
+        """Get the file extension for this archive format."""
+        return f".{self.value}"
+
+    @property
+    def uses_compression(self) -> bool:
+        """Check if this format uses compression."""
+        return self in {self.ZIP, self.TAR_GZ, self.TAR_BZ2, self.TAR_XZ}
+
+    @property
+    def default_compression_level(self) -> int:
+        """Get the default compression level for this format."""
+        if self == self.ZIP:
+            return 6  # zipfile default
+        return 6  # reasonable default for tar formats
+
+    @property
+    def max_compression_level(self) -> int:
+        """Get the maximum compression level for this format."""
+        if self == self.ZIP:
+            return 9
+        if self == self.TAR_BZ2:
+            return 9
+        if self == self.TAR_XZ:
+            return 9
+        return 9  # general max
 
 
 class WorkspaceCacheResult(GloveboxBaseModel):
@@ -19,6 +58,93 @@ class WorkspaceCacheResult(GloveboxBaseModel):
     metadata: "WorkspaceCacheMetadata | None" = None
     error_message: str | None = None
     created_new: bool = False
+
+
+class WorkspaceExportResult(GloveboxBaseModel):
+    """Result of workspace export operations."""
+
+    success: bool
+    export_path: Annotated[
+        Path | None,
+        Field(
+            default=None,
+            description="Path to the exported archive file"
+        )
+    ]
+    metadata: Annotated[
+        "WorkspaceCacheMetadata | None",
+        Field(
+            default=None,
+            description="Metadata of the exported workspace"
+        )
+    ]
+    archive_format: Annotated[
+        ArchiveFormat | None,
+        Field(
+            default=None,
+            description="Format of the created archive"
+        )
+    ]
+    archive_size_bytes: Annotated[
+        int | None,
+        Field(
+            default=None,
+            description="Size of the created archive in bytes"
+        )
+    ]
+    original_size_bytes: Annotated[
+        int | None,
+        Field(
+            default=None,
+            description="Original workspace size in bytes"
+        )
+    ]
+    compression_ratio: Annotated[
+        float | None,
+        Field(
+            default=None,
+            description="Compression ratio (compressed_size / original_size)"
+        )
+    ]
+    export_duration_seconds: Annotated[
+        float | None,
+        Field(
+            default=None,
+            description="Time taken to export the workspace in seconds"
+        )
+    ]
+    files_count: Annotated[
+        int | None,
+        Field(
+            default=None,
+            description="Number of files included in the export"
+        )
+    ]
+    error_message: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description="Error message if export failed"
+        )
+    ]
+
+    @property
+    def compression_percentage(self) -> float | None:
+        """Get compression percentage (0-100)."""
+        if self.compression_ratio is None:
+            return None
+        return (1 - self.compression_ratio) * 100
+
+    @property
+    def export_speed_mb_s(self) -> float | None:
+        """Get export speed in MB/s."""
+        if (
+            self.original_size_bytes is None
+            or self.export_duration_seconds is None
+            or self.export_duration_seconds <= 0
+        ):
+            return None
+        return (self.original_size_bytes / (1024 * 1024)) / self.export_duration_seconds
 
 
 class WorkspaceCacheMetadata(GloveboxBaseModel):

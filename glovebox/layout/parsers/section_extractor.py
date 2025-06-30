@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 from .ast_walker import create_universal_behavior_extractor_with_converter
-from .dt_parser import parse_dt_safe
+from .dt_parser import parse_dt_lark_safe
 from .parsing_models import (
     ExtractedSection,
     ExtractionConfig,
@@ -269,20 +269,27 @@ class SectionExtractor:
                 section.raw_content if section.raw_content else section.content
             )
 
-            # Parse section content as AST
-            root, parse_errors = parse_dt_safe(content_to_parse)
+            # For macro, behavior, and combo sections, extract the inner block content
+            # to avoid parsing issues with the full / { type { ... } }; structure
+            if section.type in ("macro", "behavior", "combo"):
+                content_to_parse = self._extract_inner_block_content(
+                    content_to_parse, section.type
+                )
 
-            if not root:
+            # Parse section content as AST using Lark parser with comment support
+            roots, parse_errors = parse_dt_lark_safe(content_to_parse)
+
+            if not roots:
                 return SectionProcessingResult(
                     success=False,
                     error_message="Failed to parse as device tree AST",
                     raw_content=section.raw_content,
-                    warnings=[str(e) for e in parse_errors] if parse_errors else [],
+                    warnings=parse_errors if parse_errors else [],
                 )
 
             # Extract behaviors using AST converter with comment support
             behavior_models, _ = self.behavior_extractor.extract_behaviors_as_models(
-                [root], content_to_parse
+                roots, content_to_parse
             )
             converted_behaviors = behavior_models
 
@@ -300,7 +307,7 @@ class SectionExtractor:
                 success=True,
                 data=data,
                 raw_content=section.raw_content,
-                warnings=[str(e) for e in parse_errors] if parse_errors else [],
+                warnings=parse_errors if parse_errors else [],
             )
 
         except Exception as e:
@@ -332,33 +339,33 @@ class SectionExtractor:
             # Create a temporary parser instance for layer extraction
             temp_parser = ZmkKeymapParser()
 
-            # Parse section content as AST
-            root, parse_errors = parse_dt_safe(section.content)
+            # Parse section content as AST using Lark parser with comment support
+            roots, parse_errors = parse_dt_lark_safe(section.content)
 
-            if not root:
+            if not roots:
                 return SectionProcessingResult(
                     success=False,
                     error_message="Failed to parse keymap section as AST",
                     raw_content=section.raw_content,
-                    warnings=[str(e) for e in parse_errors] if parse_errors else [],
+                    warnings=parse_errors if parse_errors else [],
                 )
 
-            # Extract layers using existing method
-            layers_data = temp_parser._extract_layers_from_ast(root)
+            # Extract layers using existing method (use first root for compatibility)
+            layers_data = temp_parser._extract_layers_from_ast(roots[0])
 
             if not layers_data:
                 return SectionProcessingResult(
                     success=False,
                     error_message="No layer data found in keymap section",
                     raw_content=section.raw_content,
-                    warnings=[str(e) for e in parse_errors] if parse_errors else [],
+                    warnings=parse_errors if parse_errors else [],
                 )
 
             return SectionProcessingResult(
                 success=True,
                 data=layers_data,
                 raw_content=section.raw_content,
-                warnings=[str(e) for e in parse_errors] if parse_errors else [],
+                warnings=parse_errors if parse_errors else [],
             )
 
         except Exception as e:
@@ -371,6 +378,70 @@ class SectionExtractor:
                 error_message=f"Keymap processing failed: {e}",
                 raw_content=section.raw_content,
             )
+
+    def _extract_inner_block_content(self, content: str, block_type: str) -> str:
+        """Extract the inner content of a block (macros, behaviors, combos).
+
+        Converts content like:
+        / {
+            macros {
+                // content here
+            };
+        };
+
+        To just:
+        // content here
+
+        Args:
+            content: Full section content with wrapping structure
+            block_type: Type of block (macro, behavior, combo)
+
+        Returns:
+            Inner block content without wrapper structure
+        """
+        lines = content.splitlines()
+
+        # Find the block start (e.g., "macros {", "behaviors {", "combos {")
+        # Handle plural forms for the different block types
+        if block_type == "macro":
+            block_name = "macros"
+        elif block_type == "behavior":
+            block_name = "behaviors"
+        elif block_type == "combo":
+            block_name = "combos"
+        else:
+            # If unknown type, return original content
+            return content
+
+        block_start = -1
+        for i, line in enumerate(lines):
+            if f"{block_name} {{" in line:
+                block_start = i + 1  # Start after the opening line
+                break
+
+        if block_start == -1:
+            # If block not found, return original content
+            return content
+
+        # Find the end of the block by counting braces
+        brace_count = 1  # Start with 1 for the opening brace we found
+        block_end = len(lines)
+
+        for i in range(block_start, len(lines)):
+            for char in lines[i]:
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        block_end = i
+                        break
+            if brace_count == 0:
+                break
+
+        # Extract just the inner content
+        inner_lines = lines[block_start:block_end]
+        return '\n'.join(inner_lines)
 
 
 def create_section_extractor(

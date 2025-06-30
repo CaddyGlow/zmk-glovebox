@@ -79,6 +79,17 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
         self.board_complete_pattern = re.compile(
             progress_patterns.board_complete_pattern
         )
+        
+        # Enhanced git clone progress patterns
+        self.git_objects_pattern = re.compile(
+            r"Receiving objects:\s+(\d+)%\s+\((\d+)/(\d+)\),?\s*(?:(\d+(?:\.\d+)?)\s*(KiB|MiB|GiB)/s)?"
+        )
+        self.git_deltas_pattern = re.compile(
+            r"Resolving deltas:\s+(\d+)%\s+\((\d+)/(\d+)\)"
+        )
+        
+        # Current repository being processed (for detailed progress)
+        self._current_repository = ""
 
     def process(self, line: str, stream_type: str) -> str:
         """Process Docker output line and update compilation progress.
@@ -138,12 +149,64 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
 
             # Parse repository downloads during west update
             if self.progress_coordinator.current_phase == "west_update":
+                # Check for repository start
                 repo_match = self.repo_download_pattern.match(line_stripped)
                 if repo_match:
                     repository_name = repo_match.group(1)
+                    self._current_repository = repository_name
                     self.progress_coordinator.update_repository_progress(
                         repository_name
                     )
+                
+                # Enhanced git clone progress tracking
+                if hasattr(self.progress_coordinator, 'update_git_clone_progress'):
+                    # Parse "Receiving objects" progress
+                    objects_match = self.git_objects_pattern.search(line_stripped)
+                    if objects_match and self._current_repository:
+                        try:
+                            # Extract progress data
+                            percent = int(objects_match.group(1))
+                            current_objects = int(objects_match.group(2))
+                            total_objects = int(objects_match.group(3))
+                            
+                            # Extract transfer speed if available
+                            transfer_speed_kb_s = 0.0
+                            if objects_match.group(4) and objects_match.group(5):
+                                speed_value = float(objects_match.group(4))
+                                speed_unit = objects_match.group(5)
+                                
+                                # Convert to KB/s
+                                if speed_unit == "GiB":
+                                    transfer_speed_kb_s = speed_value * 1024 * 1024
+                                elif speed_unit == "MiB":
+                                    transfer_speed_kb_s = speed_value * 1024
+                                else:  # KiB
+                                    transfer_speed_kb_s = speed_value
+                            
+                            self.progress_coordinator.update_git_clone_progress(
+                                repository_name=self._current_repository,
+                                objects_received=current_objects,
+                                total_objects=total_objects,
+                                transfer_speed_kb_s=transfer_speed_kb_s,
+                            )
+                        except (ValueError, IndexError) as e:
+                            logger.debug("Error parsing git objects progress: %s", e)
+                    
+                    # Parse "Resolving deltas" progress
+                    deltas_match = self.git_deltas_pattern.search(line_stripped)
+                    if deltas_match and self._current_repository:
+                        try:
+                            percent = int(deltas_match.group(1))
+                            current_deltas = int(deltas_match.group(2))
+                            total_deltas = int(deltas_match.group(3))
+                            
+                            self.progress_coordinator.update_git_clone_progress(
+                                repository_name=self._current_repository,
+                                deltas_resolved=current_deltas,
+                                total_deltas=total_deltas,
+                            )
+                        except (ValueError, IndexError) as e:
+                            logger.debug("Error parsing git deltas progress: %s", e)
 
             # Parse build progress during building phase
             elif self.progress_coordinator.current_phase == "building":
