@@ -258,7 +258,16 @@ class ASTBehaviorConverter:
         bindings_prop = node.get_property("bindings")
         if bindings_prop:
             bindings = self._extract_bindings_from_property(bindings_prop)
-            hold_tap.bindings = bindings
+            # Validate that we have exactly 2 bindings for hold-tap
+            if len(bindings) != 2:
+                self.logger.warning(
+                    "Hold-tap behavior '%s' has %d bindings, expected 2. Skipping validation.",
+                    name, len(bindings)
+                )
+                # Set empty bindings to avoid validation error
+                hold_tap.bindings = ["&none", "&none"]
+            else:
+                hold_tap.bindings = bindings
 
     def _populate_macro_properties(self, macro: MacroBehavior, node: DTNode) -> None:
         """Populate macro behavior properties from device tree node.

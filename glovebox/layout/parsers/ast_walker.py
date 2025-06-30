@@ -424,6 +424,8 @@ class UniversalBehaviorExtractor:
             ],
             "macros": [
                 "zmk,behavior-macro",
+                "zmk,behavior-macro-one-param",  # Parameterized macros
+                "zmk,behavior-macro-two-param",  # Two parameter macros
                 "zmk,behavior-sequence",  # Custom macro types
             ],
             "tap_dances": [

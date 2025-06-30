@@ -109,10 +109,56 @@ class LayoutBinding(GloveboxBaseModel):
         # Remaining parts are parameters
         params = []
         for part in parts[1:]:
-            param_value = cls._parse_param_value(part)
-            params.append(LayoutParam(value=param_value, params=[]))
+            params.append(cls._parse_parameter_with_nesting(part))
 
         return cls(value=behavior, params=params)
+
+    @classmethod
+    def _parse_parameter_with_nesting(cls, param_str: str) -> LayoutParam:
+        """Parse a parameter that may contain nested sub-parameters.
+
+        Args:
+            param_str: Parameter string like "Q", "LC(X)", or "LA(LC(LSHFT))"
+
+        Returns:
+            LayoutParam with potential nested structure
+        """
+        # Check if parameter contains parentheses
+        if "(" in param_str and ")" in param_str:
+            # Find the first parenthesis to split
+            paren_pos = param_str.find("(")
+            param_name = param_str[:paren_pos]
+            
+            # Find matching closing parenthesis
+            paren_depth = 0
+            start_content = paren_pos + 1
+            end_content = len(param_str)
+            
+            for i in range(paren_pos, len(param_str)):
+                if param_str[i] == "(":
+                    paren_depth += 1
+                elif param_str[i] == ")":
+                    paren_depth -= 1
+                    if paren_depth == 0:
+                        end_content = i
+                        break
+            
+            inner_content = param_str[start_content:end_content]
+            
+            if not param_name or not inner_content:
+                # Fall back to simple parameter
+                param_value = cls._parse_param_value(param_str)
+                return LayoutParam(value=param_value, params=[])
+            
+            # Parse nested content recursively
+            param_value = cls._parse_param_value(param_name)
+            nested_param = cls._parse_parameter_with_nesting(inner_content)
+            
+            return LayoutParam(value=param_value, params=[nested_param])
+        else:
+            # Simple parameter without nesting
+            param_value = cls._parse_param_value(param_str)
+            return LayoutParam(value=param_value, params=[])
 
     @staticmethod
     def _parse_behavior_parts(behavior_str: str) -> list[str]:
