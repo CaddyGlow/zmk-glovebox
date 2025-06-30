@@ -45,17 +45,17 @@ class BehaviorFormatterImpl:
         self._keycode_map = keycode_map or {}
         self._behavior_classes: dict[str, type[Behavior]] = {}
         self._modifier_map: dict[str, str] = {}
-        self._is_hold_tap_binding_context = False
+        self._is_behavior_reference_context = False
         self._init_behavior_class_map()
         self._init_modifier_map()
 
-    def set_hold_tap_binding_context(self, is_hold_tap_context: bool) -> None:
-        """Set whether we're formatting bindings for hold-tap definitions.
+    def set_behavior_reference_context(self, is_behavior_reference_context: bool) -> None:
+        """Set whether we're formatting bindings for behavior definitions.
 
         Args:
-            is_hold_tap_context: True if formatting hold-tap binding references
+            is_behavior_reference_context: True if formatting behavior reference bindings
         """
-        self._is_hold_tap_binding_context = is_hold_tap_context
+        self._is_behavior_reference_context = is_behavior_reference_context
 
     def format_binding(self, binding_data: LayoutBinding) -> str:
         """Format a binding dictionary to DTSI string.
@@ -112,24 +112,15 @@ class BehaviorFormatterImpl:
         mod_name = param_data.value
         inner_params_data = param_data.params
 
-        if (
-            mod_name in ["LA", "LC", "LS", "LG", "RA", "RC", "RS", "RG"]
-            and not inner_params_data
-        ):
-            logger.error(f"Modifier function '{mod_name}' missing inner parameter.")
-            return f"{mod_name}(ERROR_MOD_PARAM)"
-        elif mod_name in [
-            "LA",
-            "LC",
-            "LS",
-            "LG",
-            "RA",
-            "RC",
-            "RS",
-            "RG",
-        ]:  # Original 'if' body
-            inner_formatted = self.format_param_recursive(inner_params_data[0])
-            return f"{mod_name}({inner_formatted})"
+        # Check if this is a modifier function (LA, LC, etc.) with inner parameters
+        if mod_name in ["LA", "LC", "LS", "LG", "RA", "RC", "RS", "RG"]:
+            if inner_params_data:
+                # Has inner parameters - treat as modifier function
+                inner_formatted = self.format_param_recursive(inner_params_data[0])
+                return f"{mod_name}({inner_formatted})"
+            else:
+                # No inner parameters - treat as plain keycode (e.g., &kp LC for Left Control)
+                return self.format_param(mod_name)
 
         # Check if this is a configured modifier mapping
         elif str(mod_name) in self._modifier_map:
@@ -139,7 +130,7 @@ class BehaviorFormatterImpl:
                 zmk_mod_func = self._modifier_map.get(str(mod_name))
                 if not zmk_mod_func:
                     logger.error(
-                        f"Could not map modifier alias '{mod_name}' to function."
+                        "Could not map modifier alias '%s' to function.", mod_name
                     )
                     return f"ERROR_MOD_ALIAS({mod_name})"
                 inner_formatted = self.format_param_recursive(inner_params_data[0])
@@ -255,18 +246,18 @@ class Behavior(ABC):
         self.formatter = formatter
         self._validate_params()
 
-    def _is_hold_tap_binding_context(self) -> bool:
-        """Check if we're in a hold-tap binding context."""
-        return self.formatter._is_hold_tap_binding_context
+    def _is_behavior_reference_context(self) -> bool:
+        """Check if we're in a behavior reference context."""
+        return self.formatter._is_behavior_reference_context
 
     def _should_use_bare_reference(self) -> bool:
         """Check if this behavior should be formatted as a bare reference.
 
         Returns True if:
-        - We're in a hold-tap binding context AND
+        - We're in a behavior reference context AND
         - No parameters are provided
         """
-        return self._is_hold_tap_binding_context() and not self.params
+        return self._is_behavior_reference_context() and not self.params
 
     @abstractmethod
     def _validate_params(self) -> None:
@@ -351,8 +342,8 @@ class LayerToggleBehavior(Behavior):
     """Handles &mo, &to, &tog."""
 
     def _validate_params(self) -> None:
-        # Allow empty params in hold-tap binding context
-        if self._is_hold_tap_binding_context() and not self.params:
+        # Allow empty params in behavior reference context
+        if self._is_behavior_reference_context() and not self.params:
             return
         if len(self.params) != 1:
             raise ValueError(
@@ -371,8 +362,8 @@ class OneParamBehavior(Behavior):
     """Handles behaviors taking one parameter."""
 
     def _validate_params(self) -> None:
-        # Allow empty params in hold-tap binding context
-        if self._is_hold_tap_binding_context() and not self.params:
+        # Allow empty params in behavior reference context
+        if self._is_behavior_reference_context() and not self.params:
             return
         if len(self.params) != 1:
             raise ValueError(
