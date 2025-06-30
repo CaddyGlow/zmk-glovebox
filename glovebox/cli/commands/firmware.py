@@ -9,7 +9,17 @@ from typing import Annotated, Any
 
 import typer
 
-from glovebox.cli.decorators import handle_errors, with_metrics, with_profile
+from glovebox.cli.decorators import (
+    handle_errors,
+    with_cache,
+    with_metrics,
+    with_profile,
+    with_tmp_dir,
+)
+from glovebox.cli.decorators.profile import (
+    get_compilation_cache_services_from_context,
+    get_tmp_dir_from_context,
+)
 from glovebox.cli.helpers import (
     print_error_message,
     print_list_item,
@@ -110,6 +120,9 @@ def _execute_compilation_service(
     session_metrics: Any = None,
     user_config: Any = None,
     progress_coordinator: Any = None,
+    cache_manager: Any = None,
+    workspace_cache_service: Any = None,
+    build_cache_service: Any = None,
 ) -> Any:
     """Execute the compilation service."""
     from glovebox.adapters import create_docker_adapter, create_file_adapter
@@ -118,27 +131,8 @@ def _execute_compilation_service(
     docker_adapter = create_docker_adapter()
     file_adapter = create_file_adapter()
 
-    # Create cache services if strategy requires them
-    cache_manager = None
-    workspace_cache_service = None
-    build_cache_service = None
-
-    if compilation_strategy == "zmk_config":
-        # Update progress for cache service initialization
-        if progress_coordinator:
-            cache_progress = CompilationProgress(
-                repositories_downloaded=35,
-                total_repositories=100,
-                current_repository="Setting up cache services...",
-                compilation_phase="initialization",
-            )
-            # Progress will be updated through coordinator if available
-
-        from glovebox.compilation.cache import create_compilation_cache_service
-
-        cache_manager, workspace_cache_service, build_cache_service = (
-            create_compilation_cache_service(user_config, session_metrics)
-        )
+    # Use provided cache services (from @with_cache decorator)
+    # Cache services are now injected by the decorator for zmk_config strategy
 
     compilation_service = create_compilation_service(
         compilation_strategy,
@@ -175,6 +169,9 @@ def _execute_compilation_from_json(
     session_metrics: Any = None,
     user_config: Any = None,
     progress_coordinator: Any = None,
+    cache_manager: Any = None,
+    workspace_cache_service: Any = None,
+    build_cache_service: Any = None,
 ) -> Any:
     """Execute compilation from JSON layout file."""
     from glovebox.adapters import create_docker_adapter, create_file_adapter
@@ -183,27 +180,8 @@ def _execute_compilation_from_json(
     docker_adapter = create_docker_adapter()
     file_adapter = create_file_adapter()
 
-    # Create cache services if strategy requires them
-    cache_manager = None
-    workspace_cache_service = None
-    build_cache_service = None
-
-    if compilation_strategy == "zmk_config":
-        # Update progress for cache service initialization
-        if progress_coordinator:
-            cache_progress = CompilationProgress(
-                repositories_downloaded=35,
-                total_repositories=100,
-                current_repository="Setting up cache services...",
-                compilation_phase="initialization",
-            )
-            # Progress will be updated through coordinator if available
-
-        from glovebox.compilation.cache import create_compilation_cache_service
-
-        cache_manager, workspace_cache_service, build_cache_service = (
-            create_compilation_cache_service(user_config, session_metrics)
-        )
+    # Use provided cache services (from @with_cache decorator)
+    # Cache services are now injected by the decorator for zmk_config strategy
 
     compilation_service = create_compilation_service(
         compilation_strategy,
@@ -467,6 +445,8 @@ cmake, make, and ninja build systems for custom keyboards.""",
 @handle_errors
 @with_profile(required=True, firmware_optional=False, support_auto_detection=True)
 @with_metrics("compile")
+@with_cache("compilation", compilation_cache=True)
+@with_tmp_dir(prefix="glovebox_build_", cleanup=True)
 def firmware_compile(
     ctx: typer.Context,
     input_file: Annotated[
@@ -589,20 +569,20 @@ def firmware_compile(
         # Determine if progress should be shown (default: enabled)
         show_progress = progress if progress is not None else True
 
-        # Create simple progress display if progress is enabled
+        # Simple progress display - TODO: Re-enable after service integration
         progress_display = None
         progress_coordinator = None
-        if show_progress:
-            from rich.console import Console
-            from glovebox.compilation.simple_progress import (
-                create_simple_compilation_display,
-                create_simple_progress_coordinator,
-            )
-            
-            console = Console()
-            progress_display = create_simple_compilation_display(console)
-            progress_coordinator = create_simple_progress_coordinator(progress_display)
-            progress_display.start()
+        # if show_progress:
+        #     from rich.console import Console
+        #     from glovebox.compilation.simple_progress import (
+        #         create_simple_compilation_display,
+        #         create_simple_progress_coordinator,
+        #     )
+        #
+        #     console = Console()
+        #     progress_display = create_simple_compilation_display(console)
+        #     progress_coordinator = create_simple_progress_coordinator(progress_display)
+        #     progress_display.start()
 
         resolved_input_file = resolve_json_file_path(input_file, "GLOVEBOX_JSON_FILE")
 
@@ -637,8 +617,11 @@ def firmware_compile(
             build_output_dir = output
             build_output_dir.mkdir(parents=True, exist_ok=True)
         else:
-            # No --output flag: use temporary directory for compilation
-            build_output_dir = Path(tempfile.mkdtemp(prefix="glovebox_build_"))
+            # No --output flag: use temporary directory from decorator
+            build_output_dir = get_tmp_dir_from_context(ctx)
+            if build_output_dir is None:
+                # Fallback if decorator temp dir not available
+                build_output_dir = Path(tempfile.mkdtemp(prefix="glovebox_build_"))
 
         compilation_type, compile_config = _resolve_compilation_type(
             keyboard_profile, strategy
@@ -646,6 +629,9 @@ def firmware_compile(
 
         # Update config with profile firmware settings
         _update_config_from_profile(compile_config, keyboard_profile)
+
+        # Get cache services from context (provided by @with_cache decorator)
+        cache_manager, workspace_service, build_service = get_compilation_cache_services_from_context(ctx)
 
         # Execute compilation
         logger.info("🚀 Starting firmware compilation...")
@@ -661,6 +647,9 @@ def firmware_compile(
                 session_metrics=ctx.obj.session_metrics,
                 user_config=get_user_config_from_context(ctx),
                 progress_coordinator=progress_coordinator,
+                cache_manager=cache_manager,
+                workspace_cache_service=workspace_service,
+                build_cache_service=build_service,
             )
         else:
             assert config_file is not None  # Already validated above
@@ -674,10 +663,14 @@ def firmware_compile(
                 session_metrics=ctx.obj.session_metrics,
                 user_config=get_user_config_from_context(ctx),
                 progress_coordinator=progress_coordinator,
+                cache_manager=cache_manager,
+                workspace_cache_service=workspace_service,
+                build_cache_service=build_service,
             )
 
-        # Clean up temporary build directory if --output was not provided
-        temp_cleanup_needed = output is None
+        # Check if we need manual cleanup (only if not using decorator's temp dir)
+        decorator_tmp_dir = get_tmp_dir_from_context(ctx)
+        manual_cleanup_needed = output is None and build_output_dir != decorator_tmp_dir
 
         # Progress display cleanup is handled by context manager
 
@@ -691,8 +684,8 @@ def firmware_compile(
             # Format and display results
             _format_compilation_output(result, output_format, build_output_dir)
 
-        # Clean up temporary build directory if needed
-        if temp_cleanup_needed and build_output_dir.exists():
+        # Clean up temporary build directory if needed (only for manual temp dirs)
+        if manual_cleanup_needed and build_output_dir.exists():
             try:
                 shutil.rmtree(build_output_dir)
                 logger.debug(
@@ -711,10 +704,10 @@ def firmware_compile(
         print_error_message(f"Firmware compilation failed: {str(e)}")
         logger.exception("Compilation error details")
 
-        # Clean up temporary build directory if needed
+        # Clean up temporary build directory if needed (only for manual temp dirs)
         if (
-            "temp_cleanup_needed" in locals()
-            and temp_cleanup_needed
+            "manual_cleanup_needed" in locals()
+            and manual_cleanup_needed
             and "build_output_dir" in locals()
             and build_output_dir.exists()
         ):

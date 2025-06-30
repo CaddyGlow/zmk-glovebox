@@ -12,9 +12,7 @@ from glovebox.utils.stream_process import OutputMiddleware
 
 
 if TYPE_CHECKING:
-    from glovebox.cli.components.unified_progress_coordinator import (
-        UnifiedCompilationProgressCoordinator,
-    )
+    from glovebox.protocols.progress_coordinator_protocol import ProgressCoordinatorProtocol
     from glovebox.compilation.models.compilation_config import ProgressPhasePatterns
 
 
@@ -25,7 +23,7 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
     """Middleware for tracking firmware compilation progress through Docker output.
 
     This middleware parses Docker output during firmware compilation and delegates
-    progress updates to a UnifiedCompilationProgressCoordinator for unified TUI display.
+    progress updates to a ProgressCoordinatorProtocol implementation.
 
     Tracks:
     - Repository downloads during 'west update' (e.g., "From https://github.com/...")
@@ -35,14 +33,14 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
 
     def __init__(
         self,
-        progress_coordinator: "UnifiedCompilationProgressCoordinator",
+        progress_coordinator: "ProgressCoordinatorProtocol",
         progress_patterns: "ProgressPhasePatterns | None" = None,
         skip_west_update: bool = False,  # Set to True if compilation starts directly with building
     ) -> None:
         """Initialize the compilation progress middleware.
 
         Args:
-            progress_coordinator: Unified progress coordinator to delegate updates to
+            progress_coordinator: Progress coordinator to delegate updates to
             progress_patterns: Regex patterns for phase detection (defaults to standard patterns)
             skip_west_update: Whether to skip west update phase and start with building
         """
@@ -352,14 +350,14 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
 
 
 def create_compilation_progress_middleware(
-    progress_coordinator: "UnifiedCompilationProgressCoordinator",
+    progress_coordinator: "ProgressCoordinatorProtocol",
     progress_patterns: "ProgressPhasePatterns | None" = None,
     skip_west_update: bool = False,
 ) -> CompilationProgressMiddleware:
     """Factory function to create compilation progress middleware.
 
     Args:
-        progress_coordinator: Unified progress coordinator to delegate updates to
+        progress_coordinator: Progress coordinator to delegate updates to
         progress_patterns: Regex patterns for phase detection (defaults to standard patterns)
         skip_west_update: Whether to skip west update phase and start with building
 
