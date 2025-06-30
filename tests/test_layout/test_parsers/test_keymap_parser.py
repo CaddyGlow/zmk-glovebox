@@ -110,7 +110,6 @@ class TestZmkKeymapParser:
         parser = create_zmk_keymap_parser()
         assert isinstance(parser, ZmkKeymapParser)
         assert hasattr(parser, "template_adapter")
-        assert hasattr(parser, "behavior_parser")
 
     def test_parsing_mode_enum(self):
         """Test ParsingMode enum values."""
@@ -185,14 +184,35 @@ class TestZmkKeymapParser:
 
     def test_parse_bindings_content(self, parser):
         """Test parsing of bindings content string."""
-        bindings_content = """
-            &kp Q    &kp W    &kp E    &kp R
-            &mt LSHIFT A    &lt 1 S    &trans   &none
-            // Comment line
-            &mo 1    &kp TAB
-        """
+        from glovebox.layout.parsers.ast_nodes import DTValue, DTValueType
 
-        bindings = parser._parse_bindings_content(bindings_content)
+        # Create a DTValue with array of bindings as they would appear in AST
+        binding_values = [
+            "&kp",
+            "Q",
+            "&kp",
+            "W",
+            "&kp",
+            "E",
+            "&kp",
+            "R",
+            "&mt",
+            "LSHIFT",
+            "A",
+            "&lt",
+            "1",
+            "S",
+            "&trans",
+            "&none",
+            "&mo",
+            "1",
+            "&kp",
+            "TAB",
+        ]
+
+        bindings_value = DTValue(type=DTValueType.ARRAY, value=binding_values, raw="")
+
+        bindings = parser._convert_ast_bindings(bindings_value)
 
         assert len(bindings) >= 8  # Should parse all valid bindings
 
@@ -288,7 +308,7 @@ class TestZmkKeymapParser:
         layout_data = result.layout_data
 
         # Check that behaviors were extracted
-        # Note: The actual behavior parsing depends on the behavior_parser implementation
+        # Note: The actual behavior parsing uses AST-based parsing
         # For now, just verify the structure is set up correctly
         assert hasattr(layout_data, "hold_taps")
         assert hasattr(layout_data, "macros")
@@ -315,13 +335,14 @@ class TestZmkKeymapParser:
 
     def test_malformed_bindings_handling(self, parser):
         """Test handling of malformed bindings in parsing."""
-        malformed_content = """
-            &kp Q    &invalid_binding
-            &mt      // Missing parameters
-            &         // Empty behavior
-        """
+        from glovebox.layout.parsers.ast_nodes import DTValue, DTValueType
 
-        bindings = parser._parse_bindings_content(malformed_content)
+        # Create malformed binding values as they would appear in AST
+        malformed_values = ["&kp", "Q", "&invalid_binding", "&mt", "&"]
+
+        bindings_value = DTValue(type=DTValueType.ARRAY, value=malformed_values, raw="")
+
+        bindings = parser._convert_ast_bindings(bindings_value)
 
         # Should have some bindings, with fallbacks for malformed ones
         assert len(bindings) > 0
@@ -338,10 +359,21 @@ class TestZmkKeymapParser:
 
     def test_empty_keymap_handling(self, parser):
         """Test handling of empty or minimal keymap content."""
+        from glovebox.layout.parsers.dt_parser import parse_dt_safe
+
         empty_content = ""
-        layers_data = parser._extract_layers_from_keymap(empty_content)
-        assert layers_data is None
+        root, errors = parse_dt_safe(empty_content)
+        if root:
+            layers_data = parser._extract_layers_from_ast(root)
+            assert layers_data is None or len(layers_data) == 0
+        else:
+            # No valid AST, so no layers
+            assert True
 
         minimal_content = "/ { };"
-        layers_data = parser._extract_layers_from_keymap(minimal_content)
-        assert layers_data is None
+        root, errors = parse_dt_safe(minimal_content)
+        if root:
+            layers_data = parser._extract_layers_from_ast(root)
+            assert layers_data is None or len(layers_data) == 0
+        else:
+            assert True

@@ -454,7 +454,7 @@ def workspace_add(
             display, progress_callback = create_workspace_cache_progress(
                 operation_type="workspace_add",
                 repository=repository,
-                show_logs=show_logs
+                show_logs=show_logs,
             )
 
         try:

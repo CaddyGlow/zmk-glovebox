@@ -706,6 +706,9 @@ class ModelConverter:
             self.logger.debug(
                 "Using label as description for %s: %s", node.name, description
             )
+            # Remove '&' prefix from description if present
+            if description.startswith("&"):
+                description = description[1:]
             return description
 
         return ""

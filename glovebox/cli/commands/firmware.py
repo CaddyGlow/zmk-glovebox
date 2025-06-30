@@ -14,11 +14,11 @@ from glovebox.cli.decorators import (
     with_cache,
     with_metrics,
     with_profile,
-    with_tmp_dir,
+    with_tmpdir,
 )
 from glovebox.cli.decorators.profile import (
     get_compilation_cache_services_from_context,
-    get_tmp_dir_from_context,
+    get_tmpdir_from_context,
 )
 from glovebox.cli.helpers import (
     print_error_message,
@@ -120,6 +120,7 @@ def _execute_compilation_service(
     session_metrics: Any = None,
     user_config: Any = None,
     progress_coordinator: Any = None,
+    progress_callback: Any = None,
     cache_manager: Any = None,
     workspace_cache_service: Any = None,
     build_cache_service: Any = None,
@@ -145,6 +146,10 @@ def _execute_compilation_service(
         session_metrics=session_metrics,
     )
 
+    # If we have a progress coordinator, try to pass it directly
+    if hasattr(compilation_service, "set_progress_coordinator"):
+        compilation_service.set_progress_coordinator(progress_coordinator)
+
     # Use unified config directly - no conversion needed
     return compilation_service.compile(
         keymap_file=keymap_file,
@@ -152,7 +157,7 @@ def _execute_compilation_service(
         output_dir=build_output_dir,
         config=compile_config,
         keyboard_profile=keyboard_profile,
-        progress_callback=None,
+        progress_callback=progress_callback,
     )
 
 
@@ -169,6 +174,7 @@ def _execute_compilation_from_json(
     session_metrics: Any = None,
     user_config: Any = None,
     progress_coordinator: Any = None,
+    progress_callback: Any = None,
     cache_manager: Any = None,
     workspace_cache_service: Any = None,
     build_cache_service: Any = None,
@@ -195,12 +201,16 @@ def _execute_compilation_from_json(
     )
 
     # Use the new compile_from_json method
+    # If we have a progress coordinator, try to pass it directly
+    if hasattr(compilation_service, "set_progress_coordinator"):
+        compilation_service.set_progress_coordinator(progress_coordinator)
+
     return compilation_service.compile_from_json(
         json_file=json_file,
         output_dir=build_output_dir,
         config=compile_config,
         keyboard_profile=keyboard_profile,
-        progress_callback=None,
+        progress_callback=progress_callback,
     )
 
 
@@ -446,7 +456,7 @@ cmake, make, and ninja build systems for custom keyboards.""",
 @with_profile(required=True, firmware_optional=False, support_auto_detection=True)
 @with_metrics("compile")
 @with_cache("compilation", compilation_cache=True)
-@with_tmp_dir(prefix="glovebox_build_", cleanup=True)
+@with_tmpdir(prefix="glovebox_build_", cleanup=True)
 def firmware_compile(
     ctx: typer.Context,
     input_file: Annotated[
@@ -569,20 +579,36 @@ def firmware_compile(
         # Determine if progress should be shown (default: enabled)
         show_progress = progress if progress is not None else True
 
-        # Simple progress display - TODO: Re-enable after service integration
+        # Create simple progress display if progress is enabled
         progress_display = None
         progress_coordinator = None
-        # if show_progress:
-        #     from rich.console import Console
-        #     from glovebox.compilation.simple_progress import (
-        #         create_simple_compilation_display,
-        #         create_simple_progress_coordinator,
-        #     )
-        #
-        #     console = Console()
-        #     progress_display = create_simple_compilation_display(console)
-        #     progress_coordinator = create_simple_progress_coordinator(progress_display)
-        #     progress_display.start()
+        progress_callback = None
+
+        if show_progress:
+            from rich.console import Console
+
+            from glovebox.compilation.simple_progress import (
+                create_simple_compilation_display,
+                create_simple_progress_coordinator,
+            )
+
+            console = Console()
+            progress_display = create_simple_compilation_display(console)
+            progress_coordinator = create_simple_progress_coordinator(progress_display)
+            progress_display.start()
+
+            # Create a bridge callback that forwards to our coordinator
+            def progress_callback(progress: Any) -> None:
+                """Bridge callback that forwards progress updates to our simple coordinator."""
+                if (
+                    hasattr(progress, "state")
+                    and progress.state
+                    and hasattr(progress, "compilation_phase")
+                ):
+                    progress_coordinator.transition_to_phase(
+                        progress.compilation_phase, progress.description or ""
+                    )
+                    # Note: This is a basic bridge - more sophisticated mapping could be added
 
         resolved_input_file = resolve_json_file_path(input_file, "GLOVEBOX_JSON_FILE")
 
@@ -618,10 +644,7 @@ def firmware_compile(
             build_output_dir.mkdir(parents=True, exist_ok=True)
         else:
             # No --output flag: use temporary directory from decorator
-            build_output_dir = get_tmp_dir_from_context(ctx)
-            if build_output_dir is None:
-                # Fallback if decorator temp dir not available
-                build_output_dir = Path(tempfile.mkdtemp(prefix="glovebox_build_"))
+            build_output_dir = get_tmpdir_from_context(ctx)
 
         compilation_type, compile_config = _resolve_compilation_type(
             keyboard_profile, strategy
@@ -631,7 +654,9 @@ def firmware_compile(
         _update_config_from_profile(compile_config, keyboard_profile)
 
         # Get cache services from context (provided by @with_cache decorator)
-        cache_manager, workspace_service, build_service = get_compilation_cache_services_from_context(ctx)
+        cache_manager, workspace_service, build_service = (
+            get_compilation_cache_services_from_context(ctx)
+        )
 
         # Execute compilation
         logger.info("🚀 Starting firmware compilation...")
@@ -647,6 +672,7 @@ def firmware_compile(
                 session_metrics=ctx.obj.session_metrics,
                 user_config=get_user_config_from_context(ctx),
                 progress_coordinator=progress_coordinator,
+                progress_callback=progress_callback,
                 cache_manager=cache_manager,
                 workspace_cache_service=workspace_service,
                 build_cache_service=build_service,
@@ -663,13 +689,14 @@ def firmware_compile(
                 session_metrics=ctx.obj.session_metrics,
                 user_config=get_user_config_from_context(ctx),
                 progress_coordinator=progress_coordinator,
+                progress_callback=progress_callback,
                 cache_manager=cache_manager,
                 workspace_cache_service=workspace_service,
                 build_cache_service=build_service,
             )
 
         # Check if we need manual cleanup (only if not using decorator's temp dir)
-        decorator_tmp_dir = get_tmp_dir_from_context(ctx)
+        decorator_tmp_dir = get_tmpdir_from_context(ctx)
         manual_cleanup_needed = output is None and build_output_dir != decorator_tmp_dir
 
         # Progress display cleanup is handled by context manager

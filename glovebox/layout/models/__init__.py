@@ -71,10 +71,10 @@ class LayoutBinding(GloveboxBaseModel):
 
     @classmethod
     def from_str(cls, behavior_str: str) -> "LayoutBinding":
-        """Parse ZMK behavior string into LayoutBinding.
+        """Parse ZMK behavior string into LayoutBinding with nested parameter support.
 
         Args:
-            behavior_str: ZMK behavior string like "&kp Q", "&trans", "&mt LCTRL A"
+            behavior_str: ZMK behavior string like "&kp Q", "&trans", "&mt LCTRL A", "&kp LC(X)"
 
         Returns:
             LayoutBinding instance
@@ -86,6 +86,7 @@ class LayoutBinding(GloveboxBaseModel):
             "&kp Q" -> LayoutBinding(value="&kp", params=[LayoutParam(value="Q")])
             "&trans" -> LayoutBinding(value="&trans", params=[])
             "&mt LCTRL A" -> LayoutBinding(value="&mt", params=[LayoutParam(value="LCTRL"), LayoutParam(value="A")])
+            "&kp LC(X)" -> LayoutBinding(value="&kp", params=[LayoutParam(value="LC", params=[LayoutParam(value="X")])])
         """
         import logging
 
@@ -95,39 +96,23 @@ class LayoutBinding(GloveboxBaseModel):
         if not behavior_str or not behavior_str.strip():
             raise ValueError("Behavior string cannot be empty")
 
-        # Split the behavior string into parts, handling quoted parameters
-        parts = cls._parse_behavior_parts(behavior_str.strip())
-
-        if not parts:
-            raise ValueError(f"Invalid behavior string: {behavior_str}")
-
-        # First part is the behavior name
-        behavior = parts[0]
-        param_parts = parts[1:] if len(parts) > 1 else []
-
-        # Validate behavior name format
-        if not behavior.startswith("&"):
-            logger.warning("Behavior '%s' does not start with '&'", behavior)
-
-        # Create LayoutParam objects from parameter parts
+        # Try nested parameter parsing first (handles both simple and complex cases)
         try:
-            params = [
-                LayoutParam(value=cls._parse_param_value(param), params=[])
-                for param in param_parts
-            ]
+            return cls._parse_nested_binding(behavior_str.strip())
         except Exception as e:
-            exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error(
-                "Failed to parse parameters in '%s': %s",
-                behavior_str,
-                e,
-                exc_info=exc_info,
-            )
-            raise ValueError(
-                f"Invalid parameters in behavior string: {behavior_str}"
-            ) from e
-
-        return cls(value=behavior, params=params)
+            # Fall back to simple parsing for quote handling compatibility
+            try:
+                return cls._parse_simple_binding(behavior_str.strip())
+            except Exception as fallback_e:
+                exc_info = logger.isEnabledFor(logging.DEBUG)
+                logger.error(
+                    "Failed to parse binding '%s' with both nested (%s) and simple (%s) parsing",
+                    behavior_str,
+                    e,
+                    fallback_e,
+                    exc_info=exc_info,
+                )
+                raise ValueError(f"Invalid behavior string: {behavior_str}") from e
 
     @staticmethod
     def _parse_behavior_parts(behavior_str: str) -> list[str]:
@@ -195,6 +180,227 @@ class LayoutBinding(GloveboxBaseModel):
         except ValueError:
             # Return as string if not an integer
             return param_str
+
+    @classmethod
+    def _parse_nested_binding(cls, binding_str: str) -> "LayoutBinding":
+        """Parse binding string with nested parameter support.
+
+        Handles structures like:
+        - &sk LA(LC(LSHFT)) -> nested with parentheses
+        - &kp LC X -> creates LC containing X as nested parameter
+        - &mt LCTRL A -> creates LCTRL and A as nested chain
+        - &kp Q -> single parameter
+
+        Args:
+            binding_str: Binding string to parse
+
+        Returns:
+            LayoutBinding with nested parameter structure
+        """
+        if not binding_str.strip():
+            return LayoutBinding(value="&none", params=[])
+
+        # Tokenize the binding string
+        tokens = cls._tokenize_binding(binding_str)
+        if not tokens:
+            return LayoutBinding(value="&none", params=[])
+
+        # First token should be the behavior
+        behavior = tokens[0]
+        if not behavior.startswith("&"):
+            behavior = f"&{behavior}"
+
+        # Parse remaining tokens as nested parameters
+        if len(tokens) == 1:
+            # No parameters
+            return cls(value=behavior, params=[])
+        elif len(tokens) == 2:
+            # Single parameter - could be nested or simple
+            param, _ = cls._parse_nested_parameter(tokens, 1)
+            return cls(value=behavior, params=[param] if param else [])
+        else:
+            # Multiple parameters - create nested chain
+            # For "&kp LC X", create LC containing X
+            # For "&mt LCTRL A", create LCTRL and A as separate params
+            params = []
+            
+            # Check if this looks like a modifier chain (common ZMK pattern)
+            if len(tokens) == 3 and not any("(" in token for token in tokens[1:]):
+                # For certain behaviors, keep flat structure
+                behavior_name = behavior.lower()
+                if behavior_name in ("&mt", "&lt", "&caps_word"):
+                    # These behaviors expect flat parameters
+                    for i in range(1, len(tokens)):
+                        param_value = cls._parse_param_value(tokens[i])
+                        params.append(LayoutParam(value=param_value, params=[]))
+                else:
+                    # Create nested structure: first param contains second param
+                    first_param_value = cls._parse_param_value(tokens[1])
+                    second_param_value = cls._parse_param_value(tokens[2])
+                    
+                    nested_param = LayoutParam(
+                        value=first_param_value,
+                        params=[LayoutParam(value=second_param_value, params=[])]
+                    )
+                    params.append(nested_param)
+            else:
+                # Handle complex cases or more than 2 parameters normally
+                i = 1
+                while i < len(tokens):
+                    param, i = cls._parse_nested_parameter(tokens, i)
+                    if param:
+                        params.append(param)
+
+            return cls(value=behavior, params=params)
+
+    @staticmethod
+    def _tokenize_binding(binding_str: str) -> list[str]:
+        """Tokenize binding string preserving parentheses structure.
+
+        For '&sk LA(LC(LSHFT))', this should produce:
+        ['&sk', 'LA(LC(LSHFT))']
+
+        Args:
+            binding_str: Raw binding string
+
+        Returns:
+            List of tokens
+        """
+        tokens = []
+        current_token = ""
+        paren_depth = 0
+
+        i = 0
+        while i < len(binding_str):
+            char = binding_str[i]
+
+            if char.isspace() and paren_depth == 0:
+                # Space outside parentheses - end current token
+                if current_token:
+                    tokens.append(current_token)
+                    current_token = ""
+            elif char == "(":
+                # Start of nested parameters - include in current token
+                current_token += char
+                paren_depth += 1
+            elif char == ")":
+                # End of nested parameters - include in current token
+                current_token += char
+                paren_depth -= 1
+            else:
+                current_token += char
+
+            i += 1
+
+        # Add final token
+        if current_token:
+            tokens.append(current_token)
+
+        return tokens
+
+    @classmethod
+    def _parse_nested_parameter(
+        cls, tokens: list[str], start_index: int
+    ) -> tuple[LayoutParam | None, int]:
+        """Parse a single parameter which may contain nested sub-parameters.
+
+        Handles tokens like:
+        - 'LA(LC(LSHFT))' -> LA with nested LC(LSHFT)
+        - 'LCTRL' -> Simple parameter
+
+        Args:
+            tokens: List of tokens
+            start_index: Index to start parsing from
+
+        Returns:
+            Tuple of (LayoutParam or None, next_index)
+        """
+        if start_index >= len(tokens):
+            return None, start_index
+
+        token = tokens[start_index]
+
+        # Check if this token has nested parameters (contains parentheses)
+        if "(" in token and ")" in token:
+            # Find the first parenthesis to split parameter name from nested content
+            paren_pos = token.find("(")
+            param_name = token[:paren_pos]
+
+            # Extract everything inside the outermost parentheses
+            # Find matching closing parenthesis
+            paren_depth = 0
+            start_content = paren_pos + 1
+            end_content = len(token)
+
+            for i in range(paren_pos, len(token)):
+                if token[i] == "(":
+                    paren_depth += 1
+                elif token[i] == ")":
+                    paren_depth -= 1
+                    if paren_depth == 0:
+                        end_content = i
+                        break
+
+            inner_content = token[start_content:end_content]
+
+            if not param_name or not inner_content:
+                # Fall back to simple parameter
+                param_value = cls._parse_param_value(token)
+                return LayoutParam(value=param_value, params=[]), start_index + 1
+
+            # Parameter name becomes the value
+            param_value = cls._parse_param_value(param_name)
+
+            # Parse nested content recursively
+            # The inner content should be treated as parameters, not as a full binding
+            inner_tokens = cls._tokenize_binding(inner_content)
+
+            sub_params = []
+            i = 0
+            while i < len(inner_tokens):
+                sub_param, i = cls._parse_nested_parameter(inner_tokens, i)
+                if sub_param:
+                    sub_params.append(sub_param)
+
+            return LayoutParam(value=param_value, params=sub_params), start_index + 1
+        else:
+            # Simple parameter without nesting
+            param_value = cls._parse_param_value(token)
+            return LayoutParam(value=param_value, params=[]), start_index + 1
+
+    @classmethod
+    def _parse_simple_binding(cls, binding_str: str) -> "LayoutBinding":
+        """Parse binding string using simple parsing for backward compatibility.
+
+        This method maintains compatibility with existing quote handling and
+        simple parameter parsing for cases without parentheses.
+
+        Args:
+            binding_str: Binding string to parse
+
+        Returns:
+            LayoutBinding with simple parameter structure
+        """
+        if not binding_str.strip():
+            return LayoutBinding(value="&none", params=[])
+
+        # Use existing quote-aware parsing logic
+        parts = cls._parse_behavior_parts(binding_str)
+        if not parts:
+            return LayoutBinding(value="&none", params=[])
+
+        # First part is the behavior
+        behavior = parts[0]
+        if not behavior.startswith("&"):
+            behavior = f"&{behavior}"
+
+        # Remaining parts are simple parameters
+        params = []
+        for part in parts[1:]:
+            param_value = cls._parse_param_value(part)
+            params.append(LayoutParam(value=param_value, params=[]))
+
+        return cls(value=behavior, params=params)
 
 
 class LayoutLayer(GloveboxBaseModel):

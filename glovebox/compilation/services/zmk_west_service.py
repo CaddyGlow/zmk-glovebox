@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from glovebox.adapters.docker_adapter import LoggerOutputMiddleware
-from glovebox.protocols.progress_coordinator_protocol import ProgressCoordinatorProtocol
 from glovebox.compilation.cache.compilation_build_cache_service import (
     CompilationBuildCacheService,
 )
@@ -50,6 +49,7 @@ from glovebox.protocols import (
     FileAdapterProtocol,
     MetricsProtocol,
 )
+from glovebox.protocols.progress_coordinator_protocol import ProgressCoordinatorProtocol
 from glovebox.utils.build_log_middleware import create_build_log_middleware
 from glovebox.utils.stream_process import (
     DefaultOutputMiddleware,
@@ -63,6 +63,14 @@ if TYPE_CHECKING:
 
 
 class ZmkWestService(CompilationServiceProtocol):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._external_progress_coordinator = None
+
+    def set_progress_coordinator(self, coordinator):
+        """Set an external progress coordinator to use instead of creating our own."""
+        self._external_progress_coordinator = coordinator
+
     """ZMK config compilation service with workspace and build caching.
 
     This service uses the ZMK docker image to compile with the west framwork.
@@ -215,32 +223,55 @@ class ZmkWestService(CompilationServiceProtocol):
                 if cache_operations:
                     cache_operations.labels("lookup", "hit").inc()
 
-                # Progress coordinator for cache restoration - simplified for now
-                progress_coordinator = None
-                # TODO: Integrate with simple progress system if needed
+                # Use external progress coordinator if available
+                progress_coordinator = self._external_progress_coordinator
+                if progress_coordinator:
+                    progress_coordinator.transition_to_phase(
+                        "cache_restoration", "Using cached build"
+                    )
+                    import time
+
+                    time.sleep(0.5)  # Brief pause to show progress
+                    progress_coordinator.update_cache_progress(
+                        "restoring", 50, 100, "Loading cached artifacts", "in_progress"
+                    )
 
                 self.logger.info(
                     "Found cached build - copying artifacts and skipping compilation"
                 )
 
+                # Continue showing progress during cache operations
+                if progress_coordinator:
+                    progress_coordinator.update_cache_progress(
+                        "copying", 75, 100, "Copying cached artifacts", "in_progress"
+                    )
+
                 if progress_coordinator:
                     if progress_coordinator:
                         progress_coordinator.update_cache_progress(
-                        "copying", 75, 100, "Copying cached artifacts", "in_progress"
-                    )
+                            "copying",
+                            75,
+                            100,
+                            "Copying cached artifacts",
+                            "in_progress",
+                        )
 
                 output_files = self._collect_files(cached_build_path, output_dir)
 
                 if progress_coordinator:
                     if progress_coordinator:
                         progress_coordinator.update_cache_progress(
-                        "completed", 100, 100, "Cache restoration completed", "success"
-                    )
+                            "completed",
+                            100,
+                            100,
+                            "Cache restoration completed",
+                            "success",
+                        )
                     # Signal overall build completion for cached builds
                     if progress_coordinator:
                         progress_coordinator.complete_build_success(
-                        "Used cached build result"
-                    )
+                            "Used cached build result"
+                        )
                     # Small delay to ensure progress update is processed
                     import time
 
@@ -257,9 +288,19 @@ class ZmkWestService(CompilationServiceProtocol):
             if cache_operations:
                 cache_operations.labels("lookup", "miss").inc()
 
-            # Progress coordinator for compilation - simplified for now
-            progress_coordinator = None
-            # TODO: Integrate with simple progress system if needed
+            # Use external progress coordinator if available
+            progress_coordinator = self._external_progress_coordinator
+            if progress_coordinator:
+                # Extract board information for progress tracking
+                board_info = self._extract_board_info_from_config(config)
+                progress_coordinator.total_boards = board_info["total_boards"]
+                progress_coordinator.total_repositories = 39  # Default repository count
+                progress_coordinator.set_compilation_strategy("zmk_west")
+
+                # Start with workspace setup
+                progress_coordinator.transition_to_phase(
+                    "workspace_setup", "Setting up workspace"
+                )
 
             # Try to use cached workspace
             workspace_path, cache_used, cache_type = (
