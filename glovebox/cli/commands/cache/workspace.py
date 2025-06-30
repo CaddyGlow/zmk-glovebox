@@ -447,6 +447,7 @@ def workspace_add(
         start_time = time.time()
         progress_callback = None
 
+        progress = False
         if progress:
             from glovebox.cli.progress.workspace import create_workspace_cache_progress
 

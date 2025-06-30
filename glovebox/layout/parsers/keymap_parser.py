@@ -327,27 +327,45 @@ class ZmkKeymapParser:
                     binding_parts = [item]
                     i += 1
 
-                    # Collect parameters until we hit another behavior reference
-                    while i < len(values) and not str(values[i]).startswith("&"):
-                        binding_parts.append(str(values[i]).strip())
+                    # Collect parameters until we hit another behavior reference or end of array
+                    while i < len(values):
+                        next_item = str(values[i]).strip()
+                        # Stop if we hit another behavior reference
+                        if next_item.startswith("&"):
+                            break
+                        # Collect this parameter
+                        binding_parts.append(next_item)
                         i += 1
 
                     # Join the parts to form the complete binding
                     binding_str = " ".join(binding_parts)
+                    
+                    # Log the binding string for debugging parameter issues
+                    if self.logger.isEnabledFor(logging.DEBUG):
+                        self.logger.debug("Converting binding: '%s' from parts: %s", binding_str, binding_parts)
+                    
                     try:
                         # Use the existing LayoutBinding.from_str method
                         binding = LayoutBinding.from_str(binding_str)
                         bindings.append(binding)
+                        
+                        # Debug log the parsed parameters
+                        if self.logger.isEnabledFor(logging.DEBUG):
+                            param_strs = [str(p.value) for p in binding.params]
+                            self.logger.debug("Parsed binding '%s' with %d params: %s", 
+                                            binding.value, len(binding.params), param_strs)
                     except Exception as e:
-                        self.logger.warning(
-                            "Failed to parse binding '%s': %s", binding_str, e
+                        exc_info = self.logger.isEnabledFor(logging.DEBUG)
+                        self.logger.error(
+                            "Failed to parse binding '%s': %s", binding_str, e, exc_info=exc_info
                         )
-                        # Create fallback binding
+                        # Create fallback binding with empty params
                         bindings.append(
                             LayoutBinding(value=binding_parts[0], params=[])
                         )
                 else:
-                    # Standalone parameter without behavior - skip it
+                    # Standalone parameter without behavior - this shouldn't happen in well-formed keymap
+                    self.logger.warning("Found standalone parameter '%s' without behavior reference", item)
                     i += 1
         else:
             # Single binding
@@ -357,8 +375,9 @@ class ZmkKeymapParser:
                     binding = LayoutBinding.from_str(binding_str)
                     bindings.append(binding)
                 except Exception as e:
-                    self.logger.warning(
-                        "Failed to parse binding '%s': %s", binding_str, e
+                    exc_info = self.logger.isEnabledFor(logging.DEBUG)
+                    self.logger.error(
+                        "Failed to parse single binding '%s': %s", binding_str, e, exc_info=exc_info
                     )
                     bindings.append(LayoutBinding(value=binding_str, params=[]))
 

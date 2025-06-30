@@ -291,9 +291,15 @@ class TemplateAwareProcessor(BaseKeymapProcessor):
                 template_content
             )
 
-            # Create base layout data
+            # Create base layout data  
+            # Use the base keyboard name from config rather than profile path
+            keyboard_name = profile.keyboard_name
+            # Handle cases where keyboard_name includes path like "glove80/main"
+            if "/" in keyboard_name:
+                keyboard_name = keyboard_name.split("/")[0]
+            
             layout_data = LayoutData(
-                keyboard=profile.keyboard_name, title="Imported Layout"
+                keyboard=keyboard_name, title="Imported Layout"
             )
 
             # Use configured extraction or default

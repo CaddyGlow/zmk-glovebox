@@ -135,14 +135,14 @@ class ZmkFileContentGenerator:
             # Format bindings with hold-tap context
             formatted_bindings = []
             # Set context flag for hold-tap binding formatting
-            self._behavior_formatter.set_hold_tap_binding_context(True)
+            self._behavior_formatter.set_behavior_reference_context(True)
             try:
                 for binding_ref in bindings:
                     # bindings are now strings, just use as-is (e.g., "&kp", "&lt")
                     formatted_bindings.append(binding_ref)
             finally:
                 # Always reset context flag
-                self._behavior_formatter.set_hold_tap_binding_context(False)
+                self._behavior_formatter.set_behavior_reference_context(False)
 
             if len(formatted_bindings) == required_bindings:
                 if required_bindings == 2:

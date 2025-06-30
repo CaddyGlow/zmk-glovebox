@@ -1,6 +1,7 @@
 """AST-based behavior converter for extracting behaviors from device tree nodes."""
 
 import logging
+from typing import Any
 
 from glovebox.layout.models import (
     ComboBehavior,
@@ -8,7 +9,7 @@ from glovebox.layout.models import (
     LayoutBinding,
     MacroBehavior,
 )
-from glovebox.layout.parsers.ast_nodes import DTNode, DTProperty, DTValueType
+from glovebox.layout.parsers.ast_nodes import DTNode, DTProperty, DTValue, DTValueType
 
 
 logger = logging.getLogger(__name__)
@@ -37,15 +38,14 @@ class ASTBehaviorConverter:
                 self.logger.warning("Hold-tap node missing name/label")
                 return None
 
-            # Add '&' prefix if not present
-            if not name.startswith("&"):
-                name = f"&{name}"
+            # Add & prefix for JSON format consistency
+            behavior_name = f"&{name}"
 
             # Get description from comments or properties
             description = self._extract_description_from_node(node)
 
             # Create base behavior
-            hold_tap = HoldTapBehavior(name=name, description=description)
+            hold_tap = HoldTapBehavior(name=behavior_name, description=description)
 
             # Extract properties and populate behavior
             self._populate_hold_tap_properties(hold_tap, node)
@@ -78,15 +78,14 @@ class ASTBehaviorConverter:
                 self.logger.warning("Macro node missing name/label")
                 return None
 
-            # Add '&' prefix if not present
-            if not name.startswith("&"):
-                name = f"&{name}"
+            # Add & prefix for JSON format consistency
+            behavior_name = f"&{name}"
 
             # Get description from comments or properties
             description = self._extract_description_from_node(node)
 
             # Create base behavior
-            macro = MacroBehavior(name=name, description=description)
+            macro = MacroBehavior(name=behavior_name, description=description)
 
             # Extract properties and populate behavior
             self._populate_macro_properties(macro, node)
@@ -116,6 +115,9 @@ class ASTBehaviorConverter:
                 self.logger.warning("Combo node missing name/label")
                 return None
 
+            # Combos use plain names without & prefix in JSON format
+            behavior_name = name
+
             # Get description from comments or properties
             description = self._extract_description_from_node(node)
 
@@ -143,7 +145,7 @@ class ASTBehaviorConverter:
 
             # Create combo behavior
             combo = ComboBehavior(
-                name=name,
+                name=behavior_name,
                 description=description,
                 keyPositions=key_positions,
                 binding=binding,
@@ -172,49 +174,65 @@ class ASTBehaviorConverter:
         """
         # Priority 1: Comments attached to the node itself
         if node.comments:
-            comment_text = self._clean_comment_text(node.comments[0].text)
-            if comment_text:
-                return comment_text
+            # Concatenate all consecutive description comments
+            comment_lines = []
+            for comment in node.comments:
+                comment_text = comment.text
+                # Skip property-like comments (they're not descriptions)
+                if not comment_text.strip().startswith("#"):
+                    # Clean up comment markers
+                    if comment_text.startswith("//"):
+                        cleaned_text = comment_text[2:].strip()
+                    elif comment_text.startswith("/*") and comment_text.endswith("*/"):
+                        cleaned_text = comment_text[2:-2].strip()
+                    else:
+                        cleaned_text = comment_text.strip()
+                    
+                    if cleaned_text:
+                        comment_lines.append(cleaned_text)
+            
+            if comment_lines:
+                return "\n".join(comment_lines)
 
         # Priority 2: Comments from parent node (for behaviors in behaviors blocks)
         if hasattr(node, "parent") and node.parent and node.parent.comments:
+            # Look for consecutive description comments in parent
+            comment_lines = []
             for comment in reversed(node.parent.comments):
-                comment_text = self._clean_comment_text(comment.text)
-                if comment_text:
-                    return comment_text
+                comment_text = comment.text
+                # Skip property-like comments
+                if not comment_text.strip().startswith("#"):
+                    # Clean up comment markers
+                    if comment_text.startswith("//"):
+                        cleaned_text = comment_text[2:].strip()
+                    elif comment_text.startswith("/*") and comment_text.endswith("*/"):
+                        cleaned_text = comment_text[2:-2].strip()
+                    else:
+                        cleaned_text = comment_text.strip()
+                    
+                    if cleaned_text:
+                        comment_lines.append(cleaned_text)
+            
+            if comment_lines:
+                # Reverse to get original order since we processed in reverse
+                comment_lines.reverse()
+                return "\n".join(comment_lines)
 
         # Priority 3: Description property
         description_prop = node.get_property("description")
         if description_prop and description_prop.value:
             return self._extract_string_from_property(description_prop)
 
-        # Priority 4: Label property
+        # Priority 4: Label property (cleaned up)
         label_prop = node.get_property("label")
         if label_prop and label_prop.value:
-            return self._extract_string_from_property(label_prop)
+            label_value = self._extract_string_from_property(label_prop)
+            # Clean up common label patterns
+            if label_value.startswith("&"):
+                return label_value
+            return label_value
 
         return ""
-
-    def _clean_comment_text(self, comment_text: str) -> str:
-        """Clean comment text by removing markers and filtering out non-descriptive comments.
-
-        Args:
-            comment_text: Raw comment text
-
-        Returns:
-            Cleaned comment text or empty string if not descriptive
-        """
-        # Skip property-like comments (they're not descriptions)
-        if not comment_text or comment_text.strip().startswith("#"):
-            return ""
-
-        # Clean up comment markers
-        if comment_text.startswith("//"):
-            return comment_text[2:].strip()
-        elif comment_text.startswith("/*") and comment_text.endswith("*/"):
-            return comment_text[2:-2].strip()
-
-        return comment_text.strip()
 
     def _populate_hold_tap_properties(
         self, hold_tap: HoldTapBehavior, node: DTNode
@@ -246,6 +264,13 @@ class ASTBehaviorConverter:
         flavor_prop = node.get_property("flavor")
         if flavor_prop:
             hold_tap.flavor = self._extract_string_from_property(flavor_prop)
+
+        # Hold trigger key positions array
+        hold_trigger_positions_prop = node.get_property("hold-trigger-key-positions")
+        if hold_trigger_positions_prop:
+            positions = self._extract_array_from_property(hold_trigger_positions_prop)
+            if positions:
+                hold_tap.hold_trigger_key_positions = positions
 
         # Boolean properties (property presence indicates True)
         if node.get_property("hold-trigger-on-release"):
@@ -431,8 +456,8 @@ class ASTBehaviorConverter:
                 import re
 
                 # Remove outer angle brackets and split by comma
-                cleaned_raw = re.sub(r"<\s*([^>]+)\s*>", r"\1", raw_value)
-                parts = [part.strip() for part in cleaned_raw.split(",")]
+                cleaned_raw = re.sub(r'<\s*([^>]+)\s*>', r'\1', raw_value)
+                parts = [part.strip() for part in cleaned_raw.split(',')]
 
                 result = []
                 for part in parts:
@@ -469,14 +494,10 @@ class ASTBehaviorConverter:
                                 bindings.append(binding)
                             except Exception as e:
                                 self.logger.warning(
-                                    "Failed to parse macro binding '%s': %s",
-                                    cleaned_value,
-                                    e,
+                                    "Failed to parse macro binding '%s': %s", cleaned_value, e
                                 )
                                 # Create fallback binding
-                                bindings.append(
-                                    LayoutBinding(value=cleaned_value, params=[])
-                                )
+                                bindings.append(LayoutBinding(value=cleaned_value, params=[]))
             else:
                 # Fallback to raw parsing for non-array values
                 raw_value = prop.value.raw.strip()
@@ -484,8 +505,8 @@ class ASTBehaviorConverter:
                 import re
 
                 # Remove angle brackets and split by comma
-                cleaned_raw = re.sub(r"<\s*([^>]+)\s*>", r"\1", raw_value)
-                binding_parts = [part.strip() for part in cleaned_raw.split(",")]
+                cleaned_raw = re.sub(r'<\s*([^>]+)\s*>', r'\1', raw_value)
+                binding_parts = [part.strip() for part in cleaned_raw.split(',')]
 
                 for part in binding_parts:
                     if part and part.startswith("&"):
@@ -519,22 +540,48 @@ class ASTBehaviorConverter:
             return None
 
         try:
-            # For array values with single element, extract it
-            if prop.value.type == DTValueType.ARRAY and prop.value.value:
-                first_value = prop.value.value[0]
-                if isinstance(first_value, str) and first_value.strip():
-                    cleaned_value = first_value.strip()
-                    if cleaned_value.startswith("&"):
-                        return LayoutBinding.from_str(cleaned_value)
-            else:
-                # Fallback to raw parsing
-                raw_value = prop.value.raw.strip()
-                # Remove angle brackets properly
-                import re
-
-                cleaned_raw = re.sub(r"<\s*([^>]+)\s*>", r"\1", raw_value).strip()
-                if cleaned_raw and cleaned_raw.startswith("&"):
+            # Debug: log the raw value and array value 
+            self.logger.debug(
+                "Processing combo binding - raw: '%s', type: %s", 
+                prop.value.raw if prop.value else "None", 
+                prop.value.type if prop.value else "None"
+            )
+            if prop.value and prop.value.type == DTValueType.ARRAY:
+                self.logger.debug("Array value: %s", prop.value.value)
+            
+            # Try raw parsing first to preserve complex nested structures like LG(LA(LC(LSHFT)))
+            raw_value = prop.value.raw.strip()
+            # Remove angle brackets properly
+            import re
+            cleaned_raw = re.sub(r'<\s*([^>]+)\s*>', r'\1', raw_value).strip()
+            
+            # Check if this looks like a malformed nested structure before parsing
+            if cleaned_raw and cleaned_raw.startswith("&"):
+                # If it contains spaced parentheses, fix them and try parsing
+                if "( " in cleaned_raw or " )" in cleaned_raw:
+                    self.logger.debug("Raw value has spaced parentheses, attempting to fix and parse directly")
+                    # Fix the spaced parentheses by removing spaces around them
+                    fixed_raw = cleaned_raw.replace(" ( ", "(").replace(" )", ")")
+                    try:
+                        return LayoutBinding.from_str(fixed_raw)
+                    except Exception as e:
+                        self.logger.debug("Failed to parse fixed raw value '%s': %s", fixed_raw, e)
+                        # Fall through to array reconstruction
+                else:
                     return LayoutBinding.from_str(cleaned_raw)
+            
+            # Fallback to array parsing for simpler cases
+            if prop.value.type == DTValueType.ARRAY and prop.value.value:
+                # Reconstruct complete binding string from array elements
+                binding_parts = []
+                for value in prop.value.value:
+                    if isinstance(value, str) and value.strip():
+                        binding_parts.append(str(value).strip())
+                
+                if binding_parts and binding_parts[0].startswith("&"):
+                    # Smart reconstruction for nested function calls
+                    complete_binding = self._reconstruct_nested_function_call(binding_parts)
+                    return LayoutBinding.from_str(complete_binding)
 
             # Return fallback binding
             return LayoutBinding(value="&none", params=[])
@@ -544,6 +591,74 @@ class ASTBehaviorConverter:
             )
             # Return fallback binding
             return LayoutBinding(value="&none", params=[])
+
+    def _reconstruct_nested_function_call(self, parts: list[str]) -> str:
+        """Reconstruct nested function call from tokenized parts.
+        
+        Converts ['&sk', 'LG', '(', 'LA', '(', 'LC', '(', 'LSHFT', ')', ')', ')']
+        to '&sk LG(LA(LC(LSHFT)))'
+        
+        Args:
+            parts: List of string tokens
+            
+        Returns:
+            Reconstructed function call string
+        """
+        if not parts:
+            return ""
+        
+        # Simple case: no parentheses, just join with spaces
+        if '(' not in parts and ')' not in parts:
+            return " ".join(parts)
+        
+        # Complex case: reconstruct nested function calls
+        result = []
+        i = 0
+        
+        while i < len(parts):
+            part = parts[i]
+            
+            # If we find an opening parenthesis after a function name
+            if i + 1 < len(parts) and parts[i + 1] == '(':
+                # This is a function call, find the matching closing parenthesis
+                func_name = part
+                paren_depth = 0
+                j = i + 1
+                func_parts = []
+                
+                while j < len(parts):
+                    if parts[j] == '(':
+                        paren_depth += 1
+                        if paren_depth == 1:
+                            # Skip the opening parenthesis
+                            pass
+                        else:
+                            func_parts.append(parts[j])
+                    elif parts[j] == ')':
+                        paren_depth -= 1
+                        if paren_depth == 0:
+                            # Found matching closing parenthesis
+                            break
+                        else:
+                            func_parts.append(parts[j])
+                    else:
+                        func_parts.append(parts[j])
+                    j += 1
+                
+                # Recursively reconstruct the function arguments
+                if func_parts:
+                    inner_call = self._reconstruct_nested_function_call(func_parts)
+                    result.append(f"{func_name}({inner_call})")
+                else:
+                    result.append(f"{func_name}()")
+                
+                i = j + 1  # Skip past the closing parenthesis
+            else:
+                # Regular part, add as-is
+                result.append(part)
+                i += 1
+        
+        return " ".join(result)
 
 
 def create_ast_behavior_converter() -> ASTBehaviorConverter:
