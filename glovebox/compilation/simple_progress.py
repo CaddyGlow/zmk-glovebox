@@ -393,7 +393,7 @@ class SimpleProgressCoordinator:
             desc += f" ({progress_info})"
         self._progress.description = desc
         self.display.update(self._progress)
-        
+
         # Also print the cache operation as a log message
         self.display.print_log(f"Cache: {desc}", "info")
 

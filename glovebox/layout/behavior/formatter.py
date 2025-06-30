@@ -49,7 +49,9 @@ class BehaviorFormatterImpl:
         self._init_behavior_class_map()
         self._init_modifier_map()
 
-    def set_behavior_reference_context(self, is_behavior_reference_context: bool) -> None:
+    def set_behavior_reference_context(
+        self, is_behavior_reference_context: bool
+    ) -> None:
         """Set whether we're formatting bindings for behavior definitions.
 
         Args:

@@ -239,9 +239,9 @@ class TestZmkKeymapParser:
         # Test simple parentheses case: LC(X) tokenized as ["LC", "(", "X", ")"]
         binding_values = ["&kp", "LC", "(", "X", ")"]
         bindings_value = DTValue(type=DTValueType.ARRAY, value=binding_values, raw="")
-        
+
         bindings = parser._convert_ast_bindings(bindings_value)
-        
+
         assert len(bindings) == 1
         assert bindings[0].value == "&kp"
         assert len(bindings[0].params) == 1
@@ -256,9 +256,9 @@ class TestZmkKeymapParser:
         # Test nested parentheses: LC(LS(X)) tokenized as ["LC", "(", "LS", "(", "X", ")", ")"]
         binding_values = ["&kp", "LC", "(", "LS", "(", "X", ")", ")"]
         bindings_value = DTValue(type=DTValueType.ARRAY, value=binding_values, raw="")
-        
+
         bindings = parser._convert_ast_bindings(bindings_value)
-        
+
         assert len(bindings) == 1
         assert bindings[0].value == "&kp"
         assert len(bindings[0].params) == 1
@@ -274,25 +274,32 @@ class TestZmkKeymapParser:
 
         # Mix of regular and parenthesized bindings
         binding_values = [
-            "&kp", "Q",           # Simple binding
-            "&kp", "LC", "(", "X", ")",  # Parenthesized binding
-            "&mt", "LSHIFT", "A", # Multi-param binding
+            "&kp",
+            "Q",  # Simple binding
+            "&kp",
+            "LC",
+            "(",
+            "X",
+            ")",  # Parenthesized binding
+            "&mt",
+            "LSHIFT",
+            "A",  # Multi-param binding
         ]
         bindings_value = DTValue(type=DTValueType.ARRAY, value=binding_values, raw="")
-        
+
         bindings = parser._convert_ast_bindings(bindings_value)
-        
+
         assert len(bindings) == 3
-        
+
         # First binding: &kp Q
         assert bindings[0].value == "&kp"
         assert bindings[0].params[0].value == "Q"
-        
+
         # Second binding: &kp LC(X)
         assert bindings[1].value == "&kp"
         assert bindings[1].params[0].value == "LC"
         assert bindings[1].params[0].params[0].value == "X"
-        
+
         # Third binding: &mt LSHIFT A
         assert bindings[2].value == "&mt"
         assert len(bindings[2].params) == 2
@@ -302,13 +309,15 @@ class TestZmkKeymapParser:
     def test_reconstruct_binding_with_parentheses_simple(self, parser):
         """Test the helper method for simple parentheses reconstruction."""
         # Simple case
-        result = parser._reconstruct_binding_with_parentheses(["&kp", "LC", "(", "X", ")"])
+        result = parser._reconstruct_binding_with_parentheses(
+            ["&kp", "LC", "(", "X", ")"]
+        )
         assert result == "&kp LC(X)"
-        
+
         # No parentheses
         result = parser._reconstruct_binding_with_parentheses(["&kp", "Q"])
         assert result == "&kp Q"
-        
+
         # Empty parentheses
         result = parser._reconstruct_binding_with_parentheses(["&kp", "LC", "(", ")"])
         assert result == "&kp LC()"
@@ -320,7 +329,7 @@ class TestZmkKeymapParser:
             ["&kp", "LC", "(", "LS", "(", "X", ")", ")"]
         )
         assert result == "&kp LC(LS(X))"
-        
+
         # Multiple parenthesized parameters
         result = parser._reconstruct_binding_with_parentheses(
             ["&macro", "PARAM1", "(", "A", ")", "PARAM2", "(", "B", ")"]

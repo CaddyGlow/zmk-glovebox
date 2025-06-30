@@ -66,16 +66,20 @@ class DTTokenizer:
             TokenType.COMMENT,
             r"/\*[\s\S]*?\*/",
         ),  # [\s\S] matches any character including newlines
-        # Preprocessor directives
-        (TokenType.PREPROCESSOR, r"#\w+.*?(?=\n|$)"),
+        # Preprocessor directives (but not property names starting with #)
+        # Match #include, #ifdef, #define, etc. but not #binding-cells, #address-cells
+        (
+            TokenType.PREPROCESSOR,
+            r"#(?:include|ifdef|ifndef|if|else|elif|endif|define|undef)\b.*?(?=\n|$)",
+        ),
         # String literals
         (TokenType.STRING, r'"([^"\\]|\\.)*"'),
         # Numbers (hex, decimal)
         (TokenType.NUMBER, r"0x[0-9a-fA-F]+|[0-9]+"),
         # References
         (TokenType.REFERENCE, r"&[a-zA-Z_][a-zA-Z0-9_]*"),
-        # Identifiers and keywords
-        (TokenType.IDENTIFIER, r"[a-zA-Z_][a-zA-Z0-9_-]*"),
+        # Identifiers and keywords (including property names starting with #)
+        (TokenType.IDENTIFIER, r"#?[a-zA-Z_][a-zA-Z0-9_-]*"),
         # Symbols
         (TokenType.LBRACE, r"\{"),
         (TokenType.RBRACE, r"\}"),
