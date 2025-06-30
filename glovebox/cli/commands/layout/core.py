@@ -123,9 +123,7 @@ def compile_layout(
         )
 
         # Resolve input source (file, stdin, or environment variable)
-        input_source = resolve_input_source_with_env(
-            json_file, "GLOVEBOX_JSON_FILE"
-        )
+        input_source = resolve_input_source_with_env(json_file, "GLOVEBOX_JSON_FILE")
 
         if input_source is None:
             raise ValueError(

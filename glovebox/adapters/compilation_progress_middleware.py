@@ -12,8 +12,10 @@ from glovebox.utils.stream_process import OutputMiddleware
 
 
 if TYPE_CHECKING:
-    from glovebox.protocols.progress_coordinator_protocol import ProgressCoordinatorProtocol
     from glovebox.compilation.models.compilation_config import ProgressPhasePatterns
+    from glovebox.protocols.progress_coordinator_protocol import (
+        ProgressCoordinatorProtocol,
+    )
 
 
 logger = logging.getLogger(__name__)
@@ -183,15 +185,15 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
             # Don't let progress tracking break the compilation
             logger.warning("Error processing compilation progress: %s", e)
 
-        # Forward interesting Docker output to the TUI display
+        # Forward interesting Docker output to the progress display
         # This captures build tool output (west, cmake, gcc) that doesn't go through glovebox loggers
         try:
-            if (
-                hasattr(self.progress_coordinator, "tui_callback")
-                and hasattr(self.progress_coordinator.tui_callback, "add_log_line")
-                and self._should_forward_docker_output(line_stripped)
-            ):
-                self.progress_coordinator.tui_callback.add_log_line(line_stripped)
+            if hasattr(
+                self.progress_coordinator, "print_docker_log"
+            ) and self._should_forward_docker_output(line_stripped):
+                # Determine log level based on content
+                log_level = self._determine_log_level(line_stripped)
+                self.progress_coordinator.print_docker_log(line_stripped, log_level)
         except Exception as e:
             # Don't let log forwarding break the compilation
             logger.debug("Error forwarding Docker output to display: %s", e)
@@ -276,6 +278,32 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
         ]
 
         return any(pattern in line for pattern in interesting_patterns)
+
+    def _determine_log_level(self, line: str) -> str:
+        """Determine the appropriate log level for a Docker output line.
+
+        Args:
+            line: The Docker output line
+
+        Returns:
+            Log level string (error, warning, info, debug)
+        """
+        line_lower = line.lower()
+
+        # Error indicators
+        if any(keyword in line_lower for keyword in ["error", "failed", "✗", "fatal"]):
+            return "error"
+
+        # Warning indicators
+        if any(keyword in line_lower for keyword in ["warning", "warn", "deprecated"]):
+            return "warning"
+
+        # Debug indicators (very verbose output)
+        if any(keyword in line_lower for keyword in ["debug", "verbose", "trace"]):
+            return "debug"
+
+        # Default to info level
+        return "info"
 
     def _detect_initialization_type(self, line: str) -> str | None:
         """Detect whether the initialization is cache restore or west init.

@@ -207,6 +207,26 @@ class SimpleCompilationDisplay:
             border_style="blue",
         )
 
+    def print_log(self, message: str, level: str = "info") -> None:
+        """Print a log message through the console, above the progress display.
+
+        Args:
+            message: The log message to display
+            level: Log level (info, warning, error, debug)
+        """
+        # Style the message based on level
+        if level == "error":
+            styled_message = f"[red]ERROR:[/red] {message}"
+        elif level == "warning":
+            styled_message = f"[yellow]WARNING:[/yellow] {message}"
+        elif level == "debug":
+            styled_message = f"[dim]DEBUG:[/dim] {message}"
+        else:
+            styled_message = message
+
+        # Print through the console so it appears above the live display
+        self.console.print(styled_message)
+
     def _get_status_icon(self, status: str) -> str:
         """Get the status icon for a task.
 
@@ -387,6 +407,15 @@ class SimpleProgressCoordinator:
         """Update Nix environment build progress (MoErgo specific)."""
         self._progress.description = f"Nix build: {operation}"
         self.display.update(self._progress)
+
+    def print_docker_log(self, message: str, level: str = "info") -> None:
+        """Print a Docker log message through the display console.
+
+        Args:
+            message: The log message from Docker
+            level: Log level (info, warning, error, debug)
+        """
+        self.display.print_log(message, level)
 
     def get_current_progress(self) -> CompilationProgress:
         """Get the current unified progress state."""

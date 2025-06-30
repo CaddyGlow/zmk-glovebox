@@ -7,8 +7,16 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-from glovebox.cli.decorators import handle_errors, with_cache, with_metrics
-from glovebox.cli.decorators.profile import get_cache_manager_from_context
+from glovebox.cli.decorators import (
+    handle_errors,
+    with_cache,
+    with_metrics,
+    with_user_config,
+)
+from glovebox.cli.decorators.profile import (
+    get_cache_manager_from_context,
+    get_user_config_from_context_decorator,
+)
 from glovebox.config.user_config import create_user_config
 
 from .utils import (
@@ -27,6 +35,7 @@ console = Console()
 @handle_errors
 @with_metrics("cache_clear")
 @with_cache("cache", required=False)
+@with_user_config(required=True)
 def cache_clear(
     ctx: typer.Context,
     module: Annotated[
@@ -52,7 +61,7 @@ def cache_clear(
     and age-based cleanup using the cache system.
     """
     try:
-        user_config = create_user_config()
+        user_config = get_user_config_from_context_decorator(ctx)
         diskcache_root = user_config._config.cache_path
 
         if module:

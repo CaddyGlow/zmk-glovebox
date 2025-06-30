@@ -3,6 +3,7 @@
 import logging
 from collections.abc import Callable
 from functools import wraps
+from pathlib import Path
 from typing import Any
 
 import typer
@@ -169,7 +170,9 @@ def with_metrics(
 
             if not isinstance(ctx, Context):
                 # If no context, run function without metrics
-                logger.debug("No context found for metrics tracking in %s", func.__name__)
+                logger.debug(
+                    "No context found for metrics tracking in %s", func.__name__
+                )
                 return func(*args, **kwargs)
 
             try:
@@ -178,7 +181,9 @@ def with_metrics(
 
                 app_ctx: AppContext = ctx.obj
                 if not hasattr(app_ctx, "session_metrics"):
-                    logger.debug("No session metrics available in context for %s", func.__name__)
+                    logger.debug(
+                        "No session metrics available in context for %s", func.__name__
+                    )
                     return func(*args, **kwargs)
 
                 metrics = app_ctx.session_metrics
@@ -316,19 +321,19 @@ def with_cache(
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            # Extract typer context
-            ctx = None
-            for arg in args:
-                if isinstance(arg, typer.Context):
-                    ctx = arg
-                    break
-
+            # Find the Context object from the arguments (same pattern as with_metrics)
+            ctx = next((arg for arg in args if isinstance(arg, Context)), None)
             if ctx is None:
+                ctx = kwargs.get("ctx")
+
+            if not isinstance(ctx, Context):
                 if required:
-                    logger.error("Cache decorator requires typer.Context as first argument")
+                    logger.error("Cache decorator requires typer.Context as argument")
                     raise typer.Exit(1)
                 else:
-                    logger.warning("Cache decorator could not find typer.Context, skipping cache setup")
+                    logger.warning(
+                        "Cache decorator could not find typer.Context, skipping cache setup"
+                    )
                     return func(*args, **kwargs)
 
             try:
@@ -345,16 +350,18 @@ def with_cache(
 
                 # Create cache manager using user config
                 if user_config:
-                    from glovebox.core.cache_v2 import create_cache_from_user_config
+                    from glovebox.core.cache import create_cache_from_user_config
 
                     cache_manager = create_cache_from_user_config(
                         user_config, tag=tag, session_metrics=session_metrics
                     )
                 else:
                     # Fallback to default cache if user_config not available
-                    from glovebox.core.cache_v2 import create_default_cache
+                    from glovebox.core.cache import create_default_cache
 
-                    cache_manager = create_default_cache(tag=tag, session_metrics=session_metrics)
+                    cache_manager = create_default_cache(
+                        tag=tag, session_metrics=session_metrics
+                    )
 
                 # Store cache manager in context for helper function access
                 if not hasattr(ctx, "cache_objects"):
@@ -369,22 +376,33 @@ def with_cache(
                             create_compilation_cache_service,
                         )
 
+                        if user_config is None:
+                            raise ValueError(
+                                "User config is required for compilation cache services"
+                            )
+
                         cache_manager_comp, workspace_service, build_service = (
-                            create_compilation_cache_service(user_config, session_metrics)
+                            create_compilation_cache_service(
+                                user_config, session_metrics
+                            )
                         )
 
                         # Store compilation cache services in context
-                        ctx.cache_objects["compilation_cache_manager"] = cache_manager_comp
-                        ctx.cache_objects["workspace_cache_service"] = workspace_service
-                        ctx.cache_objects["build_cache_service"] = build_service
+                        cache_objects = ctx.cache_objects
+                        cache_objects["compilation_cache_manager"] = cache_manager_comp
+                        cache_objects["workspace_cache_service"] = workspace_service
+                        cache_objects["build_cache_service"] = build_service
 
                     except Exception as e:
                         if required:
-                            logger.error("Failed to create compilation cache services: %s", e)
+                            logger.error(
+                                "Failed to create compilation cache services: %s", e
+                            )
                             raise typer.Exit(1) from e
                         else:
                             logger.warning(
-                                "Failed to create compilation cache services, continuing without cache: %s", e
+                                "Failed to create compilation cache services, continuing without cache: %s",
+                                e,
                             )
 
                 logger.debug("Cache services created successfully with tag: %s", tag)
@@ -394,7 +412,10 @@ def with_cache(
                     logger.error("Failed to create cache services: %s", e)
                     raise typer.Exit(1) from e
                 else:
-                    logger.warning("Failed to create cache services, continuing without cache: %s", e)
+                    logger.warning(
+                        "Failed to create cache services, continuing without cache: %s",
+                        e,
+                    )
 
             return func(*args, **kwargs)
 
@@ -410,35 +431,59 @@ def get_cache_manager_from_context(ctx: typer.Context) -> Any:
         ctx: Typer context with cache objects
 
     Returns:
-        CacheManager instance or None if not available
+        CacheManager instance
+
+    Raises:
+        RuntimeError: If cache manager is not available in context
     """
     try:
-        return getattr(ctx, "cache_objects", {}).get("cache_manager")
-    except Exception:
-        return None
+        cache_manager = getattr(ctx, "cache_objects", {}).get("cache_manager")
+        if cache_manager is None:
+            raise RuntimeError(
+                "Cache manager not available in context. Ensure @with_cache decorator is applied."
+            )
+        return cache_manager
+    except Exception as e:
+        if isinstance(e, RuntimeError):
+            raise
+        raise RuntimeError("Failed to retrieve cache manager from context") from e
 
 
-def get_compilation_cache_services_from_context(ctx: typer.Context) -> tuple[Any, Any, Any]:
+def get_compilation_cache_services_from_context(
+    ctx: typer.Context,
+) -> tuple[Any, Any, Any]:
     """Helper function to get compilation cache services from context.
 
     Args:
         ctx: Typer context with cache objects
 
     Returns:
-        Tuple of (cache_manager, workspace_service, build_service) or (None, None, None)
+        Tuple of (cache_manager, workspace_service, build_service)
+
+    Raises:
+        RuntimeError: If compilation cache services are not available in context
     """
     try:
         cache_objects = getattr(ctx, "cache_objects", {})
-        return (
-            cache_objects.get("compilation_cache_manager"),
-            cache_objects.get("workspace_cache_service"),
-            cache_objects.get("build_cache_service"),
-        )
-    except Exception:
-        return None, None, None
+        cache_manager = cache_objects.get("compilation_cache_manager")
+        workspace_service = cache_objects.get("workspace_cache_service")
+        build_service = cache_objects.get("build_cache_service")
+
+        if cache_manager is None or workspace_service is None or build_service is None:
+            raise RuntimeError(
+                "Compilation cache services not available in context. Ensure @with_cache decorator is applied with compilation_cache=True."
+            )
+
+        return cache_manager, workspace_service, build_service
+    except Exception as e:
+        if isinstance(e, RuntimeError):
+            raise
+        raise RuntimeError(
+            "Failed to retrieve compilation cache services from context"
+        ) from e
 
 
-def with_tmp_dir(
+def with_tmpdir(
     prefix: str = "glovebox_",
     suffix: str = "",
     cleanup: bool = True,
@@ -462,30 +507,30 @@ def with_tmp_dir(
         Decorated function with automatic temporary directory handling
 
     Example:
-        @with_tmp_dir(prefix="firmware_build_", cleanup=True)
+        @with_tmpdir(prefix="firmware_build_", cleanup=True)
         def compile_command(ctx: typer.Context, ...):
             # Access temp directory from context
-            tmp_dir = get_tmp_dir_from_context(ctx)
+            tmp_dir = get_tmpdir_from_context(ctx)
             # Use tmp_dir for temporary files...
 
-        @with_tmp_dir(prefix="layout_work_", suffix="_processing")
+        @with_tmpdir(prefix="layout_work_", suffix="_processing")
         def process_layout(ctx: typer.Context, ...):
-            tmp_dir = get_tmp_dir_from_context(ctx)
+            tmp_dir = get_tmpdir_from_context(ctx)
             work_files = tmp_dir / "processing"
     """
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            # Extract typer context
-            ctx = None
-            for arg in args:
-                if isinstance(arg, typer.Context):
-                    ctx = arg
-                    break
-
+            # Find the Context object from the arguments (same pattern as with_metrics)
+            ctx = next((arg for arg in args if isinstance(arg, Context)), None)
             if ctx is None:
-                logger.warning("Temp directory decorator could not find typer.Context, skipping temp dir setup")
+                ctx = kwargs.get("ctx")
+
+            if not isinstance(ctx, Context):
+                logger.warning(
+                    "Temp directory decorator could not find typer.Context, skipping temp dir setup"
+                )
                 return func(*args, **kwargs)
 
             import tempfile
@@ -517,13 +562,14 @@ def with_tmp_dir(
                 if cleanup and tmp_dir and tmp_dir.exists():
                     try:
                         import shutil
+
                         shutil.rmtree(tmp_dir)
                         logger.debug("Cleaned up temporary directory: %s", tmp_dir)
                     except Exception as cleanup_error:
                         logger.warning(
                             "Failed to clean up temporary directory %s: %s",
                             tmp_dir,
-                            cleanup_error
+                            cleanup_error,
                         )
 
         return wrapper
@@ -531,18 +577,165 @@ def with_tmp_dir(
     return decorator
 
 
-def get_tmp_dir_from_context(ctx: typer.Context) -> Any:
+def get_tmpdir_from_context(ctx: typer.Context) -> Path:
     """Helper function to get temporary directory from context.
 
     Args:
         ctx: Typer context with tmp objects
 
     Returns:
-        Path to temporary directory or None if not available
+        Path to temporary directory
+
+    Raises:
+        RuntimeError: If temporary directory is not available in context
     """
     try:
-        from pathlib import Path
         tmp_dir = getattr(ctx, "tmp_objects", {}).get("tmp_dir")
-        return Path(tmp_dir) if tmp_dir else None
-    except Exception:
-        return None
+        if tmp_dir is None:
+            raise RuntimeError(
+                "Temporary directory not available in context. Ensure @with_tmpdir decorator is applied."
+            )
+        return Path(tmp_dir)
+    except Exception as e:
+        if isinstance(e, RuntimeError):
+            raise
+        raise RuntimeError("Failed to retrieve temporary directory from context") from e
+
+
+def with_user_config(
+    required: bool = True,
+    fallback_to_default: bool = True,
+    config_param_name: str = "user_config",
+) -> Callable[..., Any]:
+    """Decorator to automatically handle user config creation and validation.
+
+    This decorator simplifies CLI commands that need user configuration by:
+    1. Extracting user config from context with optional fallback to default
+    2. Validating config creation and handling errors consistently
+    3. Storing user config in context for retrieval via helper functions
+    4. Following CLAUDE.md exception logging patterns
+
+    Args:
+        required: If True, config creation errors cause command failure
+        fallback_to_default: If True, falls back to create_user_config() when context fails
+        config_param_name: Name of the config parameter (currently unused, for future expansion)
+
+    Returns:
+        Decorated function with automatic user config handling
+
+    Example:
+        @with_user_config(required=True)
+        def my_command(ctx: typer.Context, ...):
+            # Access user config from context
+            user_config = get_user_config_from_context_decorator(ctx)
+
+        @with_user_config(required=False, fallback_to_default=False)
+        def optional_config_command(ctx: typer.Context, ...):
+            user_config = get_user_config_from_context_decorator(ctx)
+            if user_config is None:
+                # Handle no config case
+                pass
+    """
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        @wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            # Find the Context object from the arguments (same pattern as other decorators)
+            ctx = next((arg for arg in args if isinstance(arg, Context)), None)
+            if ctx is None:
+                ctx = kwargs.get("ctx")
+
+            if not isinstance(ctx, Context):
+                if required:
+                    logger.error(
+                        "User config decorator requires typer.Context as argument"
+                    )
+                    raise typer.Exit(1)
+                else:
+                    logger.warning(
+                        "User config decorator could not find typer.Context, skipping config setup"
+                    )
+                    return func(*args, **kwargs)
+
+            try:
+                # Try to get user config from context first
+                from glovebox.cli.helpers.profile import get_user_config_from_context
+
+                user_config = get_user_config_from_context(ctx)
+
+                # If no config in context and fallback is enabled, create default
+                if user_config is None and fallback_to_default:
+                    try:
+                        from glovebox.config import create_user_config
+
+                        user_config = create_user_config()
+                        logger.debug("Created fallback user config instance")
+                    except Exception as e:
+                        exc_info = logger.isEnabledFor(logging.DEBUG)
+                        logger.error(
+                            "Failed to create fallback user config: %s",
+                            e,
+                            exc_info=exc_info,
+                        )
+                        if required:
+                            raise typer.Exit(1) from e
+                        else:
+                            user_config = None
+
+                # Handle required config validation
+                if required and user_config is None:
+                    logger.error("User config is required but not available")
+                    raise typer.Exit(1)
+
+                # Store user config in context for helper function access
+                if not hasattr(ctx, "config_objects"):
+                    ctx.config_objects = {}
+
+                ctx.config_objects["user_config"] = user_config
+
+                logger.debug("User config successfully set up for command")
+
+            except typer.Exit:
+                # Re-raise exit exceptions
+                raise
+            except Exception as e:
+                exc_info = logger.isEnabledFor(logging.DEBUG)
+                logger.error("Failed to set up user config: %s", e, exc_info=exc_info)
+                if required:
+                    raise typer.Exit(1) from e
+                else:
+                    logger.warning("Continuing without user config due to error: %s", e)
+
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+def get_user_config_from_context_decorator(ctx: typer.Context) -> Any:
+    """Helper function to get user config from context (decorator version).
+
+    This is different from get_user_config_from_context in helpers/profile.py
+    as it retrieves config stored by the @with_user_config decorator.
+
+    Args:
+        ctx: Typer context with config objects
+
+    Returns:
+        UserConfig instance
+
+    Raises:
+        RuntimeError: If user config is not available in context
+    """
+    try:
+        user_config = getattr(ctx, "config_objects", {}).get("user_config")
+        if user_config is None:
+            raise RuntimeError(
+                "User config not available in context. Ensure @with_user_config decorator is applied."
+            )
+        return user_config
+    except Exception as e:
+        if isinstance(e, RuntimeError):
+            raise
+        raise RuntimeError("Failed to retrieve user config from context") from e

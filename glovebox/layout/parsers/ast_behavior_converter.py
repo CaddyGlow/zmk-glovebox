@@ -37,6 +37,10 @@ class ASTBehaviorConverter:
                 self.logger.warning("Hold-tap node missing name/label")
                 return None
 
+            # Add '&' prefix if not present
+            if not name.startswith("&"):
+                name = f"&{name}"
+
             # Get description from comments or properties
             description = self._extract_description_from_node(node)
 
@@ -73,6 +77,10 @@ class ASTBehaviorConverter:
             if not name:
                 self.logger.warning("Macro node missing name/label")
                 return None
+
+            # Add '&' prefix if not present
+            if not name.startswith("&"):
+                name = f"&{name}"
 
             # Get description from comments or properties
             description = self._extract_description_from_node(node)

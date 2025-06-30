@@ -7,9 +7,6 @@ from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
 
-    class BehaviorParserProtocol(Protocol):
-        pass
-
     class BehaviorExtractorProtocol(Protocol):
         def extract_behaviors_as_models(
             self, roots: list, content: str
@@ -17,7 +14,6 @@ if TYPE_CHECKING:
 
 
 from .ast_walker import create_universal_behavior_extractor_with_converter
-from .behavior_parser import create_behavior_parser
 from .dt_parser import parse_dt_safe
 from .parsing_models import (
     ExtractedSection,
@@ -32,12 +28,10 @@ class SectionExtractor:
 
     def __init__(
         self,
-        behavior_parser: "BehaviorParserProtocol | None" = None,
         behavior_extractor: "BehaviorExtractorProtocol | None" = None,
     ) -> None:
         """Initialize section extractor with dependencies."""
         self.logger = logging.getLogger(__name__)
-        self.behavior_parser = behavior_parser or create_behavior_parser()
         self.behavior_extractor = (
             behavior_extractor or create_universal_behavior_extractor_with_converter()
         )
@@ -380,19 +374,16 @@ class SectionExtractor:
 
 
 def create_section_extractor(
-    behavior_parser: "BehaviorParserProtocol | None" = None,
     behavior_extractor: "BehaviorExtractorProtocol | None" = None,
 ) -> SectionExtractor:
     """Create a section extractor with AST converter for comment support.
 
     Args:
-        behavior_parser: Optional behavior parser (uses factory if None)
         behavior_extractor: Optional behavior extractor (uses factory if None)
 
     Returns:
         Configured SectionExtractor instance with AST converter support
     """
     return SectionExtractor(
-        behavior_parser=behavior_parser,
         behavior_extractor=behavior_extractor,
     )

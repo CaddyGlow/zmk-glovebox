@@ -24,7 +24,6 @@ __version__ = distribution("glovebox").version
 logger = logging.getLogger(__name__)
 
 
-
 # Context object for sharing state
 class AppContext:
     """Application context for storing shared state."""
@@ -124,7 +123,6 @@ class AppContext:
 
             # Default to emoji if neither field exists
             return "emoji"
-
 
 
 # Create a custom exception handler that will print stack traces
