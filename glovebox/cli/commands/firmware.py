@@ -9,7 +9,7 @@ from typing import Annotated, Any
 
 import typer
 
-from glovebox.cli.decorators import handle_errors, with_profile, with_metrics
+from glovebox.cli.decorators import handle_errors, with_metrics, with_profile
 from glovebox.cli.helpers import (
     print_error_message,
     print_list_item,
@@ -466,6 +466,7 @@ cmake, make, and ninja build systems for custom keyboards.""",
 @firmware_app.command(name="compile")
 @handle_errors
 @with_profile(required=True, firmware_optional=False, support_auto_detection=True)
+@with_metrics("compile")
 def firmware_compile(
     ctx: typer.Context,
     input_file: Annotated[
@@ -579,130 +580,114 @@ def firmware_compile(
         glovebox firmware compile layout.json --profile glove80/v25.05 --output-format json
     """
 
-    # Access session metrics from CLI context
-    from glovebox.cli.app import AppContext
+    # Access user config and icon mode from CLI context
     from glovebox.cli.helpers.theme import get_icon_mode_from_context
 
-    app_ctx: AppContext = ctx.obj
-    metrics = app_ctx.session_metrics
     icon_mode = get_icon_mode_from_context(ctx)
 
-    # Track firmware compilation metrics
-    firmware_counter = metrics.Counter(
-        "firmware_operations_total",
-        "Total firmware operations",
-        ["operation", "status"],
-    )
-    firmware_duration = metrics.Histogram(
-        "firmware_operation_duration_seconds", "Firmware operation duration"
-    )
-
     try:
-        with firmware_duration.time():
-            # Determine if progress should be shown (default: enabled)
-            show_progress = progress if progress is not None else True
+        # Determine if progress should be shown (default: enabled)
+        show_progress = progress if progress is not None else True
 
-            # Create progress display and callback if progress is enabled
-            progress_display = None
-            progress_callback = None
-            if show_progress:
-                progress_display, progress_callback = (
-                    _create_compilation_progress_display(
-                        show_logs=show_logs, debug=debug
+        # Create progress display and callback if progress is enabled
+        progress_display = None
+        progress_callback = None
+        # if show_progress:
+        #     progress_display, progress_callback = _create_compilation_progress_display(
+        #         show_logs=show_logs, debug=debug
+        #     )
+        #
+        # # Resolve input file path (supports environment variable for JSON files)
+        # if progress_callback:
+        #     early_progress = CompilationProgress(
+        #         repositories_downloaded=5,
+        #         total_repositories=100,
+        #         current_repository="Resolving input file path...",
+        #         compilation_phase="initialization",
+        #     )
+        #     progress_callback(early_progress)
+
+        resolved_input_file = resolve_json_file_path(input_file, "GLOVEBOX_JSON_FILE")
+
+        if resolved_input_file is None:
+            if progress_callback and hasattr(progress_callback, "cleanup"):
+                progress_callback.cleanup()
+            print_error_message(
+                "Input file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
+            )
+            raise typer.Exit(1)
+
+        # Profile is already handled by the @with_profile decorator
+        keyboard_profile = get_keyboard_profile_from_context(ctx)
+
+        # Detect input file type and validate arguments
+        is_json_input = resolved_input_file.suffix.lower() == ".json"
+
+        if not is_json_input and config_file is None:
+            if progress_callback and hasattr(progress_callback, "cleanup"):
+                progress_callback.cleanup()
+            print_error_message("Config file is required when input is a .keymap file")
+            raise typer.Exit(1)
+
+        if is_json_input and config_file is not None:
+            logger.info(
+                "Config file provided for JSON input will be ignored (generated automatically)"
+            )
+
+        # Set output directory based on --output flag
+        if output is not None:
+            # --output flag provided: use specified directory (existing behavior)
+            build_output_dir = output
+            build_output_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            # No --output flag: use temporary directory for compilation
+            build_output_dir = Path(tempfile.mkdtemp(prefix="glovebox_build_"))
+
+        compilation_type, compile_config = _resolve_compilation_type(
+            keyboard_profile, strategy
+        )
+
+        # Update config with profile firmware settings
+        _update_config_from_profile(compile_config, keyboard_profile)
+
+        # Execute compilation
+        logger.info("🚀 Starting firmware compilation...")
+
+        from glovebox.cli.progress.displays.staged_with_logs import (
+            StagedProgressWithLogsDisplay,
+        )
+
+        progress_display = StagedProgressWithLogsDisplay(progress_callback)
+        # Use progress display as context manager if enabled
+        if progress_display is not None:
+            with progress_display:
+                # Execute compilation based on input type
+                if is_json_input:
+                    result = _execute_compilation_from_json(
+                        compilation_type,
+                        resolved_input_file,
+                        build_output_dir,
+                        compile_config,
+                        keyboard_profile,
+                        session_metrics=ctx.obj.session_metrics,
+                        user_config=get_user_config_from_context(ctx),
+                        progress_callback=progress_callback,
                     )
-                )
-
-            # Resolve input file path (supports environment variable for JSON files)
-            if progress_callback:
-                early_progress = CompilationProgress(
-                    repositories_downloaded=5,
-                    total_repositories=100,
-                    current_repository="Resolving input file path...",
-                    compilation_phase="initialization",
-                )
-                progress_callback(early_progress)
-
-            resolved_input_file = resolve_json_file_path(
-                input_file, "GLOVEBOX_JSON_FILE"
-            )
-
-            if resolved_input_file is None:
-                if progress_callback and hasattr(progress_callback, "cleanup"):
-                    progress_callback.cleanup()
-                print_error_message(
-                    "Input file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
-                )
-                raise typer.Exit(1)
-
-            # Use unified profile resolution with auto-detection support
-            if progress_callback:
-                early_progress = CompilationProgress(
-                    repositories_downloaded=15,
-                    total_repositories=100,
-                    current_repository="Resolving keyboard profile...",
-                    compilation_phase="initialization",
-                )
-                progress_callback(early_progress)
-
-            # Profile is already handled by the @with_profile decorator
-            keyboard_profile = get_keyboard_profile_from_context(ctx)
-
-            # Detect input file type and validate arguments
-            is_json_input = resolved_input_file.suffix.lower() == ".json"
-
-            if not is_json_input and config_file is None:
-                if progress_callback and hasattr(progress_callback, "cleanup"):
-                    progress_callback.cleanup()
-                print_error_message(
-                    "Config file is required when input is a .keymap file"
-                )
-                raise typer.Exit(1)
-
-            if is_json_input and config_file is not None:
-                logger.info(
-                    "Config file provided for JSON input will be ignored (generated automatically)"
-                )
-
-            # Set output directory based on --output flag
-            if output is not None:
-                # --output flag provided: use specified directory (existing behavior)
-                build_output_dir = output
-                build_output_dir.mkdir(parents=True, exist_ok=True)
-            else:
-                # No --output flag: use temporary directory for compilation
-                build_output_dir = Path(tempfile.mkdtemp(prefix="glovebox_build_"))
-
-            # Resolve compilation strategy and configuration
-            if progress_callback:
-                early_progress = CompilationProgress(
-                    repositories_downloaded=25,
-                    total_repositories=100,
-                    current_repository="Resolving compilation strategy...",
-                    compilation_phase="initialization",
-                )
-                progress_callback(early_progress)
-
-            compilation_type, compile_config = _resolve_compilation_type(
-                keyboard_profile, strategy
-            )
-
-            # Update config with profile firmware settings
-            _update_config_from_profile(compile_config, keyboard_profile)
-
-            # Update progress before starting actual compilation
-            if progress_callback:
-                compilation_start_progress = CompilationProgress(
-                    repositories_downloaded=50,
-                    total_repositories=100,
-                    current_repository="Starting compilation...",
-                    compilation_phase="initialization",
-                )
-                progress_callback(compilation_start_progress)
-
-            # Execute compilation
-            logger.info("🚀 Starting firmware compilation...")
-
-            # Execute compilation based on input type
+                else:
+                    assert config_file is not None  # Already validated above
+                    result = _execute_compilation_service(
+                        compilation_type,
+                        resolved_input_file,  # keymap_file
+                        config_file,  # kconfig_file
+                        build_output_dir,
+                        compile_config,
+                        keyboard_profile,
+                        session_metrics=ctx.obj.session_metrics,
+                        user_config=get_user_config_from_context(ctx),
+                        progress_callback=progress_callback,
+                    )
+        else:
+            # Execute compilation without progress display
             if is_json_input:
                 result = _execute_compilation_from_json(
                     compilation_type,
@@ -734,18 +719,12 @@ def firmware_compile(
         # Progress display cleanup is handled by context manager
 
         if result.success:
-            # Track successful compilation
-            firmware_counter.labels("compile", "success").inc()
-
             # Process compilation output (create .uf2 and _artefacts.zip if --output not provided)
             _process_compilation_output(result, resolved_input_file, output)
 
             # Format and display results
             _format_compilation_output(result, output_format, build_output_dir)
         else:
-            # Track failed compilation
-            firmware_counter.labels("compile", "failure").inc()
-
             # Format and display results
             _format_compilation_output(result, output_format, build_output_dir)
 
@@ -766,8 +745,6 @@ def firmware_compile(
         if progress_callback and hasattr(progress_callback, "cleanup"):
             progress_callback.cleanup()
 
-        # Track exception errors
-        firmware_counter.labels("compile", "error").inc()
         print_error_message(f"Firmware compilation failed: {str(e)}")
         logger.exception("Compilation error details")
 
@@ -796,6 +773,7 @@ def firmware_compile(
 @firmware_app.command()
 @handle_errors
 @with_profile(required=True, firmware_optional=False)
+@with_metrics("flash")
 def flash(
     ctx: typer.Context,
     firmware_files: Annotated[
@@ -882,147 +860,126 @@ def flash(
                 show_progress: true
     """
 
-    # Access session metrics from CLI context
-    from glovebox.cli.app import AppContext
+    # Access icon mode from CLI context
     from glovebox.cli.helpers.theme import get_icon_mode_from_context
 
-    app_ctx: AppContext = ctx.obj
-    metrics = app_ctx.session_metrics
     icon_mode = get_icon_mode_from_context(ctx)
 
-    # Track firmware flash metrics
-    flash_counter = metrics.Counter(
-        "firmware_operations_total",
-        "Total firmware operations",
-        ["operation", "status"],
-    )
-    flash_duration = metrics.Histogram(
-        "firmware_operation_duration_seconds", "Firmware operation duration"
-    )
-
     try:
-        with flash_duration.time():
-            keyboard_profile = get_keyboard_profile_from_context(ctx)
+        keyboard_profile = get_keyboard_profile_from_context(ctx)
 
-            # Get user config from context (already loaded)
-            user_config = get_user_config_from_context(ctx)
+        # Get user config from context (already loaded)
+        user_config = get_user_config_from_context(ctx)
 
-            # Apply user config defaults for flash parameters
-            # CLI values override config values when explicitly provided
-            if user_config:
-                effective_timeout = (
-                    timeout
-                    if timeout != 60
-                    else user_config._config.firmware.flash.timeout
-                )
-                effective_count = (
-                    count if count != 2 else user_config._config.firmware.flash.count
-                )
-                effective_track_flashed = (
-                    not no_track
-                    if no_track
-                    else user_config._config.firmware.flash.track_flashed
-                )
-                effective_skip_existing = (
-                    skip_existing or user_config._config.firmware.flash.skip_existing
-                )
-
-                # NEW: Wait-related settings with precedence
-                effective_wait = (
-                    wait
-                    if wait is not None
-                    else user_config._config.firmware.flash.wait
-                )
-                effective_poll_interval = (
-                    poll_interval
-                    if poll_interval is not None
-                    else user_config._config.firmware.flash.poll_interval
-                )
-                effective_show_progress = (
-                    show_progress
-                    if show_progress is not None
-                    else user_config._config.firmware.flash.show_progress
-                )
-            else:
-                # Fallback to CLI values if user config not available
-                effective_timeout = timeout
-                effective_count = count
-                effective_track_flashed = not no_track
-                effective_skip_existing = skip_existing
-                effective_wait = wait if wait is not None else False
-                effective_poll_interval = (
-                    poll_interval if poll_interval is not None else 0.5
-                )
-                effective_show_progress = (
-                    show_progress if show_progress is not None else True
-                )
-
-            # Use the new file-based method which handles file existence checks
-            from glovebox.adapters import create_file_adapter
-            from glovebox.firmware.flash.device_wait_service import (
-                create_device_wait_service,
+        # Apply user config defaults for flash parameters
+        # CLI values override config values when explicitly provided
+        if user_config:
+            effective_timeout = (
+                timeout if timeout != 60 else user_config._config.firmware.flash.timeout
+            )
+            effective_count = (
+                count if count != 2 else user_config._config.firmware.flash.count
+            )
+            effective_track_flashed = (
+                not no_track
+                if no_track
+                else user_config._config.firmware.flash.track_flashed
+            )
+            effective_skip_existing = (
+                skip_existing or user_config._config.firmware.flash.skip_existing
             )
 
-            file_adapter = create_file_adapter()
-            device_wait_service = create_device_wait_service()
-            flash_service = create_flash_service(file_adapter, device_wait_service)
+            # NEW: Wait-related settings with precedence
+            effective_wait = (
+                wait if wait is not None else user_config._config.firmware.flash.wait
+            )
+            effective_poll_interval = (
+                poll_interval
+                if poll_interval is not None
+                else user_config._config.firmware.flash.poll_interval
+            )
+            effective_show_progress = (
+                show_progress
+                if show_progress is not None
+                else user_config._config.firmware.flash.show_progress
+            )
+        else:
+            # Fallback to CLI values if user config not available
+            effective_timeout = timeout
+            effective_count = count
+            effective_track_flashed = not no_track
+            effective_skip_existing = skip_existing
+            effective_wait = wait if wait is not None else False
+            effective_poll_interval = (
+                poll_interval if poll_interval is not None else 0.5
+            )
+            effective_show_progress = (
+                show_progress if show_progress is not None else True
+            )
 
-            # Flash multiple firmware files sequentially
-            all_results = []
-            total_devices_flashed = 0
-            total_devices_failed = 0
+        # Use the new file-based method which handles file existence checks
+        from glovebox.adapters import create_file_adapter
+        from glovebox.firmware.flash.device_wait_service import (
+            create_device_wait_service,
+        )
 
-            for i, firmware_file in enumerate(firmware_files):
+        file_adapter = create_file_adapter()
+        device_wait_service = create_device_wait_service()
+        flash_service = create_flash_service(file_adapter, device_wait_service)
+
+        # Flash multiple firmware files sequentially
+        all_results = []
+        total_devices_flashed = 0
+        total_devices_failed = 0
+
+        for i, firmware_file in enumerate(firmware_files):
+            print_success_message(
+                f"Flashing firmware {i + 1}/{len(firmware_files)}: {firmware_file.name}"
+            )
+
+            result = flash_service.flash_from_file(
+                firmware_file_path=firmware_file,
+                profile=keyboard_profile,
+                query=query,  # query parameter will override profile's query if provided
+                timeout=effective_timeout,
+                count=effective_count,
+                track_flashed=effective_track_flashed,
+                skip_existing=effective_skip_existing,
+                wait=effective_wait,
+                poll_interval=effective_poll_interval,
+                show_progress=effective_show_progress,
+            )
+
+            all_results.append(result)
+            total_devices_flashed += result.devices_flashed
+            total_devices_failed += result.devices_failed
+
+            # Show result for this firmware file
+            if result.success:
                 print_success_message(
-                    f"Flashing firmware {i + 1}/{len(firmware_files)}: {firmware_file.name}"
+                    f"Firmware {firmware_file.name}: {result.devices_flashed} device(s) flashed"
+                )
+            else:
+                print_error_message(
+                    f"Firmware {firmware_file.name}: {result.devices_failed} device(s) failed"
                 )
 
-                result = flash_service.flash_from_file(
-                    firmware_file_path=firmware_file,
-                    profile=keyboard_profile,
-                    query=query,  # query parameter will override profile's query if provided
-                    timeout=effective_timeout,
-                    count=effective_count,
-                    track_flashed=effective_track_flashed,
-                    skip_existing=effective_skip_existing,
-                    wait=effective_wait,
-                    poll_interval=effective_poll_interval,
-                    show_progress=effective_show_progress,
-                )
+        # Create combined result
+        result = FlashResult(success=True)
+        result.devices_flashed = total_devices_flashed
+        result.devices_failed = total_devices_failed
 
-                all_results.append(result)
-                total_devices_flashed += result.devices_flashed
-                total_devices_failed += result.devices_failed
+        # Combine all device details
+        for individual_result in all_results:
+            result.device_details.extend(individual_result.device_details)
+            result.messages.extend(individual_result.messages)
+            result.errors.extend(individual_result.errors)
 
-                # Show result for this firmware file
-                if result.success:
-                    print_success_message(
-                        f"Firmware {firmware_file.name}: {result.devices_flashed} device(s) flashed"
-                    )
-                else:
-                    print_error_message(
-                        f"Firmware {firmware_file.name}: {result.devices_failed} device(s) failed"
-                    )
-
-            # Create combined result
-            result = FlashResult(success=True)
-            result.devices_flashed = total_devices_flashed
-            result.devices_failed = total_devices_failed
-
-            # Combine all device details
-            for individual_result in all_results:
-                result.device_details.extend(individual_result.device_details)
-                result.messages.extend(individual_result.messages)
-                result.errors.extend(individual_result.errors)
-
-            # Overall success if we flashed any devices and no failures
-            if total_devices_flashed == 0 or total_devices_failed > 0:
-                result.success = False
+        # Overall success if we flashed any devices and no failures
+        if total_devices_flashed == 0 or total_devices_failed > 0:
+            result.success = False
 
         if result.success:
-            # Track successful flash
-            flash_counter.labels("flash", "success").inc()
-
             if output_format.lower() == "json":
                 # JSON output for automation
                 result_data = {
@@ -1045,9 +1002,6 @@ def flash(
                         if device["status"] == "success":
                             print_list_item(f"{device['name']}: SUCCESS")
         else:
-            # Track failed flash
-            flash_counter.labels("flash", "failure").inc()
-
             print_error_message(
                 f"Flash completed with {result.devices_failed} failure(s) across {len(firmware_files)} firmware file(s)"
             )
@@ -1059,8 +1013,6 @@ def flash(
             raise typer.Exit(1)
 
     except Exception as e:
-        # Track exception errors
-        flash_counter.labels("flash", "error").inc()
         print_error_message(f"Flash operation failed: {str(e)}")
         raise typer.Exit(1) from None
 
@@ -1148,259 +1100,6 @@ def list_devices(
     except Exception as e:
         print_error_message(f"Error listing devices: {str(e)}")
         raise typer.Exit(1) from None
-
-
-def _create_compilation_progress_display(
-    show_logs: bool = True, debug: bool = False
-) -> tuple[Any, Any]:
-    """Create a firmware compilation progress display with optional log integration.
-
-    Args:
-        show_logs: Whether to show Docker compilation logs alongside progress
-        debug: Whether to show debug-level logs
-
-    Returns:
-        Tuple of (display, callback) for compatibility
-    """
-    import logging
-    import threading
-    from collections import deque
-
-    from rich.console import Console
-    from rich.layout import Layout
-    from rich.live import Live
-    from rich.panel import Panel
-    from rich.progress import (
-        BarColumn,
-        Progress,
-        SpinnerColumn,
-        TextColumn,
-        TimeElapsedColumn,
-    )
-    from rich.text import Text
-
-    console = Console()
-
-    def _show_scrollable_logs(logs_list):
-        """Show compilation logs in a simple format."""
-        if not logs_list:
-            return
-
-        from rich.console import Console
-        from rich.panel import Panel
-
-        console = Console()
-
-        # Simple log display without terminal manipulation
-        console.print("\n" + "="*60)
-        console.print("[bold cyan]📋 Compilation Logs[/bold cyan]")
-        console.print("="*60)
-
-        # Show last 30 lines with line numbers
-        display_logs = logs_list[-30:] if len(logs_list) > 30 else logs_list
-        start_line = len(logs_list) - len(display_logs) + 1
-
-        for i, line in enumerate(display_logs):
-            line_num = start_line + i
-            console.print(f"[dim]{line_num:3d}[/dim] | {line}")
-
-        if len(logs_list) > 30:
-            console.print(f"\n[dim]... showing last 30 of {len(logs_list)} lines[/dim]")
-
-        console.print("="*60)
-
-    if show_logs:
-        from rich.console import Group
-
-        # Create layout with logs panel and progress panel
-        layout = Layout()
-        layout.split_column(
-            Layout(name="logs", size=15),
-            Layout(name="progress", size=3)
-        )
-
-        # Log buffer for capturing Docker logs
-        log_buffer = deque(maxlen=200)  # Increased buffer for scrolling
-        log_lock = threading.Lock()
-        scroll_offset = 0
-
-        # Set up log handler to capture glovebox logs
-        class LogHandler(logging.Handler):
-            def emit(self, record):
-                try:
-                    msg = self.format(record)
-                    with log_lock:
-                        log_buffer.append(msg)
-                except Exception:
-                    pass
-
-        log_handler = LogHandler()
-        log_handler.setLevel(logging.DEBUG if debug else logging.INFO)
-        log_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s', '%H:%M:%S'))
-
-        # Add handler to glovebox logger to capture Docker output
-        glovebox_logger = logging.getLogger("glovebox")
-        glovebox_logger.addHandler(log_handler)
-
-        # Create progress bar
-        progress = Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TimeElapsedColumn(),
-        )
-
-        progress_task = progress.add_task("Initializing compilation...", total=100)
-
-        # Track state including scroll position
-        _state = {
-            "stopped": False,
-            "progress": progress,
-            "task": progress_task,
-            "handler": log_handler,
-            "scroll_offset": 0
-        }
-
-        # Create scrollable log content
-        def create_log_content():
-            with log_lock:
-                if not log_buffer:
-                    return Text("Starting compilation...", style="dim")
-
-                # Show logs based on scroll offset
-                logs = list(log_buffer)
-                visible_lines = 12
-
-                # Calculate scroll bounds
-                total_lines = len(logs)
-                max_offset = max(0, total_lines - visible_lines)
-                actual_offset = min(scroll_offset, max_offset)
-
-                # Get visible logs
-                start_idx = max(0, total_lines - visible_lines - actual_offset)
-                end_idx = total_lines - actual_offset if actual_offset > 0 else total_lines
-                visible_logs = logs[start_idx:end_idx]
-
-                # Create text with line numbers
-                log_text = Text()
-                for i, line in enumerate(visible_logs):
-                    line_num = start_idx + i + 1
-                    log_text.append(f"{line_num:3d} | {line}\n")
-
-                return log_text
-
-        def update_logs():
-            """Update the log panel with scrollable content."""
-            if _state["stopped"]:
-                return
-            try:
-                log_content = create_log_content()
-
-                # Show scroll info
-                with log_lock:
-                    total_lines = len(log_buffer)
-                    max_offset = max(0, total_lines - 12)
-                    scroll_info = f"({total_lines} lines, offset: {min(scroll_offset, max_offset)})"
-
-                layout["logs"].update(Panel(log_content, title=f"Docker Logs {scroll_info}", height=15))
-            except Exception:
-                pass
-
-        # Initial layout setup
-        update_logs()
-        layout["progress"].update(progress)
-
-        # Create Live display with keyboard handling
-        live = Live(layout, refresh_per_second=4)
-        live.start()
-
-        # Update state with live display
-        _state["live"] = live
-
-        # Auto-scroll logs to bottom (no keyboard handling to avoid terminal issues)
-
-    else:
-        # Simple progress without logs
-        progress = Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TimeElapsedColumn(),
-            console=console,
-        )
-        progress.start()
-        progress_task = progress.add_task("Initializing compilation...", total=100)
-        _state = {"stopped": False, "progress": progress, "task": progress_task}
-
-        def update_logs():
-            pass
-
-    class ProgressDisplay:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            self.stop()
-
-        def stop(self):
-            if not _state["stopped"]:
-                _state["stopped"] = True
-                try:
-                    if show_logs:
-                        glovebox_logger.removeHandler(_state["handler"])
-                        _state["live"].stop()
-                        # Show scrollable log viewer if logs were captured
-                        if log_buffer:
-                            _show_scrollable_logs(list(log_buffer))
-                    else:
-                        _state["progress"].stop()
-                except Exception:
-                    pass
-
-
-    display = ProgressDisplay()
-
-    def compilation_progress_callback(progress_data: Any) -> None:
-        """Update progress display with compilation progress."""
-        if _state["stopped"] or _state["task"] is None:
-            return
-
-        try:
-            # Extract progress information
-            description = "Processing..."
-            percentage = 0
-
-            if hasattr(progress_data, "compilation_phase") and progress_data.compilation_phase:
-                description = f"Phase: {progress_data.compilation_phase}"
-            elif hasattr(progress_data, "current_repository") and progress_data.current_repository:
-                description = f"Repository: {progress_data.current_repository}"
-
-            # Get percentage from overall_progress_percent (our working solution)
-            if hasattr(progress_data, "overall_progress_percent"):
-                try:
-                    value = progress_data.overall_progress_percent
-                    if isinstance(value, int | float) and 0 <= value <= 100:
-                        percentage = float(value)
-                except Exception:
-                    pass
-
-            # Update progress
-            _state["progress"].update(
-                _state["task"],
-                description=description,
-                completed=percentage
-            )
-
-            # Update logs if enabled
-            if show_logs:
-                update_logs()
-
-        except Exception:
-            pass
-
-    return display, compilation_progress_callback
 
 
 def register_commands(app: typer.Typer) -> None:

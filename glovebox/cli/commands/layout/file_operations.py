@@ -7,7 +7,7 @@ import typer
 
 from glovebox.cli.commands.layout.base import LayoutOutputCommand
 from glovebox.cli.commands.layout.dependencies import create_full_layout_service
-from glovebox.cli.decorators import handle_errors, with_profile
+from glovebox.cli.decorators import handle_errors, with_metrics, with_profile
 from glovebox.cli.helpers.auto_profile import (
     resolve_json_file_path,
     resolve_profile_with_auto_detection,
@@ -136,6 +136,7 @@ def split(
 
 @handle_errors
 @with_profile(default_profile="glove80/v25.05", required=True, firmware_optional=True)
+@with_metrics("merge")
 def merge(
     ctx: typer.Context,
     input_dir: Annotated[
@@ -174,17 +175,11 @@ def merge(
         layout_service = create_full_layout_service()
         keyboard_profile = get_keyboard_profile_from_context(ctx)
 
-        # Get session metrics from context
-        from glovebox.cli.app import AppContext
-
-        app_ctx: AppContext = ctx.obj
-        session_metrics = app_ctx.session_metrics
-
         result = layout_service.compile_from_directory(
             profile=keyboard_profile,
             components_dir=input_dir,
             output_file_prefix=output_file,
-            session_metrics=session_metrics,
+            session_metrics=ctx.obj.session_metrics,
             force=force,
         )
 
@@ -212,7 +207,7 @@ def merge(
             from glovebox.cli.helpers import print_error_message, print_list_item
             from glovebox.cli.helpers.theme import get_icon_mode_from_context
 
-            icon_mode = app_ctx.icon_mode
+            icon_mode = get_icon_mode_from_context(ctx)
 
             print_error_message("Layout merge failed", icon_mode=icon_mode)
             for error in result.errors:
