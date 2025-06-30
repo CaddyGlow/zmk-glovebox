@@ -332,8 +332,8 @@ class ZmkKeymapParser:
                         binding_parts.append(str(values[i]).strip())
                         i += 1
 
-                    # Join the parts to form the complete binding
-                    binding_str = " ".join(binding_parts)
+                    # Reconstruct parenthesized expressions from separated tokens
+                    binding_str = self._reconstruct_binding_with_parentheses(binding_parts)
                     try:
                         # Use the existing LayoutBinding.from_str method
                         binding = LayoutBinding.from_str(binding_str)
@@ -363,6 +363,73 @@ class ZmkKeymapParser:
                     bindings.append(LayoutBinding(value=binding_str, params=[]))
 
         return bindings
+
+    def _reconstruct_binding_with_parentheses(self, binding_parts: list[str]) -> str:
+        """Reconstruct binding string with proper parentheses from separated tokens.
+        
+        The AST parser tokenizes LC(X) as ["LC", "(", "X", ")"], but we need to 
+        reconstruct it as "LC(X)" for proper ZMK binding parsing.
+        
+        Args:
+            binding_parts: List of token parts from AST parsing
+            
+        Returns:
+            Reconstructed binding string with proper parentheses
+            
+        Examples:
+            ["&kp", "LC", "(", "X", ")"] -> "&kp LC(X)"
+            ["&kp", "LC", "(", "LS", "(", "X", ")", ")"] -> "&kp LC(LS(X))"
+            ["&kp", "Q"] -> "&kp Q"
+        """
+        if len(binding_parts) <= 2:
+            # Simple case: no parentheses to reconstruct
+            return " ".join(binding_parts)
+        
+        # Reconstruct parenthesized expressions
+        result_parts = []
+        i = 0
+        
+        while i < len(binding_parts):
+            current_part = binding_parts[i]
+            
+            # Check if next token is an opening parenthesis
+            if i + 1 < len(binding_parts) and binding_parts[i + 1] == "(":
+                # Find the matching closing parenthesis
+                paren_depth = 0
+                paren_content = []
+                j = i + 2  # Start after the opening parenthesis
+                
+                while j < len(binding_parts):
+                    token = binding_parts[j]
+                    if token == "(":
+                        paren_depth += 1
+                        paren_content.append(token)
+                    elif token == ")":
+                        if paren_depth == 0:
+                            # Found the matching closing parenthesis
+                            break
+                        else:
+                            paren_depth -= 1
+                            paren_content.append(token)
+                    else:
+                        paren_content.append(token)
+                    j += 1
+                
+                # Recursively reconstruct nested parentheses
+                if paren_content:
+                    inner_content = self._reconstruct_binding_with_parentheses(paren_content)
+                    result_parts.append(f"{current_part}({inner_content})")
+                else:
+                    result_parts.append(f"{current_part}()")
+                
+                # Skip to after the closing parenthesis
+                i = j + 1
+            else:
+                # Regular token without following parentheses
+                result_parts.append(current_part)
+                i += 1
+        
+        return " ".join(result_parts)
 
     def _convert_comment_to_model(
         self, comment_dict: dict[str, object]
