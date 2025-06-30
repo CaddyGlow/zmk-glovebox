@@ -10,7 +10,12 @@ import typer
 
 from glovebox.cli.commands.layout.base import LayoutOutputCommand
 from glovebox.cli.commands.layout.dependencies import create_full_layout_service
-from glovebox.cli.decorators import handle_errors, with_layout_context, with_profile
+from glovebox.cli.decorators import (
+    handle_errors,
+    with_layout_context,
+    with_metrics,
+    with_profile,
+)
 from glovebox.cli.helpers import (
     print_error_message,
     print_list_item,
@@ -43,6 +48,7 @@ logger = logging.getLogger(__name__)
 
 @handle_errors
 @with_profile(required=True, firmware_optional=False, support_auto_detection=True)
+@with_metrics("compile")
 def compile_layout(
     ctx: typer.Context,
     json_file: JsonFileArgument = None,
@@ -102,22 +108,6 @@ def compile_layout(
     """
     command = LayoutOutputCommand()
 
-    # Access session metrics from CLI context
-    from glovebox.cli.app import AppContext
-
-    app_ctx: AppContext = ctx.obj
-    metrics = app_ctx.session_metrics
-
-    # Track layout compilation metrics
-    layout_counter = metrics.Counter(
-        "layout_operations_total", "Total layout operations", ["operation", "status"]
-    )
-    layout_duration = metrics.Histogram(
-        "layout_operation_duration_seconds", "Layout operation duration"
-    )
-
-    metrics.Summary("compile_start", "Start to start compilation")
-
     # Create composer and execute compilation
     from glovebox.cli.commands.layout.composition import create_layout_command_composer
 
@@ -125,113 +115,112 @@ def compile_layout(
 
     def compilation_operation(layout_file: Path) -> dict[str, Any]:
         """Compilation operation that returns structured results."""
-        with layout_duration.time():
-            # Handle stdin input or resolve file path
+        # Handle stdin input or resolve file path
+        from glovebox.cli.helpers.stdin_utils import (
+            is_stdin_input,
+            read_json_input,
+            resolve_input_source_with_env,
+        )
+
+        # Resolve input source (file, stdin, or environment variable)
+        input_source = resolve_input_source_with_env(
+            json_file, "GLOVEBOX_JSON_FILE"
+        )
+
+        if input_source is None:
+            raise ValueError(
+                "JSON input is required. Provide file path, '-' for stdin, or set GLOVEBOX_JSON_FILE environment variable."
+            )
+
+        # Determine if we're reading from stdin or file
+        using_stdin = is_stdin_input(input_source)
+
+        if using_stdin:
+            # Read JSON data from stdin
+            layout_dict = read_json_input(input_source)
+
+            # Convert to LayoutData object
+            from glovebox.layout.models import LayoutData
+
+            layout_data = LayoutData.model_validate(layout_dict)
+
+            # We don't have a real file path for stdin, use a dummy path for profile resolution
+            resolved_json_file = None
+
+        else:
+            # Handle file input (existing behavior)
+            resolved_json_file = resolve_json_file_path(
+                input_source, "GLOVEBOX_JSON_FILE"
+            )
+
+            if resolved_json_file is None:
+                raise ValueError(f"JSON file not found: {input_source}")
+
+            layout_data = None  # Will be loaded by file-based service method
+
+        # Profile is already handled by the @with_profile decorator
+        keyboard_profile = get_keyboard_profile_from_context(ctx)
+
+        # Generate smart output prefix if not provided
+        if output is not None:
+            output_file_prefix_final = output
+        else:
+            # Use filename generation utility for smart defaults
+            from glovebox.cli.helpers.profile import get_user_config_from_context
             from glovebox.cli.helpers.stdin_utils import (
-                is_stdin_input,
-                read_json_input,
-                resolve_input_source_with_env,
+                get_input_filename_for_templates,
+            )
+            from glovebox.config import create_user_config
+            from glovebox.utils.filename_generator import (
+                FileType,
+                generate_default_filename,
+            )
+            from glovebox.utils.filename_helpers import (
+                extract_layout_dict_data,
+                extract_profile_data,
             )
 
-            # Resolve input source (file, stdin, or environment variable)
-            input_source = resolve_input_source_with_env(
-                json_file, "GLOVEBOX_JSON_FILE"
-            )
+            user_config = get_user_config_from_context(ctx) or create_user_config()
+            profile_data = extract_profile_data(keyboard_profile)
 
-            if input_source is None:
-                raise ValueError(
-                    "JSON input is required. Provide file path, '-' for stdin, or set GLOVEBOX_JSON_FILE environment variable."
-                )
-
-            # Determine if we're reading from stdin or file
-            using_stdin = is_stdin_input(input_source)
-
+            # Get layout data for filename generation
             if using_stdin:
-                # Read JSON data from stdin
-                layout_dict = read_json_input(input_source)
-
-                # Convert to LayoutData object
-                from glovebox.layout.models import LayoutData
-
-                layout_data = LayoutData.model_validate(layout_dict)
-
-                # We don't have a real file path for stdin, use a dummy path for profile resolution
-                resolved_json_file = None
-
+                # Use the already-loaded layout data from stdin
+                filename_layout_data = extract_layout_dict_data(layout_dict)
+                original_filename = None  # No original filename for stdin
             else:
-                # Handle file input (existing behavior)
-                resolved_json_file = resolve_json_file_path(
-                    input_source, "GLOVEBOX_JSON_FILE"
-                )
+                # Read layout data from file
+                try:
+                    import json
 
-                if resolved_json_file is None:
-                    raise ValueError(f"JSON file not found: {input_source}")
-
-                layout_data = None  # Will be loaded by file-based service method
-
-            # Profile is already handled by the @with_profile decorator
-            keyboard_profile = get_keyboard_profile_from_context(ctx)
-
-            # Generate smart output prefix if not provided
-            if output is not None:
-                output_file_prefix_final = output
-            else:
-                # Use filename generation utility for smart defaults
-                from glovebox.cli.helpers.profile import get_user_config_from_context
-                from glovebox.cli.helpers.stdin_utils import (
-                    get_input_filename_for_templates,
-                )
-                from glovebox.config import create_user_config
-                from glovebox.utils.filename_generator import (
-                    FileType,
-                    generate_default_filename,
-                )
-                from glovebox.utils.filename_helpers import (
-                    extract_layout_dict_data,
-                    extract_profile_data,
-                )
-
-                user_config = get_user_config_from_context(ctx) or create_user_config()
-                profile_data = extract_profile_data(keyboard_profile)
-
-                # Get layout data for filename generation
-                if using_stdin:
-                    # Use the already-loaded layout data from stdin
-                    filename_layout_data = extract_layout_dict_data(layout_dict)
-                    original_filename = None  # No original filename for stdin
-                else:
-                    # Read layout data from file
-                    try:
-                        import json
-
-                        with resolved_json_file.open() as f:
-                            file_layout_dict = json.load(f)
-                            filename_layout_data = extract_layout_dict_data(
-                                file_layout_dict
-                            )
-                        original_filename = str(resolved_json_file)
-                    except Exception:
-                        # Fall back to basic data
-                        filename_layout_data = {
-                            "title": resolved_json_file.stem
-                            if resolved_json_file
-                            else "layout"
-                        }
-                        original_filename = (
-                            str(resolved_json_file) if resolved_json_file else None
+                    with resolved_json_file.open() as f:
+                        file_layout_dict = json.load(f)
+                        filename_layout_data = extract_layout_dict_data(
+                            file_layout_dict
                         )
+                    original_filename = str(resolved_json_file)
+                except Exception:
+                    # Fall back to basic data
+                    filename_layout_data = {
+                        "title": resolved_json_file.stem
+                        if resolved_json_file
+                        else "layout"
+                    }
+                    original_filename = (
+                        str(resolved_json_file) if resolved_json_file else None
+                    )
 
-                # Generate keymap filename (without extension)
-                keymap_filename = generate_default_filename(
-                    FileType.KEYMAP,
-                    user_config._config.filename_templates,
-                    layout_data=filename_layout_data,
-                    profile_data=profile_data,
-                    original_filename=original_filename,
-                )
+            # Generate keymap filename (without extension)
+            keymap_filename = generate_default_filename(
+                FileType.KEYMAP,
+                user_config._config.filename_templates,
+                layout_data=filename_layout_data,
+                profile_data=profile_data,
+                original_filename=original_filename,
+            )
 
-                # Use the stem as output prefix
-                output_file_prefix_final = Path(keymap_filename).stem
+            # Use the stem as output prefix
+            output_file_prefix_final = Path(keymap_filename).stem
 
             # Generate keymap using appropriate service method
             keymap_service = create_full_layout_service()
@@ -242,7 +231,7 @@ def compile_layout(
                     profile=keyboard_profile,
                     keymap_data=layout_data,
                     output_file_prefix=output_file_prefix_final,
-                    session_metrics=metrics,
+                    session_metrics=ctx.obj.session_metrics,
                     force=force,
                 )
             else:
@@ -251,14 +240,11 @@ def compile_layout(
                     profile=keyboard_profile,
                     json_file_path=resolved_json_file,
                     output_file_prefix=output_file_prefix_final,
-                    session_metrics=metrics,
+                    session_metrics=ctx.obj.session_metrics,
                     force=force,
                 )
 
             if result.success:
-                # Track successful compilation
-                layout_counter.labels("compile", "success").inc()
-
                 output_files = result.get_output_files()
                 return {
                     "success": True,
@@ -267,9 +253,6 @@ def compile_layout(
                     "messages": result.messages if hasattr(result, "messages") else [],
                 }
             else:
-                # Track failed compilation
-                layout_counter.labels("compile", "failure").inc()
-
                 raise ValueError(
                     f"Layout generation failed: {'; '.join(result.errors)}"
                 )
@@ -280,11 +263,9 @@ def compile_layout(
             operation=compilation_operation,
             operation_name="compile layout",
             output_format=output_format,
-            session_metrics=metrics,
+            session_metrics=ctx.obj.session_metrics,
         )
     except Exception as e:
-        # Track exception errors
-        layout_counter.labels("compile", "error").inc()
         command.handle_service_error(e, "compile layout")
 
 
