@@ -9,7 +9,7 @@ from typing import Annotated, Any
 
 import typer
 
-from glovebox.cli.decorators import handle_errors, with_profile
+from glovebox.cli.decorators import handle_errors, with_profile, with_metrics
 from glovebox.cli.helpers import (
     print_error_message,
     print_list_item,
@@ -465,6 +465,7 @@ cmake, make, and ninja build systems for custom keyboards.""",
 
 @firmware_app.command(name="compile")
 @handle_errors
+@with_profile(required=True, firmware_optional=False, support_auto_detection=True)
 def firmware_compile(
     ctx: typer.Context,
     input_file: Annotated[
@@ -643,20 +644,8 @@ def firmware_compile(
                 )
                 progress_callback(early_progress)
 
-            from glovebox.cli.helpers.parameters import (
-                create_profile_from_param_unified,
-            )
-
-            keyboard_profile = create_profile_from_param_unified(
-                ctx=ctx,
-                profile=profile,
-                default_profile="glove80/v25.05",
-                json_file=resolved_input_file,
-                no_auto=no_auto,
-            )
-
-            # Store in context for consistency with other commands
-            app_ctx.keyboard_profile = keyboard_profile
+            # Profile is already handled by the @with_profile decorator
+            keyboard_profile = get_keyboard_profile_from_context(ctx)
 
             # Detect input file type and validate arguments
             is_json_input = resolved_input_file.suffix.lower() == ".json"
@@ -710,62 +699,34 @@ def firmware_compile(
                 )
                 progress_callback(compilation_start_progress)
 
-            # Execute compilation with proper display lifecycle
-            if progress_display:
-                with progress_display:
-                    logger.info("🚀 Starting firmware compilation...")
+            # Execute compilation
+            logger.info("🚀 Starting firmware compilation...")
 
-                    # Execute compilation based on input type
-                    if is_json_input:
-                        result = _execute_compilation_from_json(
-                            compilation_type,
-                            resolved_input_file,
-                            build_output_dir,
-                            compile_config,
-                            keyboard_profile,
-                            session_metrics=ctx.obj.session_metrics,
-                            user_config=get_user_config_from_context(ctx),
-                            progress_callback=progress_callback,
-                        )
-                    else:
-                        assert config_file is not None  # Already validated above
-                        result = _execute_compilation_service(
-                            compilation_type,
-                            resolved_input_file,  # keymap_file
-                            config_file,  # kconfig_file
-                            build_output_dir,
-                            compile_config,
-                            keyboard_profile,
-                            session_metrics=ctx.obj.session_metrics,
-                            user_config=get_user_config_from_context(ctx),
-                            progress_callback=progress_callback,
-                        )
+            # Execute compilation based on input type
+            if is_json_input:
+                result = _execute_compilation_from_json(
+                    compilation_type,
+                    resolved_input_file,
+                    build_output_dir,
+                    compile_config,
+                    keyboard_profile,
+                    session_metrics=ctx.obj.session_metrics,
+                    user_config=get_user_config_from_context(ctx),
+                    progress_callback=progress_callback,
+                )
             else:
-                # Execute compilation without display
-                if is_json_input:
-                    result = _execute_compilation_from_json(
-                        compilation_type,
-                        resolved_input_file,
-                        build_output_dir,
-                        compile_config,
-                        keyboard_profile,
-                        session_metrics=ctx.obj.session_metrics,
-                        user_config=get_user_config_from_context(ctx),
-                        progress_callback=progress_callback,
-                    )
-                else:
-                    assert config_file is not None  # Already validated above
-                    result = _execute_compilation_service(
-                        compilation_type,
-                        resolved_input_file,  # keymap_file
-                        config_file,  # kconfig_file
-                        build_output_dir,
-                        compile_config,
-                        keyboard_profile,
-                        session_metrics=ctx.obj.session_metrics,
-                        user_config=get_user_config_from_context(ctx),
-                        progress_callback=progress_callback,
-                    )
+                assert config_file is not None  # Already validated above
+                result = _execute_compilation_service(
+                    compilation_type,
+                    resolved_input_file,  # keymap_file
+                    config_file,  # kconfig_file
+                    build_output_dir,
+                    compile_config,
+                    keyboard_profile,
+                    session_metrics=ctx.obj.session_metrics,
+                    user_config=get_user_config_from_context(ctx),
+                    progress_callback=progress_callback,
+                )
 
         # Clean up temporary build directory if --output was not provided
         temp_cleanup_needed = output is None
@@ -834,7 +795,7 @@ def firmware_compile(
 
 @firmware_app.command()
 @handle_errors
-@with_profile()
+@with_profile(required=True, firmware_optional=False)
 def flash(
     ctx: typer.Context,
     firmware_files: Annotated[
@@ -1024,7 +985,6 @@ def flash(
                     count=effective_count,
                     track_flashed=effective_track_flashed,
                     skip_existing=effective_skip_existing,
-                    # NEW: Add wait parameters
                     wait=effective_wait,
                     poll_interval=effective_poll_interval,
                     show_progress=effective_show_progress,
@@ -1107,7 +1067,7 @@ def flash(
 
 @firmware_app.command(name="devices")
 @handle_errors
-@with_profile()
+@with_profile(required=False, firmware_optional=True)
 def list_devices(
     ctx: typer.Context,
     profile: ProfileOption = None,
@@ -1192,79 +1152,254 @@ def list_devices(
 
 def _create_compilation_progress_display(
     show_logs: bool = True, debug: bool = False
-) -> CompilationProgressCallback:
-    """Create a compilation progress display callback with scrollable logs.
-
-    This function provides an enhanced progress display with scrollable logs above
-    progress bars, giving users full visibility into compilation operations.
+) -> tuple[Any, Any]:
+    """Create a firmware compilation progress display with optional log integration.
 
     Args:
-        show_logs: Whether to show compilation logs in progress display
-        debug: Whether to show debug-level application logs
+        show_logs: Whether to show Docker compilation logs alongside progress
+        debug: Whether to show debug-level logs
+
+    Returns:
+        Tuple of (display, callback) for compatibility
     """
-    from glovebox.cli.progress import (
-        create_progress_context,
-        create_progress_coordinator,
-        create_progress_display,
-    )
-    from glovebox.cli.progress.models import ProgressDisplayType
+    import logging
+    import threading
+    from collections import deque
 
-    # Create context with scrollable logs for compilation
-    context = create_progress_context(
-        strategy="zmk_west",  # Default strategy, will be updated based on profile
-        display_enabled=True,
-        show_logs=show_logs,
-        log_panel_height=15 if show_logs else 0,
-        max_log_lines=200,
-        operation_type="firmware_compilation",
-        total_stages=5,  # init, workspace, dependencies, compilation, packaging
+    from rich.console import Console
+    from rich.layout import Layout
+    from rich.live import Live
+    from rich.panel import Panel
+    from rich.progress import (
+        BarColumn,
+        Progress,
+        SpinnerColumn,
+        TextColumn,
+        TimeElapsedColumn,
     )
+    from rich.text import Text
 
-    # Use logs display if requested
+    console = Console()
+
+    def _show_scrollable_logs(logs_list):
+        """Show compilation logs in a simple format."""
+        if not logs_list:
+            return
+
+        from rich.console import Console
+        from rich.panel import Panel
+
+        console = Console()
+
+        # Simple log display without terminal manipulation
+        console.print("\n" + "="*60)
+        console.print("[bold cyan]📋 Compilation Logs[/bold cyan]")
+        console.print("="*60)
+
+        # Show last 30 lines with line numbers
+        display_logs = logs_list[-30:] if len(logs_list) > 30 else logs_list
+        start_line = len(logs_list) - len(display_logs) + 1
+
+        for i, line in enumerate(display_logs):
+            line_num = start_line + i
+            console.print(f"[dim]{line_num:3d}[/dim] | {line}")
+
+        if len(logs_list) > 30:
+            console.print(f"\n[dim]... showing last 30 of {len(logs_list)} lines[/dim]")
+
+        console.print("="*60)
+
     if show_logs:
-        context.display_config.display_type = ProgressDisplayType.STAGED_WITH_LOGS
+        from rich.console import Group
+
+        # Create layout with logs panel and progress panel
+        layout = Layout()
+        layout.split_column(
+            Layout(name="logs", size=15),
+            Layout(name="progress", size=3)
+        )
+
+        # Log buffer for capturing Docker logs
+        log_buffer = deque(maxlen=200)  # Increased buffer for scrolling
+        log_lock = threading.Lock()
+        scroll_offset = 0
+
+        # Set up log handler to capture glovebox logs
+        class LogHandler(logging.Handler):
+            def emit(self, record):
+                try:
+                    msg = self.format(record)
+                    with log_lock:
+                        log_buffer.append(msg)
+                except Exception:
+                    pass
+
+        log_handler = LogHandler()
+        log_handler.setLevel(logging.DEBUG if debug else logging.INFO)
+        log_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s', '%H:%M:%S'))
+
+        # Add handler to glovebox logger to capture Docker output
+        glovebox_logger = logging.getLogger("glovebox")
+        glovebox_logger.addHandler(log_handler)
+
+        # Create progress bar
+        progress = Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TimeElapsedColumn(),
+        )
+
+        progress_task = progress.add_task("Initializing compilation...", total=100)
+
+        # Track state including scroll position
+        _state = {
+            "stopped": False,
+            "progress": progress,
+            "task": progress_task,
+            "handler": log_handler,
+            "scroll_offset": 0
+        }
+
+        # Create scrollable log content
+        def create_log_content():
+            with log_lock:
+                if not log_buffer:
+                    return Text("Starting compilation...", style="dim")
+
+                # Show logs based on scroll offset
+                logs = list(log_buffer)
+                visible_lines = 12
+
+                # Calculate scroll bounds
+                total_lines = len(logs)
+                max_offset = max(0, total_lines - visible_lines)
+                actual_offset = min(scroll_offset, max_offset)
+
+                # Get visible logs
+                start_idx = max(0, total_lines - visible_lines - actual_offset)
+                end_idx = total_lines - actual_offset if actual_offset > 0 else total_lines
+                visible_logs = logs[start_idx:end_idx]
+
+                # Create text with line numbers
+                log_text = Text()
+                for i, line in enumerate(visible_logs):
+                    line_num = start_idx + i + 1
+                    log_text.append(f"{line_num:3d} | {line}\n")
+
+                return log_text
+
+        def update_logs():
+            """Update the log panel with scrollable content."""
+            if _state["stopped"]:
+                return
+            try:
+                log_content = create_log_content()
+
+                # Show scroll info
+                with log_lock:
+                    total_lines = len(log_buffer)
+                    max_offset = max(0, total_lines - 12)
+                    scroll_info = f"({total_lines} lines, offset: {min(scroll_offset, max_offset)})"
+
+                layout["logs"].update(Panel(log_content, title=f"Docker Logs {scroll_info}", height=15))
+            except Exception:
+                pass
+
+        # Initial layout setup
+        update_logs()
+        layout["progress"].update(progress)
+
+        # Create Live display with keyboard handling
+        live = Live(layout, refresh_per_second=4)
+        live.start()
+
+        # Update state with live display
+        _state["live"] = live
+
+        # Auto-scroll logs to bottom (no keyboard handling to avoid terminal issues)
+
     else:
-        context.display_config.display_type = ProgressDisplayType.STAGED
+        # Simple progress without logs
+        progress = Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TimeElapsedColumn(),
+            console=console,
+        )
+        progress.start()
+        progress_task = progress.add_task("Initializing compilation...", total=100)
+        _state = {"stopped": False, "progress": progress, "task": progress_task}
 
-    # Create display and coordinator
-    display = create_progress_display(context)
-    coordinator = create_progress_coordinator(context)
+        def update_logs():
+            pass
 
-    # Don't start the display here - let the calling code manage it
+    class ProgressDisplay:
+        def __enter__(self):
+            return self
 
-    # Create callback that bridges old CompilationProgress to new system
-    def compilation_progress_callback(old_progress: Any) -> None:
-        """Bridge old CompilationProgress to new progress system."""
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            self.stop()
+
+        def stop(self):
+            if not _state["stopped"]:
+                _state["stopped"] = True
+                try:
+                    if show_logs:
+                        glovebox_logger.removeHandler(_state["handler"])
+                        _state["live"].stop()
+                        # Show scrollable log viewer if logs were captured
+                        if log_buffer:
+                            _show_scrollable_logs(list(log_buffer))
+                    else:
+                        _state["progress"].stop()
+                except Exception:
+                    pass
+
+
+    display = ProgressDisplay()
+
+    def compilation_progress_callback(progress_data: Any) -> None:
+        """Update progress display with compilation progress."""
+        if _state["stopped"] or _state["task"] is None:
+            return
+
         try:
-            if (
-                hasattr(old_progress, "compilation_phase")
-                and old_progress.compilation_phase
-            ):
-                phase = old_progress.compilation_phase
-                logger.info(f"📋 Phase: {phase}")
+            # Extract progress information
+            description = "Processing..."
+            percentage = 0
 
-            if (
-                hasattr(old_progress, "current_repository")
-                and old_progress.current_repository
-            ):
-                logger.info(f"🔄 {old_progress.current_repository}")
+            if hasattr(progress_data, "compilation_phase") and progress_data.compilation_phase:
+                description = f"Phase: {progress_data.compilation_phase}"
+            elif hasattr(progress_data, "current_repository") and progress_data.current_repository:
+                description = f"Repository: {progress_data.current_repository}"
 
-            # Update progress based on repositories downloaded
-            if (hasattr(old_progress, "repositories_downloaded") and hasattr(
-                old_progress, "total_repositories"
-            ) and old_progress.total_repositories > 0):
-                percentage = (
-                    old_progress.repositories_downloaded
-                    / old_progress.total_repositories
-                ) * 100
-                logger.debug(
-                    f"📊 Progress: {old_progress.repositories_downloaded}/{old_progress.total_repositories} repos ({percentage:.1f}%)"
-                )
+            # Get percentage from overall_progress_percent (our working solution)
+            if hasattr(progress_data, "overall_progress_percent"):
+                try:
+                    value = progress_data.overall_progress_percent
+                    if isinstance(value, int | float) and 0 <= value <= 100:
+                        percentage = float(value)
+                except Exception:
+                    pass
 
-        except Exception as e:
-            logger.debug(f"Progress callback error: {e}")
+            # Update progress
+            _state["progress"].update(
+                _state["task"],
+                description=description,
+                completed=percentage
+            )
 
-    # Return both display and callback for proper lifecycle management
+            # Update logs if enabled
+            if show_logs:
+                update_logs()
+
+        except Exception:
+            pass
+
     return display, compilation_progress_callback
 
 

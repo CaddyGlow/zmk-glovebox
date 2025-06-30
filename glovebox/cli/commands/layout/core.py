@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 
 
 @handle_errors
+@with_profile(required=True, firmware_optional=False, support_auto_detection=True)
 def compile_layout(
     ctx: typer.Context,
     json_file: JsonFileArgument = None,
@@ -168,29 +169,8 @@ def compile_layout(
 
                 layout_data = None  # Will be loaded by file-based service method
 
-            # Use unified profile resolution with auto-detection support
-            from glovebox.cli.helpers.parameters import (
-                create_profile_from_param_unified,
-            )
-
-            # For stdin input, auto-detection can use the layout_data, for file input use the file path
-            if using_stdin:
-                # For stdin, we can try auto-detection from the loaded layout data
-                json_file_for_profile = None
-                # Create a temporary data dict for auto-detection if needed
-                profile_auto_data = layout_dict if not no_auto else None
-            else:
-                json_file_for_profile = resolved_json_file
-                profile_auto_data = None
-
-            keyboard_profile = create_profile_from_param_unified(
-                ctx=ctx,
-                profile=profile,
-                default_profile="glove80/v25.05",
-                json_file=json_file_for_profile,
-                no_auto=no_auto,
-                # TODO: Add support for auto-detection from data dict in the profile utility
-            )
+            # Profile is already handled by the @with_profile decorator
+            keyboard_profile = get_keyboard_profile_from_context(ctx)
 
             # Generate smart output prefix if not provided
             if output is not None:
@@ -371,6 +351,7 @@ def validate(
 
 
 @handle_errors
+@with_profile(required=True, firmware_optional=True, support_auto_detection=True)
 def show(
     ctx: typer.Context,
     json_file: JsonFileArgument = None,
@@ -418,16 +399,8 @@ def show(
     command.validate_layout_file(resolved_json_file)
 
     try:
-        # Use unified profile resolution with auto-detection support
-        from glovebox.cli.helpers.parameters import create_profile_from_param_unified
-
-        keyboard_profile = create_profile_from_param_unified(
-            ctx=ctx,
-            profile=profile,
-            default_profile="glove80/v25.05",
-            json_file=resolved_json_file,
-            no_auto=no_auto,
-        )
+        # Profile is already handled by the @with_profile decorator
+        keyboard_profile = get_keyboard_profile_from_context(ctx)
 
         # Call the service
         keymap_service = create_full_layout_service()
