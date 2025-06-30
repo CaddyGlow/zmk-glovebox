@@ -23,6 +23,8 @@ from .ast_walker import (
 from .dt_parser import (
     DTParser,
     parse_dt,
+    parse_dt_multiple,
+    parse_dt_multiple_safe,
     parse_dt_safe,
 )
 from .keymap_parser import (
