@@ -246,9 +246,10 @@ class TestZmkKeymapParser:
         template_path = tmp_path / "template.j2"
         template_path.write_text("{{ keymap_node }}")
 
-        with patch(
-            "glovebox.config.create_keyboard_profile", return_value=mock_profile
-        ), patch.object(parser, "_get_template_path", return_value=template_path):
+        with (
+            patch("glovebox.config.create_keyboard_profile", return_value=mock_profile),
+            patch.object(parser, "_get_template_path", return_value=template_path),
+        ):
             with patch.object(
                 parser.template_adapter,
                 "get_template_variables",

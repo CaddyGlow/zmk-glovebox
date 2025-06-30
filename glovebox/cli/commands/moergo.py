@@ -7,6 +7,7 @@ from typing import Annotated
 
 import typer
 
+from glovebox.cli.decorators import handle_errors, with_metrics
 from glovebox.moergo.client import (
     AuthenticationError,
     NetworkError,
@@ -33,6 +34,8 @@ Credential Storage:
 
 
 @moergo_app.command("login")
+@handle_errors
+@with_metrics("moergo_login")
 def login(
     username: Annotated[
         str | None, typer.Option("--username", "-u", help="MoErgo username/email")
@@ -146,6 +149,8 @@ def logout() -> None:
 
 
 @moergo_app.command("download")
+@handle_errors
+@with_metrics("moergo_download")
 def download_layout(
     layout_id: Annotated[str, typer.Argument(help="Layout UUID to download")],
     output: Annotated[

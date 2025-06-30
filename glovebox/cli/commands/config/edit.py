@@ -11,7 +11,7 @@ from typing import Annotated, Any
 import typer
 
 from glovebox.cli.app import AppContext
-from glovebox.cli.decorators import handle_errors
+from glovebox.cli.decorators import handle_errors, with_metrics
 from glovebox.cli.helpers import (
     print_error_message,
     print_success_message,
@@ -271,6 +271,7 @@ def get_field_info(key: str) -> tuple[Any, str]:
 
 
 @handle_errors
+@with_metrics("config_edit")
 def edit(
     ctx: typer.Context,
     # Field operations (matching layout pattern) with tab completion

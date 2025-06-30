@@ -10,7 +10,7 @@ from rich.table import Table
 from rich.text import Text
 
 from glovebox.cli.app import AppContext
-from glovebox.cli.decorators import handle_errors
+from glovebox.cli.decorators import handle_errors, with_metrics
 from glovebox.cli.helpers.output_formatter import OutputFormatter
 from glovebox.cli.helpers.parameters import OutputFormatOption
 from glovebox.config.user_config import UserConfig
@@ -432,6 +432,7 @@ def _print_config_diagnostics_table(
 
 
 @handle_errors
+@with_metrics("status")
 def status_command(
     ctx: typer.Context,
     output_format: OutputFormatOption = "table",
