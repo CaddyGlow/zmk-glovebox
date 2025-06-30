@@ -54,7 +54,6 @@ class BaseKeymapProcessor:
         return LayoutData(keyboard=keyboard_name, title="Imported Keymap")
 
 
-
 class FullKeymapProcessor(BaseKeymapProcessor):
     """Processor for full keymap parsing mode.
 
@@ -496,14 +495,13 @@ def create_full_keymap_processor(
     """
     if section_extractor is None:
         from .section_extractor import create_section_extractor
+
         section_extractor = create_section_extractor()
 
     return FullKeymapProcessor(
         section_extractor=section_extractor,
         template_adapter=template_adapter,
     )
-
-
 
 
 def create_template_aware_processor(
@@ -521,11 +519,10 @@ def create_template_aware_processor(
     """
     if section_extractor is None:
         from .section_extractor import create_section_extractor
+
         section_extractor = create_section_extractor()
 
     return TemplateAwareProcessor(
         section_extractor=section_extractor,
         template_adapter=template_adapter,
     )
-
-

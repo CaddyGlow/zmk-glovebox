@@ -455,7 +455,6 @@ class UniversalBehaviorExtractor:
         # Cache for improved performance
         self._behavior_cache: dict[str, list[DTNode]] = {}
 
-
         # AST behavior converter for comment-aware conversion
         self.ast_converter: Any = None
 
