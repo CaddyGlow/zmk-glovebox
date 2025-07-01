@@ -1,490 +1,546 @@
-# System Architecture Overview
+# Architecture Overview
 
-This document provides a comprehensive overview of Glovebox's architecture, design patterns, and organizational principles.
-
-## Architectural Philosophy
-
-Glovebox is built on **Domain-Driven Design** principles with a focus on:
-
-1. **Clear Domain Boundaries**: Business logic organized by functional domains
-2. **Service-Oriented Architecture**: Each domain provides services through well-defined interfaces
-3. **Protocol-Based Design**: Type-safe interfaces with runtime checking
-4. **Factory Functions**: Consistent object creation patterns
-5. **Clean Dependencies**: Minimal coupling between domains
+This document provides a comprehensive overview of the Glovebox architecture, focusing on the domain-driven design approach and how components interact to provide keyboard firmware management capabilities.
 
 ## High-Level Architecture
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   CLI Layer     │    │  User Configs   │    │   Keyboards     │
-│                 │    │                 │    │                 │
-│ • Commands      │    │ • Profiles      │    │ • YAML Configs  │
-│ • Parameters    │    │ • Preferences   │    │ • Firmware Vars │
-│ • Output        │    │ • Environment   │    │ • Templates     │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     Service Layer                               │
-├─────────────────┬─────────────────┬─────────────────┬──────────┤
-│  Layout Domain  │ Firmware Domain │Compilation Dom. │  Config  │
-│                 │                 │                 │  Domain  │
-│ • JSON→DTSI     │ • Build Service │ • Coordinators  │ • Profiles│
-│ • Components    │ • Flash Service │ • Strategies    │ • Loading │
-│ • Display       │ • Device Detect │ • Workspaces    │ • Validation│
-│ • Behaviors     │ • USB Operations│ • Dynamic Gen   │ • Types   │
-└─────────────────┴─────────────────┴─────────────────┴──────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     Adapter Layer                               │
-├─────────────────┬─────────────────┬─────────────────┬──────────┤
-│  File Adapter   │ Docker Adapter  │  USB Adapter    │ Template │
-│                 │                 │                 │ Adapter  │
-│ • Read/Write    │ • Build Commands│ • Device Query  │ • Jinja2 │
-│ • Path Ops      │ • Volume Mgmt   │ • Mount/Unmount │ • Render │
-│ • Validation    │ • User Context  │ • Cross-Platform│ • Context│
-└─────────────────┴─────────────────┴─────────────────┴──────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                   External Systems                              │
-├─────────────────┬─────────────────┬─────────────────┬──────────┤
-│   File System   │     Docker      │   USB Devices   │Templates │
-│                 │                 │                 │          │
-│ • Config Files  │ • ZMK Builders  │ • Block Devices │• Keymap  │
-│ • Layouts       │ • Containers    │ • Mass Storage  │• Config  │
-│ • Artifacts     │ • Images        │ • Device Events │• Build   │
-└─────────────────┴─────────────────┴─────────────────┴──────────┘
-```
+Glovebox implements a **domain-driven design** with clean separation of concerns across multiple business domains:
 
-## Domain Architecture
-
-### Layout Domain (`glovebox/layout/`)
-
-**Responsibility**: Transform JSON keyboard layouts into ZMK Device Tree Source files
-
-```
-Layout Domain
-├── Models
-│   ├── LayoutData           # Complete layout representation
-│   ├── LayoutBinding        # Key binding definitions
-│   ├── LayoutLayer          # Layer definitions
-│   └── Behavior Models      # Macros, hold-taps, combos
-├── Services
-│   ├── LayoutService        # Main layout operations
-│   ├── ComponentService     # Layer extraction/merging
-│   └── DisplayService       # Terminal visualization
-├── Generators
-│   ├── ZmkFileGenerator     # DTSI file generation
-│   └── BehaviorFormatter    # Behavior code formatting
-└── Utilities
-    ├── Template Context     # Build generation context
-    └── Validation Utils     # Layout validation
+```mermaid
+graph TB
+    subgraph "User Interface Layer"
+        CLI[CLI Commands]
+        TUI[Terminal UI]
+    end
+    
+    subgraph "Application Layer"
+        CMD[Command Handlers]
+        DEC[Decorators & Middleware]
+    end
+    
+    subgraph "Domain Layer"
+        LD[Layout Domain]
+        FD[Firmware Domain]
+        CD[Compilation Domain]
+        CFD[Config Domain]
+    end
+    
+    subgraph "Infrastructure Layer"
+        ADP[Adapters]
+        CACHE[Cache System]
+        CORE[Core Services]
+    end
+    
+    subgraph "External Systems"
+        DOCKER[Docker]
+        USB[USB Devices]
+        FS[File System]
+        MOERGO[MoErgo API]
+    end
+    
+    CLI --> CMD
+    TUI --> CMD
+    CMD --> DEC
+    DEC --> LD
+    DEC --> FD
+    DEC --> CD
+    DEC --> CFD
+    
+    LD --> ADP
+    FD --> ADP
+    CD --> ADP
+    CFD --> ADP
+    
+    ADP --> CACHE
+    ADP --> CORE
+    
+    ADP --> DOCKER
+    ADP --> USB
+    ADP --> FS
+    ADP --> MOERGO
+    
+    style LD fill:#e1f5fe
+    style FD fill:#f3e5f5
+    style CD fill:#fff3e0
+    style CFD fill:#e8f5e8
 ```
 
-**Key Responsibilities**:
-- Parse and validate JSON layout files
-- Extract and merge layout components (layers, behaviors)
-- Generate ZMK-compatible `.keymap` and `.conf` files
-- Format behaviors (macros, hold-taps, combos) for DTSI output
-- Provide layout visualization in terminal
+## Architectural Principles
 
-### Firmware Domain (`glovebox/firmware/`)
+### 1. Domain-Driven Design (DDD)
 
-**Responsibility**: Build firmware binaries and flash them to devices
+The codebase is organized around business domains that represent distinct areas of functionality:
 
-```
-Firmware Domain
-├── Build Services
-│   ├── BuildService         # Main firmware compilation
-│   ├── CompilerRegistry     # Available compilers
-│   └── CompilerSelector     # Compiler selection logic
-├── Flash Subdomain
-│   ├── FlashService         # Device flashing operations
-│   ├── DeviceDetector       # USB device discovery
-│   ├── FlashOperations      # Mount/unmount operations
-│   └── USBMonitor          # Cross-platform USB events
-├── Compile Methods
-│   ├── DockerCompiler       # Docker-based building
-│   └── GenericDockerCompiler # Generic Docker builds
-└── Models
-    ├── BuildResult          # Compilation results
-    ├── FlashResult          # Flash operation results
-    └── BlockDevice          # USB device representation
-```
+- **🏗️ Layout Domain**: Keyboard layout processing and transformation
+- **🔧 Firmware Domain**: Firmware building and device flashing
+- **⚙️ Compilation Domain**: Build strategies and workspace management
+- **📋 Configuration Domain**: System configuration and keyboard profiles
 
-**Key Responsibilities**:
-- Compile ZMK firmware using Docker containers
-- Detect and monitor USB devices across platforms
-- Flash firmware to keyboard devices with retry logic
-- Manage build artifacts and outputs
-- Handle Docker volume permissions automatically
+Each domain has:
+- **Clear boundaries** - No cross-domain dependencies
+- **Domain ownership** - Models, services, and business logic
+- **Single responsibility** - Focused on specific business capabilities
 
-### Compilation Domain (`glovebox/compilation/`)
-
-**Responsibility**: Direct compilation strategies with intelligent caching and workspace management
+### 2. Layered Architecture
 
 ```
-Compilation Domain
-├── Services
-│   ├── moergo_simple.py       # MoErgo Nix toolchain strategy
-│   └── zmk_config_simple.py   # ZMK config builds (GitHub Actions style)
-├── Cache System
-│   ├── base_dependencies_cache.py  # Base dependency caching
-│   └── cache_injector.py      # Cache dependency injection
-├── Models
-│   ├── build_matrix.py        # GitHub Actions build matrix
-│   ├── compilation_config.py  # Unified compilation configuration
-│   └── west_config.py         # West workspace configuration
-└── Protocols
-    └── compilation_protocols.py  # Type-safe interfaces
+┌─────────────────────────────────────────────┐
+│                UI Layer                     │  ← CLI, TUI, Output formatting
+├─────────────────────────────────────────────┤
+│            Application Layer                │  ← Commands, decorators, workflows
+├─────────────────────────────────────────────┤
+│              Domain Layer                   │  ← Business logic, domain services
+├─────────────────────────────────────────────┤
+│           Infrastructure Layer              │  ← Adapters, cache, core services
+└─────────────────────────────────────────────┘
 ```
 
-**Key Responsibilities**:
-- Provide direct strategy selection via CLI (no coordination layer)
-- Generate complete ZMK workspaces dynamically
-- Manage intelligent caching using generic cache system
-- Resolve GitHub Actions build matrices with automatic split keyboard detection
-- Handle Docker user context and volume mapping
-- Execute Docker-based compilation with unified configuration models
-- Support multiple compilation strategies: zmk_config, west, cmake, make, ninja, custom
+### 3. Dependency Inversion
 
-### Configuration Domain (`glovebox/config/`)
-
-**Responsibility**: Type-safe configuration management and keyboard profiles
-
-```
-Configuration Domain
-├── Profile System
-│   ├── KeyboardProfile      # Unified keyboard+firmware config
-│   ├── ProfileFactory       # Profile creation logic
-│   └── ProfileCache         # Configuration caching
-├── User Configuration
-│   ├── UserConfig           # User preferences
-│   ├── UserConfigData       # Pydantic validation model
-│   └── ConfigSources        # Multi-source loading
-├── Keyboard Configuration
-│   ├── KeyboardConfig       # Keyboard definition model
-│   ├── FirmwareConfig       # Firmware variant model
-│   └── ConfigLoader         # YAML configuration loading
-└── Models
-    ├── BehaviorConfig       # Behavior definitions
-    ├── DisplayConfig        # Display formatting
-    └── ZmkConfig            # ZMK-specific settings
-```
-
-**Key Responsibilities**:
-- Load and validate keyboard configurations from YAML
-- Manage firmware variants and profiles
-- Handle user preferences with environment precedence
-- Provide type-safe configuration access
-- Support keyboard-only profiles for minimal setups
-
-## Cross-Cutting Concerns
-
-### Generic Cache System
-
-Glovebox includes a domain-agnostic caching system that can be used across all domains:
+High-level modules don't depend on low-level modules. Both depend on abstractions:
 
 ```python
-from glovebox.core.cache import (
-    create_filesystem_cache,
-    create_memory_cache,
-    create_default_cache
-)
-
-# Create cache managers
-fs_cache = create_filesystem_cache(max_size_mb=500, default_ttl_hours=24)
-memory_cache = create_memory_cache(max_size_mb=100, max_entries=1000)
-default_cache = create_default_cache()  # Reasonable defaults
-
-# Use in domain-specific services
-from glovebox.compilation.cache import create_compilation_cache
-compilation_cache = create_compilation_cache(cache_manager=fs_cache)
+# High-level domain service
+class LayoutService:
+    def __init__(self, file_adapter: FileAdapterProtocol):
+        self.file_adapter = file_adapter  # Depends on abstraction
+        
+# Low-level infrastructure adapter
+class FileAdapter(FileAdapterProtocol):  # Implements abstraction
+    def read_file(self, path: Path) -> str:
+        return path.read_text()
 ```
 
-**Cache Features**:
-- Multiple backends (filesystem, memory, future: Redis, SQLite)
-- TTL support with automatic expiration
-- Size-based and count-based eviction policies
-- Cache hit/miss statistics and performance monitoring
-- Domain-specific cache wrappers for specialized operations
+### 4. Factory Function Pattern
 
-### Adapter Layer
-
-The adapter layer provides clean interfaces to external systems:
+Consistent object creation across the entire codebase:
 
 ```python
-# File operations
-from glovebox.adapters import FileAdapter
-file_adapter = FileAdapter()
-content = file_adapter.read_file(path)
+# Every service has a factory function
+def create_layout_service() -> LayoutService:
+    file_adapter = create_file_adapter()
+    template_adapter = create_template_adapter()
+    return LayoutService(file_adapter, template_adapter)
 
-# Docker operations  
-from glovebox.adapters import DockerAdapter
-docker_adapter = DockerAdapter()
-result = docker_adapter.run_build(image, command, volumes)
-
-# USB device operations
-from glovebox.adapters import USBAdapter
-usb_adapter = USBAdapter()
-devices = usb_adapter.list_devices(query)
-
-# Template rendering
-from glovebox.adapters import TemplateAdapter
-template_adapter = TemplateAdapter()
-output = template_adapter.render_template(template, context)
+# No singletons, no global state
+service1 = create_layout_service()  # New instance
+service2 = create_layout_service()  # Another new instance
 ```
 
-### Protocol System
+### 5. Protocol-Based Interfaces
 
-All interfaces are defined as protocols for type safety:
+Type-safe contracts using Python protocols:
 
 ```python
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
+@runtime_checkable
 class FileAdapterProtocol(Protocol):
     def read_file(self, path: Path) -> str: ...
     def write_file(self, path: Path, content: str) -> None: ...
-    def check_exists(self, path: Path) -> bool: ...
-
-class BaseServiceProtocol(Protocol):
-    @property
-    def name(self) -> str: ...
-    @property 
-    def version(self) -> str: ...
+    
+# Runtime checking available
+assert isinstance(file_adapter, FileAdapterProtocol)
 ```
 
-### Factory Functions
+## Domain Architecture Deep Dive
 
-Consistent creation patterns across all domains:
+### Layout Domain (`glovebox/layout/`)
+
+**Core Responsibility**: Transform JSON keyboard layouts into ZMK Device Tree Source Interface (DTSI) files.
+
+```mermaid
+graph LR
+    JSON[JSON Layout] --> PARSER[Layout Parser]
+    PARSER --> VALIDATOR[Layout Validator]
+    VALIDATOR --> PROCESSOR[Layout Processor]
+    PROCESSOR --> GENERATOR[ZMK Generator]
+    GENERATOR --> DTSI[DTSI Files]
+    
+    subgraph "Supporting Services"
+        BEHAVIOR[Behavior Registry]
+        TEMPLATE[Template Service]
+        FORMATTER[Layout Formatter]
+    end
+    
+    PROCESSOR --> BEHAVIOR
+    GENERATOR --> TEMPLATE
+    PARSER --> FORMATTER
+```
+
+**Key Components**:
+
+- **LayoutService**: Main orchestrator for layout operations
+- **LayoutComponentService**: Decomposition and composition operations
+- **ZmkFileContentGenerator**: DTSI file generation with Jinja2 templates
+- **BehaviorRegistry**: ZMK behavior analysis and formatting
+- **VersionManager**: Master layout import and intelligent upgrades
+
+**Subdomains**:
+```
+layout/
+├── behavior/           # Behavior analysis and formatting
+├── comparison/         # Layout comparison services
+├── diffing/           # Diff and patch operations
+├── editor/            # Layout editing and field manipulation
+├── layer/             # Layer management services
+├── parsers/           # Keymap parsing with AST walker
+└── utils/             # Core utilities and operations
+```
+
+### Compilation Domain (`glovebox/compilation/`)
+
+**Core Responsibility**: Compile ZMK files into firmware using multiple strategies.
+
+```mermaid
+graph TB
+    INPUT[Keymap + Config] --> STRATEGY{Compilation Strategy}
+    
+    STRATEGY -->|zmk_config| ZMK[ZmkWestService]
+    STRATEGY -->|moergo| MOERGO[MoergoNixService]
+    STRATEGY -->|west| WEST[WestWorkspaceService]
+    
+    ZMK --> CACHE[Workspace Cache]
+    MOERGO --> CACHE
+    WEST --> CACHE
+    
+    CACHE --> BUILD[Build Process]
+    BUILD --> FIRMWARE[Firmware Binary]
+    
+    subgraph "Cache System"
+        WORKSPACE[Workspace Service]
+        BUILDCACHE[Build Cache Service]
+    end
+    
+    CACHE --> WORKSPACE
+    CACHE --> BUILDCACHE
+```
+
+**Key Features**:
+
+- **Direct Strategy Selection**: Users choose compilation method via CLI
+- **Build Matrix Support**: GitHub Actions style matrices for complex builds
+- **Workspace Management**: Automatic setup and caching of build environments
+- **Multi-Strategy Support**: Flexible compilation methods (zmk_config, west, cmake, etc.)
+
+### Firmware Domain (`glovebox/firmware/`)
+
+**Core Responsibility**: Flash compiled firmware to USB keyboard devices.
+
+```mermaid
+graph LR
+    FIRMWARE[Firmware Binary] --> DETECTOR[Device Detector]
+    DETECTOR --> MONITOR[USB Monitor]
+    MONITOR --> FLASHER[USB Flasher]
+    FLASHER --> DEVICE[Keyboard Device]
+    
+    subgraph "OS Adapters"
+        LINUX[Linux Adapter]
+        MACOS[macOS Adapter]
+        WINDOWS[Windows Adapter]
+        WSL2[WSL2 Adapter]
+    end
+    
+    DETECTOR --> LINUX
+    DETECTOR --> MACOS
+    DETECTOR --> WINDOWS
+    DETECTOR --> WSL2
+```
+
+**Flash Subdomain** (`glovebox/firmware/flash/`):
+
+- **FlashService**: Main flash operations with retry logic
+- **DeviceDetector**: Cross-platform USB device detection
+- **USBFlasher**: Low-level flashing operations
+- **OS Adapters**: Platform-specific implementations
+
+### Configuration Domain (`glovebox/config/`)
+
+**Core Responsibility**: Manage keyboard profiles and user configuration.
+
+```mermaid
+graph TB
+    YAML[YAML Config Files] --> LOADER[Include Loader]
+    LOADER --> PROFILE[Keyboard Profile]
+    PROFILE --> KEYBOARD[Keyboard Config]
+    PROFILE --> FIRMWARE[Firmware Config]
+    
+    USER[User Config] --> GLOBAL[Global Settings]
+    USER --> CACHE[Cache Settings]
+    USER --> PATHS[Search Paths]
+    
+    subgraph "Modular Structure"
+        MAIN[main.yaml]
+        HARDWARE[hardware.yaml]
+        FIRMWARES[firmwares.yaml]
+        STRATEGIES[strategies.yaml]
+        KCONFIG[kconfig.yaml]
+        BEHAVIORS[behaviors.yaml]
+    end
+    
+    LOADER --> MAIN
+    MAIN --> HARDWARE
+    MAIN --> FIRMWARES
+    MAIN --> STRATEGIES
+    MAIN --> KCONFIG
+    MAIN --> BEHAVIORS
+```
+
+**Key Features**:
+
+- **Modular YAML Structure**: Configuration files with includes
+- **Profile Pattern**: Keyboard + firmware combinations
+- **Multi-source Configuration**: Environment, global, local precedence
+- **Type Safety**: Pydantic models with validation
+
+## Infrastructure Layer
+
+### Adapter Pattern Implementation
+
+Adapters provide clean interfaces to external systems:
 
 ```python
-# Layout domain
-from glovebox.layout import (
-    create_layout_service,
-    create_layout_component_service,
-    create_layout_display_service
-)
+# Protocol definition
+class DockerAdapterProtocol(Protocol):
+    def run_container(self, image: str, command: list[str]) -> DockerResult: ...
 
-# Firmware domain
-from glovebox.firmware import create_build_service
-from glovebox.firmware.flash import create_flash_service
+# Concrete implementation
+class DockerAdapter(DockerAdapterProtocol):
+    def run_container(self, image: str, command: list[str]) -> DockerResult:
+        # Implementation details
+        pass
 
-# Compilation domain
-from glovebox.compilation import (
-    create_compilation_service,
-    create_zmk_config_service,
-    create_west_service
-)
-
-# Configuration domain
-from glovebox.config import create_keyboard_profile, create_user_config
+# Factory function
+def create_docker_adapter() -> DockerAdapterProtocol:
+    return DockerAdapter()
 ```
 
-## Design Patterns
+**Available Adapters**:
+- **DockerAdapter**: Container operations for compilation
+- **FileAdapter**: File system operations with error handling
+- **USBAdapter**: USB device operations and monitoring
+- **TemplateAdapter**: Jinja2 template processing
+
+### Shared Cache Coordination System
+
+Unified caching across domains with proper isolation:
+
+```mermaid
+graph TB
+    subgraph "Cache Coordinator"
+        COORDINATOR[Cache Coordinator]
+        REGISTRY[Instance Registry]
+    end
+    
+    subgraph "Domain Caches"
+        COMP[Compilation Cache]
+        LAYOUT[Layout Cache]
+        METRICS[Metrics Cache]
+    end
+    
+    subgraph "Cache Backends"
+        DISK[DiskCache Manager]
+        MEMORY[Memory Cache]
+        DISABLED[Disabled Cache]
+    end
+    
+    COORDINATOR --> REGISTRY
+    REGISTRY --> COMP
+    REGISTRY --> LAYOUT
+    REGISTRY --> METRICS
+    
+    COMP --> DISK
+    LAYOUT --> DISK
+    METRICS --> MEMORY
+    
+    style COORDINATOR fill:#e1f5fe
+    style DISK fill:#f3e5f5
+```
+
+**Key Features**:
+- **Shared Coordination**: Same tag → same cache instance
+- **Domain Isolation**: Different tags → separate namespaces
+- **Memory Efficiency**: Eliminates duplicate cache managers
+- **Test Safety**: `reset_shared_cache_instances()` for clean test state
 
 ### Service Layer Pattern
 
-Each domain provides business logic through services:
+Domain services encapsulate business logic:
 
 ```python
 class LayoutService(BaseService):
+    """Main service for layout operations."""
+    
     def __init__(
         self,
         file_adapter: FileAdapterProtocol,
         template_adapter: TemplateAdapterProtocol,
-        behavior_service: BehaviorServiceProtocol,
+        behavior_registry: BehaviorRegistryProtocol,
     ):
-        # Dependencies injected, not created
-        
-    def generate(
-        self, 
-        profile: KeyboardProfile, 
-        layout_data: LayoutData, 
-        output_prefix: str
-    ) -> LayoutResult:
-        # Business logic here
+        super().__init__()
+        self.file_adapter = file_adapter
+        self.template_adapter = template_adapter
+        self.behavior_registry = behavior_registry
+    
+    def generate(self, profile: KeyboardProfile, layout: LayoutData) -> LayoutResult:
+        """Generate ZMK files from layout data."""
+        # Business logic implementation
+        pass
 ```
 
-### Repository Pattern
+## CLI Architecture
 
-Configuration loading follows repository pattern:
+### Modular Command Structure
+
+Commands organized by domain with consistent patterns:
+
+```
+cli/commands/
+├── layout/             # Layout management commands
+│   ├── compilation.py  # Compile, validate commands
+│   ├── comparison.py   # Diff, create-patch commands
+│   ├── editor.py       # Field editing commands
+│   └── version.py      # Version management commands
+├── firmware/           # Firmware operations
+├── config/             # Configuration management
+├── cache/              # Cache management
+└── moergo/             # MoErgo integration
+```
+
+### Command Registration Pattern
+
+Consistent command discovery and registration:
 
 ```python
-def load_keyboard_config(keyboard_name: str) -> KeyboardConfig:
-    """Load keyboard configuration with caching."""
-    # Check cache first
-    # Load from file system
-    # Validate and return
+# In each command module
+def register_commands(app: typer.Typer) -> None:
+    """Register commands with the main app."""
+    app.add_typer(command_app, name="command-name")
+
+# In cli/commands/__init__.py
+def register_all_commands(app: typer.Typer) -> None:
+    """Register all CLI commands with the main app."""
+    register_layout_commands(app)
+    register_firmware_commands(app)
+    register_config_commands(app)
+    # ... other domains
 ```
 
-### Strategy Pattern
+### Parameter Decorators
 
-Compilation uses direct strategy selection with unified configuration:
+Consistent parameter handling across commands:
 
 ```python
-from glovebox.compilation import create_compilation_service
-from glovebox.compilation.models import ZmkCompilationConfig, MoergoCompilationConfig
+from glovebox.cli.decorators import with_profile, with_input_file, with_output_file
 
-# Direct strategy selection - user chooses via CLI
-def compile_firmware(strategy: str, config: CompilationConfig, ...) -> CompilationResult:
-    service = create_compilation_service(strategy)
-    return service.compile(config, ...)
-
-# Available strategies: "zmk_config", "moergo", "west", "cmake", "make", "ninja", "custom"
-# Each strategy configured through unified CompilationConfig models
+@with_profile()
+@with_input_file()
+@with_output_file()
+def compile_layout(
+    ctx: typer.Context,
+    validate_only: bool = False,
+) -> None:
+    """Compile a JSON layout file to ZMK files."""
+    # Command implementation
 ```
 
-## Data Flow
+## Data Flow Patterns
 
-### Typical Layout Processing Flow
+### Request-Response Flow
 
-```
-1. JSON Layout File
-   ↓ (CLI reads file)
-2. LayoutData Model  
-   ↓ (LayoutService.generate)
-3. Behavior Analysis
-   ↓ (BehaviorFormatter)
-4. Template Context
-   ↓ (TemplateAdapter.render)
-5. ZMK Files (.keymap + .conf)
-```
+Typical flow for layout compilation:
 
-### Typical Firmware Build Flow
-
-```
-1. Keymap + Config Files
-   ↓ (CLI validates inputs)
-2. KeyboardProfile
-   ↓ (BuildService.compile)
-3. Docker Build Context
-   ↓ (DockerAdapter.run_build)
-4. Firmware Binary (.uf2)
+```mermaid
+sequenceDiagram
+    participant CLI
+    participant LayoutService
+    participant FileAdapter
+    participant TemplateAdapter
+    participant BehaviorRegistry
+    
+    CLI->>LayoutService: generate(profile, layout_data)
+    LayoutService->>FileAdapter: read_layout_file(path)
+    FileAdapter-->>LayoutService: layout_content
+    LayoutService->>BehaviorRegistry: analyze_behaviors(layout)
+    BehaviorRegistry-->>LayoutService: behavior_analysis
+    LayoutService->>TemplateAdapter: render_template(template, context)
+    TemplateAdapter-->>LayoutService: rendered_content
+    LayoutService->>FileAdapter: write_file(output_path, content)
+    FileAdapter-->>LayoutService: success
+    LayoutService-->>CLI: LayoutResult
 ```
 
-### Typical Flash Flow
+### Error Handling Flow
 
-```
-1. Firmware File + Profile
-   ↓ (FlashService.flash_device)
-2. Device Detection
-   ↓ (DeviceDetector.find_devices)
-3. Mount Operations
-   ↓ (FlashOperations.mount_and_flash)
-4. Flash Complete
-```
-
-## Error Handling
-
-### Hierarchical Error Structure
-
-```python
-from glovebox.core.errors import (
-    GloveboxError,           # Base error
-    ConfigurationError,      # Config issues
-    LayoutValidationError,   # Layout problems
-    BuildError,              # Build failures
-    FlashError               # Flash failures
-)
-```
-
-### Error Context Propagation
-
-Errors include context for debugging:
+Consistent error handling across all layers:
 
 ```python
 try:
-    result = service.process(data)
-except ProcessingError as e:
-    logger.error("Processing failed: %s", e)
-    if verbose:
-        print_stack_trace()
-    raise UserFriendlyError("Failed to process layout") from e
+    result = service.perform_operation()
+except DomainSpecificError as e:
+    # Domain-specific error handling
+    logger.error("Domain operation failed: %s", e)
+    raise
+except Exception as e:
+    # Generic error handling with debug-aware stack traces
+    exc_info = logger.isEnabledFor(logging.DEBUG)
+    logger.error("Unexpected error: %s", e, exc_info=exc_info)
+    raise GloveboxError(f"Operation failed: {e}") from e
 ```
+
+## Extension Points
+
+### Adding New Domains
+
+1. **Create domain package** under `glovebox/new_domain/`
+2. **Define domain models** in `models.py`
+3. **Implement domain service** with `*Service` naming
+4. **Create protocol interface** for type safety
+5. **Add factory function** following `create_*` pattern
+6. **Add CLI commands** in `cli/commands/new_domain/`
+
+### Adding New Adapters
+
+1. **Define protocol** in `glovebox/protocols/`
+2. **Implement adapter** in `glovebox/adapters/`
+3. **Create factory function** following `create_*_adapter` pattern
+4. **Add comprehensive tests** with mocking
+5. **Update domain services** to use new adapter
+
+### Adding New Compilation Strategies
+
+1. **Implement CompilationServiceProtocol** in `compilation/services/`
+2. **Add configuration model** in `compilation/models/`
+3. **Create factory function** following `create_*_service` pattern
+4. **Register strategy** in compilation service factory
+5. **Add CLI support** for new strategy selection
 
 ## Performance Considerations
 
 ### Caching Strategy
 
-- **Generic Cache System**: Domain-agnostic caching with multiple backends
-- **Configuration Cache**: Keyboard configs cached after first load
-- **Compilation Cache**: ZMK dependencies, workspace data, and build matrices
-- **Template Cache**: Jinja2 templates cached for performance
-- **Intelligent Invalidation**: Cache entries invalidated based on content changes
-
-### Lazy Loading
-
-- Models loaded only when needed
-- Services created on-demand through factory functions
-- Heavy operations deferred until required
+- **Workspace Caching**: Build environments cached across operations
+- **Template Caching**: Jinja2 templates cached for reuse
+- **Configuration Caching**: Keyboard profiles cached after loading
+- **Dependency Caching**: ZMK dependencies cached for faster builds
 
 ### Resource Management
 
-- Docker containers cleaned up after builds
-- Temporary files removed automatically
-- USB device handles properly closed
+- **Memory Usage**: Services created on-demand, not as singletons
+- **File Handles**: Proper context managers for file operations
+- **Process Management**: Docker containers cleaned up after use
+- **USB Resources**: Device handles properly released
 
-## Testing Architecture
+### Scalability Patterns
 
-### Test Organization
+- **Stateless Services**: All services are stateless and thread-safe
+- **Immutable Models**: Pydantic models are immutable by design
+- **Protocol-Based Design**: Easy to swap implementations
+- **Modular Architecture**: Domains can evolve independently
 
-```
-tests/
-├── test_layout/         # Layout domain tests
-├── test_firmware/       # Firmware domain tests  
-├── test_compilation/    # Compilation domain tests
-├── test_config/         # Configuration tests
-├── test_adapters/       # Adapter tests
-└── test_cli/           # CLI integration tests
-```
+---
 
-### Test Types
-
-- **Unit Tests**: Test individual components in isolation
-- **Integration Tests**: Test component interactions
-- **Service Tests**: Test business logic in services
-- **CLI Tests**: Test command-line interface
-
-### Mocking Strategy
-
-- Mock external dependencies (Docker, USB, File System)
-- Use protocol-based mocking for type safety
-- Provide test fixtures for common scenarios
-
-## Security Considerations
-
-### Input Validation
-
-- All user inputs validated through Pydantic models
-- File path validation prevents directory traversal
-- JSON layout validation prevents malicious content
-
-### Docker Security
-
-- Docker user context properly managed
-- No privileged container access required
-- Build isolation through containers
-
-### USB Device Access
-
-- Device queries prevent unauthorized access
-- Safe mount/unmount operations
-- No root privileges required for device operations
-
-## Future Architecture Considerations
-
-### Planned Extensions
-
-- **Plugin System**: Support for third-party keyboards and builders
-- **Remote Builds**: Cloud-based firmware compilation
-- **Keyboard Discovery**: Auto-detection of connected keyboards
-- **Layout Sharing**: Community layout repository integration
-
-### Scalability
-
-- Current architecture supports adding new domains
-- Service-oriented design enables independent scaling
-- Protocol-based interfaces support implementation swapping
+**Next Steps**: 
+- Explore [Domain Deep Dives](../domains/) for detailed domain documentation
+- Review [Development Patterns](../patterns/) for coding guidelines
+- Check [API Reference](../api/) for comprehensive interface documentation

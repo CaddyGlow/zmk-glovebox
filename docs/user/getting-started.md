@@ -1,322 +1,328 @@
 # Getting Started with Glovebox
 
-This guide will help you install Glovebox, configure your first keyboard profile, and build your first firmware.
+This guide will walk you through your first layout compilation and firmware flash using Glovebox.
 
-## Installation
+## Prerequisites
 
-### Prerequisites
+- Glovebox installed and configured (see [Installation Guide](installation.md))
+- Docker running and accessible
+- A keyboard layout JSON file (from Layout Editor or examples)
+- Your keyboard connected (for flashing)
 
-Before installing Glovebox, ensure you have:
+## Understanding the Workflow
 
-- **Python 3.11 or higher**
-- **Docker** (required for firmware building)
-- **Platform-specific tools**:
-  - **Linux**: `udisksctl` (usually pre-installed)
-  - **macOS**: `diskutil` (built-in)
-  - **Windows**: Not yet supported for flashing
+Glovebox follows a clear pipeline:
 
-### Install Glovebox
-
-#### From PyPI (Recommended)
-```bash
-pip install glovebox
+```
+JSON Layout → ZMK Files → Firmware → Flash to Keyboard
 ```
 
-#### From Source
+1. **JSON Layout**: Human-readable layout from Layout Editor
+2. **ZMK Files**: `.keymap` and `.conf` files for ZMK firmware
+3. **Firmware**: Compiled `.uf2` binary file
+4. **Flash**: Transfer firmware to keyboard
+
+## Your First Layout Compilation
+
+### Step 1: Get a Layout File
+
+You can use an example layout or create your own:
+
 ```bash
-git clone https://github.com/your-org/glovebox.git
-cd glovebox
-pip install -e .
+# Download an example layout
+curl -O https://raw.githubusercontent.com/moergo-sc/zmk/main/app/boards/arm/glove80/glove80.json
+
+# Or use a local layout file you've created
+# my_layout.json
 ```
 
-### Verify Installation
+### Step 2: Check Available Profiles
+
+Profiles define keyboard and firmware combinations:
 
 ```bash
-# Check Glovebox is installed
-glovebox --version
+# List all available profiles
+glovebox profile list
 
-# Check Docker is available
-docker --version
+# Show details for a specific profile
+glovebox profile show glove80/v25.05
 
-# Check system status
+# List available keyboards
+glovebox profile list --keyboards-only
+```
+
+### Step 3: Compile Layout to ZMK Files
+
+Convert your JSON layout to ZMK keymap and config files:
+
+```bash
+# Basic compilation
+glovebox layout compile my_layout.json output/ --profile glove80/v25.05
+
+# With validation
+glovebox layout compile my_layout.json output/ --profile glove80/v25.05 --validate
+
+# Verbose output
+glovebox layout compile my_layout.json output/ --profile glove80/v25.05 --verbose
+```
+
+**Output files:**
+- `output/my_layout.keymap` - ZMK keymap file
+- `output/my_layout.conf` - ZMK configuration file
+
+### Step 4: Build Firmware
+
+Compile ZMK files into firmware:
+
+```bash
+# Build firmware from the generated files
+glovebox firmware compile output/my_layout.keymap output/my_layout.conf output/firmware/ --profile glove80/v25.05
+
+# Or build directly from JSON (combines steps 3 and 4)
+glovebox firmware compile my_layout.json output/firmware/ --profile glove80/v25.05
+```
+
+**Output files:**
+- `output/firmware/glove80_lh.uf2` - Left hand firmware
+- `output/firmware/glove80_rh.uf2` - Right hand firmware
+
+### Step 5: Flash Firmware
+
+Transfer firmware to your keyboard:
+
+```bash
+# Check connected devices
+glovebox firmware devices
+
+# Flash firmware (put keyboard in bootloader mode first)
+glovebox firmware flash output/firmware/glove80_lh.uf2 --profile glove80
+
+# Flash both hands
+glovebox firmware flash output/firmware/glove80_lh.uf2 --profile glove80
+glovebox firmware flash output/firmware/glove80_rh.uf2 --profile glove80
+```
+
+## Complete Example Workflow
+
+Here's a complete example from start to finish:
+
+```bash
+# 1. Check system status
 glovebox status
+
+# 2. Set up default profile
+glovebox config edit --set profile=glove80/v25.05
+
+# 3. Get an example layout
+curl -O https://raw.githubusercontent.com/moergo-sc/zmk/main/examples/glove80_basic.json
+
+# 4. Validate the layout
+glovebox layout validate glove80_basic.json --profile glove80/v25.05
+
+# 5. Compile to firmware in one step
+glovebox firmware compile glove80_basic.json firmware/ --profile glove80/v25.05
+
+# 6. Put keyboard in bootloader mode and flash
+glovebox firmware devices  # Verify device is detected
+glovebox firmware flash firmware/glove80_lh.uf2 --profile glove80
 ```
 
 ## Understanding Profiles
 
-Glovebox uses **profiles** to combine keyboard and firmware configurations:
+Profiles combine keyboard hardware specs with firmware versions:
 
-- **Full Profile**: `keyboard/firmware` (e.g., `glove80/v25.05`)
-- **Keyboard-Only Profile**: `keyboard` (e.g., `glove80`)
+### Profile Format
+- **Full profile**: `keyboard/firmware` (e.g., `glove80/v25.05`)
+- **Keyboard-only**: `keyboard` (e.g., `glove80`) - uses default firmware
 
+### Common Profiles
 ```bash
-# List available keyboards and firmwares
-glovebox config list
+# Glove80 keyboards
+glove80/v25.05    # MoErgo Glove80 with v25.05 firmware
+glove80/main      # Glove80 with latest main branch
 
-# Show keyboard details
-glovebox config show glove80
-
-# Show firmware variants
-glovebox config firmwares glove80
+# Generic ZMK keyboards
+corne/main        # Corne keyboard with main ZMK
+lily58/main       # Lily58 keyboard with main ZMK
 ```
 
-## Your First Build
+### Setting Default Profile
+```bash
+# Set global default
+glovebox config edit --set profile=glove80/v25.05
 
-### Step 1: Get a Layout File
-
-You can get a layout file from:
-1. **Glove80 Layout Editor**: Download JSON from [my.glove80.com](https://my.glove80.com/#/edit)
-2. **Sample layouts**: Use examples from the repository
-3. **Create manually**: Write your own JSON layout
-
-For this example, we'll create a simple layout:
-
-```json
-{
-  "metadata": {
-    "name": "My First Layout",
-    "description": "A simple test layout"
-  },
-  "layers": [
-    {
-      "name": "DEFAULT",
-      "bindings": [
-        {"key": 0, "binding": "&kp ESC"},
-        {"key": 1, "binding": "&kp Q"},
-        {"key": 2, "binding": "&kp W"},
-        {"key": 3, "binding": "&kp E"},
-        {"key": 4, "binding": "&kp R"}
-      ]
-    }
-  ],
-  "behaviors": {
-    "macros": [],
-    "hold_taps": [],
-    "combos": []
-  },
-  "config": []
-}
+# Use profile for single command
+glovebox layout compile my_layout.json output/ --profile corne/main
 ```
 
-Save this as `my_first_layout.json`.
+## Working with Different Keyboards
 
-### Step 2: Generate ZMK Files
-
-Convert your JSON layout to ZMK files:
-
+### Glove80 (Split)
 ```bash
-# Generate keymap and config files
-glovebox layout compile my_first_layout.json output/my_first --profile glove80/v25.05
+# Compile for Glove80
+glovebox firmware compile layout.json output/ --profile glove80/v25.05
 
-# Check generated files
-ls -la output/
-# Should show: my_first.keymap, my_first.conf, my_first.json
+# Flash left hand
+glovebox firmware flash output/glove80_lh.uf2 --profile glove80
+
+# Flash right hand  
+glovebox firmware flash output/glove80_rh.uf2 --profile glove80
 ```
 
-### Step 3: Build Firmware
-
-Compile the ZMK files into firmware:
-
+### Single-Board Keyboards
 ```bash
-# Build firmware using Docker
-glovebox firmware compile output/my_first.keymap output/my_first.conf --profile glove80/v25.05
+# Compile for Corne
+glovebox firmware compile layout.json output/ --profile corne/main
 
-# Check build output
-ls -la build/
-# Should show firmware files (.uf2)
+# Flash single firmware
+glovebox firmware flash output/corne.uf2 --profile corne
 ```
 
-### Step 4: Flash Firmware
+## Useful Commands for Beginners
 
-Flash the firmware to your keyboard:
-
+### Validation and Testing
 ```bash
-# Put your keyboard in bootloader mode, then:
-glovebox firmware flash build/glove80.uf2 --profile glove80/v25.05
+# Validate layout without building
+glovebox layout validate my_layout.json --profile glove80/v25.05
 
-# For keyboards with left/right halves:
-# Flash each half separately when they appear in bootloader mode
+# Show layout details
+glovebox layout show my_layout.json --profile glove80/v25.05
+
+# Preview compiled keymap
+glovebox layout compile my_layout.json --output-stdout --profile glove80/v25.05
 ```
 
-## Working with Components
-
-For complex layouts, you can work with individual components:
-
-### Extract Components
+### Configuration Management
 ```bash
-# Split layout into manageable pieces
-glovebox layout decompose my_complex_layout.json components/
-
-# This creates:
-# components/
-# ├── metadata.json
-# ├── device.dtsi (if custom device tree)
-# ├── keymap.dtsi (if custom behaviors)
-# └── layers/
-#     ├── DEFAULT.json
-#     ├── LOWER.json
-#     └── RAISE.json
-```
-
-### Edit Individual Layers
-```bash
-# Edit individual layer files
-nano components/layers/DEFAULT.json
-nano components/layers/LOWER.json
-```
-
-### Merge Components
-```bash
-# Combine edited components back into a complete layout
-glovebox layout compose components/ --output modified_layout.json
-
-# Generate ZMK files from modified layout
-glovebox layout compile modified_layout.json output/modified --profile glove80/v25.05
-```
-
-## Configuration
-
-### User Configuration
-
-Set up your personal preferences:
-
-```bash
-# Set default profile
-glovebox config set profile glove80/v25.05
-
-# Set default output directory
-glovebox config set output_dir ~/keyboard_builds
-
-# Enable verbose logging
-glovebox config set log_level INFO
-
 # Show current configuration
 glovebox config show
+
+# Edit configuration interactively
+glovebox config edit --interactive
+
+# Show profile details
+glovebox profile show glove80/v25.05
 ```
 
-### Configuration File
-
-Glovebox uses `~/.config/glovebox/config.yaml`:
-
-```yaml
-# Default profile
-profile: glove80/v25.05
-
-# Logging
-log_level: INFO
-log_file: ~/.local/share/glovebox/debug.log
-
-# Firmware settings
-firmware:
-  flash:
-    timeout: 120
-    skip_existing: false
-  docker:
-    enable_user_mapping: true
-
-# Custom keyboard paths
-keyboard_paths:
-  - ~/my_keyboards
-```
-
-## Debug and Troubleshooting
-
-### Debug Logging
-
-Use verbose flags to diagnose issues:
-
+### Cache and Performance
 ```bash
-# Debug levels (most to least verbose)
-glovebox --debug layout compile layout.json output/  # Full debug
-glovebox -vv firmware compile keymap.keymap config.conf  # Debug + stack traces
-glovebox -v firmware flash firmware.uf2  # Info + stack traces
+# Show cache status
+glovebox cache show
 
-# Log to file
-glovebox --debug --log-file debug.log firmware compile keymap.keymap config.conf
+# Clear cache if needed
+glovebox cache clear
+
+# Show build workspace
+glovebox cache workspace show
 ```
 
-### Common Issues
+## Understanding Output
 
-**Docker not found:**
+### Success Messages
+- ✓ **Layout validated successfully**
+- ✓ **Compilation completed**
+- ✓ **Firmware built successfully**
+- ✓ **Device flashed successfully**
+
+### Common Warnings
+- ⚠ **Cache miss - downloading dependencies**
+- ⚠ **Docker image update available**
+- ⚠ **Device in wrong mode**
+
+### Error Indicators
+- ✗ **Layout validation failed**
+- ✗ **Compilation failed**
+- ✗ **Device not found**
+
+## Tips for Success
+
+### 1. Always Validate First
 ```bash
-# Check Docker installation
+# Check layout before building
+glovebox layout validate my_layout.json --profile glove80/v25.05
+```
+
+### 2. Use System Status
+```bash
+# Check everything is working
+glovebox status --verbose
+```
+
+### 3. Keep Cache Warm
+```bash
+# Pre-download dependencies
+glovebox cache workspace create zmk --profile glove80/v25.05
+```
+
+### 4. Backup Working Layouts
+```bash
+# Export successful layouts
+cp my_layout.json backups/my_layout_$(date +%Y%m%d).json
+```
+
+### 5. Use Dry Run for Testing
+```bash
+# Test without actual flashing
+glovebox firmware flash firmware.uf2 --profile glove80 --dry-run
+```
+
+## Common First-Time Issues
+
+### Docker Not Running
+```bash
+# Check Docker status
 docker --version
-
-# Start Docker (Linux)
-sudo systemctl start docker
-
-# Test Docker access
-docker run hello-world
+sudo systemctl start docker  # Linux
 ```
 
-**Device not detected:**
+### USB Permissions
 ```bash
-# List detected devices
-glovebox firmware devices --profile glove80/v25.05
-
-# Check device is in bootloader mode
-# Verify USB query matches your device
+# Check device access
+glovebox firmware devices
+# See installation guide for USB setup
 ```
 
-**Build failures:**
+### Profile Not Found
 ```bash
-# Check build logs
-glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --verbose
+# List available profiles
+glovebox profile list
+# Use exact profile name
+```
 
-# Clean build
-glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --clean
+### Layout Validation Errors
+```bash
+# Check layout format
+glovebox layout validate my_layout.json --verbose
+# Fix JSON syntax or structure
 ```
 
 ## Next Steps
 
-### Explore Features
-- **[Keyboard Profiles](keyboard-profiles.md)** - Learn about profile management
-- **[Layout Editing](layout-editing.md)** - Advanced layout techniques
-- **[Firmware Building](firmware-building.md)** - Build system details
+Now that you've completed your first compilation:
 
-### Advanced Usage
-- **[Dynamic Generation](dynamic-generation.md)** - On-the-fly workspace creation
-- **[Docker Configuration](docker-configuration.md)** - Custom Docker settings
-- **[Custom Keyboards](custom-keyboards.md)** - Add your own keyboard
+1. **[Layout Commands](layout-commands.md)** - Learn advanced layout operations
+2. **[Configuration](configuration.md)** - Customize Glovebox for your workflow
+3. **[Profiles](profiles.md)** - Set up multiple keyboard profiles
+4. **[Workflows](workflows.md)** - Common usage patterns and examples
 
-### Get Help
-- **[Troubleshooting](troubleshooting.md)** - Common problems and solutions
-- **GitHub Issues** - Report bugs or request features
-- **GitHub Discussions** - Ask questions and get help
+## Getting Help
 
-## Quick Reference
+If you run into issues:
 
-### Essential Commands
 ```bash
-# Layout operations
-glovebox layout compile layout.json output/name --profile keyboard/firmware
-glovebox layout decompose layout.json components/
-glovebox layout compose components/ --output new_layout.json
-glovebox layout show layout.json
+# Check system diagnostics
+glovebox status --verbose
 
-# Firmware operations  
-glovebox firmware compile keymap.keymap config.conf --profile keyboard/firmware
-glovebox firmware flash firmware.uf2 --profile keyboard/firmware
+# Get command help
+glovebox layout compile --help
+glovebox firmware flash --help
 
-# Configuration
-glovebox config list
-glovebox config show keyboard_name
-glovebox status
-
-# Debug
-glovebox --debug [command]
-glovebox -v [command]
+# Show configuration
+glovebox config show
 ```
 
-### Profile Patterns
-```bash
-# Full profiles (keyboard + firmware)
---profile glove80/v25.05
---profile corne/main
+Visit the [Troubleshooting Guide](troubleshooting.md) for solutions to common problems.
 
-# Keyboard-only profiles (for flashing pre-built firmware)
---profile glove80
---profile corne
-```
+---
 
-You're now ready to start building custom keyboard firmware with Glovebox!
+*Congratulations! You've successfully compiled and flashed your first keyboard firmware with Glovebox.*

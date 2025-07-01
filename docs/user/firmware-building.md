@@ -1,513 +1,672 @@
-# Firmware Building
+# Firmware Building Guide
 
-This guide covers building ZMK firmware from layouts and keymap files using Glovebox.
+This guide covers how to build ZMK firmware using Glovebox, from basic compilation to advanced build configurations and troubleshooting.
 
 ## Overview
 
-Glovebox provides two main paths for firmware building:
+Glovebox builds firmware using Docker-based ZMK toolchains. It can compile from JSON layouts, ZMK keymap files, or existing ZMK source directories.
 
-1. **Layout to Firmware**: Compile JSON layout files directly to firmware
-2. **Keymap to Firmware**: Compile ZMK keymap and config files to firmware
+## Understanding Firmware Building
 
-Both paths use the same underlying ZMK compilation system with Docker containers for consistent, reproducible builds.
+### Build Pipeline
 
-## Quick Start
+The firmware building process follows this flow:
 
-### From Layout File
-
-```bash
-# One-step: layout JSON to firmware
-glovebox layout compile layout.json --output build/firmware --profile glove80/v25.05
-
-# This creates:
-# build/firmware.keymap  - ZMK keymap file
-# build/firmware.conf    - ZMK config file
-# build/firmware.uf2     - Compiled firmware (if Docker available)
+```
+Input → ZMK Files → Docker Build → Firmware Binary
 ```
 
-### From Keymap Files
+1. **Input**: JSON layout, ZMK files, or source directory
+2. **ZMK Files**: Generated `.keymap` and `.conf` files
+3. **Docker Build**: Compilation using ZMK toolchain in Docker
+4. **Firmware**: Final `.uf2` binary files for flashing
+
+### Build Strategies
+
+Glovebox supports different build strategies:
+
+- **ZMK West**: Standard ZMK builds using west workspace
+- **MoErgo Nix**: MoErgo-specific builds using Nix toolchain
+- **Local**: Use local ZMK installation (advanced)
+
+## Basic Firmware Building
+
+### From JSON Layout
+
+The most common way to build firmware:
 
 ```bash
-# Two-step: keymap files to firmware
-glovebox firmware compile layout.keymap config.conf --profile glove80/v25.05
-```
+# Basic firmware build
+glovebox firmware compile my_layout.json firmware/ --profile glove80/v25.05
 
-## Layout to Firmware Workflow
-
-### Complete Workflow
-
-```bash
-# 1. Start with a layout JSON file
-glovebox layout validate my-layout.json --profile glove80/v25.05
-
-# 2. Compile layout to ZMK files and firmware
-glovebox layout compile my-layout.json \
-  --output build/my-layout \
-  --profile glove80/v25.05
-
-# 3. Flash firmware to keyboard
-glovebox firmware flash build/my-layout.uf2 --profile glove80
-```
-
-### Environment Setup
-
-```bash
-# Set defaults for convenience
-export GLOVEBOX_JSON_FILE=~/layouts/main-layout.json
-export GLOVEBOX_PROFILE=glove80/v25.05
-
-# Now commands can omit file and profile
-glovebox layout validate
-glovebox layout compile --output build/current
-glovebox firmware flash build/current.uf2 --profile glove80
-```
-
-### Compilation Options
-
-```bash
-# Basic compilation
-glovebox layout compile layout.json --output build/firmware --profile glove80/v25.05
-
-# Force overwrite existing files
-glovebox layout compile layout.json --output build/firmware --profile glove80/v25.05 --force
-
-# Disable auto-profile detection
-glovebox layout compile layout.json --output build/firmware --no-auto --profile glove80/v25.05
-
-# JSON output for automation
-glovebox layout compile layout.json --output build/firmware --profile glove80/v25.05 --output-format json
-```
-
-## Keymap to Firmware Workflow
-
-### Direct Compilation
-
-```bash
-# Compile existing keymap and config files
-glovebox firmware compile my-layout.keymap my-config.conf --profile glove80/v25.05
-
-# Specify output directory
-glovebox firmware compile layout.keymap config.conf \
-  --output build/custom-firmware \
-  --profile glove80/v25.05
-
-# Force overwrite
-glovebox firmware compile layout.keymap config.conf \
+# With verbose output
+glovebox firmware compile layout.json firmware/ \
   --profile glove80/v25.05 \
-  --force
+  --verbose
+
+# Clean build (no cache)
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --clean
 ```
 
-### Working with Custom Keymaps
+**Output for split keyboards (e.g., Glove80):**
+- `firmware/glove80_lh.uf2` - Left hand firmware
+- `firmware/glove80_rh.uf2` - Right hand firmware
+
+**Output for single keyboards (e.g., Corne):**
+- `firmware/corne.uf2` - Single firmware file
+
+### From ZMK Files
+
+Build from existing keymap and config files:
 
 ```bash
-# If you have manually created or modified keymap files
-glovebox firmware compile custom.keymap custom.conf --profile glove80/v25.05
+# Build from keymap and config
+glovebox firmware compile keymap.keymap firmware/ \
+  --profile glove80/v25.05 \
+  --config config.conf
 
-# Validate keymap syntax first (if validation tools available)
-# Then compile
-glovebox firmware compile validated.keymap config.conf --profile glove80/v25.05
+# Build from directory containing ZMK files
+glovebox firmware compile zmk_files/ firmware/ \
+  --profile glove80/v25.05
 ```
 
-## Compilation Profiles
+### Two-Step Process
 
-### Profile Selection
-
-Different keyboards and firmware versions require specific compilation profiles:
+Separate layout compilation and firmware building:
 
 ```bash
-# Glove80 with MoErgo firmware
-glovebox layout compile layout.json --profile glove80/v25.05
+# Step 1: Compile layout to ZMK files
+glovebox layout compile layout.json zmk_files/ --profile glove80/v25.05
 
-# Glove80 with upstream ZMK
-glovebox layout compile layout.json --profile glove80/main
-
-# Corne with standard ZMK
-glovebox layout compile corne-layout.json --profile corne/main
-
-# Check available profiles
-glovebox keyboard list
-glovebox keyboard firmwares glove80
+# Step 2: Build firmware from ZMK files
+glovebox firmware compile zmk_files/layout.keymap firmware/ \
+  --profile glove80/v25.05 \
+  --config zmk_files/layout.conf
 ```
 
-### Profile Auto-Detection
+## Advanced Build Options
 
-```json
-{
-  "keyboard": "glove80",
-  "title": "My Layout",
-  "layers": [...]
-}
-```
+### Build Timeouts
+
+Control build duration limits:
 
 ```bash
-# Auto-detects glove80 profile from JSON
-glovebox layout compile layout.json --output build/auto
+# Extended timeout for large builds
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --timeout 600
 
-# Disable auto-detection
-glovebox layout compile layout.json --no-auto --profile glove80/v25.05
+# Quick timeout for testing
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --timeout 120
 ```
 
-## Build Configuration
+### Build Modes
 
-### Compilation Strategies
-
-Glovebox supports multiple compilation strategies:
+Different build approaches:
 
 ```bash
-# ZMK West workspace (default)
-glovebox config edit --set compilation.strategy=zmk_west
+# Development build (faster, less optimized)
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --mode development
 
-# MoErgo Nix-based compilation
-glovebox config edit --set compilation.strategy=moergo_nix
+# Release build (slower, fully optimized)
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --mode release
 
-# Check current strategy
-glovebox config list | grep strategy
+# Debug build (with debug symbols)
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --mode debug
 ```
 
-### Build Performance
+### Custom Configuration
 
-```yaml
-# ~/.glovebox/config.yml
-compilation:
-  # Use multiple CPU cores
-  parallel_jobs: 8
-  
-  # Keep intermediate files for debugging
-  keep_intermediate: false
-
-# Docker settings
-docker:
-  # Build timeout (30 minutes)
-  build_timeout: 1800
-  
-  # Enable BuildKit for faster builds
-  buildkit: true
-```
-
-### Caching
+Add additional configuration options:
 
 ```bash
-# Enable shared caching for faster rebuilds
-glovebox config edit --set cache_strategy=shared
+# With additional config file
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --config custom_features.conf
 
-# Check cache status
-glovebox cache stats
+# With inline config options
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --define CONFIG_ZMK_RGB_UNDERGLOW=y
+```
 
-# Clear compilation cache if needed
-glovebox cache clear --tag compilation
+## Build Strategies
+
+### ZMK West Strategy
+
+Standard ZMK builds using the west workspace:
+
+```bash
+# Force ZMK west strategy
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --strategy zmk-west
+
+# With specific ZMK branch
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --strategy zmk-west \
+  --zmk-branch main
+```
+
+### MoErgo Nix Strategy
+
+MoErgo-specific builds using Nix:
+
+```bash
+# Force MoErgo Nix strategy
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --strategy moergo-nix
+
+# With specific firmware version
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --strategy moergo-nix \
+  --firmware-version v25.05
+```
+
+### Strategy Selection
+
+Glovebox automatically selects the best strategy based on your profile, but you can override:
+
+```bash
+# Let Glovebox choose (default)
+glovebox firmware compile layout.json firmware/ --profile glove80/v25.05
+
+# Force specific strategy
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --strategy zmk-west
 ```
 
 ## Docker Configuration
 
-### Docker Requirements
+### Docker Settings
 
-Firmware compilation requires Docker for ZMK builds:
+Configure Docker behavior for builds:
 
 ```bash
 # Check Docker status
-docker version
-docker info
+glovebox status --verbose
 
-# Test Docker access
-docker run hello-world
+# Force Docker image update
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --update-docker
 
-# Pull ZMK build image
-docker pull zmkfirmware/zmk-build-arm:stable
-```
-
-### Docker Settings
-
-```yaml
-# ~/.glovebox/config.yml
-docker:
-  # ZMK build image
-  zmk_image: "zmkfirmware/zmk-build-arm:stable"
-  
-  # Custom registry if needed
-  registry: "docker.io"
-  
-  # Build timeout (30 minutes)
-  build_timeout: 1800
-  
-  # Enable BuildKit
-  buildkit: true
-  
-  # Volume strategy
-  volume_strategy: "bind"  # bind, tmpfs, volume
+# Use specific Docker image
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --docker-image zmkfirmware/zmk-build-arm:3.5
 ```
 
 ### Docker Troubleshooting
 
+Common Docker issues and solutions:
+
 ```bash
 # Check Docker connectivity
-glovebox status --verbose
+docker run hello-world
 
-# Manual image pull
-docker pull zmkfirmware/zmk-build-arm:stable
+# Update Docker images
+docker pull zmkfirmware/zmk-build-arm:3.5
 
-# Check available space
-docker system df
-
-# Clean up if needed
+# Clean Docker cache
 docker system prune
+
+# Check Docker permissions (Linux)
+sudo usermod -aG docker $USER
 ```
 
-## Output Files
+## Caching and Performance
 
-### Generated Files
+### Build Caching
 
-When compiling layouts, Glovebox generates:
-
-```
-build/
-├── layout.keymap    # ZMK Device Tree keymap
-├── layout.conf      # ZMK Kconfig configuration
-└── layout.uf2       # Compiled firmware binary (if Docker available)
-```
-
-### File Descriptions
-
-**`.keymap` file:**
-- ZMK Device Tree Source (DTS) format
-- Contains key bindings, behaviors, and layout structure
-- Human-readable but follows strict syntax rules
-
-**`.conf` file:**
-- ZMK Kconfig options
-- Enables/disables firmware features
-- Simple KEY=value format
-
-**`.uf2` file:**
-- Compiled firmware binary
-- Ready to flash to keyboard
-- Generated only if Docker compilation succeeds
-
-### Custom Output Naming
+Glovebox caches build artifacts for faster compilation:
 
 ```bash
-# Default naming (uses input filename)
-glovebox layout compile my-layout.json --output build/
+# Show cache status
+glovebox cache show
 
-# Creates: build/my-layout.keymap, build/my-layout.conf, build/my-layout.uf2
+# Build with cache (default)
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05
 
-# Custom prefix
-glovebox layout compile layout.json --output build/gaming-layout
+# Force clean build (ignore cache)
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --clean
 
-# Creates: build/gaming-layout.keymap, build/gaming-layout.conf, build/gaming-layout.uf2
-
-# Directory structure
-glovebox layout compile layout.json --output keyboards/glove80/v2/main
-
-# Creates: keyboards/glove80/v2/main.keymap, etc.
+# Cache-only build (prepare for later)
+glovebox firmware compile layout.json /dev/null \
+  --profile glove80/v25.05 \
+  --cache-only
 ```
 
-## Advanced Features
+### Workspace Management
 
-### Custom Behaviors
-
-Layout JSON files can include custom ZMK behaviors:
-
-```json
-{
-  "keyboard": "glove80",
-  "title": "Custom Layout",
-  
-  "custom_defined_behaviors": "#define CUSTOM_BEHAVIOR ...",
-  "custom_devicetree": "/ { behaviors { ... }; };",
-  
-  "layers": [...]
-}
-```
-
-These are automatically included in the generated keymap file.
-
-### Build Matrix Configuration
-
-For advanced users, custom build matrices can be specified:
-
-```yaml
-# Profile configuration
-firmwares:
-  custom:
-    type: "zmk_config"
-    repository: "https://github.com/zmkfirmware/zmk.git"
-    branch: "main"
-    
-    build_matrix:
-      board: ["nice_nano_v2"]
-      shield: ["glove80_lh", "glove80_rh"]
-      
-    kconfig:
-      - "CONFIG_ZMK_SLEEP=y"
-      - "CONFIG_ZMK_IDLE_TIMEOUT=300000"
-```
-
-### Development Builds
+Manage build workspaces:
 
 ```bash
-# Enable development features
-glovebox config edit --set compilation.keep_intermediate=true
+# Show build workspaces
+glovebox cache workspace show
 
-# Use development branch
-glovebox layout compile layout.json --profile glove80/main
+# Create workspace for profile
+glovebox cache workspace create zmk --profile glove80/v25.05
 
-# Debug build output
-glovebox --debug layout compile layout.json --profile glove80/v25.05
+# Clean old workspaces
+glovebox cache workspace cleanup
+
+# Export workspace
+glovebox cache workspace export zmk workspace.tar.gz
 ```
 
-## Batch Processing
+### Pre-warming Cache
 
-### Multiple Layouts
+Prepare for faster builds:
 
 ```bash
-# Process multiple layouts
-for layout in layouts/*.json; do
-  echo "Building $layout"
-  glovebox layout compile "$layout" --output "build/$(basename $layout .json)" --profile glove80/v25.05
-done
+# Pre-download dependencies
+glovebox cache workspace create zmk --profile glove80/v25.05
+
+# Pre-compile common components
+glovebox firmware compile example_layout.json /dev/null \
+  --profile glove80/v25.05 \
+  --cache-only
 ```
 
-### Automated Builds
+## Profile-Specific Building
+
+### Glove80 Builds
+
+MoErgo Glove80 specific options:
 
 ```bash
-#!/bin/bash
-# build-all.sh
+# Standard Glove80 build
+glovebox firmware compile layout.json firmware/ --profile glove80/v25.05
 
-set -e
+# With RGB underglow
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --define CONFIG_ZMK_RGB_UNDERGLOW=y
 
-PROFILE="glove80/v25.05"
-BUILD_DIR="builds/$(date +%Y%m%d-%H%M%S)"
-
-mkdir -p "$BUILD_DIR"
-
-for layout in layouts/*.json; do
-  name=$(basename "$layout" .json)
-  echo "Building $name..."
-  
-  if glovebox layout validate "$layout" --profile "$PROFILE"; then
-    glovebox layout compile "$layout" --output "$BUILD_DIR/$name" --profile "$PROFILE"
-    echo "✓ Built $name"
-  else
-    echo "✗ Validation failed for $name"
-  fi
-done
-
-echo "Builds completed in $BUILD_DIR"
+# With display support
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --define CONFIG_ZMK_DISPLAY=y
 ```
 
-### CI/CD Integration
+### Generic ZMK Builds
 
-```yaml
-# .github/workflows/build-firmware.yml
-name: Build Firmware
+Standard ZMK keyboards:
 
-on: [push, pull_request]
+```bash
+# Corne keyboard
+glovebox firmware compile layout.json firmware/ --profile corne/main
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: Install Glovebox
-      run: pip install glovebox
-    
-    - name: Validate layouts
-      run: |
-        for layout in layouts/*.json; do
-          glovebox layout validate "$layout" --profile glove80/v25.05
-        done
-    
-    - name: Build firmware
-      run: |
-        for layout in layouts/*.json; do
-          name=$(basename "$layout" .json)
-          glovebox layout compile "$layout" --output "builds/$name" --profile glove80/v25.05
-        done
-    
-    - name: Upload firmware
-      uses: actions/upload-artifact@v3
-      with:
-        name: firmware-builds
-        path: builds/
+# Lily58 keyboard
+glovebox firmware compile layout.json firmware/ --profile lily58/main
+
+# Planck keyboard
+glovebox firmware compile layout.json firmware/ --profile planck/main
+```
+
+### Custom Keyboard Builds
+
+For custom or unsupported keyboards:
+
+```bash
+# Use generic profile with custom config
+glovebox firmware compile layout.json firmware/ \
+  --profile generic/main \
+  --config my_keyboard.conf \
+  --define CONFIG_ZMK_KEYBOARD_NAME="my_keyboard"
+```
+
+## Build Monitoring and Debugging
+
+### Verbose Output
+
+Get detailed build information:
+
+```bash
+# Verbose build output
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --verbose
+
+# Debug-level output
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --debug
+
+# Real-time build progress
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --verbose \
+  --progress
+```
+
+### Build Logs
+
+Access and analyze build logs:
+
+```bash
+# Save build log
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --verbose 2>&1 | tee build.log
+
+# Build with log file
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --log-file build.log
+```
+
+### Dry Run
+
+Preview build without executing:
+
+```bash
+# Show build plan
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --dry-run
+
+# Validate build configuration
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --dry-run \
+  --verbose
 ```
 
 ## Error Handling
 
 ### Common Build Errors
 
-**Docker not available:**
+#### Docker Not Running
 ```bash
 # Check Docker status
-docker version
+systemctl status docker  # Linux
+open -a Docker           # macOS
 
-# Install Docker if missing
-# Linux: sudo apt install docker.io
-# macOS: brew install docker
-# Windows: Install Docker Desktop
+# Start Docker
+systemctl start docker   # Linux
 ```
 
-**Profile not found:**
+#### Permission Errors
 ```bash
-# Check available profiles
-glovebox keyboard list
-glovebox keyboard firmwares glove80
+# Fix Docker permissions (Linux)
+sudo usermod -aG docker $USER
+# Log out and back in
 
-# Use correct profile format
-glovebox layout compile layout.json --profile glove80/v25.05
+# Fix file permissions
+chmod 644 layout.json
+chmod 755 output/
 ```
 
-**Invalid keymap syntax:**
+#### Memory Issues
 ```bash
-# Validate layout first
+# Increase Docker memory limit
+# Docker Desktop: Settings → Resources → Memory
+
+# Clean Docker to free space
+docker system prune -a
+```
+
+#### Network Issues
+```bash
+# Test Docker connectivity
+docker run hello-world
+
+# Check proxy settings
+echo $HTTP_PROXY
+echo $HTTPS_PROXY
+
+# Use alternative Docker registry
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --docker-registry alternative-registry.com
+```
+
+### Build Failures
+
+#### ZMK Compilation Errors
+```bash
+# Check ZMK syntax
 glovebox layout validate layout.json --profile glove80/v25.05
 
-# Check for common issues:
-# - Invalid behavior names
-# - Incorrect parameter counts
-# - Syntax errors in custom behaviors
+# Use verbose output for details
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --verbose
+
+# Try clean build
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --clean
 ```
 
-### Debug Mode
+#### Configuration Errors
+```bash
+# Validate configuration
+glovebox config show --validate
+
+# Check profile validity
+glovebox profile show glove80/v25.05
+
+# Reset to defaults
+glovebox config edit --reset
+```
+
+### Recovery Strategies
+
+#### Cache Issues
+```bash
+# Clear problematic cache
+glovebox cache clear
+
+# Reset workspace
+glovebox cache workspace delete problematic_workspace
+
+# Disable cache temporarily
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --no-cache
+```
+
+#### Docker Issues
+```bash
+# Reset Docker environment
+docker system prune -a
+
+# Update Docker images
+docker pull zmkfirmware/zmk-build-arm:3.5
+
+# Use alternative build strategy
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --strategy moergo-nix
+```
+
+## Advanced Features
+
+### Custom Build Matrices
+
+For complex build configurations:
 
 ```bash
-# Enable debug output
-glovebox --debug layout compile layout.json --profile glove80/v25.05
+# Multi-board builds
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --boards "glove80_lh,glove80_rh"
 
-# Check Docker build logs
-docker logs [container-id]
+# Custom shield configuration
+glovebox firmware compile layout.json firmware/ \
+  --profile corne/main \
+  --shield corne_left,corne_right
+```
 
-# Verbose compilation
-glovebox layout compile layout.json --profile glove80/v25.05 --verbose
+### Environment Variables
+
+Control builds with environment variables:
+
+```bash
+# Custom ZMK repository
+export ZMK_REPOSITORY=https://github.com/my-org/zmk.git
+
+# Custom build options
+export ZMK_EXTRA_CFLAGS="-DCONFIG_ZMK_LOGGING_MINIMAL=y"
+
+# Docker configuration
+export DOCKER_BUILDKIT=1
+
+# Build with environment
+glovebox firmware compile layout.json firmware/ --profile glove80/v25.05
+```
+
+### Build Hooks
+
+Execute custom scripts during build:
+
+```bash
+# Pre-build hook
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --pre-build-hook ./scripts/prepare.sh
+
+# Post-build hook
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --post-build-hook ./scripts/validate.sh
+```
+
+## Batch Building
+
+### Multiple Layouts
+
+Build multiple layouts efficiently:
+
+```bash
+# Sequential builds
+for layout in *.json; do
+  glovebox firmware compile "$layout" "firmware/${layout%.json}/" \
+    --profile glove80/v25.05
+done
+
+# Parallel builds (be careful with Docker resources)
+for layout in *.json; do
+  glovebox firmware compile "$layout" "firmware/${layout%.json}/" \
+    --profile glove80/v25.05 &
+done
+wait
+```
+
+### Multiple Profiles
+
+Test layouts across different keyboards:
+
+```bash
+# Build for multiple profiles
+for profile in glove80/v25.05 corne/main lily58/main; do
+  echo "Building for $profile..."
+  glovebox firmware compile layout.json "firmware/$profile/" \
+    --profile "$profile"
+done
+```
+
+### Automated Builds
+
+Create build scripts:
+
+```bash
+#!/bin/bash
+# build_all.sh
+
+set -e
+
+LAYOUTS_DIR="layouts"
+FIRMWARE_DIR="firmware"
+PROFILE="glove80/v25.05"
+
+echo "Building all layouts for $PROFILE..."
+
+mkdir -p "$FIRMWARE_DIR"
+
+for layout in "$LAYOUTS_DIR"/*.json; do
+    name=$(basename "$layout" .json)
+    echo "Building $name..."
+    
+    glovebox firmware compile "$layout" "$FIRMWARE_DIR/$name/" \
+        --profile "$PROFILE" \
+        --verbose
+        
+    echo "✓ Built $name"
+done
+
+echo "All builds completed!"
 ```
 
 ## Best Practices
 
-### Development Workflow
+### 1. Always Validate First
+```bash
+glovebox layout validate layout.json --profile glove80/v25.05 && \
+glovebox firmware compile layout.json firmware/ --profile glove80/v25.05
+```
 
-1. **Validate first**: Always validate layouts before compilation
-2. **Use version control**: Track layout files and generated keymaps
-3. **Test incrementally**: Start with basic layouts, add complexity gradually
-4. **Backup working firmware**: Keep copies of known-good firmware files
+### 2. Use Appropriate Timeouts
+```bash
+# Standard builds
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --timeout 300
 
-### Performance Optimization
+# Complex layouts with many behaviors
+glovebox firmware compile complex_layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --timeout 600
+```
 
-1. **Enable caching**: Use shared cache for faster rebuilds
-2. **Parallel builds**: Configure appropriate parallel job count
-3. **Docker optimization**: Enable BuildKit and use SSD for Docker storage
-4. **Clean builds**: Periodically clear cache and rebuild from scratch
+### 3. Cache Management
+```bash
+# Warm cache for faster builds
+glovebox cache workspace create zmk --profile glove80/v25.05
 
-### Security Considerations
+# Clean cache periodically
+glovebox cache clear --older-than 7d
+```
 
-1. **Verify sources**: Only use trusted ZMK repositories and branches
-2. **Review custom code**: Carefully review custom behaviors and device tree code
-3. **Backup firmware**: Keep backup of factory firmware before flashing custom builds
-4. **Test safely**: Test new firmware on non-critical keyboards first
+### 4. Error Recovery
+```bash
+# Always have fallback strategy
+glovebox firmware compile layout.json firmware/ --profile glove80/v25.05 || \
+glovebox firmware compile layout.json firmware/ --profile glove80/v25.05 --clean
+```
 
-This guide provides comprehensive coverage of firmware building with Glovebox. The combination of Docker-based compilation and smart caching ensures reliable, reproducible firmware builds for your custom keyboard layouts.
+### 5. Version Control
+```bash
+# Tag successful builds
+git tag "firmware-$(date +%Y%m%d-%H%M%S)"
+
+# Keep build logs
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --verbose 2>&1 | tee "logs/build-$(date +%Y%m%d-%H%M%S).log"
+```
+
+---
+
+*Firmware building is the core step in getting your layouts onto your keyboard. Understanding these commands and options will help you build reliable firmware efficiently.*

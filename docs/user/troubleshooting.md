@@ -1,639 +1,836 @@
-# Troubleshooting
+# Troubleshooting Guide
 
-This guide helps you diagnose and resolve common issues with Glovebox.
+This guide helps you diagnose and fix common issues with Glovebox. Start with the system diagnostics, then check the specific sections for your problem.
 
-## Quick Diagnosis
+## Quick Diagnostics
 
 ### System Status Check
 
-```bash
-# Check overall system health
-glovebox status
+Always start here when encountering issues:
 
-# Detailed diagnostics
+```bash
+# Comprehensive system check
 glovebox status --verbose
 
-# Profile-specific diagnostics
-glovebox status --profile glove80/v25.05 --verbose
-
-# JSON output for automated checks
-glovebox status --format json
+# Check specific components
+glovebox status --docker --usb --config
 ```
 
-### Debug Mode
+This command checks:
+- ✓ **Configuration**: Valid settings and profiles
+- ✓ **Docker**: Installation and connectivity  
+- ✓ **USB**: Device access and permissions
+- ✓ **Cache**: Cache system and workspace status
+- ✓ **Profiles**: Available keyboards and firmware versions
 
-Enable debug mode for detailed information:
+### Configuration Validation
+
+Check your configuration:
 
 ```bash
-# Global debug mode
-glovebox --debug [command]
+# Show current configuration
+glovebox config show
 
-# Environment variable
-export GLOVEBOX_DEBUG=1
-glovebox [command]
+# Validate configuration
+glovebox config show --validate
 
-# Verbose logging levels
-glovebox -v [command]    # Info level
-glovebox -vv [command]   # Debug level with stack traces
+# Reset problematic configuration
+glovebox config edit --reset
 ```
 
-## Common Issues
+## Installation Issues
 
-### Installation and Setup
+### Python Version Problems
 
-#### Command Not Found
-
-**Problem:** `glovebox: command not found`
+**Symptoms:**
+- `glovebox: command not found`
+- ImportError or syntax errors
+- Package installation failures
 
 **Solutions:**
-```bash
-# Check if installed
-which glovebox
 
-# Install via pip
+```bash
+# Check Python version (must be 3.11+)
+python --version
+python3 --version
+
+# Install with correct Python version
+python3.11 -m pip install glovebox
+
+# Check installation location
+python -m site --user-base
+# Add /bin to PATH if needed
+
+# Fix PATH issues
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### Package Installation Issues
+
+**Symptoms:**
+- pip install failures
+- Missing dependencies
+- Version conflicts
+
+**Solutions:**
+
+```bash
+# Update pip
+python -m pip install --upgrade pip
+
+# Install with verbose output
+pip install glovebox --verbose
+
+# Use virtual environment
+python -m venv glovebox-env
+source glovebox-env/bin/activate
 pip install glovebox
 
-# Install in development mode
+# Install from source (development)
+git clone https://github.com/your-org/glovebox.git
+cd glovebox
 pip install -e .
-
-# Check PATH
-echo $PATH
-
-# Add to PATH if needed
-export PATH="$HOME/.local/bin:$PATH"
 ```
 
-#### Permission Issues
+### Permission Issues
 
-**Problem:** Permission denied errors
+**Symptoms:**
+- Permission denied errors
+- Cannot write to directories
+- USB access denied
 
 **Solutions:**
+
 ```bash
-# Check file permissions
-ls -la ~/.glovebox/
-
-# Fix permissions
-chmod 755 ~/.glovebox/
-chmod 644 ~/.glovebox/config.yml
-
-# Docker permission issues
-sudo usermod -aG docker $USER
-# Then log out and back in
-
-# USB device permissions
+# Fix USB permissions (Linux)
 sudo usermod -aG dialout $USER
-```
+sudo udevadm control --reload-rules
+# Log out and back in
 
-#### Missing Dependencies
-
-**Problem:** Missing Python packages or system dependencies
-
-**Solutions:**
-```bash
-# Check Python version (requires 3.8+)
-python --version
-
-# Install missing dependencies
-pip install -r requirements.txt
-
-# System dependencies (Ubuntu/Debian)
-sudo apt update
-sudo apt install git python3-pip docker.io
-
-# System dependencies (macOS)
-brew install git python docker
-
-# System dependencies (Arch Linux)
-sudo pacman -S git python docker
-```
-
-### Configuration Issues
-
-#### Invalid Configuration
-
-**Problem:** Configuration file errors
-
-**Solutions:**
-```bash
-# Validate configuration
-glovebox config validate
-
-# Check configuration syntax
-glovebox config list --format json
-
-# Reset to defaults
-mv ~/.glovebox/config.yml ~/.glovebox/config.yml.backup
-glovebox config list  # Creates new default config
-
-# Import known good configuration
-glovebox config import backup-config.yml
-```
-
-#### Profile Not Found
-
-**Problem:** `Profile 'xxx' not found`
-
-**Solutions:**
-```bash
-# List available keyboards
-glovebox keyboard list
-
-# List firmware versions
-glovebox keyboard firmwares glove80
-
-# Check profile format
-# Correct: glove80/v25.05
-# Incorrect: glove80-v25.05, glove80_v25.05
-
-# Set valid default profile
-glovebox config edit --set default_profile=glove80/v25.05
-```
-
-#### Auto-Detection Failure
-
-**Problem:** Cannot auto-detect keyboard profile
-
-**Solutions:**
-```bash
-# Check JSON keyboard field
-jq '.keyboard' layout.json
-
-# Disable auto-detection
-glovebox layout compile layout.json --no-auto --profile glove80/v25.05
-
-# Fix JSON keyboard field
-glovebox layout edit layout.json --set keyboard=glove80
-
-# Set environment variable
-export GLOVEBOX_PROFILE=glove80/v25.05
-```
-
-### Layout Issues
-
-#### Invalid Layout File
-
-**Problem:** Layout validation errors
-
-**Solutions:**
-```bash
-# Validate layout
-glovebox layout validate layout.json
-
-# Check JSON syntax
-jq '.' layout.json
-
-# Get detailed validation info
-glovebox layout validate layout.json --format json
-
-# Common fixes for layout issues:
-
-# Missing required fields
-glovebox layout edit layout.json --set keyboard=glove80
-
-# Invalid layer structure
-glovebox layout edit layout.json --list-layers
-
-# Corrupted JSON
-cp layout.json layout.json.backup
-jq '.' layout.json.backup > layout.json
-```
-
-#### Compilation Errors
-
-**Problem:** Layout compilation fails
-
-**Solutions:**
-```bash
-# Debug compilation
-glovebox --debug layout compile layout.json --profile glove80/v25.05
-
-# Check profile validity
-glovebox status --profile glove80/v25.05
-
-# Try different firmware version
-glovebox layout compile layout.json --profile glove80/main
-
-# Clear cache and retry
-glovebox cache clear --tag compilation
-glovebox layout compile layout.json --profile glove80/v25.05
-
-# Force rebuild
-glovebox layout compile layout.json --profile glove80/v25.05 --force
-```
-
-#### Behavior Errors
-
-**Problem:** Unknown behaviors or invalid behavior configurations
-
-**Solutions:**
-```bash
-# Check available behaviors for profile
-glovebox keyboard show glove80 --verbose
-
-# Validate behavior syntax
-glovebox layout validate layout.json --verbose
-
-# Check behavior documentation
-glovebox keyboard show glove80 --format json | jq '.behaviors'
-
-# Common behavior fixes:
-# Use correct behavior names (&kp, &mo, &lt, etc.)
-# Check parameter counts and types
-# Verify custom behavior definitions
-```
-
-### Docker Issues
-
-#### Docker Not Running
-
-**Problem:** Cannot connect to Docker daemon
-
-**Solutions:**
-```bash
-# Check Docker status
-docker version
-docker info
-
-# Start Docker service
-sudo systemctl start docker     # Linux
-brew services start docker      # macOS
-# Windows: Start Docker Desktop
-
-# Test Docker access
-docker run hello-world
-
-# Fix permissions
+# Fix Docker permissions (Linux)
 sudo usermod -aG docker $USER
 # Log out and back in
+
+# Fix configuration directory permissions
+chmod 755 ~/.config/glovebox/
+chmod 644 ~/.config/glovebox/config.yaml
 ```
 
-#### Docker Image Issues
+## Docker Issues
 
-**Problem:** Cannot pull or run Docker images
+### Docker Not Running
+
+**Symptoms:**
+- `Cannot connect to Docker daemon`
+- `docker: command not found`
+- Build failures with Docker errors
 
 **Solutions:**
+
 ```bash
-# Pull ZMK image manually
-docker pull zmkfirmware/zmk-build-arm:stable
+# Check Docker status
+docker --version
+docker info
+
+# Start Docker (Linux)
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# Start Docker (macOS)
+open -a Docker
+
+# Start Docker (Windows)
+# Start Docker Desktop from Start menu
+
+# Test Docker connectivity
+docker run hello-world
+```
+
+### Docker Permission Issues
+
+**Symptoms:**
+- `permission denied while trying to connect to Docker daemon`
+- Docker commands require sudo
+
+**Solutions:**
+
+```bash
+# Add user to docker group (Linux)
+sudo usermod -aG docker $USER
+
+# Apply group changes
+newgrp docker
+# Or log out and back in
+
+# Test without sudo
+docker run hello-world
+
+# Alternative: use sudo for Glovebox
+sudo glovebox firmware compile layout.json output/ --profile glove80/v25.05
+```
+
+### Docker Image Issues
+
+**Symptoms:**
+- Image pull failures
+- Outdated images
+- Build environment issues
+
+**Solutions:**
+
+```bash
+# Update Docker images
+docker pull zmkfirmware/zmk-build-arm:3.5
+docker pull zmkfirmware/zmk-build-arm:3.2
 
 # Check available images
-docker images
+docker images | grep zmk
 
-# Clean up Docker
-docker system prune
+# Clean old images
+docker image prune -a
 
-# Use alternative registry
-glovebox config edit --set docker.registry=ghcr.io
+# Force image update in build
+glovebox firmware compile layout.json output/ \
+  --profile glove80/v25.05 \
+  --update-docker
+```
 
-# Check Docker storage space
+### Docker Resource Issues
+
+**Symptoms:**
+- Out of memory errors
+- Disk space errors
+- Build timeouts
+
+**Solutions:**
+
+```bash
+# Check Docker resource usage
 docker system df
+
+# Clean Docker resources
+docker system prune -a
+
+# Increase Docker memory (Docker Desktop)
+# Settings → Resources → Memory → 4GB+
+
+# Free disk space
+docker volume prune
+docker container prune
+docker image prune -a
+
+# Use clean builds
+glovebox firmware compile layout.json output/ \
+  --profile glove80/v25.05 \
+  --clean
 ```
 
-#### Build Container Failures
+## USB and Device Issues
 
-**Problem:** Docker build container exits with errors
+### Device Not Detected
+
+**Symptoms:**
+- `glovebox firmware devices` shows no devices
+- Flash commands fail with device errors
+- Keyboard not in bootloader mode
 
 **Solutions:**
+
 ```bash
-# Check Docker logs
-glovebox --debug layout compile layout.json --profile glove80/v25.05
+# Check device detection
+glovebox firmware devices --verbose
 
-# Increase build timeout
-glovebox config edit --set docker.build_timeout=3600
+# Put keyboard in bootloader mode
+# Method varies by keyboard - usually reset button double-tap
 
-# Try different build strategy
-glovebox config edit --set compilation.strategy=moergo_nix
+# Check USB connections
+lsusb  # Linux
+system_profiler SPUSBDataType  # macOS
 
-# Clear Docker cache
-docker builder prune
+# Check udev rules (Linux)
+ls -la /etc/udev/rules.d/*keyboard*
+ls -la /etc/udev/rules.d/*bootloader*
 
-# Check available disk space
-df -h
+# Add udev rules if missing
+sudo tee /etc/udev/rules.d/50-keyboard-bootloaders.rules > /dev/null << 'EOF'
+# RP2040 (Raspberry Pi Pico)
+SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="0003", MODE="0666", GROUP="dialout"
+# STM32 DFU
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="df11", MODE="0666", GROUP="dialout"
+EOF
+
+sudo udevadm control --reload-rules
+sudo udevadm trigger
 ```
 
-### Firmware Issues
+### Flash Permission Issues
 
-#### Device Not Found
-
-**Problem:** Cannot detect keyboard device for flashing
+**Symptoms:**
+- Permission denied during flash
+- Cannot access /dev/ttyACM* devices
+- Flash commands hang
 
 **Solutions:**
+
 ```bash
-# Check connected devices
-lsblk                    # Linux
-diskutil list           # macOS
-wmic logicaldisk list   # Windows
+# Check device permissions
+ls -la /dev/ttyACM*
+ls -la /dev/ttyUSB*
 
-# Put keyboard in bootloader mode:
-# - Press reset button
-# - Hold boot button while plugging in
-# - Use firmware key combination
+# Add user to dialout group
+sudo usermod -aG dialout $USER
+# Log out and back in
 
-# Wait for device detection
-glovebox firmware flash firmware.uf2 --profile glove80 --timeout 60
+# Check group membership
+groups | grep dialout
+
+# Test device access
+echo "test" > /dev/ttyACM0  # Should not give permission error
+```
+
+### Device Connection Issues
+
+**Symptoms:**
+- Device connects then disconnects
+- Inconsistent device detection
+- Flash failures mid-process
+
+**Solutions:**
+
+```bash
+# Use different USB cable
+# Try different USB port
+# Avoid USB hubs when possible
+
+# Wait for device stabilization
+glovebox firmware flash firmware.uf2 --profile glove80 --wait
+
+# Increase flash timeout
+glovebox firmware flash firmware.uf2 \
+  --profile glove80 \
+  --timeout 60
 
 # Manual device specification
-glovebox firmware flash firmware.uf2 --device /dev/sdb
-
-# Check device patterns
-glovebox keyboard show glove80
+glovebox firmware flash firmware.uf2 --device /dev/ttyACM0
 ```
 
-#### Flash Permission Errors
+## Configuration Issues
 
-**Problem:** Permission denied when flashing
+### Invalid Profile Errors
 
-**Solutions:**
-```bash
-# Add user to dialout group (Linux)
-sudo usermod -aG dialout $USER
-
-# Use sudo for specific flash operation
-sudo glovebox firmware flash firmware.uf2 --profile glove80
-
-# Check device permissions
-ls -la /dev/disk/by-label/
-
-# Fix USB permissions (Linux)
-echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="615e", MODE="0666"' | sudo tee /etc/udev/rules.d/99-glovebox.rules
-sudo udevadm control --reload-rules
-```
-
-#### Firmware Build Failures
-
-**Problem:** Firmware compilation fails
+**Symptoms:**
+- `Profile not found` errors
+- `Invalid profile format` errors
+- Build failures with profile issues
 
 **Solutions:**
+
 ```bash
-# Debug firmware build
-glovebox --debug firmware compile layout.keymap config.conf --profile glove80/v25.05
+# List available profiles
+glovebox profile list
 
-# Check keymap syntax
-# Common issues:
-# - Missing semicolons
-# - Invalid behavior references
-# - Syntax errors in custom behaviors
+# Check profile format
+glovebox profile show glove80/v25.05
 
-# Validate with upstream tools
-# Use ZMK's validation tools if available
+# Fix profile configuration
+glovebox config edit --set profile=glove80/v25.05
 
-# Try minimal configuration
-# Start with basic keymap and add complexity gradually
+# Reset to default profile
+glovebox config edit --set profile=glove80/v25.05
+
+# Add custom profile paths
+glovebox config edit --add profiles_paths=/path/to/custom/profiles
 ```
 
 ### Cache Issues
 
-#### Cache Corruption
-
-**Problem:** Cache-related errors or inconsistent behavior
+**Symptoms:**
+- Slow builds despite cache
+- Cache errors or corruption
+- Disk space issues
 
 **Solutions:**
+
 ```bash
-# Clear all cache
-glovebox cache clear --all
+# Check cache status
+glovebox cache show --verbose
 
-# Clear specific cache tags
-glovebox cache clear --tag compilation
-glovebox cache clear --tag layout
+# Clear problematic cache
+glovebox cache clear
 
-# Check cache statistics
-glovebox cache stats
+# Reset cache configuration
+glovebox config edit --set cache_strategy=shared
+glovebox config edit --set cache_path=~/.cache/glovebox
 
 # Disable cache temporarily
-glovebox config edit --set cache_strategy=disabled
+glovebox firmware compile layout.json output/ \
+  --profile glove80/v25.05 \
+  --no-cache
 
-# Reset cache directory
-rm -rf ~/.cache/glovebox/
-glovebox cache stats  # Recreates cache
+# Clean old cache entries
+glovebox cache clear --older-than 7d
 ```
 
-#### Out of Disk Space
+### Configuration File Issues
 
-**Problem:** Cache fills up disk space
+**Symptoms:**
+- Configuration not loading
+- YAML syntax errors
+- Settings not persisting
 
 **Solutions:**
+
 ```bash
-# Check cache size
-glovebox cache stats
+# Check configuration file location
+ls -la ~/.config/glovebox/config.yaml
 
-# Clear old cache entries
-glovebox cache clear --older-than 7
+# Validate YAML syntax
+python -c "import yaml; yaml.safe_load(open('~/.config/glovebox/config.yaml'))"
 
-# Reduce cache size limit
-glovebox config edit --set max_cache_size_gb=1
+# Backup and reset configuration
+cp ~/.config/glovebox/config.yaml ~/.config/glovebox/config.yaml.bak
+rm ~/.config/glovebox/config.yaml
+glovebox config show  # Recreates with defaults
 
-# Move cache to different location
-glovebox config edit --set cache_dir=/path/to/larger/disk
+# Edit configuration manually
+vim ~/.config/glovebox/config.yaml
 
-# Clean up Docker cache too
-docker system prune
+# Validate after changes
+glovebox config show --validate
 ```
 
-### Performance Issues
+## Layout and Compilation Issues
 
-#### Slow Compilation
+### Layout Validation Failures
 
-**Problem:** Layout/firmware compilation takes too long
+**Symptoms:**
+- Layout validation errors
+- JSON syntax errors
+- Missing required fields
 
 **Solutions:**
+
 ```bash
-# Use shared cache
-glovebox config edit --set cache_strategy=shared
+# Validate layout with verbose output
+glovebox layout validate layout.json --verbose
 
-# Increase parallel jobs
-glovebox config edit --set compilation.parallel_jobs=8
+# Check JSON syntax
+python -m json.tool layout.json
 
-# Use SSD for cache
-glovebox config edit --set cache_dir=/path/to/ssd
+# Fix common JSON issues
+# - Missing commas
+# - Trailing commas
+# - Unescaped quotes
+# - Invalid Unicode characters
 
-# Enable Docker BuildKit
-glovebox config edit --set docker.buildkit=true
+# Use layout editor for complex fixes
+glovebox layout edit layout.json --interactive
 
-# Check available resources
-free -h    # Memory
-df -h      # Disk space
-nproc      # CPU cores
+# Start with working example
+curl -O https://example.com/working_layout.json
+glovebox layout validate working_layout.json
 ```
 
-#### Memory Issues
+### Compilation Errors
 
-**Problem:** Out of memory errors during builds
+**Symptoms:**
+- ZMK compilation failures
+- Missing includes or behaviors
+- Syntax errors in generated files
 
 **Solutions:**
-```bash
-# Reduce parallel jobs
-glovebox config edit --set compilation.parallel_jobs=2
-
-# Increase Docker memory limit
-# Docker Desktop: Settings -> Resources -> Memory
-
-# Check memory usage
-free -h
-docker stats
-
-# Use swap if available
-sudo swapon --show
-```
-
-## Advanced Troubleshooting
-
-### Log Analysis
-
-#### Enable Detailed Logging
 
 ```bash
-# Set log level in configuration
-glovebox config edit --set log_level=DEBUG
+# Compile with verbose output
+glovebox layout compile layout.json output/ \
+  --profile glove80/v25.05 \
+  --verbose
 
-# Enable file logging
-glovebox config edit --set logging.file=~/.glovebox/debug.log
+# Check generated files
+glovebox layout compile layout.json output/ \
+  --profile glove80/v25.05
+cat output/layout.keymap
 
-# View logs in real-time
-tail -f ~/.glovebox/debug.log
+# Validate behavior usage
+glovebox layout validate layout.json \
+  --profile glove80/v25.05 \
+  --check-behaviors
+
+# Use simpler layout for testing
+glovebox layout compile minimal_layout.json output/ \
+  --profile glove80/v25.05
 ```
 
-#### Common Log Patterns
+### Profile Compatibility Issues
 
-**Docker connection issues:**
-```
-ERROR: Cannot connect to the Docker daemon
-```
-Solution: Start Docker service and check permissions
-
-**Profile resolution failures:**
-```
-WARNING: Cannot detect keyboard profile from JSON
-```
-Solution: Set profile explicitly or fix JSON keyboard field
-
-**Cache errors:**
-```
-ERROR: Cache operation failed
-```
-Solution: Clear cache and check disk space
-
-### Environment Debugging
-
-#### Check Environment Variables
-
-```bash
-# Show all Glovebox environment variables
-env | grep GLOVEBOX
-
-# Important variables:
-echo $GLOVEBOX_PROFILE
-echo $GLOVEBOX_JSON_FILE
-echo $GLOVEBOX_CONFIG_FILE
-echo $GLOVEBOX_CACHE_DIR
-echo $GLOVEBOX_DEBUG
-```
-
-#### Path Issues
-
-```bash
-# Check if paths exist and are accessible
-glovebox config list --format json | jq -r '.keyboard_paths[]' | xargs -I {} test -d {} && echo "OK: {}" || echo "MISSING: {}"
-
-# Check file permissions
-stat ~/.glovebox/config.yml
-```
-
-### Network Issues
-
-#### Repository Access
-
-**Problem:** Cannot access Git repositories
+**Symptoms:**
+- Layout works with one profile but not another
+- Missing keyboard-specific features
+- Incorrect key assignments
 
 **Solutions:**
+
 ```bash
-# Test Git access
-git clone https://github.com/zmkfirmware/zmk.git /tmp/zmk-test
+# Check profile details
+glovebox profile show glove80/v25.05
+glovebox profile show corne/main
+
+# Test layout with multiple profiles
+glovebox layout validate layout.json --profile glove80/v25.05
+glovebox layout validate layout.json --profile corne/main
+
+# Use profile-specific layouts
+# Some features are keyboard-specific
+
+# Check behavior compatibility
+glovebox layout show layout.json --profile glove80/v25.05 --verbose
+```
+
+## Build Failures
+
+### ZMK Build Errors
+
+**Symptoms:**
+- West build failures
+- Compilation errors in ZMK
+- Missing dependencies
+
+**Solutions:**
+
+```bash
+# Build with verbose output
+glovebox firmware compile layout.json output/ \
+  --profile glove80/v25.05 \
+  --verbose
+
+# Try clean build
+glovebox firmware compile layout.json output/ \
+  --profile glove80/v25.05 \
+  --clean
+
+# Check workspace
+glovebox cache workspace show
+
+# Reset workspace
+glovebox cache workspace delete zmk
+glovebox cache workspace create zmk --profile glove80/v25.05
+
+# Use different strategy
+glovebox firmware compile layout.json output/ \
+  --profile glove80/v25.05 \
+  --strategy moergo-nix
+```
+
+### Network and Download Issues
+
+**Symptoms:**
+- Workspace creation failures
+- Git clone errors
+- Download timeouts
+
+**Solutions:**
+
+```bash
+# Check network connectivity
+ping github.com
+curl -I https://github.com/zmkfirmware/zmk
 
 # Check proxy settings
 echo $HTTP_PROXY
 echo $HTTPS_PROXY
 
-# Configure Git proxy if needed
-git config --global http.proxy http://proxy.company.com:8080
+# Configure Git for proxy
+git config --global http.proxy $HTTP_PROXY
 
-# Use SSH instead of HTTPS
-glovebox config edit --set compilation.west.repository=git@github.com:zmkfirmware/zmk.git
+# Use alternative repositories
+glovebox firmware compile layout.json output/ \
+  --profile glove80/v25.05 \
+  --zmk-repository https://github.com/alternative/zmk.git
+
+# Increase timeouts
+glovebox firmware compile layout.json output/ \
+  --profile glove80/v25.05 \
+  --timeout 900
 ```
 
-#### Docker Registry Issues
+### Memory and Resource Issues
 
-**Problem:** Cannot pull Docker images
+**Symptoms:**
+- Out of memory errors
+- Build timeouts
+- System slowdown during builds
 
 **Solutions:**
+
 ```bash
-# Test registry access
-docker pull zmkfirmware/zmk-build-arm:stable
+# Check available resources
+free -h  # Linux
+vm_stat  # macOS
 
-# Use different registry
-glovebox config edit --set docker.registry=ghcr.io
+# Close unnecessary applications
+# Increase swap space if needed
 
-# Configure registry authentication if needed
-docker login ghcr.io
+# Use single-threaded builds
+glovebox firmware compile layout.json output/ \
+  --profile glove80/v25.05 \
+  --jobs 1
+
+# Build smaller layouts
+# Split complex layouts into parts
+
+# Monitor resource usage
+top  # Linux/macOS
+htop  # Enhanced version
+```
+
+## Library and MoErgo Issues
+
+### MoErgo Connection Issues
+
+**Symptoms:**
+- Cannot login to MoErgo
+- Library fetch failures
+- Authentication errors
+
+**Solutions:**
+
+```bash
+# Check MoErgo status
+glovebox moergo status
+
+# Login to MoErgo
+glovebox moergo login
+
+# Check credentials
+glovebox moergo keystore-info
+
+# Clear and re-login
+glovebox moergo logout
+glovebox moergo login
+
+# Test library access
+glovebox library search test
+```
+
+### Library Fetch Issues
+
+**Symptoms:**
+- Cannot download layouts
+- Invalid UUIDs
+- Network timeouts
+
+**Solutions:**
+
+```bash
+# Verify UUID format
+# Should be: 12345678-1234-1234-1234-123456789abc
+
+# Test library search
+glovebox library search "test layout"
+
+# Use alternative download method
+curl -o layout.json "https://moergo.com/api/layouts/UUID"
+
+# Check library configuration
+glovebox config show | grep library
+```
+
+## Performance Issues
+
+### Slow Build Times
+
+**Symptoms:**
+- Very long compilation times
+- Builds take much longer than expected
+- System becomes unresponsive during builds
+
+**Solutions:**
+
+```bash
+# Enable aggressive caching
+glovebox config edit --set cache_strategy=shared
+
+# Pre-warm cache
+glovebox cache workspace create zmk --profile glove80/v25.05
+
+# Use parallel builds (if resources allow)
+glovebox firmware compile layout.json output/ \
+  --profile glove80/v25.05 \
+  --jobs 4
+
+# Monitor build progress
+glovebox firmware compile layout.json output/ \
+  --profile glove80/v25.05 \
+  --verbose \
+  --progress
+```
+
+### Cache Performance Issues
+
+**Symptoms:**
+- Cache misses on repeated builds
+- Cache corruption
+- Disk space issues
+
+**Solutions:**
+
+```bash
+# Check cache efficiency
+glovebox cache show --stats
+
+# Optimize cache settings
+glovebox config edit --set cache_ttls.compilation=7200
+
+# Clean cache periodically
+glovebox cache clear --older-than 7d
+
+# Reset cache if corrupted
+glovebox cache clear
+glovebox cache workspace cleanup
+```
+
+## Environment-Specific Issues
+
+### Linux-Specific Issues
+
+**Common Problems:**
+- Permission issues with USB devices
+- Docker group membership
+- udev rules for keyboards
+
+**Solutions:**
+
+```bash
+# Fix USB permissions
+sudo usermod -aG dialout $USER
+
+# Fix Docker permissions
+sudo usermod -aG docker $USER
+
+# Install udev rules
+sudo tee /etc/udev/rules.d/50-keyboard-bootloaders.rules > /dev/null << 'EOF'
+# RP2040, STM32, Atmel, Pro Micro bootloaders
+SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="0003", MODE="0666", GROUP="dialout"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="df11", MODE="0666", GROUP="dialout"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="03eb", ATTRS{idProduct}=="2ff4", MODE="0666", GROUP="dialout"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1b4f", ATTRS{idProduct}=="9203", MODE="0666", GROUP="dialout"
+EOF
+
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
+### macOS-Specific Issues
+
+**Common Problems:**
+- Homebrew conflicts
+- Python version management
+- Docker Desktop issues
+
+**Solutions:**
+
+```bash
+# Use Python from Homebrew
+brew install python@3.11
+/opt/homebrew/bin/python3.11 -m pip install glovebox
+
+# Fix PATH for Homebrew
+echo 'export PATH="/opt/homebrew/bin:$PATH"' >> ~/.zshrc
+
+# Docker Desktop issues
+# Restart Docker Desktop
+# Check Docker Desktop settings for resource limits
+```
+
+### Windows/WSL2-Specific Issues
+
+**Common Problems:**
+- WSL2 integration issues
+- Docker Desktop configuration
+- USB device passthrough
+
+**Solutions:**
+
+```bash
+# Install in WSL2, not Windows directly
+# Use Docker Desktop with WSL2 integration enabled
+
+# WSL2 Docker integration
+# Docker Desktop → Settings → Resources → WSL Integration
+
+# USB device access (requires additional setup)
+# May need usbipd for USB device forwarding
 ```
 
 ## Getting Help
 
-### Collect Diagnostic Information
+### Debug Information Collection
 
 When reporting issues, collect this information:
 
 ```bash
 # System information
-glovebox status --verbose --format json > glovebox-status.json
+glovebox status --verbose
 
-# Configuration
-glovebox config list --defaults --format yaml > glovebox-config.yml
+# Configuration dump
+glovebox config show --format yaml
 
-# Version information
-glovebox --version
-python --version
-docker --version
+# Build logs
+glovebox firmware compile layout.json output/ \
+  --profile glove80/v25.05 \
+  --verbose 2>&1 | tee debug.log
 
-# Log excerpt (last 100 lines)
-tail -n 100 ~/.glovebox/debug.log > recent-logs.txt
+# Cache information
+glovebox cache show --verbose
 
-# Error reproduction with debug
-glovebox --debug [failing-command] 2>&1 | tee error-debug.log
+# Profile information
+glovebox profile show glove80/v25.05 --verbose
 ```
 
-### Minimal Reproduction
+### Log Files
 
-Create minimal examples to isolate issues:
+Locate and examine log files:
 
 ```bash
-# Minimal layout for testing
-echo '{
-  "keyboard": "glove80",
-  "title": "Test Layout",
-  "layer_names": ["Base"],
-  "layers": [[
-    "&kp Q", "&kp W", "&kp E", "&kp R", "&kp T",
-    "&kp Y", "&kp U", "&kp I", "&kp O", "&kp P"
-  ]]
-}' > test-minimal.json
+# Default log locations
+~/.config/glovebox/logs/     # Linux/macOS
+%APPDATA%\glovebox\logs\     # Windows
 
-# Test with minimal layout
-glovebox layout validate test-minimal.json --profile glove80/v25.05
+# Enable debug logging
+glovebox config edit --set log_level=DEBUG
+
+# View recent logs
+tail -f ~/.config/glovebox/logs/glovebox.log
 ```
 
-### Support Channels
+### Community Resources
 
 - **GitHub Issues**: Report bugs and feature requests
-- **GitHub Discussions**: Ask questions and get community help
-- **Documentation**: Check latest docs for updates
-- **Examples**: Working examples in the repository
+- **Documentation**: Check the complete documentation
+- **Discord/Forums**: Community discussion and help
+- **Examples**: Working layout examples and configurations
 
-### Before Reporting Issues
+### Emergency Recovery
 
-1. **Check existing issues** on GitHub
-2. **Update to latest version** of Glovebox
-3. **Try with minimal configuration** to isolate the problem
-4. **Collect diagnostic information** as shown above
-5. **Include reproduction steps** in your report
+If Glovebox is completely broken:
 
-Most issues can be resolved with the troubleshooting steps in this guide. For persistent problems, the community and maintainers are available to help through the official support channels.
+```bash
+# Reset everything to defaults
+rm -rf ~/.config/glovebox/
+rm -rf ~/.cache/glovebox/
+
+# Clear Docker state
+docker system prune -a
+
+# Reinstall Glovebox
+pip uninstall glovebox
+pip install glovebox
+
+# Verify installation
+glovebox status
+```
+
+---
+
+*Most issues can be resolved with the steps in this guide. Start with system diagnostics and work through the relevant sections for your specific problem.*

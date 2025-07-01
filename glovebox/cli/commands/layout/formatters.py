@@ -208,7 +208,7 @@ class LayoutOutputFormatter:
     def _format_field_text(self, results: dict[str, Any]) -> None:
         """Format field operation results as text."""
         console = get_themed_console(self.icon_mode)
-        
+
         if not results:
             console.print_success("No operations performed")
             return
@@ -255,7 +255,7 @@ class LayoutOutputFormatter:
     def _format_layer_text(self, layers: list[str]) -> None:
         """Format layer names as text."""
         console = get_themed_console(self.icon_mode)
-        
+
         if not layers:
             console.print_success("No layers found")
             return
@@ -290,7 +290,7 @@ class LayoutOutputFormatter:
     def _format_comparison_text(self, diff_results: dict[str, Any]) -> None:
         """Format comparison results as text."""
         console = get_themed_console(self.icon_mode)
-        
+
         if not diff_results:
             console.print_success("No differences found")
             return
@@ -538,7 +538,7 @@ class LayoutOutputFormatter:
     def _format_detailed_metadata_changes(self, diff_data: dict[str, Any]) -> None:
         """Format detailed metadata changes."""
         console = get_themed_console(self.icon_mode)
-        
+
         # List of simple metadata fields that use JSON patches
         metadata_fields = [
             "keyboard",

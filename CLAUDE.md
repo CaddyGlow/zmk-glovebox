@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides comprehensive guidance to Claude Code (claude.ai/code) and other LLMs when working with code in this repository.
 
 ## Project Overview
 
@@ -86,13 +86,16 @@ Layout Editor → JSON File → ZMK Files → Firmware → Flash
        field: str
    ```
 
-2. **NEVER use .to_dict() - ALWAYS use .model_dump()**:
+2. **NEVER use direct .model_dump() - ALWAYS use proper parameters or inherited methods**:
    ```python
    # ✅ CORRECT - Use model_dump with proper parameters
    data = model.model_dump(by_alias=True, exclude_unset=True, mode="json")
    
-   # ✅ CORRECT - Use the inherited to_dict() method (which calls model_dump correctly)
+   # ✅ CORRECT - Use the inherited to_dict() method (recommended)
    data = model.to_dict()
+   
+   # ✅ CORRECT - Use to_dict_python() for Python objects
+   data = model.to_dict_python()
    
    # ❌ INCORRECT - Never call model_dump without parameters
    data = model.model_dump()
@@ -125,26 +128,20 @@ Layout Editor → JSON File → ZMK Files → Firmware → Flash
        )
    ```
 
-**These rules ensure consistent serialization behavior across ALL models with proper alias handling, unset field exclusion, and JSON-safe output.**
+5. **GloveboxBaseModel provides consistent defaults**:
+   ```python
+   # Built-in configuration in GloveboxBaseModel:
+   model_config = ConfigDict(
+       extra="allow",                    # Allow extra fields for flexibility
+       str_strip_whitespace=True,        # Strip whitespace from strings
+       use_enum_values=True,             # Use enum values in serialization
+       validate_assignment=True,         # Validate assignment after creation
+       validate_by_alias=True,           # Allow loading with alias and name
+       validate_by_name=True,
+   )
+   ```
 
-5. **MANDATORY TESTING REQUIREMENTS**:
-   - **ALL public functions/methods/classes MUST have comprehensive tests**
-   - **Minimum 90% code coverage** for all new code
-   - **NO CODE can be merged without tests** - this is NON-NEGOTIABLE
-   - **ALL decorators MUST have comprehensive test coverage** including:
-     - Basic functionality testing
-     - Context extraction testing  
-     - Dependency injection testing
-     - Error handling testing
-     - Performance impact testing
-   - **ALL metrics functionality MUST be tested** including:
-     - Model validation and serialization
-     - Service layer operations with mocking
-     - Context manager behavior and timing
-     - CLI integration with isolation fixtures
-     - End-to-end workflows and error scenarios
-   - ALL tests should pass mypy type checking
-   - See `docs/dev/testing.md` for complete testing standards and methodology
+**These rules ensure consistent serialization behavior across ALL models with proper alias handling, unset field exclusion, and JSON-safe output.**
 
 ## CRITICAL: Test Isolation and Anti-Pollution Rules
 
@@ -199,14 +196,12 @@ Layout Editor → JSON File → ZMK Files → Firmware → Flash
        yield tmp_path
        # Automatic cleanup via tmp_path
    
-   # ✅ CORRECT - Manual cleanup when needed
-   def test_with_cleanup():
-       try:
-           # Test operations
-           pass
-       finally:
-           # Explicit cleanup if needed
-           pass
+   # ✅ CORRECT - Cache reset fixture pattern
+   @pytest.fixture(autouse=True)
+   def reset_shared_cache() -> Generator[None, None, None]:
+       reset_shared_cache_instances()  # Before test
+       yield
+       reset_shared_cache_instances()  # After test
    ```
 
 6. **FORBIDDEN practices in tests**:
@@ -221,6 +216,12 @@ Layout Editor → JSON File → ZMK Files → Firmware → Flash
 - `isolated_cli_environment`: CLI command isolation with mocked environment
 - `temp_config_dir`: Temporary configuration directory
 - `mock_user_config`: Mocked user configuration that doesn't touch filesystem
+
+7. **MANDATORY TESTING REQUIREMENTS**:
+   - **ALL public functions/methods/classes MUST have comprehensive tests**
+   - **Minimum 90% code coverage** for all new code
+   - **NO CODE can be merged without tests** - this is NON-NEGOTIABLE
+   - All tests should pass mypy type checking
 
 **If you encounter ANY test pollution or isolation issues, you MUST fix them immediately before proceeding with other tasks.**
 
@@ -334,77 +335,7 @@ Layout Editor → JSON File → ZMK Files → Firmware → Flash
     - Test all icon modes (emoji, nerdfont, text)
     - Verify no hardcoded styling outside theme.py
 
-**The default interface is now ASCII/Unicode professional appearance. Emoji mode is preserved only for users who explicitly enable it through configuration.**
-
-## New Feature: Keymap Version Management
-
-**COMPLETED**: The keymap version management system is now fully implemented and operational.
-
-### Architecture Components
-
-1. **VersionManager** (`glovebox/layout/version_manager.py`):
-   - Handles master layout imports and upgrades
-   - Implements intelligent merge strategies preserving customizations
-   - Stores master layouts in `~/.glovebox/masters/{keyboard}/{version}.json`
-   - Tracks version metadata in YAML format
-
-2. **FirmwareTracker** (`glovebox/layout/firmware_tracker.py`):
-   - Links compiled firmware to layout files
-   - Tracks build metadata: date, profile, hash, build ID
-   - Enables verification of firmware-layout correspondence
-   - Supports rollback and change tracking
-
-3. **Enhanced Layout Models**:
-   - Added version tracking fields: `version`, `base_version`, `base_layout`
-   - Added firmware tracking: `last_firmware_build` metadata
-   - Maintains backwards compatibility with existing layouts
-
-### CLI Commands Added
-
-```bash
-# Import master layout versions
-glovebox layout import-master ~/Downloads/master-v42.json v42 [--force]
-
-# Upgrade custom layouts preserving all customizations
-glovebox layout upgrade my-custom.json --to-master v42 [--output path] [--from-master v41]
-
-# List available master versions
-glovebox layout list-masters glove80
-
-# Enhanced diff with DTSI comparison and JSON output
-glovebox layout diff layout1.json layout2.json [--include-dtsi] [--json]
-
-# Field manipulation commands
-glovebox layout get-field layout.json "layers[0]"
-glovebox layout set-field layout.json "title" "New Title"
-
-# Layer management commands
-glovebox layout add-layer layout.json "NewLayer" --position 5 [--import-from layer.json]
-glovebox layout remove-layer layout.json "LayerName"
-glovebox layout move-layer layout.json "LayerName" --position 3
-glovebox layout export-layer layout.json "LayerName" --format bindings
-
-# Patch and transform operations
-glovebox layout patch layout.json diff.json --output patched.json
-glovebox layout create-patch layout1.json layout2.json --output changes.patch
-```
-
-### Implementation Patterns
-
-- **Simple Merge Strategy**: Preserves all customizations while updating base layers
-- **DTSI Content Comparison**: Compares custom behaviors and device tree code
-- **Firmware Linking**: Automatic tracking of layout-to-firmware relationships
-- **Field Path Parsing**: Dot notation with array indexing (`layers[0].name`)
-- **Pydantic Integration**: Uses `model_dump(mode="json")` for proper serialization
-- **Layer Import/Export**: Multiple format support (bindings, layer object, full layout)
-
-### Testing and Quality Assurance
-
-- All new functionality includes comprehensive unit tests
-- Integration tests cover end-to-end upgrade workflows
-- Error handling with clear user feedback
-- Logging with multiple verbosity levels
-- Follows all existing code conventions and patterns
+**The default interface is ASCII/Unicode professional appearance. Emoji mode is preserved only for users who explicitly enable it through configuration.**
 
 ## Naming Conventions
 
@@ -435,6 +366,18 @@ glovebox layout create-patch layout1.json layout2.json --output changes.patch
    class BaseServiceProtocol(Protocol):
    ```
 
+4. **Exception Naming**: Use descriptive error class names
+   ```python
+   # ✅ CORRECT - Specific exception types
+   class KeymapError(GloveboxError):
+   class ConfigurationError(GloveboxError):
+   class FlashError(GloveboxError):
+   
+   # ❌ INCORRECT - Generic error names
+   class Error(Exception):
+   class MyError(Exception):
+   ```
+
 ### **Function Naming Standards**
 
 1. **Use Descriptive Verbs**: Function names must clearly indicate their purpose
@@ -449,7 +392,19 @@ glovebox layout create-patch layout1.json layout2.json --output changes.patch
    def mkdir(path: Path) -> None:
    ```
 
-2. **Layout Domain Specific Standards**:
+2. **Factory Function Pattern**: Use `create_*` prefix for all factory functions
+   ```python
+   # ✅ CORRECT - Factory function naming
+   def create_layout_service() -> LayoutService:
+   def create_flash_service() -> FlashService:
+   def create_keyboard_profile() -> KeyboardProfile:
+   
+   # ❌ INCORRECT - Non-factory naming
+   def get_layout_service() -> LayoutService:
+   def make_flash_service() -> FlashService:
+   ```
+
+3. **Layout Domain Specific Standards**:
    ```python
    # ✅ CORRECT - Component operations
    def decompose_components()  # Split layout into files
@@ -460,56 +415,44 @@ glovebox layout create-patch layout1.json layout2.json --output changes.patch
    def format_*()       # Text formatting operations
    ```
 
-## Essential Commands
+### **Variable and Parameter Naming**
 
-### Quick Commands
-```bash
-# Using make
-make test           # Run all tests
-make lint           # Run linting checks
-make format         # Format code and fix linting issues
-make coverage       # Run tests with coverage reporting
+1. **Use descriptive names for complex objects**:
+   ```python
+   # ✅ CORRECT - Clear variable names
+   user_config = create_user_config()
+   layout_service = create_layout_service()
+   keyboard_profile = create_keyboard_profile("glove80", "v25.05")
+   
+   # ❌ INCORRECT - Abbreviated names
+   cfg = create_user_config()
+   svc = create_layout_service()
+   profile = create_keyboard_profile("glove80", "v25.05")
+   ```
 
-# Using scripts or uv
-./scripts/test.sh
-uv sync             # Install dependencies
-uv run pytest      # Run tests
-uv run ruff check . --fix  # Fix linting issues
-uv run mypy glovebox/      # Type checking
-```
-
-### Build and Run
-```bash
-# Run glovebox CLI directly
-python -m glovebox.cli [command]
-# or with uv:
-uv run python -m glovebox.cli [command]
-
-# Build a layout
-glovebox layout compile my_layout.json output/my_layout --profile glove80/v25.05
-
-# Build firmware
-glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
-
-# Flash firmware
-glovebox firmware flash firmware.uf2 --profile glove80/v25.05
-
-# Keymap version management (NEW)
-glovebox layout import-master master-v42.json v42
-glovebox layout upgrade my-custom.json --to-master v42
-glovebox layout diff layout1.json layout2.json --include-dtsi --json
-```
+2. **Boolean variables should be questions**:
+   ```python
+   # ✅ CORRECT - Question-form booleans
+   is_enabled: bool
+   has_firmware: bool
+   should_validate: bool
+   
+   # ❌ INCORRECT - Non-question booleans
+   enabled: bool
+   firmware: bool
+   validate: bool
+   ```
 
 ## Project Architecture
 
 ### Domain-Driven Structure
 
-The codebase is organized into self-contained domains:
+The codebase is organized into self-contained domains with clear boundaries:
 
 #### Layout Domain (`glovebox/layout/`)
 - **Purpose**: Keyboard layout processing, JSON→DTSI conversion, component operations, version management
 - **Factory Functions**: `create_layout_service()`, `create_layout_component_service()`, `create_layout_display_service()`, `create_grid_layout_formatter()`, `create_zmk_file_generator()`, `create_behavior_registry()`
-- **Models**: `LayoutData`, `LayoutBinding`, `LayoutLayer`, behavior models, bookmarks
+- **Models**: `LayoutData`, `LayoutBinding`, `LayoutLayer`, behavior models
 - **Subdomains**:
   - `behavior/`: Behavior analysis, formatting, and models
   - `comparison/`: Layout comparison services
@@ -517,7 +460,7 @@ The codebase is organized into self-contained domains:
   - `editor/`: Layout editing operations
   - `layer/`: Layer management services
   - `utils/`: Field parsing, JSON operations, validation
-- **Version Management**: `VersionManager`, `FirmwareTracker` (fully implemented)
+- **Key Features**: Version management, firmware tracking, component decomposition
 
 #### Firmware Domain (`glovebox/firmware/`)
 - **Purpose**: Firmware building and flashing operations
@@ -544,7 +487,7 @@ The codebase is organized into self-contained domains:
 
 #### Configuration System (`glovebox/config/`)
 - **Purpose**: Type-safe configuration management, keyboard profiles, user settings
-- **Factory Functions**: `create_keyboard_profile()`, `create_user_config()`
+- **Factory Functions**: `create_keyboard_profile()`, `create_user_config()`, `create_include_loader()`
 - **Key Components**: `keyboard_profile.py`, `profile.py`, `user_config.py`, `include_loader.py`
 - **Models Subdomain**: Behavior, display, firmware, keyboard, user, ZMK models
 - **Key Features**:
@@ -554,33 +497,39 @@ The codebase is organized into self-contained domains:
 
 #### Core Models (`glovebox/models/`)
 - **Purpose**: Cross-domain core models and base classes
-- **Components**: `GloveboxBaseModel` base class, `DockerUserContext`, `BaseResult`
+- **Key Components**: 
+  - `GloveboxBaseModel`: Base class for all Pydantic models
+  - `DockerUserContext`: Docker execution context
+  - `BaseResult`: Base result class with consistent patterns
+  - `PreservingPath`: Path handling with serialization preservation
 
 #### Adapters (`glovebox/adapters/`)
 - **Purpose**: External system interfaces following adapter pattern
-- **Factory Functions**: `create_docker_adapter()`, `create_file_adapter()`, `create_template_adapter()`, `create_usb_adapter()`
+- **Factory Functions**: `create_docker_adapter()`, `create_file_adapter()`, `create_template_adapter()`, `create_usb_adapter()`, `create_config_file_adapter()`
 - **Components**: `DockerAdapter`, `FileAdapter`, `USBAdapter`, `TemplateAdapter`, `ConfigFileAdapter`
+- **Pattern**: Clean adapter pattern with protocol interfaces
 
 #### Core Infrastructure (`glovebox/core/`)
 - **Purpose**: Core application infrastructure and shared services
-- **Cache v2 Subdomain**: DiskCache-based system with **shared coordination** (`glovebox/core/cache_v2/`)
+- **Cache Coordination** (`glovebox/core/cache/`):
   - **Shared Coordination**: Single cache instances across domains with proper isolation
   - **Factory Functions**: `create_default_cache()`, `create_cache_from_user_config()`, `get_shared_cache_instance()`
   - **Domain Isolation**: Uses tags (compilation, metrics, layout, etc.) for namespace separation
   - **Test Safety**: `reset_shared_cache_instances()` for complete test isolation
   - **Cache Manager**: `DiskCacheManager` with SQLite backend for thread/process safety
-- **Components**: Error handling, logging setup, startup services, version checking
+- **Components**: Error handling, logging setup, startup services, version checking, metrics
 
 #### MoErgo Domain (`glovebox/moergo/`)
 - **Purpose**: MoErgo service integration and API client
-- **Key Components**: Layout bookmark management, versioning
+- **Key Components**: Layout versioning, credential management
 - **Client Subdomain**: MoErgo API client with auth, credentials, and models
-- **Services**: `bookmark_service.py`, `versioning.py`
+- **Services**: Authentication, layout client, utility client, firmware client
 
 #### Supporting Infrastructure
 - **Services** (`glovebox/services/`): `BaseService` and `BaseServiceProtocol` patterns
 - **Protocols** (`glovebox/protocols/`): Runtime-checkable protocols for type safety
 - **Utils** (`glovebox/utils/`): Process streaming, error utilities, diagnostics
+- **Library** (`glovebox/library/`): Layout library management with fetchers and repository
 
 ### Key Design Patterns
 
@@ -590,22 +539,23 @@ The codebase is organized into self-contained domains:
 4. **Domain Ownership**: Each domain owns its models, services, and business logic
 5. **Clean Imports**: No backward compatibility layers - single source of truth for imports
 6. **Shared Cache Coordination**: Single cache instances across domains with proper isolation
+7. **Service Layer**: All business logic encapsulated in service classes inheriting from BaseService
 
 ### Shared Cache Coordination System
 
-**COMPLETED**: The cache system has been refactored to use shared coordination across all domains while maintaining proper isolation and following CLAUDE.md factory function patterns.
+**COMPLETED**: The cache system uses shared coordination across all domains while maintaining proper isolation and following factory function patterns.
 
 #### Architecture Overview
 
 The shared cache coordination system eliminates multiple independent cache instances by:
 - **Coordinating cache instances** across domains using a central registry
 - **Domain isolation** through cache tags (compilation, metrics, layout, etc.)
-- **CLAUDE.md compliance** using factory functions (no singletons)
+- **Factory function compliance** using `create_*` functions (no singletons)
 - **Test safety** with automatic cache reset between tests
 
 #### Core Components
 
-1. **Cache Coordinator** (`glovebox/core/cache_v2/cache_coordinator.py`):
+1. **Cache Coordinator** (`glovebox/core/cache/cache_coordinator.py`):
    ```python
    def get_shared_cache_instance(
        cache_root: Path,
@@ -656,7 +606,7 @@ The shared cache coordination system eliminates multiple independent cache insta
    # Services use domain-specific cache factories
    def create_zmk_west_service() -> CompilationServiceProtocol:
        cache, workspace_service = create_compilation_cache_service(user_config)
-       return create_zmk_west_service(docker_adapter, user_config, cache, workspace_service)
+       return ZmkWestService(docker_adapter, user_config, cache, workspace_service)
    ```
 
 3. **Test Safety**:
@@ -682,9 +632,82 @@ Examples:
 - `glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05`
 - `glovebox firmware flash firmware.uf2 --profile glove80/v25.05`
 
+#### Modular CLI Structure
+
+The CLI has been refactored into a modular structure with focused command modules under `glovebox/cli/commands/`:
+
+```
+glovebox/cli/commands/
+├── __init__.py                 # Command registration
+├── layout/                     # Layout management commands
+│   ├── __init__.py            # Layout app registration
+│   ├── core.py                # Compile, validate, show commands
+│   ├── comparison.py          # Diff, create-patch commands
+│   ├── file_operations.py     # Split, merge commands
+│   ├── edit.py                # Field editing commands
+│   └── parsing.py             # Keymap parsing commands
+├── config/                    # Configuration management
+│   ├── __init__.py           # Config app registration
+│   ├── edit.py               # Unified edit command
+│   ├── management.py         # List, export, import commands
+│   └── updates.py            # Version check commands
+├── profile/                   # Profile management commands
+│   ├── __init__.py           # Profile app registration
+│   ├── info.py               # List, show commands
+│   └── firmwares.py          # Firmware listing commands
+├── firmware.py               # Firmware operations
+├── moergo.py                 # MoErgo integration
+├── status.py                 # System status
+├── metrics.py                # Metrics commands
+├── cache/                    # Cache management
+│   ├── __init__.py           # Cache app registration
+│   ├── show.py               # Cache information
+│   ├── clear.py              # Cache cleanup
+│   └── workspace.py          # Workspace management
+├── library/                  # Library management
+│   ├── __init__.py           # Library app registration
+│   ├── fetch.py              # Fetch layouts
+│   ├── search.py             # Search layouts
+│   └── list_cmd.py           # List layouts
+└── cloud.py                  # Cloud operations
+```
+
+#### CLI Design Principles
+
+1. **Modular Organization**: Each command domain is a separate module under 500 lines
+2. **Unified Interfaces**: Commands like `config edit` support multiple operations in one call
+3. **Backward Compatibility**: Legacy commands maintained with deprecation warnings
+4. **Clean Registration**: Each module registers its commands via `register_commands()` functions
+5. **Consistent Patterns**: All commands follow the same structure and error handling
+6. **Error Handling**: Use `@handle_errors` decorator for consistent error management
+
+#### Command Registration Pattern
+
+All command modules follow a consistent registration pattern:
+
+```python
+# In each command module
+def register_commands(app: typer.Typer) -> None:
+    """Register commands with the main app."""
+    app.add_typer(command_app, name="command-name")
+
+# In glovebox/cli/commands/__init__.py
+def register_all_commands(app: typer.Typer) -> None:
+    """Register all CLI commands with the main app."""
+    register_layout_commands(app)
+    register_firmware_commands(app)
+    register_config_commands(app)
+    register_profile_commands(app)
+    register_status_commands(app)
+    register_moergo_commands(app)
+    app.add_typer(cache_app, name="cache")
+```
+
+This ensures consistent command discovery and registration across the entire CLI.
+
 ### Modular Configuration System
 
-The configuration system now uses a modular YAML structure with includes:
+The configuration system uses a modular YAML structure with includes:
 
 ```yaml
 # keyboards/glove80.yaml (main config)
@@ -712,7 +735,7 @@ from glovebox.config import create_keyboard_profile
 # Full profile with firmware
 profile = create_keyboard_profile("glove80", "v25.05")
 
-# Keyboard-only profile (NEW: firmware_version=None)
+# Keyboard-only profile (firmware_version=None)
 keyboard_profile = create_keyboard_profile("glove80")
 ```
 
@@ -721,14 +744,14 @@ keyboard_profile = create_keyboard_profile("glove80")
 # Using profile parameter with firmware
 glovebox layout compile input.json output/ --profile glove80/v25.05
 
-# Using keyboard-only profile (NEW: no firmware part)
+# Using keyboard-only profile (no firmware part)
 glovebox status --profile glove80
 glovebox firmware flash firmware.uf2 --profile glove80
 ```
 
 ### Compilation Configuration
 
-Compilation strategies are now configured through unified models:
+Compilation strategies are configured through unified models:
 
 ```python
 from glovebox.compilation.models import ZmkCompilationConfig, MoergoCompilationConfig
@@ -751,36 +774,44 @@ moergo_config = MoergoCompilationConfig(
 )
 ```
 
-## Maintainability Guidelines
+## Essential Commands
 
-This project is maintained by a small team (2-3 developers), so:
+### Quick Commands
+```bash
+# Using make
+make test           # Run all tests
+make lint           # Run linting checks
+make format         # Format code and fix linting issues
+make coverage       # Run tests with coverage reporting
 
-1. **Avoid Over-engineering**: Keep solutions as simple as possible
-2. **Pragmatic Design**: Choose patterns that solve actual problems, not theoretical ones
-3. **Readability Over Cleverness**: Clear, explicit code is better than clever, complex code
-4. **Focused Changes**: Keep changes small and targeted rather than large refactors
+# Using scripts or uv
+./scripts/test.sh
+uv sync             # Install dependencies
+uv run pytest      # Run tests
+uv run ruff check . --fix  # Fix linting issues
+uv run mypy glovebox/      # Type checking
+```
 
-## Git Workflow
+### Build and Run
+```bash
+# Run glovebox CLI directly
+python -m glovebox.cli [command]
+# or with uv:
+uv run python -m glovebox.cli [command]
 
-### Branch Strategy
-- Main development branch is `dev`
-- Feature branches should be created from `dev`
-- Use meaningful branch names (e.g., `feature/new-keymap-format`, `fix/usb-detection-issue`)
+# Build a layout
+glovebox layout compile my_layout.json output/my_layout --profile glove80/v25.05
 
-### Before Committing
-1. Run the linter and fix any issues: `ruff check . && ruff format .`
-2. Run pre-commit hooks: `pre-commit run --all-files`
-3. Run tests: `pytest`
-4. All new files must pass mypy type checking: `mypy glovebox/`
+# Build firmware
+glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
 
-## Documentation Structure
+# Flash firmware
+glovebox firmware flash firmware.uf2 --profile glove80/v25.05
 
-For detailed information, refer to:
-
-- **Developer Documentation**: `docs/dev/` - Architecture guides, domain documentation, coding conventions
-- **User Documentation**: `docs/user/` - Getting started, tutorials, troubleshooting
-- **Technical Reference**: `docs/technical/` - API reference, keymap format specification
-- **Implementation Plans**: `docs/implementation/` - Current development plans and completed features
+# Enhanced layout operations
+glovebox layout diff layout1.json layout2.json --include-dtsi --json
+glovebox layout edit my_layout.json --set title="New Title" --save
+```
 
 ## Common Import Patterns
 
@@ -816,181 +847,251 @@ from glovebox.compilation import (
     create_moergo_nix_service
 )
 
-# Version management and firmware tracking
-from glovebox.layout.version_manager import create_version_manager
-from glovebox.layout.firmware_tracker import create_firmware_tracker
-
 # Configuration from config package
 from glovebox.config import create_keyboard_profile, create_user_config
 
 # MoErgo domain services
-from glovebox.moergo.bookmark_service import create_bookmark_service
 from glovebox.moergo.client import create_moergo_client
 
 # Core infrastructure with shared cache coordination
-from glovebox.core.cache_v2 import (
+from glovebox.core.cache import (
     create_default_cache, 
     create_cache_from_user_config,
     get_shared_cache_instance,
     reset_shared_cache_instances
 )
 from glovebox.adapters import create_docker_adapter, create_file_adapter
+
+# CLI helpers and themes
+from glovebox.cli.helpers.theme import Icons, get_themed_console, Colors
+from glovebox.cli.decorators.error_handling import handle_errors
 ```
 
 **IMPORTANT**: The codebase uses clean domain boundaries with no backward compatibility layers.
 
-## CLI Architecture and Commands
+## Maintainability Guidelines
 
-### Modular CLI Structure
+This project is maintained by a small team (2-3 developers), so:
 
-The CLI has been refactored into a modular structure with focused command modules under `glovebox/cli/commands/`:
+1. **Avoid Over-engineering**: Keep solutions as simple as possible
+2. **Pragmatic Design**: Choose patterns that solve actual problems, not theoretical ones
+3. **Readability Over Cleverness**: Clear, explicit code is better than clever, complex code
+4. **Focused Changes**: Keep changes small and targeted rather than large refactors
 
-```
-glovebox/cli/commands/
-├── __init__.py                 # Command registration
-├── layout/                     # Layout management commands
-│   ├── __init__.py            # Layout app registration
-│   ├── compilation.py         # Compile, validate commands
-│   ├── comparison.py          # Diff, create-patch commands
-│   ├── component.py           # Decompose, compose commands
-│   ├── display.py            # Show command
-│   ├── editor.py             # Field editing commands
-│   ├── layer.py              # Layer management commands
-│   └── version.py            # Version management commands
-├── config/                    # Configuration management
-│   ├── __init__.py           # Config app registration
-│   ├── edit.py               # Unified edit command
-│   ├── management.py         # List, export, import commands
-│   └── updates.py            # Version check commands
-├── keyboard/                  # Keyboard information commands
-│   ├── __init__.py           # Keyboard app registration
-│   ├── info.py               # List, show commands
-│   └── firmwares.py          # Firmware listing commands
-├── firmware/                  # Firmware operations
-├── moergo/                   # MoErgo integration
-├── status.py                 # System status
-├── cache.py                  # Cache management
-└── config_legacy.py         # Legacy command compatibility
-```
+## Git Workflow
 
-### Key CLI Design Principles
+### Branch Strategy
+- Main development branch is `dev`
+- Feature branches should be created from `dev`
+- Use meaningful branch names (e.g., `feature/new-keymap-format`, `fix/usb-detection-issue`)
 
-1. **Modular Organization**: Each command domain is a separate module under 500 lines
-2. **Unified Interfaces**: Commands like `config edit` support multiple operations in one call
-3. **Backward Compatibility**: Legacy commands maintained with deprecation warnings
-4. **Clean Registration**: Each module registers its commands via `register_commands()` functions
-5. **Consistent Patterns**: All commands follow the same structure and error handling
+### Before Committing
+1. Run the linter and fix any issues: `ruff check . && ruff format .`
+2. Run pre-commit hooks: `pre-commit run --all-files`
+3. Run tests: `pytest`
+4. All new files must pass mypy type checking: `mypy glovebox/`
 
-### Configuration Commands
+## Advanced Patterns and Anti-Patterns
 
-#### Enhanced `config list` Command
+### Factory Function Implementation
 
-The `config list` command now serves as the primary configuration viewing interface:
+1. **Consistent Dependency Injection**:
+   ```python
+   # ✅ CORRECT - Explicit dependency injection
+   def create_layout_service(
+       file_adapter: FileAdapterProtocol,
+       template_adapter: TemplateAdapterProtocol,
+       behavior_registry: BehaviorRegistryProtocol,
+       component_service: LayoutComponentService,
+       layout_service: LayoutDisplayService,
+       behavior_formatter: BehaviorFormatterImpl,
+       dtsi_generator: ZmkFileContentGenerator,
+       keymap_parser: ZmkKeymapParser | None = None,
+   ) -> LayoutService:
+       """Create a LayoutService instance with explicit dependency injection."""
+   ```
 
-```bash
-# Basic configuration listing
-glovebox config list
+2. **Factory Function Documentation**:
+   ```python
+   # ✅ CORRECT - Document dependencies and their factories
+   def create_layout_service(
+       # ... parameters
+   ) -> LayoutService:
+       """Create a LayoutService instance with explicit dependency injection.
 
-# Show current values alongside defaults
-glovebox config list --defaults
+       All dependencies are required to ensure proper dependency management.
+       Use other factory functions to create the required dependencies:
+       - create_file_adapter() for file_adapter
+       - create_template_adapter() for template_adapter
+       - create_behavior_registry() for behavior_registry
+       """
+   ```
 
-# Include field descriptions
-glovebox config list --descriptions
+### Error Handling Patterns
 
-# Show configuration sources
-glovebox config list --sources
+1. **Debug-Aware Exception Logging**:
+   ```python
+   # ✅ CORRECT - Use debug-aware exception logging
+   def risky_operation(self):
+       try:
+           # Operation that might fail
+           pass
+       except Exception as e:
+           exc_info = self.logger.isEnabledFor(logging.DEBUG)
+           self.logger.error("Operation failed: %s", e, exc_info=exc_info)
+           raise
+   ```
 
-# Combine all information
-glovebox config list --defaults --descriptions --sources
-```
+2. **CLI Error Handling with Decorators**:
+   ```python
+   # ✅ CORRECT - Use handle_errors decorator for CLI commands
+   from glovebox.cli.decorators.error_handling import handle_errors
+   
+   @handle_errors
+   def my_cli_command():
+       # Command implementation
+       pass
+   ```
 
-**Key Features:**
-- Replaced the old `config options` command functionality
-- Shows current configuration values in a table format
-- Optional columns for defaults, descriptions, and sources
-- Helpful usage guidance at the bottom
+### Service Layer Patterns
 
-#### Unified `config edit` Command
+1. **BaseService Inheritance**:
+   ```python
+   # ✅ CORRECT - Inherit from BaseService
+   class MyDomainService(BaseService):
+       def __init__(self, dependency: SomeDependency):
+           super().__init__("MyDomainService", "1.0.0")
+           self.dependency = dependency
+   ```
 
-The `config edit` command supports multiple operations in a single call:
+2. **Protocol Implementation**:
+   ```python
+   # ✅ CORRECT - Define protocols for type safety
+   class MyServiceProtocol(Protocol):
+       def perform_operation(self) -> bool: ...
+   
+   # ✅ CORRECT - Runtime checking for protocols
+   def create_my_service() -> MyServiceProtocol:
+       service = MyService()
+       assert isinstance(service, MyServiceProtocol)
+       return service
+   ```
 
-```bash
-# Multiple operations in one command
-glovebox config edit \
-  --get cache_strategy \
-  --set emoji_mode=true \
-  --add keyboard_paths=/new/path \
-  --remove keyboard_paths=/old/path \
-  --save
-```
+### Anti-Patterns to Avoid
 
-**Capabilities:**
-- `--get`: Retrieve one or more configuration values
-- `--set`: Set configuration values using key=value format
-- `--add`: Add values to list-type configurations
-- `--remove`: Remove values from list-type configurations
-- `--save/--no-save`: Control whether changes are persisted
+1. **❌ NEVER use implementation suffixes for non-implementations**:
+   ```python
+   # ❌ INCORRECT - Don't use Impl suffix for main classes
+   class LayoutServiceImpl:  # Should be LayoutService
+       pass
+   
+   # ✅ CORRECT - Use Impl only for specific implementations
+   class BehaviorFormatterImpl:  # Specific implementation of formatting
+       pass
+   ```
 
-### Keyboard Commands
+2. **❌ NEVER create services without factory functions**:
+   ```python
+   # ❌ INCORRECT - Direct instantiation without factory
+   service = LayoutService(adapter, template, registry)
+   
+   # ✅ CORRECT - Use factory function
+   service = create_layout_service(adapter, template, registry)
+   ```
 
-#### Dedicated Keyboard Module
+3. **❌ NEVER use global state or singletons**:
+   ```python
+   # ❌ INCORRECT - Singleton pattern
+   class GlobalService:
+       _instance = None
+       
+       def __new__(cls):
+           if cls._instance is None:
+               cls._instance = super().__new__(cls)
+           return cls._instance
+   
+   # ✅ CORRECT - Use shared cache coordination instead
+   cache = get_shared_cache_instance(cache_root, tag="my_domain")
+   ```
 
-Keyboard-related commands have been moved to a dedicated `keyboard` module:
+4. **❌ NEVER bypass the theme system**:
+   ```python
+   # ❌ INCORRECT - Direct emoji or color usage
+   print("🔧 Building...")
+   console.print("Error", style="red")
+   
+   # ✅ CORRECT - Use theme system
+   console = get_themed_console()
+   icon = Icons.get_icon("BUILD", "text")
+   console.print_error("Error message")
+   ```
 
-```bash
-# List available keyboards
-glovebox keyboard list [--verbose] [--format json]
+5. **❌ NEVER use bare exceptions**:
+   ```python
+   # ❌ INCORRECT - Bare exception catching
+   try:
+       operation()
+   except:  # Never do this
+       pass
+   
+   # ✅ CORRECT - Specific exception handling
+   try:
+       operation()
+   except SpecificError as e:
+       self.logger.error("Specific operation failed: %s", e)
+   ```
 
-# Show keyboard details
-glovebox keyboard show KEYBOARD_NAME [--verbose] [--format json]
+### Performance Considerations
 
-# List firmware versions for a keyboard
-glovebox keyboard firmwares KEYBOARD_NAME [--format json]
-```
+1. **Lazy Imports**: Use lazy imports for optional dependencies
+2. **Cache Utilization**: Always use the shared cache system for expensive operations
+3. **Streaming Operations**: Use streaming for large file operations
+4. **Resource Cleanup**: Always use context managers or try/finally for resource cleanup
 
-**Benefits:**
-- Clean separation from configuration commands
-- Focused interface for keyboard management
-- Consistent output formatting across commands
-- Tab completion for keyboard names
+## Documentation Structure
 
-### Legacy Command Support
+For detailed information, refer to:
 
-Legacy commands are maintained for backward compatibility but marked as deprecated:
+- **Developer Documentation**: `docs/dev/` - Architecture guides, domain documentation, coding conventions
+- **User Documentation**: `docs/user/` - Getting started, tutorials, troubleshooting
+- **Technical Reference**: `docs/technical/` - API reference, keymap format specification
+- **Implementation Plans**: `docs/implementation/` - Current development plans and completed features
 
-```bash
-# Legacy commands (deprecated but functional)
-glovebox config keyboards       # → glovebox keyboard list
-glovebox config show-keyboard   # → glovebox keyboard show
-glovebox config firmwares       # → glovebox keyboard firmwares
-```
+## Technology Stack
 
-**Deprecation Strategy:**
-- Legacy commands show deprecation warnings
-- Commands continue to work during transition period
-- New commands provide enhanced functionality
-- Documentation updated to promote new interface
+### Core Dependencies
+- **Python**: 3.11+ (required minimum version)
+- **Pydantic**: 2.11+ (data validation and serialization)
+- **Typer**: 0.16+ (CLI framework)
+- **Rich**: 13.3+ (terminal UI and formatting)
+- **PyYAML**: 6.0+ (YAML configuration processing)
+- **Jinja2**: 3.1+ (template engine for ZMK files)
 
-### Command Registration Pattern
+### Key Libraries
+- **Docker**: Required for firmware compilation
+- **diskcache**: 5.6+ (intelligent caching system)
+- **deepdiff**: 8.5+ (data comparison for layout diffs)
+- **jsonpatch**: 1.33+ (JSON patching operations)
+- **psutil**: 7.0+ (system process management)
+- **pyudev**: 0.24+ (Linux USB device detection)
+- **keyring**: 25.6+ (secure credential storage)
+- **requests**: 2.32+ (HTTP client for MoErgo integration)
 
-All command modules follow a consistent registration pattern:
+### Development Tools
+- **uv**: Modern Python dependency manager (preferred)
+- **ruff**: 0.11+ (linting and code formatting)
+- **mypy**: 1.15+ (static type checking)
+- **pytest**: 8.3+ (testing framework)
+- **pre-commit**: 4.2+ (git hook management)
 
-```python
-# In each command module
-def register_commands(app: typer.Typer) -> None:
-    """Register commands with the main app."""
-    app.add_typer(command_app, name="command-name")
+## Final Reminders
 
-# In glovebox/cli/commands/__init__.py
-def register_all_commands(app: typer.Typer) -> None:
-    """Register all CLI commands with the main app."""
-    register_layout_commands(app)
-    register_firmware_commands(app)
-    register_config_commands(app)
-    register_keyboard_commands(app)
-    register_status_commands(app)
-    register_moergo_commands(app)
-    app.add_typer(cache_app, name="cache")
-```
+- **Always prioritize readability and maintainability over cleverness**
+- **Follow the established patterns consistently across the codebase**
+- **Use factory functions for all service creation**
+- **Maintain proper test isolation with provided fixtures**
+- **Leverage the theme system for all UI elements**
+- **Document complex business logic thoroughly**
+- **Keep domain boundaries clean and well-defined**
 
-This ensures consistent command discovery and registration across the entire CLI.
+When in doubt, follow the patterns established in the existing codebase and prioritize simplicity and clarity over complex abstractions.
