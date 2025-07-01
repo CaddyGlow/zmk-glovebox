@@ -210,12 +210,26 @@ def complete_output_formats(incomplete: str) -> list[str]:
 
 
 def complete_json_files(incomplete: str) -> list[str]:
-    """Tab completion for JSON files with path completion."""
+    """Tab completion for JSON files with path completion and library references.
+    
+    Supports:
+    - File paths: layout.json, ./layouts/, ../
+    - Library references: @layout-name, @uuid
+    """
     try:
         from pathlib import Path
 
+        # Handle library references starting with @
+        if incomplete.startswith("@"):
+            return _complete_library_references(incomplete)
+
+        # If empty, show common options including @ for library
         if not incomplete:
-            return ["examples/layouts/", "./", "../"]
+            return ["@", "examples/layouts/", "./", "../"]
+
+        # If user just typed @, show library entries
+        if incomplete == "@":
+            return _complete_library_references(incomplete)
 
         path = Path(incomplete)
 
@@ -244,6 +258,35 @@ def complete_json_files(incomplete: str) -> list[str]:
             return sorted(matches)
 
         return []
+    except Exception:
+        return []
+
+
+def _complete_library_references(incomplete: str) -> list[str]:
+    """Complete library references starting with @."""
+    try:
+        from glovebox.cli.helpers.library_resolver import (
+            get_library_entries_for_completion,
+        )
+
+        # Get library entries
+        entries = get_library_entries_for_completion()
+
+        if not entries:
+            return []
+
+        # Extract just the references (first element of tuples)
+        references = [ref for ref, _desc in entries]
+
+        # Filter based on incomplete text
+        if incomplete == "@":
+            # Show all references
+            return references[:20]  # Limit for usability
+        else:
+            # Filter by prefix
+            matching = [ref for ref in references if ref.startswith(incomplete)]
+            return sorted(matching)[:20]
+
     except Exception:
         return []
 
@@ -846,8 +889,10 @@ ViewModeOption = Annotated[
 JsonFileArgument = Annotated[
     str | None,
     typer.Argument(
-        help="Path to keyboard layout JSON file. Used for layer name completion in --layer option.",
+        help="Path to keyboard layout JSON file or @library-name/uuid. Used for layer name completion in --layer option.",
         autocompletion=complete_json_files,
+        # Note: Library resolution is handled by decorators or in-command logic
+        # to avoid circular imports
     ),
 ]
 

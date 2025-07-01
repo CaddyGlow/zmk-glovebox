@@ -720,10 +720,17 @@ def edit(
 ) -> None:
     """Edit layout with atomic operations.
 
+    Accepts layout files, library references (@name or @uuid), or environment variable.
     All operations are performed in memory and saved only if all succeed.
     Use --dry-run to preview changes without saving.
 
     Examples:
+        # Edit from library by name
+        glovebox layout edit @my-layout --set title="Updated Layout"
+
+        # Edit from library by UUID
+        glovebox layout edit @12345678-1234-1234-1234-123456789abc --set version="2.0"
+
         # Get field values (multiple ways)
         glovebox layout edit layout.json --get title --get keyboard
         glovebox layout edit layout.json --get title,keyboard,version

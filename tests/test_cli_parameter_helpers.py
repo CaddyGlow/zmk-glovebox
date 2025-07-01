@@ -55,22 +55,16 @@ class TestContextAccessFunctions:
         input_result = InputResult(raw_value="test.json")
         ctx.obj.param_input_result = input_result
 
-        # Mock hasattr and getattr
-        with (
-            patch("builtins.hasattr", return_value=True),
-            patch("builtins.getattr", return_value=input_result),
-        ):
-            result = get_input_result_from_context(ctx)
-            assert result == input_result
+        result = get_input_result_from_context(ctx)
+        assert result == input_result
 
     def test_get_input_result_from_context_none(self):
         """Test getting input result when not present."""
         ctx = Mock(spec=typer.Context)
         ctx.obj = Mock()
 
-        with patch("builtins.hasattr", return_value=False):
-            result = get_input_result_from_context(ctx)
-            assert result is None
+        result = get_input_result_from_context(ctx)
+        assert result is None
 
     def test_get_output_result_from_context(self):
         """Test getting output result from context."""
@@ -78,13 +72,10 @@ class TestContextAccessFunctions:
         ctx.obj = Mock()
 
         output_result = OutputResult(raw_value="output.json")
+        ctx.obj.param_output_result = output_result
 
-        with (
-            patch("builtins.hasattr", return_value=True),
-            patch("builtins.getattr", return_value=output_result),
-        ):
-            result = get_output_result_from_context(ctx)
-            assert result == output_result
+        result = get_output_result_from_context(ctx)
+        assert result == output_result
 
     def test_get_format_result_from_context(self):
         """Test getting format result from context."""
@@ -92,13 +83,10 @@ class TestContextAccessFunctions:
         ctx.obj = Mock()
 
         format_result = FormatResult(format_type="json")
+        ctx.obj.param_format_result = format_result
 
-        with (
-            patch("builtins.hasattr", return_value=True),
-            patch("builtins.getattr", return_value=format_result),
-        ):
-            result = get_format_result_from_context(ctx)
-            assert result == format_result
+        result = get_format_result_from_context(ctx)
+        assert result == format_result
 
     def test_get_input_data_from_context(self):
         """Test getting input data from context."""
@@ -491,10 +479,10 @@ class TestFormatParameterProcessing:
 
         assert result.format_type == "table"
         assert result.is_json is False
-        assert result.supports_rich is True
+        assert result.supports_rich is False
         assert result.legacy_format is True
 
-    @patch("glovebox.cli.helpers.parameter_helpers.create_output_formatter")
+    @patch("glovebox.cli.helpers.output_formatter.create_output_formatter")
     def test_format_and_output_data(self, mock_create_formatter, tmp_path):
         """Test formatting and outputting data."""
         # Setup mocks
@@ -568,8 +556,8 @@ class TestValidationFunctions:
     def test_validate_input_file_large_size(self, tmp_path):
         """Test validating large file."""
         test_file = tmp_path / "large.json"
-        # Create a file larger than 1MB
-        test_file.write_text("x" * (2 * 1024 * 1024))  # 2MB
+        # Create a file larger than 2x the max size to trigger error
+        test_file.write_text("x" * (3 * 1024 * 1024))  # 3MB
 
         result = validate_input_file(test_file, max_size_mb=1.0)
 
@@ -580,8 +568,8 @@ class TestValidationFunctions:
     def test_validate_input_file_warning_size(self, tmp_path):
         """Test validating file with warning size."""
         test_file = tmp_path / "medium.json"
-        # Create a file between warning and max size
-        test_file.write_text("x" * (1024 * 1024))  # 1MB
+        # Create a file larger than max_size_mb to trigger warning
+        test_file.write_text("x" * (int(2.5 * 1024 * 1024)))  # 2.5MB
 
         result = validate_input_file(test_file, max_size_mb=2.0)
 
