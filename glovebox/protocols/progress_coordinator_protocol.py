@@ -22,6 +22,10 @@ class ProgressCoordinatorProtocol(Protocol):
     # Common attributes that implementations may need
     current_phase: str
     docker_image_name: str
+    total_repositories: int
+    repositories_downloaded: int
+    boards_completed: int
+    total_boards: int
 
     def transition_to_phase(self, phase: str, description: str = "") -> None:
         """Transition to a new compilation phase."""
@@ -123,4 +127,8 @@ class ProgressCoordinatorProtocol(Protocol):
             status: Task status (pending, active, completed, failed)
             description: Optional description for the task
         """
+        ...
+
+    def fail_all_tasks(self) -> None:
+        """Mark all tasks as failed and transition to error state."""
         ...

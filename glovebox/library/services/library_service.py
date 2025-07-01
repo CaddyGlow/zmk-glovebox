@@ -19,7 +19,6 @@ from glovebox.library.models import (
     SearchResult,
 )
 from glovebox.library.repository import LibraryRepository
-from glovebox.moergo.bookmark_service import BookmarkService, create_bookmark_service
 from glovebox.moergo.client import MoErgoClient
 
 
@@ -35,7 +34,6 @@ class LibraryService:
         fetcher_registry: FetcherRegistry,
         user_config: UserConfigData,
         cache: CacheManager | None = None,
-        bookmark_service: BookmarkService | None = None,
     ) -> None:
         """Initialize library service.
 
@@ -44,7 +42,6 @@ class LibraryService:
             fetcher_registry: Registry of fetchers for different sources
             user_config: User configuration
             cache: Cache manager (optional)
-            bookmark_service: Bookmark service (optional)
         """
         self.repository = repository
         self.fetcher_registry = fetcher_registry
@@ -54,7 +51,6 @@ class LibraryService:
             tag="library",
             enabled=user_config.cache_strategy == "shared",
         )
-        self.bookmark_service = bookmark_service or create_bookmark_service(user_config)
 
     def fetch_layout(self, request: FetchRequest) -> FetchResult:
         """Fetch layout from any supported source.
@@ -80,7 +76,7 @@ class LibraryService:
             # Check if layout already exists
             if hasattr(fetcher, "_get_source_uuid"):
                 try:
-                    source_uuid = fetcher._get_source_uuid(request.source)  # type: ignore[attr-defined]
+                    source_uuid = fetcher._get_source_uuid(request.source)
                     if self.repository.entry_exists(source_uuid):
                         existing_entry = self.repository.get_entry(source_uuid)
                         if existing_entry and not request.force_overwrite:
@@ -145,22 +141,6 @@ class LibraryService:
                 ):
                     fetch_result.file_path.unlink()
 
-                # Create bookmark if requested
-                if request.create_bookmark:
-                    try:
-                        self.bookmark_service.add_bookmark(
-                            uuid=stored_entry.uuid,
-                            name=stored_entry.name,
-                            description=f"Library: {stored_entry.title or stored_entry.name}",
-                            fetch_metadata=False,  # We already have metadata
-                        )
-                        logger.info(
-                            "Created bookmark for library entry: %s", stored_entry.name
-                        )
-                    except Exception as e:
-                        # Don't fail the whole operation for bookmark creation
-                        fetch_result.warnings.append(f"Failed to create bookmark: {e}")
-
                 return FetchResult(
                     success=True,
                     entry=stored_entry,
@@ -209,7 +189,7 @@ class LibraryService:
                     errors=["MoErgo client not available for search"],
                 )
 
-            client: MoErgoClient = moergo_fetcher.client  # type: ignore[attr-defined]
+            client: MoErgoClient = moergo_fetcher.client
 
             # Use existing client to list public layouts
             # For now, we'll use the existing list_public_layouts method
@@ -373,7 +353,6 @@ def create_library_service(
     repository: LibraryRepository | None = None,
     fetcher_registry: FetcherRegistry | None = None,
     cache: CacheManager | None = None,
-    bookmark_service: BookmarkService | None = None,
 ) -> LibraryService:
     """Factory function to create library service.
 
@@ -382,7 +361,6 @@ def create_library_service(
         repository: Library repository (optional, creates default if None)
         fetcher_registry: Fetcher registry (optional, creates default if None)
         cache: Cache manager (optional, creates default if None)
-        bookmark_service: Bookmark service (optional, creates default if None)
 
     Returns:
         Library service instance
@@ -407,5 +385,4 @@ def create_library_service(
         fetcher_registry=fetcher_registry,
         user_config=user_config,
         cache=cache,
-        bookmark_service=bookmark_service,
     )

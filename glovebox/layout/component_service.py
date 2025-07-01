@@ -156,7 +156,7 @@ class LayoutComponentService(BaseService):
             holdTaps=layout.hold_taps,
             combos=layout.combos,
             macros=layout.macros,
-            inputListeners=layout.input_listeners,
+            inputListeners=layout.input_listeners or [],
             config_parameters=layout.config_parameters,
         )
 

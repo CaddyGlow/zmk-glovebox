@@ -58,8 +58,8 @@ class TestZmkKeymapParserBasic:
 
     def test_parsing_mode_enum(self):
         """Test ParsingMode enum values."""
-        assert ParsingMode.FULL == "full"
-        assert ParsingMode.TEMPLATE_AWARE == "template"
+        assert ParsingMode.FULL.value == "full"
+        assert ParsingMode.TEMPLATE_AWARE.value == "template"
 
     def test_keymap_parse_result_model(self):
         """Test KeymapParseResult model structure."""

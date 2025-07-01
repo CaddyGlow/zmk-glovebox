@@ -57,6 +57,15 @@ def with_profile(
             # Extract the profile from kwargs
             profile_option = kwargs.get(profile_param_name)
 
+            # Handle missing profile when required
+            if required and profile_option is None:
+                from glovebox.cli.helpers import print_error_message
+
+                print_error_message(
+                    "Profile is required. Use --profile KEYBOARD/FIRMWARE (e.g., --profile glove80/v25.05)"
+                )
+                raise typer.Exit(1)
+
             # Handle non-required profiles
             if not required and profile_option is None:
                 # For non-required profiles, store None in context and continue
@@ -364,10 +373,10 @@ def with_cache(
                     )
 
                 # Store cache manager in context for helper function access
-                if not hasattr(ctx, "cache_objects"):
-                    ctx.cache_objects = {}
+                if "cache_objects" not in ctx.meta:
+                    ctx.meta["cache_objects"] = {}
 
-                ctx.cache_objects["cache_manager"] = cache_manager
+                ctx.meta["cache_objects"]["cache_manager"] = cache_manager
 
                 # Create compilation cache services if requested
                 if compilation_cache:
@@ -388,7 +397,7 @@ def with_cache(
                         )
 
                         # Store compilation cache services in context
-                        cache_objects = ctx.cache_objects
+                        cache_objects = ctx.meta["cache_objects"]
                         cache_objects["compilation_cache_manager"] = cache_manager_comp
                         cache_objects["workspace_cache_service"] = workspace_service
                         cache_objects["build_cache_service"] = build_service
@@ -437,12 +446,15 @@ def get_cache_manager_from_context(ctx: typer.Context) -> Any:
         RuntimeError: If cache manager is not available in context
     """
     try:
-        cache_manager = getattr(ctx, "cache_objects", {}).get("cache_manager")
-        if cache_manager is None:
-            raise RuntimeError(
-                "Cache manager not available in context. Ensure @with_cache decorator is applied."
-            )
-        return cache_manager
+        # Check if cache_objects exists in ctx.meta
+        if hasattr(ctx, "meta") and "cache_objects" in ctx.meta:
+            cache_manager = ctx.meta["cache_objects"].get("cache_manager")
+            if cache_manager is not None:
+                return cache_manager
+
+        raise RuntimeError(
+            "Cache manager not available in context. Ensure @with_cache decorator is applied."
+        )
     except Exception as e:
         if isinstance(e, RuntimeError):
             raise
@@ -464,17 +476,23 @@ def get_compilation_cache_services_from_context(
         RuntimeError: If compilation cache services are not available in context
     """
     try:
-        cache_objects = getattr(ctx, "cache_objects", {})
-        cache_manager = cache_objects.get("compilation_cache_manager")
-        workspace_service = cache_objects.get("workspace_cache_service")
-        build_service = cache_objects.get("build_cache_service")
+        # Check if cache_objects exists in ctx.meta
+        if hasattr(ctx, "meta") and "cache_objects" in ctx.meta:
+            cache_objects = ctx.meta["cache_objects"]
+            cache_manager = cache_objects.get("compilation_cache_manager")
+            workspace_service = cache_objects.get("workspace_cache_service")
+            build_service = cache_objects.get("build_cache_service")
 
-        if cache_manager is None or workspace_service is None or build_service is None:
-            raise RuntimeError(
-                "Compilation cache services not available in context. Ensure @with_cache decorator is applied with compilation_cache=True."
-            )
+            if (
+                cache_manager is not None
+                and workspace_service is not None
+                and build_service is not None
+            ):
+                return cache_manager, workspace_service, build_service
 
-        return cache_manager, workspace_service, build_service
+        raise RuntimeError(
+            "Compilation cache services not available in context. Ensure @with_cache decorator is applied with compilation_cache=True."
+        )
     except Exception as e:
         if isinstance(e, RuntimeError):
             raise
@@ -543,10 +561,10 @@ def with_tmpdir(
                 logger.debug("Created temporary directory: %s", tmp_dir)
 
                 # Store temp directory in context for helper function access
-                if not hasattr(ctx, "tmp_objects"):
-                    ctx.tmp_objects = {}
+                if "tmp_objects" not in ctx.meta:
+                    ctx.meta["tmp_objects"] = {}
 
-                ctx.tmp_objects["tmp_dir"] = tmp_dir
+                ctx.meta["tmp_objects"]["tmp_dir"] = tmp_dir
 
                 # Execute the original function
                 result = func(*args, **kwargs)
@@ -590,12 +608,15 @@ def get_tmpdir_from_context(ctx: typer.Context) -> Path:
         RuntimeError: If temporary directory is not available in context
     """
     try:
-        tmp_dir = getattr(ctx, "tmp_objects", {}).get("tmp_dir")
-        if tmp_dir is None:
-            raise RuntimeError(
-                "Temporary directory not available in context. Ensure @with_tmpdir decorator is applied."
-            )
-        return Path(tmp_dir)
+        # Check if tmp_objects exists in ctx.meta
+        if hasattr(ctx, "meta") and "tmp_objects" in ctx.meta:
+            tmp_dir = ctx.meta["tmp_objects"].get("tmp_dir")
+            if tmp_dir is not None:
+                return Path(tmp_dir)
+
+        raise RuntimeError(
+            "Temporary directory not available in context. Ensure @with_tmpdir decorator is applied."
+        )
     except Exception as e:
         if isinstance(e, RuntimeError):
             raise
@@ -688,10 +709,10 @@ def with_user_config(
                     raise typer.Exit(1)
 
                 # Store user config in context for helper function access
-                if not hasattr(ctx, "config_objects"):
-                    ctx.config_objects = {}
+                if "config_objects" not in ctx.meta:
+                    ctx.meta["config_objects"] = {}
 
-                ctx.config_objects["user_config"] = user_config
+                ctx.meta["config_objects"]["user_config"] = user_config
 
                 logger.debug("User config successfully set up for command")
 
@@ -729,12 +750,15 @@ def get_user_config_from_context_decorator(ctx: typer.Context) -> Any:
         RuntimeError: If user config is not available in context
     """
     try:
-        user_config = getattr(ctx, "config_objects", {}).get("user_config")
-        if user_config is None:
-            raise RuntimeError(
-                "User config not available in context. Ensure @with_user_config decorator is applied."
-            )
-        return user_config
+        # Check if config_objects exists in ctx.meta
+        if hasattr(ctx, "meta") and "config_objects" in ctx.meta:
+            user_config = ctx.meta["config_objects"].get("user_config")
+            if user_config is not None:
+                return user_config
+
+        raise RuntimeError(
+            "User config not available in context. Ensure @with_user_config decorator is applied."
+        )
     except Exception as e:
         if isinstance(e, RuntimeError):
             raise

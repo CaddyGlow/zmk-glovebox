@@ -56,7 +56,7 @@ class TestZmkWestServiceIntegration:
             method_type="zmk_config",
             repository="zmkfirmware/zmk",
             branch="main",
-            image="zmkfirmware/zmk-build-arm:stable",
+            image_="zmkfirmware/zmk-build-arm:stable",
             use_cache=True,
             build_matrix=BuildMatrix(
                 include=[BuildTarget(board="nice_nano_v2", artifact_name="test_board")]
@@ -109,7 +109,7 @@ class TestZmkWestServiceIntegration:
             method_type="zmk_config",
             repository="zmkfirmware/zmk",
             branch="main",
-            image="zmkfirmware/zmk-build-arm:stable",
+            image_="zmkfirmware/zmk-build-arm:stable",
             use_cache=False,  # Caching disabled
             build_matrix=BuildMatrix(
                 include=[BuildTarget(board="nice_nano_v2", artifact_name="test_board")]

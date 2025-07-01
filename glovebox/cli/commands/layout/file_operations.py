@@ -91,6 +91,12 @@ def split(
 
         layout_service = create_full_layout_service()
 
+        if keyboard_profile is None:
+            from glovebox.cli.helpers import print_error_message
+
+            print_error_message("Profile is required for layout split operation")
+            raise typer.Exit(1)
+
         result = layout_service.split_components_from_file(
             profile=keyboard_profile,
             json_file_path=resolved_layout_file,
@@ -174,6 +180,12 @@ def merge(
     try:
         layout_service = create_full_layout_service()
         keyboard_profile = get_keyboard_profile_from_context(ctx)
+
+        if keyboard_profile is None:
+            from glovebox.cli.helpers import print_error_message
+
+            print_error_message("Profile is required for layout merge operation")
+            raise typer.Exit(1)
 
         result = layout_service.compile_from_directory(
             profile=keyboard_profile,

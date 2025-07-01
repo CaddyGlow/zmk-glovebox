@@ -26,7 +26,6 @@ from .behaviors import (
     StickyKeyBehavior,
     TapDanceBehavior,
 )
-from .bookmarks import BookmarkCollection, BookmarkSource, LayoutBookmark
 from .config import ConfigParameter
 from .core import LayoutBinding, LayoutLayer, LayoutParam
 from .keymap import (
@@ -93,8 +92,4 @@ __all__ = [
     # Result models
     "KeymapResult",
     "LayoutResult",
-    # Bookmark models
-    "LayoutBookmark",
-    "BookmarkCollection",
-    "BookmarkSource",
 ]

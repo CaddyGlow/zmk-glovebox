@@ -59,9 +59,6 @@ class FetchRequest(GloveboxBaseModel):
     source: str = Field(description="Source identifier (UUID, URL, or file path)")
     name: str | None = Field(default=None, description="Custom name for the layout")
     output_path: Path | None = Field(default=None, description="Custom output path")
-    create_bookmark: bool = Field(
-        default=False, description="Whether to create a bookmark"
-    )
     force_overwrite: bool = Field(
         default=False, description="Whether to overwrite existing files"
     )

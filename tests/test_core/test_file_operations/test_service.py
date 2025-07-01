@@ -50,8 +50,8 @@ class TestFileCopyService:
 
         # Verify result
         assert result.success is True
-        assert result.files_copied > 0
-        assert result.duration > 0
+        assert result.bytes_copied > 0
+        assert result.elapsed_time > 0
         assert result.error is None
 
         # Verify files copied
@@ -107,7 +107,7 @@ class TestFileCopyService:
 
         assert result.success is False
         assert result.error is not None
-        assert result.files_copied == 0
+        assert result.bytes_copied == 0
 
     def test_get_strategies(self):
         """Test getting available strategies."""

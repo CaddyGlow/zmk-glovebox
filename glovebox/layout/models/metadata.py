@@ -60,10 +60,10 @@ class LayoutMetadata(GloveboxBaseModel):
 
     layer_names: list[str] = Field(default_factory=list, alias="layer_names")
 
-    # Version tracking, TODO: to be used in the future
-    # version: str = Field(default="1.0.0")
-    # base_version: str = Field(default="")  # Master version this is based on
-    # base_layout: str = Field(default="")  # e.g., "glorious-engrammer"
+    # Version tracking for layout management
+    version: str = Field(default="1.0.0")
+    base_version: str = Field(default="")  # Master version this is based on
+    base_layout: str = Field(default="")  # e.g., "glorious-engrammer"
 
 
 class LayoutData(LayoutMetadata):

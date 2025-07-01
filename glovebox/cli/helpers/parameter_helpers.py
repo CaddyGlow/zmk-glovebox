@@ -505,3 +505,54 @@ def validate_output_path(
         warnings=warnings,
         suggestions=suggestions,
     )
+
+
+def resolve_firmware_input_file(
+    input_file: str | Path | None,
+    env_var: str = "GLOVEBOX_JSON_FILE",
+    allowed_extensions: list[str] | None = None,
+) -> Path | None:
+    """Resolve input file path for firmware commands.
+
+    Handles both JSON layout files and keymap files, with environment variable
+    fallback for JSON files only.
+
+    Args:
+        input_file: Input file path from CLI argument
+        env_var: Environment variable to check for JSON files
+        allowed_extensions: List of allowed file extensions (e.g., [".json", ".keymap"])
+
+    Returns:
+        Resolved Path object or None if not found
+
+    Raises:
+        FileNotFoundError: If the specified file doesn't exist
+        ValueError: If the file extension is not allowed
+    """
+    if allowed_extensions is None:
+        allowed_extensions = [".json", ".keymap"]
+
+    # If no input file provided, check environment variable (JSON only)
+    if input_file is None:
+        env_value = os.environ.get(env_var)
+        if env_value:
+            input_file = env_value
+            logger.debug("Using %s environment variable: %s", env_var, input_file)
+        else:
+            return None
+
+    # Convert to Path and resolve
+    resolved_path = Path(input_file).resolve()
+
+    # Check if file exists
+    if not resolved_path.exists():
+        raise FileNotFoundError(f"Input file not found: {resolved_path}")
+
+    # Check file extension
+    if resolved_path.suffix.lower() not in allowed_extensions:
+        raise ValueError(
+            f"Invalid file type: {resolved_path.suffix}. "
+            f"Allowed extensions: {', '.join(allowed_extensions)}"
+        )
+
+    return resolved_path

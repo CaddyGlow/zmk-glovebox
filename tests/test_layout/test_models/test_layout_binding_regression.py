@@ -32,8 +32,8 @@ class TestLayoutBindingParameterParsingRegression:
 
             # Should have flat parameter structure
             assert len(binding.params) == 2
-            assert binding.params[0].value == expected_params[0]
-            assert binding.params[1].value == expected_params[1]
+            assert binding.params[0].value == expected_params[0]  # type: ignore[index]
+            assert binding.params[1].value == expected_params[1]  # type: ignore[index]
 
             # Parameters should be flat, not nested
             assert len(binding.params[0].params) == 0
@@ -270,10 +270,10 @@ class TestLayoutBindingParameterParsingRegression:
         ]
 
         for binding_str, *expected_types in type_conversion_cases:
-            binding = LayoutBinding.from_str(binding_str)
+            binding = LayoutBinding.from_str(str(binding_str))
 
             for i, expected_type in enumerate(expected_types):
-                assert isinstance(binding.params[i].value, expected_type)
+                assert isinstance(binding.params[i].value, expected_type)  # type: ignore[arg-type]
 
     def test_whitespace_handling(self):
         """Test whitespace handling in parameter parsing.
@@ -288,7 +288,7 @@ class TestLayoutBindingParameterParsingRegression:
         ]
 
         for binding_str, expected_behavior, *expected_structure in whitespace_cases:
-            binding = LayoutBinding.from_str(binding_str)
+            binding = LayoutBinding.from_str(str(binding_str))
             assert binding.value == expected_behavior
 
             if len(expected_structure) == 1 and isinstance(expected_structure[0], list):

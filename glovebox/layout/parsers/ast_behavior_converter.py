@@ -888,8 +888,6 @@ class ASTBehaviorConverter:
                     child_name, child_node
                 )
                 if listener_node:
-                    if input_listener.nodes is None:
-                        input_listener.nodes = []
                     input_listener.nodes.append(listener_node)
 
             return input_listener
@@ -949,7 +947,7 @@ class ASTBehaviorConverter:
                 code=code,
                 description=description,
                 layers=layers,
-                input_processors=input_processors,
+                inputProcessors=input_processors or [],
             )
 
             return listener_node
@@ -973,7 +971,7 @@ class ASTBehaviorConverter:
         Returns:
             List of InputProcessor objects
         """
-        processors = []
+        processors: list[Any] = []
         if not prop.value:
             return processors
 
@@ -998,7 +996,7 @@ class ASTBehaviorConverter:
                             # Split space-separated processor string
                             processor_parts = item.split()
                             code = processor_parts[0]
-                            params = []
+                            params: list[str | int] = []
                             for param_str in processor_parts[1:]:
                                 try:
                                     # Try to parse as integer first
@@ -1027,16 +1025,18 @@ class ASTBehaviorConverter:
 
                             # Extract code and params
                             code = processor_parts[0]
-                            params = []
+                            separate_params: list[str | int] = []
                             for param_str in processor_parts[1:]:
                                 try:
                                     # Try to parse as integer first
-                                    params.append(int(param_str))
+                                    separate_params.append(int(param_str))
                                 except ValueError:
                                     # Keep as string if not integer
-                                    params.append(param_str)
+                                    separate_params.append(param_str)
 
-                            processor = InputProcessor(code=code, params=params)
+                            processor = InputProcessor(
+                                code=code, params=separate_params
+                            )
                             processors.append(processor)
 
                     else:

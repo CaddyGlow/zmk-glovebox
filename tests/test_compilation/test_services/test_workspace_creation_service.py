@@ -115,6 +115,7 @@ class TestWorkspaceCreationService:
         result = self.service.create_workspace("invalid-spec")
 
         assert result.success is False
+        assert result.error_message is not None
         assert "Invalid repository specification" in result.error_message
         mock_counter.labels.assert_called_with("unknown", "unknown", "failed_parsing")
 
@@ -224,6 +225,7 @@ class TestWorkspaceCreationService:
             )
 
         assert result.success is False
+        assert result.error_message is not None
         assert "Failed to initialize west workspace" in result.error_message
         assert result.docker_image_used == "test/image:tag"
         assert result.west_init_success is False
@@ -369,6 +371,7 @@ class TestWorkspaceCreationService:
             assert "zephyr" in metadata.cached_components
             assert ".west" in metadata.cached_components
             assert "config" in metadata.cached_components
+            assert metadata.size_bytes is not None
             assert metadata.size_bytes > 0
 
     def test_initialize_west_workspace_success(self):

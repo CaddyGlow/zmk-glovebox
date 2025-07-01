@@ -361,7 +361,7 @@ class WorkspaceCreationService:
         if keyboard_profile and hasattr(keyboard_profile, "compilation_config"):
             compilation_config = keyboard_profile.compilation_config
             if hasattr(compilation_config, "image") and compilation_config.image:
-                return compilation_config.image
+                return str(compilation_config.image)
 
         # Default to standard ZMK image
         return "zmkfirmware/zmk-dev-arm:stable"
@@ -585,6 +585,16 @@ class WorkspaceCreationService:
             workspace_path=workspace_path,
             repository=repository_spec.repository,
             branch=repository_spec.branch,
+            commit_hash=None,  # Will be populated later if available
+            created_at=datetime.now(),
+            last_accessed=datetime.now(),
+            keymap_hash=None,  # No keymap file at workspace creation
+            config_hash=None,  # No config file at workspace creation
+            auto_detected=False,
+            auto_detected_source=None,
+            build_id=None,
+            build_profile=None,
+            git_remotes={},
             cache_level=CacheLevel.REPO_BRANCH,  # Created for specific branch
             cached_components=components,
             size_bytes=workspace_size,
@@ -594,7 +604,9 @@ class WorkspaceCreationService:
             docker_image=docker_image,
             west_manifest_path="config/west.yml",
             dependencies_updated=datetime.now(),
-            creation_profile=keyboard_profile.name if keyboard_profile else None,
+            creation_profile=keyboard_profile.keyboard_name
+            if keyboard_profile
+            else None,
         )
 
         # Add git remotes

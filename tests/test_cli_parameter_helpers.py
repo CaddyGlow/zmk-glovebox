@@ -392,9 +392,11 @@ class TestOutputParameterProcessing:
         existing_file.write_text('{"existing": "data"}')
         mock_confirm.return_value = False
 
-        with patch("glovebox.cli.helpers.parameter_helpers.get_themed_console"):
-            with pytest.raises(typer.Abort):
-                process_output_parameter(existing_file)
+        with (
+            patch("glovebox.cli.helpers.parameter_helpers.get_themed_console"),
+            pytest.raises(typer.Abort),
+        ):
+            process_output_parameter(existing_file)
 
     def test_write_output_from_result_file(self, tmp_path):
         """Test writing output to file."""
@@ -541,6 +543,7 @@ class TestValidationFunctions:
         result = validate_input_file(Path("nonexistent.json"))
 
         assert result.is_valid is False
+        assert result.error_message is not None
         assert "does not exist" in result.error_message
         assert "Check the file path" in result.suggestions
 
@@ -558,6 +561,7 @@ class TestValidationFunctions:
         result = validate_input_file(test_file, allowed_extensions=[".json", ".yaml"])
 
         assert result.is_valid is False
+        assert result.error_message is not None
         assert "Unsupported file extension" in result.error_message
         assert ".json, .yaml" in result.suggestions[0]
 
@@ -570,6 +574,7 @@ class TestValidationFunctions:
         result = validate_input_file(test_file, max_size_mb=1.0)
 
         assert result.is_valid is False
+        assert result.error_message is not None
         assert "File too large" in result.error_message
 
     def test_validate_input_file_warning_size(self, tmp_path):
@@ -589,6 +594,7 @@ class TestValidationFunctions:
         result = validate_input_file(tmp_path)
 
         assert result.is_valid is False
+        assert result.error_message is not None
         assert "not a file" in result.error_message
 
     def test_validate_output_path_valid(self, tmp_path):
@@ -618,6 +624,7 @@ class TestValidationFunctions:
         result = validate_output_path(output_file, create_dirs=False)
 
         assert result.is_valid is False
+        assert result.error_message is not None
         assert "Parent directory does not exist" in result.error_message
 
     @patch("pathlib.Path.mkdir")
@@ -631,6 +638,7 @@ class TestValidationFunctions:
         result = validate_output_path(output_file, create_dirs=True)
 
         assert result.is_valid is False
+        assert result.error_message is not None
         assert "permission denied" in result.error_message
 
     @patch("pathlib.Path.touch")
@@ -645,4 +653,5 @@ class TestValidationFunctions:
         result = validate_output_path(output_file)
 
         assert result.is_valid is False
+        assert result.error_message is not None
         assert "No write permission" in result.error_message

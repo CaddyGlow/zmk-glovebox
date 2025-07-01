@@ -84,7 +84,7 @@ class TestLogHandlerConfig:
         handler = LogHandlerConfig(
             type=LogHandlerType.FILE,
             level="INFO",
-            file_path=str(tmp_path / "test.log"),
+            file_path=tmp_path / "test.log",
         )
         assert isinstance(handler.file_path, Path)
         assert handler.file_path.is_absolute()
@@ -355,7 +355,8 @@ class TestFormatterCreation:
         formatter = _create_formatter("simple", colored=True)
 
         mock_colorlog.ColoredFormatter.assert_called_once()
-        assert formatter == "colored_formatter"
+        # Check that the formatter is an instance of the mock's return value
+        assert formatter == mock_colorlog.ColoredFormatter.return_value
 
     @patch("glovebox.core.logging.HAS_COLORLOG", False)
     def test_create_formatter_no_colorlog(self):

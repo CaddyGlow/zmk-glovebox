@@ -19,9 +19,8 @@ def test_generate_build_info_basic(tmp_path):
 
     # Generate build info
     build_info = generate_build_info(
-        keymap_file=keymap_file,
-        config_file=config_file,
-        json_file=None,
+        keymap_content=keymap_file.read_text(),
+        config_content=config_file.read_text(),
         repository="test/repo",
         branch="main",
         head_hash="abc123",
@@ -72,13 +71,13 @@ def test_generate_build_info_with_json_and_uf2(tmp_path):
 
     # Generate build info
     build_info = generate_build_info(
-        keymap_file=keymap_file,
-        config_file=config_file,
-        json_file=json_file,
+        keymap_content=keymap_file.read_text(),
+        config_content=config_file.read_text(),
         repository="test/repo",
         branch="main",
         head_hash="abc123",
         build_mode="test",
+        layout_uuid="test-uuid-123",
         uf2_files=[uf2_file1, uf2_file2],
         compilation_duration=45.67,
     )
@@ -164,11 +163,11 @@ def test_layout_metadata_extraction_fallbacks(tmp_path):
     json_file.write_text(json.dumps(layout_data))
 
     build_info = generate_build_info(
-        keymap_file=keymap_file,
-        config_file=config_file,
-        json_file=json_file,
+        keymap_content=keymap_file.read_text(),
+        config_content=config_file.read_text(),
         repository="test/repo",
         branch="main",
+        layout_uuid="top-level-uuid",
     )
 
     # Should extract from top-level fields
@@ -184,9 +183,8 @@ def test_missing_files_handling(tmp_path):
 
     # Files don't exist, should handle gracefully
     build_info = generate_build_info(
-        keymap_file=keymap_file,
-        config_file=config_file,
-        json_file=None,
+        keymap_content="",
+        config_content="",
         repository="test/repo",
         branch="main",
     )

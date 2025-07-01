@@ -18,11 +18,12 @@ class ModelFactory:
         """Convert comment dictionary to KeymapComment model instance."""
         from glovebox.layout.models import KeymapComment
 
+        line_value = comment_dict.get("line", 0)
         return KeymapComment(
-            text=comment_dict.get("text", ""),
-            line=comment_dict.get("line", 0),
-            context=comment_dict.get("context", ""),
-            is_block=comment_dict.get("is_block", False),
+            text=str(comment_dict.get("text", "")),
+            line=int(line_value) if isinstance(line_value, int | str) else 0,
+            context=str(comment_dict.get("context", "")),
+            is_block=bool(comment_dict.get("is_block", False)),
         )
 
     @staticmethod
@@ -30,10 +31,11 @@ class ModelFactory:
         """Convert include dictionary to KeymapInclude model instance."""
         from glovebox.layout.models import KeymapInclude
 
+        line_value = include_dict.get("line", 0)
         return KeymapInclude(
-            path=include_dict.get("path", ""),
-            line=include_dict.get("line", 0),
-            resolved_path=include_dict.get("resolved_path", ""),
+            path=str(include_dict.get("path", "")),
+            line=int(line_value) if isinstance(line_value, int | str) else 0,
+            resolved_path=str(include_dict.get("resolved_path", "")),
         )
 
     @staticmethod
@@ -41,11 +43,12 @@ class ModelFactory:
         """Convert config directive dictionary to ConfigDirective model instance."""
         from glovebox.layout.models import ConfigDirective
 
+        line_value = directive_dict.get("line", 0)
         return ConfigDirective(
-            directive=directive_dict.get("directive", ""),
-            condition=directive_dict.get("condition", ""),
-            value=directive_dict.get("value", ""),
-            line=directive_dict.get("line", 0),
+            directive=str(directive_dict.get("directive", "")),
+            condition=str(directive_dict.get("condition", "")),
+            value=str(directive_dict.get("value", "")),
+            line=int(line_value) if isinstance(line_value, int | str) else 0,
         )
 
 

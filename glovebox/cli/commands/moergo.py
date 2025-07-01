@@ -1,8 +1,6 @@
-"""MoErgo API commands for downloading layouts."""
+"""MoErgo API commands for authentication and credential management."""
 
-import json
 import logging
-from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -19,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 moergo_app = typer.Typer(
     name="moergo",
-    help="""MoErgo API operations for downloading and managing layouts.
+    help="""MoErgo API operations for authentication and credential management.
 
 Authentication can be done interactively, with command line options, or environment variables:
 • Interactive: glovebox moergo login
@@ -145,138 +143,6 @@ def logout() -> None:
         typer.echo(
             Icons.format_with_icon("ERROR", f"Error during logout: {e}", icon_mode)
         )
-        raise typer.Exit(1) from None
-
-
-@moergo_app.command("download")
-@handle_errors
-@with_metrics("moergo_download")
-def download_layout(
-    layout_id: Annotated[str, typer.Argument(help="Layout UUID to download")],
-    output: Annotated[
-        str | None,
-        typer.Option(
-            "--output",
-            "-o",
-            help="Output file path for the downloaded layout. Use '-' for stdout. If not specified, generates a smart default filename.",
-        ),
-    ] = None,
-    force: Annotated[
-        bool, typer.Option("--force", "-f", help="Overwrite existing file")
-    ] = False,
-) -> None:
-    """Download a layout by ID from MoErgo."""
-    import sys
-
-    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
-    from glovebox.utils.filename_generator import FileType, generate_default_filename
-    from glovebox.utils.filename_helpers import extract_layout_dict_data
-
-    icon_mode = "emoji"  # Default behavior for this command
-
-    try:
-        client = create_moergo_client()
-
-        # Check if authenticated with server validation
-        if not client.validate_authentication():
-            typer.echo(
-                Icons.format_with_icon(
-                    "ERROR",
-                    "Authentication failed. Please run 'glovebox moergo login' first.",
-                    icon_mode,
-                )
-            )
-            raise typer.Exit(1)
-
-        typer.echo(f"Downloading layout {layout_id}...")
-
-        # Download the layout
-        layout = client.get_layout(layout_id)
-
-        # Convert to layout data
-        layout_data = layout.config.model_dump(mode="json", by_alias=True)
-
-        # Add metadata from layout_meta
-        layout_data["_moergo_meta"] = {
-            "uuid": layout.layout_meta.uuid,
-            "title": layout.layout_meta.title,
-            "creator": layout.layout_meta.creator,
-            "date": layout.layout_meta.date,
-            "notes": layout.layout_meta.notes,
-            "tags": layout.layout_meta.tags,
-        }
-
-        # Prepare JSON content
-        layout_json = json.dumps(layout_data, indent=2)
-
-        # Handle output destination
-        if output == "-":
-            # Output to stdout
-            sys.stdout.write(layout_json)
-            sys.stdout.write("\n")
-        else:
-            # Determine output path
-            if output is None:
-                # Generate smart default filename using templates
-                from glovebox.config import create_user_config
-
-                user_config = create_user_config()
-                layout_template_data = extract_layout_dict_data(layout_data)
-
-                default_filename = generate_default_filename(
-                    FileType.LAYOUT_JSON,
-                    user_config._config.filename_templates,
-                    layout_data=layout_template_data,
-                    original_filename=f"{layout_id}.json",
-                )
-                output_path = Path(default_filename)
-            else:
-                output_path = Path(output)
-
-            # Check if file exists
-            if output_path.exists() and not force:
-                typer.echo(
-                    Icons.format_with_icon(
-                        "ERROR",
-                        f"File {output_path} already exists. Use --force to overwrite.",
-                        icon_mode,
-                    )
-                )
-                raise typer.Exit(1)
-
-            # Write to file
-            output_path.write_text(layout_json)
-
-            typer.echo(
-                Icons.format_with_icon(
-                    "SUCCESS",
-                    f"Layout '{layout.layout_meta.title}' saved to {output_path}",
-                    icon_mode,
-                )
-            )
-            typer.echo(f"   Creator: {layout.layout_meta.creator}")
-            typer.echo(f"   Created: {layout.layout_meta.created_datetime}")
-
-            if layout.layout_meta.notes:
-                typer.echo(f"   Notes: {layout.layout_meta.notes}")
-
-            if layout.layout_meta.tags:
-                typer.echo(f"   Tags: {', '.join(layout.layout_meta.tags)}")
-
-    except AuthenticationError as e:
-        typer.echo(
-            Icons.format_with_icon("ERROR", f"Authentication error: {e}", icon_mode)
-        )
-        typer.echo("Try running 'glovebox moergo login' first.")
-        raise typer.Exit(1) from None
-    except NetworkError as e:
-        typer.echo(Icons.format_with_icon("ERROR", f"Network error: {e}", icon_mode))
-        raise typer.Exit(1) from None
-    except Exception as e:
-        typer.echo(
-            Icons.format_with_icon("ERROR", f"Error downloading layout: {e}", icon_mode)
-        )
-        logger.debug("Full error details", exc_info=True)
         raise typer.Exit(1) from None
 
 

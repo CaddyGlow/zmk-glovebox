@@ -157,8 +157,6 @@ class Icons:
     LOCK = "🔒"
     KEYSTORE = "🔐"
 
-    # Bookmark-specific icons
-    BOOKMARK = "📑"
     FACTORY = "🏭"
     CLONE = "📋"
 
@@ -220,7 +218,6 @@ class Icons:
         "DIAMOND": "\uf219",  # nf-fa-diamond
         "LOCK": "\uf023",  # nf-fa-lock
         "KEYSTORE": "\uf084",  # nf-fa-key
-        "BOOKMARK": "\uf02e",  # nf-fa-bookmark
         "FACTORY": "\uf275",  # nf-fa-industry
         "CLONE": "\uf24d",  # nf-fa-clone
     }
@@ -289,7 +286,6 @@ class Icons:
         "DIAMOND": "◆",  # Diamond shape
         "LOCK": "▫",  # Small square for security
         "KEYSTORE": "◈",  # Diamond pattern for keystore
-        "BOOKMARK": "▸",  # Right triangle for bookmarks
         "FACTORY": "▣",  # Square pattern for factory items
         "CLONE": "◈",  # Diamond pattern for clone operations
         # Progress and status visualization
@@ -938,7 +934,7 @@ def format_progress_bar(
         icon_mode = IconMode(icon_mode)
 
     if total == 0:
-        percentage = 0
+        percentage: float = 0.0
     else:
         percentage = min(current / total, 1.0)
 

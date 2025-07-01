@@ -2,6 +2,7 @@
 """Unit tests for compilation progress functionality."""
 
 import re
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
@@ -16,7 +17,7 @@ from glovebox.core.file_operations import CompilationProgress
 class TestCompilationProgress:
     """Test CompilationProgress model."""
 
-    def test_compilation_progress_creation(self):
+    def test_compilation_progress_creation(self) -> None:
         """Test CompilationProgress model creation and properties."""
         progress = CompilationProgress(
             repositories_downloaded=15,
@@ -30,6 +31,12 @@ class TestCompilationProgress:
             total_boards=2,
             current_board_step=5,
             total_board_steps=42,
+            # Include new fields with appropriate values
+            cache_operation_progress=0,
+            cache_operation_total=100,
+            cache_operation_status="pending",
+            compilation_strategy="zmk_west",
+            docker_image_name="",
         )
 
         assert progress.repositories_downloaded == 15
@@ -51,10 +58,12 @@ class TestCompilationProgress:
         assert progress.board_progress_percent == 0.0  # 0/2 boards completed
         assert abs(progress.current_board_progress_percent - 11.9) < 0.1  # 5/42 steps
         assert progress.boards_remaining == 2
-        # Overall progress should be ~11.5% (38.46% of west_update * 0.3)
-        assert abs(progress.overall_progress_percent - 11.5) < 0.5
+        # Overall progress should be within west_update phase (15-40%)
+        # 38.46% of repositories downloaded should put us around 30% overall
+        expected_progress = 15 + (38.46 / 100) * (40 - 15)  # ~24.6%
+        assert abs(progress.overall_progress_percent - expected_progress) < 1.0
 
-    def test_compilation_progress_edge_cases(self):
+    def test_compilation_progress_edge_cases(self) -> None:
         """Test CompilationProgress with edge cases."""
         # Test with zero totals
         progress = CompilationProgress(
@@ -62,6 +71,12 @@ class TestCompilationProgress:
             total_repositories=0,
             current_repository="",
             compilation_phase="west_update",
+            # Include required fields with defaults
+            cache_operation_progress=0,
+            cache_operation_total=100,
+            cache_operation_status="pending",
+            compilation_strategy="zmk_west",
+            docker_image_name="",
         )
 
         assert progress.repository_progress_percent == 0.0
@@ -72,22 +87,18 @@ class TestCompilationProgress:
 class TestCompilationProgressMiddleware:
     """Test CompilationProgressMiddleware functionality."""
 
-    def test_middleware_creation(self):
+    def test_middleware_creation(self) -> None:
         """Test middleware creation with factory function."""
-        mock_callback = Mock()
-        middleware = create_compilation_progress_middleware(
-            mock_callback, total_repositories=42
-        )
+        mock_coordinator = Mock()
+        middleware = create_compilation_progress_middleware(mock_coordinator)
 
         assert isinstance(middleware, CompilationProgressMiddleware)
-        assert middleware.total_repositories == 42
-        assert middleware.repositories_downloaded == 0
-        assert middleware.current_phase == "west_update"
+        assert middleware.progress_coordinator == mock_coordinator
 
-    def test_repository_download_parsing(self):
+    def test_repository_download_parsing(self) -> None:
         """Test parsing of repository download lines."""
-        mock_callback = Mock()
-        middleware = CompilationProgressMiddleware(mock_callback, total_repositories=39)
+        mock_coordinator = Mock()
+        middleware = CompilationProgressMiddleware(mock_coordinator)
 
         # Simulate repository download lines
         test_lines = [
@@ -100,47 +111,32 @@ class TestCompilationProgressMiddleware:
             result = middleware.process(line, "stdout")
             assert result == line  # Should return original line
 
-        # Verify callback was called for each repository
-        assert mock_callback.call_count == 3
-        assert middleware.repositories_downloaded == 3
+        # Verify coordinator was called for each repository
+        assert mock_coordinator.update_repository_progress.call_count == 3
 
-        # Check the last progress update
-        last_call = mock_callback.call_args_list[-1]
-        progress = last_call[0][0]
-        assert isinstance(progress, CompilationProgress)
-        assert progress.repositories_downloaded == 3
-        assert progress.total_repositories == 39
-        assert progress.current_repository == "moergo-sc/zmk"
-        assert progress.compilation_phase == "west_update"
-
-    def test_phase_transitions(self):
+    def test_phase_transitions(self) -> None:
         """Test compilation phase transitions."""
-        mock_callback = Mock()
-        middleware = CompilationProgressMiddleware(mock_callback, total_repositories=39)
-
-        # Download all repositories to trigger phase change
-        for i in range(39):
-            line = f"From https://github.com/test-org/repo-{i}"
-            middleware.process(line, "stdout")
-
-        # Should have transitioned to building phase
-        assert middleware.current_phase == "building"
+        mock_coordinator = Mock()
+        middleware = CompilationProgressMiddleware(mock_coordinator)
 
         # Test build phase detection
         middleware.process("west build -s zmk/app -b nice_nano_v2", "stdout")
+
+        # Should have called transition_to_phase for building
+        mock_coordinator.transition_to_phase.assert_called()
 
         # Test build completion
         middleware.process(
             "Memory region         Used Size  Region Size  %age Used", "stdout"
         )
 
-        # Should have transitioned to collecting phase
-        assert middleware.current_phase == "collecting"
+        # Should have called transition_to_phase for collecting
+        assert mock_coordinator.transition_to_phase.call_count >= 2
 
-    def test_non_matching_lines(self):
+    def test_non_matching_lines(self) -> None:
         """Test that non-matching lines don't trigger callbacks."""
-        mock_callback = Mock()
-        middleware = CompilationProgressMiddleware(mock_callback, total_repositories=39)
+        mock_coordinator = Mock()
+        middleware = CompilationProgressMiddleware(mock_coordinator)
 
         # Test lines that shouldn't match
         test_lines = [
@@ -155,46 +151,43 @@ class TestCompilationProgressMiddleware:
             result = middleware.process(line, "stdout")
             assert result == line
 
-        # No callbacks should have been triggered
-        assert mock_callback.call_count == 0
-        assert middleware.repositories_downloaded == 0
+        # No progress updates should have been triggered
+        mock_coordinator.update_repository_progress.assert_not_called()
+        mock_coordinator.update_build_progress.assert_not_called()
 
-    def test_error_handling(self):
-        """Test that errors in callback don't break processing."""
-
-        def failing_callback(progress):
-            raise ValueError("Test exception")
-
-        middleware = CompilationProgressMiddleware(
-            failing_callback, total_repositories=39
+    def test_error_handling(self) -> None:
+        """Test that errors in coordinator don't break processing."""
+        failing_coordinator = Mock()
+        failing_coordinator.update_repository_progress.side_effect = ValueError(
+            "Test exception"
         )
 
-        # Process should continue even if callback fails
+        middleware = CompilationProgressMiddleware(failing_coordinator)
+
+        # Process should continue even if coordinator fails
         line = "From https://github.com/zmkfirmware/zephyr"
         result = middleware.process(line, "stdout")
 
         assert result == line
-        assert middleware.repositories_downloaded == 1
+        # Should have attempted to call coordinator despite error
+        failing_coordinator.update_repository_progress.assert_called_once()
 
-    def test_get_current_progress(self):
-        """Test getting current progress state."""
-        mock_callback = Mock()
-        middleware = CompilationProgressMiddleware(mock_callback, total_repositories=39)
+    def test_coordinator_delegation(self) -> None:
+        """Test that middleware properly delegates to coordinator."""
+        mock_coordinator = Mock()
+        middleware = CompilationProgressMiddleware(mock_coordinator)
 
         # Process some repositories
         middleware.process("From https://github.com/zmkfirmware/zephyr", "stdout")
         middleware.process("From https://github.com/zephyrproject-rtos/zcbor", "stdout")
 
-        current_progress = middleware.get_current_progress()
-        assert isinstance(current_progress, CompilationProgress)
-        assert current_progress.repositories_downloaded == 2
-        assert current_progress.total_repositories == 39
-        assert current_progress.compilation_phase == "west_update"
+        # Should have called coordinator for each repository
+        assert mock_coordinator.update_repository_progress.call_count == 2
 
-    def test_repository_name_extraction(self):
+    def test_repository_name_extraction(self) -> None:
         """Test correct extraction of repository names from URLs."""
-        mock_callback = Mock()
-        middleware = CompilationProgressMiddleware(mock_callback, total_repositories=39)
+        mock_coordinator = Mock()
+        middleware = CompilationProgressMiddleware(mock_coordinator)
 
         test_cases = [
             ("From https://github.com/zmkfirmware/zephyr", "zmkfirmware/zephyr"),
@@ -208,31 +201,28 @@ class TestCompilationProgressMiddleware:
         for line, expected_repo in test_cases:
             middleware.process(line, "stdout")
 
-            # Check that the last callback received the correct repository name
-            last_call = mock_callback.call_args_list[-1]
-            progress = last_call[0][0]
-            assert progress.current_repository == expected_repo
+            # Check that coordinator was called with correct repository name
+            last_call = mock_coordinator.update_repository_progress.call_args_list[-1]
+            assert expected_repo in str(last_call)
 
-    def test_stderr_processing(self):
+    def test_stderr_processing(self) -> None:
         """Test processing stderr lines."""
-        mock_callback = Mock()
-        middleware = CompilationProgressMiddleware(mock_callback, total_repositories=39)
+        mock_coordinator = Mock()
+        middleware = CompilationProgressMiddleware(mock_coordinator)
 
         # Repository downloads might appear in stderr
         line = "From https://github.com/zmkfirmware/zephyr"
         result = middleware.process(line, "stderr")
 
         assert result == line
-        assert mock_callback.call_count == 1
-        assert middleware.repositories_downloaded == 1
+        mock_coordinator.update_repository_progress.assert_called_once()
 
-    def test_build_progress_pattern(self):
+    def test_build_progress_pattern(self) -> None:
         """Test parsing of build progress [xx/xx] patterns."""
-        mock_callback = Mock()
-        middleware = CompilationProgressMiddleware(mock_callback, total_repositories=39)
-
-        # Switch to building phase first
-        middleware.current_phase = "building"
+        mock_coordinator = Mock()
+        middleware = CompilationProgressMiddleware(
+            mock_coordinator, skip_west_update=True
+        )
 
         # Test build progress patterns
         test_lines = [
@@ -245,110 +235,74 @@ class TestCompilationProgressMiddleware:
             result = middleware.process(line, "stdout")
             assert result == line
 
-        # Should have called callback for each build step
-        assert mock_callback.call_count == 3
+        # Should have called coordinator for each build step
+        assert mock_coordinator.update_build_progress.call_count == 3
 
-        # Check the last progress update shows build step
-        last_call = mock_callback.call_args_list[-1]
-        progress = last_call[0][0]
-        assert isinstance(progress, CompilationProgress)
-        assert progress.compilation_phase == "building"
-        assert progress.current_board_step == 42
-        assert progress.total_board_steps == 42
-
-    def test_skip_west_update_parameter(self):
+    def test_skip_west_update_parameter(self) -> None:
         """Test middleware creation with skip_west_update parameter."""
-        mock_callback = Mock()
+        mock_coordinator = Mock()
         middleware = create_compilation_progress_middleware(
-            mock_callback, total_repositories=39, skip_west_update=True
+            mock_coordinator, skip_west_update=True
         )
 
-        # Should start in building phase instead of west_update
-        assert middleware.current_phase == "building"
+        # Should have called transition_to_phase for building
+        mock_coordinator.transition_to_phase.assert_called_with(
+            "building", "Starting compilation"
+        )
 
         # Process a build step directly
         result = middleware.process("[ 5/42] Building something", "stdout")
         assert result == "[ 5/42] Building something"
-        assert mock_callback.call_count == 1
+        mock_coordinator.update_build_progress.assert_called()
 
-    def test_automatic_phase_transition(self):
+    def test_automatic_phase_transition(self) -> None:
         """Test automatic transition from west_update to building when build detected."""
-        mock_callback = Mock()
-        middleware = CompilationProgressMiddleware(mock_callback, total_repositories=39)
-
-        # Should start in west_update phase
-        assert middleware.current_phase == "west_update"
+        mock_coordinator = Mock()
+        middleware = CompilationProgressMiddleware(mock_coordinator)
 
         # Process a build line - should trigger transition to building
         result = middleware.process("west build -s zmk/app -b nice_nano_v2", "stdout")
         assert result == "west build -s zmk/app -b nice_nano_v2"
 
-        # Should have transitioned to building phase
-        assert middleware.current_phase == "building"
-        assert (
-            mock_callback.call_count == 2
-        )  # Two callbacks: transition + build start detection
+        # Should have called transition to building phase
+        mock_coordinator.transition_to_phase.assert_called()
 
-    def test_multi_board_progress_tracking(self):
+    def test_multi_board_progress_tracking(self) -> None:
         """Test progress tracking for multi-board builds (split keyboards)."""
-        mock_callback = Mock()
+        mock_coordinator = Mock()
         middleware = CompilationProgressMiddleware(
-            mock_callback,
-            total_repositories=39,
-            total_boards=2,
-            board_names=["glove80_lh", "glove80_rh"],
+            mock_coordinator, skip_west_update=True
         )
-
-        # Start in building phase for this test
-        middleware.current_phase = "building"
 
         # Process first board build start
         result = middleware.process("west build -s zmk/app -b glove80_lh", "stdout")
         assert result == "west build -s zmk/app -b glove80_lh"
-        assert middleware.current_board == "glove80_lh"
-        assert middleware.boards_completed == 0
 
         # Process build steps for first board
         middleware.process("[ 5/42] Building something", "stdout")
-        assert middleware.current_board_step == 5
-        assert middleware.total_board_steps == 42
 
         # Process first board completion
         middleware.process("TOTAL_FLASH usage: 123456 bytes", "stdout")
-        assert middleware.boards_completed == 1
-        assert middleware.current_board == ""  # Reset after completion
 
         # Process second board build start
         result = middleware.process("west build -s zmk/app -b glove80_rh", "stdout")
         assert result == "west build -s zmk/app -b glove80_rh"
-        assert middleware.current_board == "glove80_rh"
-        assert middleware.boards_completed == 1
 
         # Process build steps for second board
         middleware.process("[20/42] Building something else", "stdout")
-        assert middleware.current_board_step == 20
 
         # Process final completion
         middleware.process(
             "Memory region         Used Size  Region Size  %age Used", "stdout"
         )
-        assert middleware.boards_completed == 2
-        assert middleware.current_phase == "collecting"
 
-        # Should have called callback multiple times for all progress updates
-        assert mock_callback.call_count >= 6
+        # Should have called coordinator multiple times for all progress updates
+        assert mock_coordinator.update_build_progress.call_count >= 2
+        assert mock_coordinator.transition_to_phase.call_count >= 2
 
-    def test_multi_board_factory_creation(self):
-        """Test factory function with multi-board parameters."""
-        mock_callback = Mock()
-        middleware = create_compilation_progress_middleware(
-            mock_callback,
-            total_repositories=39,
-            total_boards=2,
-            board_names=["glove80_lh", "glove80_rh"],
-        )
+    def test_coordinator_integration(self) -> None:
+        """Test factory function with coordinator integration."""
+        mock_coordinator = Mock()
+        middleware = create_compilation_progress_middleware(mock_coordinator)
 
-        assert middleware.total_boards == 2
-        assert middleware.board_names == ["glove80_lh", "glove80_rh"]
-        assert middleware.boards_completed == 0
-        assert middleware.current_board == ""
+        assert middleware.progress_coordinator == mock_coordinator

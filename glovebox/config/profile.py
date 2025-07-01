@@ -29,7 +29,10 @@ class KeyboardProfile:
     """
 
     def __init__(
-        self, keyboard_config: KeyboardConfig, firmware_version: str | None = None
+        self,
+        keyboard_config: KeyboardConfig,
+        firmware_version: str | None = None,
+        config_path: Path | None = None,
     ):
         """
         Initialize the keyboard profile.
@@ -37,6 +40,7 @@ class KeyboardProfile:
         Args:
             keyboard_config: The keyboard configuration
             firmware_version: The firmware version to use (optional for keyboard-only profiles)
+            config_path: Path to the config file this profile was loaded from (optional)
 
         Raises:
             ConfigError: If the firmware version is specified but not found in the keyboard config
@@ -44,6 +48,7 @@ class KeyboardProfile:
         self.keyboard_config = keyboard_config
         self.keyboard_name = keyboard_config.keyboard
         self.firmware_version = firmware_version
+        self.config_path = config_path
 
         # Handle firmware configuration
         if firmware_version is not None:

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
+    from glovebox.core.file_operations.models import CompilationProgress
     from glovebox.protocols.progress_coordinator_protocol import (
         ProgressCoordinatorProtocol,
     )
@@ -501,6 +502,14 @@ class ZmkWorkspaceCacheService:
                         success=False,
                         error_message=cache_result.error_message
                         or "Failed to get cached workspace",
+                        export_path=None,
+                        metadata=None,
+                        archive_format=None,
+                        archive_size_bytes=None,
+                        original_size_bytes=None,
+                        compression_ratio=None,
+                        export_duration_seconds=None,
+                        files_count=None,
                     )
 
                 metadata = cache_result.metadata
@@ -605,6 +614,7 @@ class ZmkWorkspaceCacheService:
                     compression_ratio=compression_ratio,
                     export_duration_seconds=export_duration,
                     files_count=files_count,
+                    error_message=None,
                 )
 
             except Exception as e:
@@ -623,6 +633,14 @@ class ZmkWorkspaceCacheService:
                 return WorkspaceExportResult(
                     success=False,
                     error_message=f"Failed to export cached workspace: {e}",
+                    export_path=None,
+                    metadata=None,
+                    archive_format=None,
+                    archive_size_bytes=None,
+                    original_size_bytes=None,
+                    compression_ratio=None,
+                    export_duration_seconds=None,
+                    files_count=None,
                 )
 
     def _cache_workspace_internal(
@@ -815,6 +833,13 @@ class ZmkWorkspaceCacheService:
                 # Explicitly set datetime fields to satisfy mypy
                 created_at=datetime.now(),
                 last_accessed=datetime.now(),
+                # Add required fields
+                creation_method="compilation",
+                docker_image=None,
+                west_manifest_path=None,
+                dependencies_updated=None,
+                creation_profile=None,
+                git_remotes={},
             )
 
             # Mark workspace injection as completed
@@ -962,13 +987,30 @@ class ZmkWorkspaceCacheService:
                     copy_service=self.copy_service,
                 )
 
-                # Create the workspace
+                # Create the workspace - convert CopyProgressCallback to CompilationProgressCallback
+                compilation_progress_callback = None
+                if progress_callback:
+                    # Convert CopyProgress callback to CompilationProgress callback
+                    def convert_callback(cp: "CompilationProgress") -> None:
+                        # Convert CompilationProgress to CopyProgress for compatibility
+                        copy_progress = CopyProgress(
+                            files_processed=cp.repositories_downloaded,
+                            total_files=cp.total_repositories,
+                            bytes_copied=cp.bytes_downloaded,
+                            total_bytes=cp.total_bytes,
+                            current_file=cp.current_repository,
+                            component_name=cp.compilation_phase,
+                        )
+                        progress_callback(copy_progress)
+
+                    compilation_progress_callback = convert_callback
+
                 creation_result = creation_service.create_workspace(
                     repo_spec=repo_spec,
                     keyboard_profile=keyboard_profile,
                     docker_image=docker_image,
                     force_recreate=force_recreate,
-                    progress_callback=progress_callback,
+                    progress_callback=compilation_progress_callback,
                     progress_coordinator=progress_coordinator,
                 )
 

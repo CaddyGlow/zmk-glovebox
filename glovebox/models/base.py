@@ -39,7 +39,7 @@ class GloveboxBaseModel(BaseModel):
         by_alias: bool | None = True,
         exclude_unset: bool = False,
         exclude_none: bool = True,
-        **kwargs,
+        **kwargs: Any,
     ) -> dict[str, Any]:
         """
         Override model_dump to default to using aliases.
@@ -59,7 +59,7 @@ class GloveboxBaseModel(BaseModel):
         by_alias: bool | None = True,
         exclude_unset: bool = False,
         exclude_none: bool = True,
-        **kwargs,
+        **kwargs: Any,
     ) -> str:
         """
         Override model_dump_json to default to using aliases.

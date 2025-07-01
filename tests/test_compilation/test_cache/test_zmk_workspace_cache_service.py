@@ -65,6 +65,12 @@ class TestZmkWorkspaceCacheServiceSimplified:
             cached_components=cached_components,
             size_bytes=size_bytes,
             notes=notes,
+            creation_method="test",
+            docker_image=None,
+            west_manifest_path=None,
+            dependencies_updated=None,
+            creation_profile=None,
+            git_remotes={},
         )
 
     @pytest.fixture
@@ -675,8 +681,8 @@ class TestZmkWorkspaceCacheServiceSimplified:
         assert result.export_path == output_path
         assert result.archive_format == ArchiveFormat.ZIP
         assert output_path.exists()
-        assert result.archive_size_bytes > 0
-        assert result.original_size_bytes > 0
+        assert result.archive_size_bytes is not None and result.archive_size_bytes > 0
+        assert result.original_size_bytes is not None and result.original_size_bytes > 0
         assert result.compression_ratio is not None
 
     def test_export_cached_workspace_not_found(
@@ -696,7 +702,10 @@ class TestZmkWorkspaceCacheServiceSimplified:
         )
 
         assert result.success is False
-        assert "No cached workspace found for nonexistent/repo" in result.error_message
+        assert (
+            result.error_message is not None
+            and "No cached workspace found for nonexistent/repo" in result.error_message
+        )
 
     def test_export_cached_workspace_tar_gz(
         self,
@@ -738,7 +747,7 @@ class TestZmkWorkspaceCacheServiceSimplified:
         assert result.export_path == output_path
         assert result.archive_format == ArchiveFormat.TAR_GZ
         assert output_path.exists()
-        assert result.archive_size_bytes > 0
+        assert result.archive_size_bytes is not None and result.archive_size_bytes > 0
 
     def test_export_archive_format_enum(self):
         """Test ArchiveFormat enum properties."""
@@ -763,6 +772,11 @@ class TestZmkWorkspaceCacheServiceSimplified:
 
         result = WorkspaceExportResult(
             success=True,
+            export_path=None,
+            metadata=None,
+            archive_format=None,
+            files_count=None,
+            error_message=None,
             archive_size_bytes=500,
             original_size_bytes=1000,
             compression_ratio=0.5,

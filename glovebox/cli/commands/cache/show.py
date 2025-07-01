@@ -1,7 +1,7 @@
 """Cache show CLI command."""
 
 import logging
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.console import Console
@@ -85,7 +85,7 @@ def cache_show(
         if output_format == "json":
             from glovebox.cli.helpers.output_formatter import OutputFormatter
 
-            cache_data = {}
+            cache_data: dict[str, Any] = {}
 
             # Collect cache statistics
             cache_stats = cache_manager.get_stats()
@@ -107,7 +107,7 @@ def cache_show(
                 )
                 cached_workspaces = workspace_cache_service.list_cached_workspaces()
 
-                workspace_data = {
+                workspace_data: dict[str, Any] = {
                     "cache_directory": str(
                         workspace_cache_service.get_cache_directory()
                     ),
@@ -149,7 +149,7 @@ def cache_show(
 
                 if diskcache_root.exists():
                     cache_subdirs = [d for d in diskcache_root.iterdir() if d.is_dir()]
-                    diskcache_data = {
+                    diskcache_data: dict[str, Any] = {
                         "location": str(diskcache_root),
                         "cache_strategy": user_config._config.cache_strategy,
                         "cached_modules_count": len(cache_subdirs),

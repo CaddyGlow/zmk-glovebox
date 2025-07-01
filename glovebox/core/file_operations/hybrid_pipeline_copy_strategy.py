@@ -1,6 +1,7 @@
 import logging
 import shutil
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
@@ -27,9 +28,9 @@ class FastPipelineCopyStrategy:
         src: Path,
         dst: Path,
         exclude_git: bool = False,
-        progress_callback=None,
+        progress_callback: Callable[[CopyProgress], None] | None = None,
         **options: Any,
-    ):
+    ) -> CopyResult:
         """Copy directory with minimal overhead pipeline."""
         start_time = time.time()
 
@@ -118,7 +119,7 @@ class FastPipelineCopyStrategy:
                 strategy_used=self.name,
             )
 
-    def _copy_item(self, task, exclude_git: bool) -> int:
+    def _copy_item(self, task: tuple[Path, Path, Path, bool], exclude_git: bool) -> int:
         """Copy a single item (file or directory)."""
         item_path, src_base, dst_base, is_dir = task
 
@@ -131,7 +132,7 @@ class FastPipelineCopyStrategy:
                 if dst_path.exists():
                     shutil.rmtree(dst_path)
 
-                def ignore_git(src_dir, names):
+                def ignore_git(src_dir: str, names: list[str]) -> list[str]:
                     return [".git"] if exclude_git and ".git" in names else []
 
                 shutil.copytree(src_path, dst_path, ignore=ignore_git)
@@ -175,11 +176,11 @@ class FastPipelineCopyStrategy:
 
     def _fallback_copy(
         self, src: Path, dst: Path, exclude_git: bool, start_time: float
-    ):
+    ) -> CopyResult:
         """Simple fallback copy."""
         try:
 
-            def ignore_git(src_dir, names):
+            def ignore_git(src_dir: str, names: list[str]) -> list[str]:
                 return [".git"] if exclude_git and ".git" in names else []
 
             shutil.copytree(src, dst, ignore=ignore_git)

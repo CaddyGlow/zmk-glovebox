@@ -1,7 +1,7 @@
 """Keyboard configuration models."""
 
 import logging
-from typing import Any
+from typing import Any, TypeAlias, Union
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -80,7 +80,7 @@ class KeymapSection(GloveboxBaseModel):
 
 
 # Union types for method configurations
-CompileMethodConfigUnion = ZmkCompilationConfig | MoergoCompilationConfig
+CompileMethodConfigUnion: TypeAlias = ZmkCompilationConfig | MoergoCompilationConfig
 
 FlashMethodConfigUnion = USBFlashConfig
 
@@ -169,11 +169,11 @@ class KeyboardConfig(GloveboxBaseModel):
                                     build_config
                                 )
 
-                        if method["method_type"] in "zmk_config":
+                        if method["method_type"] == "zmk_config":
                             data["compile_methods"][i] = (
                                 ZmkCompilationConfig.model_validate(method)
                             )
-                        elif method["method_type"] in "moergo":
+                        elif method["method_type"] == "moergo":
                             data["compile_methods"][i] = (
                                 MoergoCompilationConfig.model_validate(method)
                             )

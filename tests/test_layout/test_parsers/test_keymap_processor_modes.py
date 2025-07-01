@@ -77,14 +77,14 @@ class TestKeymapProcessorModes:
 
     keymap {
         compatible = "zmk,keymap";
-        
+
         default_layer {
             bindings = <
                 &kp Q &kp W &kp E &kp R &kp T
                 &kp A &kp S &kp D &kp F &kp G
             >;
         };
-        
+
         nav_layer {
             bindings = <
                 &kp N1 &kp N2 &kp N3 &kp N4 &kp N5
@@ -157,6 +157,8 @@ class TestKeymapProcessorModes:
         template_result = template_processor.process(parsing_context)
 
         # Both should process input listeners successfully
+        assert full_result is not None
+        assert template_result is not None
         assert full_result.input_listeners is not None
         assert template_result.input_listeners is not None
         assert len(full_result.input_listeners) == 2
@@ -180,6 +182,8 @@ class TestKeymapProcessorModes:
 
         # Full mode should typically find more behaviors (including template/boilerplate)
         # Template mode should find fewer (only user-defined)
+        assert full_result is not None
+        assert template_result is not None
         full_hold_taps = len(full_result.hold_taps) if full_result.hold_taps else 0
         template_hold_taps = (
             len(template_result.hold_taps) if template_result.hold_taps else 0
@@ -312,6 +316,8 @@ class TestKeymapProcessorModes:
         template_result = template_processor.process(parsing_context)
 
         # Both should have layer name lists (may be empty in test)
+        assert full_result is not None
+        assert template_result is not None
         assert full_result.layer_names is not None
         assert template_result.layer_names is not None
 
@@ -328,6 +334,7 @@ class TestKeymapProcessorModes:
 
         result = processor.process(parsing_context)
 
+        assert result is not None
         assert result.input_listeners is not None
 
         # Check for duplicates by code

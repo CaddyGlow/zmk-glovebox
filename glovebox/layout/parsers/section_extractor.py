@@ -6,9 +6,12 @@ from typing import TYPE_CHECKING, Protocol
 
 
 if TYPE_CHECKING:
+    from .ast_nodes import DTNode
 
     class BehaviorExtractorProtocol(Protocol):
-        def extract_behaviors_as_models(self, roots: list, content: str) -> dict: ...
+        def extract_behaviors_as_models(
+            self, roots: list[object] | list[DTNode], content: str
+        ) -> dict[str, object]: ...
 
 
 from .ast_walker import create_universal_behavior_extractor_with_converter
@@ -266,9 +269,20 @@ class SectionExtractor:
         try:
             # Use raw content for AST parsing to preserve comments
             # Fall back to cleaned content if raw content is not available
-            content_to_parse = (
+            content_raw = (
                 section.raw_content if section.raw_content else section.content
             )
+
+            # Ensure we have a string for parsing
+            if isinstance(content_raw, str):
+                content_to_parse = content_raw
+            else:
+                # If content is not a string, convert it or skip
+                return SectionProcessingResult(
+                    success=False,
+                    error_message="Section content is not a string",
+                    raw_content=section.raw_content,
+                )
 
             # For macro, behavior, and combo sections, extract the inner block content
             # to avoid parsing issues with the full / { type { ... } }; structure
@@ -295,14 +309,19 @@ class SectionExtractor:
             )
 
             # Return appropriate data based on section type
+            data: object
             if section.type == "behavior":
                 data = converted_behaviors if converted_behaviors else {}
             elif section.type == "macro":
-                data = converted_behaviors.get("macros", [])
+                data = (
+                    converted_behaviors.get("macros", []) if converted_behaviors else []
+                )
             elif section.type == "combo":
-                data = converted_behaviors.get("combos", [])
+                data = (
+                    converted_behaviors.get("combos", []) if converted_behaviors else []
+                )
             else:
-                data = converted_behaviors
+                data = converted_behaviors if converted_behaviors else {}
 
             return SectionProcessingResult(
                 success=True,
@@ -341,7 +360,17 @@ class SectionExtractor:
             temp_parser = ZmkKeymapParser()
 
             # Parse section content as AST using Lark parser with comment support
-            roots, parse_errors = parse_dt_lark_safe(section.content)
+            # Ensure we have a string for parsing
+            if isinstance(section.content, str):
+                content_to_parse = section.content
+            else:
+                return SectionProcessingResult(
+                    success=False,
+                    error_message="Section content is not a string",
+                    raw_content=section.raw_content,
+                )
+
+            roots, parse_errors = parse_dt_lark_safe(content_to_parse)
 
             if not roots:
                 return SectionProcessingResult(

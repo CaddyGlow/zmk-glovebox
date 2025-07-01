@@ -86,7 +86,7 @@ def mock_layout_service():
 def sample_moergo_config():
     """Create a sample MoergoCompilationConfig for testing."""
     return MoergoCompilationConfig(
-        image="test-moergo-image",
+        image_="test-moergo-image",
         repository="moergo-sc/zmk",
         branch="v25.05",
     )
@@ -96,7 +96,7 @@ def sample_moergo_config():
 def sample_zmk_config():
     """Create a sample ZmkCompilationConfig for testing."""
     return ZmkCompilationConfig(
-        image="zmkfirmware/zmk-build-arm:stable",
+        image_="zmkfirmware/zmk-build-arm:stable",
         repository="zmkfirmware/zmk",
         branch="main",
     )
@@ -166,7 +166,7 @@ class TestMoergoNixServiceBasicMethods:
     def test_validate_config_no_image(self, moergo_service):
         """Test config validation with empty image."""
         service = moergo_service
-        config = MoergoCompilationConfig(image="")
+        config = MoergoCompilationConfig(image_="")
 
         result = service.validate_config(config)
 
@@ -187,7 +187,7 @@ class TestMoergoNixServiceBasicMethods:
         service = MoergoNixService(
             docker_adapter=None,  # type: ignore[arg-type]
             file_adapter=None,  # type: ignore[arg-type]
-            session_metrics=Mock(),  # type: ignore[arg-type]
+            session_metrics=Mock(),
         )
 
         result = service.check_available()
@@ -1087,7 +1087,7 @@ class TestMoergoNixServiceGetVersionedImageName:
         mock_docker_adapter,
     ):
         """Test versioned image name strips existing tag."""
-        config = MoergoCompilationConfig(image="test-image:old-tag")
+        config = MoergoCompilationConfig(image_="test-image:old-tag")
         service = moergo_service
 
         with patch("glovebox._version.__version__", "2.0.0"):

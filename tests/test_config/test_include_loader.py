@@ -383,7 +383,9 @@ class TestIncludeConfigLoader:
 
         # Lists should be merged (base + main)
         assert len(result.compile_methods) == 2
-        methods = [method.method_type for method in result.compile_methods]
+        methods = [
+            getattr(method, "method_type", None) for method in result.compile_methods
+        ]
         assert "moergo" in methods
         assert "zmk" in methods
 
@@ -615,6 +617,6 @@ class TestIncludeLoaderIntegration:
 
         # Verify method configurations from main file
         assert len(result.compile_methods) == 1
-        assert result.compile_methods[0].method_type == "zmk"
+        assert getattr(result.compile_methods[0], "method_type", None) == "zmk"
         assert len(result.flash_methods) == 1
         assert result.flash_methods[0].device_query == "vendor=ZSA and removable=true"

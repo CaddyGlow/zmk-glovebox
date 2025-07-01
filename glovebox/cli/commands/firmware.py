@@ -30,6 +30,7 @@ from glovebox.cli.helpers.auto_profile import (
     resolve_profile_with_auto_detection,
 )
 from glovebox.cli.helpers.parameter_factory import ParameterFactory
+from glovebox.cli.helpers.parameter_helpers import resolve_firmware_input_file
 from glovebox.cli.helpers.parameters import (
     ProfileOption,
     complete_config_flags,
@@ -464,13 +465,20 @@ cmake, make, and ninja build systems for custom keyboards.""",
 @with_tmpdir(prefix="glovebox_build_", cleanup=True)
 def firmware_compile(
     ctx: typer.Context,
-    input_file: ParameterFactory.input_file_optional(  # type: ignore[valid-type]
+    input_file: ParameterFactory.input_file_with_stdin_optional(  # type: ignore[valid-type]
         env_var="GLOVEBOX_JSON_FILE",
-        help_text="Path to keymap (.keymap) or layout (.json) file. Can use GLOVEBOX_JSON_FILE env var for JSON files."
+        help_text="Path to keymap (.keymap) or layout (.json) file. Can use GLOVEBOX_JSON_FILE env var for JSON files.",
     ),
-    config_file: ParameterFactory.input_file_optional(  # type: ignore[valid-type]
-        help_text="Path to kconfig (.conf) file (optional)"
-    ),
+    config_file: Annotated[
+        Path | None,
+        typer.Argument(
+            help="Path to kconfig (.conf) file (optional for JSON input)",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+        ),
+    ] = None,
     profile: ProfileOption = None,
     strategy: Annotated[
         str | None,
@@ -588,12 +596,24 @@ def firmware_compile(
 
     icon_mode = get_icon_mode_from_context(ctx)
 
+    # Debug: Check what's in the context
+    logger.debug(
+        "Context obj attributes: %s", dir(ctx.obj) if hasattr(ctx, "obj") else "No obj"
+    )
+    logger.debug(
+        "Has tmpdir: %s", hasattr(ctx.obj, "tmpdir") if hasattr(ctx, "obj") else False
+    )
+
+    # Initialize variables that might be referenced in error handlers
+    progress_display = None
+    build_output_dir = None
+    manual_cleanup_needed = False
+
     try:
         # Determine if progress should be shown (default: enabled)
         show_progress = progress if progress is not None else True
 
         # Create simple progress display if progress is enabled
-        progress_display = None
         progress_coordinator = None
         progress_callback = None
 
@@ -636,7 +656,18 @@ def firmware_compile(
                     )
                     # Note: This is a basic bridge - more sophisticated mapping could be added
 
-        resolved_input_file = resolve_json_file_path(input_file, "GLOVEBOX_JSON_FILE")
+        # Resolve input file path - handles both keymap and JSON files
+        try:
+            resolved_input_file = resolve_firmware_input_file(
+                input_file,
+                env_var="GLOVEBOX_JSON_FILE",
+                allowed_extensions=[".json", ".keymap"],
+            )
+        except (FileNotFoundError, ValueError) as e:
+            if progress_display:
+                progress_display.stop()
+            print_error_message(str(e))
+            raise typer.Exit(1) from e
 
         if resolved_input_file is None:
             if progress_display:
@@ -648,6 +679,15 @@ def firmware_compile(
 
         # Profile is already handled by the @with_profile decorator
         keyboard_profile = get_keyboard_profile_from_context(ctx)
+
+        # Ensure we have a valid keyboard profile
+        if keyboard_profile is None:
+            if progress_display:
+                progress_display.stop()
+            print_error_message(
+                "No keyboard profile available. Profile is required for firmware compilation."
+            )
+            raise typer.Exit(1)
 
         # Detect input file type and validate arguments
         is_json_input = resolved_input_file.suffix.lower() == ".json"
@@ -664,7 +704,19 @@ def firmware_compile(
             build_output_dir.mkdir(parents=True, exist_ok=True)
         else:
             # No --output flag: use temporary directory from decorator
-            build_output_dir = get_tmpdir_from_context(ctx)
+            try:
+                build_output_dir = get_tmpdir_from_context(ctx)
+            except RuntimeError:
+                # Fallback: create a temporary directory manually
+                import tempfile
+
+                temp_dir = tempfile.mkdtemp(prefix="glovebox_build_")
+                build_output_dir = Path(temp_dir)
+                manual_cleanup_needed = True
+                logger.warning(
+                    "Using fallback temporary directory due to decorator issue: %s",
+                    build_output_dir,
+                )
 
         compilation_type, compile_config = _resolve_compilation_type(
             keyboard_profile, strategy
@@ -674,9 +726,20 @@ def firmware_compile(
         _update_config_from_profile(compile_config, keyboard_profile)
 
         # Get cache services from context (provided by @with_cache decorator)
-        cache_manager, workspace_service, build_service = (
-            get_compilation_cache_services_from_context(ctx)
-        )
+        try:
+            cache_manager, workspace_service, build_service = (
+                get_compilation_cache_services_from_context(ctx)
+            )
+        except RuntimeError:
+            # Fallback: create cache services manually
+            logger.warning("Creating fallback cache services due to decorator issue")
+            from glovebox.compilation.cache import create_compilation_cache_service
+            from glovebox.config import create_user_config
+
+            user_config = get_user_config_from_context(ctx) or create_user_config()
+            cache_manager, workspace_service, build_service = (
+                create_compilation_cache_service(user_config)
+            )
 
         # Execute compilation
         logger.info(
@@ -801,6 +864,7 @@ def firmware_compile(
             "manual_cleanup_needed" in locals()
             and manual_cleanup_needed
             and "build_output_dir" in locals()
+            and build_output_dir is not None
             and build_output_dir.exists()
         ):
             try:

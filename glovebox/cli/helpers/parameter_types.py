@@ -7,7 +7,7 @@ CLI commands while ensuring consistent behavior and validation.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 
@@ -304,7 +304,7 @@ class InputResult:
         resolved_path: Path | None = None,
         is_stdin: bool = False,
         env_fallback_used: bool = False,
-        data: str | bytes | None = None,
+        data: dict[str, Any] | str | bytes | None = None,
     ):
         self.raw_value = raw_value
         self.resolved_path = resolved_path
