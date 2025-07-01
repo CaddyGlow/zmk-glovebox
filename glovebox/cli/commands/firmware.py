@@ -588,12 +588,23 @@ def firmware_compile(
             from rich.console import Console
 
             from glovebox.compilation.simple_progress import (
+                ProgressConfig,
                 create_simple_compilation_display,
                 create_simple_progress_coordinator,
             )
 
+            # Create firmware compilation configuration
+            firmware_config = ProgressConfig(
+                title_processing="▶ Building Firmware",
+                title_complete="✓ Firmware Built",
+                title_failed="✗ Build Failed",
+                operation_name="Firmware Build",
+            )
+
             console = Console()
-            progress_display = create_simple_compilation_display(console)
+            progress_display = create_simple_compilation_display(
+                console, firmware_config
+            )
             progress_coordinator = create_simple_progress_coordinator(progress_display)
             progress_display.start()
 

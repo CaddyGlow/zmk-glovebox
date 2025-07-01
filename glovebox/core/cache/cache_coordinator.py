@@ -78,7 +78,7 @@ def reset_shared_cache_instances(user_config: Any = None) -> None:
 
     This is primarily used for testing to ensure clean state between tests.
     Follows the testing isolation requirements from CLAUDE.md.
-    
+
     Args:
         user_config: Optional user configuration to get cache path from.
                     If None, uses default cache path.
@@ -108,20 +108,22 @@ def reset_shared_cache_instances(user_config: Any = None) -> None:
         # Use user config cache path if provided, otherwise fall back to default
         if user_config and hasattr(user_config, "cache_path"):
             cache_root = user_config.cache_path
-        elif user_config and hasattr(user_config, "_config") and hasattr(user_config._config, "cache_path"):
+        elif (
+            user_config
+            and hasattr(user_config, "_config")
+            and hasattr(user_config._config, "cache_path")
+        ):
             cache_root = user_config._config.cache_path
         else:
             # Default fallback for backward compatibility
             cache_root = Path.home() / ".cache" / "glovebox"
-        
+
         if cache_root.exists():
             shutil.rmtree(cache_root, ignore_errors=True)
             logger.debug("Cleaned up cache directory: %s", cache_root)
     except Exception as e:
         exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.warning(
-            "Error cleaning cache directory: %s", e, exc_info=exc_info
-        )
+        logger.warning("Error cleaning cache directory: %s", e, exc_info=exc_info)
 
 
 def get_cache_instance_count() -> int:

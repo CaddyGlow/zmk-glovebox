@@ -1,6 +1,7 @@
 """Minimal tests for ZMK keymap parser functionality - only testing working APIs."""
 
 from pathlib import Path
+
 import pytest
 
 from glovebox.layout.parsers.keymap_parser import (
@@ -117,12 +118,12 @@ class TestZmkKeymapParserBasic:
         bindings = parser._convert_ast_bindings(bindings_value)
 
         assert len(bindings) >= 3  # Should parse at least 3 bindings
-        
+
         # Check that bindings have proper structure
         for binding in bindings:
-            assert hasattr(binding, 'value')
-            assert hasattr(binding, 'params')
-            assert binding.value.startswith('&')
+            assert hasattr(binding, "value")
+            assert hasattr(binding, "params")
+            assert binding.value.startswith("&")
 
     def test_empty_ast_bindings_conversion(self, parser):
         """Test AST bindings conversion with empty values."""

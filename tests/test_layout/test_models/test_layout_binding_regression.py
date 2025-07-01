@@ -7,14 +7,14 @@ from glovebox.layout.models import LayoutBinding, LayoutParam
 
 class TestLayoutBindingParameterParsingRegression:
     """Regression tests for LayoutBinding.from_str() parameter parsing fixes.
-    
+
     These tests cover all the parameter parsing issues that were identified and fixed
     during the keymap reverse engineering development.
     """
 
     def test_hrm_behaviors_flat_parameter_structure(self):
         """Test HRM behaviors use flat parameter structure (separate parameters).
-        
+
         Regression fix: HRM behaviors were incorrectly nesting parameters like LGUI(A)
         instead of having separate LGUI and A parameters.
         """
@@ -41,7 +41,7 @@ class TestLayoutBindingParameterParsingRegression:
 
     def test_mod_tap_behaviors_flat_parameter_structure(self):
         """Test mod-tap behaviors use flat parameter structure.
-        
+
         Regression fix: &mt behaviors should have flat parameters like [LSHIFT, B]
         not nested like LSHIFT(B).
         """
@@ -66,7 +66,7 @@ class TestLayoutBindingParameterParsingRegression:
 
     def test_layer_tap_behaviors_flat_parameter_structure(self):
         """Test layer-tap behaviors use flat parameter structure.
-        
+
         Regression fix: &lt behaviors should have flat parameters like [1, TAB]
         not nested like 1(TAB).
         """
@@ -91,7 +91,7 @@ class TestLayoutBindingParameterParsingRegression:
 
     def test_kp_modifier_chains_nested_structure(self):
         """Test &kp behaviors with modifier chains use nested structure.
-        
+
         Regression fix: &kp with modifier commands should create nested structure
         like LC(X) not flat parameters [LC, X].
         """
@@ -120,7 +120,7 @@ class TestLayoutBindingParameterParsingRegression:
 
     def test_kp_nested_modifier_chains(self):
         """Test &kp behaviors with nested modifier chains.
-        
+
         Regression fix: Complex modifier chains like LC(LS(G)) should be properly nested.
         """
         nested_test_cases = [
@@ -146,7 +146,7 @@ class TestLayoutBindingParameterParsingRegression:
 
     def test_kp_parenthetical_modifiers(self):
         """Test &kp behaviors with explicit parenthetical modifier syntax.
-        
+
         Regression fix: Parenthetical modifiers like LC(X) should be parsed correctly.
         """
         paren_test_cases = [
@@ -178,7 +178,7 @@ class TestLayoutBindingParameterParsingRegression:
 
     def test_kp_simple_keys_flat_structure(self):
         """Test &kp behaviors with simple keys use flat structure.
-        
+
         Regression fix: Simple &kp bindings like &kp Q should have single flat parameter.
         """
         simple_test_cases = [
@@ -200,7 +200,7 @@ class TestLayoutBindingParameterParsingRegression:
 
     def test_caps_word_behaviors_flat_structure(self):
         """Test &caps_word behaviors use flat parameter structure.
-        
+
         Regression fix: Custom behaviors like &caps_word should use flat parameters.
         """
         caps_test_cases = [
@@ -220,17 +220,15 @@ class TestLayoutBindingParameterParsingRegression:
 
     def test_complex_parameter_edge_cases(self):
         """Test edge cases in parameter parsing.
-        
+
         Regression fix: Handle various edge cases that could break parameter parsing.
         """
         edge_cases = [
             # Missing parameters should not crash
             ("&kp", 0),
             ("&mt LSHIFT", 1),
-
             # Unknown behaviors should parse parameters normally
             ("&unknown_behavior PARAM1 PARAM2", 2),
-
             # Behaviors with many parameters
             ("&complex_macro A B C D E", 5),
         ]
@@ -245,7 +243,7 @@ class TestLayoutBindingParameterParsingRegression:
 
     def test_behavior_name_normalization(self):
         """Test behavior name normalization.
-        
+
         Regression fix: Ensure behavior names are properly normalized with & prefix.
         """
         normalization_cases = [
@@ -261,7 +259,7 @@ class TestLayoutBindingParameterParsingRegression:
 
     def test_parameter_type_conversion(self):
         """Test parameter type conversion.
-        
+
         Regression fix: Ensure parameters are converted to appropriate types.
         """
         type_conversion_cases = [
@@ -279,7 +277,7 @@ class TestLayoutBindingParameterParsingRegression:
 
     def test_whitespace_handling(self):
         """Test whitespace handling in parameter parsing.
-        
+
         Regression fix: Ensure various whitespace patterns are handled correctly.
         """
         whitespace_cases = [

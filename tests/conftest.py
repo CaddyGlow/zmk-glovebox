@@ -82,14 +82,17 @@ def isolated_config(tmp_path: Path) -> Generator[UserConfig, None, None]:
     """
     # Create isolated config directory structure
     config_dir = tmp_path / ".glovebox"
+    cache_dir = tmp_path / "cache"
     config_dir.mkdir(parents=True)
+    cache_dir.mkdir(parents=True)
     config_file = config_dir / "glovebox.yaml"
 
-    # Create minimal valid config
+    # Create minimal valid config with isolated cache path
     initial_config = {
         "profile": "test_keyboard/v1.0",
         "log_level": "INFO",
         "keyboard_paths": [],
+        "cache_path": str(cache_dir / "glovebox"),
     }
 
     with config_file.open("w") as f:
@@ -105,6 +108,7 @@ def isolated_config(tmp_path: Path) -> Generator[UserConfig, None, None]:
 
     # Set isolated environment
     os.environ["GLOVEBOX_CONFIG_DIR"] = str(config_dir)
+    os.environ["XDG_CACHE_HOME"] = str(cache_dir)
 
     try:
         # Create isolated UserConfig instance
@@ -139,7 +143,7 @@ def isolated_cache_environment(
     """
     # Create cache directory structure
     cache_dir = tmp_path / "cache"
-    cache_dir.mkdir()
+    cache_dir.mkdir(exist_ok=True)
 
     # Mock XDG_CACHE_HOME to use temporary directory
     monkeypatch.setenv("XDG_CACHE_HOME", str(cache_dir))
@@ -155,13 +159,14 @@ def isolated_cache_environment(
         yield cache_context
     finally:
         # Reset shared cache instances for test isolation
-        from glovebox.core.cache import reset_shared_cache_instances
-
         # Use isolated cache path for proper test isolation
         from types import SimpleNamespace
+
+        from glovebox.core.cache import reset_shared_cache_instances
+
         mock_config = SimpleNamespace()
         mock_config.cache_path = cache_context["cache_root"]
-        
+
         reset_shared_cache_instances(user_config=mock_config)
 
 
@@ -249,15 +254,29 @@ def reset_shared_cache(request: pytest.FixtureRequest) -> Generator[None, None, 
 
     The fixture is autouse=True to automatically reset cache between tests.
     """
+    from pathlib import Path
+    from types import SimpleNamespace
+
     from glovebox.core.cache import reset_shared_cache_instances
 
-    # Try to get isolated_config if available, otherwise use None for default behavior
-    user_config = None
-    if hasattr(request, 'getfixturevalue'):
+    # Create a temporary isolated cache config for test isolation
+    # This prevents the autouse fixture from wiping user's actual cache
+    temp_cache_dir = Path(tempfile.gettempdir()) / "glovebox_test_cache"
+
+    # Create mock config with isolated cache path
+    mock_config = SimpleNamespace()
+    mock_config.cache_path = temp_cache_dir
+
+    # Try to get isolated_config if available for tests that specifically use it
+    user_config = mock_config
+    if hasattr(request, "getfixturevalue"):
         try:
-            user_config = request.getfixturevalue('isolated_config')
+            isolated_config = request.getfixturevalue("isolated_config")
+            if isolated_config and hasattr(isolated_config, "_config"):
+                # Use the isolated config's cache path
+                user_config = isolated_config._config
         except pytest.FixtureLookupError:
-            # isolated_config not available, use default behavior
+            # isolated_config not available, use our temporary mock config
             pass
 
     # Reset cache before test

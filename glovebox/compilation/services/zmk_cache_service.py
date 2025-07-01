@@ -182,8 +182,10 @@ class ZmkCacheService:
 
             # Cache repo+branch level first (most commonly used)
             cache_result = self.workspace_cache_service.cache_workspace_repo_branch(
-                workspace_path, config.repository, config.branch,
-                progress_coordinator=progress_coordinator
+                workspace_path,
+                config.repository,
+                config.branch,
+                progress_coordinator=progress_coordinator,
             )
 
             if cache_result.success:
@@ -224,8 +226,9 @@ class ZmkCacheService:
 
             # Cache repo-only level (for branch fetching scenarios)
             cache_result = self.workspace_cache_service.cache_workspace_repo_only(
-                workspace_path, config.repository,
-                progress_coordinator=progress_coordinator
+                workspace_path,
+                config.repository,
+                progress_coordinator=progress_coordinator,
             )
 
             if cache_result.success:
@@ -282,8 +285,10 @@ class ZmkCacheService:
             )
 
         cache_result = self.workspace_cache_service.cache_workspace_repo_branch(
-            workspace_path, config.repository, config.branch,
-            progress_coordinator=progress_coordinator
+            workspace_path,
+            config.repository,
+            config.branch,
+            progress_coordinator=progress_coordinator,
         )
         if cache_result.success:
             self.logger.info(

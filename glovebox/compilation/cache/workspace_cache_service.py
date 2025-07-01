@@ -493,11 +493,14 @@ class ZmkWorkspaceCacheService:
         with self.metrics.time_operation("workspace_export"):
             try:
                 # Get cached workspace
-                cache_result = self._get_cached_workspace_internal(repository, branch, self.metrics)
+                cache_result = self._get_cached_workspace_internal(
+                    repository, branch, self.metrics
+                )
                 if not cache_result.success or not cache_result.metadata:
                     return WorkspaceExportResult(
                         success=False,
-                        error_message=cache_result.error_message or "Failed to get cached workspace",
+                        error_message=cache_result.error_message
+                        or "Failed to get cached workspace",
                     )
 
                 metadata = cache_result.metadata
@@ -519,9 +522,13 @@ class ZmkWorkspaceCacheService:
                     compression_level = archive_format.default_compression_level
 
                 # Set export task as active if coordinator available
-                if progress_coordinator and hasattr(progress_coordinator, "set_enhanced_task_status"):
+                if progress_coordinator and hasattr(
+                    progress_coordinator, "set_enhanced_task_status"
+                ):
                     progress_coordinator.set_enhanced_task_status(
-                        "workspace_export", "active", f"Exporting to {archive_format.value}"
+                        "workspace_export",
+                        "active",
+                        f"Exporting to {archive_format.value}",
                     )
 
                 # Calculate workspace size for progress tracking
@@ -559,11 +566,17 @@ class ZmkWorkspaceCacheService:
                 # Calculate final statistics
                 export_duration = time.time() - start_time
                 archive_size = output_path.stat().st_size if output_path.exists() else 0
-                compression_ratio = archive_size / original_size if original_size > 0 else 0.0
+                compression_ratio = (
+                    archive_size / original_size if original_size > 0 else 0.0
+                )
 
                 # Mark export as completed
-                if progress_coordinator and hasattr(progress_coordinator, "set_enhanced_task_status"):
-                    progress_coordinator.set_enhanced_task_status("workspace_export", "completed")
+                if progress_coordinator and hasattr(
+                    progress_coordinator, "set_enhanced_task_status"
+                ):
+                    progress_coordinator.set_enhanced_task_status(
+                        "workspace_export", "completed"
+                    )
 
                 # Update metrics
                 self.metrics.set_context(
@@ -596,11 +609,17 @@ class ZmkWorkspaceCacheService:
 
             except Exception as e:
                 # Mark export as failed
-                if progress_coordinator and hasattr(progress_coordinator, "set_enhanced_task_status"):
-                    progress_coordinator.set_enhanced_task_status("workspace_export", "failed")
+                if progress_coordinator and hasattr(
+                    progress_coordinator, "set_enhanced_task_status"
+                ):
+                    progress_coordinator.set_enhanced_task_status(
+                        "workspace_export", "failed"
+                    )
 
                 exc_info = self.logger.isEnabledFor(logging.DEBUG)
-                self.logger.error("Failed to export cached workspace: %s", e, exc_info=exc_info)
+                self.logger.error(
+                    "Failed to export cached workspace: %s", e, exc_info=exc_info
+                )
                 return WorkspaceExportResult(
                     success=False,
                     error_message=f"Failed to export cached workspace: {e}",
@@ -652,8 +671,12 @@ class ZmkWorkspaceCacheService:
                     detected_components.append(component)
 
             # Set workspace injection task as active if coordinator available
-            if progress_coordinator and hasattr(progress_coordinator, "set_enhanced_task_status"):
-                progress_coordinator.set_enhanced_task_status("workspace_injection", "active", "Copying workspace components")
+            if progress_coordinator and hasattr(
+                progress_coordinator, "set_enhanced_task_status"
+            ):
+                progress_coordinator.set_enhanced_task_status(
+                    "workspace_injection", "active", "Copying workspace components"
+                )
 
             # Copy workspace components with progress tracking
             total_components = len(detected_components)
@@ -665,14 +688,30 @@ class ZmkWorkspaceCacheService:
             for component in detected_components:
                 src_component = workspace_path / component
                 try:
-                    files_count = sum(1 for _ in src_component.rglob("*") if _.is_file())
-                    bytes_count = sum(f.stat().st_size for f in src_component.rglob("*") if f.is_file())
-                    component_stats[component] = {"files": files_count, "bytes": bytes_count}
+                    files_count = sum(
+                        1 for _ in src_component.rglob("*") if _.is_file()
+                    )
+                    bytes_count = sum(
+                        f.stat().st_size
+                        for f in src_component.rglob("*")
+                        if f.is_file()
+                    )
+                    component_stats[component] = {
+                        "files": files_count,
+                        "bytes": bytes_count,
+                    }
                 except (PermissionError, OSError):
-                    component_stats[component] = {"files": 100, "bytes": 10 * 1024 * 1024}  # 10MB estimate
+                    component_stats[component] = {
+                        "files": 100,
+                        "bytes": 10 * 1024 * 1024,
+                    }  # 10MB estimate
 
-            total_estimated_files = sum(stats["files"] for stats in component_stats.values())
-            total_estimated_bytes = sum(stats["bytes"] for stats in component_stats.values())
+            total_estimated_files = sum(
+                stats["files"] for stats in component_stats.values()
+            )
+            total_estimated_bytes = sum(
+                stats["bytes"] for stats in component_stats.values()
+            )
 
             for component_idx, component in enumerate(detected_components):
                 src_component = workspace_path / component
@@ -687,7 +726,10 @@ class ZmkWorkspaceCacheService:
                 if progress_callback or progress_coordinator:
 
                     def make_enhanced_callback(
-                        comp_name: str, comp_idx: int, files_offset: int, bytes_offset: int
+                        comp_name: str,
+                        comp_idx: int,
+                        files_offset: int,
+                        bytes_offset: int,
                     ) -> CopyProgressCallback:
                         def enhanced_callback(progress: CopyProgress) -> None:
                             # Update running totals
@@ -699,7 +741,9 @@ class ZmkWorkspaceCacheService:
                             overall_bytes = bytes_offset + current_bytes
 
                             # Update progress coordinator if available
-                            if progress_coordinator and hasattr(progress_coordinator, "update_workspace_progress"):
+                            if progress_coordinator and hasattr(
+                                progress_coordinator, "update_workspace_progress"
+                            ):
                                 progress_coordinator.update_workspace_progress(
                                     files_copied=overall_files,
                                     total_files=total_estimated_files,
@@ -774,8 +818,12 @@ class ZmkWorkspaceCacheService:
             )
 
             # Mark workspace injection as completed
-            if progress_coordinator and hasattr(progress_coordinator, "set_enhanced_task_status"):
-                progress_coordinator.set_enhanced_task_status("workspace_injection", "completed")
+            if progress_coordinator and hasattr(
+                progress_coordinator, "set_enhanced_task_status"
+            ):
+                progress_coordinator.set_enhanced_task_status(
+                    "workspace_injection", "completed"
+                )
 
             # Store metadata in cache manager
             ttls = self.get_ttls_for_cache_levels()
@@ -844,6 +892,411 @@ class ZmkWorkspaceCacheService:
             result.speed_mbps,
         )
 
+    def create_workspace_from_spec(
+        self,
+        repo_spec: str,
+        keyboard_profile: Any | None = None,
+        docker_image: str | None = None,
+        force_recreate: bool = False,
+        progress_callback: CopyProgressCallback | None = None,
+        progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
+    ) -> WorkspaceCacheResult:
+        """Create workspace from repository specification using direct creation.
+
+        Args:
+            repo_spec: Repository specification in format 'org/repo@branch'
+            keyboard_profile: Optional keyboard profile for configuration
+            docker_image: Optional Docker image override
+            force_recreate: Whether to recreate workspace if it exists
+            progress_callback: Optional progress callback
+            progress_coordinator: Optional progress coordinator for enhanced tracking
+
+        Returns:
+            WorkspaceCacheResult with creation details
+        """
+        from glovebox.adapters import create_docker_adapter, create_file_adapter
+        from glovebox.compilation.services.workspace_creation_service import (
+            create_workspace_creation_service,
+        )
+
+        try:
+            self.logger.info("Creating workspace from specification: %s", repo_spec)
+
+            # Set metrics context
+            self.metrics.set_context(
+                operation="create_workspace_from_spec",
+                repo_spec=repo_spec,
+            )
+
+            with self.metrics.time_operation("workspace_creation_from_spec"):
+                # Parse repository specification to check if workspace already exists
+                from glovebox.compilation.parsers.repository_spec_parser import (
+                    create_repository_spec_parser,
+                )
+
+                parser = create_repository_spec_parser()
+                repository_spec = parser.parse(repo_spec)
+
+                # Check if workspace already exists
+                if not force_recreate:
+                    existing_result = self.get_cached_workspace(
+                        repository_spec.repository, repository_spec.branch
+                    )
+                    if existing_result.success:
+                        self.logger.info(
+                            "Workspace for %s already exists at %s",
+                            repo_spec,
+                            existing_result.workspace_path,
+                        )
+                        return existing_result
+
+                # Create workspace creation service
+                docker_adapter = create_docker_adapter()
+                file_adapter = create_file_adapter()
+
+                creation_service = create_workspace_creation_service(
+                    docker_adapter=docker_adapter,
+                    file_adapter=file_adapter,
+                    user_config=self.user_config,
+                    session_metrics=self.metrics,
+                    copy_service=self.copy_service,
+                )
+
+                # Create the workspace
+                creation_result = creation_service.create_workspace(
+                    repo_spec=repo_spec,
+                    keyboard_profile=keyboard_profile,
+                    docker_image=docker_image,
+                    force_recreate=force_recreate,
+                    progress_callback=progress_callback,
+                    progress_coordinator=progress_coordinator,
+                )
+
+                if not creation_result.success:
+                    return WorkspaceCacheResult(
+                        success=False,
+                        error_message=creation_result.error_message,
+                    )
+
+                # Cache the created workspace
+                if creation_result.workspace_path and creation_result.metadata:
+                    cache_result = self.cache_workspace_repo_branch(
+                        workspace_path=creation_result.workspace_path,
+                        repository=repository_spec.repository,
+                        branch=repository_spec.branch,
+                        progress_callback=progress_callback,
+                        progress_coordinator=progress_coordinator,
+                    )
+
+                    if cache_result.success:
+                        self.logger.info(
+                            "Successfully created and cached workspace for %s",
+                            repo_spec,
+                        )
+                        return cache_result
+                    else:
+                        self.logger.warning(
+                            "Workspace created but caching failed: %s",
+                            cache_result.error_message,
+                        )
+                        return WorkspaceCacheResult(
+                            success=True,
+                            workspace_path=creation_result.workspace_path,
+                            metadata=creation_result.metadata,
+                            created_new=True,
+                        )
+
+                return WorkspaceCacheResult(
+                    success=False,
+                    error_message="Workspace creation succeeded but no workspace path returned",
+                )
+
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error(
+                "Failed to create workspace from spec '%s': %s",
+                repo_spec,
+                e,
+                exc_info=exc_info,
+            )
+            return WorkspaceCacheResult(
+                success=False,
+                error_message=f"Failed to create workspace from spec: {e}",
+            )
+
+    def update_workspace_dependencies(
+        self,
+        repository: str,
+        branch: str | None = None,
+        progress_callback: CopyProgressCallback | None = None,
+        progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
+    ) -> WorkspaceCacheResult:
+        """Update dependencies for an existing cached workspace.
+
+        Args:
+            repository: Git repository name
+            branch: Git branch name (None for repo-only)
+            progress_callback: Optional progress callback
+            progress_coordinator: Optional progress coordinator for enhanced tracking
+
+        Returns:
+            WorkspaceCacheResult with update details
+        """
+        try:
+            self.logger.info(
+                "Updating dependencies for workspace %s@%s", repository, branch
+            )
+
+            # Set metrics context
+            self.metrics.set_context(
+                repository=repository,
+                branch=branch,
+                operation="update_workspace_dependencies",
+            )
+
+            with self.metrics.time_operation("workspace_dependencies_update"):
+                # Get existing workspace
+                cache_result = self.get_cached_workspace(repository, branch)
+                if not cache_result.success or not cache_result.workspace_path:
+                    return WorkspaceCacheResult(
+                        success=False,
+                        error_message=f"No cached workspace found for {repository}@{branch}",
+                    )
+
+                workspace_path = cache_result.workspace_path
+                metadata = cache_result.metadata
+
+                if not metadata:
+                    return WorkspaceCacheResult(
+                        success=False,
+                        error_message="Workspace metadata not available",
+                    )
+
+                # Update dependencies using Docker
+                from glovebox.adapters import create_docker_adapter
+                from glovebox.models.docker import DockerUserContext
+                from glovebox.utils.stream_process import DefaultOutputMiddleware
+
+                docker_adapter = create_docker_adapter()
+                docker_image = metadata.docker_image or "zmkfirmware/zmk-dev-arm:stable"
+
+                # Update progress coordinator
+                if progress_coordinator:
+                    progress_coordinator.transition_to_phase(
+                        "dependencies_update", f"Updating dependencies for {repository}"
+                    )
+
+                # Run west update in Docker
+                commands = [
+                    "cd /workspace",
+                    "west update",
+                    "west zephyr-export",
+                    "west status",
+                ]
+
+                user_context = DockerUserContext.detect_current_user()
+                middleware = DefaultOutputMiddleware()
+
+                result = docker_adapter.run_container(
+                    image=docker_image,
+                    command=["sh", "-c", "set -xeu; " + " && ".join(commands)],
+                    volumes=[(str(workspace_path), "/workspace")],
+                    environment={},
+                    user_context=user_context,
+                    middleware=middleware,
+                )
+
+                return_code, stdout, stderr = result
+
+                if return_code != 0:
+                    self.logger.error(
+                        "Dependencies update failed with exit code %d", return_code
+                    )
+                    return WorkspaceCacheResult(
+                        success=False,
+                        error_message=f"Dependencies update failed (exit code {return_code})",
+                    )
+
+                # Update metadata
+                metadata.update_dependencies_timestamp()
+
+                # Re-cache the updated workspace
+                cache_key = self._generate_cache_key(repository, branch)
+                ttls = self.get_ttls_for_cache_levels()
+                cache_level_str = (
+                    metadata.cache_level.value
+                    if hasattr(metadata.cache_level, "value")
+                    else str(metadata.cache_level)
+                )
+                ttl = ttls.get(cache_level_str, 24 * 3600)
+
+                self.cache_manager.set(cache_key, metadata.to_cache_value(), ttl=ttl)
+
+                self.logger.info(
+                    "Successfully updated dependencies for workspace %s@%s",
+                    repository,
+                    branch,
+                )
+
+                return WorkspaceCacheResult(
+                    success=True,
+                    workspace_path=workspace_path,
+                    metadata=metadata,
+                )
+
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error(
+                "Failed to update workspace dependencies: %s", e, exc_info=exc_info
+            )
+            return WorkspaceCacheResult(
+                success=False,
+                error_message=f"Failed to update workspace dependencies: {e}",
+            )
+
+    def update_workspace_branch(
+        self,
+        repository: str,
+        old_branch: str,
+        new_branch: str,
+        progress_callback: CopyProgressCallback | None = None,
+        progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
+    ) -> WorkspaceCacheResult:
+        """Update workspace to use a different branch.
+
+        Args:
+            repository: Git repository name
+            old_branch: Current branch name
+            new_branch: New branch to switch to
+            progress_callback: Optional progress callback
+            progress_coordinator: Optional progress coordinator for enhanced tracking
+
+        Returns:
+            WorkspaceCacheResult with update details
+        """
+        try:
+            self.logger.info(
+                "Updating workspace %s from branch %s to %s",
+                repository,
+                old_branch,
+                new_branch,
+            )
+
+            # Set metrics context
+            self.metrics.set_context(
+                repository=repository,
+                old_branch=old_branch,
+                new_branch=new_branch,
+                operation="update_workspace_branch",
+            )
+
+            with self.metrics.time_operation("workspace_branch_update"):
+                # Get existing workspace
+                cache_result = self.get_cached_workspace(repository, old_branch)
+                if not cache_result.success or not cache_result.workspace_path:
+                    return WorkspaceCacheResult(
+                        success=False,
+                        error_message=f"No cached workspace found for {repository}@{old_branch}",
+                    )
+
+                workspace_path = cache_result.workspace_path
+                metadata = cache_result.metadata
+
+                if not metadata:
+                    return WorkspaceCacheResult(
+                        success=False,
+                        error_message="Workspace metadata not available",
+                    )
+
+                # Update branch using Docker
+                from glovebox.adapters import create_docker_adapter
+                from glovebox.models.docker import DockerUserContext
+                from glovebox.utils.stream_process import DefaultOutputMiddleware
+
+                docker_adapter = create_docker_adapter()
+                docker_image = metadata.docker_image or "zmkfirmware/zmk-dev-arm:stable"
+
+                # Update progress coordinator
+                if progress_coordinator:
+                    progress_coordinator.transition_to_phase(
+                        "branch_update",
+                        f"Switching {repository} from {old_branch} to {new_branch}",
+                    )
+
+                # Run git operations in Docker
+                commands = [
+                    "cd /workspace/zmk",
+                    "git fetch origin",
+                    f"git checkout {new_branch}",
+                    "git pull origin " + new_branch,
+                    "cd /workspace",
+                    "west update",
+                    "west status",
+                ]
+
+                user_context = DockerUserContext.detect_current_user()
+                middleware = DefaultOutputMiddleware()
+
+                result = docker_adapter.run_container(
+                    image=docker_image,
+                    command=["sh", "-c", "set -xeu; " + " && ".join(commands)],
+                    volumes=[(str(workspace_path), "/workspace")],
+                    environment={},
+                    user_context=user_context,
+                    middleware=middleware,
+                )
+
+                return_code, stdout, stderr = result
+
+                if return_code != 0:
+                    self.logger.error(
+                        "Branch update failed with exit code %d", return_code
+                    )
+                    return WorkspaceCacheResult(
+                        success=False,
+                        error_message=f"Branch update failed (exit code {return_code})",
+                    )
+
+                # Update metadata with new branch
+                metadata.branch = new_branch
+                metadata.update_dependencies_timestamp()
+
+                # Remove old cache entry
+                self.delete_cached_workspace(repository, old_branch)
+
+                # Cache workspace with new branch
+                cache_result = self.cache_workspace_repo_branch(
+                    workspace_path=workspace_path,
+                    repository=repository,
+                    branch=new_branch,
+                    progress_callback=progress_callback,
+                    progress_coordinator=progress_coordinator,
+                )
+
+                if cache_result.success:
+                    self.logger.info(
+                        "Successfully updated workspace %s from branch %s to %s",
+                        repository,
+                        old_branch,
+                        new_branch,
+                    )
+                    return cache_result
+                else:
+                    return WorkspaceCacheResult(
+                        success=False,
+                        error_message=f"Branch update succeeded but re-caching failed: {cache_result.error_message}",
+                    )
+
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error(
+                "Failed to update workspace branch: %s", e, exc_info=exc_info
+            )
+            return WorkspaceCacheResult(
+                success=False,
+                error_message=f"Failed to update workspace branch: {e}",
+            )
+
     def _calculate_directory_size(self, directory: Path) -> int:
         """Calculate total size of directory in bytes.
 
@@ -863,4 +1316,9 @@ class ZmkWorkspaceCacheService:
         return total
 
 
-__all__ = ["ZmkWorkspaceCacheService", "WorkspaceCacheMetadata", "WorkspaceCacheResult", "WorkspaceExportResult"]
+__all__ = [
+    "ZmkWorkspaceCacheService",
+    "WorkspaceCacheMetadata",
+    "WorkspaceCacheResult",
+    "WorkspaceExportResult",
+]
