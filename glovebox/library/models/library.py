@@ -5,7 +5,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from glovebox.models.base import GloveboxBaseModel
 
@@ -21,6 +21,15 @@ class LibrarySource(str, Enum):
 
 class LibraryEntry(GloveboxBaseModel):
     """A single layout entry in the library."""
+
+    model_config = ConfigDict(
+        extra="allow",
+        str_strip_whitespace=True,
+        use_enum_values=False,  # Keep enums as enum objects, not string values
+        validate_assignment=True,
+        validate_by_alias=True,
+        validate_by_name=True,
+    )
 
     uuid: str = Field(description="Unique identifier for the layout")
     name: str = Field(description="User-friendly name for the layout")

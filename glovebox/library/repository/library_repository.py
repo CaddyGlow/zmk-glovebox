@@ -91,12 +91,17 @@ class LibraryRepository:
         Returns:
             Index data dictionary
         """
+        # Handle both enum and string source values for backward compatibility
+        source_value = (
+            entry.source.value if hasattr(entry.source, "value") else str(entry.source)
+        )
+
         return {
             "uuid": entry.uuid,
             "name": entry.name,
             "title": entry.title,
             "creator": entry.creator,
-            "source": entry.source.value,
+            "source": source_value,
             "source_reference": entry.source_reference,
             "file_path": str(entry.file_path),
             "downloaded_at": entry.downloaded_at.isoformat(),
@@ -113,12 +118,19 @@ class LibraryRepository:
         Returns:
             Library entry
         """
+        # Handle source value safely - support both enum and string values
+        source_data = data["source"]
+        if isinstance(source_data, LibrarySource):
+            source = source_data
+        else:
+            source = LibrarySource(source_data)
+
         return LibraryEntry(
             uuid=data["uuid"],
             name=data["name"],
             title=data.get("title"),
             creator=data.get("creator"),
-            source=LibrarySource(data["source"]),
+            source=source,
             source_reference=data["source_reference"],
             file_path=Path(data["file_path"]),
             downloaded_at=datetime.fromisoformat(data["downloaded_at"]),
