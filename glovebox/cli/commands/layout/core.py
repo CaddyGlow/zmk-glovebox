@@ -25,11 +25,10 @@ from glovebox.cli.helpers.auto_profile import (
     resolve_json_file_path,
     resolve_profile_with_auto_detection,
 )
+from glovebox.cli.helpers.parameter_factory import ParameterFactory
 from glovebox.cli.helpers.parameters import (
-    JsonFileArgument,
     KeyWidthOption,
     LayerOption,
-    OutputFormatOption,
     ProfileOption,
     ViewModeOption,
 )
@@ -51,15 +50,10 @@ logger = logging.getLogger(__name__)
 @with_metrics("compile")
 def compile_layout(
     ctx: typer.Context,
-    json_file: JsonFileArgument = None,
-    output: Annotated[
-        str | None,
-        typer.Option(
-            "-o",
-            "--output",
-            help="Output directory and base filename (e.g., 'config/my_glove80'). If not specified, generates smart default filenames.",
-        ),
-    ] = None,
+    json_file: ParameterFactory.json_file_argument(),  # type: ignore[valid-type]
+    output: ParameterFactory.output_file(  # type: ignore[valid-type]
+        help_text="Output directory and base filename (e.g., 'config/my_glove80'). If not specified, generates smart default filenames."
+    ) = None,
     profile: ProfileOption = None,
     no_auto: Annotated[
         bool,
@@ -68,10 +62,8 @@ def compile_layout(
             help="Disable automatic profile detection from JSON keyboard field",
         ),
     ] = False,
-    force: Annotated[
-        bool, typer.Option("--force", help="Overwrite existing files")
-    ] = False,
-    output_format: OutputFormatOption = "text",
+    force: ParameterFactory.force_overwrite() = False,  # type: ignore[valid-type]
+    output_format: ParameterFactory.output_format() = "text",  # type: ignore[valid-type]
 ) -> None:
     """Compile ZMK keymap and config files from a JSON keymap file or stdin.
 
@@ -271,7 +263,7 @@ def compile_layout(
 @with_layout_context(needs_json=True, needs_profile=True, validate_json=True)
 def validate(
     ctx: typer.Context,
-    json_file: JsonFileArgument = None,
+    json_file: ParameterFactory.json_file_argument(),  # type: ignore[valid-type]
     profile: ProfileOption = None,
     no_auto: Annotated[
         bool,
@@ -280,7 +272,7 @@ def validate(
             help="Disable automatic profile detection from JSON keyboard field",
         ),
     ] = False,
-    output_format: OutputFormatOption = "text",
+    output_format: ParameterFactory.output_format() = "text",  # type: ignore[valid-type]
 ) -> None:
     """Validate keymap syntax and structure.
 
@@ -333,7 +325,7 @@ def validate(
 @with_profile(required=True, firmware_optional=True, support_auto_detection=True)
 def show(
     ctx: typer.Context,
-    json_file: JsonFileArgument = None,
+    json_file: ParameterFactory.json_file_argument(),  # type: ignore[valid-type]
     key_width: KeyWidthOption = 10,
     view_mode: ViewModeOption = None,
     layout: Annotated[
@@ -353,7 +345,7 @@ def show(
             help="Disable automatic profile detection from JSON keyboard field",
         ),
     ] = False,
-    output_format: OutputFormatOption = "text",
+    output_format: ParameterFactory.output_format() = "text",  # type: ignore[valid-type]
 ) -> None:
     """Display keymap layout in terminal.
 

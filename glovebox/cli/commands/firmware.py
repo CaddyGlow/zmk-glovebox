@@ -29,8 +29,8 @@ from glovebox.cli.helpers.auto_profile import (
     resolve_json_file_path,
     resolve_profile_with_auto_detection,
 )
+from glovebox.cli.helpers.parameter_factory import ParameterFactory
 from glovebox.cli.helpers.parameters import (
-    OutputFormatOption,
     ProfileOption,
     complete_config_flags,
 )
@@ -464,16 +464,13 @@ cmake, make, and ninja build systems for custom keyboards.""",
 @with_tmpdir(prefix="glovebox_build_", cleanup=True)
 def firmware_compile(
     ctx: typer.Context,
-    input_file: Annotated[
-        Path | None,
-        typer.Argument(
-            help="Path to keymap (.keymap) or layout (.json) file. Can use GLOVEBOX_JSON_FILE env var for JSON files."
-        ),
-    ] = None,
-    config_file: Annotated[
-        Path | None,
-        typer.Argument(help="Path to kconfig (.conf) file (optional)"),
-    ] = None,
+    input_file: ParameterFactory.input_file_optional(  # type: ignore[valid-type]
+        env_var="GLOVEBOX_JSON_FILE",
+        help_text="Path to keymap (.keymap) or layout (.json) file. Can use GLOVEBOX_JSON_FILE env var for JSON files."
+    ),
+    config_file: ParameterFactory.input_file_optional(  # type: ignore[valid-type]
+        help_text="Path to kconfig (.conf) file (optional)"
+    ),
     profile: ProfileOption = None,
     strategy: Annotated[
         str | None,
@@ -489,7 +486,7 @@ def firmware_compile(
             help="Disable automatic profile detection from JSON keyboard field",
         ),
     ] = False,
-    output_format: OutputFormatOption = "text",
+    output_format: ParameterFactory.output_format() = "text",  # type: ignore[valid-type]
     progress: Annotated[
         bool | None,
         typer.Option(
@@ -511,14 +508,9 @@ def firmware_compile(
             help="Show debug-level application logs in TUI progress display",
         ),
     ] = False,
-    output: Annotated[
-        Path | None,
-        typer.Option(
-            "--output",
-            "-o",
-            help="Output directory for build files. If not specified, creates {filename}.uf2 and {filename}_artefacts.zip in current directory",
-        ),
-    ] = None,
+    output: ParameterFactory.output_directory_optional(  # type: ignore[valid-type]
+        help_text="Output directory for build files. If not specified, creates {filename}.uf2 and {filename}_artefacts.zip in current directory"
+    ) = None,
     config_flags: Annotated[
         list[str] | None,
         typer.Option(
@@ -832,9 +824,9 @@ def firmware_compile(
 @with_metrics("flash")
 def flash(
     ctx: typer.Context,
-    firmware_files: Annotated[
-        list[Path], typer.Argument(help="Path(s) to firmware (.uf2) file(s)")
-    ],
+    firmware_files: ParameterFactory.input_multiple_files(  # type: ignore[valid-type]
+        help_text="Path(s) to firmware (.uf2) file(s)", file_extensions=[".uf2"]
+    ),
     profile: ProfileOption = None,
     query: Annotated[
         str,
@@ -879,7 +871,7 @@ def flash(
             help="Show real-time device detection progress (uses config default if not specified)",
         ),
     ] = None,
-    output_format: OutputFormatOption = "text",
+    output_format: ParameterFactory.output_format() = "text",  # type: ignore[valid-type]
 ) -> None:
     """Flash firmware file(s) to connected keyboard devices.
 
@@ -1082,7 +1074,7 @@ def list_devices(
     query: Annotated[
         str, typer.Option("--query", "-q", help="Device query string")
     ] = "",
-    output_format: OutputFormatOption = "text",
+    output_format: ParameterFactory.output_format() = "text",  # type: ignore[valid-type]
 ) -> None:
     """List available devices for firmware flashing.
 
