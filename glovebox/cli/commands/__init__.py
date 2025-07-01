@@ -2,9 +2,6 @@
 
 import typer
 
-from glovebox.cli.commands.bookmarks import (
-    register_commands as register_bookmarks_commands,
-)
 from glovebox.cli.commands.cache import register_cache_commands
 from glovebox.cli.commands.cloud import (
     register_commands as register_cloud_commands,
@@ -37,6 +34,5 @@ def register_all_commands(app: typer.Typer) -> None:
     register_status_commands(app)
     register_moergo_commands(app)
     register_cloud_commands(app)
-    register_bookmarks_commands(app)
     register_metrics_commands(app)
     register_cache_commands(app)

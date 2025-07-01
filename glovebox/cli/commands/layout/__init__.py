@@ -2,7 +2,6 @@
 
 import typer
 
-# Note: cloud and bookmarks commands have been moved to main commands directory
 # Import comparison commands
 from .comparison import diff, patch
 
@@ -48,9 +47,6 @@ Comparison:
   diff        - Compare layouts with optional patch creation
   patch       - Apply JSON diff patch to layout
 
-Note: Cloud and bookmark operations have been moved to top-level commands:
-  glovebox cloud       - Essential cloud operations (upload, download, list, browse, delete)
-  glovebox bookmarks   - Bookmark management for easy access to saved layouts
 """,
     no_args_is_help=True,
     rich_markup_mode="rich",
@@ -76,9 +72,6 @@ register_parsing_commands(layout_app)
 # Register comparison commands
 layout_app.command()(diff)
 layout_app.command()(patch)
-
-
-# Note: cloud and bookmarks commands are now registered at the top level
 
 
 def register_commands(app: typer.Typer) -> None:

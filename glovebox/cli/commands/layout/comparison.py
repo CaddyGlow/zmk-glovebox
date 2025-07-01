@@ -1,7 +1,7 @@
 """Layout comparison CLI commands."""
 
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, TypeAlias
 
 import typer
 
@@ -9,7 +9,8 @@ from glovebox.adapters import create_file_adapter
 from glovebox.cli.commands.layout.base import LayoutOutputCommand
 from glovebox.cli.decorators import handle_errors, with_metrics
 from glovebox.cli.helpers.auto_profile import resolve_json_file_path
-from glovebox.cli.helpers.parameters import OutputFormatOption, ProfileOption
+from glovebox.cli.helpers.parameter_factory import ParameterFactory
+from glovebox.cli.helpers.parameters import ProfileOption
 from glovebox.layout.comparison import create_layout_comparison_service
 
 
@@ -17,14 +18,11 @@ from glovebox.layout.comparison import create_layout_comparison_service
 @with_metrics("diff")
 def diff(
     ctx: typer.Context,
-    layout2: Annotated[Path, typer.Argument(help="Second layout file to compare")],
-    layout1: Annotated[
-        Path | None,
-        typer.Argument(
-            help="First layout file to compare. Uses GLOVEBOX_JSON_FILE environment variable if not provided."
-        ),
-    ] = None,
-    output_format: OutputFormatOption = "text",
+    layout2: ParameterFactory.input_file(  # type: ignore[valid-type]
+        help_text="Second layout file to compare", file_extensions=[".json"]
+    ),
+    layout1: ParameterFactory.input_file_optional(env_var="GLOVEBOX_JSON_FILE"),  # type: ignore[valid-type]
+    output_format: ParameterFactory.output_format() = "text",  # type: ignore[valid-type]
     detailed: Annotated[
         bool,
         typer.Option("--detailed", help="Show detailed key changes within layers"),
@@ -35,14 +33,9 @@ def diff(
             "--include-dtsi", help="Include custom DTSI fields in diff output"
         ),
     ] = False,
-    output: Annotated[
-        Path | None,
-        typer.Option(
-            "--output",
-            "-o",
-            help="Create LayoutDiff patch file for later application",
-        ),
-    ] = None,
+    output: ParameterFactory.output_file_path_only(  # type: ignore[valid-type]
+        help_text="Create LayoutDiff patch file for later application"
+    ) = None,
     patch_section: Annotated[
         str,
         typer.Option(
@@ -164,24 +157,17 @@ def diff(
 @with_metrics("patch")
 def patch(
     ctx: typer.Context,
-    layout_file: Annotated[Path, typer.Argument(help="Source layout file to patch")],
-    patch_file: Annotated[
-        Path,
-        typer.Argument(
-            help="JSON diff file from 'glovebox layout diff --output changes.json'"
-        ),
-    ],
-    output: Annotated[
-        Path | None,
-        typer.Option(
-            "--output",
-            "-o",
-            help="Output path (default: source_layout with -patched suffix)",
-        ),
-    ] = None,
-    force: Annotated[
-        bool, typer.Option("--force", help="Overwrite existing files")
-    ] = False,
+    layout_file: ParameterFactory.input_file(  # type: ignore[valid-type]
+        help_text="Source layout file to patch", file_extensions=[".json"]
+    ),
+    patch_file: ParameterFactory.input_file(  # type: ignore[valid-type]
+        help_text="JSON diff file from 'glovebox layout diff --output changes.json'",
+        file_extensions=[".json"],
+    ),
+    output: ParameterFactory.output_file_path_only(  # type: ignore[valid-type]
+        help_text="Output path (default: source_layout with -patched suffix)"
+    ) = None,
+    force: ParameterFactory.force_overwrite() = False,  # type: ignore[valid-type]
     exclude_dtsi: Annotated[
         bool,
         typer.Option(

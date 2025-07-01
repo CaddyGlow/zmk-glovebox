@@ -15,10 +15,6 @@ from typing import Any, TypeVar
 
 import typer
 
-
-# Type variable for decorated functions
-F = TypeVar("F", bound=Callable[..., Any])
-
 from glovebox.cli.helpers.output_formatter import (
     OutputFormatter,
     create_output_formatter,
@@ -35,6 +31,10 @@ from glovebox.cli.helpers.stdin_utils import (
     read_json_input,
 )
 from glovebox.cli.helpers.theme import get_themed_console
+
+
+# Type variable for decorated functions
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 logger = logging.getLogger(__name__)
