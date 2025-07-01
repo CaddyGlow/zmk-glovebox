@@ -359,7 +359,9 @@ class ParameterFactory:
     ) -> Any:
         """Create a force overwrite parameter."""
         if help_text is None:
-            help_text = f"Overwrite existing files without prompting.{default_help_suffix}"
+            help_text = (
+                f"Overwrite existing files without prompting.{default_help_suffix}"
+            )
 
         return Annotated[
             bool,
@@ -412,7 +414,9 @@ class ParameterFactory:
     ) -> Any:
         """Create a dry run parameter."""
         if help_text is None:
-            help_text = f"Show what would be done without making changes.{default_help_suffix}"
+            help_text = (
+                f"Show what would be done without making changes.{default_help_suffix}"
+            )
 
         return Annotated[
             bool,
@@ -513,7 +517,9 @@ class ParameterFactory:
     ) -> Any:
         """Create a skip-validation parameter."""
         if help_text is None:
-            help_text = f"Skip input validation (use with caution).{default_help_suffix}"
+            help_text = (
+                f"Skip input validation (use with caution).{default_help_suffix}"
+            )
 
         return Annotated[
             bool,
@@ -527,6 +533,7 @@ class ParameterFactory:
 # =============================================================================
 # Convenience Functions for Common Parameter Combinations
 # =============================================================================
+
 
 class CommonParameterSets:
     """Pre-defined parameter sets for common command patterns."""
@@ -580,7 +587,9 @@ class CommonParameterSets:
         """Create parameters for compilation commands."""
         return {
             "json_file": ParameterFactory.json_file_argument(help_text=input_help),
-            "output_dir": ParameterFactory.output_directory_optional(help_text=output_help),
+            "output_dir": ParameterFactory.output_directory_optional(
+                help_text=output_help
+            ),
             "profile": ParameterFactory.profile_option(),
             "force": ParameterFactory.force_overwrite(),
             "verbose": ParameterFactory.verbose_flag(),

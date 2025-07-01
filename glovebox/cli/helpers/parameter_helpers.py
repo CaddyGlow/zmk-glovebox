@@ -42,6 +42,7 @@ PARAM_FORMATTER_KEY = "param_formatter"
 # Context Access Helper Functions
 # =============================================================================
 
+
 def get_input_result_from_context(ctx: typer.Context) -> InputResult | None:
     """Get the processed input parameter result from context."""
     if hasattr(ctx.obj, PARAM_INPUT_RESULT_KEY):
@@ -74,7 +75,9 @@ def get_formatter_from_context(ctx: typer.Context) -> OutputFormatter | None:
     return None
 
 
-def get_multiple_input_results_from_context(ctx: typer.Context) -> list[InputResult] | None:
+def get_multiple_input_results_from_context(
+    ctx: typer.Context,
+) -> list[InputResult] | None:
     """Get multiple processed input parameter results from context."""
     key = f"{PARAM_INPUT_RESULT_KEY}_multiple"
     if hasattr(ctx.obj, key):
@@ -86,6 +89,7 @@ def get_multiple_input_results_from_context(ctx: typer.Context) -> list[InputRes
 # =============================================================================
 # Convenience Access Functions
 # =============================================================================
+
 
 def get_input_data_from_context(ctx: typer.Context) -> Any:
     """Get the input data from context (if auto-read was enabled)."""
@@ -133,6 +137,7 @@ def is_json_format_from_context(ctx: typer.Context) -> bool:
 # Input Processing Helper Functions
 # =============================================================================
 
+
 def process_input_parameter(
     value: str | Path | None,
     supports_stdin: bool = False,
@@ -157,7 +162,9 @@ def process_input_parameter(
                 value = env_value
                 env_fallback_used = True
             elif required:
-                raise typer.BadParameter(f"Input required. Set {env_fallback} environment variable or provide argument.")
+                raise typer.BadParameter(
+                    f"Input required. Set {env_fallback} environment variable or provide argument."
+                )
         elif required:
             raise typer.BadParameter("Input file is required.")
         else:
@@ -175,8 +182,12 @@ def process_input_parameter(
             raise typer.BadParameter(f"Input file does not exist: {resolved_path}")
 
         # Validate file extension
-        if allowed_extensions and resolved_path.suffix.lower() not in [ext.lower() for ext in allowed_extensions]:
-            raise typer.BadParameter(f"Unsupported file extension. Allowed: {', '.join(allowed_extensions)}")
+        if allowed_extensions and resolved_path.suffix.lower() not in [
+            ext.lower() for ext in allowed_extensions
+        ]:
+            raise typer.BadParameter(
+                f"Unsupported file extension. Allowed: {', '.join(allowed_extensions)}"
+            )
 
     return InputResult(
         raw_value=value,
@@ -186,7 +197,9 @@ def process_input_parameter(
     )
 
 
-def read_input_from_result(result: InputResult, as_json: bool = False, as_binary: bool = False) -> Any:
+def read_input_from_result(
+    result: InputResult, as_json: bool = False, as_binary: bool = False
+) -> Any:
     """Read data from an InputResult.
 
     Args:
@@ -223,6 +236,7 @@ def read_input_from_result(result: InputResult, as_json: bool = False, as_binary
 # =============================================================================
 # Output Processing Helper Functions
 # =============================================================================
+
 
 def process_output_parameter(
     value: str | Path | None,
@@ -281,7 +295,9 @@ def process_output_parameter(
     )
 
 
-def write_output_from_result(result: OutputResult, content: str | bytes, encoding: str = "utf-8") -> None:
+def write_output_from_result(
+    result: OutputResult, content: str | bytes, encoding: str = "utf-8"
+) -> None:
     """Write content using an OutputResult.
 
     Args:
@@ -293,6 +309,7 @@ def write_output_from_result(result: OutputResult, content: str | bytes, encodin
         # Write to stdout
         if isinstance(content, bytes):
             import sys
+
             sys.stdout.buffer.write(content)
         else:
             print(content)
@@ -313,6 +330,7 @@ def write_output_from_result(result: OutputResult, content: str | bytes, encodin
 # Format Processing Helper Functions
 # =============================================================================
 
+
 def process_format_parameter(
     format_value: str,
     json_flag: bool = False,
@@ -330,7 +348,9 @@ def process_format_parameter(
 
     # Validate format
     if format_value not in supported_formats:
-        raise typer.BadParameter(f"Unsupported format '{format_value}'. Supported: {', '.join(supported_formats)}")
+        raise typer.BadParameter(
+            f"Unsupported format '{format_value}'. Supported: {', '.join(supported_formats)}"
+        )
 
     return FormatResult(
         format_type=format_value,
@@ -370,6 +390,7 @@ def format_and_output_data(
 # Validation Helper Functions
 # =============================================================================
 
+
 def validate_input_file(
     path: Path,
     must_exist: bool = True,
@@ -396,7 +417,9 @@ def validate_input_file(
         )
 
     # Check file extension
-    if allowed_extensions and path.suffix.lower() not in [ext.lower() for ext in allowed_extensions]:
+    if allowed_extensions and path.suffix.lower() not in [
+        ext.lower() for ext in allowed_extensions
+    ]:
         return ValidationResult(
             is_valid=False,
             error_message=f"Unsupported file extension '{path.suffix}'",
@@ -456,7 +479,10 @@ def validate_output_path(
             return ValidationResult(
                 is_valid=False,
                 error_message=f"Parent directory does not exist: {parent}",
-                suggestions=["Create the directory manually", "Use --create-dirs option"],
+                suggestions=[
+                    "Create the directory manually",
+                    "Use --create-dirs option",
+                ],
             )
 
     # Check write permissions

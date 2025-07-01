@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
 
+import pytest
+
 from glovebox.cli.helpers.parameter_types import (
+    FormatResult,
     InputResult,
     OutputResult,
-    FormatResult,
     ValidationResult,
     # Parameter type annotations are tested via usage in decorators
 )
@@ -26,7 +27,7 @@ class TestInputResult:
             env_fallback_used=False,
             data=None,
         )
-        
+
         assert result.raw_value == "test.json"
         assert result.resolved_path == Path("test.json")
         assert result.is_stdin is False
@@ -42,7 +43,7 @@ class TestInputResult:
             env_fallback_used=False,
             data='{"test": "data"}',
         )
-        
+
         assert result.raw_value == "-"
         assert result.resolved_path is None
         assert result.is_stdin is True
@@ -58,7 +59,7 @@ class TestInputResult:
             env_fallback_used=True,
             data=None,
         )
-        
+
         assert result.raw_value == "from_env.json"
         assert result.resolved_path == Path("from_env.json")
         assert result.is_stdin is False
@@ -79,7 +80,7 @@ class TestOutputResult:
             smart_default_used=False,
             template_vars=template_vars,
         )
-        
+
         assert result.raw_value == "output.json"
         assert result.resolved_path == Path("output.json")
         assert result.is_stdout is False
@@ -94,7 +95,7 @@ class TestOutputResult:
             is_stdout=True,
             smart_default_used=False,
         )
-        
+
         assert result.raw_value == "-"
         assert result.resolved_path is None
         assert result.is_stdout is True
@@ -110,7 +111,7 @@ class TestOutputResult:
             smart_default_used=True,
             template_vars={"type": "layout"},
         )
-        
+
         assert result.raw_value is None
         assert result.resolved_path == Path("smart_default.json")
         assert result.is_stdout is False
@@ -129,7 +130,7 @@ class TestFormatResult:
             supports_rich=False,
             legacy_format=False,
         )
-        
+
         assert result.format_type == "json"
         assert result.is_json is True
         assert result.supports_rich is False
@@ -143,7 +144,7 @@ class TestFormatResult:
             supports_rich=True,
             legacy_format=False,
         )
-        
+
         assert result.format_type == "rich-table"
         assert result.is_json is False
         assert result.supports_rich is True
@@ -157,7 +158,7 @@ class TestFormatResult:
             supports_rich=True,
             legacy_format=True,
         )
-        
+
         assert result.format_type == "table"
         assert result.is_json is False
         assert result.supports_rich is True
@@ -166,7 +167,7 @@ class TestFormatResult:
     def test_format_result_defaults(self):
         """Test FormatResult with default values."""
         result = FormatResult(format_type="text")
-        
+
         assert result.format_type == "text"
         assert result.is_json is False
         assert result.supports_rich is True
@@ -184,7 +185,7 @@ class TestValidationResult:
             warnings=["Warning message"],
             suggestions=["Suggestion"],
         )
-        
+
         assert result.is_valid is True
         assert result.error_message is None
         assert result.warnings == ["Warning message"]
@@ -198,7 +199,7 @@ class TestValidationResult:
             warnings=None,
             suggestions=["Check file path"],
         )
-        
+
         assert result.is_valid is False
         assert result.error_message == "File not found"
         assert result.warnings == []
@@ -207,7 +208,7 @@ class TestValidationResult:
     def test_validation_result_defaults(self):
         """Test ValidationResult with default values."""
         result = ValidationResult(is_valid=True)
-        
+
         assert result.is_valid is True
         assert result.error_message is None
         assert result.warnings == []
@@ -221,7 +222,7 @@ class TestValidationResult:
             warnings=None,
             suggestions=None,
         )
-        
+
         assert result.warnings == []
         assert result.suggestions == []
 
@@ -229,6 +230,7 @@ class TestValidationResult:
 # =============================================================================
 # Integration Tests for Parameter Type Usage
 # =============================================================================
+
 
 class TestParameterTypeIntegration:
     """Test parameter types in realistic usage scenarios."""
@@ -243,7 +245,7 @@ class TestParameterTypeIntegration:
             env_fallback_used=False,
             data='{"name": "test layout"}',
         )
-        
+
         # Verify file processing workflow
         assert not result.is_stdin
         assert result.resolved_path is not None
@@ -260,7 +262,7 @@ class TestParameterTypeIntegration:
             env_fallback_used=False,
             data='{"piped": "data"}',
         )
-        
+
         # Verify stdin processing workflow
         assert result.is_stdin
         assert result.resolved_path is None
@@ -275,7 +277,7 @@ class TestParameterTypeIntegration:
             is_stdout=False,
             smart_default_used=False,
         )
-        
+
         # Verify file writing workflow
         assert not result.is_stdout
         assert result.resolved_path is not None
@@ -290,7 +292,7 @@ class TestParameterTypeIntegration:
             is_stdout=True,
             smart_default_used=False,
         )
-        
+
         # Verify stdout workflow
         assert result.is_stdout
         assert result.resolved_path is None
@@ -304,7 +306,7 @@ class TestParameterTypeIntegration:
             supports_rich=False,
             legacy_format=False,
         )
-        
+
         # Verify JSON formatting workflow
         assert result.is_json
         assert not result.supports_rich
@@ -319,7 +321,7 @@ class TestParameterTypeIntegration:
             supports_rich=True,
             legacy_format=False,
         )
-        
+
         # Verify Rich formatting workflow
         assert not result.is_json
         assert result.supports_rich
@@ -334,7 +336,7 @@ class TestParameterTypeIntegration:
             warnings=["File size is large"],
             suggestions=["Use a smaller file", "Check file format"],
         )
-        
+
         # Verify error handling workflow
         assert not result.is_valid
         assert result.error_message is not None
@@ -350,7 +352,7 @@ class TestParameterTypeIntegration:
             warnings=["File is very large", "Consider using compression"],
             suggestions=[],
         )
-        
+
         # Verify success with warnings workflow
         assert result.is_valid
         assert result.error_message is None

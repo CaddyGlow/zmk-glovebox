@@ -2,7 +2,7 @@
 
 import typer
 
-from .clone import clone_app
+from .export import export_app
 from .fetch import fetch_app
 from .info import info_app
 from .list_cmd import list_app
@@ -23,7 +23,7 @@ library_app.add_typer(search_app, name="search")
 library_app.add_typer(list_app, name="list")
 library_app.add_typer(info_app, name="info")
 library_app.add_typer(remove_app, name="remove")
-library_app.add_typer(clone_app, name="clone")
+library_app.add_typer(export_app, name="export")
 
 
 def register_commands(app: typer.Typer) -> None:

@@ -131,6 +131,8 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
                     if package_count:
                         # Update total repositories count with actual package count
                         self.progress_coordinator.total_repositories = package_count
+                        # Reset download counter for the new session
+                        self.progress_coordinator.repositories_downloaded = 0
 
             # Check for build start patterns to detect phase transitions
             build_match = self.build_start_pattern.search(line_stripped)
@@ -144,6 +146,8 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
                     "Detected build activity, transitioning from %s to building phase",
                     self.progress_coordinator.current_phase,
                 )
+                # Reset board completion counter for the new build session
+                self.progress_coordinator.boards_completed = 0
                 self.progress_coordinator.transition_to_phase(
                     "building", "Starting compilation"
                 )

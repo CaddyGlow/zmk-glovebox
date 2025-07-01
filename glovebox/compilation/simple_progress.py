@@ -415,6 +415,7 @@ class SimpleProgressCoordinator:
 
         # Additional progress tracking attributes
         self.total_repositories: int = 0
+        self.repositories_downloaded: int = 0
         self.boards_completed: int = 0
         self.total_boards: int = 0
 
@@ -631,7 +632,24 @@ class SimpleProgressCoordinator:
 
     def update_repository_progress(self, repository_name: str) -> None:
         """Update repository download progress during west update."""
-        self.update_current_task(f"Downloading repository: {repository_name}")
+        self.repositories_downloaded += 1
+
+        # Calculate download progress percentage
+        if self.total_repositories > 0:
+            percentage = (self.repositories_downloaded / self.total_repositories) * 100
+            logger.debug(
+                "Repository progress: %d/%d (%.1f%%) - %s",
+                self.repositories_downloaded,
+                self.total_repositories,
+                percentage,
+                repository_name,
+            )
+        else:
+            percentage = 0.0
+
+        self.update_current_task(
+            f"Downloading repository: {repository_name}", percentage
+        )
 
     def update_cache_extraction_progress(
         self,
@@ -717,9 +735,29 @@ class SimpleProgressCoordinator:
         else:
             description = "Building firmware"
 
-        # Calculate overall percentage based on board completion
+        # Calculate overall percentage based on board completion AND step progress
         if self.total_boards > 0:
-            percentage = (self.boards_completed / self.total_boards) * 100
+            # Calculate base percentage from completed boards
+            completed_percentage = (self.boards_completed / self.total_boards) * 100
+
+            # Factor in current board step progress if available
+            if current_step > 0 and total_steps > 0:
+                # Each board represents (100 / total_boards) percent of the total
+                board_weight = 100 / self.total_boards
+                # Current board's step progress as a fraction of its weight
+                current_board_progress = (current_step / total_steps) * board_weight
+                percentage = completed_percentage + current_board_progress
+                logger.debug(
+                    "Step progress: %d/%d (%.1f%%) in board %d/%d, total: %.1f%%",
+                    current_step,
+                    total_steps,
+                    current_board_progress,
+                    self.boards_completed + 1,
+                    self.total_boards,
+                    percentage,
+                )
+            else:
+                percentage = completed_percentage
         else:
             percentage = 0.0
 

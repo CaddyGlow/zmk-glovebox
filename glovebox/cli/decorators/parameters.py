@@ -15,8 +15,9 @@ from typing import Any, TypeVar
 
 import typer
 
+
 # Type variable for decorated functions
-F = TypeVar('F', bound=Callable[..., Any])
+F = TypeVar("F", bound=Callable[..., Any])
 
 from glovebox.cli.helpers.output_formatter import (
     OutputFormatter,
@@ -403,7 +404,9 @@ def with_input_output_format(
 # =============================================================================
 
 
-def _get_context_from_args(args: tuple[Any, ...], kwargs: dict[str, Any]) -> typer.Context | None:
+def _get_context_from_args(
+    args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> typer.Context | None:
     """Extract typer.Context from function arguments."""
     # Look for Context in args
     for arg in args:
@@ -534,7 +537,7 @@ def _process_output_parameter(
     # Validate and prepare output path
     if resolved_path:
         # Create parent directories if needed
-        if create_dirs and resolved_path.parent != Path("."):
+        if create_dirs and resolved_path.parent != Path():
             resolved_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Check for existing file

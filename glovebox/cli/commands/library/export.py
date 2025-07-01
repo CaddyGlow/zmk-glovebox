@@ -1,4 +1,4 @@
-"""Library clone command for creating copies of existing layouts."""
+"""Library export command for copying layouts to external locations."""
 
 import json
 from pathlib import Path
@@ -13,7 +13,7 @@ from glovebox.library import FetchRequest, create_library_service
 from glovebox.library.models import LibraryEntry
 
 
-clone_app = typer.Typer(help="Clone layouts from the library")
+export_app = typer.Typer(help="Export layouts from the library")
 
 
 def complete_library_entries(incomplete: str) -> list[str]:
@@ -38,57 +38,59 @@ def complete_library_entries(incomplete: str) -> list[str]:
         return []
 
 
-@clone_app.command("layout")
+@export_app.command("layout")
 @handle_errors
-@with_metrics("library_clone")
-def clone_layout(
+@with_metrics("library_export")
+def export_layout(
     ctx: typer.Context,
     source: Annotated[
         str,
         typer.Argument(
-            help="UUID or name of layout in library to clone",
+            help="UUID or name of layout in library to export",
             autocompletion=complete_library_entries,
         ),
     ],
     destination: Annotated[
         Path,
-        typer.Argument(help="Output path for the cloned layout file"),
+        typer.Argument(help="Output path for the exported layout file"),
     ],
     name: Annotated[
         str | None,
-        typer.Option("--name", "-n", help="Custom name for the cloned layout"),
+        typer.Option("--name", "-n", help="Custom name for the exported layout"),
     ] = None,
     add_to_library: Annotated[
         bool,
         typer.Option(
             "--add-to-library",
             "-l",
-            help="Add the cloned layout back to the library",
+            help="Add the exported layout back to the library",
         ),
     ] = False,
     bookmark: Annotated[
         bool,
-        typer.Option("--bookmark", "-b", help="Create a bookmark for the cloned layout"),
+        typer.Option(
+            "--bookmark", "-b", help="Create a bookmark for the exported layout"
+        ),
     ] = False,
     force: Annotated[
         bool,
         typer.Option("--force", "-f", help="Overwrite destination if it exists"),
     ] = False,
 ) -> None:
-    """Clone a layout from the library to a new location.
+    """Export a layout from the library to a new location.
 
-    This command copies an existing layout from your library to a specified 
+    This command copies an existing layout from your library to a specified
     location, optionally modifying metadata and adding it back to the library.
 
     Examples:
-        # Clone a layout by UUID to a new file
-        glovebox library clone 12345678-1234-1234-1234-123456789abc my-layout.json
+        # Export a layout by UUID to a new file
+        glovebox library export 12345678-1234-1234-1234-123456789abc my-layout.json
 
-        # Clone with custom name and add back to library
-        glovebox library clone "My Gaming Layout" variation.json --name "Gaming V2" --add-to-library
+        # Export with custom name and add back to library
+        glovebox library export "My Gaming Layout" variation.json --name "Gaming V2" --add-to-library
 
-        # Clone and create bookmark
-        glovebox library clone work-layout ~/layouts/work-backup.json --bookmark
+        # Export and create bookmark
+        glovebox library export work-layout ~/layouts/work-backup.json --bookmark
     """
     icon_mode = get_icon_mode_from_context(ctx)
 
@@ -99,9 +101,7 @@ def clone_layout(
 
         # Find the source layout
         typer.echo(
-            Icons.format_with_icon(
-                "SEARCH", f"Finding layout: {source}", icon_mode
-            )
+            Icons.format_with_icon("SEARCH", f"Finding layout: {source}", icon_mode)
         )
 
         # Try to find by UUID first, then by name
@@ -139,7 +139,7 @@ def clone_layout(
         # Read source layout file
         typer.echo(
             Icons.format_with_icon(
-                "COPY", f"Cloning layout from: {source_entry.file_path}", icon_mode
+                "COPY", f"Exporting layout from: {source_entry.file_path}", icon_mode
             )
         )
 
@@ -168,11 +168,11 @@ def clone_layout(
 
         typer.echo(
             Icons.format_with_icon(
-                "SUCCESS", f"Layout cloned successfully to: {destination}", icon_mode
+                "SUCCESS", f"Layout exported successfully to: {destination}", icon_mode
             )
         )
 
-        # Show clone details
+        # Show export details
         typer.echo(f"   Source: {source_entry.name} ({source_entry.uuid})")
         if source_entry.title:
             typer.echo(f"   Original Title: {source_entry.title}")
@@ -184,14 +184,14 @@ def clone_layout(
         if add_to_library:
             typer.echo(
                 Icons.format_with_icon(
-                    "LIBRARY", "Adding cloned layout to library...", icon_mode
+                    "LIBRARY", "Adding exported layout to library...", icon_mode
                 )
             )
 
-            # Create fetch request for the cloned file
+            # Create fetch request for the exported file
             fetch_request = FetchRequest(
                 source=str(destination),
-                name=name or f"{source_entry.name} (Clone)",
+                name=name or f"{source_entry.name} (Export)",
                 create_bookmark=bookmark,
                 force_overwrite=True,  # We just created it, so safe to overwrite
             )
@@ -236,36 +236,34 @@ def clone_layout(
             )
 
     except Exception as e:
-        typer.echo(
-            Icons.format_with_icon("ERROR", f"Unexpected error: {e}", icon_mode)
-        )
+        typer.echo(Icons.format_with_icon("ERROR", f"Unexpected error: {e}", icon_mode))
         raise typer.Exit(1) from e
 
 
 # Make the main command available as default
-@clone_app.callback(invoke_without_command=True)
-def clone_default(
+@export_app.callback(invoke_without_command=True)
+def export_default(
     ctx: typer.Context,
     source: Annotated[
         str | None,
         typer.Argument(
-            help="UUID or name of layout to clone",
+            help="UUID or name of layout to export",
             autocompletion=complete_library_entries,
         ),
     ] = None,
     destination: Annotated[
-        Path | None, typer.Argument(help="Output path for cloned layout")
+        Path | None, typer.Argument(help="Output path for exported layout")
     ] = None,
     name: Annotated[str | None, typer.Option("--name", "-n")] = None,
     add_to_library: Annotated[bool, typer.Option("--add-to-library", "-l")] = False,
     bookmark: Annotated[bool, typer.Option("--bookmark", "-b")] = False,
     force: Annotated[bool, typer.Option("--force", "-f")] = False,
 ) -> None:
-    """Clone a layout from the library."""
+    """Export a layout from the library."""
     if ctx.invoked_subcommand is None:
         if source is None or destination is None:
             typer.echo("Error: Missing required arguments: source and destination")
             raise typer.Exit(1)
 
-        # Call the main clone command
-        clone_layout(ctx, source, destination, name, add_to_library, bookmark, force)
+        # Call the main export command
+        export_layout(ctx, source, destination, name, add_to_library, bookmark, force)
