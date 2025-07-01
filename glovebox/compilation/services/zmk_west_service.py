@@ -314,6 +314,9 @@ class ZmkWestService(CompilationServiceProtocol):
             )
             if not workspace_path:
                 self.logger.error("Workspace setup failed")
+                # Signal failure to progress coordinator
+                if progress_coordinator:
+                    progress_coordinator.fail_all_tasks()
                 return BuildResult(success=False, errors=["Workspace setup failed"])
 
             # Run compilation
@@ -380,6 +383,9 @@ class ZmkWestService(CompilationServiceProtocol):
                 self.logger.error(
                     "Compilation failed, returning partial results for debugging"
                 )
+                # Signal failure to progress coordinator
+                if progress_coordinator:
+                    progress_coordinator.fail_all_tasks()
                 return BuildResult(
                     success=False,
                     errors=["Compilation failed"],
@@ -428,6 +434,19 @@ class ZmkWestService(CompilationServiceProtocol):
 
             # Signal completion to progress coordinator
             if progress_coordinator:
+                # Ensure we're marked as completed even if middleware pattern matching failed
+                if (
+                    progress_coordinator.boards_completed
+                    < progress_coordinator.total_boards
+                    and progress_coordinator.total_boards > 0
+                ):
+                    self.logger.debug(
+                        "Middleware pattern matching may have failed - forcing board completion count to match total"
+                    )
+                    progress_coordinator.boards_completed = (
+                        progress_coordinator.total_boards
+                    )
+
                 progress_coordinator.complete_all_builds()
 
             build_result = BuildResult(
@@ -466,6 +485,9 @@ class ZmkWestService(CompilationServiceProtocol):
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.error("Compilation failed: %s", e, exc_info=exc_info)
+            # Signal failure to progress coordinator
+            if progress_coordinator:
+                progress_coordinator.fail_all_tasks()
             return BuildResult(success=False, errors=[str(e)])
 
     def compile_from_json(

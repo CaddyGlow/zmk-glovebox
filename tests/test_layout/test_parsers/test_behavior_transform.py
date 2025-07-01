@@ -24,7 +24,9 @@ class TestBehaviorTransformation:
 };
 """
 
-        result = processor._transform_behavior_references_to_definitions(dtsi_content_generic)
+        result = processor._transform_behavior_references_to_definitions(
+            dtsi_content_generic
+        )
 
         # Should transform both behaviors with appropriate compatible strings
         assert "&custom_behavior" not in result
@@ -60,7 +62,9 @@ class TestBehaviorTransformation:
 };
 """
 
-        result = processor._transform_behavior_references_to_definitions(dtsi_content_multiple)
+        result = processor._transform_behavior_references_to_definitions(
+            dtsi_content_multiple
+        )
 
         # All references should be transformed
         assert "&mmv_input_listener" not in result
@@ -98,7 +102,9 @@ class TestBehaviorTransformation:
 };
 """
 
-        result = processor._transform_behavior_references_to_definitions(dtsi_content_nested)
+        result = processor._transform_behavior_references_to_definitions(
+            dtsi_content_nested
+        )
 
         # Should preserve nested structure
         assert "LAYER_One {" in result
@@ -122,7 +128,9 @@ class TestBehaviorTransformation:
 };
 """
 
-        result = processor._transform_behavior_references_to_definitions(dtsi_content_empty)
+        result = processor._transform_behavior_references_to_definitions(
+            dtsi_content_empty
+        )
 
         # Should transform and add compatible
         assert "&simple_behavior" not in result
@@ -144,7 +152,9 @@ class TestBehaviorTransformation:
 };
 """
 
-        result = processor._transform_behavior_references_to_definitions(dtsi_content_no_refs)
+        result = processor._transform_behavior_references_to_definitions(
+            dtsi_content_no_refs
+        )
 
         # Should remain unchanged (no behavior references to transform)
         assert result == dtsi_content_no_refs
@@ -171,13 +181,19 @@ class TestBehaviorTransformation:
 }};
 """
 
-            result = processor._transform_behavior_references_to_definitions(dtsi_content)
+            result = processor._transform_behavior_references_to_definitions(
+                dtsi_content
+            )
 
             if should_be_input_listener:
-                assert 'compatible = "zmk,input-listener";' in result, f"Failed for {behavior_name}: {result}"
+                assert 'compatible = "zmk,input-listener";' in result, (
+                    f"Failed for {behavior_name}: {result}"
+                )
                 assert 'compatible = "zmk,behavior";' not in result
             else:
-                assert 'compatible = "zmk,behavior";' in result, f"Failed for {behavior_name}: {result}"
+                assert 'compatible = "zmk,behavior";' in result, (
+                    f"Failed for {behavior_name}: {result}"
+                )
                 assert 'compatible = "zmk,input-listener";' not in result
 
     def test_transform_edge_case_input_listener(self):

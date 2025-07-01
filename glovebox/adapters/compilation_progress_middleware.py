@@ -228,18 +228,44 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
                         current_step=current_step, total_steps=total_steps
                     )
 
-                # Check for individual board completion
-                if self.board_complete_pattern.search(line_stripped):
+                # Check for individual board completion using multiple patterns
+                board_completion_indicators = [
+                    self.board_complete_pattern.search(line_stripped),
+                    # Additional patterns for different ZMK output formats
+                    re.search(r"Memory region.*Used Size", line_stripped),
+                    re.search(r"Generating zephyr/merged\.hex", line_stripped),
+                    re.search(r"west build.*completed", line_stripped, re.IGNORECASE),
+                    re.search(r"Build complete", line_stripped, re.IGNORECASE),
+                ]
+
+                if any(board_completion_indicators):
+                    logger.debug("Board completion detected: %s", line_stripped)
                     self.progress_coordinator.update_board_progress(completed=True)
 
-                # Check for individual board completion (Memory region appears per board)
-                # Only transition when all boards are actually done
-                if (
-                    self.build_complete_pattern.search(line_stripped)
-                    and self.progress_coordinator.boards_completed
+                # Check for overall build completion with improved patterns
+                build_completion_indicators = [
+                    self.build_complete_pattern.search(line_stripped),
+                    # Additional completion patterns
+                    re.search(r"Memory region\s+Used Size", line_stripped),
+                    re.search(r"FLASH.*region.*overlaps", line_stripped),
+                    re.search(
+                        r"west build.*completed.*successfully",
+                        line_stripped,
+                        re.IGNORECASE,
+                    ),
+                ]
+
+                # Only transition when all boards are actually done OR we detect overall completion
+                if any(build_completion_indicators) and (
+                    self.progress_coordinator.boards_completed
                     >= self.progress_coordinator.total_boards
+                    or re.search(
+                        r"All builds completed|Compilation finished",
+                        line_stripped,
+                        re.IGNORECASE,
+                    )
                 ):
-                    # All boards have completed - now we can transition to collecting
+                    logger.info("All builds completed - transitioning to completion")
                     self.progress_coordinator.complete_all_builds()
 
             # Cache saving phase is handled by the service layer, not Docker output

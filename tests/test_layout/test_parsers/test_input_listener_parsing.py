@@ -167,7 +167,9 @@ class TestInputListenerParsing:
 };
 """
 
-        result = processor._transform_behavior_references_to_definitions(dtsi_content_input_listener)
+        result = processor._transform_behavior_references_to_definitions(
+            dtsi_content_input_listener
+        )
 
         # Should transform &mmv_input_listener to mmv_input_listener with compatible property
         assert "&mmv_input_listener" not in result
