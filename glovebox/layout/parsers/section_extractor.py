@@ -221,8 +221,17 @@ class SectionExtractor:
                     raw_content=section.raw_content,
                 )
 
-            elif section.type in ("behavior", "macro", "combo", "input_listener"):
+            elif section.type in ("behavior", "macro", "combo"):
                 return self._process_ast_section(section)
+
+            elif section.type == "input_listener":
+                # Input listeners need special handling - return as raw content
+                # for processing by TemplateAwareProcessor
+                return SectionProcessingResult(
+                    success=True,
+                    data=section.content,
+                    raw_content=section.raw_content,
+                )
 
             elif section.type == "keymap":
                 return self._process_keymap_section(section)
@@ -265,7 +274,8 @@ class SectionExtractor:
 
             # For macro, behavior, and combo sections, extract the inner block content
             # to avoid parsing issues with the full / { type { ... } }; structure
-            if section.type in ("macro", "behavior", "combo", "input_listener"):
+            # Input listeners are handled differently - they don't have block structure
+            if section.type in ("macro", "behavior", "combo"):
                 content_to_parse = self._extract_inner_block_content(
                     content_to_parse, section.type
                 )
@@ -403,6 +413,11 @@ class SectionExtractor:
             block_name = "behaviors"
         elif block_type == "combo":
             block_name = "combos"
+        elif block_type == "input_listener":
+            # Input listeners don't use a wrapping block structure like macros/behaviors/combos
+            # They are individual definitions like &mmv_input_listener { ... }
+            # Return original content as-is for special handling in AST parser
+            return content
         else:
             # If unknown type, return original content
             return content

@@ -81,8 +81,8 @@ class LayoutData(LayoutMetadata):
     hold_taps: list[HoldTapBehavior] = Field(default_factory=list, alias="holdTaps")
     combos: list[ComboBehavior] = Field(default_factory=list)
     macros: list[MacroBehavior] = Field(default_factory=list)
-    input_listeners: list[InputListener] = Field(
-        default_factory=list, alias="inputListeners"
+    input_listeners: list[InputListener] | None = Field(
+        default=None, alias="inputListeners"
     )
 
     # Essential structure fields

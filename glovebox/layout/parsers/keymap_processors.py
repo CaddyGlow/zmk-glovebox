@@ -183,7 +183,9 @@ class FullKeymapProcessor(BaseKeymapProcessor):
             layout_data.combos = converted_behaviors["combos"]
 
         if converted_behaviors.get("input_listeners"):
-            layout_data.input_listeners = converted_behaviors["input_listeners"]
+            if layout_data.input_listeners is None:
+                layout_data.input_listeners = []
+            layout_data.input_listeners.extend(converted_behaviors["input_listeners"])
 
     def _populate_keymap_metadata(
         self, layout_data: LayoutData, metadata_dict: dict[str, object]
@@ -541,6 +543,11 @@ class TemplateAwareProcessor(BaseKeymapProcessor):
         # Handle input listeners - convert to JSON models instead of storing as raw DTSI
         if "input_listeners" in processed_data:
             input_listeners_data = processed_data["input_listeners"]
+            self.logger.debug(
+                "Processing input listeners data: type=%s, content preview=%s",
+                type(input_listeners_data).__name__,
+                str(input_listeners_data)[:100] if input_listeners_data else "None",
+            )
             if isinstance(input_listeners_data, str):
                 # This is raw DTSI content, need to parse and convert to models
                 self._convert_input_listeners_from_dtsi(
@@ -548,7 +555,14 @@ class TemplateAwareProcessor(BaseKeymapProcessor):
                 )
             elif isinstance(input_listeners_data, list):
                 # Already converted to models
-                layout_data.input_listeners = input_listeners_data
+                if layout_data.input_listeners is None:
+                    layout_data.input_listeners = []
+                layout_data.input_listeners.extend(input_listeners_data)
+            else:
+                self.logger.warning(
+                    "Unexpected input listeners data type: %s",
+                    type(input_listeners_data).__name__,
+                )
 
             # Also store raw DTSI for template variables
             if not hasattr(layout_data, "variables") or layout_data.variables is None:
@@ -614,11 +628,23 @@ class TemplateAwareProcessor(BaseKeymapProcessor):
 
             # Extract input listeners from behavior models
             if behavior_models.get("input_listeners"):
-                layout_data.input_listeners = behavior_models["input_listeners"]
+                if layout_data.input_listeners is None:
+                    layout_data.input_listeners = []
+                layout_data.input_listeners.extend(behavior_models["input_listeners"])
                 self.logger.debug(
                     "Converted %d input listeners from DTSI to JSON models",
                     len(layout_data.input_listeners),
                 )
+                # Debug the structure of converted input listeners
+                if layout_data.input_listeners:
+                    for i, listener in enumerate(layout_data.input_listeners):
+                        self.logger.debug(
+                            "Input listener %d: code=%s, nodes=%d, inputProcessors=%d",
+                            i,
+                            listener.code,
+                            len(listener.nodes) if listener.nodes else 0,
+                            len(listener.input_processors) if listener.input_processors else 0,
+                        )
             else:
                 self.logger.debug("No input listeners found in DTSI content")
 
