@@ -225,7 +225,9 @@ class WorkspaceSetupService:
         if progress_coordinator and hasattr(
             progress_coordinator, "set_enhanced_task_status"
         ):
-            progress_coordinator.set_enhanced_task_status("cache_analysis", "active", "Analyzing cached workspace")
+            progress_coordinator.set_enhanced_task_status(
+                "cache_analysis", "active", "Analyzing cached workspace"
+            )
 
         if progress_coordinator and hasattr(
             progress_coordinator, "update_folder_scan_progress"

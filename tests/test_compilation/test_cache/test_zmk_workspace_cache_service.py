@@ -633,11 +633,14 @@ class TestZmkWorkspaceCacheServiceSimplified:
         tmp_path: Path,
     ):
         """Test successful workspace export."""
-        from glovebox.compilation.cache.models import ArchiveFormat, WorkspaceExportResult
+        from glovebox.compilation.cache.models import (
+            ArchiveFormat,
+            WorkspaceExportResult,
+        )
 
         repository = "zmkfirmware/zmk"
         branch = "main"
-        
+
         # Create a mock workspace directory with test files
         workspace_path = tmp_path / "workspace"
         workspace_path.mkdir()
@@ -693,7 +696,7 @@ class TestZmkWorkspaceCacheServiceSimplified:
         )
 
         assert result.success is False
-        assert "Failed to get cached workspace" in result.error_message
+        assert "No cached workspace found for nonexistent/repo" in result.error_message
 
     def test_export_cached_workspace_tar_gz(
         self,
@@ -705,7 +708,7 @@ class TestZmkWorkspaceCacheServiceSimplified:
         from glovebox.compilation.cache.models import ArchiveFormat
 
         repository = "zmkfirmware/zmk"
-        
+
         # Create a mock workspace directory
         workspace_path = tmp_path / "workspace"
         workspace_path.mkdir()
@@ -762,6 +765,7 @@ class TestZmkWorkspaceCacheServiceSimplified:
             success=True,
             archive_size_bytes=500,
             original_size_bytes=1000,
+            compression_ratio=0.5,
             export_duration_seconds=2.5,
         )
 

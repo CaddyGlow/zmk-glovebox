@@ -19,7 +19,7 @@ class TestLayoutDataBasic:
     def test_layout_data_creation(self):
         """Test basic layout data creation."""
         layout = LayoutData(keyboard="glove80", title="Test Layout")
-        
+
         assert layout.keyboard == "glove80"
         assert layout.title == "Test Layout"
         assert isinstance(layout.date, datetime)
@@ -91,7 +91,7 @@ class TestLayoutLayerBasic:
             LayoutBinding.from_str("&kp W"),
             LayoutBinding.from_str("&trans"),
         ]
-        
+
         layer = LayoutLayer(name="test_layer", bindings=bindings)
         assert layer.name == "test_layer"
         assert len(layer.bindings) == 3
@@ -101,7 +101,7 @@ class TestLayoutLayerBasic:
     def test_layer_with_string_bindings(self):
         """Test layer creation with string bindings (auto-conversion)."""
         layer = LayoutLayer(name="test_layer", bindings=["&kp Q", "&kp W", "&trans"])
-        
+
         assert layer.name == "test_layer"
         assert len(layer.bindings) == 3
         assert all(isinstance(b, LayoutBinding) for b in layer.bindings)
@@ -128,7 +128,7 @@ class TestLayoutParamBasic:
         """Test nested LayoutParam creation."""
         nested = LayoutParam(value="X")
         parent = LayoutParam(value="LC", params=[nested])
-        
+
         assert parent.value == "LC"
         assert len(parent.params) == 1
         assert parent.params[0].value == "X"

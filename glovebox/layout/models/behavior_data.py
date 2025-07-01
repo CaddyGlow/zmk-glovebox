@@ -37,9 +37,9 @@ class BehaviorData(GloveboxBaseModel):
         default_factory=list, alias="config_parameters"
     )
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, exclude_unset: bool = True) -> dict[str, Any]:
         """Convert to dictionary with proper field names and JSON serialization."""
-        return self.model_dump(mode="json", by_alias=True, exclude_unset=True)
+        return self.model_dump(mode="json", by_alias=True, exclude_unset=exclude_unset)
 
     def is_empty(self) -> bool:
         """Check if this behavior data contains any actual behavior definitions.

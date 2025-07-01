@@ -70,7 +70,7 @@ class TestBindingCellsParsingFix:
         # Create property with ARRAY type (the fix)
         prop = DTProperty(
             name="#binding-cells",
-            value=DTValue(type=DTValueType.ARRAY, value=["2"], raw="<2>")
+            value=DTValue(type=DTValueType.ARRAY, value=["2"], raw="<2>"),
         )
 
         result = converter._extract_int_from_property(prop)
@@ -79,13 +79,13 @@ class TestBindingCellsParsingFix:
         # Test with different values
         prop_0 = DTProperty(
             name="#binding-cells",
-            value=DTValue(type=DTValueType.ARRAY, value=["0"], raw="<0>")
+            value=DTValue(type=DTValueType.ARRAY, value=["0"], raw="<0>"),
         )
         assert converter._extract_int_from_property(prop_0) == 0
 
         prop_3 = DTProperty(
             name="#binding-cells",
-            value=DTValue(type=DTValueType.ARRAY, value=["3"], raw="<3>")
+            value=DTValue(type=DTValueType.ARRAY, value=["3"], raw="<3>"),
         )
         assert converter._extract_int_from_property(prop_3) == 3
 
@@ -96,14 +96,14 @@ class TestBindingCellsParsingFix:
         # Empty array
         prop_empty = DTProperty(
             name="#binding-cells",
-            value=DTValue(type=DTValueType.ARRAY, value=[], raw="<>")
+            value=DTValue(type=DTValueType.ARRAY, value=[], raw="<>"),
         )
         assert converter._extract_int_from_property(prop_empty) is None
 
         # Invalid value
         prop_invalid = DTProperty(
             name="#binding-cells",
-            value=DTValue(type=DTValueType.ARRAY, value=["invalid"], raw="<invalid>")
+            value=DTValue(type=DTValueType.ARRAY, value=["invalid"], raw="<invalid>"),
         )
         assert converter._extract_int_from_property(prop_invalid) is None
 
@@ -128,7 +128,7 @@ class TestCommentExtractionFix:
         comments = [
             DTComment(text="// First line of description"),
             DTComment(text="// Second line of description"),
-            DTComment(text="// Third line of description")
+            DTComment(text="// Third line of description"),
         ]
         node.comments = comments
 
@@ -144,7 +144,7 @@ class TestCommentExtractionFix:
         comments = [
             DTComment(text="// mod_tab_switcher - TailorKey"),
             DTComment(text="//"),  # Empty comment line
-            DTComment(text="// mod_tab_v1_TKZ: Additional description")
+            DTComment(text="// mod_tab_v1_TKZ: Additional description"),
         ]
         node.comments = comments
 
@@ -152,7 +152,9 @@ class TestCommentExtractionFix:
         description = converter._extract_description_from_node(node)
 
         # Should preserve the empty line
-        expected = "mod_tab_switcher - TailorKey\n\nmod_tab_v1_TKZ: Additional description"
+        expected = (
+            "mod_tab_switcher - TailorKey\n\nmod_tab_v1_TKZ: Additional description"
+        )
         assert description == expected
 
     def test_comment_prefix_removal(self):
@@ -161,14 +163,14 @@ class TestCommentExtractionFix:
         comments = [
             DTComment(text="// Description with slashes"),
             DTComment(text="//Another line"),
-            DTComment(text="//   Line with extra spaces")
+            DTComment(text="//   Line with extra spaces"),
         ]
         node.comments = comments
 
         converter = ASTBehaviorConverter()
         description = converter._extract_description_from_node(node)
 
-        lines = description.split('\n')
+        lines = description.split("\n")
         assert lines[0] == "Description with slashes"
         assert lines[1] == "Another line"
         assert lines[2] == "Line with extra spaces"
@@ -191,7 +193,7 @@ class TestCommentExtractionFix:
             DTComment(text="//"),
             DTComment(text="//"),
             DTComment(text="//"),  # Multiple empty lines
-            DTComment(text="// Second line")
+            DTComment(text="// Second line"),
         ]
         node.comments = comments
 
@@ -228,7 +230,7 @@ class TestSectionExtractionFix:
         # Should extract just the inner content without wrapper
         assert "// Test macro description" in inner_content
         assert "test_macro {" in inner_content
-        assert "compatible = \"zmk,behavior-macro\";" in inner_content
+        assert 'compatible = "zmk,behavior-macro";' in inner_content
         assert "#binding-cells = <1>;" in inner_content
 
         # Should not contain the wrapper structure
@@ -259,7 +261,7 @@ class TestSectionExtractionFix:
         # Should extract just the inner content
         assert "// Custom hold-tap behavior" in inner_content
         assert "hm: homerow_mods {" in inner_content
-        assert "compatible = \"zmk,behavior-hold-tap\";" in inner_content
+        assert 'compatible = "zmk,behavior-hold-tap";' in inner_content
 
         # Should not contain wrapper
         assert "behaviors {" not in inner_content
@@ -286,13 +288,13 @@ class TestSectionExtractionFix:
         # Should correctly handle nested braces
         assert "complex_macro {" in inner_content
         assert "nested_property {" in inner_content
-        assert "inner_value = \"test\";" in inner_content
+        assert 'inner_value = "test";' in inner_content
 
         # Should not include outer wrapper braces
         assert "macros {" not in inner_content
 
         # Brace count should be balanced
-        assert inner_content.count('{') == inner_content.count('}')
+        assert inner_content.count("{") == inner_content.count("}")
 
     def test_unknown_block_type_fallback(self):
         """Test that unknown block types return original content."""
@@ -408,4 +410,3 @@ class TestIntegrationRegression:
         if "#binding-cells" in token_values:
             binding_cells_idx = token_values.index("#binding-cells")
             assert token_types[binding_cells_idx] == "IDENTIFIER"
-

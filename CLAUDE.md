@@ -224,6 +224,118 @@ Layout Editor → JSON File → ZMK Files → Firmware → Flash
 
 **If you encounter ANY test pollution or isolation issues, you MUST fix them immediately before proceeding with other tasks.**
 
+## CRITICAL: UI Theming and Visual Consistency
+
+**MANDATORY REQUIREMENTS - MUST BE FOLLOWED WITHOUT EXCEPTION:**
+
+### ASCII-First Interface Policy
+
+1. **NO EMOJIS outside glovebox/cli/helpers/theme.py**:
+   ```python
+   # ❌ INCORRECT - Never use direct emojis in code
+   print("✅ Success")
+   console.print("🔧 Processing")
+   
+   # ✅ CORRECT - Always use theme helpers
+   from glovebox.cli.helpers.theme import Icons, get_themed_console
+   
+   console = get_themed_console(icon_mode="text")  # ASCII mode
+   icon = Icons.get_icon("SUCCESS", "text")  # Returns "✓"
+   console.print_success("Operation completed")
+   ```
+
+2. **ASCII/Unicode Symbol Hierarchy** (in order of preference):
+   - **ASCII Characters**: `*, +, -, |, >, <, ^, v` for basic indicators
+   - **Unicode Symbols**: `✓, ✗, →, ←, ↑, ↓, ⚠, ℹ` for status and flow
+   - **Box Drawing**: `┌─┐│└┘, ▌, ▍, █, ░` for frames and progress
+   - **Geometric Shapes**: `●, ○, ■, □, ▲, ▼, ◆` for visual elements
+
+3. **Professional Text Alternatives**:
+   ```python
+   # Status indicators
+   SUCCESS = "✓"    # Check mark  
+   ERROR = "✗"      # X mark
+   WARNING = "⚠"    # Warning triangle
+   INFO = "ℹ"       # Info symbol
+   
+   # Process indicators  
+   LOADING = "..."  # Simple loading
+   PROGRESS = "▌"   # Progress blocks
+   BULLET = "•"     # List bullets
+   ARROW = "→"      # Flow direction
+   ```
+
+### Color Scheme Enforcement
+
+4. **NO HARDCODED COLORS outside theme.py**:
+   ```python
+   # ❌ INCORRECT - Never hardcode colors
+   console.print("Error", style="red")
+   table.add_column("Name", style="bold blue")
+   
+   # ✅ CORRECT - Always use theme colors
+   from glovebox.cli.helpers.theme import Colors, get_themed_console
+   
+   console = get_themed_console()
+   console.print_error("Error message")  # Auto-applies error styling
+   table.add_column("Name", style=Colors.PRIMARY)
+   ```
+
+5. **Status-Based Color Mapping** (MANDATORY):
+   ```python
+   # Core status colors
+   SUCCESS = "bold green"     # Operations that completed successfully  
+   ERROR = "bold red"         # Operations that failed
+   WARNING = "bold yellow"    # Warnings and cautions
+   INFO = "bold blue"         # Informational messages
+   
+   # Operational states
+   RUNNING = "bold cyan"      # Currently executing
+   STOPPED = "dim red"        # Stopped/inactive
+   PENDING = "yellow"         # Waiting to execute  
+   AVAILABLE = "green"        # Available for use
+   UNAVAILABLE = "red"        # Not available
+   ```
+
+### Rich Framework Integration
+
+6. **MANDATORY Rich Framework Usage**:
+   ```python
+   # ✅ CORRECT - Use Rich components with theme integration
+   from rich.table import Table
+   from rich.panel import Panel
+   from glovebox.cli.helpers.theme import TableStyles, PanelStyles
+   
+   # Create themed tables and panels
+   table = TableStyles.create_basic_table("Devices", "DEVICE", "text")
+   panel = PanelStyles.create_info_panel("Information", icon_mode="text")
+   ```
+
+7. **Theme Mode Support** (maintain backwards compatibility):
+   ```python
+   # Support three modes: emoji, nerdfont, text
+   IconMode.EMOJI     # 🔧 (legacy support)
+   IconMode.NERDFONT  # \uf2db (for terminals with nerd fonts)  
+   IconMode.TEXT      # ✓ (DEFAULT - professional ASCII/Unicode)
+   ```
+
+### Enforcement Rules
+
+8. **Single Source of Truth**: ALL visual elements MUST be defined in `glovebox/cli/helpers/theme.py`
+
+9. **Consistency Patterns**:
+   - Status messages → Use `console.print_success/error/warning/info()`
+   - Tables → Use `TableStyles.create_*_table()` methods
+   - Panels → Use `PanelStyles.create_*_panel()` methods  
+   - Icons → Use `Icons.get_icon()` or `Icons.format_with_icon()`
+
+10. **Testing Requirements**:
+    - All theme components MUST have comprehensive tests
+    - Test all icon modes (emoji, nerdfont, text)
+    - Verify no hardcoded styling outside theme.py
+
+**The default interface is now ASCII/Unicode professional appearance. Emoji mode is preserved only for users who explicitly enable it through configuration.**
+
 ## New Feature: Keymap Version Management
 
 **COMPLETED**: The keymap version management system is now fully implemented and operational.

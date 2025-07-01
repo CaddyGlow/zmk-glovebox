@@ -429,9 +429,9 @@ class SectionExtractor:
 
         for i in range(block_start, len(lines)):
             for char in lines[i]:
-                if char == '{':
+                if char == "{":
                     brace_count += 1
-                elif char == '}':
+                elif char == "}":
                     brace_count -= 1
                     if brace_count == 0:
                         block_end = i
@@ -441,7 +441,7 @@ class SectionExtractor:
 
         # Extract just the inner content
         inner_lines = lines[block_start:block_end]
-        return '\n'.join(inner_lines)
+        return "\n".join(inner_lines)
 
 
 def create_section_extractor(

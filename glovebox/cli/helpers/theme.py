@@ -26,11 +26,46 @@ class IconMode(str, Enum):
 class Colors:
     """Standardized color palette for CLI output."""
 
-    # Status colors
+    # Core status colors (MANDATORY for all status messages)
     SUCCESS = "bold green"
     ERROR = "bold red"
     WARNING = "bold yellow"
     INFO = "bold blue"
+
+    # Operational state colors
+    RUNNING = "bold cyan"
+    STOPPED = "dim red"
+    PENDING = "yellow"
+    COMPLETED = "green"
+    FAILED = "bold red"
+
+    # Availability states
+    AVAILABLE = "green"
+    UNAVAILABLE = "red"
+    BUSY = "yellow"
+    UNKNOWN = "dim yellow"
+
+    # Priority levels
+    CRITICAL = "bold red on yellow"
+    HIGH = "bold red"
+    MEDIUM = "yellow"
+    LOW = "dim white"
+
+    # Data states
+    VALID = "green"
+    INVALID = "red"
+    MODIFIED = "yellow"
+    UNCHANGED = "dim white"
+    NEW = "bright_green"
+    DELETED = "red"
+
+    # Progress and loading
+    PROGRESS_BAR = "bright_blue"
+    PROGRESS_COMPLETE = "green"
+    PROGRESS_PARTIAL = "yellow"
+    PROGRESS_FAILED = "red"
+    LOADING_SPINNER = "cyan"
+    LOADING_TEXT = "dim cyan"
 
     # UI element colors
     PRIMARY = "cyan"
@@ -38,17 +73,22 @@ class Colors:
     ACCENT = "magenta"
     MUTED = "dim"
 
-    # Semantic colors
-    AVAILABLE = "green"
-    UNAVAILABLE = "red"
-    UNKNOWN = "yellow"
-    BUSY = "yellow"
-
-    # Text colors
+    # Text hierarchy colors
     HEADER = "bold cyan"
     SUBHEADER = "bold blue"
     HIGHLIGHT = "bold white"
     NORMAL = "white"
+    FIELD_NAME = "bold"
+    FIELD_VALUE = "white"
+
+    # Contextual colors
+    BUILD = "blue"
+    COMPILE = "cyan"
+    FLASH = "magenta"
+    CACHE = "green"
+    NETWORK = "blue"
+    FILE = "white"
+    DIRECTORY = "cyan"
 
 
 # Icon/emoji standards
@@ -184,73 +224,84 @@ class Icons:
         "CLONE": "\uf24d",  # nf-fa-clone
     }
 
-    # Text fallbacks for emoji-disabled mode
+    # Professional ASCII/Unicode symbols (DEFAULT mode)
     _TEXT_FALLBACKS = {
-        # Status indicators - use minimal or no prefix for clean output
-        "SUCCESS": "",  # For Yes/No status, just show "Yes"
-        "ERROR": "",  # For Yes/No status, just show "No"
-        "WARNING": "!",  # Keep warning indicator as it's important
-        "INFO": "i",  # Minimal info indicator
-        # Action indicators - keep these for clarity
-        "CHECKMARK": "✓",  # Simple checkmark works well
-        "CROSS": "✗",  # Simple X works well
-        "BULLET": "•",  # Keep bullet point
-        "ARROW": "→",  # Keep arrow for flow
-        # Category icons - use shorter, cleaner prefixes
-        "DEVICE": "",  # No prefix needed in context
-        "KEYBOARD": "",  # No prefix needed in context
-        "FIRMWARE": "",  # No prefix needed in context
-        "LAYOUT": "",  # No prefix needed in context
-        "DOCKER": "Docker",  # Keep for clarity in mixed contexts
-        "SYSTEM": "",  # No prefix needed in context
-        "CONFIG": "",  # No prefix needed in context
-        "USB": "",  # No prefix needed in context
-        "FLASH": "",  # No prefix needed in context
-        "BUILD": "",  # No prefix needed in context
-        # Process indicators - use minimal indicators
-        "LOADING": "...",  # Simple loading indicator
-        "COMPLETED": "✓",  # Reuse checkmark for completed
-        "RUNNING": "▶",  # Simple play symbol
-        "STOPPED": "■",  # Simple stop symbol
-        # Additional icon fallbacks
-        "UPLOAD": "",  # Clean for upload operations
-        "DOWNLOAD": "",  # Clean for download operations
-        "DOCUMENT": "",  # Clean for document references
-        "LINK": "",  # Clean for links
-        "CALENDAR": "",  # Clean for dates
-        "USER": "",  # Clean for user references
-        "TAG": "",  # Clean for tags
-        "EYE": "",  # Clean for viewing
-        "SEARCH": "",  # Clean for search
-        "FAMILY": "",  # Clean for family/sharing
-        "STATS": "",  # Clean for statistics
-        "TREE": "",  # Clean for tree structures
-        "CROWN": "",  # Clean for premium/important
-        "SCROLL": "",  # Clean for documents
-        "STAR": "",  # Clean for favorites
-        "TRASH": "",  # Clean for deletion
-        "QUESTION": "?",  # Keep question mark
-        "GLOBE": "",  # Clean for network/web
-        "SAVE": "",  # Clean for save operations
-        "CLIPBOARD": "",  # Clean for clipboard
-        "APPLE": "",  # Clean for platform
-        "WINDOWS": "",  # Clean for platform
-        "LINUX": "",  # Clean for platform
-        "FOLDER": "",  # Clean for folders
-        "MAILBOX": "",  # Clean for empty state
-        "SHIELD": "",  # Clean for security
-        "DIAMOND": "•",  # Use bullet for list items
-        "LOCK": "",  # Clean for security
-        "KEYSTORE": "",  # Clean for keystore
-        "BOOKMARK": "",  # Clean for bookmarks
-        "FACTORY": "",  # Clean for factory items
-        "CLONE": "",  # Clean for clone operations
+        # Core status indicators (keep Unicode symbols for clarity)
+        "SUCCESS": "✓",  # Check mark - clear success indicator
+        "ERROR": "✗",  # X mark - clear error indicator
+        "WARNING": "⚠",  # Warning triangle - important for visibility
+        "INFO": "ℹ",  # Info symbol - standard information indicator
+        # Action indicators (keep meaningful symbols)
+        "CHECKMARK": "✓",  # Check mark for completion
+        "CROSS": "✗",  # X mark for cancellation/failure
+        "BULLET": "•",  # Bullet point for lists
+        "ARROW": "→",  # Right arrow for flow/direction
+        # Process flow indicators (professional ASCII/Unicode)
+        "LOADING": "⋯",  # Horizontal ellipsis for loading
+        "COMPLETED": "✓",  # Completed same as success
+        "RUNNING": "▶",  # Play symbol for active processes
+        "STOPPED": "■",  # Stop symbol for halted processes
+        "PROCESSING": "→",  # Arrow for processing
+        "EXPORTING": "↑",  # Up arrow for exports
+        "IMPORTING": "↓",  # Down arrow for imports
+        "CREATING": "+",  # Plus for creation
+        "UPDATING": "↻",  # Refresh symbol for updates
+        "BUILDING": "▶",  # Building same as running
+        # Category indicators (minimal but recognizable)
+        "DEVICE": "◦",  # Small circle for devices
+        "KEYBOARD": "⌨",  # Keyboard symbol (if supported)
+        "FIRMWARE": "◆",  # Diamond for firmware
+        "LAYOUT": "▣",  # Square with pattern for layouts
+        "DOCKER": "◈",  # Diamond pattern for containers
+        "SYSTEM": "●",  # Filled circle for system
+        "CONFIG": "⚙",  # Gear for configuration
+        "USB": "◦",  # Circle for USB devices
+        "FLASH": "⚡",  # Lightning for flash operations
+        "BUILD": "▣",  # Square for build operations
+        # Data and file operations
+        "UPLOAD": "↑",  # Up arrow for uploads
+        "DOWNLOAD": "↓",  # Down arrow for downloads
+        "DOCUMENT": "▤",  # Document symbol
+        "LINK": "∞",  # Infinity for links/connections
+        "CALENDAR": "▦",  # Calendar representation
+        "USER": "◉",  # Filled circle with dot for users
+        "TAG": "▢",  # Empty square for tags
+        "EYE": "◎",  # Circle with dot for viewing
+        "SEARCH": "◯",  # Empty circle for search
+        "FAMILY": "◈",  # Diamond for groups/families
+        "STATS": "▬",  # Bar for statistics
+        "TREE": "┬",  # Tree branch character
+        "CROWN": "◆",  # Diamond for premium/important
+        "SCROLL": "▤",  # Document scroll
+        "STAR": "★",  # Star for favorites
+        "TRASH": "◌",  # Empty circle for deletion
+        "QUESTION": "?",  # Question mark
+        "GLOBE": "◯",  # Circle for network/web
+        "SAVE": "▫",  # Small square for save
+        "CLIPBOARD": "▤",  # Rectangle for clipboard
+        "APPLE": "●",  # Circle for Apple platform
+        "WINDOWS": "▣",  # Square for Windows platform
+        "LINUX": "◆",  # Diamond for Linux platform
+        "FOLDER": "▢",  # Empty square for folders
+        "MAILBOX": "▫",  # Small square for empty state
+        "SHIELD": "◊",  # Diamond for security
+        "DIAMOND": "◆",  # Diamond shape
+        "LOCK": "▫",  # Small square for security
+        "KEYSTORE": "◈",  # Diamond pattern for keystore
+        "BOOKMARK": "▸",  # Right triangle for bookmarks
+        "FACTORY": "▣",  # Square pattern for factory items
+        "CLONE": "◈",  # Diamond pattern for clone operations
+        # Progress and status visualization
+        "PROGRESS_FULL": "█",  # Full block for progress bars
+        "PROGRESS_PARTIAL": "▌",  # Half block for progress bars
+        "PROGRESS_EMPTY": "░",  # Light shade for empty progress
+        "PROGRESS_QUARTER": "▎",  # Quarter block
+        "PROGRESS_HALF": "▌",  # Half block
+        "PROGRESS_THREE_QUARTER": "▊",  # Three quarter block
     }
 
     @classmethod
-    def get_icon(
-        cls, icon_name: str, icon_mode: IconMode | str = IconMode.EMOJI
-    ) -> str:
+    def get_icon(cls, icon_name: str, icon_mode: IconMode | str = IconMode.TEXT) -> str:
         """Get icon based on the specified mode.
 
         Args:
@@ -273,7 +324,7 @@ class Icons:
 
     @classmethod
     def format_with_icon(
-        cls, icon_name: str, text: str, icon_mode: IconMode | str = IconMode.EMOJI
+        cls, icon_name: str, text: str, icon_mode: IconMode | str = IconMode.TEXT
     ) -> str:
         """Format text with icon, handling empty icons gracefully.
 
@@ -331,21 +382,60 @@ class Icons:
 # Rich theme configuration
 GLOVEBOX_THEME = Theme(
     {
+        # Core status colors
         "success": Colors.SUCCESS,
         "error": Colors.ERROR,
         "warning": Colors.WARNING,
         "info": Colors.INFO,
+        # Operational states
+        "running": Colors.RUNNING,
+        "stopped": Colors.STOPPED,
+        "pending": Colors.PENDING,
+        "completed": Colors.COMPLETED,
+        "failed": Colors.FAILED,
+        # Availability states
+        "available": Colors.AVAILABLE,
+        "unavailable": Colors.UNAVAILABLE,
+        "busy": Colors.BUSY,
+        "unknown": Colors.UNKNOWN,
+        # Priority levels
+        "critical": Colors.CRITICAL,
+        "high": Colors.HIGH,
+        "medium": Colors.MEDIUM,
+        "low": Colors.LOW,
+        # Data states
+        "valid": Colors.VALID,
+        "invalid": Colors.INVALID,
+        "modified": Colors.MODIFIED,
+        "unchanged": Colors.UNCHANGED,
+        "new": Colors.NEW,
+        "deleted": Colors.DELETED,
+        # Progress colors
+        "progress_bar": Colors.PROGRESS_BAR,
+        "progress_complete": Colors.PROGRESS_COMPLETE,
+        "progress_partial": Colors.PROGRESS_PARTIAL,
+        "progress_failed": Colors.PROGRESS_FAILED,
+        "loading_spinner": Colors.LOADING_SPINNER,
+        "loading_text": Colors.LOADING_TEXT,
+        # UI elements
         "primary": Colors.PRIMARY,
         "secondary": Colors.SECONDARY,
         "accent": Colors.ACCENT,
         "muted": Colors.MUTED,
+        # Text hierarchy
         "header": Colors.HEADER,
         "subheader": Colors.SUBHEADER,
         "highlight": Colors.HIGHLIGHT,
-        "available": Colors.AVAILABLE,
-        "unavailable": Colors.UNAVAILABLE,
-        "unknown": Colors.UNKNOWN,
-        "busy": Colors.BUSY,
+        "field_name": Colors.FIELD_NAME,
+        "field_value": Colors.FIELD_VALUE,
+        # Contextual colors
+        "build": Colors.BUILD,
+        "compile": Colors.COMPILE,
+        "flash": Colors.FLASH,
+        "cache": Colors.CACHE,
+        "network": Colors.NETWORK,
+        "file": Colors.FILE,
+        "directory": Colors.DIRECTORY,
     }
 )
 
@@ -353,7 +443,7 @@ GLOVEBOX_THEME = Theme(
 class ThemedConsole:
     """Console wrapper with Glovebox theme applied."""
 
-    def __init__(self, icon_mode: IconMode | str = IconMode.EMOJI) -> None:
+    def __init__(self, icon_mode: IconMode | str = IconMode.TEXT) -> None:
         """Initialize themed console.
 
         Args:
@@ -600,7 +690,7 @@ class StatusIndicators:
 
 
 # Utility functions for quick access
-def get_themed_console(icon_mode: IconMode | str = IconMode.EMOJI) -> ThemedConsole:
+def get_themed_console(icon_mode: IconMode | str = IconMode.TEXT) -> ThemedConsole:
     """Get a themed console instance.
 
     Args:
@@ -677,7 +767,7 @@ def get_icon_mode_from_config(user_config: Any = None) -> IconMode:
         IconMode enum value: IconMode.EMOJI, IconMode.NERDFONT, or IconMode.TEXT
     """
     if user_config is None:
-        return IconMode.EMOJI
+        return IconMode.TEXT
 
     # Try new icon_mode field first
     if hasattr(user_config, "_config") and hasattr(user_config._config, "icon_mode"):
@@ -697,8 +787,8 @@ def get_icon_mode_from_config(user_config: Any = None) -> IconMode:
         emoji_mode = user_config.emoji_mode
         return IconMode.EMOJI if bool(emoji_mode) else IconMode.TEXT
 
-    # Default fallback
-    return IconMode.EMOJI
+    # Default fallback - TEXT mode is now default
+    return IconMode.TEXT
 
 
 def get_icon_mode_from_context(ctx: "typer.Context") -> IconMode:
@@ -708,15 +798,15 @@ def get_icon_mode_from_context(ctx: "typer.Context") -> IconMode:
         ctx: Typer context containing AppContext
 
     Returns:
-        IconMode enum value from user configuration, or EMOJI as fallback
+        IconMode enum value from user configuration, or TEXT as fallback
     """
     try:
         app_ctx = ctx.obj
         if app_ctx is None:
-            return IconMode.EMOJI
+            return IconMode.TEXT
 
         if not hasattr(app_ctx, "icon_mode"):
-            return IconMode.EMOJI
+            return IconMode.TEXT
 
         icon_mode_value = app_ctx.icon_mode
         if isinstance(icon_mode_value, IconMode):
@@ -725,9 +815,183 @@ def get_icon_mode_from_context(ctx: "typer.Context") -> IconMode:
             try:
                 return IconMode(icon_mode_value)
             except ValueError:
-                return IconMode.EMOJI
+                return IconMode.TEXT
         else:
-            return IconMode.EMOJI
+            return IconMode.TEXT
     except Exception:
         # Default fallback
-        return IconMode.EMOJI
+        return IconMode.TEXT
+
+
+# Enhanced status formatting functions
+def format_status_message(
+    message: str, status: str, icon_mode: IconMode | str = IconMode.TEXT
+) -> str:
+    """Format message with appropriate color and symbol based on status.
+
+    Args:
+        message: The message text
+        status: Status type (success, error, warning, info, running, etc.)
+        icon_mode: Icon mode for symbol selection
+
+    Returns:
+        Formatted string with Rich markup for color and icon
+    """
+    if isinstance(icon_mode, str):
+        icon_mode = IconMode(icon_mode)
+
+    status_map = {
+        "success": (Icons.get_icon("SUCCESS", icon_mode), Colors.SUCCESS),
+        "error": (Icons.get_icon("ERROR", icon_mode), Colors.ERROR),
+        "warning": (Icons.get_icon("WARNING", icon_mode), Colors.WARNING),
+        "info": (Icons.get_icon("INFO", icon_mode), Colors.INFO),
+        "running": (Icons.get_icon("RUNNING", icon_mode), Colors.RUNNING),
+        "stopped": (Icons.get_icon("STOPPED", icon_mode), Colors.STOPPED),
+        "pending": (Icons.get_icon("LOADING", icon_mode), Colors.PENDING),
+        "completed": (Icons.get_icon("COMPLETED", icon_mode), Colors.COMPLETED),
+        "failed": (Icons.get_icon("ERROR", icon_mode), Colors.FAILED),
+    }
+
+    symbol, color = status_map.get(
+        status.lower(), (Icons.get_icon("INFO", icon_mode), Colors.INFO)
+    )
+
+    if symbol:
+        return f"[{color}]{symbol} {message}[/]"
+    else:
+        return f"[{color}]{message}[/]"
+
+
+def format_operation_status(
+    operation: str, status: str, icon_mode: IconMode | str = IconMode.TEXT
+) -> str:
+    """Format operation with status-specific styling.
+
+    Args:
+        operation: The operation name (e.g., "Build", "Cache", "Export")
+        status: Status type
+        icon_mode: Icon mode for symbol selection
+
+    Returns:
+        Formatted string for operation status display
+    """
+    if isinstance(icon_mode, str):
+        icon_mode = IconMode(icon_mode)
+
+    # Map operations to specific icons
+    operation_icons = {
+        "build": "BUILD",
+        "cache": "SAVE",
+        "export": "UPLOAD",
+        "import": "DOWNLOAD",
+        "flash": "FLASH",
+        "compile": "BUILD",
+        "process": "RUNNING",
+        "create": "CREATING",
+        "update": "UPDATING",
+    }
+
+    icon_name = operation_icons.get(operation.lower(), "RUNNING")
+    icon = Icons.get_icon(icon_name, icon_mode)
+
+    # Map status to colors
+    status_colors = {
+        "success": Colors.SUCCESS,
+        "completed": Colors.COMPLETED,
+        "error": Colors.ERROR,
+        "failed": Colors.FAILED,
+        "running": Colors.RUNNING,
+        "pending": Colors.PENDING,
+        "warning": Colors.WARNING,
+    }
+
+    color = status_colors.get(status.lower(), Colors.INFO)
+
+    if icon:
+        return f"[{color}]{icon} {operation}[/]"
+    else:
+        return f"[{color}]{operation}[/]"
+
+
+def format_progress_bar(
+    current: int, total: int, width: int = 20, icon_mode: IconMode | str = IconMode.TEXT
+) -> str:
+    """Create a text-based progress bar using Unicode block characters.
+
+    Args:
+        current: Current progress value
+        total: Total progress value
+        width: Width of progress bar in characters
+        icon_mode: Icon mode (affects bar style)
+
+    Returns:
+        Formatted progress bar string
+    """
+    if isinstance(icon_mode, str):
+        icon_mode = IconMode(icon_mode)
+
+    if total == 0:
+        percentage = 0
+    else:
+        percentage = min(current / total, 1.0)
+
+    filled_width = int(percentage * width)
+    empty_width = width - filled_width
+
+    # Use appropriate progress characters based on mode
+    if icon_mode == IconMode.TEXT:
+        filled_char = Icons.get_icon("PROGRESS_FULL", icon_mode) or "█"
+        empty_char = Icons.get_icon("PROGRESS_EMPTY", icon_mode) or "░"
+    else:
+        filled_char = "█"  # Full block
+        empty_char = "░"  # Light shade
+
+    progress_bar = filled_char * filled_width + empty_char * empty_width
+
+    # Color the progress bar
+    if percentage == 1.0:
+        color = Colors.PROGRESS_COMPLETE
+    elif percentage > 0.5:
+        color = Colors.PROGRESS_BAR
+    elif percentage > 0:
+        color = Colors.PROGRESS_PARTIAL
+    else:
+        color = Colors.MUTED
+
+    return f"[{color}]{progress_bar}[/] {percentage:.0%}"
+
+
+def format_file_operation(
+    operation: str, filename: str, icon_mode: IconMode | str = IconMode.TEXT
+) -> str:
+    """Format file operation messages with consistent styling.
+
+    Args:
+        operation: File operation (create, read, write, delete, etc.)
+        filename: File name or path
+        icon_mode: Icon mode for symbol selection
+
+    Returns:
+        Formatted string for file operation
+    """
+    if isinstance(icon_mode, str):
+        icon_mode = IconMode(icon_mode)
+
+    operation_map = {
+        "create": ("SAVE", Colors.NEW),
+        "read": ("DOCUMENT", Colors.INFO),
+        "write": ("SAVE", Colors.MODIFIED),
+        "delete": ("TRASH", Colors.DELETED),
+        "copy": ("CLONE", Colors.INFO),
+        "move": ("ARROW", Colors.MODIFIED),
+        "upload": ("UPLOAD", Colors.RUNNING),
+        "download": ("DOWNLOAD", Colors.RUNNING),
+    }
+
+    icon_name, color = operation_map.get(operation.lower(), ("DOCUMENT", Colors.INFO))
+    icon = Icons.get_icon(icon_name, icon_mode)
+
+    if icon:
+        return f"[{color}]{icon} {operation.title()} {filename}[/]"
+    else:
+        return f"[{color}]{operation.title()} {filename}[/]"

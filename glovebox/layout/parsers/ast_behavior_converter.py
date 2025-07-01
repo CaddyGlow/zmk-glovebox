@@ -201,7 +201,8 @@ class ASTBehaviorConverter:
                 description = description.lstrip()
                 # Clean up excessive consecutive empty lines (3+ becomes 2)
                 import re
-                description = re.sub(r'\n\s*\n\s*\n+', '\n\n', description)
+
+                description = re.sub(r"\n\s*\n\s*\n+", "\n\n", description)
                 return description
 
         # Priority 2: Comments from parent node (for behaviors in behaviors blocks)
@@ -232,7 +233,8 @@ class ASTBehaviorConverter:
                 description = description.lstrip()
                 # Clean up excessive consecutive empty lines (3+ becomes 2)
                 import re
-                description = re.sub(r'\n\s*\n\s*\n+', '\n\n', description)
+
+                description = re.sub(r"\n\s*\n\s*\n+", "\n\n", description)
                 return description
 
         # Priority 3: Description property

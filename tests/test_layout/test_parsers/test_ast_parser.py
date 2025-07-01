@@ -698,7 +698,7 @@ class TestBehaviorConverterRegressionFixes:
 
     def test_combo_naming_prefix_removal(self):
         """Test that combo naming correctly removes 'combo_' prefix.
-        
+
         Regression fix: Combos were generated with 'combo_' prefix in device tree format
         but should use plain names in JSON format.
         """
@@ -714,18 +714,26 @@ class TestBehaviorConverterRegressionFixes:
         combo_node = DTNode(name="combo_escape", label="combo_escape")
 
         # Add properties
-        combo_node.add_property(DTProperty(
-            name="timeout-ms",
-            value=DTValue(type=DTValueType.INTEGER, value=50, raw="<50>")
-        ))
-        combo_node.add_property(DTProperty(
-            name="key-positions",
-            value=DTValue(type=DTValueType.ARRAY, value=[0, 1], raw="<0 1>")
-        ))
-        combo_node.add_property(DTProperty(
-            name="bindings",
-            value=DTValue(type=DTValueType.ARRAY, value=["&kp", "ESC"], raw="<&kp ESC>")
-        ))
+        combo_node.add_property(
+            DTProperty(
+                name="timeout-ms",
+                value=DTValue(type=DTValueType.INTEGER, value=50, raw="<50>"),
+            )
+        )
+        combo_node.add_property(
+            DTProperty(
+                name="key-positions",
+                value=DTValue(type=DTValueType.ARRAY, value=[0, 1], raw="<0 1>"),
+            )
+        )
+        combo_node.add_property(
+            DTProperty(
+                name="bindings",
+                value=DTValue(
+                    type=DTValueType.ARRAY, value=["&kp", "ESC"], raw="<&kp ESC>"
+                ),
+            )
+        )
 
         # Convert using the model converter
         converter = create_universal_model_converter()
@@ -739,18 +747,28 @@ class TestBehaviorConverterRegressionFixes:
         combo_node2 = DTNode(name="combo_ctrl_c", label="combo_ctrl_c")
 
         # Add properties
-        combo_node2.add_property(DTProperty(
-            name="timeout-ms",
-            value=DTValue(type=DTValueType.INTEGER, value=40, raw="<40>")
-        ))
-        combo_node2.add_property(DTProperty(
-            name="key-positions",
-            value=DTValue(type=DTValueType.ARRAY, value=[5, 6], raw="<5 6>")
-        ))
-        combo_node2.add_property(DTProperty(
-            name="bindings",
-            value=DTValue(type=DTValueType.ARRAY, value=["&kp", "LC", "(", "C", ")"], raw="<&kp LC(C)>")
-        ))
+        combo_node2.add_property(
+            DTProperty(
+                name="timeout-ms",
+                value=DTValue(type=DTValueType.INTEGER, value=40, raw="<40>"),
+            )
+        )
+        combo_node2.add_property(
+            DTProperty(
+                name="key-positions",
+                value=DTValue(type=DTValueType.ARRAY, value=[5, 6], raw="<5 6>"),
+            )
+        )
+        combo_node2.add_property(
+            DTProperty(
+                name="bindings",
+                value=DTValue(
+                    type=DTValueType.ARRAY,
+                    value=["&kp", "LC", "(", "C", ")"],
+                    raw="<&kp LC(C)>",
+                ),
+            )
+        )
 
         combo_behavior2 = converter.combo_converter.convert(combo_node2)
         assert combo_behavior2.name == "ctrl_c"
@@ -758,7 +776,7 @@ class TestBehaviorConverterRegressionFixes:
 
     def test_hold_tap_behavior_conversion_with_all_properties(self):
         """Test hold-tap behavior conversion handles all properties correctly.
-        
+
         Regression fix: Ensure all hold-tap properties are properly extracted and converted.
         """
         from glovebox.layout.parsers import create_universal_model_converter
@@ -773,34 +791,60 @@ class TestBehaviorConverterRegressionFixes:
         ht_node = DTNode(name="homerow_mods", label="hm")
 
         # Add properties
-        ht_node.add_property(DTProperty(
-            name="compatible",
-            value=DTValue(type=DTValueType.STRING, value="zmk,behavior-hold-tap", raw='"zmk,behavior-hold-tap"')
-        ))
-        ht_node.add_property(DTProperty(
-            name="label",
-            value=DTValue(type=DTValueType.STRING, value="HOMEROW_MODS", raw='"HOMEROW_MODS"')
-        ))
-        ht_node.add_property(DTProperty(
-            name="#binding-cells",
-            value=DTValue(type=DTValueType.INTEGER, value=2, raw="<2>")
-        ))
-        ht_node.add_property(DTProperty(
-            name="tapping-term-ms",
-            value=DTValue(type=DTValueType.INTEGER, value=150, raw="<150>")
-        ))
-        ht_node.add_property(DTProperty(
-            name="quick-tap-ms",
-            value=DTValue(type=DTValueType.INTEGER, value=0, raw="<0>")
-        ))
-        ht_node.add_property(DTProperty(
-            name="flavor",
-            value=DTValue(type=DTValueType.STRING, value="tap-preferred", raw='"tap-preferred"')
-        ))
-        ht_node.add_property(DTProperty(
-            name="bindings",
-            value=DTValue(type=DTValueType.ARRAY, value=["&kp", "&kp"], raw="<&kp>, <&kp>")
-        ))
+        ht_node.add_property(
+            DTProperty(
+                name="compatible",
+                value=DTValue(
+                    type=DTValueType.STRING,
+                    value="zmk,behavior-hold-tap",
+                    raw='"zmk,behavior-hold-tap"',
+                ),
+            )
+        )
+        ht_node.add_property(
+            DTProperty(
+                name="label",
+                value=DTValue(
+                    type=DTValueType.STRING, value="HOMEROW_MODS", raw='"HOMEROW_MODS"'
+                ),
+            )
+        )
+        ht_node.add_property(
+            DTProperty(
+                name="#binding-cells",
+                value=DTValue(type=DTValueType.INTEGER, value=2, raw="<2>"),
+            )
+        )
+        ht_node.add_property(
+            DTProperty(
+                name="tapping-term-ms",
+                value=DTValue(type=DTValueType.INTEGER, value=150, raw="<150>"),
+            )
+        )
+        ht_node.add_property(
+            DTProperty(
+                name="quick-tap-ms",
+                value=DTValue(type=DTValueType.INTEGER, value=0, raw="<0>"),
+            )
+        )
+        ht_node.add_property(
+            DTProperty(
+                name="flavor",
+                value=DTValue(
+                    type=DTValueType.STRING,
+                    value="tap-preferred",
+                    raw='"tap-preferred"',
+                ),
+            )
+        )
+        ht_node.add_property(
+            DTProperty(
+                name="bindings",
+                value=DTValue(
+                    type=DTValueType.ARRAY, value=["&kp", "&kp"], raw="<&kp>, <&kp>"
+                ),
+            )
+        )
 
         # Convert using the model converter
         converter = create_universal_model_converter()
@@ -814,7 +858,7 @@ class TestBehaviorConverterRegressionFixes:
         assert len(ht_behavior.bindings) == 2
 
         # Bindings may be strings or LayoutBinding objects depending on converter implementation
-        if hasattr(ht_behavior.bindings[0], 'value'):
+        if hasattr(ht_behavior.bindings[0], "value"):
             assert ht_behavior.bindings[0].value == "&kp"
             assert ht_behavior.bindings[1].value == "&kp"
         else:
@@ -823,7 +867,7 @@ class TestBehaviorConverterRegressionFixes:
 
     def test_macro_behavior_conversion_with_complex_bindings(self):
         """Test macro behavior conversion handles complex binding arrays.
-        
+
         Regression fix: Macro bindings with multiple parameters and comma-separated
         format should be properly parsed and converted.
         """
@@ -839,34 +883,64 @@ class TestBehaviorConverterRegressionFixes:
         macro_node = DTNode(name="hello_world", label="hello")
 
         # Add properties
-        macro_node.add_property(DTProperty(
-            name="compatible",
-            value=DTValue(type=DTValueType.STRING, value="zmk,behavior-macro", raw='"zmk,behavior-macro"')
-        ))
-        macro_node.add_property(DTProperty(
-            name="label",
-            value=DTValue(type=DTValueType.STRING, value="hello_world", raw='"hello_world"')
-        ))
-        macro_node.add_property(DTProperty(
-            name="#binding-cells",
-            value=DTValue(type=DTValueType.INTEGER, value=0, raw="<0>")
-        ))
-        macro_node.add_property(DTProperty(
-            name="wait-ms",
-            value=DTValue(type=DTValueType.INTEGER, value=30, raw="<30>")
-        ))
-        macro_node.add_property(DTProperty(
-            name="tap-ms",
-            value=DTValue(type=DTValueType.INTEGER, value=40, raw="<40>")
-        ))
-        macro_node.add_property(DTProperty(
-            name="bindings",
-            value=DTValue(
-                type=DTValueType.ARRAY,
-                value=["&macro_tap", "&kp", "H", "&kp", "E", "&kp", "L", "&kp", "L", "&kp", "O"],
-                raw="<&macro_tap &kp H &kp E &kp L &kp L &kp O>"
+        macro_node.add_property(
+            DTProperty(
+                name="compatible",
+                value=DTValue(
+                    type=DTValueType.STRING,
+                    value="zmk,behavior-macro",
+                    raw='"zmk,behavior-macro"',
+                ),
             )
-        ))
+        )
+        macro_node.add_property(
+            DTProperty(
+                name="label",
+                value=DTValue(
+                    type=DTValueType.STRING, value="hello_world", raw='"hello_world"'
+                ),
+            )
+        )
+        macro_node.add_property(
+            DTProperty(
+                name="#binding-cells",
+                value=DTValue(type=DTValueType.INTEGER, value=0, raw="<0>"),
+            )
+        )
+        macro_node.add_property(
+            DTProperty(
+                name="wait-ms",
+                value=DTValue(type=DTValueType.INTEGER, value=30, raw="<30>"),
+            )
+        )
+        macro_node.add_property(
+            DTProperty(
+                name="tap-ms",
+                value=DTValue(type=DTValueType.INTEGER, value=40, raw="<40>"),
+            )
+        )
+        macro_node.add_property(
+            DTProperty(
+                name="bindings",
+                value=DTValue(
+                    type=DTValueType.ARRAY,
+                    value=[
+                        "&macro_tap",
+                        "&kp",
+                        "H",
+                        "&kp",
+                        "E",
+                        "&kp",
+                        "L",
+                        "&kp",
+                        "L",
+                        "&kp",
+                        "O",
+                    ],
+                    raw="<&macro_tap &kp H &kp E &kp L &kp L &kp O>",
+                ),
+            )
+        )
 
         # Convert using the model converter
         converter = create_universal_model_converter()

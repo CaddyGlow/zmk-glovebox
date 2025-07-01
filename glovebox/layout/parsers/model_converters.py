@@ -645,7 +645,7 @@ class ModelConverter:
             # Include empty lines and non-TODO/FIXME comments for multi-line descriptions
             if not desc.startswith("TODO") and not desc.startswith("FIXME"):
                 comment_lines.append(desc)
-        
+
         if comment_lines:
             # Join all comment lines preserving empty lines for multi-line formatting
             description = "\n".join(comment_lines)
@@ -653,10 +653,13 @@ class ModelConverter:
             description = description.lstrip()
             # Clean up excessive consecutive empty lines (3+ becomes 2)
             import re
-            description = re.sub(r'\n\s*\n\s*\n+', '\n\n', description)
+
+            description = re.sub(r"\n\s*\n\s*\n+", "\n\n", description)
             if description:  # Only return if final description is not empty
                 self.logger.debug(
-                    "Using comment as description for %s: %s", node.name, description[:50]
+                    "Using comment as description for %s: %s",
+                    node.name,
+                    description[:50],
                 )
                 return description
 
@@ -968,7 +971,7 @@ class ComboConverter(ModelConverter):
         try:
             # Extract name
             name = node.label or node.name
-            
+
             # Combos use plain names without & prefix in JSON format
             # Also strip "combo_" prefix if present (device tree vs JSON format difference)
             behavior_name = name

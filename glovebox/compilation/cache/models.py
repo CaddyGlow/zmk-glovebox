@@ -66,66 +66,42 @@ class WorkspaceExportResult(GloveboxBaseModel):
     success: bool
     export_path: Annotated[
         Path | None,
-        Field(
-            default=None,
-            description="Path to the exported archive file"
-        )
+        Field(default=None, description="Path to the exported archive file"),
     ]
     metadata: Annotated[
         "WorkspaceCacheMetadata | None",
-        Field(
-            default=None,
-            description="Metadata of the exported workspace"
-        )
+        Field(default=None, description="Metadata of the exported workspace"),
     ]
     archive_format: Annotated[
         ArchiveFormat | None,
-        Field(
-            default=None,
-            description="Format of the created archive"
-        )
+        Field(default=None, description="Format of the created archive"),
     ]
     archive_size_bytes: Annotated[
         int | None,
-        Field(
-            default=None,
-            description="Size of the created archive in bytes"
-        )
+        Field(default=None, description="Size of the created archive in bytes"),
     ]
     original_size_bytes: Annotated[
-        int | None,
-        Field(
-            default=None,
-            description="Original workspace size in bytes"
-        )
+        int | None, Field(default=None, description="Original workspace size in bytes")
     ]
     compression_ratio: Annotated[
         float | None,
         Field(
             default=None,
-            description="Compression ratio (compressed_size / original_size)"
-        )
+            description="Compression ratio (compressed_size / original_size)",
+        ),
     ]
     export_duration_seconds: Annotated[
         float | None,
         Field(
-            default=None,
-            description="Time taken to export the workspace in seconds"
-        )
+            default=None, description="Time taken to export the workspace in seconds"
+        ),
     ]
     files_count: Annotated[
         int | None,
-        Field(
-            default=None,
-            description="Number of files included in the export"
-        )
+        Field(default=None, description="Number of files included in the export"),
     ]
     error_message: Annotated[
-        str | None,
-        Field(
-            default=None,
-            description="Error message if export failed"
-        )
+        str | None, Field(default=None, description="Error message if export failed")
     ]
 
     @property
@@ -269,6 +245,55 @@ class WorkspaceCacheMetadata(GloveboxBaseModel):
         Field(default=None, description="Optional notes about this cache entry"),
     ]
 
+    # Enhanced workspace creation metadata
+    creation_method: Annotated[
+        str,
+        Field(
+            default="compilation",
+            description="How workspace was created: 'direct', 'compilation', 'import', etc.",
+        ),
+    ]
+
+    docker_image: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description="Docker image used for workspace creation (e.g., 'zmkfirmware/zmk-dev-arm:stable')",
+        ),
+    ]
+
+    west_manifest_path: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description="Path to west manifest file relative to workspace root",
+        ),
+    ]
+
+    dependencies_updated: Annotated[
+        datetime | None,
+        Field(
+            default=None,
+            description="Timestamp when dependencies were last updated (west update)",
+        ),
+    ]
+
+    creation_profile: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description="Keyboard/firmware profile used during workspace creation",
+        ),
+    ]
+
+    git_remotes: Annotated[
+        dict[str, str],
+        Field(
+            default_factory=dict,
+            description="Git remote URLs for tracked repositories (name -> URL mapping)",
+        ),
+    ]
+
     @property
     def cache_key_components(self) -> dict[str, str]:
         """Components used to generate the cache key for this metadata."""
@@ -391,3 +416,69 @@ class WorkspaceCacheMetadata(GloveboxBaseModel):
         self.repository = detected_repo
         self.branch = detected_branch
         self.notes = f"Auto-detected from {source_path}"
+
+    def update_dependencies_timestamp(self) -> None:
+        """Update the dependencies updated timestamp to current time."""
+        self.dependencies_updated = datetime.now()
+
+    def add_git_remote(self, name: str, url: str) -> None:
+        """Add or update a git remote.
+
+        Args:
+            name: Remote name (e.g., 'origin', 'upstream')
+            url: Remote URL
+        """
+        self.git_remotes[name] = url
+
+    def get_git_remote(self, name: str) -> str | None:
+        """Get a git remote URL by name.
+
+        Args:
+            name: Remote name to lookup
+
+        Returns:
+            Remote URL if found, None otherwise
+        """
+        return self.git_remotes.get(name)
+
+    def set_creation_context(
+        self,
+        method: str,
+        docker_image: str | None = None,
+        profile: str | None = None,
+        west_manifest: str | None = None,
+    ) -> None:
+        """Set workspace creation context information.
+
+        Args:
+            method: Creation method ('direct', 'compilation', 'import', etc.)
+            docker_image: Docker image used for creation
+            profile: Keyboard/firmware profile used
+            west_manifest: Path to west manifest file
+        """
+        self.creation_method = method
+        if docker_image is not None:
+            self.docker_image = docker_image
+        if profile is not None:
+            self.creation_profile = profile
+        if west_manifest is not None:
+            self.west_manifest_path = west_manifest
+
+    @property
+    def is_direct_creation(self) -> bool:
+        """Check if workspace was created directly (not via compilation)."""
+        return self.creation_method == "direct"
+
+    @property
+    def dependencies_age_hours(self) -> float | None:
+        """Age of dependencies in hours since last update."""
+        if self.dependencies_updated is None:
+            return None
+        delta = datetime.now() - self.dependencies_updated
+        return delta.total_seconds() / 3600
+
+    @property
+    def are_dependencies_stale(self) -> bool:
+        """Check if dependencies might be stale (older than 3 days)."""
+        age = self.dependencies_age_hours
+        return age is not None and age > (3 * 24)
