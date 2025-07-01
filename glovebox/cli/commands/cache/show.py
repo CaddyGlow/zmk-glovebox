@@ -8,6 +8,7 @@ from rich.console import Console
 from rich.table import Table
 
 from glovebox.cli.helpers.parameters import OutputFormatOption
+from glovebox.cli.helpers.theme import Colors, Icons, get_themed_console
 from glovebox.config.user_config import create_user_config
 
 from .utils import (
@@ -19,7 +20,8 @@ from .utils import (
 
 
 logger = logging.getLogger(__name__)
-console = Console()
+themed_console = get_themed_console("text")
+console = themed_console.console
 
 
 def cache_show(
@@ -201,17 +203,22 @@ def cache_show(
             print(formatter.format(cache_data, "json"))
             return
 
-        console.print("[bold]Glovebox Cache System Overview[/bold]")
+        console.print(
+            f"[bold]{Colors.PRIMARY}Glovebox Cache System Overview[/{Colors.PRIMARY}][/bold]"
+        )
         console.print("=" * 60)
 
         # Show performance statistics if requested or in verbose mode
         if stats or verbose:
-            console.print("\n[bold cyan]📊 Cache Performance Statistics[/bold cyan]")
+            stats_icon = Icons.get_icon("INFO", "text")
+            console.print(
+                f"\n[bold {Colors.INFO}]{stats_icon} Cache Performance Statistics[/{Colors.INFO}][/bold]"
+            )
             cache_stats = cache_manager.get_stats()
 
-            table = Table(show_header=True, header_style="bold blue")
-            table.add_column("Metric", style="cyan")
-            table.add_column("Value", style="white")
+            table = Table(show_header=True, header_style=f"bold {Colors.INFO}")
+            table.add_column("Metric", style=Colors.PRIMARY)
+            table.add_column("Value", style=Colors.SUCCESS)
             table.add_column("Details", style="dim")
 
             table.add_row(
@@ -244,7 +251,10 @@ def cache_show(
             console.print(table)
 
         # Show workspace cache information using the service
-        console.print("\n[bold cyan]🏗️  Workspace Cache (ZMK Compilation)[/bold cyan]")
+        workspace_icon = Icons.get_icon("FOLDER", "text")
+        console.print(
+            f"\n[bold {Colors.INFO}]{workspace_icon} Workspace Cache (ZMK Compilation)[/{Colors.INFO}][/bold]"
+        )
         cache_manager, workspace_cache_service, user_config = (
             get_cache_manager_and_service()
         )
@@ -286,15 +296,17 @@ def cache_show(
 
                 # Create detailed table for verbose mode
                 if verbose:
-                    table = Table(show_header=True, header_style="bold green")
-                    table.add_column("Repository", style="cyan")
-                    table.add_column("Branch", style="yellow")
-                    table.add_column("Level", style="magenta")
-                    table.add_column("Size", style="white")
-                    table.add_column("Age", style="blue")
-                    table.add_column("Components", style="green")
+                    table = Table(
+                        show_header=True, header_style=f"bold {Colors.SUCCESS}"
+                    )
+                    table.add_column("Repository", style=Colors.PRIMARY)
+                    table.add_column("Branch", style=Colors.WARNING)
+                    table.add_column("Level", style=Colors.INFO)
+                    table.add_column("Size", style=Colors.SUCCESS)
+                    table.add_column("Age", style=Colors.INFO)
+                    table.add_column("Components", style=Colors.SUCCESS)
                     table.add_column("Path", style="dim")
-                    table.add_column("Status", style="white")
+                    table.add_column("Status", style=Colors.SUCCESS)
 
                     for workspace in sorted(
                         cached_workspaces, key=lambda x: x.repository
@@ -372,11 +384,16 @@ def cache_show(
                             f"(level: {cache_level_str}, age: {age_str}){auto_detected_marker}{components_str}"
                         )
         else:
-            console.print("[yellow]No cached workspaces found[/yellow]")
+            console.print(
+                f"[{Colors.WARNING}]No cached workspaces found[/{Colors.WARNING}]"
+            )
             console.print(f"[dim]Cache directory: {cache_dir}[/dim]")
 
         # Show DiskCache information
-        console.print("\n[bold cyan]💾 DiskCache System (Domain Modules)[/bold cyan]")
+        disk_icon = Icons.get_icon("FILE", "text")
+        console.print(
+            f"\n[bold {Colors.INFO}]{disk_icon} DiskCache System (Domain Modules)[/{Colors.INFO}][/bold]"
+        )
         try:
             user_config = create_user_config()
             diskcache_root = user_config._config.cache_path
@@ -460,11 +477,11 @@ def cache_show(
 
                             except Exception as e:
                                 console.print(
-                                    f"  • [yellow]Could not access cache stats: {e}[/yellow]"
+                                    f"  • [{Colors.WARNING}]Could not access cache stats: {e}[/{Colors.WARNING}]"
                                 )
                         else:
                             console.print(
-                                f"[yellow]Module '{module}' not found in cache[/yellow]"
+                                f"[{Colors.WARNING}]Module '{module}' not found in cache[/{Colors.WARNING}]"
                             )
                     else:
                         console.print("\n[bold]Module Caches:[/bold]")
@@ -473,12 +490,14 @@ def cache_show(
 
                         if verbose:
                             # Detailed table view
-                            table = Table(show_header=True, header_style="bold blue")
-                            table.add_column("Module", style="cyan")
-                            table.add_column("Size", style="white")
-                            table.add_column("Files", style="blue")
-                            table.add_column("Entries", style="green")
-                            table.add_column("Hit Rate", style="yellow")
+                            table = Table(
+                                show_header=True, header_style=f"bold {Colors.INFO}"
+                            )
+                            table.add_column("Module", style=Colors.PRIMARY)
+                            table.add_column("Size", style=Colors.SUCCESS)
+                            table.add_column("Files", style=Colors.INFO)
+                            table.add_column("Entries", style=Colors.SUCCESS)
+                            table.add_column("Hit Rate", style=Colors.WARNING)
                             table.add_column("Path", style="dim")
 
                             for cache_dir_item in sorted(cache_subdirs)[
@@ -523,14 +542,21 @@ def cache_show(
                                     f"  • {module_name}: {format_size_display(size)}"
                                 )
             else:
-                console.print("[yellow]No DiskCache directory found[/yellow]")
+                console.print(
+                    f"[{Colors.WARNING}]No DiskCache directory found[/{Colors.WARNING}]"
+                )
                 console.print(f"[dim]Would be located at: {diskcache_root}[/dim]")
         except Exception as e:
-            console.print(f"[red]Error accessing DiskCache info: {e}[/red]")
+            console.print(
+                f"[{Colors.ERROR}]Error accessing DiskCache info: {e}[/{Colors.ERROR}]"
+            )
 
         # Show cache coordination information if verbose
         if verbose:
-            console.print("\n[bold cyan]🔗 Cache Coordination System[/bold cyan]")
+            coordination_icon = Icons.get_icon("INFO", "text")
+            console.print(
+                f"\n[bold {Colors.INFO}]{coordination_icon} Cache Coordination System[/{Colors.INFO}][/bold]"
+            )
             try:
                 from glovebox.core.cache import (
                     get_cache_instance_count,
@@ -547,11 +573,14 @@ def cache_show(
 
             except Exception as e:
                 console.print(
-                    f"[yellow]Could not access coordination info: {e}[/yellow]"
+                    f"[{Colors.WARNING}]Could not access coordination info: {e}[/{Colors.WARNING}]"
                 )
 
         # Show usage instructions
-        console.print("\n[bold cyan]🛠️  Cache Management Commands[/bold cyan]")
+        tools_icon = Icons.get_icon("INFO", "text")
+        console.print(
+            f"\n[bold {Colors.INFO}]{tools_icon} Cache Management Commands[/{Colors.INFO}][/bold]"
+        )
         console.print("[dim]Workspace cache:[/dim]")
         console.print("  • glovebox cache workspace show")
         console.print("  • glovebox cache workspace add <path|zip|url>")
@@ -572,6 +601,7 @@ def cache_show(
         console.print("  • glovebox cache debug")
 
     except Exception as e:
-        logger.error("Failed to show cache info: %s", e)
-        console.print(f"[red]Error: {e}[/red]")
+        exc_info = logger.isEnabledFor(logging.DEBUG)
+        logger.error("Failed to show cache info: %s", e, exc_info=exc_info)
+        console.print(f"[{Colors.ERROR}]Error: {e}[/{Colors.ERROR}]")
         raise typer.Exit(1) from e

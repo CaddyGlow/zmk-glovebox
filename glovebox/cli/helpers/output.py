@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 def print_success_message(
     message: str,
     use_rich: bool = True,
-    use_emoji: bool = True,
+    use_emoji: bool = False,
     icon_mode: "IconMode | str | None" = None,
 ) -> None:
     """Print a success message with a checkmark.
@@ -23,7 +23,7 @@ def print_success_message(
     Args:
         message: The message to print
         use_rich: Whether to use Rich formatting (default: True)
-        use_emoji: Whether to use emoji icons (default: True) - legacy parameter
+        use_emoji: Whether to use emoji icons (default: False) - legacy parameter
         icon_mode: Icon mode override (IconMode enum or string)
     """
     from glovebox.cli.helpers.theme import IconMode
@@ -45,7 +45,7 @@ def print_success_message(
 
 
 def print_error_message(
-    message: str, use_rich: bool = True, icon_mode: "IconMode | str" = "emoji"
+    message: str, use_rich: bool = True, icon_mode: "IconMode | str" = "text"
 ) -> None:
     """Print an error message with an X symbol.
 
@@ -74,7 +74,7 @@ def print_list_item(
     item: str,
     indent: int = 1,
     use_rich: bool = True,
-    icon_mode: "IconMode | str" = "emoji",
+    icon_mode: "IconMode | str" = "text",
 ) -> None:
     """Print a list item with bullet and indentation.
 
@@ -100,7 +100,7 @@ def print_list_item(
         print(f"{' ' * (indent * 2)}{bullet} {item}")
 
 
-def print_result(result: BaseResult, icon_mode: str = "emoji") -> None:
+def print_result(result: BaseResult, icon_mode: str = "text") -> None:
     """Print operation result with appropriate formatting.
 
     Args:
@@ -129,7 +129,7 @@ def print_result(result: BaseResult, icon_mode: str = "emoji") -> None:
 
 # Rich-enhanced helper functions
 def print_info_message(
-    message: str, use_rich: bool = True, icon_mode: "IconMode | str" = "emoji"
+    message: str, use_rich: bool = True, icon_mode: "IconMode | str" = "text"
 ) -> None:
     """Print an info message with icon.
 
@@ -155,7 +155,7 @@ def print_info_message(
 
 
 def print_warning_message(
-    message: str, use_rich: bool = True, icon_mode: "IconMode | str" = "emoji"
+    message: str, use_rich: bool = True, icon_mode: "IconMode | str" = "text"
 ) -> None:
     """Print a warning message with icon.
 
@@ -181,7 +181,7 @@ def print_warning_message(
 
 
 def print_header_panel(
-    title: str, subtitle: str = "", icon: str = "", icon_mode: str = "emoji"
+    title: str, subtitle: str = "", icon: str = "", icon_mode: str = "text"
 ) -> None:
     """Print a styled header panel using Rich.
 
@@ -199,7 +199,7 @@ def print_header_panel(
 
 
 def print_device_table(
-    devices: list[dict[str, Any]], icon_mode: "IconMode | str" = "emoji"
+    devices: list[dict[str, Any]], icon_mode: "IconMode | str" = "text"
 ) -> None:
     """Print devices in a formatted Rich table.
 
@@ -219,7 +219,7 @@ def print_device_table(
 
 
 def print_status_table(
-    status_data: dict[str, Any], icon_mode: "IconMode | str" = "emoji"
+    status_data: dict[str, Any], icon_mode: "IconMode | str" = "text"
 ) -> None:
     """Print status information in a formatted Rich table.
 
@@ -250,7 +250,7 @@ def print_status_table(
 
 
 def print_configuration_table(
-    config_data: dict[str, Any], icon_mode: "IconMode | str" = "emoji"
+    config_data: dict[str, Any], icon_mode: "IconMode | str" = "text"
 ) -> None:
     """Print configuration in a formatted Rich table.
 

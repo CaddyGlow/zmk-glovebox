@@ -21,6 +21,8 @@ from rich.progress import (
 from rich.table import Table
 from rich.text import Text
 
+from glovebox.cli.helpers.theme import Colors, IconMode, Icons, format_status_message
+
 
 if TYPE_CHECKING:
     pass
@@ -32,10 +34,23 @@ logger = logging.getLogger(__name__)
 class ProgressConfig:
     """Configuration for customizable progress display."""
 
-    title_processing: str = "→ Processing"
-    title_complete: str = "✓ Operation Complete"
-    title_failed: str = "✗ Operation Failed"
     operation_name: str = "Operation"
+    icon_mode: IconMode = IconMode.TEXT
+
+    @property
+    def title_processing(self) -> str:
+        """Get processing title with appropriate icon."""
+        return Icons.format_with_icon("PROCESSING", "Processing", self.icon_mode)
+
+    @property
+    def title_complete(self) -> str:
+        """Get completion title with appropriate icon."""
+        return Icons.format_with_icon("SUCCESS", "Operation Complete", self.icon_mode)
+
+    @property
+    def title_failed(self) -> str:
+        """Get failure title with appropriate icon."""
+        return Icons.format_with_icon("ERROR", "Operation Failed", self.icon_mode)
 
     # Fully customizable task list - just task names in order
     tasks: list[str] = field(
@@ -53,7 +68,10 @@ class SimpleCompilationDisplay:
     """Simple Rich-based compilation progress display with task status indicators."""
 
     def __init__(
-        self, console: Console | None = None, config: ProgressConfig | None = None
+        self,
+        console: Console | None = None,
+        config: ProgressConfig | None = None,
+        icon_mode: IconMode = IconMode.TEXT,
     ) -> None:
         """Initialize the simple compilation display.
 
@@ -62,7 +80,14 @@ class SimpleCompilationDisplay:
             config: Progress configuration. If None, uses default compilation-focused config.
         """
         self.console = console or Console()
-        self.config = config or ProgressConfig()
+        # If no config provided, create one with the icon_mode
+        if config is None:
+            config = ProgressConfig(icon_mode=icon_mode)
+        else:
+            # Update existing config's icon_mode
+            config.icon_mode = icon_mode
+        self.config = config
+        self.icon_mode = icon_mode
         self._live: Live | None = None
         self._progress: Progress | None = None
         self._current_task_id: TaskID | None = None
@@ -199,7 +224,7 @@ class SimpleCompilationDisplay:
         """
         # Create main content table
         table = Table.grid(padding=(0, 1))
-        table.add_column(style="white", no_wrap=False, width=None)
+        table.add_column(style=Colors.NORMAL, no_wrap=False, width=None)
 
         # Get current active task info
         active_task_name = "Processing"
@@ -220,16 +245,18 @@ class SimpleCompilationDisplay:
 
         # Create main progress display as a simple text line with inline progress bar
         progress_text = Text()
-        progress_text.append(f"{active_task_name}... ", style="bold blue")
+        progress_text.append(f"{active_task_name}... ", style=Colors.PRIMARY)
 
-        # Create inline progress bar
+        # Create inline progress bar using theme-aware characters
         bar_width = 40
         filled_width = int((active_percentage / 100.0) * bar_width)
         empty_width = bar_width - filled_width
 
-        progress_bar = "█" * filled_width + "░" * empty_width
-        progress_text.append(progress_bar, style="cyan")
-        progress_text.append(f" {active_percentage:>5.1f}%", style="bold")
+        filled_char = Icons.get_icon("PROGRESS_FULL", self.icon_mode) or "█"
+        empty_char = Icons.get_icon("PROGRESS_EMPTY", self.icon_mode) or "░"
+        progress_bar = filled_char * filled_width + empty_char * empty_width
+        progress_text.append(progress_bar, style=Colors.PROGRESS_BAR)
+        progress_text.append(f" {active_percentage:>5.1f}%", style=Colors.HIGHLIGHT)
 
         # Add main progress line
         table.add_row(progress_text)
@@ -240,14 +267,14 @@ class SimpleCompilationDisplay:
 
             # Create status text with proper styling
             status_text = Text()
-            status_text.append("Status: ", style="dim")
+            status_text.append("Status: ", style=Colors.MUTED)
 
             # Truncate long status info
             display_status = status_info
             if len(display_status) > 80:
                 display_status = display_status[:77] + "..."
 
-            status_text.append(display_status, style="cyan")
+            status_text.append(display_status, style=Colors.INFO)
             table.add_row(status_text)
 
         # Add overall progress summary
@@ -264,20 +291,22 @@ class SimpleCompilationDisplay:
 
             # Create simple overall progress line
             overall_text = Text()
-            overall_text.append("Overall: ", style="dim")
+            overall_text.append("Overall: ", style=Colors.MUTED)
 
-            # Create smaller inline progress bar for overall
+            # Create smaller inline progress bar for overall using theme-aware characters
             overall_bar_width = 30
             overall_filled_width = int((overall_percentage / 100.0) * overall_bar_width)
             overall_empty_width = overall_bar_width - overall_filled_width
 
+            filled_char = Icons.get_icon("PROGRESS_FULL", self.icon_mode) or "█"
+            empty_char = Icons.get_icon("PROGRESS_EMPTY", self.icon_mode) or "░"
             overall_progress_bar = (
-                "█" * overall_filled_width + "░" * overall_empty_width
+                filled_char * overall_filled_width + empty_char * overall_empty_width
             )
-            overall_text.append(overall_progress_bar, style="dim cyan")
+            overall_text.append(overall_progress_bar, style=Colors.LOADING_TEXT)
             overall_text.append(
                 f" {overall_percentage:>5.1f}% ({completed_tasks}/{total_tasks} tasks)",
-                style="dim",
+                style=Colors.MUTED,
             )
 
             table.add_row(overall_text)
@@ -292,16 +321,16 @@ class SimpleCompilationDisplay:
 
             # Create task status line
             task_line = Text()
-            task_line.append(f" {status_icon} ", style="white")
+            task_line.append(f" {status_icon} ", style=Colors.NORMAL)
 
             if task["status"] == "active":
-                task_line.append(task_name, style="bold cyan")
+                task_line.append(task_name, style=Colors.RUNNING)
             elif task["status"] == "completed":
-                task_line.append(task_name, style="dim green")
+                task_line.append(task_name, style=Colors.COMPLETED)
             elif task["status"] == "failed":
-                task_line.append(task_name, style="dim red")
+                task_line.append(task_name, style=Colors.FAILED)
             else:
-                task_line.append(task_name, style="dim")
+                task_line.append(task_name, style=Colors.MUTED)
 
             table.add_row(task_line)
 
@@ -309,16 +338,16 @@ class SimpleCompilationDisplay:
         elapsed = time.time() - self._start_time
         elapsed_str = f"Elapsed: {elapsed:.1f}s"
 
-        # Determine title based on state - using config
+        # Determine title based on state - using config properties
         if self._is_complete:
             title = self.config.title_complete
-            border_style = "green"
+            border_style = Colors.SUCCESS
         elif self._is_failed:
             title = self.config.title_failed
-            border_style = "red"
+            border_style = Colors.ERROR
         else:
             title = self.config.title_processing
-            border_style = "blue"
+            border_style = Colors.INFO
 
         return Panel(
             table,
@@ -334,13 +363,13 @@ class SimpleCompilationDisplay:
             message: The log message to display
             level: Log level (info, warning, error, debug)
         """
-        # Style the message based on level
+        # Style the message based on level using theme helpers
         if level == "error":
-            styled_message = f"[red]ERROR:[/red] {message}"
+            styled_message = format_status_message(f"ERROR: {message}", "error")
         elif level == "warning":
-            styled_message = f"[yellow]WARNING:[/yellow] {message}"
+            styled_message = format_status_message(f"WARNING: {message}", "warning")
         elif level == "debug":
-            styled_message = f"[dim]DEBUG:[/dim] {message}"
+            styled_message = f"[{Colors.MUTED}]DEBUG:[/] {message}"
         else:
             styled_message = message
 
@@ -356,13 +385,14 @@ class SimpleCompilationDisplay:
         Returns:
             Status icon string
         """
-        icons = {
-            "pending": "□",
-            "active": "⚙",
-            "completed": "✓",
-            "failed": "✗",
+        icon_map = {
+            "pending": "BULLET",
+            "active": "RUNNING",
+            "completed": "SUCCESS",
+            "failed": "ERROR",
         }
-        return icons.get(status, "□")
+        icon_name = icon_map.get(status, "BULLET")
+        return Icons.get_icon(icon_name, self.icon_mode)
 
 
 class SimpleProgressCoordinator:
@@ -506,21 +536,135 @@ class SimpleProgressCoordinator:
         self.compilation_strategy = strategy
         self.docker_image_name = docker_image
 
+    def update_workspace_progress(
+        self,
+        files_copied: int = 0,
+        total_files: int = 0,
+        bytes_copied: int = 0,
+        total_bytes: int = 0,
+        current_file: str = "",
+        component: str = "",
+        transfer_speed_mb_s: float = 0.0,
+        eta_seconds: float = 0.0,
+    ) -> None:
+        """Update workspace setup progress.
+
+        Args:
+            files_copied: Number of files copied so far
+            total_files: Total number of files to copy
+            bytes_copied: Number of bytes copied so far
+            total_bytes: Total number of bytes to copy
+            current_file: Current file being copied
+            component: Current component being processed
+            transfer_speed_mb_s: Transfer speed in MB/s
+            eta_seconds: Estimated time to completion in seconds
+        """
+        if total_files > 0:
+            progress_percentage = (files_copied / total_files) * 100
+        elif total_bytes > 0:
+            progress_percentage = (bytes_copied / total_bytes) * 100
+        else:
+            progress_percentage = 0.0
+
+        # Create descriptive status message
+        if component and current_file:
+            status = f"Copying {component}: {current_file}"
+        elif component:
+            status = f"Processing {component} ({files_copied}/{total_files} files)"
+        elif current_file:
+            status = f"Copying: {current_file}"
+        else:
+            status = f"Copying files ({files_copied}/{total_files})"
+
+        # Add transfer speed and ETA if available
+        if transfer_speed_mb_s > 0:
+            status += f" @ {transfer_speed_mb_s:.1f} MB/s"
+        if eta_seconds > 0:
+            eta_minutes = eta_seconds / 60
+            if eta_minutes >= 1:
+                status += f" (ETA: {eta_minutes:.1f}m)"
+            else:
+                status += f" (ETA: {eta_seconds:.0f}s)"
+
+        self.update_current_task(status, progress_percentage)
+
+    def update_cache_extraction_progress(
+        self,
+        operation: str = "",
+        files_extracted: int = 0,
+        total_files: int = 0,
+        bytes_extracted: int = 0,
+        total_bytes: int = 0,
+        current_file: str = "",
+        archive_name: str = "",
+        extraction_speed_mb_s: float = 0.0,
+        eta_seconds: float = 0.0,
+    ) -> None:
+        """Update cache extraction progress.
+
+        Args:
+            operation: Type of operation being performed
+            files_extracted: Number of files extracted so far
+            total_files: Total number of files to extract
+            bytes_extracted: Number of bytes extracted so far
+            total_bytes: Total number of bytes to extract
+            current_file: Current file being extracted
+            archive_name: Name of the archive being extracted
+            extraction_speed_mb_s: Extraction speed in MB/s
+            eta_seconds: Estimated time to completion in seconds
+        """
+        if total_files > 0:
+            progress_percentage = (files_extracted / total_files) * 100
+        elif total_bytes > 0:
+            progress_percentage = (bytes_extracted / total_bytes) * 100
+        else:
+            progress_percentage = 0.0
+
+        # Create descriptive status message
+        if current_file and archive_name:
+            # Show just the filename if it's very long
+            display_file = (
+                current_file.split("/")[-1] if "/" in current_file else current_file
+            )
+            if len(display_file) > 40:
+                display_file = display_file[:37] + "..."
+            status = f"Extracting {archive_name}: {display_file}"
+        elif archive_name:
+            status = (
+                f"Extracting {archive_name} ({files_extracted}/{total_files} files)"
+            )
+        else:
+            status = f"Extracting files ({files_extracted}/{total_files})"
+
+        # Add extraction speed and ETA if available
+        if extraction_speed_mb_s > 0:
+            status += f" @ {extraction_speed_mb_s:.1f} MB/s"
+        if eta_seconds > 0:
+            eta_minutes = eta_seconds / 60
+            if eta_minutes >= 1:
+                status += f" (ETA: {eta_minutes:.1f}m)"
+            else:
+                status += f" (ETA: {eta_seconds:.0f}s)"
+
+        self.update_current_task(status, progress_percentage)
+
 
 def create_simple_compilation_display(
     console: Console | None = None,
     config: ProgressConfig | None = None,
+    icon_mode: IconMode = IconMode.TEXT,
 ) -> SimpleCompilationDisplay:
     """Factory function to create a simple compilation display.
 
     Args:
         console: Rich console for output. If None, creates a new one.
         config: Progress configuration. If None, uses default compilation-focused config.
+        icon_mode: Icon mode for symbols and progress indicators.
 
     Returns:
         SimpleCompilationDisplay instance
     """
-    return SimpleCompilationDisplay(console, config)
+    return SimpleCompilationDisplay(console, config, icon_mode)
 
 
 def create_simple_progress_coordinator(

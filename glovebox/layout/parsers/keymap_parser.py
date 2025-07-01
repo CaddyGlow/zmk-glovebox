@@ -2,6 +2,7 @@
 
 import logging
 import re
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
@@ -140,8 +141,14 @@ class ZmkKeymapParser:
             # Use appropriate processor
             processor = self.processors[mode]
             layout_data = processor.process(context)
-
             if layout_data:
+                layout_data.firmware_api_version = "1"
+                layout_data.date = datetime.now()
+                layout_data.creator = "glovebox"
+                layout_data.notes = (
+                    f"Automatically generated from keymap file {keymap_file.name}"
+                )
+
                 result.layout_data = layout_data
                 result.success = True
                 result.extracted_sections = getattr(context, "extracted_sections", {})
@@ -427,8 +434,13 @@ class ZmkKeymapParser:
                         )
 
                     try:
+                        # Preprocess for MoErgo edge cases
+                        preprocessed_binding_str = (
+                            self._preprocess_moergo_binding_edge_cases(binding_str)
+                        )
+
                         # Use the existing LayoutBinding.from_str method
-                        binding = LayoutBinding.from_str(binding_str)
+                        binding = LayoutBinding.from_str(preprocessed_binding_str)
                         bindings.append(binding)
 
                         # Debug log the parsed parameters
@@ -464,7 +476,12 @@ class ZmkKeymapParser:
             binding_str = str(bindings_value.value).strip()
             if binding_str:
                 try:
-                    binding = LayoutBinding.from_str(binding_str)
+                    # Preprocess for MoErgo edge cases
+                    preprocessed_binding_str = (
+                        self._preprocess_moergo_binding_edge_cases(binding_str)
+                    )
+
+                    binding = LayoutBinding.from_str(preprocessed_binding_str)
                     bindings.append(binding)
                 except Exception as e:
                     exc_info = self.logger.isEnabledFor(logging.DEBUG)
@@ -516,6 +533,35 @@ class ZmkKeymapParser:
             ConfigDirective model instance
         """
         return self.model_factory.create_directive(directive_dict)
+
+    def _preprocess_moergo_binding_edge_cases(self, binding_str: str) -> str:
+        """Preprocess binding string to handle MoErgo JSON edge cases.
+
+        Args:
+            binding_str: Original binding string
+
+        Returns:
+            Preprocessed binding string with edge cases handled
+        """
+        # Edge case 1: Transform &sys_reset to &reset
+        if binding_str == "&sys_reset":
+            self.logger.debug(
+                "Transforming &sys_reset to &reset for MoErgo compatibility"
+            )
+            return "&reset"
+
+        # Edge case 2: Handle &magic parameter cleanup
+        # Convert "&magic LAYER_Magic 0" to "&magic" (remove nested params)
+        if binding_str.startswith("&magic "):
+            parts = binding_str.split()
+            if len(parts) >= 3 and parts[1].startswith("LAYER_") and parts[2] == "0":
+                self.logger.debug(
+                    "Cleaning up &magic parameters for MoErgo compatibility: %s -> &magic",
+                    binding_str,
+                )
+                return "&magic"
+
+        return binding_str
 
 
 def create_zmk_keymap_parser(

@@ -675,7 +675,7 @@ class ZmkWorkspaceCacheService:
                 progress_coordinator, "set_enhanced_task_status"
             ):
                 progress_coordinator.set_enhanced_task_status(
-                    "workspace_injection", "active", "Copying workspace components"
+                    "Copying to Cache", "active", "Copying workspace components"
                 )
 
             # Copy workspace components with progress tracking
@@ -822,7 +822,7 @@ class ZmkWorkspaceCacheService:
                 progress_coordinator, "set_enhanced_task_status"
             ):
                 progress_coordinator.set_enhanced_task_status(
-                    "workspace_injection", "completed"
+                    "Copying to Cache", "completed"
                 )
 
             # Store metadata in cache manager

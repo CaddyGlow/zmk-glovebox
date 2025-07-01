@@ -4,6 +4,7 @@ import logging
 import re
 from typing import TYPE_CHECKING, Optional
 
+from glovebox.cli.helpers.theme import Colors, Icons, format_status_message
 from glovebox.core.file_operations import (
     CompilationProgress,
     CompilationProgressCallback,

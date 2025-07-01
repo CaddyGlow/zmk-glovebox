@@ -27,7 +27,7 @@ class Colors:
     """Standardized color palette for CLI output."""
 
     # Core status colors (MANDATORY for all status messages)
-    SUCCESS = "bold green"
+    SUCCESS = "bold bright_green"  # Maximum visibility for success messages
     ERROR = "bold red"
     WARNING = "bold yellow"
     INFO = "bold blue"
@@ -49,13 +49,13 @@ class Colors:
     CRITICAL = "bold red on yellow"
     HIGH = "bold red"
     MEDIUM = "yellow"
-    LOW = "dim white"
+    LOW = "bright_black"  # Better visibility than "dim white"
 
     # Data states
     VALID = "green"
     INVALID = "red"
     MODIFIED = "yellow"
-    UNCHANGED = "dim white"
+    UNCHANGED = "bright_black"  # Better visibility than "dim white"
     NEW = "bright_green"
     DELETED = "red"
 
@@ -71,7 +71,8 @@ class Colors:
     PRIMARY = "cyan"
     SECONDARY = "blue"
     ACCENT = "magenta"
-    MUTED = "dim"
+    MUTED = "bright_black"  # Better visibility than "dim" in most terminals
+    SUBTLE = "white"  # Alternative for very dark terminals
 
     # Text hierarchy colors
     HEADER = "bold cyan"
@@ -773,10 +774,16 @@ def get_icon_mode_from_config(user_config: Any = None) -> IconMode:
     if hasattr(user_config, "_config") and hasattr(user_config._config, "icon_mode"):
         icon_mode = user_config._config.icon_mode
         if icon_mode is not None:
+            # Handle both enum and string values
+            if isinstance(icon_mode, IconMode):
+                return icon_mode
             return IconMode(str(icon_mode))
     elif hasattr(user_config, "icon_mode"):
         icon_mode = user_config.icon_mode
         if icon_mode is not None:
+            # Handle both enum and string values
+            if isinstance(icon_mode, IconMode):
+                return icon_mode
             return IconMode(str(icon_mode))
 
     # Fall back to legacy emoji_mode for backward compatibility

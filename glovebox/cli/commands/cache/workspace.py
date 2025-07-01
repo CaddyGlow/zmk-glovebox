@@ -16,6 +16,7 @@ from glovebox.cli.helpers.theme import (
     format_file_operation,
     format_operation_status,
     format_status_message,
+    get_icon_mode_from_config,
     get_icon_mode_from_context,
 )
 from glovebox.cli.workspace_display_utils import (
@@ -111,12 +112,18 @@ def workspace_show(
         # Check if any entries found
         if not filtered_entries:
             if not all_entries:
-                console.print(format_status_message("No cached workspaces found", "warning"))
+                console.print(
+                    format_status_message("No cached workspaces found", "warning")
+                )
             else:
                 console.print(
-                    format_status_message("No cache entries match the specified filters", "warning")
+                    format_status_message(
+                        "No cache entries match the specified filters", "warning"
+                    )
                 )
-            console.print(f"[{Colors.MUTED}]Cache directory: {cache_dir}[/{Colors.MUTED}]")
+            console.print(
+                f"[{Colors.MUTED}]Cache directory: {cache_dir}[/{Colors.MUTED}]"
+            )
             return
 
         # Output results
@@ -160,7 +167,9 @@ def workspace_show(
             # Display entries in a simple table format
             from rich.table import Table
 
-            console.print(f"[{Colors.HEADER}]All Cached Workspace Entries[/{Colors.HEADER}]")
+            console.print(
+                f"[{Colors.HEADER}]All Cached Workspace Entries[/{Colors.HEADER}]"
+            )
             console.print("=" * 80)
 
             table = Table(show_header=True, header_style=Colors.SUCCESS)
@@ -192,12 +201,18 @@ def workspace_show(
                 )
 
             console.print(table)
-            console.print(f"\n[{Colors.FIELD_NAME}]Total entries:[/{Colors.FIELD_NAME}] {len(filtered_entries)}")
-            console.print(f"[{Colors.MUTED}]Cache directory: {cache_dir}[/{Colors.MUTED}]")
+            console.print(
+                f"\n[{Colors.FIELD_NAME}]Total entries:[/{Colors.FIELD_NAME}] {len(filtered_entries)}"
+            )
+            console.print(
+                f"[{Colors.MUTED}]Cache directory: {cache_dir}[/{Colors.MUTED}]"
+            )
 
     except Exception as e:
         log_error_with_debug_stack(logger, "Error in workspace_show: %s", e)
-        console.print(format_status_message(f"Error displaying workspace cache: {e}", "error"))
+        console.print(
+            format_status_message(f"Error displaying workspace cache: {e}", "error")
+        )
         raise typer.Exit(1) from e
 
 
@@ -236,7 +251,9 @@ def workspace_delete(
 
             if not target_workspace:
                 console.print(
-                    format_status_message(f"No cached workspace found for {repository}", "warning")
+                    format_status_message(
+                        f"No cached workspace found for {repository}", "warning"
+                    )
                 )
                 return
 
@@ -255,13 +272,15 @@ def workspace_delete(
             success = workspace_cache_service.delete_cached_workspace(repository)
 
             if success:
-                icon_mode = "emoji"
+                icon_mode = get_icon_mode_from_config(user_config)
                 console.print(
                     f"[{Colors.SUCCESS}]{format_icon_with_message('SUCCESS', f'Deleted cached workspace for {repository}', icon_mode)}[/{Colors.SUCCESS}]"
                 )
             else:
                 console.print(
-                    format_status_message(f"Failed to delete cached workspace for {repository}", "error")
+                    format_status_message(
+                        f"Failed to delete cached workspace for {repository}", "error"
+                    )
                 )
                 raise typer.Exit(1)
         else:
@@ -269,7 +288,9 @@ def workspace_delete(
             cached_workspaces = workspace_cache_service.list_cached_workspaces()
 
             if not cached_workspaces:
-                console.print(format_status_message("No cached workspaces found", "warning"))
+                console.print(
+                    format_status_message("No cached workspaces found", "warning")
+                )
                 return
 
             total_size = sum(
@@ -297,12 +318,16 @@ def workspace_delete(
                     deleted_count += 1
 
             if deleted_count > 0:
-                icon_mode = "emoji"
+                icon_mode = get_icon_mode_from_config(user_config)
                 console.print(
                     f"[{Colors.SUCCESS}]{format_icon_with_message('SUCCESS', f'Deleted {deleted_count} cached workspaces ({format_size_display(total_size)})', icon_mode)}[/{Colors.SUCCESS}]"
                 )
             else:
-                console.print(format_status_message("Failed to delete any cached workspaces", "error"))
+                console.print(
+                    format_status_message(
+                        "Failed to delete any cached workspaces", "error"
+                    )
+                )
                 raise typer.Exit(1)
 
     except Exception as e:
@@ -343,7 +368,9 @@ def workspace_cleanup(
 
         if not stale_workspaces:
             console.print(
-                format_status_message(f"No workspaces older than {max_age_days} days found", "success")
+                format_status_message(
+                    f"No workspaces older than {max_age_days} days found", "success"
+                )
             )
             return
 
@@ -353,11 +380,16 @@ def workspace_cleanup(
         )
 
         console.print(
-            format_status_message(f"Found {len(stale_workspaces)} stale workspaces ({format_size_display(total_stale_size)})", "warning")
+            format_status_message(
+                f"Found {len(stale_workspaces)} stale workspaces ({format_size_display(total_stale_size)})",
+                "warning",
+            )
         )
 
         if not force:
-            console.print(f"\n[{Colors.FIELD_NAME}]Workspaces to be cleaned up:[/{Colors.FIELD_NAME}]")
+            console.print(
+                f"\n[{Colors.FIELD_NAME}]Workspaces to be cleaned up:[/{Colors.FIELD_NAME}]"
+            )
             for workspace in stale_workspaces:
                 age_days = workspace.age_hours / 24
                 size_bytes = workspace.size_bytes or get_directory_size_bytes(
@@ -378,12 +410,14 @@ def workspace_cleanup(
         cleaned_count = workspace_cache_service.cleanup_stale_entries(max_age_hours)
 
         if cleaned_count > 0:
-            icon_mode = "emoji"
+            icon_mode = get_icon_mode_from_config(user_config)
             console.print(
                 f"[{Colors.SUCCESS}]{format_icon_with_message('SUCCESS', f'Cleaned up {cleaned_count} stale workspaces ({format_size_display(total_stale_size)})', icon_mode)}[/{Colors.SUCCESS}]"
             )
         else:
-            console.print(format_status_message("No workspaces were cleaned up", "warning"))
+            console.print(
+                format_status_message("No workspaces were cleaned up", "warning")
+            )
 
     except Exception as e:
         logger.error("Failed to cleanup workspace cache: %s", e)
@@ -438,7 +472,8 @@ def workspace_add(
         cache_manager, workspace_cache_service, user_config = (
             get_cache_manager_and_service()
         )
-        icon_mode = "emoji"  # Default icon mode
+        # Get icon mode from user configuration
+        icon_mode = get_icon_mode_from_config(user_config)
 
         # Setup progress tracking using the new scrollable logs display
         start_time = time.time()
@@ -459,28 +494,28 @@ def workspace_add(
 
             # Create workspace-specific configuration
             workspace_config = ProgressConfig(
-                title_processing="→ Processing Workspace",
-                title_complete="✓ Workspace Ready",
-                title_failed="✗ Workspace Failed",
                 operation_name="Workspace",
+                icon_mode=icon_mode,
                 tasks=[
                     "Cache Setup",
                     "Workspace Setup",
-                    "Processing Files",
-                    "Workspace Injection",
+                    "Extracting Files",
+                    "Copying to Cache",
                     "Finalizing",
                 ],
             )
 
-            display = create_simple_compilation_display(console, workspace_config)
+            display = create_simple_compilation_display(
+                console, workspace_config, icon_mode
+            )
             progress_coordinator = create_simple_progress_coordinator(display)
 
             # Start display immediately to show all operations
             display.start()
 
-            # Set initial phase for workspace processing
-            progress_coordinator.transition_to_phase(
-                "workspace_setup", "Processing workspace source"
+            # Start with the first task: Cache Setup
+            progress_coordinator.start_task_by_name(
+                "Cache Setup", "Initializing cache system", 0.0
             )
 
         try:
@@ -501,10 +536,10 @@ def workspace_add(
                 )
                 raise typer.Exit(1)
 
-            # Set phase for workspace injection
+            # Start workspace injection task
             if progress_coordinator:
-                progress_coordinator.transition_to_phase(
-                    "workspace_setup", "Adding workspace to cache"
+                progress_coordinator.start_task_by_name(
+                    "Copying to Cache", "Adding workspace to cache", 0.0
                 )
 
             logger.info(f"Adding workspace cache for {repository}")
@@ -517,11 +552,15 @@ def workspace_add(
                 progress_coordinator=progress_coordinator,
             )
 
-            # Mark as completed
+            # Start and complete finalizing task
             if progress_coordinator:
-                progress_coordinator.transition_to_phase(
-                    "complete", "Workspace successfully added to cache"
+                progress_coordinator.start_task_by_name(
+                    "Finalizing", "Completing workspace addition", 50.0
                 )
+                progress_coordinator.update_current_task(
+                    "Workspace successfully added to cache", 100.0
+                )
+                progress_coordinator.complete_all_tasks()
 
         finally:
             # Stop display if it was started
@@ -542,7 +581,7 @@ def workspace_add(
             # Display transfer summary using metadata
             if metadata.size_bytes and metadata.size_bytes > 0 and total_time > 0:
                 avg_speed_mbps = (metadata.size_bytes / (1024 * 1024)) / total_time
-                transfer_icon = Icons.get_icon("STATS", "emoji")
+                transfer_icon = Icons.get_icon("STATS", icon_mode)
                 console.print(
                     f"[{Colors.INFO}]{transfer_icon} Transfer Summary:[/{Colors.INFO}] "
                     f"{format_size_display(metadata.size_bytes)} copied in "
@@ -556,7 +595,9 @@ def workspace_add(
             console.print(
                 f"[{Colors.FIELD_NAME}]Repository:[/{Colors.FIELD_NAME}] {metadata.repository}@{metadata.branch}"
             )
-            console.print(f"[{Colors.FIELD_NAME}]Cache location:[/{Colors.FIELD_NAME}] {metadata.workspace_path}")
+            console.print(
+                f"[{Colors.FIELD_NAME}]Cache location:[/{Colors.FIELD_NAME}] {metadata.workspace_path}"
+            )
 
             if metadata.size_bytes:
                 console.print(
@@ -574,7 +615,9 @@ def workspace_add(
                 if hasattr(metadata.cache_level, "value")
                 else str(metadata.cache_level)
             )
-            console.print(f"[{Colors.FIELD_NAME}]Cache level:[/{Colors.FIELD_NAME}] {cache_level_str}")
+            console.print(
+                f"[{Colors.FIELD_NAME}]Cache level:[/{Colors.FIELD_NAME}] {cache_level_str}"
+            )
 
             if metadata.auto_detected:
                 console.print(
@@ -677,13 +720,15 @@ def workspace_export(
         cache_manager, workspace_cache_service, user_config = (
             get_cache_manager_and_service(session_metrics=session_metrics)
         )
-        icon_mode = "emoji"
+        icon_mode = get_icon_mode_from_config(user_config)
 
         # Validate archive format
         try:
             archive_format = ArchiveFormat(format.lower())
         except ValueError:
-            console.print(f"[{Colors.ERROR}]Invalid archive format: {format}[/{Colors.ERROR}]")
+            console.print(
+                f"[{Colors.ERROR}]Invalid archive format: {format}[/{Colors.ERROR}]"
+            )
             console.print(
                 f"[{Colors.MUTED}]Supported formats: zip, tar, tar.gz, tar.bz2, tar.xz[/{Colors.MUTED}]"
             )
@@ -730,12 +775,13 @@ def workspace_export(
                 create_simple_progress_coordinator,
             )
 
+            # Get icon mode from user configuration (already retrieved above)
+            icon_mode = get_icon_mode_from_config(user_config)
+
             # Create workspace export configuration
             export_config = ProgressConfig(
-                title_processing="↑ Exporting Workspace",
-                title_complete="✓ Export Complete",
-                title_failed="✗ Export Failed",
                 operation_name="Workspace Export",
+                icon_mode=icon_mode,
                 tasks=[
                     "Cache Setup",
                     "Preparing Export",
@@ -745,7 +791,9 @@ def workspace_export(
                 ],
             )
 
-            display = create_simple_compilation_display(console, export_config)
+            display = create_simple_compilation_display(
+                console, export_config, icon_mode
+            )
             progress_coordinator = create_simple_progress_coordinator(display)
             display.start()
 
@@ -797,11 +845,19 @@ def workspace_export(
             console.print(
                 f"[{Colors.SUCCESS}]{format_icon_with_message('SUCCESS', 'Workspace exported successfully', icon_mode)}[/{Colors.SUCCESS}]"
             )
-            console.print(f"[{Colors.FIELD_NAME}]Repository:[/{Colors.FIELD_NAME}] {repository}")
+            console.print(
+                f"[{Colors.FIELD_NAME}]Repository:[/{Colors.FIELD_NAME}] {repository}"
+            )
             if branch:
-                console.print(f"[{Colors.FIELD_NAME}]Branch:[/{Colors.FIELD_NAME}] {branch}")
-            console.print(f"[{Colors.FIELD_NAME}]Output file:[/{Colors.FIELD_NAME}] {export_result.export_path}")
-            console.print(f"[{Colors.FIELD_NAME}]Archive format:[/{Colors.FIELD_NAME}] {archive_format.value}")
+                console.print(
+                    f"[{Colors.FIELD_NAME}]Branch:[/{Colors.FIELD_NAME}] {branch}"
+                )
+            console.print(
+                f"[{Colors.FIELD_NAME}]Output file:[/{Colors.FIELD_NAME}] {export_result.export_path}"
+            )
+            console.print(
+                f"[{Colors.FIELD_NAME}]Archive format:[/{Colors.FIELD_NAME}] {archive_format.value}"
+            )
 
             if export_result.original_size_bytes and export_result.archive_size_bytes:
                 console.print(
@@ -826,7 +882,9 @@ def workspace_export(
                     f"[{Colors.FIELD_NAME}]Export speed:[/{Colors.FIELD_NAME}] {export_result.export_speed_mb_s:.1f} MB/s"
                 )
 
-            console.print(f"[{Colors.FIELD_NAME}]Export time:[/{Colors.FIELD_NAME}] {total_time:.1f}s")
+            console.print(
+                f"[{Colors.FIELD_NAME}]Export time:[/{Colors.FIELD_NAME}] {total_time:.1f}s"
+            )
 
             # Show workspace metadata info
             if metadata.cached_components:
@@ -835,7 +893,9 @@ def workspace_export(
                 )
 
             git_status = "included" if include_git else "excluded"
-            console.print(f"[{Colors.FIELD_NAME}]Git folders:[/{Colors.FIELD_NAME}] {git_status}")
+            console.print(
+                f"[{Colors.FIELD_NAME}]Git folders:[/{Colors.FIELD_NAME}] {git_status}"
+            )
 
         else:
             console.print(
@@ -908,7 +968,7 @@ def workspace_create(
         cache_manager, workspace_cache_service, user_config = (
             get_cache_manager_and_service(session_metrics=session_metrics)
         )
-        icon_mode = "emoji"
+        icon_mode = get_icon_mode_from_config(user_config)
 
         # Parse keyboard profile if provided
         keyboard_profile = None
@@ -925,7 +985,9 @@ def workspace_create(
                 else:
                     keyboard_profile = create_keyboard_profile(profile)
             except Exception as e:
-                console.print(f"[{Colors.ERROR}]Invalid keyboard profile '{profile}': {e}[/{Colors.ERROR}]")
+                console.print(
+                    f"[{Colors.ERROR}]Invalid keyboard profile '{profile}': {e}[/{Colors.ERROR}]"
+                )
                 raise typer.Exit(1) from e
 
         # Setup progress tracking
@@ -940,12 +1002,13 @@ def workspace_create(
                 create_simple_progress_coordinator,
             )
 
+            # Get icon mode from user configuration (already retrieved above)
+            icon_mode = get_icon_mode_from_config(user_config)
+
             # Create workspace creation configuration
             create_config = ProgressConfig(
-                title_processing="+ Creating Workspace",
-                title_complete="✓ Workspace Created",
-                title_failed="✗ Creation Failed",
                 operation_name="Workspace Creation",
+                icon_mode=icon_mode,
                 tasks=[
                     "Cache Setup",
                     "Repository Clone",
@@ -955,7 +1018,9 @@ def workspace_create(
                 ],
             )
 
-            display = create_simple_compilation_display(console, create_config)
+            display = create_simple_compilation_display(
+                console, create_config, icon_mode
+            )
             progress_coordinator = create_simple_progress_coordinator(display)
             display.start()
 
@@ -999,9 +1064,15 @@ def workspace_create(
             console.print(
                 f"[{Colors.SUCCESS}]{format_icon_with_message('SUCCESS', 'Workspace created successfully', icon_mode)}[/{Colors.SUCCESS}]"
             )
-            console.print(f"[{Colors.FIELD_NAME}]Repository:[/{Colors.FIELD_NAME}] {metadata.repository}")
-            console.print(f"[{Colors.FIELD_NAME}]Branch:[/{Colors.FIELD_NAME}] {metadata.branch}")
-            console.print(f"[{Colors.FIELD_NAME}]Cache location:[/{Colors.FIELD_NAME}] {metadata.workspace_path}")
+            console.print(
+                f"[{Colors.FIELD_NAME}]Repository:[/{Colors.FIELD_NAME}] {metadata.repository}"
+            )
+            console.print(
+                f"[{Colors.FIELD_NAME}]Branch:[/{Colors.FIELD_NAME}] {metadata.branch}"
+            )
+            console.print(
+                f"[{Colors.FIELD_NAME}]Cache location:[/{Colors.FIELD_NAME}] {metadata.workspace_path}"
+            )
 
             if metadata.size_bytes:
                 console.print(
@@ -1014,12 +1085,18 @@ def workspace_create(
                 )
 
             if metadata.docker_image:
-                console.print(f"[{Colors.FIELD_NAME}]Docker image:[/{Colors.FIELD_NAME}] {metadata.docker_image}")
+                console.print(
+                    f"[{Colors.FIELD_NAME}]Docker image:[/{Colors.FIELD_NAME}] {metadata.docker_image}"
+                )
 
             if metadata.creation_profile:
-                console.print(f"[{Colors.FIELD_NAME}]Profile used:[/{Colors.FIELD_NAME}] {metadata.creation_profile}")
+                console.print(
+                    f"[{Colors.FIELD_NAME}]Profile used:[/{Colors.FIELD_NAME}] {metadata.creation_profile}"
+                )
 
-            console.print(f"[{Colors.FIELD_NAME}]Creation time:[/{Colors.FIELD_NAME}] {total_time:.1f}s")
+            console.print(
+                f"[{Colors.FIELD_NAME}]Creation time:[/{Colors.FIELD_NAME}] {total_time:.1f}s"
+            )
 
             console.print(
                 f"\n[{Colors.MUTED}]Workspace is now cached and ready for compilation![/{Colors.MUTED}]"
@@ -1153,18 +1230,23 @@ def workspace_update(
         cache_manager, workspace_cache_service, user_config = (
             get_cache_manager_and_service(session_metrics=session_metrics)
         )
-        icon_mode = "emoji"
+        icon_mode = get_icon_mode_from_config(user_config)
 
         # Validate arguments
         if not branch and not new_branch:
             console.print(
-                format_status_message("Error: Either branch argument or --new-branch option must be provided", "error")
+                format_status_message(
+                    "Error: Either branch argument or --new-branch option must be provided",
+                    "error",
+                )
             )
             raise typer.Exit(1)
 
         if dependencies_only and new_branch:
             console.print(
-                format_status_message("Error: Cannot use --dependencies-only with --new-branch", "error")
+                format_status_message(
+                    "Error: Cannot use --dependencies-only with --new-branch", "error"
+                )
             )
             raise typer.Exit(1)
 
@@ -1180,12 +1262,13 @@ def workspace_update(
                 create_simple_progress_coordinator,
             )
 
+            # Get icon mode from user configuration (already retrieved above)
+            icon_mode = get_icon_mode_from_config(user_config)
+
             # Create workspace update configuration
             update_config = ProgressConfig(
-                title_processing="↻ Updating Workspace",
-                title_complete="✓ Workspace Updated",
-                title_failed="✗ Update Failed",
                 operation_name="Workspace Update",
+                icon_mode=icon_mode,
                 tasks=[
                     "Cache Setup",
                     "Workspace Setup",
@@ -1195,7 +1278,9 @@ def workspace_update(
                 ],
             )
 
-            display = create_simple_compilation_display(console, update_config)
+            display = create_simple_compilation_display(
+                console, update_config, icon_mode
+            )
             progress_coordinator = create_simple_progress_coordinator(display)
             display.start()
 
@@ -1204,7 +1289,10 @@ def workspace_update(
                 # Switch to new branch
                 if not branch:
                     console.print(
-                        format_status_message("Error: Branch argument is required when using --new-branch", "error")
+                        format_status_message(
+                            "Error: Branch argument is required when using --new-branch",
+                            "error",
+                        )
                     )
                     raise typer.Exit(1)
 
@@ -1266,22 +1354,32 @@ def workspace_update(
             console.print(
                 f"[{Colors.SUCCESS}]{format_icon_with_message('SUCCESS', f'Workspace {operation}', icon_mode)}[/{Colors.SUCCESS}]"
             )
-            console.print(f"[{Colors.FIELD_NAME}]Repository:[/{Colors.FIELD_NAME}] {metadata.repository}")
-            console.print(f"[{Colors.FIELD_NAME}]Branch:[/{Colors.FIELD_NAME}] {metadata.branch}")
-            console.print(f"[{Colors.FIELD_NAME}]Cache location:[/{Colors.FIELD_NAME}] {metadata.workspace_path}")
+            console.print(
+                f"[{Colors.FIELD_NAME}]Repository:[/{Colors.FIELD_NAME}] {metadata.repository}"
+            )
+            console.print(
+                f"[{Colors.FIELD_NAME}]Branch:[/{Colors.FIELD_NAME}] {metadata.branch}"
+            )
+            console.print(
+                f"[{Colors.FIELD_NAME}]Cache location:[/{Colors.FIELD_NAME}] {metadata.workspace_path}"
+            )
 
             if metadata.dependencies_updated:
                 from datetime import datetime
 
                 time_str = metadata.dependencies_updated.strftime("%Y-%m-%d %H:%M:%S")
-                console.print(f"[{Colors.FIELD_NAME}]Dependencies updated:[/{Colors.FIELD_NAME}] {time_str}")
+                console.print(
+                    f"[{Colors.FIELD_NAME}]Dependencies updated:[/{Colors.FIELD_NAME}] {time_str}"
+                )
 
             if metadata.cached_components:
                 console.print(
                     f"[{Colors.FIELD_NAME}]Components:[/{Colors.FIELD_NAME}] {', '.join(metadata.cached_components)}"
                 )
 
-            console.print(f"[{Colors.FIELD_NAME}]Update time:[/{Colors.FIELD_NAME}] {total_time:.1f}s")
+            console.print(
+                f"[{Colors.FIELD_NAME}]Update time:[/{Colors.FIELD_NAME}] {total_time:.1f}s"
+            )
 
             console.print(
                 f"\n[{Colors.MUTED}]Workspace is now updated and ready for compilation![/{Colors.MUTED}]"
@@ -1294,7 +1392,9 @@ def workspace_update(
             )
         else:
             console.print(
-                format_status_message(f"Failed to update workspace: {result.error_message}", "error")
+                format_status_message(
+                    f"Failed to update workspace: {result.error_message}", "error"
+                )
             )
             raise typer.Exit(1)
 

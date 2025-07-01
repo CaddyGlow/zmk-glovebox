@@ -603,7 +603,12 @@ class ASTBehaviorConverter:
                             )
 
                         try:
-                            binding = LayoutBinding.from_str(binding_str)
+                            # Preprocess for MoErgo edge cases
+                            preprocessed_binding_str = (
+                                self._preprocess_moergo_binding_edge_cases(binding_str)
+                            )
+
+                            binding = LayoutBinding.from_str(preprocessed_binding_str)
                             bindings.append(binding)
 
                             # Debug log the parsed parameters
@@ -647,7 +652,12 @@ class ASTBehaviorConverter:
                 for part in binding_parts:
                     if part and part.startswith("&"):
                         try:
-                            binding = LayoutBinding.from_str(part)
+                            # Preprocess for MoErgo edge cases
+                            preprocessed_part = (
+                                self._preprocess_moergo_binding_edge_cases(part)
+                            )
+
+                            binding = LayoutBinding.from_str(preprocessed_part)
                             bindings.append(binding)
                         except Exception as e:
                             self.logger.warning(
@@ -702,14 +712,24 @@ class ASTBehaviorConverter:
                     # Fix the spaced parentheses by removing spaces around them
                     fixed_raw = cleaned_raw.replace(" ( ", "(").replace(" )", ")")
                     try:
-                        return LayoutBinding.from_str(fixed_raw)
+                        # Preprocess for MoErgo edge cases
+                        preprocessed_fixed_raw = (
+                            self._preprocess_moergo_binding_edge_cases(fixed_raw)
+                        )
+
+                        return LayoutBinding.from_str(preprocessed_fixed_raw)
                     except Exception as e:
                         self.logger.debug(
                             "Failed to parse fixed raw value '%s': %s", fixed_raw, e
                         )
                         # Fall through to array reconstruction
                 else:
-                    return LayoutBinding.from_str(cleaned_raw)
+                    # Preprocess for MoErgo edge cases
+                    preprocessed_cleaned_raw = (
+                        self._preprocess_moergo_binding_edge_cases(cleaned_raw)
+                    )
+
+                    return LayoutBinding.from_str(preprocessed_cleaned_raw)
 
             # Fallback to array parsing for simpler cases
             if prop.value.type == DTValueType.ARRAY and prop.value.value:
@@ -724,7 +744,12 @@ class ASTBehaviorConverter:
                     complete_binding = self._reconstruct_nested_function_call(
                         binding_parts
                     )
-                    return LayoutBinding.from_str(complete_binding)
+                    # Preprocess for MoErgo edge cases
+                    preprocessed_complete_binding = (
+                        self._preprocess_moergo_binding_edge_cases(complete_binding)
+                    )
+
+                    return LayoutBinding.from_str(preprocessed_complete_binding)
 
             # Return fallback binding
             return LayoutBinding(value="&none", params=[])
@@ -802,6 +827,235 @@ class ASTBehaviorConverter:
                 i += 1
 
         return " ".join(result)
+
+    def _preprocess_moergo_binding_edge_cases(self, binding_str: str) -> str:
+        """Preprocess binding string to handle MoErgo JSON edge cases.
+
+        Args:
+            binding_str: Original binding string
+
+        Returns:
+            Preprocessed binding string with edge cases handled
+        """
+        # Edge case 1: Transform &sys_reset to &reset
+        if binding_str == "&sys_reset":
+            self.logger.debug(
+                "Transforming &sys_reset to &reset for MoErgo compatibility"
+            )
+            return "&reset"
+
+        # Edge case 2: Handle &magic parameter cleanup
+        # Convert "&magic LAYER_Magic 0" to "&magic" (remove nested params)
+        if binding_str.startswith("&magic "):
+            parts = binding_str.split()
+            if len(parts) >= 3 and parts[1].startswith("LAYER_") and parts[2] == "0":
+                self.logger.debug(
+                    "Cleaning up &magic parameters for MoErgo compatibility: %s -> &magic",
+                    binding_str,
+                )
+                return "&magic"
+
+        return binding_str
+
+    def convert_input_listener_node(self, node: DTNode) -> Any | None:
+        """Convert a device tree node to InputListener.
+
+        Args:
+            node: Device tree node representing an input listener
+
+        Returns:
+            InputListener instance or None if conversion fails
+        """
+        try:
+            from glovebox.layout.models.behaviors import (
+                InputListener,
+                InputListenerNode,
+                InputProcessor,
+            )
+
+            # Extract the code (node name with &)
+            code = f"&{node.name}" if node.name else ""
+            if not code or code == "&":
+                self.logger.warning("Input listener node missing name")
+                return None
+
+            # Create base input listener
+            input_listener = InputListener(code=code)
+
+            # Extract child nodes as input listener nodes
+            for child_name, child_node in node.children.items():
+                listener_node = self._convert_input_listener_child_node(
+                    child_name, child_node
+                )
+                if listener_node:
+                    input_listener.nodes.append(listener_node)
+
+            return input_listener
+
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error(
+                "Failed to convert input listener node '%s': %s",
+                node.name,
+                e,
+                exc_info=exc_info,
+            )
+            return None
+
+    def _convert_input_listener_child_node(
+        self, child_name: str, child_node: DTNode
+    ) -> Any | None:
+        """Convert a child node within an input listener.
+
+        Args:
+            child_name: Name of the child node
+            child_node: Child node to convert
+
+        Returns:
+            InputListenerNode instance or None if conversion fails
+        """
+        try:
+            from glovebox.layout.models.behaviors import (
+                InputListenerNode,
+                InputProcessor,
+            )
+
+            # Use child name as code
+            code = child_name
+
+            # Extract description from comments or use the child name
+            description = self._extract_description_from_node(child_node) or child_name
+
+            # Extract layers property
+            layers = []
+            layers_prop = child_node.get_property("layers")
+            if layers_prop:
+                layers = self._extract_array_from_property(layers_prop)
+
+            # Extract input-processors property
+            input_processors = []
+            processors_prop = child_node.get_property("input-processors")
+            if processors_prop:
+                input_processors = self._extract_input_processors_from_property(
+                    processors_prop
+                )
+
+            # Create input listener node
+            listener_node = InputListenerNode(
+                code=code,
+                description=description,
+                layers=layers,
+                inputProcessors=input_processors,
+            )
+
+            return listener_node
+
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error(
+                "Failed to convert input listener child node '%s': %s",
+                child_name,
+                e,
+                exc_info=exc_info,
+            )
+            return None
+
+    def _extract_input_processors_from_property(self, prop: DTProperty) -> list[Any]:
+        """Extract input processors from device tree property.
+
+        Args:
+            prop: Device tree property containing input processors
+
+        Returns:
+            List of InputProcessor objects
+        """
+        processors = []
+        if not prop.value:
+            return processors
+
+        try:
+            from glovebox.layout.models.behaviors import InputProcessor
+
+            # Handle array values
+            if prop.value.type == DTValueType.ARRAY:
+                # Group processor references with their parameters
+                # Handle both formats:
+                # 1. Separate elements: ["&zip_xy_scaler", "1", "9"]
+                # 2. Space-separated strings: ["&zip_xy_scaler 1 9"]
+                i = 0
+                values = prop.value.value
+                while i < len(values):
+                    item = str(values[i]).strip()
+
+                    # Check if this is a processor reference
+                    if item.startswith("&"):
+                        # Handle space-separated format first
+                        if " " in item:
+                            # Split space-separated processor string
+                            processor_parts = item.split()
+                            code = processor_parts[0]
+                            params = []
+                            for param_str in processor_parts[1:]:
+                                try:
+                                    # Try to parse as integer first
+                                    params.append(int(param_str))
+                                except ValueError:
+                                    # Keep as string if not integer
+                                    params.append(param_str)
+
+                            processor = InputProcessor(code=code, params=params)
+                            processors.append(processor)
+                            i += 1
+                        else:
+                            # Handle separate elements format
+                            processor_parts = [item]
+                            i += 1
+
+                            # Collect parameters until we hit another processor reference or end of array
+                            while i < len(values):
+                                next_item = str(values[i]).strip()
+                                # Stop if we hit another processor reference
+                                if next_item.startswith("&"):
+                                    break
+                                # Collect this parameter
+                                processor_parts.append(next_item)
+                                i += 1
+
+                            # Extract code and params
+                            code = processor_parts[0]
+                            params = []
+                            for param_str in processor_parts[1:]:
+                                try:
+                                    # Try to parse as integer first
+                                    params.append(int(param_str))
+                                except ValueError:
+                                    # Keep as string if not integer
+                                    params.append(param_str)
+
+                            processor = InputProcessor(code=code, params=params)
+                            processors.append(processor)
+
+                    else:
+                        # Standalone parameter without processor - this shouldn't happen
+                        self.logger.warning(
+                            "Found standalone parameter '%s' without processor reference in input processors",
+                            item,
+                        )
+                        i += 1
+            else:
+                # Single processor
+                processor_str = str(prop.value.value).strip()
+                if processor_str and processor_str.startswith("&"):
+                    processor = InputProcessor(code=processor_str, params=[])
+                    processors.append(processor)
+
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error(
+                "Failed to extract input processors: %s", e, exc_info=exc_info
+            )
+
+        return processors
 
 
 def create_ast_behavior_converter() -> ASTBehaviorConverter:

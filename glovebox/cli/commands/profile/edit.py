@@ -17,7 +17,12 @@ from glovebox.cli.helpers import (
     print_error_message,
     print_success_message,
 )
-from glovebox.cli.helpers.theme import Icons
+from glovebox.cli.helpers.theme import (
+    Colors,
+    Icons,
+    get_icon_mode_from_context,
+    get_themed_console,
+)
 from glovebox.config.keyboard_profile import (
     get_available_keyboards,
     load_keyboard_config,
@@ -323,23 +328,29 @@ def edit_profile(
             value = _get_profile_config_value(keyboard_config, key)
 
             # Use rich console for better formatting
-            console = Console()
+            console = get_themed_console()
 
             if isinstance(value, list):
                 if not value:
-                    console.print(f"[cyan]{key}:[/cyan] [dim](empty list)[/dim]")
+                    console.print(
+                        f"[${Colors.FIELD_NAME}]{key}:[/${Colors.FIELD_NAME}] [${Colors.MUTED}](empty list)[/${Colors.MUTED}]"
+                    )
                 else:
-                    console.print(f"[cyan]{key}:[/cyan]")
+                    console.print(
+                        f"[${Colors.FIELD_NAME}]{key}:[/${Colors.FIELD_NAME}]"
+                    )
                     for item in value:
                         bullet_icon = Icons.get_icon("BULLET", app_ctx.icon_mode)
                         console.print(f"  {bullet_icon} [white]{item}[/white]")
             else:
-                console.print(f"[cyan]{key}:[/cyan] [white]{value}[/white]")
+                console.print(
+                    f"[${Colors.FIELD_NAME}]{key}:[/${Colors.FIELD_NAME}] [white]{value}[/white]"
+                )
 
     # For now, we'll show a message that editing keyboard configs directly isn't fully supported
     # since keyboard configs are typically loaded from YAML files
     if any([set, add, remove, clear]):
-        console = Console()
+        console = get_themed_console()
         error_icon = Icons.get_icon("ERROR", app_ctx.icon_mode)
         console.print(
             f"\n[bold red]{error_icon} Direct editing of keyboard configuration values is not yet supported.[/bold red]"
@@ -378,7 +389,7 @@ def _handle_interactive_profile_edit(profile_name: str, app_ctx: AppContext) -> 
     if not editor:
         editor = os.environ.get("EDITOR", "nano")
 
-    console = Console()
+    console = get_themed_console()
 
     # Find the keyboard config file
     keyboard_paths = app_ctx.user_config.get("keyboard_paths", [])
@@ -409,7 +420,7 @@ def _handle_interactive_profile_edit(profile_name: str, app_ctx: AppContext) -> 
         console.print("[yellow]Searched in keyboard_paths:[/yellow]")
         for path in keyboard_paths:
             bullet_icon = Icons.get_icon("BULLET", app_ctx.icon_mode)
-            console.print(f"  {bullet_icon} [dim]{path}[/dim]")
+            console.print(f"  {bullet_icon} [${Colors.MUTED}]{path}[/${Colors.MUTED}]")
         raise typer.Exit(1)
 
     # Get the file modification time before editing

@@ -4,6 +4,7 @@ from enum import Enum
 
 from pydantic import Field
 
+from glovebox.cli.helpers.theme import Icons
 from glovebox.models.base import GloveboxBaseModel
 
 
@@ -32,7 +33,11 @@ class LayoutBookmark(GloveboxBaseModel):
 
     def __str__(self) -> str:
         """String representation of bookmark."""
-        source_indicator = "📦" if self.source == BookmarkSource.FACTORY else "👤"
+        source_indicator = (
+            Icons.get_icon("FACTORY", "text")
+            if self.source == BookmarkSource.FACTORY
+            else Icons.get_icon("USER", "text")
+        )
         return f"{source_indicator} {self.name} ({self.uuid[:8]}...)"
 
 

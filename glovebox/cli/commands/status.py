@@ -13,6 +13,7 @@ from glovebox.cli.app import AppContext
 from glovebox.cli.decorators import handle_errors, with_metrics
 from glovebox.cli.helpers.output_formatter import OutputFormatter
 from glovebox.cli.helpers.parameters import OutputFormatOption
+from glovebox.cli.helpers.theme import Colors, Icons, format_status_message
 from glovebox.config.user_config import UserConfig
 from glovebox.utils.diagnostics import collect_all_diagnostics
 
@@ -30,18 +31,17 @@ def _collect_status_data(user_config: "UserConfig | None" = None) -> dict[str, A
 
 def _format_diagnostics_table(data: dict[str, Any], icon_mode: str = "emoji") -> None:
     """Format comprehensive diagnostics data as Rich tables."""
-    from glovebox.cli.helpers.theme import Icons
 
     console = Console()
 
     # Header with version
-    header = Text(f"Glovebox v{data.get('version', 'unknown')}", style="bold magenta")
+    header = Text(f"Glovebox v{data.get('version', 'unknown')}", style=Colors.ACCENT)
     firmware_icon = Icons.get_icon("FIRMWARE", icon_mode)
     console.print(
         Panel(
             header,
             title=f"{firmware_icon} Comprehensive Diagnostics",
-            border_style="blue",
+            border_style=Colors.SECONDARY,
         )
     )
     console.print()
@@ -63,17 +63,16 @@ def _print_system_diagnostics_table(
     console: Console, system_data: dict[str, Any], icon_mode: str = "emoji"
 ) -> None:
     """Print system diagnostics table."""
-    from glovebox.cli.helpers.theme import Icons
 
     system_icon = Icons.get_icon("SYSTEM", icon_mode)
     system_table = Table(
         title=f"{system_icon} System Environment",
         show_header=True,
-        header_style="bold cyan",
+        header_style=Colors.HEADER,
     )
-    system_table.add_column("Component", style="cyan", no_wrap=True)
-    system_table.add_column("Status", style="bold")
-    system_table.add_column("Details", style="dim")
+    system_table.add_column("Component", style=Colors.PRIMARY, no_wrap=True)
+    system_table.add_column("Status", style=Colors.FIELD_NAME)
+    system_table.add_column("Details", style=Colors.MUTED)
 
     environment = system_data.get("environment", {})
     file_system = system_data.get("file_system", {})
@@ -173,17 +172,16 @@ def _print_docker_diagnostics_table(
     console: Console, docker_data: dict[str, Any], icon_mode: str = "emoji"
 ) -> None:
     """Print Docker diagnostics table."""
-    from glovebox.cli.helpers.theme import Icons
 
     docker_icon = Icons.get_icon("DOCKER", icon_mode)
     docker_table = Table(
         title=f"{docker_icon} Docker Environment",
         show_header=True,
-        header_style="bold blue",
+        header_style=Colors.HEADER,
     )
-    docker_table.add_column("Component", style="cyan", no_wrap=True)
-    docker_table.add_column("Status", style="bold")
-    docker_table.add_column("Details", style="dim")
+    docker_table.add_column("Component", style=Colors.PRIMARY, no_wrap=True)
+    docker_table.add_column("Status", style=Colors.FIELD_NAME)
+    docker_table.add_column("Details", style=Colors.MUTED)
 
     # Docker availability
     availability = docker_data.get("availability", "unknown")
@@ -271,17 +269,16 @@ def _print_usb_diagnostics_table(
     console: Console, usb_data: dict[str, Any], icon_mode: str = "emoji"
 ) -> None:
     """Print USB/Flash diagnostics table."""
-    from glovebox.cli.helpers.theme import Icons
 
     usb_icon = Icons.get_icon("USB", icon_mode)
     usb_table = Table(
         title=f"{usb_icon} USB/Flash Capabilities",
         show_header=True,
-        header_style="bold yellow",
+        header_style=Colors.HEADER,
     )
-    usb_table.add_column("Component", style="cyan", no_wrap=True)
-    usb_table.add_column("Status", style="bold")
-    usb_table.add_column("Details", style="dim")
+    usb_table.add_column("Component", style=Colors.PRIMARY, no_wrap=True)
+    usb_table.add_column("Status", style=Colors.FIELD_NAME)
+    usb_table.add_column("Details", style=Colors.MUTED)
 
     # USB detection
     usb_detection = usb_data.get("usb_detection", {})
@@ -329,14 +326,14 @@ def _print_usb_diagnostics_table(
         devices_table = Table(
             title=f"{Icons.get_icon('DEVICE', icon_mode)} Detected USB Devices ({len(detected_devices)})",
             show_header=True,
-            header_style="bold yellow",
+            header_style=Colors.HEADER,
         )
-        devices_table.add_column("Device", style="cyan", no_wrap=True)
-        devices_table.add_column("Vendor", style="green")
-        devices_table.add_column("Model", style="blue")
-        devices_table.add_column("PIDs", style="magenta")
-        devices_table.add_column("Size", style="dim")
-        devices_table.add_column("Type", style="yellow")
+        devices_table.add_column("Device", style=Colors.PRIMARY, no_wrap=True)
+        devices_table.add_column("Vendor", style=Colors.SUCCESS)
+        devices_table.add_column("Model", style=Colors.SECONDARY)
+        devices_table.add_column("PIDs", style=Colors.ACCENT)
+        devices_table.add_column("Size", style=Colors.MUTED)
+        devices_table.add_column("Type", style=Colors.WARNING)
 
         for device in detected_devices:
             # Format size nicely
@@ -380,17 +377,16 @@ def _print_config_diagnostics_table(
     console: Console, config_data: dict[str, Any], icon_mode: str = "emoji"
 ) -> None:
     """Print configuration diagnostics table."""
-    from glovebox.cli.helpers.theme import Icons
 
     config_icon = Icons.get_icon("CONFIG", icon_mode)
     config_table = Table(
         title=f"{config_icon} Configuration",
         show_header=True,
-        header_style="bold green",
+        header_style=Colors.HEADER,
     )
-    config_table.add_column("Component", style="cyan", no_wrap=True)
-    config_table.add_column("Status", style="bold")
-    config_table.add_column("Details", style="dim")
+    config_table.add_column("Component", style=Colors.PRIMARY, no_wrap=True)
+    config_table.add_column("Status", style=Colors.FIELD_NAME)
+    config_table.add_column("Details", style=Colors.MUTED)
 
     # User config
     user_config = config_data.get("user_config", {})
@@ -470,8 +466,13 @@ def status_command(
         output = formatter.format(data, "text")
         print(output)
     else:
-        print(
-            f"Error: Unknown format '{output_format}'. Supported formats: table, json, text"
+        console = Console()
+        console.print(
+            format_status_message(
+                f"Unknown format '{output_format}'. Supported formats: table, json, text",
+                "error",
+                icon_mode,
+            )
         )
         raise typer.Exit(1)
 

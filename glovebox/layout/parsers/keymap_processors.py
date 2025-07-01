@@ -182,6 +182,9 @@ class FullKeymapProcessor(BaseKeymapProcessor):
         if converted_behaviors.get("combos"):
             layout_data.combos = converted_behaviors["combos"]
 
+        if converted_behaviors.get("input_listeners"):
+            layout_data.input_listeners = converted_behaviors["input_listeners"]
+
     def _populate_keymap_metadata(
         self, layout_data: LayoutData, metadata_dict: dict[str, object]
     ) -> None:
@@ -535,16 +538,138 @@ class TemplateAwareProcessor(BaseKeymapProcessor):
                 "custom_defined_behaviors"
             ]
 
-        # Handle input listeners and template variables
+        # Handle input listeners - convert to JSON models instead of storing as raw DTSI
         if "input_listeners" in processed_data:
+            input_listeners_data = processed_data["input_listeners"]
+            if isinstance(input_listeners_data, str):
+                # This is raw DTSI content, need to parse and convert to models
+                self._convert_input_listeners_from_dtsi(
+                    layout_data, input_listeners_data
+                )
+            elif isinstance(input_listeners_data, list):
+                # Already converted to models
+                layout_data.input_listeners = input_listeners_data
+
+            # Also store raw DTSI for template variables
             if not hasattr(layout_data, "variables") or layout_data.variables is None:
                 layout_data.variables = {}
-            layout_data.variables["input_listeners_dtsi"] = processed_data[
-                "input_listeners"
-            ]
+            if isinstance(input_listeners_data, str):
+                layout_data.variables["input_listeners_dtsi"] = input_listeners_data
 
         # Store raw content for template variables
         self._store_raw_content_for_templates(layout_data, processed_data)
+
+    def _convert_input_listeners_from_dtsi(
+        self, layout_data: LayoutData, input_listeners_dtsi: str
+    ) -> None:
+        """Convert raw input listeners DTSI content to JSON models.
+
+        Args:
+            layout_data: Layout data to populate with converted input listeners
+            input_listeners_dtsi: Raw DTSI content containing input listener definitions
+        """
+        try:
+            # Parse the DTSI content into AST nodes
+            from .dt_parser import parse_dt_lark_safe
+
+            # The section extractor provides behavior references (starting with &) rather than definitions
+            # Convert references to definitions for proper AST parsing
+            dtsi_content = input_listeners_dtsi.strip()
+
+            # First attempt: try parsing as-is (for complete device tree structures)
+            roots, parse_errors = parse_dt_lark_safe(dtsi_content)
+
+            # If parsing failed and content doesn't start with '/', try transforming and wrapping it
+            if (not roots or parse_errors) and not dtsi_content.startswith('/'):
+                self.logger.debug(
+                    "Initial parse failed, attempting to transform behavior references to definitions"
+                )
+
+                # Transform behavior references (&name) to proper definitions (name)
+                # Also add compatible strings for input listeners
+                transformed_content = self._transform_behavior_references_to_definitions(dtsi_content)
+
+                # Wrap transformed behavior definitions in device tree structure
+                wrapped_content = f"/ {{\n{transformed_content}\n}};"
+                roots, parse_errors = parse_dt_lark_safe(wrapped_content)
+
+                if parse_errors:
+                    self.logger.warning(
+                        "Parse errors while converting wrapped input listeners: %s",
+                        parse_errors
+                    )
+
+            if not roots:
+                self.logger.warning(
+                    "No AST roots found in input listeners DTSI content after wrapping attempt"
+                )
+                return
+
+            # Use the behavior extractor to convert input listener nodes
+            behavior_models, _ = (
+                self.section_extractor.behavior_extractor.extract_behaviors_as_models(
+                    roots, dtsi_content
+                )
+            )
+
+            # Extract input listeners from behavior models
+            if behavior_models.get("input_listeners"):
+                layout_data.input_listeners = behavior_models["input_listeners"]
+                self.logger.debug(
+                    "Converted %d input listeners from DTSI to JSON models",
+                    len(layout_data.input_listeners),
+                )
+            else:
+                self.logger.debug("No input listeners found in DTSI content")
+
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error(
+                "Failed to convert input listeners from DTSI: %s", e, exc_info=exc_info
+            )
+
+    def _transform_behavior_references_to_definitions(self, dtsi_content: str) -> str:
+        """Transform behavior references (&name) to proper node definitions (name).
+
+        Args:
+            dtsi_content: Raw DTSI content with behavior references
+
+        Returns:
+            Transformed content with proper node definitions
+        """
+        import re
+
+        # Transform &mmv_input_listener and &msc_input_listener references to definitions
+        # Pattern: &(listener_name) { ... };
+        # Replace with: listener_name { compatible = "zmk,input-listener"; ... };
+
+        def transform_listener_reference(match):
+            listener_name = match.group(1)
+            body = match.group(2)
+
+            # Add compatible property for input listeners
+            compatible_line = '    compatible = "zmk,input-listener";\n'
+
+            # Insert compatible property at the beginning of the body
+            lines = body.split('\n')
+            if len(lines) > 1:
+                # Insert after the opening brace
+                transformed_body = lines[0] + '\n' + compatible_line + '\n'.join(lines[1:])
+            else:
+                transformed_body = compatible_line + body
+
+            return f"{listener_name} {{{transformed_body}}};"
+
+        # Pattern to match behavior references: &name { ... };
+        pattern = r'&((?:mmv_input_listener|msc_input_listener))\s*\{([^}]*(?:\{[^}]*\}[^}]*)*)\};'
+
+        transformed = re.sub(pattern, transform_listener_reference, dtsi_content, flags=re.DOTALL)
+
+        import re as regex_module
+        self.logger.debug("Transformed behavior references for %d listeners",
+                         len(regex_module.findall(r'&(?:mmv_input_listener|msc_input_listener)', dtsi_content)))
+
+        return transformed
 
     def _store_raw_content_for_templates(
         self, layout_data: LayoutData, processed_data: dict[str, object]

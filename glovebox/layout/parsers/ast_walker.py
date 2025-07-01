@@ -534,6 +534,7 @@ class UniversalBehaviorExtractor:
             "layers": [],
             "mods": [],
             "other_behaviors": [],
+            "input_listeners": [],
         }
 
         # Convert hold-tap nodes
@@ -553,6 +554,21 @@ class UniversalBehaviorExtractor:
             combo = self.ast_converter.convert_combo_node(node)
             if combo:
                 behavior_models["combos"].append(combo)
+
+        # Extract and convert input listeners
+        multi_walker = DTMultiWalker(roots)
+        input_listener_nodes = []
+
+        # Find mmv_input_listener and msc_input_listener nodes
+        for listener_name in ["mmv_input_listener", "msc_input_listener"]:
+            nodes = multi_walker.find_nodes_by_name(listener_name)
+            input_listener_nodes.extend(nodes)
+
+        # Convert input listener nodes
+        for node in input_listener_nodes:
+            input_listener = self.ast_converter.convert_input_listener_node(node)
+            if input_listener:
+                behavior_models["input_listeners"].append(input_listener)
 
         # For other behavior types, we'll keep them as nodes for now
         # (could be extended with specific converters later)
@@ -574,13 +590,15 @@ class UniversalBehaviorExtractor:
             len(behavior_models["hold_taps"])
             + len(behavior_models["macros"])
             + len(behavior_models["combos"])
+            + len(behavior_models["input_listeners"])
         )
         self.logger.debug(
-            "Converted %d behavior nodes to model objects: %d hold-taps, %d macros, %d combos",
+            "Converted %d behavior nodes to model objects: %d hold-taps, %d macros, %d combos, %d input-listeners",
             converted_count,
             len(behavior_models["hold_taps"]),
             len(behavior_models["macros"]),
             len(behavior_models["combos"]),
+            len(behavior_models["input_listeners"]),
         )
 
         return behavior_models, metadata
