@@ -27,7 +27,7 @@ class FileFetcher:
         """
         try:
             path = Path(source.strip()).expanduser()
-            return path.is_file() and path.suffix.lower() == ".json"
+            return path.is_file() and path.suffix.lower() in [".json", ".keymap"]
         except Exception:
             return False
 
@@ -80,20 +80,45 @@ class FileFetcher:
                 errors.append(f"Source file does not exist: {source_path}")
                 return FetchResult(success=False, errors=errors)
 
-            if source_path.suffix.lower() != ".json":
+            file_suffix = source_path.suffix.lower()
+            if file_suffix not in [".json", ".keymap"]:
                 warnings.append(
-                    f"Source file does not have .json extension: {source_path.suffix}"
+                    f"Source file has unsupported extension: {source_path.suffix}"
                 )
 
             logger.info("Importing layout from %s", source_path)
 
-            # Read and validate JSON
+            # Read and process file based on type
             try:
                 content = source_path.read_text(encoding="utf-8")
-                layout_data = json.loads(content)
+
+                if file_suffix == ".json":
+                    # Parse JSON directly
+                    layout_data = json.loads(content)
+                elif file_suffix == ".keymap":
+                    # For .keymap files, create a wrapper JSON structure
+                    layout_data = {
+                        "title": source_path.stem,
+                        "keymap_content": content,
+                        "file_type": "keymap",
+                        "imported_from": str(source_path),
+                    }
+                else:
+                    # Fallback: try to parse as JSON
+                    layout_data = json.loads(content)
+
             except json.JSONDecodeError as e:
-                errors.append(f"Invalid JSON in source file: {e}")
-                return FetchResult(success=False, errors=errors)
+                if file_suffix == ".keymap":
+                    # For keymap files, JSON parse error is expected, create minimal structure
+                    layout_data = {
+                        "title": source_path.stem,
+                        "keymap_content": content,
+                        "file_type": "keymap",
+                        "imported_from": str(source_path),
+                    }
+                else:
+                    errors.append(f"Invalid JSON in source file: {e}")
+                    return FetchResult(success=False, errors=errors)
             except UnicodeDecodeError as e:
                 errors.append(f"Cannot read source file (encoding issue): {e}")
                 return FetchResult(success=False, errors=errors)

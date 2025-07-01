@@ -22,6 +22,7 @@ from rich.table import Table
 from rich.text import Text
 
 from glovebox.cli.helpers.theme import Colors, IconMode, Icons, format_status_message
+from glovebox.core.file_operations import CompilationProgress
 
 
 if TYPE_CHECKING:
@@ -682,6 +683,111 @@ class SimpleProgressCoordinator:
                 status += f" (ETA: {eta_seconds:.0f}s)"
 
         self.update_current_task(status, progress_percentage)
+
+    def update_board_progress(
+        self,
+        board_name: str = "",
+        current_step: int = 0,
+        total_steps: int = 0,
+        completed: bool = False,
+    ) -> None:
+        """Update board compilation progress."""
+        if completed:
+            self.boards_completed += 1
+
+        # Update the current task with board progress
+        if board_name:
+            description = f"Building {board_name}"
+        elif current_step and total_steps:
+            description = f"Building [{current_step}/{total_steps}]"
+        else:
+            description = "Building firmware"
+
+        # Calculate overall percentage based on board completion
+        if self.total_boards > 0:
+            percentage = (self.boards_completed / self.total_boards) * 100
+        else:
+            percentage = 0.0
+
+        self.update_current_task(description, percentage)
+
+    def complete_all_builds(self) -> None:
+        """Mark all builds as complete and transition to done phase."""
+        self.complete_all_tasks()
+
+    def complete_build_success(
+        self, reason: str = "Build completed successfully"
+    ) -> None:
+        """Mark build as complete regardless of current phase (for cached builds)."""
+        self.complete_all_tasks()
+
+    def get_current_progress(self) -> CompilationProgress:
+        """Get the current unified progress state."""
+        return CompilationProgress(
+            repositories_downloaded=0,  # Not tracked in simple display
+            total_repositories=self.total_repositories,
+            current_repository="",
+            compilation_phase=self.current_phase,
+            bytes_downloaded=0,
+            total_bytes=0,
+            current_board="",
+            boards_completed=self.boards_completed,
+            total_boards=self.total_boards,
+            current_board_step=0,
+            total_board_steps=0,
+            cache_operation_progress=0,
+            cache_operation_total=100,
+            cache_operation_status="pending",
+            compilation_strategy=self.compilation_strategy,
+            docker_image_name=self.docker_image_name,
+        )
+
+    def update_export_progress(
+        self,
+        files_processed: int = 0,
+        total_files: int = 0,
+        current_file: str = "",
+        archive_format: str = "",
+        compression_level: int = 0,
+        speed_mb_s: float = 0.0,
+        eta_seconds: float = 0.0,
+    ) -> None:
+        """Update workspace export progress."""
+        if total_files > 0:
+            progress_percentage = (files_processed / total_files) * 100
+        else:
+            progress_percentage = 0.0
+
+        # Create descriptive status message
+        if current_file and archive_format:
+            status = f"Exporting {archive_format}: {current_file}"
+        elif archive_format:
+            status = (
+                f"Exporting {archive_format} ({files_processed}/{total_files} files)"
+            )
+        else:
+            status = f"Exporting files ({files_processed}/{total_files})"
+
+        self.update_current_task(status, progress_percentage)
+
+    def update_cache_saving(self, operation: str = "", progress_info: str = "") -> None:
+        """Update cache saving progress."""
+        status = f"Saving cache: {operation}" if operation else "Saving cache"
+        if progress_info:
+            status += f" - {progress_info}"
+        self.update_current_task(status)
+
+    def update_docker_verification(
+        self, image_name: str, status: str = "verifying"
+    ) -> None:
+        """Update Docker image verification progress (MoErgo specific)."""
+        self.update_current_task(f"Docker: {status} {image_name}")
+
+    def update_nix_build_progress(
+        self, operation: str, status: str = "building"
+    ) -> None:
+        """Update Nix environment build progress (MoErgo specific)."""
+        self.update_current_task(f"Nix {status}: {operation}")
 
 
 def create_simple_compilation_display(
