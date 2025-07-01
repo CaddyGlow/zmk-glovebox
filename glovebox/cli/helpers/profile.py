@@ -74,7 +74,7 @@ def get_user_config_from_context(
         return None
 
 
-def get_keyboard_profile_from_context(
+def get_keyboard_profile_from_context_hard(
     ctx: typer.Context | ClickContext,
 ) -> KeyboardProfile:
     """Get KeyboardProfile from Typer context.
@@ -97,6 +97,25 @@ def get_keyboard_profile_from_context(
             "KeyboardProfile not available in context. Ensure @with_profile decorator is used."
         )
 
+    return keyboard_profile
+
+
+def get_keyboard_profile_from_context(
+    ctx: typer.Context | ClickContext,
+) -> KeyboardProfile | None:
+    """Get KeyboardProfile from Typer context.
+
+    Args:
+        ctx: Typer context
+
+    Returns:
+       KeyboardProfile instance or None if not available
+
+    """
+    from glovebox.cli.app import AppContext
+
+    app_ctx: AppContext = ctx.obj
+    keyboard_profile = app_ctx.keyboard_profile
     return keyboard_profile
 
 

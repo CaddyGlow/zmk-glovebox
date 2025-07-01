@@ -705,19 +705,22 @@ def firmware_compile(
             # Include existing config file content if provided
             if config_file is not None and config_file.exists():
                 config_content = config_file.read_text()
-                if not config_content.endswith('\n'):
-                    config_content += '\n'
+                if not config_content.endswith("\n"):
+                    config_content += "\n"
 
             # Add config flags
             for flag in effective_config_flags:
-                if '=' in flag:
+                if "=" in flag:
                     config_content += f"CONFIG_{flag}\n"
                 else:
                     config_content += f"CONFIG_{flag}=y\n"
 
             temp_config_file.write_text(config_content)
             effective_config_file = temp_config_file
-            logger.info("Created temporary config file with %d flags", len(effective_config_flags))
+            logger.info(
+                "Created temporary config file with %d flags",
+                len(effective_config_flags),
+            )
 
         # Ensure we have a config file for keymap compilation
         if not is_json_input and effective_config_file is None:
@@ -744,7 +747,9 @@ def firmware_compile(
                 build_cache_service=build_service,
             )
         else:
-            assert effective_config_file is not None, "Config file should be created for keymap compilation"
+            assert effective_config_file is not None, (
+                "Config file should be created for keymap compilation"
+            )
             result = _execute_compilation_service(
                 compilation_type,
                 resolved_input_file,  # keymap_file
@@ -765,8 +770,6 @@ def firmware_compile(
         decorator_tmp_dir = get_tmpdir_from_context(ctx)
         manual_cleanup_needed = output is None and build_output_dir != decorator_tmp_dir
 
-        # Progress display cleanup is handled by context manager
-
         if result.success:
             # Process compilation output (create .uf2 and _artefacts.zip if --output not provided)
             _process_compilation_output(result, resolved_input_file, output)
@@ -776,6 +779,10 @@ def firmware_compile(
         else:
             # Format and display results
             _format_compilation_output(result, output_format, build_output_dir)
+
+        # Clean up progress display after completion (success or failure)
+        if progress_display:
+            progress_display.stop()
 
         # Clean up temporary build directory if needed (only for manual temp dirs)
         if manual_cleanup_needed and build_output_dir.exists():
