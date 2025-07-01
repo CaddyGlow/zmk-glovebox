@@ -29,10 +29,19 @@ def _collect_status_data(user_config: "UserConfig | None" = None) -> dict[str, A
     return full_diagnostics
 
 
-def _format_diagnostics_table(data: dict[str, Any], icon_mode: str = "emoji") -> None:
+def _format_diagnostics_table(
+    data: dict[str, Any], ctx: typer.Context | None = None
+) -> None:
     """Format comprehensive diagnostics data as Rich tables."""
 
-    console = Console()
+    from glovebox.cli.helpers.theme import (
+        get_icon_mode_from_context,
+        get_themed_console,
+    )
+
+    themed_console = get_themed_console(ctx=ctx)
+    console = themed_console.console
+    icon_mode = themed_console.icon_mode
 
     # Header with version
     header = Text(f"Glovebox v{data.get('version', 'unknown')}", style=Colors.ACCENT)
@@ -448,9 +457,6 @@ def status_command(
     # Collect all status data
     data = _collect_status_data(app_ctx.user_config)
 
-    # Get icon mode setting from app context
-    icon_mode = app_ctx.icon_mode
-
     # Use the standard OutputFormatter utility
     formatter = OutputFormatter()
 
@@ -459,19 +465,21 @@ def status_command(
         output = formatter.format(data, "json")
         print(output)
     elif output_format.lower() == "table":
-        # Use Rich table format for comprehensive diagnostics
-        _format_diagnostics_table(data, icon_mode)
+        # Use Rich table format with context-aware theme loading
+        _format_diagnostics_table(data, ctx)
     elif output_format.lower() == "text":
         # Simple text output using the formatter
         output = formatter.format(data, "text")
         print(output)
     else:
-        console = Console()
-        console.print(
+        from glovebox.cli.helpers.theme import format_status_message, get_themed_console
+
+        themed_console = get_themed_console(ctx=ctx)
+        themed_console.console.print(
             format_status_message(
                 f"Unknown format '{output_format}'. Supported formats: table, json, text",
                 "error",
-                icon_mode,
+                themed_console.icon_mode,
             )
         )
         raise typer.Exit(1)

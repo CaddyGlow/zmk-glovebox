@@ -484,18 +484,30 @@ class TableStyles:
 
     @staticmethod
     def create_basic_table(
-        title: str = "", icon: str = "", icon_mode: IconMode | str = IconMode.EMOJI
+        title: str = "",
+        icon: str = "",
+        icon_mode: IconMode | str | None = None,
+        ctx: "typer.Context | None" = None,
     ) -> Table:
         """Create a basic styled table.
 
         Args:
             title: Table title
             icon: Icon to include in title
-            icon_mode: Icon mode - IconMode enum or string
+            icon_mode: Icon mode - IconMode enum or string. If None, will auto-detect from context.
+            ctx: Typer context for auto-detecting icon mode from user config
 
         Returns:
             Configured Table instance
         """
+        # Auto-detect icon mode from context if not provided
+        if icon_mode is None and ctx is not None:
+            icon_mode = get_icon_mode_from_context(ctx)
+
+        # Fallback to default if still None
+        if icon_mode is None:
+            icon_mode = IconMode.TEXT
+
         # Convert string to enum for backward compatibility
         if isinstance(icon_mode, str):
             icon_mode = IconMode(icon_mode)
@@ -518,11 +530,11 @@ class TableStyles:
         )
 
     @staticmethod
-    def create_device_table(icon_mode: IconMode | str = IconMode.EMOJI) -> Table:
+    def create_device_table(
+        icon_mode: IconMode | str | None = None, ctx: "typer.Context | None" = None
+    ) -> Table:
         """Create table for device listings."""
-        if isinstance(icon_mode, str):
-            icon_mode = IconMode(icon_mode)
-        table = TableStyles.create_basic_table("USB Devices", "DEVICE", icon_mode)
+        table = TableStyles.create_basic_table("USB Devices", "DEVICE", icon_mode, ctx)
         table.add_column("Device", style=Colors.PRIMARY, no_wrap=True)
         table.add_column("Serial", style=Colors.ACCENT)
         table.add_column("Path", style=Colors.MUTED)
@@ -530,32 +542,32 @@ class TableStyles:
         return table
 
     @staticmethod
-    def create_status_table(icon_mode: IconMode | str = IconMode.EMOJI) -> Table:
+    def create_status_table(
+        icon_mode: IconMode | str | None = None, ctx: "typer.Context | None" = None
+    ) -> Table:
         """Create table for status information."""
-        if isinstance(icon_mode, str):
-            icon_mode = IconMode(icon_mode)
-        table = TableStyles.create_basic_table("System Status", "SYSTEM", icon_mode)
+        table = TableStyles.create_basic_table("System Status", "SYSTEM", icon_mode, ctx)
         table.add_column("Component", style=Colors.PRIMARY, no_wrap=True)
         table.add_column("Status", style="bold")
         table.add_column("Details", style=Colors.MUTED)
         return table
 
     @staticmethod
-    def create_config_table(icon_mode: IconMode | str = IconMode.EMOJI) -> Table:
+    def create_config_table(
+        icon_mode: IconMode | str | None = None, ctx: "typer.Context | None" = None
+    ) -> Table:
         """Create table for configuration display."""
-        if isinstance(icon_mode, str):
-            icon_mode = IconMode(icon_mode)
-        table = TableStyles.create_basic_table("Configuration", "CONFIG", icon_mode)
+        table = TableStyles.create_basic_table("Configuration", "CONFIG", icon_mode, ctx)
         table.add_column("Setting", style=Colors.PRIMARY, no_wrap=True)
         table.add_column("Value", style=Colors.NORMAL)
         return table
 
     @staticmethod
-    def create_keyboard_table(icon_mode: IconMode | str = IconMode.EMOJI) -> Table:
+    def create_keyboard_table(
+        icon_mode: IconMode | str | None = None, ctx: "typer.Context | None" = None
+    ) -> Table:
         """Create table for keyboard listings."""
-        if isinstance(icon_mode, str):
-            icon_mode = IconMode(icon_mode)
-        table = TableStyles.create_basic_table("Keyboards", "KEYBOARD", icon_mode)
+        table = TableStyles.create_basic_table("Keyboards", "KEYBOARD", icon_mode, ctx)
         table.add_column("Keyboard", style=Colors.PRIMARY, no_wrap=True)
         table.add_column("Firmwares", style=Colors.ACCENT)
         table.add_column("Description", style=Colors.MUTED)
@@ -567,7 +579,11 @@ class PanelStyles:
 
     @staticmethod
     def create_header_panel(
-        title: str, subtitle: str = "", icon: str = "", icon_mode: str = "emoji"
+        title: str,
+        subtitle: str = "",
+        icon: str = "",
+        icon_mode: IconMode | str | None = None,
+        ctx: "typer.Context | None" = None,
     ) -> Panel:
         """Create styled header panel.
 
@@ -575,11 +591,24 @@ class PanelStyles:
             title: Main title
             subtitle: Optional subtitle
             icon: Icon to include
-            icon_mode: Icon mode - "emoji", "nerdfont", or "text"
+            icon_mode: Icon mode - IconMode enum or string. If None, will auto-detect from context.
+            ctx: Typer context for auto-detecting icon mode from user config
 
         Returns:
             Configured Panel instance
         """
+        # Auto-detect icon mode from context if not provided
+        if icon_mode is None and ctx is not None:
+            icon_mode = get_icon_mode_from_context(ctx)
+
+        # Fallback to default if still None
+        if icon_mode is None:
+            icon_mode = IconMode.TEXT
+
+        # Convert string to enum for backward compatibility
+        if isinstance(icon_mode, str):
+            icon_mode = IconMode(icon_mode)
+
         if icon:
             display_icon = (
                 Icons.get_icon(icon.upper(), icon_mode)
@@ -604,9 +633,20 @@ class PanelStyles:
 
     @staticmethod
     def create_info_panel(
-        content: str, title: str = "Information", icon_mode: str = "emoji"
+        content: str,
+        title: str = "Information",
+        icon_mode: IconMode | str | None = None,
+        ctx: "typer.Context | None" = None,
     ) -> Panel:
         """Create styled information panel."""
+        # Auto-detect icon mode from context if not provided
+        if icon_mode is None and ctx is not None:
+            icon_mode = get_icon_mode_from_context(ctx)
+
+        # Fallback to default if still None
+        if icon_mode is None:
+            icon_mode = IconMode.TEXT
+
         icon = Icons.get_icon("INFO", icon_mode)
         return Panel(
             content,
@@ -617,9 +657,20 @@ class PanelStyles:
 
     @staticmethod
     def create_error_panel(
-        content: str, title: str = "Error", icon_mode: str = "emoji"
+        content: str,
+        title: str = "Error",
+        icon_mode: IconMode | str | None = None,
+        ctx: "typer.Context | None" = None,
     ) -> Panel:
         """Create styled error panel."""
+        # Auto-detect icon mode from context if not provided
+        if icon_mode is None and ctx is not None:
+            icon_mode = get_icon_mode_from_context(ctx)
+
+        # Fallback to default if still None
+        if icon_mode is None:
+            icon_mode = IconMode.TEXT
+
         icon = Icons.get_icon("ERROR", icon_mode)
         return Panel(
             Text(content, style=Colors.ERROR),
@@ -630,9 +681,20 @@ class PanelStyles:
 
     @staticmethod
     def create_success_panel(
-        content: str, title: str = "Success", icon_mode: str = "emoji"
+        content: str,
+        title: str = "Success",
+        icon_mode: IconMode | str | None = None,
+        ctx: "typer.Context | None" = None,
     ) -> Panel:
         """Create styled success panel."""
+        # Auto-detect icon mode from context if not provided
+        if icon_mode is None and ctx is not None:
+            icon_mode = get_icon_mode_from_context(ctx)
+
+        # Fallback to default if still None
+        if icon_mode is None:
+            icon_mode = IconMode.TEXT
+
         icon = Icons.get_icon("SUCCESS", icon_mode)
         return Panel(
             Text(content, style=Colors.SUCCESS),
@@ -687,18 +749,31 @@ class StatusIndicators:
 
 
 # Utility functions for quick access
-def get_themed_console(icon_mode: IconMode | str = IconMode.TEXT) -> ThemedConsole:
-    """Get a themed console instance.
+def get_themed_console(
+    icon_mode: IconMode | str | None = None, ctx: "typer.Context | None" = None
+) -> ThemedConsole:
+    """Get a themed console instance with automatic icon mode detection.
 
     Args:
-        icon_mode: Icon mode - IconMode enum or string
+        icon_mode: Icon mode - IconMode enum or string. If None, will auto-detect from context.
+        ctx: Typer context containing AppContext with user configuration.
+             If provided and icon_mode is None, will automatically load icon_mode from user config.
 
     Returns:
-        Configured ThemedConsole instance
+        Configured ThemedConsole instance with appropriate icon mode
     """
+    # Auto-detect icon mode from context if not provided
+    if icon_mode is None and ctx is not None:
+        icon_mode = get_icon_mode_from_context(ctx)
+
+    # Fallback to default if still None
+    if icon_mode is None:
+        icon_mode = IconMode.TEXT
+
     # Convert string to enum for backward compatibility
     if isinstance(icon_mode, str):
         icon_mode = IconMode(icon_mode)
+
     return ThemedConsole(icon_mode=icon_mode)
 
 

@@ -1,327 +1,800 @@
 # CLI Reference
 
-Complete reference for all Glovebox CLI commands and options.
-
-## Command Structure
-
-```bash
-glovebox [GLOBAL_OPTIONS] COMMAND [COMMAND_OPTIONS] [ARGUMENTS]
-```
+This is a comprehensive reference for all Glovebox CLI commands, their options, and usage examples.
 
 ## Global Options
 
-| Option | Description |
-|--------|-------------|
-| `--help`, `-h` | Show help message and exit |
-| `--version` | Show version information |
-| `--verbose`, `-v` | Enable verbose output |
-| `--debug` | Enable debug output with stack traces |
-| `--config-file PATH` | Use custom configuration file |
-| `--profile PROFILE` | Set default profile for session |
+These options work with all commands:
 
-## Commands Overview
+```bash
+--help                    # Show help message
+--verbose                 # Enable verbose output  
+--quiet                   # Suppress non-essential output
+--profile KEYBOARD[/FIRMWARE]  # Override default profile
+--version                 # Show version and exit
+```
 
-| Command | Purpose | Key Features |
-|---------|---------|--------------|
-| [`layout`](#layout-commands) | Layout operations | Compile, edit, diff, patch, split, merge |
-| [`firmware`](#firmware-commands) | Firmware operations | Compile, flash, manage builds |
-| [`config`](#config-commands) | Configuration management | View, edit, import, export settings |
-| [`keyboard`](#keyboard-commands) | Keyboard information | List keyboards, show details, firmwares |
-| [`status`](#status-command) | System status | Check installation, dependencies |
-| [`cache`](#cache-commands) | Cache management | Clear, stats, maintenance |
+## Command Structure
+
+All Glovebox commands follow this pattern:
+
+```bash
+glovebox [GLOBAL_OPTIONS] COMMAND [SUBCOMMAND] [OPTIONS] [ARGUMENTS]
+```
+
+---
 
 ## Layout Commands
 
-See the complete [Layout Commands Guide](layout-commands.md) for detailed documentation.
+Manage keyboard layouts and convert between formats.
 
-### Quick Reference
+### `glovebox layout compile`
 
-```bash
-# Compile layout to ZMK files
-glovebox layout compile layout.json --output build/ --profile glove80/v25.05
-
-# Compare layouts and create patch
-glovebox layout diff new.json old.json --output changes.json --detailed
-
-# Apply patch to layout
-glovebox layout patch base.json changes.json --output patched.json
-
-# Edit layout fields
-glovebox layout edit layout.json --set title="My Layout" --output modified.json
-
-# Validate layout
-glovebox layout validate layout.json --profile glove80/v25.05
-
-# Show layout content
-glovebox layout show layout.json --layer 0 --output-format rich-table
-
-# Split layout into components
-glovebox layout split layout.json ./components/
-
-# Merge components into layout
-glovebox layout merge ./components/ merged.json
-```
-
-## Firmware Commands
-
-### compile
-
-Compile ZMK firmware from keymap and config files.
+Compile JSON layouts to ZMK keymap and config files.
 
 ```bash
-glovebox firmware compile KEYMAP CONFIG [OPTIONS]
+glovebox layout compile INPUT OUTPUT [OPTIONS]
 ```
+
+**Arguments:**
+- `INPUT` - Input JSON layout file
+- `OUTPUT` - Output directory for generated files
 
 **Options:**
-- `--output`, `-o PATH` - Output directory for firmware files
-- `--profile PROFILE` - Keyboard profile (e.g., 'glove80/v25.05')
-- `--force` - Overwrite existing files
-- `--output-format FORMAT` - Output format (text|json|table)
+```bash
+--profile PROFILE         # Keyboard/firmware profile
+--validate / --no-validate  # Validate layout (default: true)
+--force                   # Overwrite existing files
+--verbose                 # Verbose compilation output
+--dry-run                 # Show what would be generated
+--format FORMAT           # Output format (zmk, preview)
+```
 
 **Examples:**
 ```bash
 # Basic compilation
-glovebox firmware compile layout.keymap config.conf --profile glove80/v25.05
+glovebox layout compile my_layout.json output/ --profile glove80/v25.05
 
-# Custom output directory
-glovebox firmware compile layout.keymap config.conf --output ./firmware/
+# With validation disabled
+glovebox layout compile layout.json output/ --no-validate
 
-# Force overwrite
-glovebox firmware compile layout.keymap config.conf --force --output ./build/
+# Dry run to preview
+glovebox layout compile layout.json output/ --dry-run
+
+# Force overwrite existing files
+glovebox layout compile layout.json output/ --force
 ```
 
-### flash
+### `glovebox layout validate`
 
-Flash firmware to keyboard device.
+Validate JSON layout files without compilation.
+
+```bash
+glovebox layout validate INPUT [OPTIONS]
+```
+
+**Options:**
+```bash
+--profile PROFILE         # Profile for validation context
+--verbose                 # Detailed validation output
+--format json            # Output validation results as JSON
+```
+
+**Examples:**
+```bash
+# Basic validation
+glovebox layout validate my_layout.json
+
+# Verbose validation with profile
+glovebox layout validate layout.json --profile glove80/v25.05 --verbose
+
+# JSON output for scripting
+glovebox layout validate layout.json --format json
+```
+
+### `glovebox layout show`
+
+Display layout information and preview.
+
+```bash
+glovebox layout show INPUT [OPTIONS]
+```
+
+**Options:**
+```bash
+--profile PROFILE         # Profile for display context
+--mode MODE              # Display mode (grid, list, json)
+--verbose                # Show detailed information
+--format FORMAT          # Output format (table, json, yaml)
+```
+
+**Examples:**
+```bash
+# Show layout in grid format
+glovebox layout show layout.json --mode grid
+
+# Show as JSON
+glovebox layout show layout.json --format json
+
+# Verbose layout information
+glovebox layout show layout.json --verbose
+```
+
+### `glovebox layout edit`
+
+Edit layout files with field operations.
+
+```bash
+glovebox layout edit INPUT [OPTIONS]
+```
+
+**Field Operations:**
+```bash
+--get FIELD[,FIELD...]    # Get field values
+--set FIELD=VALUE         # Set field value
+--unset FIELD             # Remove field
+--append FIELD=VALUE      # Append to array field
+--merge FIELD=VALUE       # Merge into object field
+```
+
+**Layer Operations:**
+```bash
+--add-layer NAME          # Add new layer
+--remove-layer NAME       # Remove layer
+--move-layer NAME=POS     # Move layer to position
+--copy-layer SRC=DST      # Copy layer
+```
+
+**Control Options:**
+```bash
+--save / --no-save        # Save changes (default: true)
+--backup / --no-backup    # Create backup (default: true)
+--force                   # Force operations
+--interactive             # Interactive editing mode
+```
+
+**Examples:**
+```bash
+# Get field values
+glovebox layout edit layout.json --get title,keyboard,version
+
+# Set multiple fields
+glovebox layout edit layout.json \
+  --set title="My Layout" \
+  --set version="2.0" \
+  --save
+
+# Add and modify layer
+glovebox layout edit layout.json \
+  --add-layer "Numbers" \
+  --set layers[3].bindings[0]="&kp N1"
+
+# Interactive editing
+glovebox layout edit layout.json --interactive
+```
+
+### `glovebox layout split`
+
+Split layout into separate component files.
+
+```bash
+glovebox layout split INPUT OUTPUT_DIR [OPTIONS]
+```
+
+**Options:**
+```bash
+--format FORMAT          # Output format (json, yaml)
+--overwrite              # Overwrite existing files
+```
+
+**Examples:**
+```bash
+# Split into JSON components
+glovebox layout split layout.json components/
+
+# Split into YAML format
+glovebox layout split layout.json components/ --format yaml
+```
+
+### `glovebox layout merge`
+
+Merge component files back into a single layout.
+
+```bash
+glovebox layout merge INPUT_DIR OUTPUT [OPTIONS]
+```
+
+**Examples:**
+```bash
+# Merge components into layout
+glovebox layout merge components/ merged_layout.json
+
+# Merge with validation
+glovebox layout merge components/ layout.json --validate
+```
+
+### `glovebox layout diff`
+
+Compare two layout files and show differences.
+
+```bash
+glovebox layout diff LAYOUT1 LAYOUT2 [OPTIONS]
+```
+
+**Options:**
+```bash
+--include-dtsi           # Include DTSI content comparison
+--format FORMAT          # Output format (text, json, yaml)
+--context LINES          # Context lines for diff (default: 3)
+--unified                # Unified diff format
+```
+
+**Examples:**
+```bash
+# Basic diff
+glovebox layout diff old_layout.json new_layout.json
+
+# Include DTSI comparison
+glovebox layout diff layout1.json layout2.json --include-dtsi
+
+# JSON output
+glovebox layout diff layout1.json layout2.json --format json
+
+# Unified diff with more context
+glovebox layout diff layout1.json layout2.json --unified --context 5
+```
+
+### `glovebox layout patch`
+
+Apply patch file to layout.
+
+```bash
+glovebox layout patch INPUT PATCH_FILE OUTPUT [OPTIONS]
+```
+
+**Options:**
+```bash
+--dry-run                # Preview patch without applying
+--force                  # Force patch application
+```
+
+**Examples:**
+```bash
+# Apply patch
+glovebox layout patch layout.json changes.patch patched_layout.json
+
+# Preview patch
+glovebox layout patch layout.json changes.patch output.json --dry-run
+```
+
+---
+
+## Firmware Commands
+
+Build and flash keyboard firmware.
+
+### `glovebox firmware compile`
+
+Compile layouts or ZMK files into firmware.
+
+```bash
+glovebox firmware compile INPUT OUTPUT [OPTIONS]
+```
+
+**Input Types:**
+- JSON layout file
+- ZMK keymap file (with config file)
+- Directory containing ZMK files
+
+**Options:**
+```bash
+--profile PROFILE         # Keyboard/firmware profile (required)
+--config CONFIG_FILE      # Additional config file
+--verbose                 # Verbose build output
+--clean                   # Clean build (no cache)
+--dry-run                 # Show build plan without executing
+--timeout SECONDS         # Build timeout (default: 300)
+```
+
+**Examples:**
+```bash
+# Compile from JSON layout
+glovebox firmware compile layout.json firmware/ --profile glove80/v25.05
+
+# Compile from ZMK files
+glovebox firmware compile keymap.keymap firmware/ \
+  --profile glove80/v25.05 \
+  --config config.conf
+
+# Clean build with verbose output
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --clean --verbose
+
+# Extended timeout for large builds
+glovebox firmware compile layout.json firmware/ \
+  --profile glove80/v25.05 \
+  --timeout 600
+```
+
+### `glovebox firmware flash`
+
+Flash firmware to connected keyboards.
 
 ```bash
 glovebox firmware flash FIRMWARE [OPTIONS]
 ```
 
 **Options:**
-- `--profile PROFILE` - Keyboard profile for device detection
-- `--device PATH` - Specific device path (overrides auto-detection)
-- `--timeout SECONDS` - Wait timeout for device detection (default: 30)
-- `--force` - Skip confirmations
-- `--dry-run` - Show what would be flashed without doing it
+```bash
+--profile PROFILE         # Keyboard profile for device detection
+--device DEVICE           # Specific device to flash
+--wait                    # Wait for device to appear
+--timeout SECONDS         # Flash timeout (default: 30)
+--dry-run                 # Show flash plan without executing
+--force                   # Force flash without verification
+```
 
 **Examples:**
 ```bash
-# Auto-detect device and flash
+# Flash firmware (auto-detect device)
 glovebox firmware flash firmware.uf2 --profile glove80
 
-# Specify device manually
-glovebox firmware flash firmware.uf2 --device /dev/sdb
+# Flash to specific device
+glovebox firmware flash firmware.uf2 --device /dev/ttyACM0
 
-# Wait longer for device
+# Wait for device and flash
+glovebox firmware flash firmware.uf2 --profile glove80 --wait
+
+# Flash with extended timeout
 glovebox firmware flash firmware.uf2 --profile glove80 --timeout 60
 ```
 
-## Config Commands
+### `glovebox firmware devices`
 
-### list
-
-Show current configuration with optional details.
+List connected keyboards and their status.
 
 ```bash
-glovebox config list [OPTIONS]
+glovebox firmware devices [OPTIONS]
 ```
 
 **Options:**
-- `--defaults` - Show default values alongside current values
-- `--descriptions` - Include parameter descriptions
-- `--sources` - Show configuration sources
-- `--format FORMAT` - Output format (text|json|yaml|table)
+```bash
+--profile PROFILE         # Filter by keyboard profile
+--verbose                 # Show detailed device information
+--format FORMAT           # Output format (table, json, yaml)
+--watch                   # Watch for device changes
+```
 
 **Examples:**
 ```bash
-# Basic configuration list
-glovebox config list
+# List all devices
+glovebox firmware devices
 
-# Complete information
-glovebox config list --defaults --descriptions --sources
+# Filter by profile
+glovebox firmware devices --profile glove80
 
-# JSON output
-glovebox config list --format json
+# Verbose device information
+glovebox firmware devices --verbose
+
+# JSON output for scripting
+glovebox firmware devices --format json
+
+# Watch for device changes
+glovebox firmware devices --watch
 ```
 
-### edit
+---
 
-Unified configuration editing with multiple operations.
+## Profile Commands
+
+Manage keyboard and firmware profiles.
+
+### `glovebox profile list`
+
+List available profiles.
+
+```bash
+glovebox profile list [OPTIONS]
+```
+
+**Options:**
+```bash
+--keyboards-only         # Show only keyboard names
+--verbose                # Show detailed profile information
+--format FORMAT          # Output format (table, json, yaml)
+```
+
+**Examples:**
+```bash
+# List all profiles
+glovebox profile list
+
+# Show only keyboards
+glovebox profile list --keyboards-only
+
+# Verbose profile information
+glovebox profile list --verbose
+
+# JSON output
+glovebox profile list --format json
+```
+
+### `glovebox profile show`
+
+Show detailed profile information.
+
+```bash
+glovebox profile show PROFILE [OPTIONS]
+```
+
+**Options:**
+```bash
+--verbose                # Show all configuration details
+--format FORMAT          # Output format (table, json, yaml)
+```
+
+**Examples:**
+```bash
+# Show profile details
+glovebox profile show glove80/v25.05
+
+# Show keyboard-only profile
+glovebox profile show glove80
+
+# Verbose profile information
+glovebox profile show glove80/v25.05 --verbose
+
+# JSON output
+glovebox profile show glove80/v25.05 --format json
+```
+
+### `glovebox profile edit`
+
+Edit profile configurations.
+
+```bash
+glovebox profile edit PROFILE [OPTIONS]
+```
+
+**Options:**
+```bash
+--get KEY                # Get configuration value
+--set KEY=VALUE          # Set configuration value
+--interactive            # Interactive editing mode
+```
+
+**Examples:**
+```bash
+# Get profile value
+glovebox profile edit glove80/v25.05 --get build_timeout
+
+# Set profile value
+glovebox profile edit glove80/v25.05 --set build_timeout=600
+
+# Interactive editing
+glovebox profile edit glove80/v25.05 --interactive
+```
+
+### `glovebox profile firmwares`
+
+List firmware versions for a keyboard.
+
+```bash
+glovebox profile firmwares KEYBOARD [OPTIONS]
+```
+
+**Options:**
+```bash
+--format FORMAT          # Output format (table, json, yaml)
+```
+
+**Examples:**
+```bash
+# List Glove80 firmware versions
+glovebox profile firmwares glove80
+
+# JSON output
+glovebox profile firmwares glove80 --format json
+```
+
+### `glovebox profile firmware`
+
+Show specific firmware version details.
+
+```bash
+glovebox profile firmware KEYBOARD FIRMWARE [OPTIONS]
+```
+
+**Examples:**
+```bash
+# Show firmware details
+glovebox profile firmware glove80 v25.05
+```
+
+---
+
+## Configuration Commands
+
+Manage Glovebox configuration settings.
+
+### `glovebox config edit`
+
+Edit configuration values.
 
 ```bash
 glovebox config edit [OPTIONS]
 ```
 
-**Options:**
-- `--get KEY [KEY...]` - Get configuration values
-- `--set KEY=VALUE [KEY=VALUE...]` - Set configuration values
-- `--add KEY=VALUE [KEY=VALUE...]` - Add values to list configurations
-- `--remove KEY=VALUE [KEY=VALUE...]` - Remove values from list configurations
-- `--save / --no-save` - Control whether changes are persisted (default: --save)
+**Field Operations:**
+```bash
+--get FIELD[,FIELD...]    # Get configuration values
+--set FIELD=VALUE         # Set configuration value
+--unset FIELD             # Remove configuration field
+--add FIELD=VALUE         # Add to list configuration
+--remove FIELD=VALUE      # Remove from list configuration
+```
+
+**Control Options:**
+```bash
+--save / --no-save        # Save changes (default: true)
+--interactive             # Interactive configuration editor
+```
 
 **Examples:**
 ```bash
-# Get values
-glovebox config edit --get cache_strategy --get emoji_mode
+# Get configuration values
+glovebox config edit --get profile,cache_strategy
 
-# Set values
-glovebox config edit --set cache_strategy=shared --set emoji_mode=true
-
-# Multiple operations
+# Set configuration values
 glovebox config edit \
-  --get cache_strategy \
-  --set emoji_mode=true \
-  --add keyboard_paths=/new/path \
-  --remove keyboard_paths=/old/path \
-  --save
+  --set profile=glove80/v25.05 \
+  --set cache_strategy=shared \
+  --set icon_mode=text
+
+# Add to list configuration
+glovebox config edit --add profiles_paths=/path/to/custom/profiles
+
+# Interactive configuration
+glovebox config edit --interactive
 ```
 
-### export
+### `glovebox config show`
 
-Export configuration to file.
-
-```bash
-glovebox config export [FILE] [OPTIONS]
-```
-
-**Options:**
-- `--format FORMAT` - Export format (json|yaml|toml)
-- `--include-defaults` - Include default values in export
-- `--exclude-secrets` - Exclude sensitive values
-
-**Examples:**
-```bash
-# Export to YAML
-glovebox config export config.yaml --format yaml
-
-# Include defaults
-glovebox config export config.json --include-defaults
-
-# To stdout
-glovebox config export --format json
-```
-
-### import
-
-Import configuration from file.
+Display current configuration.
 
 ```bash
-glovebox config import FILE [OPTIONS]
+glovebox config show [OPTIONS]
 ```
 
 **Options:**
-- `--merge` - Merge with existing configuration (default: replace)
-- `--dry-run` - Show what would be imported without applying
-- `--force` - Overwrite existing values without confirmation
+```bash
+--defaults               # Show default values
+--descriptions           # Show field descriptions
+--sources                # Show configuration sources
+--format FORMAT          # Output format (table, json, yaml)
+```
 
 **Examples:**
 ```bash
-# Import with preview
-glovebox config import config.yaml --dry-run
+# Show current configuration
+glovebox config show
 
-# Merge configuration
-glovebox config import config.yaml --merge
+# Show with defaults and descriptions
+glovebox config show --defaults --descriptions
 
-# Force import
-glovebox config import config.yaml --force
+# Show all information
+glovebox config show --defaults --descriptions --sources
+
+# JSON output
+glovebox config show --format json
 ```
 
-## Keyboard Commands
+### `glovebox config check-updates`
 
-### list
-
-List available keyboards.
+Check for version updates.
 
 ```bash
-glovebox keyboard list [OPTIONS]
+glovebox config check-updates [OPTIONS]
 ```
 
 **Options:**
-- `--verbose` - Show detailed keyboard information
-- `--format FORMAT` - Output format (text|json|table)
+```bash
+--include-prereleases    # Include pre-release versions
+```
 
 **Examples:**
 ```bash
-# Basic list
-glovebox keyboard list
+# Check for updates
+glovebox config check-updates
+
+# Include pre-releases
+glovebox config check-updates --include-prereleases
+```
+
+---
+
+## Library Commands
+
+Manage layout libraries and repositories.
+
+### `glovebox library fetch`
+
+Download layouts from libraries.
+
+```bash
+glovebox library fetch SOURCE [OUTPUT] [OPTIONS]
+```
+
+**Sources:**
+- MoErgo layout UUID or URL
+- GitHub repository URL
+- Local library reference
+
+**Examples:**
+```bash
+# Fetch from MoErgo by UUID
+glovebox library fetch @12345678-1234-1234-1234-123456789abc
+
+# Fetch from URL
+glovebox library fetch https://github.com/user/layout layout.json
+
+# Fetch to specific file
+glovebox library fetch @uuid my_layout.json
+```
+
+### `glovebox library search`
+
+Search layout libraries.
+
+```bash
+glovebox library search QUERY [OPTIONS]
+```
+
+**Options:**
+```bash
+--limit LIMIT            # Limit number of results
+--format FORMAT          # Output format (table, json)
+```
+
+**Examples:**
+```bash
+# Search layouts
+glovebox library search "gaming layout"
+
+# Limited results
+glovebox library search colemak --limit 5
+
+# JSON output
+glovebox library search dvorak --format json
+```
+
+### `glovebox library list`
+
+List local library layouts.
+
+```bash
+glovebox library list [OPTIONS]
+```
+
+**Options:**
+```bash
+--format FORMAT          # Output format (table, json, yaml)
+--verbose                # Show detailed information
+```
+
+**Examples:**
+```bash
+# List local layouts
+glovebox library list
+
+# Verbose listing
+glovebox library list --verbose
+
+# JSON output
+glovebox library list --format json
+```
+
+### `glovebox library info`
+
+Show layout information.
+
+```bash
+glovebox library info LAYOUT [OPTIONS]
+```
+
+**Examples:**
+```bash
+# Show layout info
+glovebox library info my_layout
 
 # Detailed information
-glovebox keyboard list --verbose
-
-# JSON output
-glovebox keyboard list --format json
+glovebox library info my_layout --verbose
 ```
 
-### show
+### `glovebox library remove`
 
-Show detailed information about a specific keyboard.
+Remove layouts from local library.
 
 ```bash
-glovebox keyboard show KEYBOARD [OPTIONS]
+glovebox library remove LAYOUT [OPTIONS]
 ```
 
 **Options:**
-- `--verbose` - Include all configuration details
-- `--format FORMAT` - Output format (text|json|yaml|table)
+```bash
+--force                  # Force removal without confirmation
+```
 
 **Examples:**
 ```bash
-# Show keyboard details
-glovebox keyboard show glove80
+# Remove layout
+glovebox library remove old_layout
 
-# Complete details in JSON
-glovebox keyboard show glove80 --verbose --format json
+# Force removal
+glovebox library remove old_layout --force
 ```
 
-### firmwares
+### `glovebox library export`
 
-List available firmware versions for a keyboard.
+Export layouts to files.
 
 ```bash
-glovebox keyboard firmwares KEYBOARD [OPTIONS]
+glovebox library export LAYOUT OUTPUT [OPTIONS]
 ```
-
-**Options:**
-- `--format FORMAT` - Output format (text|json|table)
 
 **Examples:**
 ```bash
-# List firmware versions
-glovebox keyboard firmwares glove80
-
-# JSON output
-glovebox keyboard firmwares glove80 --format json
+# Export layout
+glovebox library export my_layout exported_layout.json
 ```
 
-## Status Command
+### `glovebox library copy`
 
-Show system status and health checks.
+Copy layouts within library.
 
 ```bash
-glovebox status [OPTIONS]
+glovebox library copy SOURCE DEST [OPTIONS]
 ```
-
-**Options:**
-- `--profile PROFILE` - Check specific profile components
-- `--verbose` - Include detailed diagnostic information
-- `--format FORMAT` - Output format (text|json|table)
 
 **Examples:**
 ```bash
-# Basic status
-glovebox status
-
-# Profile-specific checks
-glovebox status --profile glove80/v25.05
-
-# Detailed diagnostics
-glovebox status --verbose --format json
+# Copy layout
+glovebox library copy base_layout custom_layout
 ```
+
+---
 
 ## Cache Commands
 
-### clear
+Manage build caches and workspaces.
+
+### `glovebox cache show`
+
+Display cache information.
+
+```bash
+glovebox cache show [OPTIONS]
+```
+
+**Options:**
+```bash
+--verbose                # Show detailed cache information
+--format FORMAT          # Output format (table, json)
+```
+
+**Examples:**
+```bash
+# Show cache status
+glovebox cache show
+
+# Verbose cache information
+glovebox cache show --verbose
+
+# JSON output
+glovebox cache show --format json
+```
+
+### `glovebox cache clear`
 
 Clear cache data.
 
@@ -330,166 +803,367 @@ glovebox cache clear [OPTIONS]
 ```
 
 **Options:**
-- `--tag TAG` - Clear specific cache tag (compilation|metrics|layout|cli_completion)
-- `--all` - Clear all cache data
-- `--older-than DAYS` - Clear cache older than specified days
+```bash
+--tag TAG                # Clear specific cache tag
+--force                  # Force clear without confirmation
+```
 
 **Examples:**
 ```bash
-# Clear all cache
-glovebox cache clear --all
+# Clear all caches
+glovebox cache clear
 
-# Clear specific tag
+# Clear specific cache
 glovebox cache clear --tag compilation
 
-# Clear old cache
-glovebox cache clear --older-than 7
+# Force clear
+glovebox cache clear --force
 ```
 
-### stats
+### `glovebox cache keys`
 
-Show cache statistics.
+List cache keys.
 
 ```bash
-glovebox cache stats [OPTIONS]
+glovebox cache keys [OPTIONS]
 ```
 
 **Options:**
-- `--tag TAG` - Show stats for specific tag
-- `--format FORMAT` - Output format (text|json|table)
+```bash
+--tag TAG                # Filter by cache tag
+--format FORMAT          # Output format (table, json)
+```
 
 **Examples:**
 ```bash
-# Overall stats
-glovebox cache stats
+# List all cache keys
+glovebox cache keys
 
-# Specific tag stats
-glovebox cache stats --tag compilation
-
-# JSON format
-glovebox cache stats --format json
+# Filter by tag
+glovebox cache keys --tag compilation
 ```
 
-## Environment Variables
+### `glovebox cache delete`
 
-Glovebox respects these environment variables:
+Delete specific cache entries.
 
-| Variable | Purpose | Example |
-|----------|---------|---------|
-| `GLOVEBOX_JSON_FILE` | Default layout file | `export GLOVEBOX_JSON_FILE=my-layout.json` |
-| `GLOVEBOX_PROFILE` | Default profile | `export GLOVEBOX_PROFILE=glove80/v25.05` |
-| `GLOVEBOX_CONFIG_FILE` | Custom config file | `export GLOVEBOX_CONFIG_FILE=~/.my-glovebox.yml` |
-| `GLOVEBOX_CACHE_DIR` | Cache directory | `export GLOVEBOX_CACHE_DIR=~/.cache/glovebox` |
-| `GLOVEBOX_DEBUG` | Enable debug mode | `export GLOVEBOX_DEBUG=1` |
+```bash
+glovebox cache delete KEY [OPTIONS]
+```
 
-## Exit Codes
+**Examples:**
+```bash
+# Delete cache entry
+glovebox cache delete specific_cache_key
+```
 
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | General error |
-| 2 | Invalid command line arguments |
-| 3 | Configuration error |
-| 4 | File not found |
-| 5 | Permission denied |
-| 10 | Compilation error |
-| 11 | Validation error |
-| 20 | Device not found |
-| 21 | Flash error |
+### `glovebox cache debug`
 
-## Output Formats
+Debug cache operations.
 
-All commands support consistent output formats:
+```bash
+glovebox cache debug [OPTIONS]
+```
 
-### text (default)
-Human-readable formatted output with colors and symbols.
+**Examples:**
+```bash
+# Debug cache
+glovebox cache debug
+```
 
-### json
-Structured JSON output suitable for scripting and automation.
+### `glovebox cache workspace`
 
-### yaml
-YAML formatted output, useful for configuration files.
+Manage build workspaces.
 
-### table
-Simple table format without colors.
+```bash
+glovebox cache workspace COMMAND [OPTIONS]
+```
 
-### rich-table
-Rich colored table with borders and styling.
+**Subcommands:**
+- `show` - Show workspace information
+- `create` - Create new workspace
+- `delete` - Delete workspace
+- `cleanup` - Clean up old workspaces
+- `add` - Add files to workspace
+- `export` - Export workspace
+- `update` - Update workspace
 
-### rich-panel
-Rich panel format with borders and titles.
+**Examples:**
+```bash
+# Show workspaces
+glovebox cache workspace show
 
-### rich-grid
-Rich grid layout for complex data.
+# Create workspace
+glovebox cache workspace create zmk --profile glove80/v25.05
+
+# Delete workspace
+glovebox cache workspace delete old_workspace
+
+# Cleanup old workspaces
+glovebox cache workspace cleanup
+```
+
+---
+
+## MoErgo Commands
+
+Integrate with MoErgo services.
+
+### `glovebox moergo login`
+
+Login to MoErgo services.
+
+```bash
+glovebox moergo login [OPTIONS]
+```
+
+**Examples:**
+```bash
+# Login to MoErgo
+glovebox moergo login
+```
+
+### `glovebox moergo logout`
+
+Logout from MoErgo services.
+
+```bash
+glovebox moergo logout [OPTIONS]
+```
+
+**Examples:**
+```bash
+# Logout from MoErgo
+glovebox moergo logout
+```
+
+### `glovebox moergo status`
+
+Show MoErgo connection status.
+
+```bash
+glovebox moergo status [OPTIONS]
+```
+
+**Examples:**
+```bash
+# Show MoErgo status
+glovebox moergo status
+```
+
+### `glovebox moergo keystore-info`
+
+Show keystore information.
+
+```bash
+glovebox moergo keystore-info [OPTIONS]
+```
+
+**Examples:**
+```bash
+# Show keystore info
+glovebox moergo keystore-info
+```
+
+---
+
+## Cloud Commands
+
+Manage cloud layout storage.
+
+### `glovebox cloud upload`
+
+Upload layouts to cloud storage.
+
+```bash
+glovebox cloud upload INPUT [OPTIONS]
+```
+
+**Examples:**
+```bash
+# Upload layout
+glovebox cloud upload my_layout.json
+```
+
+### `glovebox cloud download`
+
+Download layouts from cloud storage.
+
+```bash
+glovebox cloud download LAYOUT [OUTPUT] [OPTIONS]
+```
+
+**Examples:**
+```bash
+# Download layout
+glovebox cloud download remote_layout local_layout.json
+```
+
+### `glovebox cloud list`
+
+List cloud layouts.
+
+```bash
+glovebox cloud list [OPTIONS]
+```
+
+**Examples:**
+```bash
+# List cloud layouts
+glovebox cloud list
+```
+
+### `glovebox cloud browse`
+
+Browse cloud layouts interactively.
+
+```bash
+glovebox cloud browse [OPTIONS]
+```
+
+**Examples:**
+```bash
+# Browse cloud layouts
+glovebox cloud browse
+```
+
+### `glovebox cloud delete`
+
+Delete cloud layouts.
+
+```bash
+glovebox cloud delete LAYOUT [OPTIONS]
+```
+
+**Examples:**
+```bash
+# Delete cloud layout
+glovebox cloud delete old_layout
+```
+
+---
+
+## System Commands
+
+### `glovebox status`
+
+Show system status and diagnostics.
+
+```bash
+glovebox status [OPTIONS]
+```
+
+**Options:**
+```bash
+--verbose                # Show detailed diagnostics
+--format FORMAT          # Output format (table, json)
+```
+
+**Examples:**
+```bash
+# Show system status
+glovebox status
+
+# Verbose diagnostics
+glovebox status --verbose
+
+# JSON output for scripting
+glovebox status --format json
+```
+
+### `glovebox metrics`
+
+View session metrics and statistics.
+
+```bash
+glovebox metrics COMMAND [OPTIONS]
+```
+
+**Subcommands:**
+- `list` - List sessions
+- `show` - Show session details
+- `dump` - Export session data
+- `clean` - Clean old sessions
+
+**Examples:**
+```bash
+# List sessions
+glovebox metrics list
+
+# Show session details
+glovebox metrics show SESSION_ID
+
+# Clean old sessions
+glovebox metrics clean
+```
+
+---
 
 ## Common Patterns
 
-### Environment Setup
+### Profile Usage
 ```bash
-# Set up environment for session
-export GLOVEBOX_JSON_FILE=my-layout.json
-export GLOVEBOX_PROFILE=glove80/v25.05
+# Set default profile
+glovebox config edit --set profile=glove80/v25.05
 
-# Now commands work without specifying files
-glovebox layout validate
-glovebox layout compile --output build/
-glovebox firmware flash build/firmware.uf2
+# Override for single command
+glovebox layout compile layout.json output/ --profile corne/main
+
+# Use keyboard-only profile
+glovebox firmware flash firmware.uf2 --profile glove80
 ```
 
-### Scripting and Automation
+### Output Formats
 ```bash
-# Use JSON output for scripting
-if glovebox layout validate layout.json --format json | jq -r '.valid'; then
-    glovebox layout compile layout.json --output build/
-fi
+# Table output (default)
+glovebox profile list
 
-# Batch operations
-for layout in layouts/*.json; do
-    glovebox layout validate "$layout" --format json > "${layout%.json}.validation.json"
-done
+# JSON for scripting
+glovebox profile list --format json
+
+# YAML for configuration
+glovebox config show --format yaml
 ```
 
-### Development Workflow
+### Verbose Operations
 ```bash
-# Complete development cycle
-glovebox layout edit layout.json --set version="2.0-dev"
-glovebox layout validate layout.json
-glovebox layout compile layout.json --output build/dev/
-glovebox firmware flash build/dev/firmware.uf2 --profile glove80
+# Verbose compilation
+glovebox layout compile layout.json output/ --verbose
+
+# Verbose system diagnostics
+glovebox status --verbose
+
+# Quiet mode (minimal output)
+glovebox layout compile layout.json output/ --quiet
 ```
 
-### Debugging
+### Dry Run Operations
 ```bash
-# Debug mode with stack traces
-glovebox --debug layout compile layout.json --output build/
+# Preview compilation
+glovebox layout compile layout.json output/ --dry-run
 
-# Verbose output
-glovebox --verbose firmware flash firmware.uf2 --profile glove80
+# Preview firmware flash
+glovebox firmware flash firmware.uf2 --dry-run
 
-# Dry run to see what would happen
-glovebox firmware flash firmware.uf2 --profile glove80 --dry-run
+# Preview cache operations
+glovebox cache clear --dry-run
 ```
 
-## Tips and Best Practices
+---
 
-### Performance
-- Use `--format json` for scripting to avoid formatting overhead
-- Set `GLOVEBOX_CACHE_DIR` to fast storage for better performance
-- Use environment variables to avoid repeating common parameters
+## Exit Codes
 
-### Error Handling
-- Always check exit codes in scripts
-- Use `--dry-run` to preview destructive operations
-- Enable debug mode when troubleshooting: `glovebox --debug`
+Glovebox uses standard exit codes:
 
-### Configuration Management
-- Use `glovebox config export` to backup configurations
-- Version control your configuration files
-- Use profiles to manage different keyboards/setups
+- `0` - Success
+- `1` - General error
+- `2` - Configuration error
+- `3` - Validation error
+- `4` - Compilation error
+- `5` - Device error
+- `6` - Network error
+- `130` - Interrupted (Ctrl+C)
 
-### Security
-- Use `--exclude-secrets` when sharing configuration exports
-- Be careful with `--force` options in scripts
-- Review `--dry-run` output before actual operations
+---
 
-This CLI reference provides the foundation for all Glovebox operations. For detailed examples and workflows, see the specific command guides.
+*This reference covers all available CLI commands. Use `glovebox COMMAND --help` for detailed help on specific commands.*

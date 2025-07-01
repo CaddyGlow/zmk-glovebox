@@ -111,7 +111,7 @@ def show_config(
             raise typer.Exit(1) from e
 
     # Default behavior: show configured values only (unless --all specified)
-    _show_all_config(app_ctx, show_all, show_sources, show_defaults, show_descriptions)
+    _show_all_config(app_ctx, show_all, show_sources, show_defaults, show_descriptions, ctx)
 
 
 def _show_all_config(
@@ -120,6 +120,7 @@ def _show_all_config(
     show_sources: bool,
     show_defaults: bool,
     show_descriptions: bool,
+    ctx: typer.Context | None = None,
 ) -> None:
     """Show configuration settings in table format.
 
@@ -129,9 +130,10 @@ def _show_all_config(
         show_sources: Show configuration sources
         show_defaults: Show default values
         show_descriptions: Show field descriptions
+        ctx: Typer context for auto-detecting theme from user config
     """
     # Create a nice table display
-    console = get_themed_console()
+    console = get_themed_console(ctx=ctx)
     title = "Glovebox Configuration" + (
         " (All Options)" if show_all else " (Configured Values)"
     )
