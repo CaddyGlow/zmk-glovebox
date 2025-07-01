@@ -17,12 +17,12 @@ fetch_app = typer.Typer(help="Fetch layouts from various sources")
 def complete_layout_source(incomplete: str) -> list[str]:
     """Tab completion for layout sources (UUIDs from MoErgo search, local library, files)."""
     matches = []
-    
+
     try:
         # Get local library entries for UUID completion
         user_config = create_user_config()
         library_service = create_library_service(user_config._config)
-        
+
         # Local library UUIDs and names
         local_entries = library_service.list_local_layouts()
         for entry in local_entries:
@@ -30,23 +30,26 @@ def complete_layout_source(incomplete: str) -> list[str]:
                 matches.append(entry.uuid)
             if entry.name.startswith(incomplete):
                 matches.append(entry.name)
-        
+
         # Search MoErgo for public UUIDs (if incomplete looks like UUID start)
-        if len(incomplete) >= 3 and all(c in "0123456789abcdef-" for c in incomplete.lower()):
+        if len(incomplete) >= 3 and all(
+            c in "0123456789abcdef-" for c in incomplete.lower()
+        ):
             from glovebox.library.models import SearchQuery
+
             search_query = SearchQuery(limit=10, offset=0)
             search_result = library_service.search_layouts(search_query)
-            
+
             if search_result.success:
                 for layout in search_result.layouts:
                     if layout.uuid.startswith(incomplete):
                         matches.append(layout.uuid)
-        
+
         # Local file completion (basic)
         if "/" in incomplete or "." in incomplete:
             try:
                 from pathlib import Path
-                
+
                 # Basic file path completion
                 path_part = Path(incomplete).expanduser()
                 if path_part.is_dir():
@@ -55,13 +58,15 @@ def complete_layout_source(incomplete: str) -> list[str]:
                             matches.append(str(file_path))
                 elif path_part.parent.is_dir():
                     for file_path in path_part.parent.iterdir():
-                        if str(file_path).startswith(str(path_part)) and file_path.suffix.lower() in [".json", ".keymap"]:
+                        if str(file_path).startswith(
+                            str(path_part)
+                        ) and file_path.suffix.lower() in [".json", ".keymap"]:
                             matches.append(str(file_path))
             except Exception:
                 pass
-                
+
         return matches[:20]  # Limit to 20 matches
-        
+
     except Exception:
         return []
 
@@ -72,10 +77,11 @@ def complete_layout_source(incomplete: str) -> list[str]:
 def fetch_layout(
     ctx: typer.Context,
     source: Annotated[
-        str, typer.Argument(
+        str,
+        typer.Argument(
             help="Source to fetch from (UUID, URL, or file path)",
-            autocompletion=complete_layout_source
-        )
+            autocompletion=complete_layout_source,
+        ),
     ],
     name: Annotated[
         str | None, typer.Option("--name", "-n", help="Custom name for the layout")
@@ -175,11 +181,10 @@ def fetch_layout(
 def fetch_default(
     ctx: typer.Context,
     source: Annotated[
-        str | None, 
+        str | None,
         typer.Argument(
-            help="Source to fetch from",
-            autocompletion=complete_layout_source
-        )
+            help="Source to fetch from", autocompletion=complete_layout_source
+        ),
     ] = None,
     name: Annotated[str | None, typer.Option("--name", "-n")] = None,
     output: Annotated[Path | None, typer.Option("--output", "-o")] = None,

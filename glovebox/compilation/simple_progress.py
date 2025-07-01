@@ -428,6 +428,12 @@ class SimpleProgressCoordinator:
             description: Optional description for the task
             percentage: Initial progress percentage (0-100)
         """
+        logger.debug(
+            "Starting task: %s (description: %s, percentage: %.1f)",
+            task_name,
+            description,
+            percentage,
+        )
         self.display.start_task_by_name(task_name, description, percentage)
 
     def update_current_task(
@@ -443,6 +449,7 @@ class SimpleProgressCoordinator:
 
     def complete_current_task(self) -> None:
         """Mark the current task as completed."""
+        logger.debug("Completing current task")
         self.display.complete_current_task()
 
     def fail_current_task(self) -> None:
@@ -451,10 +458,12 @@ class SimpleProgressCoordinator:
 
     def complete_all_tasks(self) -> None:
         """Mark all tasks as completed."""
+        logger.debug("Completing all tasks - transitioning to success state")
         self.display.complete_all()
 
     def fail_all_tasks(self) -> None:
         """Mark the operation as failed."""
+        logger.debug("Failing all tasks - transitioning to error state")
         self.display.fail_all()
 
     def print_log(self, message: str, level: str = "info") -> None:
@@ -694,6 +703,11 @@ class SimpleProgressCoordinator:
         """Update board compilation progress."""
         if completed:
             self.boards_completed += 1
+            logger.debug(
+                "Board completed - boards_completed: %d/%d",
+                self.boards_completed,
+                self.total_boards,
+            )
 
         # Update the current task with board progress
         if board_name:
@@ -713,12 +727,18 @@ class SimpleProgressCoordinator:
 
     def complete_all_builds(self) -> None:
         """Mark all builds as complete and transition to done phase."""
+        logger.debug(
+            "complete_all_builds called - boards_completed: %d/%d",
+            self.boards_completed,
+            self.total_boards,
+        )
         self.complete_all_tasks()
 
     def complete_build_success(
         self, reason: str = "Build completed successfully"
     ) -> None:
         """Mark build as complete regardless of current phase (for cached builds)."""
+        logger.debug("complete_build_success called - reason: %s", reason)
         self.complete_all_tasks()
 
     def get_current_progress(self) -> CompilationProgress:

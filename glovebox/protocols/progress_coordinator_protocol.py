@@ -112,3 +112,15 @@ class ProgressCoordinatorProtocol(Protocol):
     def get_current_progress(self) -> CompilationProgress:
         """Get the current unified progress state."""
         ...
+
+    def set_enhanced_task_status(
+        self, task_name: str, status: str, description: str = ""
+    ) -> None:
+        """Set status for enhanced tasks.
+
+        Args:
+            task_name: Name of the enhanced task
+            status: Task status (pending, active, completed, failed)
+            description: Optional description for the task
+        """
+        ...

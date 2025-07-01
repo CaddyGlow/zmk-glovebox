@@ -144,4 +144,3 @@ class TestMoErgoEdgeCases:
             parser._preprocess_moergo_binding_edge_cases("  &sys_reset  ")
             == "  &sys_reset  "
         )
-
