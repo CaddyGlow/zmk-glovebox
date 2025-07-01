@@ -219,10 +219,10 @@ glovebox cache workspace show
 ## Understanding Output
 
 ### Success Messages
-- ✓ **Layout validated successfully**
-- ✓ **Compilation completed**
-- ✓ **Firmware built successfully**
-- ✓ **Device flashed successfully**
+- **Layout validated successfully**
+- **Compilation completed**
+- **Firmware built successfully**
+- **Device flashed successfully**
 
 ### Common Warnings
 - ⚠ **Cache miss - downloading dependencies**
