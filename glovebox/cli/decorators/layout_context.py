@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import typer
+from click import Context as ClickContext
 
 from glovebox.cli.helpers import print_error_message
 from glovebox.cli.helpers.auto_profile import resolve_json_file_path
@@ -59,16 +60,32 @@ def with_layout_context(
     """
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        # Check if the function has a ctx parameter at decoration time
+        import inspect
+        sig = inspect.signature(func)
+        if "ctx" not in sig.parameters:
+            raise RuntimeError(
+                f"Function '{func.__name__}' decorated with @with_layout_context must have a 'ctx: typer.Context' parameter."
+            )
+        
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Find the Context object from the arguments
-            ctx = next((arg for arg in args if isinstance(arg, typer.Context)), None)
+            # Check for both typer.Context and click.Context since typer is built on click
+            ctx = next((arg for arg in args if isinstance(arg, (typer.Context, ClickContext))), None)
             if ctx is None:
                 ctx = kwargs.get("ctx")
 
-            if not isinstance(ctx, typer.Context):
+            if not isinstance(ctx, (typer.Context, ClickContext)):
+                # This shouldn't happen if typer is working correctly
+                logger.warning(
+                    "Context not found in args or kwargs for %s. Args: %s, Kwargs keys: %s",
+                    func.__name__,
+                    [type(arg).__name__ for arg in args],
+                    list(kwargs.keys())
+                )
                 raise RuntimeError(
-                    "with_layout_context decorator requires the function to have a 'typer.Context' parameter."
+                    "with_layout_context decorator could not find typer.Context or click.Context in arguments."
                 )
 
             # Handle JSON file resolution

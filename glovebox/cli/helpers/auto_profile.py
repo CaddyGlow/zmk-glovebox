@@ -100,10 +100,10 @@ def get_auto_profile_from_json(json_file: Path, user_config: Any = None) -> str 
 def resolve_json_file_path(
     json_file_arg: str | Path | None, env_var: str = "GLOVEBOX_JSON_FILE"
 ) -> Path | None:
-    """Resolve JSON file path from argument or environment variable.
+    """Resolve JSON file path from argument, library reference, or environment variable.
 
     Args:
-        json_file_arg: JSON file path provided as CLI argument
+        json_file_arg: JSON file path or @library-reference provided as CLI argument
         env_var: Environment variable name to check for default path
 
     Returns:
@@ -111,21 +111,42 @@ def resolve_json_file_path(
 
     Raises:
         FileNotFoundError: If resolved path doesn't exist
-        ValueError: If resolved path is not a file
+        ValueError: If resolved path is not a file or library reference cannot be resolved
     """
-    resolved_path = None
-    source = None
-
     # Check CLI argument first
     if json_file_arg is not None:
-        resolved_path = Path(json_file_arg)
-        source = "CLI argument"
+        # Check if it's a library reference
+        if isinstance(json_file_arg, str) and json_file_arg.startswith("@"):
+            from glovebox.cli.helpers.library_resolver import resolve_library_reference
+            
+            try:
+                resolved_path = resolve_library_reference(json_file_arg)
+                logger.debug("Resolved library reference %s to %s", json_file_arg, resolved_path)
+                return resolved_path
+            except Exception as e:
+                raise ValueError(f"Cannot resolve library reference '{json_file_arg}': {e}") from e
+        else:
+            resolved_path = Path(json_file_arg)
+            source = "CLI argument"
     else:
         # Check environment variable
         env_value = os.environ.get(env_var)
         if env_value:
-            resolved_path = Path(env_value)
-            source = f"{env_var} environment variable"
+            # Check if env value is a library reference
+            if env_value.startswith("@"):
+                from glovebox.cli.helpers.library_resolver import resolve_library_reference
+                
+                try:
+                    resolved_path = resolve_library_reference(env_value)
+                    logger.debug("Resolved library reference %s from env to %s", env_value, resolved_path)
+                    return resolved_path
+                except Exception as e:
+                    raise ValueError(f"Cannot resolve library reference '{env_value}' from {env_var}: {e}") from e
+            else:
+                resolved_path = Path(env_value)
+                source = f"{env_var} environment variable"
+        else:
+            return None
 
     if resolved_path is None:
         return None

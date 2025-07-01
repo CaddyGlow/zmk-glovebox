@@ -65,14 +65,16 @@ def compile_layout(
     force: ParameterFactory.force_overwrite() = False,  # type: ignore[valid-type]
     output_format: ParameterFactory.output_format() = "text",  # type: ignore[valid-type]
 ) -> None:
-    """Compile ZMK keymap and config files from a JSON keymap file or stdin.
+    """Compile ZMK keymap and config files from a JSON keymap file, library reference, or stdin.
 
-    Takes a JSON layout file (exported from Layout Editor) or JSON data from stdin
-    and generates ZMK .keymap and .conf files ready for firmware compilation.
+    Takes a JSON layout file (exported from Layout Editor), library reference (@name or @uuid),
+    or JSON data from stdin and generates ZMK .keymap and .conf files ready for firmware compilation.
 
     \\b
     Input sources:
     - File path: glovebox layout compile layout.json
+    - Library reference: glovebox layout compile @my-layout-name
+    - Library UUID: glovebox layout compile @12345678-1234-1234-1234-123456789abc
     - Stdin: glovebox layout compile - (or pipe: cat layout.json | glovebox layout compile -)
     - Environment: GLOVEBOX_JSON_FILE=layout.json glovebox layout compile
 
@@ -88,7 +90,9 @@ def compile_layout(
 
     * glovebox layout compile layout.json -o output/glove80 --profile glove80/v25.05
 
-    * glovebox layout compile layout.json  # Generate smart default filenames
+    * glovebox layout compile @my-gaming-layout  # Compile from library by name
+
+    * glovebox layout compile @12345678-1234-1234-1234-123456789abc  # Compile from library by UUID
 
     * cat layout.json | glovebox layout compile - --profile glove80/v25.05
 
@@ -283,6 +287,8 @@ def validate(
 ) -> None:
     """Validate keymap syntax and structure.
 
+    Validates layout files, library references (@name or @uuid), or stdin input.
+
     \\b
     Profile precedence (highest to lowest):
     1. CLI --profile flag (overrides all)
@@ -290,6 +296,16 @@ def validate(
     3. GLOVEBOX_PROFILE environment variable
     4. User config default profile
     5. Hardcoded fallback profile
+
+    Examples:
+        # Validate from file
+        glovebox layout validate my-layout.json
+
+        # Validate from library by name
+        glovebox layout validate @my-gaming-layout
+
+        # Validate from library by UUID
+        glovebox layout validate @12345678-1234-1234-1234-123456789abc
     """
     # Get values injected by the decorator from context
     resolved_json_file = ctx.meta.get("resolved_json_file")
@@ -356,6 +372,8 @@ def show(
 ) -> None:
     """Display keymap layout in terminal.
 
+    Accepts layout files, library references (@name or @uuid), or stdin input.
+
     \b
     Profile precedence (highest to lowest):
     1. CLI --profile flag (overrides all)
@@ -363,6 +381,19 @@ def show(
     3. GLOVEBOX_PROFILE environment variable
     4. User config default profile
     5. Hardcoded fallback profile
+
+    Examples:
+        # Display from file
+        glovebox layout show my-layout.json
+
+        # Display from library by name
+        glovebox layout show @my-gaming-layout
+
+        # Display from library by UUID
+        glovebox layout show @12345678-1234-1234-1234-123456789abc
+
+        # Display specific layer
+        glovebox layout show @my-layout --layer 2
     """
     # Resolve JSON file path (supports environment variable)
     resolved_json_file = resolve_json_file_path(json_file, "GLOVEBOX_JSON_FILE")

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 import typer
+from click import Context as ClickContext
 
 from glovebox.cli.helpers.output_formatter import (
     OutputFormatter,
@@ -406,16 +407,16 @@ def with_input_output_format(
 
 def _get_context_from_args(
     args: tuple[Any, ...], kwargs: dict[str, Any]
-) -> typer.Context | None:
-    """Extract typer.Context from function arguments."""
+) -> typer.Context | ClickContext | None:
+    """Extract typer.Context or click.Context from function arguments."""
     # Look for Context in args
     for arg in args:
-        if isinstance(arg, typer.Context):
+        if isinstance(arg, (typer.Context, ClickContext)):
             return arg
 
     # Look for Context in kwargs
     ctx = kwargs.get("ctx")
-    if isinstance(ctx, typer.Context):
+    if isinstance(ctx, (typer.Context, ClickContext)):
         return ctx
 
     return None

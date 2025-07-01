@@ -167,12 +167,17 @@ class ParameterFactory:
     @staticmethod
     def input_file_with_stdin(
         help_text: str | None = None,
+        library_resolvable: bool = False,
         default_help_suffix: str = "",
     ) -> Any:
         """Create an input file parameter that supports stdin."""
         if help_text is None:
-            help_text = f"Input file path or '-' for stdin.{default_help_suffix}"
+            base_help = "Input file path or '-' for stdin"
+            if library_resolvable:
+                base_help += " or @library-name/uuid"
+            help_text = f"{base_help}.{default_help_suffix}"
 
+        # Library resolution is handled at command level to avoid circular imports
         return Annotated[
             str,
             typer.Argument(help=help_text),
@@ -182,16 +187,34 @@ class ParameterFactory:
     def input_file_with_stdin_optional(
         help_text: str | None = None,
         env_var: str = "GLOVEBOX_JSON_FILE",
+        library_resolvable: bool = False,
         default_help_suffix: str = "",
     ) -> Any:
         """Create an optional input file parameter with stdin and env var support."""
         if help_text is None:
-            help_text = f"Input file path or '-' for stdin. Uses {env_var} environment variable if not provided.{default_help_suffix}"
+            base_help = "Input file path or '-' for stdin"
+            if library_resolvable:
+                base_help += " or @library-name/uuid"
+            base_help += f". Uses {env_var} environment variable if not provided"
+            help_text = f"{base_help}.{default_help_suffix}"
 
-        return Annotated[
-            str | None,
-            typer.Argument(help=help_text),
-        ]
+        if library_resolvable:
+            from glovebox.cli.decorators.library_params import (
+                library_resolvable_callback,
+            )
+
+            return Annotated[
+                str | None,
+                typer.Argument(
+                    help=help_text,
+                    callback=library_resolvable_callback,
+                ),
+            ]
+        else:
+            return Annotated[
+                str | None,
+                typer.Argument(help=help_text),
+            ]
 
     @staticmethod
     def input_directory(
@@ -241,12 +264,25 @@ class ParameterFactory:
     def json_file_argument(
         help_text: str | None = None,
         env_var: str = "GLOVEBOX_JSON_FILE",
+        library_resolvable: bool = True,
         default_help_suffix: str = "",
     ) -> Any:
-        """Create a JSON file argument with completion and env var support."""
+        """Create a JSON file argument with completion and env var support.
+        
+        Args:
+            help_text: Custom help text
+            env_var: Environment variable name for fallback
+            library_resolvable: Whether to support @library-name references
+            default_help_suffix: Additional help text suffix
+        """
         if help_text is None:
-            help_text = f"JSON layout file path or '-' for stdin. Uses {env_var} environment variable if not provided.{default_help_suffix}"
+            base_help = "JSON layout file path or '-' for stdin"
+            if library_resolvable:
+                base_help += " or @library-name/uuid"
+            base_help += f". Uses {env_var} environment variable if not provided"
+            help_text = f"{base_help}.{default_help_suffix}"
 
+        # Library resolution is handled at command level to avoid circular imports
         return Annotated[
             str | None,
             typer.Argument(

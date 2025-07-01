@@ -467,7 +467,8 @@ def firmware_compile(
     ctx: typer.Context,
     input_file: ParameterFactory.input_file_with_stdin_optional(  # type: ignore[valid-type]
         env_var="GLOVEBOX_JSON_FILE",
-        help_text="Path to keymap (.keymap) or layout (.json) file. Can use GLOVEBOX_JSON_FILE env var for JSON files.",
+        help_text="Path to keymap (.keymap) or layout (.json) file, @library-name/uuid, or '-' for stdin. Can use GLOVEBOX_JSON_FILE env var for JSON files.",
+        library_resolvable=True,
     ),
     config_file: Annotated[
         Path | None,
