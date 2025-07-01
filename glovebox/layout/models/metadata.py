@@ -21,7 +21,6 @@ from .behaviors import (
 )
 from .config import ConfigParameter
 from .core import LayoutBinding, LayoutLayer
-from .keymap import KeymapMetadata
 from .types import ConfigParamList, LayerBindings
 
 
@@ -59,19 +58,12 @@ class LayoutMetadata(GloveboxBaseModel):
         default_factory=list, alias="config_parameters"
     )
 
-    # Version tracking (new)
-    version: str = Field(default="1.0.0")
-    base_version: str = Field(default="")  # Master version this is based on
-    base_layout: str = Field(default="")  # e.g., "glorious-engrammer"
-
     layer_names: list[str] = Field(default_factory=list, alias="layer_names")
 
-    # Enhanced metadata for ZMK keymap reconstruction (Phase 4.1)
-    keymap_metadata: KeymapMetadata = Field(
-        default_factory=KeymapMetadata,
-        alias="keymapMetadata",
-        description="Enhanced metadata for ZMK keymap round-trip preservation",
-    )
+    # Version tracking, TODO: to be used in the future
+    # version: str = Field(default="1.0.0")
+    # base_version: str = Field(default="")  # Master version this is based on
+    # base_layout: str = Field(default="")  # e.g., "glorious-engrammer"
 
 
 class LayoutData(LayoutMetadata):
@@ -203,8 +195,6 @@ class LayoutData(LayoutMetadata):
             "base_version",
             "base_layout",
             "last_firmware_build",
-            # Enhanced metadata for full keymap reconstruction in layout parser
-            "keymapMetadata",
             # Normal layout structure
             "layer_names",
             "config_parameters",
@@ -267,10 +257,6 @@ class LayoutData(LayoutMetadata):
             structured_layers.append(layer)
 
         return structured_layers
-
-    def to_dict(self, exclude_unset: bool = True) -> dict[str, Any]:
-        """Convert to dictionary with proper field names and JSON serialization."""
-        return self.model_dump(mode="json", by_alias=True, exclude_unset=exclude_unset)
 
     def to_flattened_dict(self) -> dict[str, Any]:
         """Export layout with templates resolved and variables section removed.

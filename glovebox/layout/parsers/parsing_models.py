@@ -1,8 +1,12 @@
 """Data models for keymap parsing operations."""
 
-from typing import Literal
+from typing import TYPE_CHECKING, Literal, Optional
 
 from glovebox.models.base import GloveboxBaseModel
+
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
 
 
 class ExtractionConfig(GloveboxBaseModel):
@@ -34,8 +38,8 @@ class ParsingContext(GloveboxBaseModel):
     """Context information for keymap parsing operations."""
 
     keymap_content: str
-    template_vars: list[str] = []
-    keyboard_profile_name: str | None = None
+    title: str = "Glovebox Generated Keymap"
+    keyboard_name: str = "unknown"
     extraction_config: list[ExtractionConfig] = []
     errors: list[str] = []
     warnings: list[str] = []

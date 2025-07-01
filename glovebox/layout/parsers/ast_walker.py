@@ -482,29 +482,9 @@ class UniversalBehaviorExtractor:
         """
         return self._extract_behaviors_from_roots(roots)
 
-    def extract_behaviors_with_metadata(
-        self, roots: list[DTNode], source_content: str = ""
-    ) -> tuple[dict[str, list[DTNode]], dict]:
-        """Extract behaviors and metadata for enhanced round-trip preservation.
-
-        Args:
-            roots: List of root nodes to search
-            source_content: Original source file content for metadata extraction
-
-        Returns:
-            Tuple of (behaviors dict, metadata dict)
-        """
-        # Extract behaviors using existing logic
-        behaviors = self._extract_behaviors_from_roots(roots)
-
-        # Return empty metadata dict (metadata extractor removed during cleanup)
-        metadata = {}
-
-        return behaviors, metadata
-
     def extract_behaviors_as_models(
         self, roots: list[DTNode], source_content: str = ""
-    ) -> tuple[dict[str, list[Any]], dict]:
+    ) -> dict[str, list[Any]]:
         """Extract behaviors as behavior model objects with comments.
 
         Args:
@@ -512,7 +492,7 @@ class UniversalBehaviorExtractor:
             source_content: Original source file content for metadata extraction
 
         Returns:
-            Tuple of (behavior_models_dict, metadata_dict)
+            Dictionary mapping behavior types to model objects
         """
         # Get the AST converter instance
         if self.ast_converter is None:
@@ -555,16 +535,17 @@ class UniversalBehaviorExtractor:
             if combo:
                 behavior_models["combos"].append(combo)
 
-        # Extract and convert input listeners
+        # Input listeners are now handled through the normal behavior extraction
+        # They get converted automatically when they have compatible = "zmk,input-listener"
+        # No special handling needed here
+
+        # Check if any input listeners were found in the normal behavior extraction
         multi_walker = DTMultiWalker(roots)
-        input_listener_nodes = []
+        input_listener_nodes = multi_walker.find_nodes_by_compatible(
+            "zmk,input-listener"
+        )
 
-        # Find mmv_input_listener and msc_input_listener nodes
-        for listener_name in ["mmv_input_listener", "msc_input_listener"]:
-            nodes = multi_walker.find_nodes_by_name(listener_name)
-            input_listener_nodes.extend(nodes)
-
-        # Convert input listener nodes
+        # Convert input listener nodes found through normal behavior extraction
         for node in input_listener_nodes:
             input_listener = self.ast_converter.convert_input_listener_node(node)
             if input_listener:
@@ -582,9 +563,6 @@ class UniversalBehaviorExtractor:
         ]:
             behavior_models[behavior_type] = behavior_nodes.get(behavior_type, [])
 
-        # Return empty metadata dict (metadata extractor removed during cleanup)
-        metadata = {}
-
         # Log conversion summary
         converted_count = (
             len(behavior_models["hold_taps"])
@@ -601,7 +579,7 @@ class UniversalBehaviorExtractor:
             len(behavior_models["input_listeners"]),
         )
 
-        return behavior_models, metadata
+        return behavior_models
 
     def _extract_behaviors_from_roots(
         self, roots: list[DTNode]
@@ -785,8 +763,9 @@ class UniversalBehaviorExtractor:
         multi_walker = DTMultiWalker(roots)
 
         # Detect input listeners (like mouse movement processors)
-        input_listeners = multi_walker.find_nodes_by_name("mmv_input_listener")
-        input_listeners.extend(multi_walker.find_nodes_by_name("input_listener"))
+        input_listeners = multi_walker.find_nodes(
+            lambda node: node.name and node.name.endswith("_input_listener")
+        )
         patterns["input_listeners"] = input_listeners
 
         # Detect sensor configurations

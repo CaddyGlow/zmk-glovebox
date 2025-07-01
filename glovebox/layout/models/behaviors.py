@@ -178,21 +178,22 @@ class InputListenerNode(GloveboxBaseModel):
     code: str
     description: str | None = ""
     layers: list[LayerIndex] = Field(default_factory=list)
-    input_processors: list[InputProcessor] | None = Field(
-        default=None, alias="inputProcessors"
+    input_processors: list[InputProcessor] = Field(
+        default_factory=list, alias="inputProcessors"
     )
 
 
-# TODO: investigate the issue with the parser if we used a default and list type only
-# data are not in the exported
+# TODO: investigate the issue with the parser
+# exclude_unset in to_dict consider it's empty at
+# the creation
 class InputListener(GloveboxBaseModel):
     """Model for input listeners."""
 
     code: str
-    input_processors: list[InputProcessor] | None = Field(
-        default=None, alias="inputProcessors"
+    input_processors: list[InputProcessor] = Field(
+        default_factory=list, alias="inputProcessors"
     )
-    nodes: list[InputListenerNode] | None = Field(default=None)
+    nodes: list[InputListenerNode] = Field(default_factory=list)
 
 
 # Type alias for collections of behaviors

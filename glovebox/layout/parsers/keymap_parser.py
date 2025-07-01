@@ -5,9 +5,8 @@ import re
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Optional, Protocol
 
-from glovebox.adapters import create_template_adapter
 from glovebox.layout.models import LayoutBinding, LayoutData
 from glovebox.models.base import GloveboxBaseModel
 
@@ -66,7 +65,6 @@ class ZmkKeymapParser:
 
     def __init__(
         self,
-        template_adapter: "TemplateAdapterProtocol | None" = None,
         processors: dict[ParsingMode, "ProcessorProtocol"] | None = None,
     ) -> None:
         """Initialize the keymap parser with explicit dependencies.
@@ -76,24 +74,19 @@ class ZmkKeymapParser:
             processors: Dictionary of parsing mode to processor instances
         """
         self.logger = logging.getLogger(__name__)
-        self.template_adapter = template_adapter or create_template_adapter()
         self.model_factory = ModelFactory()
 
         # Initialize processors for different parsing modes
         self.processors = processors or {
-            ParsingMode.FULL: create_full_keymap_processor(
-                template_adapter=self.template_adapter
-            ),
-            ParsingMode.TEMPLATE_AWARE: create_template_aware_processor(
-                template_adapter=self.template_adapter
-            ),
+            ParsingMode.FULL: create_full_keymap_processor(),
+            ParsingMode.TEMPLATE_AWARE: create_template_aware_processor(),
         }
 
     def parse_keymap(
         self,
         keymap_file: Path,
         mode: ParsingMode = ParsingMode.TEMPLATE_AWARE,
-        keyboard_profile: str | None = None,
+        profile: Optional["KeyboardProfile"] = None,
         method: ParsingMethod = ParsingMethod.AST,
     ) -> KeymapParseResult:
         """Parse ZMK keymap file to JSON layout.
@@ -121,28 +114,27 @@ class ZmkKeymapParser:
 
             keymap_content = keymap_file.read_text(encoding="utf-8")
 
-            # Validate required parameters
-            if mode == ParsingMode.TEMPLATE_AWARE and not keyboard_profile:
-                result.errors.append(
-                    "Keyboard profile is required for template-aware parsing"
-                )
-                return result
-
             # Get extraction configuration
-            extraction_config = self._get_extraction_config(keyboard_profile)
+            # TODO: currently not implemented in profile parser will used a default
+            extraction_config = self._get_extraction_config(profile)
 
             # Create parsing context
+            keyboard_name = profile.keyboard_name if profile else "unknown"
+            title = f"{keymap_file.stem}"  # file name without extension
+
             context = ParsingContext(
                 keymap_content=keymap_content,
-                keyboard_profile_name=keyboard_profile,
+                title=title,
+                keyboard_name=keyboard_name,
                 extraction_config=extraction_config,
             )
 
             # Use appropriate processor
             processor = self.processors[mode]
             layout_data = processor.process(context)
+
+            # Add metedata
             if layout_data:
-                layout_data.firmware_api_version = "1"
                 layout_data.date = datetime.now()
                 layout_data.creator = "glovebox"
                 layout_data.notes = (
@@ -165,30 +157,28 @@ class ZmkKeymapParser:
         return result
 
     def _get_extraction_config(
-        self, keyboard_profile: str | None
+        self,
+        profile: Optional["KeyboardProfile"] = None,
     ) -> list["ExtractionConfig"]:
         """Get extraction configuration from profile or use default.
 
         Args:
-            keyboard_profile: Keyboard profile name
+            keyboard_profile: Keyboard profile
 
         Returns:
             List of extraction configurations
         """
-        if keyboard_profile:
+        if profile:
             try:
-                from glovebox.config import create_keyboard_profile
-
-                profile = create_keyboard_profile(keyboard_profile)
-
                 # Check if profile has custom extraction config
+                # TODO: currently not implemented in profile
                 if hasattr(profile, "keymap_extraction") and profile.keymap_extraction:
                     return profile.keymap_extraction.sections
             except Exception as e:
                 exc_info = self.logger.isEnabledFor(logging.DEBUG)
                 self.logger.warning(
                     "Failed to load extraction config from profile %s: %s",
-                    keyboard_profile,
+                    profile.keyboard_name if profile else "unknown",
                     e,
                     exc_info=exc_info,
                 )
@@ -565,7 +555,6 @@ class ZmkKeymapParser:
 
 
 def create_zmk_keymap_parser(
-    template_adapter: "TemplateAdapterProtocol | None" = None,
     processors: dict[ParsingMode, "ProcessorProtocol"] | None = None,
 ) -> ZmkKeymapParser:
     """Create ZMK keymap parser instance with explicit dependencies.
@@ -578,14 +567,12 @@ def create_zmk_keymap_parser(
         Configured ZmkKeymapParser instance with all dependencies injected
     """
     return ZmkKeymapParser(
-        template_adapter=template_adapter,
         processors=processors,
     )
 
 
 def create_zmk_keymap_parser_from_profile(
     profile: "KeyboardProfile",
-    template_adapter: "TemplateAdapterProtocol | None" = None,
 ) -> ZmkKeymapParser:
     """Create ZMK keymap parser instance configured for a specific keyboard profile.
 
@@ -600,9 +587,7 @@ def create_zmk_keymap_parser_from_profile(
         Configured ZmkKeymapParser instance with profile-specific settings
     """
     # Create parser with dependencies
-    parser = create_zmk_keymap_parser(
-        template_adapter=template_adapter,
-    )
+    parser = create_zmk_keymap_parser()
 
     # Configure parser based on profile settings
     # This could include profile-specific parsing preferences, template paths, etc.

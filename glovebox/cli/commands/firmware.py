@@ -29,7 +29,11 @@ from glovebox.cli.helpers.auto_profile import (
     resolve_json_file_path,
     resolve_profile_with_auto_detection,
 )
-from glovebox.cli.helpers.parameters import OutputFormatOption, ProfileOption
+from glovebox.cli.helpers.parameters import (
+    OutputFormatOption,
+    ProfileOption,
+    complete_config_flags,
+)
 from glovebox.cli.helpers.profile import (
     create_profile_from_option,
     get_keyboard_profile_from_context,
@@ -468,7 +472,7 @@ def firmware_compile(
     ] = None,
     config_file: Annotated[
         Path | None,
-        typer.Argument(help="Path to kconfig (.conf) file (optional for JSON input)"),
+        typer.Argument(help="Path to kconfig (.conf) file (optional)"),
     ] = None,
     profile: ProfileOption = None,
     strategy: Annotated[
@@ -515,6 +519,15 @@ def firmware_compile(
             help="Output directory for build files. If not specified, creates {filename}.uf2 and {filename}_artefacts.zip in current directory",
         ),
     ] = None,
+    config_flags: Annotated[
+        list[str] | None,
+        typer.Option(
+            "-D",
+            "--define",
+            help="Config flags to add to build (e.g., -D CONFIG_ZMK_SLEEP=y -D CONFIG_BT_CTLR_TX_PWR_PLUS_8=y)",
+            autocompletion=complete_config_flags,
+        ),
+    ] = None,
 ) -> None:
     """Build ZMK firmware from keymap/config files or JSON layout.
 
@@ -523,7 +536,8 @@ def firmware_compile(
 
     \b
     For JSON input, the layout is automatically converted to .keymap and .conf files
-    before compilation. The config_file argument is optional for JSON input.
+    before compilation. The config_file argument is optional for both JSON and keymap input.
+    Config flags can be added using -D options (e.g., -D ZMK_SLEEP=y).
 
     \b
     Output behavior:
@@ -557,6 +571,12 @@ def firmware_compile(
 
         # Specify custom output directory
         glovebox firmware compile keymap.keymap config.conf --output /path/to/output --profile glove80/v25.05
+
+        # Compile keymap without config file using flags
+        glovebox firmware compile keymap.keymap --profile glove80/v25.05 -D ZMK_SLEEP=y -D BT_CTLR_TX_PWR_PLUS_8=y
+
+        # Combine existing config file with additional flags
+        glovebox firmware compile keymap.keymap config.conf -D ZMK_RGB_UNDERGLOW=y --profile glove80/v25.05
 
         # Disable auto-profile detection
         glovebox firmware compile layout.json --no-auto --profile glove80/v25.05
@@ -640,12 +660,6 @@ def firmware_compile(
         # Detect input file type and validate arguments
         is_json_input = resolved_input_file.suffix.lower() == ".json"
 
-        if not is_json_input and config_file is None:
-            if progress_display:
-                progress_display.stop()
-            print_error_message("Config file is required when input is a .keymap file")
-            raise typer.Exit(1)
-
         if is_json_input and config_file is not None:
             logger.info(
                 "Config file provided for JSON input will be ignored (generated automatically)"
@@ -677,6 +691,42 @@ def firmware_compile(
             "%s Starting firmware compilation...", Icons.get_icon("BUILD", "text")
         )
 
+        # Handle config file creation for keymap files
+        effective_config_file = config_file
+        temp_config_file = None
+
+        effective_config_flags = config_flags or []
+
+        if not is_json_input and (config_file is None or effective_config_flags):
+            # Create temporary config file with flags
+            temp_config_file = build_output_dir / "temp_config.conf"
+            config_content = ""
+
+            # Include existing config file content if provided
+            if config_file is not None and config_file.exists():
+                config_content = config_file.read_text()
+                if not config_content.endswith('\n'):
+                    config_content += '\n'
+
+            # Add config flags
+            for flag in effective_config_flags:
+                if '=' in flag:
+                    config_content += f"CONFIG_{flag}\n"
+                else:
+                    config_content += f"CONFIG_{flag}=y\n"
+
+            temp_config_file.write_text(config_content)
+            effective_config_file = temp_config_file
+            logger.info("Created temporary config file with %d flags", len(effective_config_flags))
+
+        # Ensure we have a config file for keymap compilation
+        if not is_json_input and effective_config_file is None:
+            # Create an empty config file as fallback
+            temp_config_file = build_output_dir / "empty_config.conf"
+            temp_config_file.write_text("")
+            effective_config_file = temp_config_file
+            logger.info("Created empty config file for keymap compilation")
+
         # Execute compilation based on input type
         if is_json_input:
             result = _execute_compilation_from_json(
@@ -694,11 +744,11 @@ def firmware_compile(
                 build_cache_service=build_service,
             )
         else:
-            assert config_file is not None  # Already validated above
+            assert effective_config_file is not None, "Config file should be created for keymap compilation"
             result = _execute_compilation_service(
                 compilation_type,
                 resolved_input_file,  # keymap_file
-                config_file,  # kconfig_file
+                effective_config_file,  # kconfig_file (could be temp file or original)
                 build_output_dir,
                 compile_config,
                 keyboard_profile,

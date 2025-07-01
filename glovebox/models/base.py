@@ -37,7 +37,8 @@ class GloveboxBaseModel(BaseModel):
         *,
         mode: Literal["json", "python"] | str = "json",
         by_alias: bool | None = True,
-        exclude_unset: bool = True,
+        exclude_unset: bool = False,
+        exclude_none: bool = True,
         **kwargs,
     ) -> dict[str, Any]:
         """
@@ -45,26 +46,43 @@ class GloveboxBaseModel(BaseModel):
         """
         # We explicitly set by_alias=True as the default for this method's signature.
         return super().model_dump(
-            mode=mode, by_alias=by_alias, exclude_unset=exclude_unset, **kwargs
+            mode=mode,
+            by_alias=by_alias,
+            # exclude_unset=exclude_unset,
+            exclude_none=exclude_none,
+            **kwargs,
         )
 
     def model_dump_json(
-        self, *, by_alias: bool | None = True, exclude_unset: bool = True, **kwargs
+        self,
+        *,
+        by_alias: bool | None = True,
+        exclude_unset: bool = False,
+        exclude_none: bool = True,
+        **kwargs,
     ) -> str:
         """
         Override model_dump_json to default to using aliases.
         """
         return super().model_dump_json(
-            by_alias=by_alias, exclude_unset=exclude_unset, **kwargs
+            by_alias=by_alias,
+            # exclude_unset=exclude_unset,
+            exclude_none=exclude_none,
+            **kwargs,
         )
 
-    def to_dict(self, exclude_unset: bool = True) -> dict[str, Any]:
+    def to_dict(self, exclude_unset: bool = False) -> dict[str, Any]:
         """Convert model to dictionary with consistent serialization parameters.
 
         Returns:
             Dictionary representation using JSON-compatible serialization
         """
-        return self.model_dump(by_alias=True, exclude_unset=exclude_unset, mode="json")
+        return self.model_dump(
+            by_alias=True,
+            # exclude_unset=exclude_unset,
+            exclude_none=True,
+            mode="json",
+        )
 
     def to_dict_python(self) -> dict[str, Any]:
         """Convert model to dictionary using Python serialization.
@@ -72,4 +90,4 @@ class GloveboxBaseModel(BaseModel):
         Returns:
             Dictionary representation using Python types (e.g., datetime objects)
         """
-        return self.model_dump(by_alias=True, exclude_unset=True, mode="python")
+        return self.model_dump(by_alias=True, exclude_unset=False, mode="python")
