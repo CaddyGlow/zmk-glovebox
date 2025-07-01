@@ -702,19 +702,6 @@ def get_themed_console(icon_mode: IconMode | str = IconMode.TEXT) -> ThemedConso
     return ThemedConsole(icon_mode=icon_mode)
 
 
-def get_themed_console_legacy(use_emoji: bool = True) -> ThemedConsole:
-    """Legacy function for backward compatibility.
-
-    Args:
-        use_emoji: Whether to use emoji icons or text fallbacks
-
-    Returns:
-        Configured ThemedConsole instance
-    """
-    icon_mode = "emoji" if use_emoji else "text"
-    return ThemedConsole(icon_mode=icon_mode)
-
-
 def create_status_indicator(status: str, status_type: str = "general") -> str:
     """Create status indicator with appropriate formatting.
 

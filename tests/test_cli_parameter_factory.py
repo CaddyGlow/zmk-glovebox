@@ -681,7 +681,13 @@ class TestFactoryUsagePatterns:
         verbose_param = ParameterFactory.verbose_flag()
 
         # Verify all parameters are properly annotated
-        for param in [input_param, output_param, format_param, force_param, verbose_param]:
+        for param in [
+            input_param,
+            output_param,
+            format_param,
+            force_param,
+            verbose_param,
+        ]:
             assert get_origin(param) is Annotated
             args = get_args(param)
             assert len(args) == 2

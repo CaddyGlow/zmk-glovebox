@@ -18,7 +18,7 @@ T = TypeVar("T")
 class LayoutCommandComposer:
     """Composer for layout command operations with common patterns."""
 
-    def __init__(self, icon_mode: str = "emoji") -> None:
+    def __init__(self, icon_mode: str = "text") -> None:
         self.formatter = create_layout_output_formatter(icon_mode)
 
     def execute_with_error_handling(
@@ -47,7 +47,28 @@ class LayoutCommandComposer:
                 error_result = {"error": str(e), "operation": operation_name}
                 self.formatter.format_results(error_result, output_format)
             else:
-                print_error_message(f"Failed to {operation_name}: {e}")
+                # Clean up error message for better user experience
+                error_msg = str(e)
+                if (
+                    "Output files already exist" in error_msg
+                    and "Use --force flag" in error_msg
+                ):
+                    # Extract just the file names from the error message
+                    import re
+
+                    files_match = re.search(
+                        r"Output files already exist: \[(.*?)\]", error_msg
+                    )
+                    if files_match:
+                        files = files_match.group(1)
+                        print_error_message(f"Output files already exist: {files}")
+                        print_error_message(
+                            "Use the --force flag to overwrite existing files"
+                        )
+                    else:
+                        print_error_message(error_msg)
+                else:
+                    print_error_message(f"Failed to {operation_name}: {error_msg}")
             return None
 
     def execute_layout_operation(
@@ -409,7 +430,7 @@ class LayoutCommandComposer:
             self.formatter.format_edit_result(result, output_format)
 
 
-def create_layout_command_composer(icon_mode: str = "emoji") -> LayoutCommandComposer:
+def create_layout_command_composer(icon_mode: str = "text") -> LayoutCommandComposer:
     """Create a layout command composer instance.
 
     Returns:

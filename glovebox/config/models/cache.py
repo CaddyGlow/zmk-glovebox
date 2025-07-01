@@ -88,7 +88,6 @@ class CacheTTLConfig(GloveboxBaseModel):
         ),
     ]
 
-
     # Firmware domain cache TTLs
     firmware_build: Annotated[
         int,

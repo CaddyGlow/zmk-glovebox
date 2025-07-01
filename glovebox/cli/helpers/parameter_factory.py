@@ -268,7 +268,7 @@ class ParameterFactory:
         default_help_suffix: str = "",
     ) -> Any:
         """Create a JSON file argument with completion and env var support.
-        
+
         Args:
             help_text: Custom help text
             env_var: Environment variable name for fallback

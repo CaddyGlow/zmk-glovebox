@@ -62,27 +62,31 @@ def with_layout_context(
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         # Check if the function has a ctx parameter at decoration time
         import inspect
+
         sig = inspect.signature(func)
         if "ctx" not in sig.parameters:
             raise RuntimeError(
                 f"Function '{func.__name__}' decorated with @with_layout_context must have a 'ctx: typer.Context' parameter."
             )
-        
+
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Find the Context object from the arguments
             # Check for both typer.Context and click.Context since typer is built on click
-            ctx = next((arg for arg in args if isinstance(arg, (typer.Context, ClickContext))), None)
+            ctx = next(
+                (arg for arg in args if isinstance(arg, typer.Context | ClickContext)),
+                None,
+            )
             if ctx is None:
                 ctx = kwargs.get("ctx")
 
-            if not isinstance(ctx, (typer.Context, ClickContext)):
+            if not isinstance(ctx, typer.Context | ClickContext):
                 # This shouldn't happen if typer is working correctly
                 logger.warning(
                     "Context not found in args or kwargs for %s. Args: %s, Kwargs keys: %s",
                     func.__name__,
                     [type(arg).__name__ for arg in args],
-                    list(kwargs.keys())
+                    list(kwargs.keys()),
                 )
                 raise RuntimeError(
                     "with_layout_context decorator could not find typer.Context or click.Context in arguments."
@@ -145,8 +149,16 @@ def with_layout_context(
 
             # Clean up kwargs to remove parameters not in the original function signature
             # This prevents TypeError: got an unexpected keyword argument
-            func_params = func.__code__.co_varnames
-            filtered_kwargs = {k: v for k, v in kwargs.items() if k in func_params}
+            import inspect
+            sig = inspect.signature(func)
+            func_params = set(sig.parameters.keys())
+
+            # Remove injected parameters that are not in the function signature
+            injected_params = {"resolved_json_file", "keyboard_profile"}
+            filtered_kwargs = {
+                k: v for k, v in kwargs.items()
+                if k in func_params or k not in injected_params
+            }
 
             return func(*args, **filtered_kwargs)
 

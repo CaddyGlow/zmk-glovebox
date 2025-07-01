@@ -115,9 +115,7 @@ def resolve_library_reference(value: str, fetch_from_moergo: bool = True) -> Pat
             f"Layout file for '{value}' not found at expected path: {entry.file_path}"
         )
 
-    logger.info(
-        "Resolved library reference '%s' to file: %s", value, entry.file_path
-    )
+    logger.info("Resolved library reference '%s' to file: %s", value, entry.file_path)
     return entry.file_path
 
 
@@ -165,9 +163,7 @@ def _fetch_from_moergo(
             result = library_service.fetch_layout(fetch_request)
 
             if result.success and result.entry:
-                logger.info(
-                    "Successfully fetched layout %s from MoErgo", uuid
-                )
+                logger.info("Successfully fetched layout %s from MoErgo", uuid)
                 return result.entry
             else:
                 logger.warning(
@@ -189,9 +185,7 @@ def _fetch_from_moergo(
 
     except Exception as e:
         exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.error(
-            "Unexpected error during MoErgo fetch: %s", e, exc_info=exc_info
-        )
+        logger.error("Unexpected error during MoErgo fetch: %s", e, exc_info=exc_info)
         return None
 
 

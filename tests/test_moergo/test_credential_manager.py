@@ -427,9 +427,7 @@ class TestCredentialManager:
         # This should not raise an error if it's a valid key
         Fernet(key)
 
-    def test_get_or_create_encryption_key_error_handling(
-        self, credential_manager
-    ):
+    def test_get_or_create_encryption_key_error_handling(self, credential_manager):
         """Test error handling in get_or_create_encryption_key."""
         mock_keyring = Mock()
         mock_keyring.get_password.side_effect = Exception("Keyring access error")

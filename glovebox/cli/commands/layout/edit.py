@@ -404,7 +404,44 @@ def parse_value(value_str: str) -> Any:
 def resolve_import(source: str, base_path: Path) -> Any:
     """Resolve import source."""
     try:
-        if "$." in source:
+        # Handle library references first
+        if source.startswith("@"):
+            # Library reference - resolve it first
+            if "$." in source:
+                # JSON path syntax: @lib-ref$.path.to.field
+                file_part, json_path = source.split("$.", 1)
+                from glovebox.cli.helpers.auto_profile import resolve_json_file_path
+                file_path = resolve_json_file_path(file_part)
+            elif ":" in source:
+                # Shortcut syntax: @lib-ref:LayerName
+                file_part, shortcut = source.split(":", 1)
+                from glovebox.cli.helpers.auto_profile import resolve_json_file_path
+                file_path = resolve_json_file_path(file_part)
+
+                # Load file to resolve shortcut
+                import_data = json.loads(file_path.read_text())
+
+                # Common shortcuts
+                if shortcut == "behaviors":
+                    return import_data.get("custom_defined_behaviors", "")
+                elif shortcut == "meta":
+                    return {
+                        k: v
+                        for k, v in import_data.items()
+                        if k in ["title", "keyboard", "version", "creator", "notes"]
+                    }
+                elif shortcut in import_data.get("layer_names", []):
+                    # Layer by name
+                    idx = import_data["layer_names"].index(shortcut)
+                    return import_data["layers"][idx]
+                else:
+                    raise ValueError(f"Unknown shortcut: {shortcut}")
+            else:
+                # Full library import: @lib-ref
+                from glovebox.cli.helpers.auto_profile import resolve_json_file_path
+                file_path = resolve_json_file_path(source)
+                return json.loads(file_path.read_text())
+        elif "$." in source:
             # JSON path syntax: file.json$.path.to.field
             file_part, json_path = source.split("$.", 1)
             file_path = base_path.parent / file_part

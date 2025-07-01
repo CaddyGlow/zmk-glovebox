@@ -319,7 +319,7 @@ class LayoutService(BaseService):
                 if existing_files:
                     existing_names = [f.name for f in existing_files]
                     raise LayoutError(
-                        f"Output files already exist: {existing_names}. Use force=True to overwrite."
+                        f"Output files already exist: {existing_names}. Use --force flag to overwrite."
                     )
 
             # Ensure output directory exists

@@ -4,7 +4,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from glovebox.cli.helpers.parameters import _complete_library_references, complete_json_files
+from glovebox.cli.helpers.parameters import (
+    _complete_library_references,
+    complete_json_files,
+)
 from glovebox.library.models import LibraryEntry, LibrarySource
 
 
@@ -63,7 +66,9 @@ class TestLibraryCompletion:
 
             # Partial file match
             with patch("pathlib.Path.exists", return_value=True):
-                with patch("pathlib.Path.iterdir", return_value=[json_file, other_file, subdir]):
+                with patch(
+                    "pathlib.Path.iterdir", return_value=[json_file, other_file, subdir]
+                ):
                     completions = complete_json_files("te")
                     # Note: The actual implementation might need adjustment
                     # This is testing the expected behavior
@@ -115,10 +120,10 @@ class TestParameterIntegration:
 
         # Get the annotation metadata
         arg_info = JsonFileArgument.__metadata__[0]
-        
+
         # Check that it uses complete_json_files for autocompletion
         assert arg_info.autocompletion is complete_json_files
-        
+
         # Check help text mentions library references
         assert "@library-name/uuid" in arg_info.help
 
@@ -128,10 +133,10 @@ class TestParameterIntegration:
 
         # Create a JSON file argument
         param = ParameterFactory.json_file_argument()
-        
+
         # Get the annotation metadata
         arg_info = param.__metadata__[0]
-        
+
         # Check help text
         assert "@library-name/uuid" in arg_info.help
         assert arg_info.autocompletion is complete_json_files

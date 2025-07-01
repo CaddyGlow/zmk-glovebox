@@ -16,11 +16,6 @@ from glovebox.cli.decorators import (
     with_metrics,
     with_profile,
 )
-from glovebox.cli.helpers import (
-    print_error_message,
-    print_list_item,
-    print_success_message,
-)
 from glovebox.cli.helpers.auto_profile import (
     resolve_json_file_path,
     resolve_profile_with_auto_detection,
@@ -37,6 +32,7 @@ from glovebox.cli.helpers.profile import (
     get_keyboard_profile_from_context,
     get_user_config_from_context,
 )
+from glovebox.cli.helpers.theme import get_themed_console
 from glovebox.config.profile import KeyboardProfile
 from glovebox.layout.formatting import ViewMode
 from glovebox.layout.service import LayoutService
@@ -46,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 
 @handle_errors
-@with_profile(required=True, firmware_optional=False, support_auto_detection=True)
+@with_profile(required=False, firmware_optional=False, support_auto_detection=True)
 @with_metrics("compile")
 def compile_layout(
     ctx: typer.Context,
@@ -155,9 +151,42 @@ def compile_layout(
         # Profile is already handled by the @with_profile decorator
         keyboard_profile = get_keyboard_profile_from_context(ctx)
 
-        # Ensure keyboard_profile is not None
+        # For non-stdin inputs, if profile is still None and auto-detection is enabled,
+        # we need to read the JSON file to enable auto-detection
+        if (
+            keyboard_profile is None
+            and not using_stdin
+            and not no_auto
+            and resolved_json_file
+        ):
+            # Try to auto-detect profile from the JSON file
+            try:
+                import json
+
+                with resolved_json_file.open() as f:
+                    json_data = json.load(f)
+                    keyboard_field = json_data.get("keyboard")
+                    if keyboard_field:
+                        # Use the keyboard field to create a profile
+                        from glovebox.config import create_keyboard_profile
+
+                        keyboard_profile = create_keyboard_profile(keyboard_field)
+                        # Update context with the auto-detected profile
+                        from glovebox.cli.helpers.profile import (
+                            set_keyboard_profile_in_context,
+                        )
+
+                        set_keyboard_profile_in_context(ctx, keyboard_profile)
+            except Exception as e:
+                logger.debug("Failed to auto-detect profile from JSON: %s", e)
+
+        # Ensure we have a valid keyboard profile
         if keyboard_profile is None:
-            raise ValueError("Keyboard profile is required for compilation")
+            console = get_themed_console()
+            console.print_error(
+                "No keyboard profile available. Profile is required for layout compilation."
+            )
+            raise typer.Exit(1)
 
         # Generate smart output prefix if not provided
         if output is not None:
@@ -179,7 +208,9 @@ def compile_layout(
             )
 
             user_config = get_user_config_from_context(ctx) or create_user_config()
-            profile_data = extract_profile_data(keyboard_profile)
+            profile_data = (
+                extract_profile_data(keyboard_profile) if keyboard_profile else None
+            )
 
             # Get layout data for filename generation
             if using_stdin:
@@ -345,7 +376,7 @@ def validate(
 
 
 @handle_errors
-@with_profile(required=True, firmware_optional=True, support_auto_detection=True)
+@with_profile(required=False, firmware_optional=True, support_auto_detection=True)
 def show(
     ctx: typer.Context,
     json_file: ParameterFactory.json_file_argument(),  # type: ignore[valid-type]
@@ -399,7 +430,8 @@ def show(
     resolved_json_file = resolve_json_file_path(json_file, "GLOVEBOX_JSON_FILE")
 
     if resolved_json_file is None:
-        print_error_message(
+        console = get_themed_console()
+        console.print_error(
             "JSON file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
         )
         raise typer.Exit(1)
@@ -439,7 +471,8 @@ def show(
                         break
 
                 if resolved_layer_index is None:
-                    print_error_message(
+                    console = get_themed_console()
+                    console.print_error(
                         f"Layer '{layer}' not found. Available layers: {', '.join(layer_names)}"
                     )
                     raise typer.Exit(1)

@@ -209,8 +209,6 @@ class TestMoErgoLogout:
         assert "Error during logout: Logout failed" in result.output
 
 
-
-
 class TestMoErgoStatus:
     """Test MoErgo status command."""
 
@@ -407,4 +405,3 @@ class TestMoErgoCommandRegistration:
 
 class TestMoErgoIntegration:
     """Integration tests for MoErgo commands."""
-

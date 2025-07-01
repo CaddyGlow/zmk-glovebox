@@ -118,13 +118,17 @@ def resolve_json_file_path(
         # Check if it's a library reference
         if isinstance(json_file_arg, str) and json_file_arg.startswith("@"):
             from glovebox.cli.helpers.library_resolver import resolve_library_reference
-            
+
             try:
                 resolved_path = resolve_library_reference(json_file_arg)
-                logger.debug("Resolved library reference %s to %s", json_file_arg, resolved_path)
+                logger.debug(
+                    "Resolved library reference %s to %s", json_file_arg, resolved_path
+                )
                 return resolved_path
             except Exception as e:
-                raise ValueError(f"Cannot resolve library reference '{json_file_arg}': {e}") from e
+                raise ValueError(
+                    f"Cannot resolve library reference '{json_file_arg}': {e}"
+                ) from e
         else:
             resolved_path = Path(json_file_arg)
             source = "CLI argument"
@@ -134,14 +138,22 @@ def resolve_json_file_path(
         if env_value:
             # Check if env value is a library reference
             if env_value.startswith("@"):
-                from glovebox.cli.helpers.library_resolver import resolve_library_reference
-                
+                from glovebox.cli.helpers.library_resolver import (
+                    resolve_library_reference,
+                )
+
                 try:
                     resolved_path = resolve_library_reference(env_value)
-                    logger.debug("Resolved library reference %s from env to %s", env_value, resolved_path)
+                    logger.debug(
+                        "Resolved library reference %s from env to %s",
+                        env_value,
+                        resolved_path,
+                    )
                     return resolved_path
                 except Exception as e:
-                    raise ValueError(f"Cannot resolve library reference '{env_value}' from {env_var}: {e}") from e
+                    raise ValueError(
+                        f"Cannot resolve library reference '{env_value}' from {env_var}: {e}"
+                    ) from e
             else:
                 resolved_path = Path(env_value)
                 source = f"{env_var} environment variable"

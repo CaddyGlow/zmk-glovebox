@@ -44,7 +44,7 @@ def with_library_resolution(*param_names: str) -> Callable[[F], F]:
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Get the context if available
             ctx = None
-            if args and isinstance(args[0], (typer.Context, ClickContext)):
+            if args and isinstance(args[0], typer.Context | ClickContext):
                 ctx = args[0]
 
             # Process each specified parameter
@@ -73,7 +73,7 @@ def with_library_resolution(*param_names: str) -> Callable[[F], F]:
                             )
                             raise typer.BadParameter(
                                 f"Cannot resolve library reference '{value}': {e}"
-                            )
+                            ) from e
 
             return func(*args, **kwargs)
 
@@ -98,7 +98,7 @@ def resolve_library_params(ctx: typer.Context, param_mapping: dict[str, str]) ->
     if not hasattr(ctx, "params") or not ctx.params:
         return
 
-    for param_name, param_key in param_mapping.items():
+    for _param_name, param_key in param_mapping.items():
         if param_key in ctx.params:
             value = ctx.params[param_key]
 
@@ -117,12 +117,10 @@ def resolve_library_params(ctx: typer.Context, param_mapping: dict[str, str]) ->
                         resolved_path,
                     )
                 except Exception as e:
-                    logger.error(
-                        "Failed to resolve library reference %s: %s", value, e
-                    )
+                    logger.error("Failed to resolve library reference %s: %s", value, e)
                     raise typer.BadParameter(
                         f"Cannot resolve library reference '{value}': {e}"
-                    )
+                    ) from e
 
 
 def library_resolvable_callback(ctx: typer.Context, value: str | None) -> str | None:
@@ -148,6 +146,6 @@ def library_resolvable_callback(ctx: typer.Context, value: str | None) -> str | 
         except Exception as e:
             raise typer.BadParameter(
                 f"Cannot resolve library reference '{value}': {e}"
-            )
+            ) from e
 
     return value

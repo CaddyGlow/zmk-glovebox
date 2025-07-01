@@ -66,9 +66,9 @@ def with_profile(
                 )
                 raise typer.Exit(1)
 
-            # Handle non-required profiles
-            if not required and profile_option is None:
-                # For non-required profiles, store None in context and continue
+            # Handle non-required profiles - but still try auto-detection if enabled
+            if not required and profile_option is None and not support_auto_detection:
+                # For non-required profiles without auto-detection, store None in context and continue
                 if hasattr(ctx.obj, "__dict__"):
                     ctx.obj.keyboard_profile = None
                 return func(*args, **kwargs)
@@ -89,9 +89,44 @@ def with_profile(
                     ]
                     for candidate in json_file_candidates:
                         if candidate in kwargs and kwargs[candidate] is not None:
-                            json_file_path = kwargs[candidate]
-                            no_auto = kwargs.get("no_auto", False)
-                            break
+                            json_file_value = kwargs[candidate]
+
+                            # Handle library references and convert to Path
+                            try:
+                                if (
+                                    isinstance(json_file_value, str)
+                                    and json_file_value.startswith("@")
+                                    or isinstance(json_file_value, str)
+                                ):
+                                    from glovebox.cli.helpers.auto_profile import (
+                                        resolve_json_file_path,
+                                    )
+
+                                    json_file_path = resolve_json_file_path(
+                                        json_file_value
+                                    )
+                                elif isinstance(json_file_value, Path):
+                                    json_file_path = json_file_value
+                                else:
+                                    # Convert to string then resolve
+                                    from glovebox.cli.helpers.auto_profile import (
+                                        resolve_json_file_path,
+                                    )
+
+                                    json_file_path = resolve_json_file_path(
+                                        str(json_file_value)
+                                    )
+
+                                no_auto = kwargs.get("no_auto", False)
+                                break
+                            except Exception as e:
+                                logger.debug(
+                                    "Failed to resolve JSON file %s: %s",
+                                    json_file_value,
+                                    e,
+                                )
+                                # Continue to next candidate
+                                continue
 
                 # Use the unified profile resolution logic
                 from glovebox.cli.helpers.profile import (
