@@ -888,6 +888,8 @@ class ASTBehaviorConverter:
                     child_name, child_node
                 )
                 if listener_node:
+                    if input_listener.nodes is None:
+                        input_listener.nodes = []
                     input_listener.nodes.append(listener_node)
 
             return input_listener
@@ -933,19 +935,21 @@ class ASTBehaviorConverter:
                 layers = self._extract_array_from_property(layers_prop)
 
             # Extract input-processors property
-            input_processors = []
+            input_processors = None
             processors_prop = child_node.get_property("input-processors")
             if processors_prop:
-                input_processors = self._extract_input_processors_from_property(
+                extracted_processors = self._extract_input_processors_from_property(
                     processors_prop
                 )
+                if extracted_processors:
+                    input_processors = extracted_processors
 
             # Create input listener node
             listener_node = InputListenerNode(
                 code=code,
                 description=description,
                 layers=layers,
-                inputProcessors=input_processors,
+                input_processors=input_processors,
             )
 
             return listener_node
