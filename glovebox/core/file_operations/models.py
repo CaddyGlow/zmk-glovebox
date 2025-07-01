@@ -4,6 +4,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Optional
 
+from glovebox.cli.helpers.theme import Icons
+
 
 @dataclass
 class CopyProgress:
@@ -159,43 +161,69 @@ class CompilationProgress:
             return 0.0
 
     def get_staged_progress_display(self) -> str:
-        """Get a staged progress display with emojis and status indicators."""
+        """Get a staged progress display with icons and status indicators."""
         # Different stages based on compilation strategy
         if self.compilation_strategy == "moergo_nix":
             # MoErgo Nix compilation stages
             stages = [
-                ("🔧 Setting up build environment", "initialization"),
-                ("💾 Restoring workspace cache", "cache_restoration"),
                 (
-                    f"🐳 Verifying Docker image{f' ({self.docker_image_name})' if self.docker_image_name else ''}",
+                    f"{Icons.get_icon('BUILD', 'text')} Setting up build environment",
+                    "initialization",
+                ),
+                (
+                    f"{Icons.get_icon('SAVE', 'text')} Restoring workspace cache",
+                    "cache_restoration",
+                ),
+                (
+                    f"{Icons.get_icon('DOCKER', 'text')} Verifying Docker image{f' ({self.docker_image_name})' if self.docker_image_name else ''}",
                     "docker_verification",
                 ),
-                ("🛠️ Building Nix environment", "nix_build"),
-                ("⚙️ Compiling firmware", "building"),
-                ("📱 Generating .uf2 files", "cache_saving"),
+                (
+                    f"{Icons.get_icon('BUILD', 'text')} Building Nix environment",
+                    "nix_build",
+                ),
+                (f"{Icons.get_icon('CONFIG', 'text')} Compiling firmware", "building"),
+                (
+                    f"{Icons.get_icon('DEVICE', 'text')} Generating .uf2 files",
+                    "cache_saving",
+                ),
             ]
         else:
             # ZMK West compilation stages (default)
             stages = [
-                ("🔧 Setting up build environment", "initialization"),
-                ("💾 Restoring workspace cache", "cache_restoration"),
-                ("📦 Downloading dependencies (west update)", "west_update"),
-                ("⚙️ Compiling firmware", "building"),
-                ("🔗 Linking binaries", "building"),
-                ("📱 Generating .uf2 files", "cache_saving"),
+                (
+                    f"{Icons.get_icon('BUILD', 'text')} Setting up build environment",
+                    "initialization",
+                ),
+                (
+                    f"{Icons.get_icon('SAVE', 'text')} Restoring workspace cache",
+                    "cache_restoration",
+                ),
+                (
+                    f"{Icons.get_icon('DOWNLOAD', 'text')} Downloading dependencies (west update)",
+                    "west_update",
+                ),
+                (f"{Icons.get_icon('CONFIG', 'text')} Compiling firmware", "building"),
+                (f"{Icons.get_icon('LINK', 'text')} Linking binaries", "building"),
+                (
+                    f"{Icons.get_icon('DEVICE', 'text')} Generating .uf2 files",
+                    "cache_saving",
+                ),
             ]
 
         lines = []
         for stage_name, stage_phase in stages:
             if self.compilation_phase == stage_phase:
                 if stage_phase == "initialization":
-                    status = "⚙️"  # Show as in progress during initialization
+                    status = Icons.get_icon(
+                        "CONFIG", "text"
+                    )  # Show as in progress during initialization
                 elif stage_phase == "cache_restoration":
                     if (
                         hasattr(self, "cache_operation_status")
                         and self.cache_operation_status == "failed"
                     ):
-                        status = "❌"  # Show failure icon
+                        status = Icons.get_icon("ERROR", "text")  # Show failure icon
                     elif hasattr(self, "cache_operation_progress") and hasattr(
                         self, "cache_operation_total"
                     ):
@@ -211,28 +239,30 @@ class CompilationProgress:
                                 hasattr(self, "cache_operation_status")
                                 and self.cache_operation_status == "success"
                             ):
-                                status = "✓"  # Show success when completed
+                                status = Icons.get_icon(
+                                    "SUCCESS", "text"
+                                )  # Show success when completed
                             else:
                                 status = f"{'█' * (progress // 10)}{'░' * (10 - progress // 10)} {progress}%"
                         else:
-                            status = "⚙️"
+                            status = Icons.get_icon("CONFIG", "text")
                     else:
-                        status = "⚙️"
+                        status = Icons.get_icon("CONFIG", "text")
                 elif stage_phase == "docker_verification":
                     # For MoErgo docker verification phase
-                    status = "⚙️"
+                    status = Icons.get_icon("CONFIG", "text")
                 elif stage_phase == "nix_build":
                     # For MoErgo nix build phase
-                    status = "⚙️"
+                    status = Icons.get_icon("CONFIG", "text")
                 elif stage_phase == "west_update":
                     progress = int(self.repository_progress_percent)
                     if progress == 100:
-                        status = "✓"
+                        status = Icons.get_icon("SUCCESS", "text")
                     else:
                         status = f"{'█' * (progress // 10)}{'░' * (10 - progress // 10)} {progress}%"
                 elif stage_phase == "building":
                     if self.boards_completed == self.total_boards:
-                        status = "✓"
+                        status = Icons.get_icon("SUCCESS", "text")
                     else:
                         progress = int(self.current_board_progress_percent)
                         # Show board count for multi-board builds
@@ -243,7 +273,7 @@ class CompilationProgress:
                             board_info = ""
                         status = f"{'█' * (progress // 10)}{'░' * (10 - progress // 10)} {progress}%{board_info}"
                 elif stage_phase == "cache_saving":
-                    status = "✓"
+                    status = Icons.get_icon("SUCCESS", "text")
                 else:
                     status = "(pending)"
             elif self._is_stage_completed(stage_phase):
@@ -253,9 +283,9 @@ class CompilationProgress:
                     and hasattr(self, "cache_operation_status")
                     and self.cache_operation_status == "failed"
                 ):
-                    status = "❌"
+                    status = Icons.get_icon("ERROR", "text")
                 else:
-                    status = "✓"
+                    status = Icons.get_icon("SUCCESS", "text")
             else:
                 status = "(pending)"
 
@@ -303,27 +333,27 @@ class CompilationProgress:
     def get_status_text(self) -> str:
         """Get status text for progress display compatibility."""
         if self.compilation_phase == "initialization":
-            return "🔧 Initializing build environment"
+            return f"{Icons.get_icon('BUILD', 'text')} Initializing build environment"
         elif self.compilation_phase == "cache_restoration":
-            return "💾 Restoring workspace from cache"
+            return f"{Icons.get_icon('SAVE', 'text')} Restoring workspace from cache"
         elif self.compilation_phase == "docker_verification":
             if self.docker_image_name:
-                return f"🐳 Verifying Docker image ({self.docker_image_name})"
+                return f"{Icons.get_icon('DOCKER', 'text')} Verifying Docker image ({self.docker_image_name})"
             else:
-                return "🐳 Verifying Docker image"
+                return f"{Icons.get_icon('DOCKER', 'text')} Verifying Docker image"
         elif self.compilation_phase == "nix_build":
-            return "🛠️ Building Nix environment"
+            return f"{Icons.get_icon('BUILD', 'text')} Building Nix environment"
         elif self.compilation_phase == "west_update":
-            return f"📦 Downloading dependencies ({self.repositories_downloaded}/{self.total_repositories})"
+            return f"{Icons.get_icon('DOWNLOAD', 'text')} Downloading dependencies ({self.repositories_downloaded}/{self.total_repositories})"
         elif self.compilation_phase == "building":
             if self.current_board:
-                return f"⚙️ Building {self.current_board} ({self.boards_completed + 1}/{self.total_boards})"
+                return f"{Icons.get_icon('CONFIG', 'text')} Building {self.current_board} ({self.boards_completed + 1}/{self.total_boards})"
             else:
-                return f"⚙️ Compiling firmware ({self.boards_completed}/{self.total_boards})"
+                return f"{Icons.get_icon('CONFIG', 'text')} Compiling firmware ({self.boards_completed}/{self.total_boards})"
         elif self.compilation_phase == "cache_saving":
-            return "💾 Saving build cache"
+            return f"{Icons.get_icon('SAVE', 'text')} Saving build cache"
         else:
-            return f"🔧 {self.compilation_phase.replace('_', ' ').title()}"
+            return f"{Icons.get_icon('BUILD', 'text')} {self.compilation_phase.replace('_', ' ').title()}"
 
     def get_progress_info(self) -> tuple[int, int, str]:
         """Get progress info for progress display compatibility."""

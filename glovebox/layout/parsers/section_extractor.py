@@ -87,7 +87,7 @@ class SectionExtractor:
                     processed[section.name] = result.data
 
                     # Store raw content for template variables if needed
-                    if section.type in ("behavior", "macro", "combo"):
+                    if section.type in ("behavior", "macro", "combo", "input_listener"):
                         raw_key = (
                             f"{section_name}_raw"
                             if not section_name.endswith("_raw")
@@ -98,6 +98,7 @@ class SectionExtractor:
                 context.warnings.extend(result.warnings)
 
                 if not result.success and result.error_message:
+                    self.logger.warning(f"error {result}")
                     context.errors.append(
                         f"Processing {section_name}: {result.error_message}"
                     )
@@ -220,18 +221,11 @@ class SectionExtractor:
                     raw_content=section.raw_content,
                 )
 
-            elif section.type in ("behavior", "macro", "combo"):
+            elif section.type in ("behavior", "macro", "combo", "input_listener"):
                 return self._process_ast_section(section)
 
             elif section.type == "keymap":
                 return self._process_keymap_section(section)
-
-            elif section.type == "input_listener":
-                return SectionProcessingResult(
-                    success=True,
-                    data=section.content,
-                    raw_content=section.raw_content,
-                )
 
             else:
                 return SectionProcessingResult(
@@ -271,7 +265,7 @@ class SectionExtractor:
 
             # For macro, behavior, and combo sections, extract the inner block content
             # to avoid parsing issues with the full / { type { ... } }; structure
-            if section.type in ("macro", "behavior", "combo"):
+            if section.type in ("macro", "behavior", "combo", "input_listener"):
                 content_to_parse = self._extract_inner_block_content(
                     content_to_parse, section.type
                 )

@@ -3,6 +3,7 @@
 from datetime import datetime
 from typing import Any
 
+from ..cli.helpers.theme import Icons
 from .client import MoErgoClient
 from .client.models import MoErgoLayout
 
@@ -241,21 +242,27 @@ class LayoutVersionTree:
         prefix = "  " * indent
 
         if indent == 0:
-            print(f"{prefix}📁 {root_version.title}")
+            folder_icon = Icons.get_icon("FOLDER", "text")
+            print(f"{prefix}{folder_icon} {root_version.title}")
         else:
             print(
                 f"{prefix}├─ v{root_version.created_datetime.strftime('%Y%m%d')} {root_version.title}"
             )
 
-        print(f"{prefix}   🔗 UUID: {root_version.uuid}")
-        print(f"{prefix}   👤 Creator: {root_version.creator}")
-        print(f"{prefix}   📅 Created: {root_version.created_datetime}")
+        link_icon = Icons.get_icon("LINK", "text")
+        user_icon = Icons.get_icon("USER", "text")
+        calendar_icon = Icons.get_icon("CALENDAR", "text")
+        print(f"{prefix}   {link_icon} UUID: {root_version.uuid}")
+        print(f"{prefix}   {user_icon} Creator: {root_version.creator}")
+        print(f"{prefix}   {calendar_icon} Created: {root_version.created_datetime}")
 
         if root_version.notes:
-            print(f"{prefix}   📝 Notes: {root_version.notes}")
+            document_icon = Icons.get_icon("DOCUMENT", "text")
+            print(f"{prefix}   {document_icon} Notes: {root_version.notes}")
 
         if root_version.tags:
-            print(f"{prefix}   🏷️  Tags: {', '.join(root_version.tags)}")
+            tag_icon = Icons.get_icon("TAG", "text")
+            print(f"{prefix}   {tag_icon} Tags: {', '.join(root_version.tags)}")
 
         print()
 
@@ -265,7 +272,8 @@ class LayoutVersionTree:
 
     def print_version_lineage(self, lineage: list[LayoutVersion]) -> None:
         """Print a linear version lineage."""
-        print("📜 Version Lineage:")
+        scroll_icon = Icons.get_icon("SCROLL", "text")
+        print(f"{scroll_icon} Version Lineage:")
         print("=" * 50)
 
         for i, version in enumerate(lineage):
@@ -273,15 +281,18 @@ class LayoutVersionTree:
             connector = "└─" if is_last else "├─"
 
             print(f"{connector} v{i + 1}: {version.title}")
-            print(f"   🔗 UUID: {version.uuid}")
-            print(f"   📅 Created: {version.created_datetime}")
+            link_icon = Icons.get_icon("LINK", "text")
+            calendar_icon = Icons.get_icon("CALENDAR", "text")
+            print(f"   {link_icon} UUID: {version.uuid}")
+            print(f"   {calendar_icon} Created: {version.created_datetime}")
 
             if version.notes:
                 # Truncate notes to first 160 characters
                 truncated_notes = version.notes[:160]
                 if len(version.notes) > 160:
                     truncated_notes += "..."
-                print(f"   📝 Notes: {truncated_notes}")
+                document_icon = Icons.get_icon("DOCUMENT", "text")
+                print(f"   {document_icon} Notes: {truncated_notes}")
 
             if not is_last:
                 print("   │")

@@ -10,6 +10,7 @@ from typing import Annotated, Any
 import typer
 
 from glovebox.cli.decorators.error_handling import print_stack_trace_if_verbose
+from glovebox.cli.helpers.theme import Icons
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core import metrics
 from glovebox.core.logging import setup_logging, setup_logging_from_config
@@ -241,10 +242,10 @@ def _run_startup_checks(app_context: AppContext) -> None:
             from glovebox.cli.progress.workspace import create_early_workspace_display
 
             with create_early_workspace_display("Startup Checks"):
-                logger.info("🔧 Running startup checks...")
+                logger.info("%s Running startup checks...", Icons.get_icon("FIRMWARE", "text"))
                 startup_service = create_startup_service(app_context.user_config)
                 startup_service.run_startup_checks()
-                logger.info("✅ Startup checks completed")
+                logger.info("%s Startup checks completed", Icons.get_icon("SUCCESS", "text"))
         else:
             startup_service = create_startup_service(app_context.user_config)
             startup_service.run_startup_checks()

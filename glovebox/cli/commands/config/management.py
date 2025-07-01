@@ -14,6 +14,7 @@ from glovebox.cli.helpers import (
     print_success_message,
 )
 from glovebox.cli.helpers.parameters import GetConfigFieldOption
+from glovebox.cli.helpers.theme import Colors, get_themed_console
 from glovebox.config.models.firmware import (
     FirmwareDockerConfig,
     FirmwareFlashConfig,
@@ -74,7 +75,7 @@ def show_config(
     # If specific fields requested, use ConfigEditor for consistent behavior
     if get:
         try:
-            console = Console()
+            console = get_themed_console()
             editor = ConfigEditor(app_ctx.user_config)
 
             for field_path in get:
@@ -83,16 +84,24 @@ def show_config(
                     if isinstance(value, list):
                         if not value:
                             console.print(
-                                f"[cyan]{field_path}[/cyan]: [dim](empty list)[/dim]"
+                                f"[${Colors.FIELD_NAME}]{field_path}[/${Colors.FIELD_NAME}]: [${Colors.MUTED}](empty list)[/${Colors.MUTED}]"
                             )
                         else:
-                            console.print(f"[cyan]{field_path}[/cyan]:")
+                            console.print(
+                                f"[${Colors.FIELD_NAME}]{field_path}[/${Colors.FIELD_NAME}]:"
+                            )
                             for item in value:
-                                console.print(f"  [dim]-[/dim] {item}")
+                                console.print(
+                                    f"  [${Colors.MUTED}]-[/${Colors.MUTED}] {item}"
+                                )
                     elif value is None:
-                        console.print(f"[cyan]{field_path}[/cyan]: [dim]null[/dim]")
+                        console.print(
+                            f"[${Colors.FIELD_NAME}]{field_path}[/${Colors.FIELD_NAME}]: [${Colors.MUTED}]null[/${Colors.MUTED}]"
+                        )
                     else:
-                        console.print(f"[cyan]{field_path}[/cyan]: {value}")
+                        console.print(
+                            f"[${Colors.FIELD_NAME}]{field_path}[/${Colors.FIELD_NAME}]: {value}"
+                        )
                 except Exception as e:
                     print_error_message(f"Cannot get field '{field_path}': {e}")
             return
@@ -122,24 +131,24 @@ def _show_all_config(
         show_descriptions: Show field descriptions
     """
     # Create a nice table display
-    console = Console()
+    console = get_themed_console()
     title = "Glovebox Configuration" + (
         " (All Options)" if show_all else " (Configured Values)"
     )
     table = Table(title=title)
 
     # Add columns based on what to show
-    table.add_column("Setting", style="cyan")
-    table.add_column("Value", style="green")
+    table.add_column("Setting", style=Colors.FIELD_NAME)
+    table.add_column("Value", style=Colors.FIELD_VALUE)
 
     if show_defaults:
-        table.add_column("Default", style="blue")
+        table.add_column("Default", style=Colors.INFO)
 
     if show_sources:
-        table.add_column("Source", style="yellow")
+        table.add_column("Source", style=Colors.WARNING)
 
     if show_descriptions:
-        table.add_column("Description", style="white")
+        table.add_column("Description", style=Colors.NORMAL)
 
     # Get all configuration keys from models
     def get_all_display_keys() -> list[str]:
@@ -280,31 +289,37 @@ def _show_all_config(
     # Show helpful usage information based on current mode
     if show_all:
         console.print(
-            "\n[dim]Showing all possible configuration fields (use without --all to see only configured values)[/dim]"
+            "\n[${Colors.MUTED}]Showing all possible configuration fields (use without --all to see only configured values)[/${Colors.MUTED}]"
         )
     else:
         if not keys_to_show:
             console.print(
-                "\n[dim]No configuration values are currently set (use --all to see all possible options)[/dim]"
+                "\n[${Colors.MUTED}]No configuration values are currently set (use --all to see all possible options)[/${Colors.MUTED}]"
             )
         else:
             console.print(
-                f"\n[dim]Showing {len(keys_to_show)} configured value(s) (use --all to see all possible options)[/dim]"
+                f"\n[${Colors.MUTED}]Showing {len(keys_to_show)} configured value(s) (use --all to see all possible options)[/${Colors.MUTED}]"
             )
 
-    console.print("\n[dim]Available options:[/dim]")
-    console.print("[dim]  --all           Show all possible configuration fields[/dim]")
+    console.print("\n[${Colors.MUTED}]Available options:[/${Colors.MUTED}]")
     console.print(
-        "[dim]  --defaults      Show both current and default values in separate columns[/dim]"
-    )
-    console.print("[dim]  --sources       Show configuration sources[/dim]")
-    console.print("[dim]  --descriptions  Show field descriptions[/dim]")
-    console.print(
-        "[dim]  --get <field>   Get specific field value using dot notation[/dim]"
+        "[${Colors.MUTED}]  --all           Show all possible configuration fields[/${Colors.MUTED}]"
     )
     console.print(
-        "\n[dim]Use 'glovebox config edit --set <setting>=<value>' to change settings[/dim]"
+        "[${Colors.MUTED}]  --defaults      Show both current and default values in separate columns[/${Colors.MUTED}]"
     )
     console.print(
-        "[dim]Use 'glovebox config edit --interactive' to edit configuration file directly[/dim]"
+        "[${Colors.MUTED}]  --sources       Show configuration sources[/${Colors.MUTED}]"
+    )
+    console.print(
+        "[${Colors.MUTED}]  --descriptions  Show field descriptions[/${Colors.MUTED}]"
+    )
+    console.print(
+        "[${Colors.MUTED}]  --get <field>   Get specific field value using dot notation[/${Colors.MUTED}]"
+    )
+    console.print(
+        "\n[${Colors.MUTED}]Use 'glovebox config edit --set <setting>=<value>' to change settings[/${Colors.MUTED}]"
+    )
+    console.print(
+        "[${Colors.MUTED}]Use 'glovebox config edit --interactive' to edit configuration file directly[/${Colors.MUTED}]"
     )

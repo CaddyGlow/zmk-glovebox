@@ -35,6 +35,7 @@ from glovebox.cli.helpers.profile import (
     get_keyboard_profile_from_context,
     get_user_config_from_context,
 )
+from glovebox.cli.helpers.theme import Icons
 from glovebox.compilation.models import (
     CompilationConfigUnion,
     MoergoCompilationConfig,
@@ -587,23 +588,25 @@ def firmware_compile(
         if show_progress:
             from rich.console import Console
 
+            from glovebox.cli.helpers.theme import get_icon_mode_from_context
             from glovebox.compilation.simple_progress import (
                 ProgressConfig,
                 create_simple_compilation_display,
                 create_simple_progress_coordinator,
             )
 
+            # Get icon mode from context (which contains user config)
+            icon_mode = get_icon_mode_from_context(ctx)
+
             # Create firmware compilation configuration
             firmware_config = ProgressConfig(
-                title_processing="▶ Building Firmware",
-                title_complete="✓ Firmware Built",
-                title_failed="✗ Build Failed",
                 operation_name="Firmware Build",
+                icon_mode=icon_mode,
             )
 
             console = Console()
             progress_display = create_simple_compilation_display(
-                console, firmware_config
+                console, firmware_config, icon_mode
             )
             progress_coordinator = create_simple_progress_coordinator(progress_display)
             progress_display.start()
@@ -670,7 +673,9 @@ def firmware_compile(
         )
 
         # Execute compilation
-        logger.info("🚀 Starting firmware compilation...")
+        logger.info(
+            "%s Starting firmware compilation...", Icons.get_icon("BUILD", "text")
+        )
 
         # Execute compilation based on input type
         if is_json_input:
