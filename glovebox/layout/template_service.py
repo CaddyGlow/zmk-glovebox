@@ -194,6 +194,46 @@ class TemplateService(BaseService):
 
         return errors
 
+    def _process_raw_data(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Process templates directly on raw dictionary data.
+        
+        This method is used when we need to process templates before model validation.
+        
+        Args:
+            data: Raw dictionary data containing templates
+            
+        Returns:
+            Dictionary with resolved templates
+            
+        Raises:
+            TemplateError: If template processing fails
+        """
+        try:
+            self.logger.debug("Processing templates on raw data")
+            self._resolution_cache.clear()
+
+            # Skip processing if no variables or templates
+            if not self._has_templates(data):
+                self.logger.debug("No templates found, skipping processing")
+                return data
+
+            # Create a copy to avoid modifying the original
+            processed_data = data.copy()
+
+            # Multi-pass resolution on raw data
+            processed_data = self._resolve_basic_fields(processed_data)
+            processed_data = self._resolve_behaviors(processed_data)
+            processed_data = self._resolve_layers(processed_data)
+            processed_data = self._resolve_custom_code(processed_data)
+
+            self.logger.debug("Raw data template resolution completed successfully")
+            return processed_data
+
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("Raw data template processing failed: %s", e, exc_info=exc_info)
+            raise TemplateError(f"Raw data template processing failed: {e}") from e
+
     def _has_templates(self, data: dict[str, Any]) -> bool:
         """Check if data contains any Jinja2 template syntax."""
         return self._scan_for_templates(data)
