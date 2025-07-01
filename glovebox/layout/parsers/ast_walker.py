@@ -617,6 +617,8 @@ class UniversalBehaviorExtractor:
 
         # Process each compatible node
         for node, compatible_prop in all_nodes_with_compatible:
+            if compatible_prop.value is None:
+                continue
             compatible_value = compatible_prop.value.value
             if not isinstance(compatible_value, str):
                 continue
@@ -711,7 +713,7 @@ class UniversalBehaviorExtractor:
 
         # Method 3: Find nodes with combo compatible strings
         combo_compatible_nodes = multi_walker.find_properties(
-            lambda prop: (
+            lambda prop: bool(
                 prop.name == "compatible"
                 and prop.value
                 and isinstance(prop.value.value, str)
@@ -751,7 +753,7 @@ class UniversalBehaviorExtractor:
         Returns:
             Dictionary with detected patterns and metadata
         """
-        patterns = {
+        patterns: dict[str, Any] = {
             "custom_behaviors": [],
             "input_listeners": [],
             "conditional_layers": [],
@@ -764,7 +766,7 @@ class UniversalBehaviorExtractor:
 
         # Detect input listeners (like mouse movement processors)
         input_listeners = multi_walker.find_nodes(
-            lambda node: node.name and node.name.endswith("_input_listener")
+            lambda node: bool(node.name and node.name.endswith("_input_listener"))
         )
         patterns["input_listeners"] = input_listeners
 
@@ -792,7 +794,7 @@ class UniversalBehaviorExtractor:
 
         # Detect custom behavior implementations
         custom_behaviors = multi_walker.find_properties(
-            lambda prop: (
+            lambda prop: bool(
                 prop.name == "compatible"
                 and prop.value
                 and isinstance(prop.value.value, str)

@@ -35,7 +35,7 @@ def process_workspace_source(
     source: str,
     progress: bool = True,
     console: Console | None = None,
-    progress_coordinator=None,
+    progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
 ) -> tuple[Path, list[Path]]:
     """Process workspace source (directory, zip file, or URL) and return workspace path.
 
@@ -119,7 +119,10 @@ def process_workspace_source(
 
 
 def download_and_extract_zip(
-    url: str, progress: bool, console: Console, progress_coordinator=None
+    url: str,
+    progress: bool,
+    console: Console,
+    progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
 ) -> tuple[Path, Path]:
     """Download zip file from URL and extract workspace.
 
@@ -234,7 +237,10 @@ def download_and_extract_zip(
 
 
 def extract_local_zip(
-    zip_path: Path, progress: bool, console: Console, progress_coordinator=None
+    zip_path: Path,
+    progress: bool,
+    console: Console,
+    progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
 ) -> tuple[Path, Path]:
     """Extract local zip file to temporary directory.
 
@@ -283,7 +289,10 @@ def extract_local_zip(
 
 
 def extract_zip_file(
-    zip_path: Path, progress: bool, console: Console, progress_coordinator=None
+    zip_path: Path,
+    progress: bool,
+    console: Console,
+    progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
 ) -> Path:
     """Extract zip file and find workspace directory with enhanced progress tracking.
 
@@ -581,7 +590,7 @@ def create_tar_archive(
         "tar.xz": "w:xz",
     }
 
-    mode = mode_map.get(archive_format.value, "w")
+    mode: str = mode_map.get(archive_format.value, "w")
 
     # Calculate total files for progress tracking
     total_files = sum(
@@ -593,7 +602,7 @@ def create_tar_archive(
     processed_files = 0
     start_time = time.time()
 
-    with tarfile.open(output_path, mode) as tar:
+    with tarfile.open(output_path, mode=mode) as tar:  # type: ignore[call-overload]
         # Add workspace metadata as JSON
         metadata_json = json.dumps(metadata.model_dump(mode="json"), indent=2)
         metadata_bytes = metadata_json.encode("utf-8")

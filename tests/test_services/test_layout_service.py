@@ -58,6 +58,9 @@ def keymap_service():
     # Generate mock config
     dtsi_generator.generate_kconfig_conf.return_value = ("// Config content", {})
 
+    # Create mock keymap parser
+    keymap_parser = Mock()
+
     service = LayoutService(
         file_adapter=file_adapter,
         template_adapter=template_adapter,
@@ -66,6 +69,7 @@ def keymap_service():
         dtsi_generator=dtsi_generator,
         component_service=component_service,
         layout_service=layout_service,
+        keymap_parser=keymap_parser,
     )
 
     # Add test-only attributes to store references to the mocks
@@ -192,6 +196,7 @@ class TestLayoutServiceWithKeyboardConfig:
         self.mock_dtsi_generator = Mock()
         self.mock_component_service = Mock()
         self.mock_layout_service = Mock()
+        self.mock_keymap_parser = Mock()
 
         # Create the service
         self.service = LayoutService(
@@ -202,6 +207,7 @@ class TestLayoutServiceWithKeyboardConfig:
             dtsi_generator=self.mock_dtsi_generator,
             component_service=self.mock_component_service,
             layout_service=self.mock_layout_service,
+            keymap_parser=self.mock_keymap_parser,
         )
 
     def test_validate_config_success(self, sample_keymap_json):
@@ -672,6 +678,7 @@ class TestLayoutServiceWithMockedConfig:
                         dtsi_generator = Mock()
                         component_service = Mock()
                         layout_service = Mock()
+                        keymap_parser = Mock()
 
                         # Configure mocks
                         with patch.object(
@@ -687,6 +694,7 @@ class TestLayoutServiceWithMockedConfig:
                                 dtsi_generator=dtsi_generator,
                                 component_service=component_service,
                                 layout_service=layout_service,
+                                keymap_parser=keymap_parser,
                             )
 
                             # Convert to LayoutData

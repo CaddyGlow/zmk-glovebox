@@ -209,4 +209,5 @@ class TestArithmeticExpressions:
         # Check identifier values work
         flavor = homey_behavior.get_property("flavor")
         assert flavor is not None
+        assert flavor.value is not None
         assert flavor.value.value == "balanced"

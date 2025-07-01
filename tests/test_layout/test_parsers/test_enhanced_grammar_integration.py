@@ -68,14 +68,18 @@ class TestEnhancedGrammarIntegration:
 
         # Check that hash-prefixed properties work
         behaviors = content_root.get_child("behaviors")
+        assert behaviors is not None
         custom_behavior = behaviors.get_child("custom_behavior")
+        assert custom_behavior is not None
         binding_cells = custom_behavior.get_property("#binding-cells")
         assert binding_cells is not None
+        assert binding_cells.value is not None
         assert binding_cells.value.value == ["2"]
 
         # Check identifier values work
         flavor = custom_behavior.get_property("flavor")
         assert flavor is not None
+        assert flavor.value is not None
         assert flavor.value.value == "tap_preferred"
 
     def test_line_continuation_comprehensive(self):
@@ -150,6 +154,7 @@ class TestEnhancedGrammarIntegration:
         behavior = root.get_child("behavior")
 
         # All property types should be parsed correctly
+        assert behavior is not None
         assert behavior.get_property("#binding-cells") is not None
         assert behavior.get_property("#foo-bar-baz") is not None
         assert behavior.get_property("compatible") is not None

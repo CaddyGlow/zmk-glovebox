@@ -90,12 +90,6 @@ def fetch_layout(
         Path | None,
         typer.Option("--output", "-o", help="Custom output path for the layout file"),
     ] = None,
-    bookmark: Annotated[
-        bool,
-        typer.Option(
-            "--bookmark", "-b", help="Create a bookmark for the fetched layout"
-        ),
-    ] = False,
     force: Annotated[
         bool,
         typer.Option("--force", "-f", help="Overwrite existing layout if it exists"),
@@ -121,7 +115,6 @@ def fetch_layout(
             source=source,
             name=name,
             output_path=output,
-            create_bookmark=bookmark,
             force_overwrite=force,
         )
 
@@ -152,13 +145,6 @@ def fetch_layout(
             if result.entry.tags:
                 typer.echo(f"   Tags: {', '.join(result.entry.tags)}")
 
-            if bookmark and result.entry:
-                typer.echo(
-                    Icons.format_with_icon(
-                        "BOOKMARK", "Bookmark created successfully!", icon_mode
-                    )
-                )
-
             # Show warnings if any
             for warning in result.warnings:
                 typer.echo(Icons.format_with_icon("WARNING", warning, icon_mode))
@@ -188,7 +174,6 @@ def fetch_default(
     ] = None,
     name: Annotated[str | None, typer.Option("--name", "-n")] = None,
     output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
-    bookmark: Annotated[bool, typer.Option("--bookmark", "-b")] = False,
     force: Annotated[bool, typer.Option("--force", "-f")] = False,
 ) -> None:
     """Fetch a layout from any supported source."""
@@ -198,4 +183,4 @@ def fetch_default(
             raise typer.Exit(1)
 
         # Call the main fetch command
-        fetch_layout(ctx, source, name, output, bookmark, force)
+        fetch_layout(ctx, source, name, output, force)

@@ -106,9 +106,9 @@ def test_comprehensive_file_operations_benchmark(
     print("\n3. Baseline Copy Results:")
     print("-" * 40)
     print(f"  Success: {result.success}")
-    print(f"  Files copied: {result.files_copied}")
-    print(f"  Total size: {result.total_size / (1024**2):.1f} MB")
-    print(f"  Duration: {result.duration:.2f}s")
+    print(f"  Bytes copied: {result.bytes_copied}")
+    print(f"  Total size: {result.bytes_copied / (1024**2):.1f} MB")
+    print(f"  Duration: {result.elapsed_time:.2f}s")
 
     # Test pipeline strategy
     pipeline_output = output_dir / "pipeline"
@@ -119,16 +119,15 @@ def test_comprehensive_file_operations_benchmark(
     print("\n4. Pipeline Copy Results:")
     print("-" * 40)
     print(f"  Success: {result.success}")
-    print(f"  Files copied: {result.files_copied}")
-    print(f"  Total size: {result.total_size / (1024**2):.1f} MB")
-    print(f"  Duration: {result.duration:.2f}s")
+    print(f"  Bytes copied: {result.bytes_copied}")
+    print(f"  Total size: {result.bytes_copied / (1024**2):.1f} MB")
+    print(f"  Duration: {result.elapsed_time:.2f}s")
 
     # Verify results
     assert result.success
     assert baseline_output.exists()
     assert pipeline_output.exists()
-    assert result.files_copied > 0
-    assert result.total_size > 0
+    assert result.bytes_copied > 0
 
     print("\n" + "=" * 60)
     print("FILE OPERATIONS DEMO COMPLETED SUCCESSFULLY!")
@@ -167,19 +166,18 @@ def test_pipeline_copy_example(workspace_path_override=None):
             src=workspace_path, dst=cache_dir, use_pipeline=True, exclude_git=True
         )
 
-        print(f"Total time: {result.duration:.2f}s")
-        print(f"Files copied: {result.files_copied}")
-        print(f"Total size: {result.total_size / (1024**2):.1f} MB")
-        if result.duration > 0:
-            throughput = result.total_size / (1024**2) / result.duration
+        print(f"Total time: {result.elapsed_time:.2f}s")
+        print(f"Bytes copied: {result.bytes_copied}")
+        print(f"Total size: {result.bytes_copied / (1024**2):.1f} MB")
+        if result.elapsed_time > 0:
+            throughput = result.bytes_copied / (1024**2) / result.elapsed_time
             print(f"Throughput: {throughput:.1f} MB/s")
         print(f"Status: {'SUCCESS' if result.success else 'FAILED'}")
 
         # Verify cache was created
         assert cache_dir.exists()
-        assert result.files_copied > 0
-        assert result.total_size > 0
-        assert result.duration > 0
+        assert result.bytes_copied > 0
+        assert result.elapsed_time > 0
 
 
 if __name__ == "__main__":

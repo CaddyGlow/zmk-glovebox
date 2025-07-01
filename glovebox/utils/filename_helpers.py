@@ -63,22 +63,6 @@ def extract_layout_dict_data(layout_dict: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def extract_bookmark_data(bookmark_name: str, layout_title: str = "") -> dict[str, Any]:
-    """Extract filename template data from bookmark information.
-
-    Args:
-        bookmark_name: Name of the bookmark
-        layout_title: Title of the layout (if available)
-
-    Returns:
-        Dictionary with bookmark data for template variables
-    """
-    return {
-        "title": layout_title or bookmark_name,
-        "bookmark_name": bookmark_name,
-    }
-
-
 def extract_firmware_data(
     uf2_files: list[str] | None = None, build_id: str = ""
 ) -> dict[str, Any]:

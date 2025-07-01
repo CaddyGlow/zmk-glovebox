@@ -66,12 +66,6 @@ def export_layout(
             help="Add the exported layout back to the library",
         ),
     ] = False,
-    bookmark: Annotated[
-        bool,
-        typer.Option(
-            "--bookmark", "-b", help="Create a bookmark for the exported layout"
-        ),
-    ] = False,
     force: Annotated[
         bool,
         typer.Option("--force", "-f", help="Overwrite destination if it exists"),
@@ -89,8 +83,8 @@ def export_layout(
         # Export with custom name and add back to library
         glovebox library export "My Gaming Layout" variation.json --name "Gaming V2" --add-to-library
 
-        # Export and create bookmark
-        glovebox library export work-layout ~/layouts/work-backup.json --bookmark
+        # Export layout
+        glovebox library export work-layout ~/layouts/work-backup.json
     """
     icon_mode = get_icon_mode_from_context(ctx)
 
@@ -192,7 +186,6 @@ def export_layout(
             fetch_request = FetchRequest(
                 source=str(destination),
                 name=name or f"{source_entry.name} (Export)",
-                create_bookmark=bookmark,
                 force_overwrite=True,  # We just created it, so safe to overwrite
             )
 
@@ -207,13 +200,6 @@ def export_layout(
                 typer.echo(f"   New UUID: {fetch_result.entry.uuid}")
                 typer.echo(f"   Library Path: {fetch_result.entry.file_path}")
 
-                if bookmark:
-                    typer.echo(
-                        Icons.format_with_icon(
-                            "BOOKMARK", "Bookmark created successfully!", icon_mode
-                        )
-                    )
-
                 # Show warnings if any
                 for warning in fetch_result.warnings:
                     typer.echo(Icons.format_with_icon("WARNING", warning, icon_mode))
@@ -225,15 +211,6 @@ def export_layout(
                 )
                 for error in fetch_result.errors:
                     typer.echo(f"   {error}")
-
-        elif bookmark:
-            typer.echo(
-                Icons.format_with_icon(
-                    "WARNING",
-                    "Cannot create bookmark without adding to library. Use --add-to-library.",
-                    icon_mode,
-                )
-            )
 
     except Exception as e:
         typer.echo(Icons.format_with_icon("ERROR", f"Unexpected error: {e}", icon_mode))
@@ -256,7 +233,6 @@ def export_default(
     ] = None,
     name: Annotated[str | None, typer.Option("--name", "-n")] = None,
     add_to_library: Annotated[bool, typer.Option("--add-to-library", "-l")] = False,
-    bookmark: Annotated[bool, typer.Option("--bookmark", "-b")] = False,
     force: Annotated[bool, typer.Option("--force", "-f")] = False,
 ) -> None:
     """Export a layout from the library."""
@@ -266,4 +242,4 @@ def export_default(
             raise typer.Exit(1)
 
         # Call the main export command
-        export_layout(ctx, source, destination, name, add_to_library, bookmark, force)
+        export_layout(ctx, source, destination, name, add_to_library, force)

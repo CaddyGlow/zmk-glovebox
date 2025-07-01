@@ -350,9 +350,20 @@ class WorkspaceSetupService:
                     status="in_progress",
                 )
 
-            # Also call original callback if provided
+            # Also call original callback if provided - but need to handle type properly
             if progress_callback:
-                progress_callback(copy_progress)
+                # Convert copy_progress to compilation progress for callback compatibility
+                from glovebox.core.file_operations.models import CompilationProgress
+
+                compilation_progress = CompilationProgress(
+                    repositories_downloaded=files_copied,
+                    total_repositories=total_files_to_copy,
+                    current_repository=current_file,
+                    compilation_phase="cache_restoration",
+                    bytes_downloaded=bytes_copied,
+                    total_bytes=total_bytes_to_copy,
+                )
+                progress_callback(compilation_progress)
 
         self.logger.info("Restoring workspace from cache: %s", cached_workspace)
         self.logger.info(

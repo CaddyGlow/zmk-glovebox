@@ -654,7 +654,7 @@ class DTParser:
         if associated_comments:
             # Sort by line number (closest first) and take only the closest one
             associated_comments.sort(key=lambda c: c.line, reverse=True)
-            prop.comments.append(associated_comments[0])
+            prop.comments.append(associated_comments[0].text)
 
             # Remove associated comment from pending list
             if associated_comments[0] in self.comments:

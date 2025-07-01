@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+from typing import Any
 
 from lark import Lark, Token, Tree, UnexpectedCharacters, UnexpectedEOF, UnexpectedToken
 
@@ -30,7 +31,7 @@ class LarkDTParser:
 
         try:
             self.parser = Lark.open(
-                grammar_path,
+                str(grammar_path),
                 parser="lalr",  # Fast parser
                 start="start",
                 propagate_positions=True,  # Track line/column info
@@ -89,7 +90,7 @@ class LarkDTParser:
             self.logger.warning("Parsing failed with error: %s", error_msg)
             return [], [error_msg]
 
-    def _transform_tree(self, tree: Tree) -> list[DTNode]:
+    def _transform_tree(self, tree: Tree[Any]) -> list[DTNode]:
         """Transform Lark parse tree to DTNode objects.
 
         Args:
@@ -139,7 +140,7 @@ class LarkDTParser:
 
         return roots
 
-    def _transform_node(self, node_tree: Tree) -> DTNode | None:
+    def _transform_node(self, node_tree: Tree[Any]) -> DTNode | None:
         """Transform a node tree to DTNode.
 
         Args:
@@ -207,7 +208,9 @@ class LarkDTParser:
             self.logger.error("Failed to transform node: %s", e)
             return None
 
-    def _transform_reference_node_modification(self, ref_tree: Tree) -> DTNode | None:
+    def _transform_reference_node_modification(
+        self, ref_tree: Tree[Any]
+    ) -> DTNode | None:
         """Transform a reference node modification to DTNode.
 
         Args:
@@ -264,14 +267,14 @@ class LarkDTParser:
             self.logger.error("Failed to transform reference node: %s", e)
             return None
 
-    def _extract_label(self, label_tree: Tree) -> str:
+    def _extract_label(self, label_tree: Tree[Any]) -> str:
         """Extract label from label tree."""
         for child in label_tree.children:
             if isinstance(child, Token):
                 return str(child)
         return ""
 
-    def _extract_node_path(self, path_tree: Tree) -> str:
+    def _extract_node_path(self, path_tree: Tree[Any]) -> str:
         """Extract node path from path tree."""
         if not path_tree.children:
             return "/"
@@ -294,7 +297,7 @@ class LarkDTParser:
         else:
             return "/" + "/".join(path_parts)
 
-    def _extract_path_segment(self, segment_tree: Tree) -> str:
+    def _extract_path_segment(self, segment_tree: Tree[Any]) -> str:
         """Extract path segment from segment tree."""
         parts = []
         for child in segment_tree.children:
@@ -302,7 +305,7 @@ class LarkDTParser:
                 parts.append(str(child))
         return "".join(parts)
 
-    def _transform_property(self, prop_tree: Tree) -> DTProperty | None:
+    def _transform_property(self, prop_tree: Tree[Any]) -> DTProperty | None:
         """Transform property tree to DTProperty.
 
         Args:
@@ -355,7 +358,7 @@ class LarkDTParser:
             self.logger.error("Failed to transform property: %s", e)
             return None
 
-    def _transform_property_values(self, values_tree: Tree) -> DTValue | None:
+    def _transform_property_values(self, values_tree: Tree[Any]) -> DTValue | None:
         """Transform property values (potentially comma-separated) to DTValue.
 
         Args:
@@ -422,7 +425,7 @@ class LarkDTParser:
             self.logger.error("Failed to transform property values: %s", e)
             return None
 
-    def _transform_value(self, value_tree: Tree) -> DTValue | None:
+    def _transform_value(self, value_tree: Tree[Any]) -> DTValue | None:
         """Transform value tree to DTValue.
 
         Args:
@@ -452,7 +455,7 @@ class LarkDTParser:
             self.logger.error("Failed to transform value: %s", e)
             return None
 
-    def _transform_string_value(self, string_tree: Tree) -> DTValue:
+    def _transform_string_value(self, string_tree: Tree[Any]) -> DTValue:
         """Transform string value."""
         for child in string_tree.children:
             if isinstance(child, Token) and child.type == "STRING":
@@ -462,7 +465,7 @@ class LarkDTParser:
 
         return DTValue(type=DTValueType.STRING, value="")
 
-    def _transform_number_value(self, number_tree: Tree) -> DTValue:
+    def _transform_number_value(self, number_tree: Tree[Any]) -> DTValue:
         """Transform number value."""
         for child in number_tree.children:
             if isinstance(child, Token):
@@ -477,7 +480,7 @@ class LarkDTParser:
 
         return DTValue(type=DTValueType.INTEGER, value=0)
 
-    def _transform_array_value(self, array_tree: Tree) -> DTValue:
+    def _transform_array_value(self, array_tree: Tree[Any]) -> DTValue:
         """Transform array value."""
         array_items = []
 
@@ -493,9 +496,9 @@ class LarkDTParser:
 
         return DTValue(type=DTValueType.ARRAY, value=array_items)
 
-    def _extract_array_content(self, content_tree: Tree) -> list[str]:
+    def _extract_array_content(self, content_tree: Tree[Any]) -> list[str]:
         """Extract array content tokens and properly group behavior calls."""
-        tokens = []
+        tokens: list[str] = []
         current_behavior = None
 
         for child in content_tree.children:
@@ -526,7 +529,7 @@ class LarkDTParser:
         return tokens
 
     def _process_array_token(
-        self, token_tree: Tree, tokens: list[str], current_behavior: str | None
+        self, token_tree: Tree[Any], tokens: list[str], current_behavior: str | None
     ) -> str | None:
         """Process a single array token and update the tokens list.
 
@@ -588,7 +591,7 @@ class LarkDTParser:
 
         return current_behavior
 
-    def _extract_function_call(self, func_tree: Tree) -> str:
+    def _extract_function_call(self, func_tree: Tree[Any]) -> str:
         """Extract function call from function_call tree.
 
         Args:
@@ -610,7 +613,7 @@ class LarkDTParser:
         args_str = ",".join(args) if args else ""
         return f"{func_name}({args_str})"
 
-    def _extract_function_args(self, args_tree: Tree) -> list[str]:
+    def _extract_function_args(self, args_tree: Tree[Any]) -> list[str]:
         """Extract function arguments from function_args tree.
 
         Args:
@@ -640,7 +643,7 @@ class LarkDTParser:
 
         return args
 
-    def _transform_reference_value(self, ref_tree: Tree) -> DTValue:
+    def _transform_reference_value(self, ref_tree: Tree[Any]) -> DTValue:
         """Transform reference value."""
         for child in ref_tree.children:
             if isinstance(child, Token) and child.type == "IDENTIFIER":
@@ -652,7 +655,7 @@ class LarkDTParser:
 
         return DTValue(type=DTValueType.REFERENCE, value="")
 
-    def _extract_reference_path(self, path_tree: Tree) -> str:
+    def _extract_reference_path(self, path_tree: Tree[Any]) -> str:
         """Extract path from reference path tree."""
         # Similar to _extract_node_path but for references
         path_parts = []
@@ -666,7 +669,7 @@ class LarkDTParser:
 
         return "/".join(path_parts)
 
-    def _transform_boolean_value(self, bool_tree: Tree) -> DTValue:
+    def _transform_boolean_value(self, bool_tree: Tree[Any]) -> DTValue:
         """Transform boolean value."""
         for child in bool_tree.children:
             if isinstance(child, Token):
@@ -675,7 +678,7 @@ class LarkDTParser:
 
         return DTValue(type=DTValueType.BOOLEAN, value=False)
 
-    def _transform_identifier_value(self, identifier_tree: Tree) -> DTValue:
+    def _transform_identifier_value(self, identifier_tree: Tree[Any]) -> DTValue:
         """Transform identifier value (e.g., LEFT_PINKY_HOLDING_TYPE)."""
         for child in identifier_tree.children:
             if isinstance(child, Token) and child.type == "IDENTIFIER":
@@ -684,7 +687,7 @@ class LarkDTParser:
 
         return DTValue(type=DTValueType.STRING, value="")
 
-    def _transform_comment(self, comment_tree: Tree) -> DTComment | None:
+    def _transform_comment(self, comment_tree: Tree[Any]) -> DTComment | None:
         """Transform comment tree to DTComment."""
         for child in comment_tree.children:
             if isinstance(child, Token) and child.type in (
@@ -700,7 +703,7 @@ class LarkDTParser:
         return None
 
     def _transform_preprocessor_directive(
-        self, preprocessor_tree: Tree
+        self, preprocessor_tree: Tree[Any]
     ) -> DTConditional | None:
         """Transform preprocessor directive tree to DTConditional.
 
@@ -753,7 +756,7 @@ class LarkDTParser:
 
         return None
 
-    def _extract_preprocessor_expression(self, tree: Tree) -> str:
+    def _extract_preprocessor_expression(self, tree: Tree[Any]) -> str:
         """Extract preprocessor expression as string.
 
         Args:
@@ -770,7 +773,7 @@ class LarkDTParser:
 
         return " ".join(expression_parts)
 
-    def _build_expression_string(self, expr_tree: Tree) -> str:
+    def _build_expression_string(self, expr_tree: Tree[Any]) -> str:
         """Build string representation of preprocessor expression.
 
         Args:
@@ -792,7 +795,7 @@ class LarkDTParser:
 
         return " ".join(parts)
 
-    def _build_term_string(self, term_tree: Tree) -> str:
+    def _build_term_string(self, term_tree: Tree[Any]) -> str:
         """Build string representation of preprocessor term.
 
         Args:
@@ -834,7 +837,7 @@ class LarkDTParser:
 
         return ""
 
-    def _extract_simple_term(self, term_tree: Tree) -> str:
+    def _extract_simple_term(self, term_tree: Tree[Any]) -> str:
         """Extract simple term (identifier, number, string).
 
         Args:
@@ -848,7 +851,7 @@ class LarkDTParser:
                 return str(child)
         return ""
 
-    def _extract_identifier_from_tree(self, tree: Tree) -> str:
+    def _extract_identifier_from_tree(self, tree: Tree[Any]) -> str:
         """Extract identifier from tree.
 
         Args:
@@ -862,7 +865,7 @@ class LarkDTParser:
                 return str(child)
         return ""
 
-    def _extract_define_from_tree(self, tree: Tree) -> str:
+    def _extract_define_from_tree(self, tree: Tree[Any]) -> str:
         """Extract define directive content.
 
         Args:
@@ -882,7 +885,7 @@ class LarkDTParser:
                     parts.append(value_str)
         return " ".join(parts)
 
-    def _extract_define_value(self, value_tree: Tree) -> str:
+    def _extract_define_value(self, value_tree: Tree[Any]) -> str:
         """Extract define value which may contain nested function calls.
 
         Args:
@@ -901,7 +904,7 @@ class LarkDTParser:
                 tokens.append(str(child))
         return " ".join(tokens)
 
-    def _extract_define_token(self, token_tree: Tree) -> str:
+    def _extract_define_token(self, token_tree: Tree[Any]) -> str:
         """Extract individual define token.
 
         Args:
@@ -935,7 +938,7 @@ class LarkDTParser:
                     )
         return ""
 
-    def _extract_arithmetic_expression(self, expr_tree: Tree) -> str:
+    def _extract_arithmetic_expression(self, expr_tree: Tree[Any]) -> str:
         """Extract arithmetic expression like ((6 - DIFFICULTY_LEVEL) * 100).
 
         Args:
@@ -949,7 +952,7 @@ class LarkDTParser:
                 return f"({self._extract_arithmetic_expr(child)})"
         return ""
 
-    def _extract_arithmetic_expr(self, expr_tree: Tree) -> str:
+    def _extract_arithmetic_expr(self, expr_tree: Tree[Any]) -> str:
         """Extract arithmetic expression content.
 
         Args:
@@ -972,7 +975,7 @@ class LarkDTParser:
 
         return " ".join(parts)
 
-    def _extract_arithmetic_term(self, term_tree: Tree) -> str:
+    def _extract_arithmetic_term(self, term_tree: Tree[Any]) -> str:
         """Extract arithmetic term.
 
         Args:
@@ -991,7 +994,7 @@ class LarkDTParser:
                 return str(child)
         return ""
 
-    def _extract_preprocessor_value(self, value_tree: Tree) -> str:
+    def _extract_preprocessor_value(self, value_tree: Tree[Any]) -> str:
         """Extract preprocessor value (string, number, identifier, etc.).
 
         Args:
@@ -1008,7 +1011,7 @@ class LarkDTParser:
                     return str(child)
         return ""
 
-    def _extract_error_message(self, tree: Tree) -> str:
+    def _extract_error_message(self, tree: Tree[Any]) -> str:
         """Extract error message from preprocessor error directive.
 
         Args:
@@ -1023,7 +1026,7 @@ class LarkDTParser:
                 return str(child)[1:-1]
         return ""
 
-    def _extract_builtin_args(self, args_tree: Tree) -> list[str]:
+    def _extract_builtin_args(self, args_tree: Tree[Any]) -> list[str]:
         """Extract builtin function arguments.
 
         Args:
@@ -1076,7 +1079,7 @@ class LarkDTParser:
                     args.append(str(child))
         return args
 
-    def _extract_include_path(self, include_tree: Tree) -> str:
+    def _extract_include_path(self, include_tree: Tree[Any]) -> str:
         """Extract include path from include_path tree.
 
         Args:
@@ -1197,7 +1200,7 @@ class LarkDTParser:
         # Apply macro expansion in array contexts
         if macro_definitions:
             # Replace patterns like <RIGHT_HAND_KEYS THUMB_KEYS>
-            def expand_array_macros(match):
+            def expand_array_macros(match: re.Match[str]) -> str:
                 array_content = match.group(1).strip()
                 expanded_parts = []
 

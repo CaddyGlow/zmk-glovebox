@@ -3,8 +3,6 @@
 import logging
 import os
 from pathlib import Path
-
-# Import bookmark models
 from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import Field, field_serializer, field_validator
@@ -18,17 +16,6 @@ from .cache import CacheTTLConfig
 from .filename_templates import FilenameTemplateConfig
 from .firmware import UserFirmwareConfig
 from .logging import LoggingConfig, create_default_logging_config
-
-
-if TYPE_CHECKING:
-    from glovebox.layout.models import BookmarkCollection
-else:
-    # Import at runtime to avoid circular imports
-    try:
-        from glovebox.layout.models import BookmarkCollection
-    except ImportError:
-        # Handle case where layout models aren't available yet
-        BookmarkCollection = None
 
 
 def get_default_library_path() -> Path:
@@ -120,6 +107,12 @@ class UserConfigData(BaseSettings):
         description="Default keyboard/firmware profile (e.g., 'glove80/v25.05')",
     )
 
+    # Simple log level field for backwards compatibility with tests
+    log_level: str = Field(
+        default="INFO",
+        description="Global log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+    )
+
     # Logging configuration
     logging_config: LoggingConfig = Field(
         default_factory=create_default_logging_config,
@@ -173,11 +166,6 @@ class UserConfigData(BaseSettings):
     # Firmware settings
     firmware: UserFirmwareConfig = Field(default_factory=UserFirmwareConfig)
 
-    # Layout bookmarks
-    layout_bookmarks: "BookmarkCollection | None" = Field(
-        default=None, description="Collection of saved layout bookmarks for easy access"
-    )
-
     # MoErgo service configuration
     moergo: MoErgoServiceConfig = Field(
         default_factory=create_default_moergo_config,
@@ -219,6 +207,16 @@ class UserConfigData(BaseSettings):
             )
 
         return v
+
+    @field_validator("log_level")
+    @classmethod
+    def validate_log_level(cls, v: str) -> str:
+        """Validate log level is recognized."""
+        valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        upper_v = v.strip().upper()
+        if upper_v not in valid_levels:
+            raise ValueError(f"Log level must be one of {valid_levels}")
+        return upper_v
 
     # @field_validator("deepdiff_delta_serializer")
     # @classmethod
@@ -308,5 +306,4 @@ class UserConfigData(BaseSettings):
 
 
 # Rebuild model to resolve forward references
-if not TYPE_CHECKING and BookmarkCollection is not None:
-    UserConfigData.model_rebuild()
+UserConfigData.model_rebuild()

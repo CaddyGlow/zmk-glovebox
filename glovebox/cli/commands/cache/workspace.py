@@ -478,7 +478,7 @@ def workspace_add(
         # Setup progress tracking using the new scrollable logs display
         start_time = time.time()
         progress_callback = None
-        temp_cleanup_dirs = []  # Initialize to avoid undefined variable
+        temp_cleanup_dirs: list[Path] = []  # Initialize to avoid undefined variable
 
         # Progress is enabled by default unless explicitly disabled
         display = None

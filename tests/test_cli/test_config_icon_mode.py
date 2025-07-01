@@ -1,5 +1,6 @@
 """Tests for config management with IconMode integration."""
 
+from typing import TYPE_CHECKING, cast
 from unittest.mock import Mock, patch
 
 import pytest
@@ -7,6 +8,10 @@ import typer
 
 from glovebox.cli.commands.config.management import _show_all_config
 from glovebox.cli.helpers.theme import IconMode
+
+
+if TYPE_CHECKING:
+    from glovebox.cli.app import AppContext
 
 
 class MockUserConfig:
@@ -19,11 +24,11 @@ class MockUserConfig:
             "profile": "glove80/v25.05",
         }
 
-    def get(self, key):
+    def get(self, key: str) -> object:
         """Get configuration value."""
         return self.config_values.get(key)
 
-    def get_source(self, key):
+    def get_source(self, key: str) -> str:
         """Get configuration source."""
         return "config_file" if key in self.config_values else "default"
 
@@ -31,7 +36,7 @@ class MockUserConfig:
 class MockAppContext:
     """Mock AppContext for testing."""
 
-    def __init__(self, user_config):
+    def __init__(self, user_config: MockUserConfig):
         self.user_config = user_config
 
 
@@ -56,7 +61,7 @@ class TestConfigIconModeDisplay:
 
         # Call the function
         _show_all_config(
-            app_ctx,
+            cast("AppContext", app_ctx),
             show_all=True,
             show_sources=False,
             show_defaults=False,
@@ -97,7 +102,7 @@ class TestConfigIconModeDisplay:
 
         # Call the function
         _show_all_config(
-            app_ctx,
+            cast("AppContext", app_ctx),
             show_all=True,
             show_sources=False,
             show_defaults=False,
@@ -136,7 +141,7 @@ class TestConfigIconModeDisplay:
 
         # Call the function
         _show_all_config(
-            app_ctx,
+            cast("AppContext", app_ctx),
             show_all=True,
             show_sources=False,
             show_defaults=False,
@@ -176,7 +181,7 @@ class TestConfigIconModeDisplay:
 
         # Call the function
         _show_all_config(
-            app_ctx,
+            cast("AppContext", app_ctx),
             show_all=True,
             show_sources=False,
             show_defaults=False,
@@ -217,7 +222,7 @@ class TestConfigIconModeDisplay:
 
         # Call the function
         _show_all_config(
-            app_ctx,
+            cast("AppContext", app_ctx),
             show_all=True,
             show_sources=False,
             show_defaults=False,
@@ -258,7 +263,7 @@ class TestConfigIconModeDisplay:
 
         # Call the function
         _show_all_config(
-            app_ctx,
+            cast("AppContext", app_ctx),
             show_all=True,
             show_sources=False,
             show_defaults=False,

@@ -332,18 +332,18 @@ def edit_profile(
 
             if isinstance(value, list):
                 if not value:
-                    console.print(
+                    console.console.print(
                         f"[${Colors.FIELD_NAME}]{key}:[/${Colors.FIELD_NAME}] [${Colors.MUTED}](empty list)[/${Colors.MUTED}]"
                     )
                 else:
-                    console.print(
+                    console.console.print(
                         f"[${Colors.FIELD_NAME}]{key}:[/${Colors.FIELD_NAME}]"
                     )
                     for item in value:
                         bullet_icon = Icons.get_icon("BULLET", app_ctx.icon_mode)
-                        console.print(f"  {bullet_icon} [white]{item}[/white]")
+                        console.console.print(f"  {bullet_icon} [white]{item}[/white]")
             else:
-                console.print(
+                console.console.print(
                     f"[${Colors.FIELD_NAME}]{key}:[/${Colors.FIELD_NAME}] [white]{value}[/white]"
                 )
 
@@ -352,13 +352,13 @@ def edit_profile(
     if any([set, add, remove, clear]):
         console = get_themed_console()
         error_icon = Icons.get_icon("ERROR", app_ctx.icon_mode)
-        console.print(
+        console.console.print(
             f"\n[bold red]{error_icon} Direct editing of keyboard configuration values is not yet supported.[/bold red]"
         )
-        console.print(
+        console.console.print(
             "[yellow]Keyboard configurations are loaded from YAML files in the keyboard_paths.[/yellow]"
         )
-        console.print(
+        console.console.print(
             "[blue]Use --interactive mode to edit the YAML files directly, or modify the files manually.[/blue]\n"
         )
         raise typer.Exit(1)
@@ -414,13 +414,15 @@ def _handle_interactive_profile_edit(profile_name: str, app_ctx: AppContext) -> 
 
     if not config_file_path:
         error_icon = Icons.get_icon("ERROR", app_ctx.icon_mode)
-        console.print(
+        console.console.print(
             f"\n[bold red]{error_icon} Could not find configuration file for keyboard '{profile_name}'[/bold red]"
         )
-        console.print("[yellow]Searched in keyboard_paths:[/yellow]")
+        console.console.print("[yellow]Searched in keyboard_paths:[/yellow]")
         for path in keyboard_paths:
             bullet_icon = Icons.get_icon("BULLET", app_ctx.icon_mode)
-            console.print(f"  {bullet_icon} [${Colors.MUTED}]{path}[/${Colors.MUTED}]")
+            console.console.print(
+                f"  {bullet_icon} [${Colors.MUTED}]{path}[/${Colors.MUTED}]"
+            )
         raise typer.Exit(1)
 
     # Get the file modification time before editing
@@ -429,7 +431,7 @@ def _handle_interactive_profile_edit(profile_name: str, app_ctx: AppContext) -> 
     try:
         # Open the config file in the editor
         info_icon = Icons.get_icon("INFO", app_ctx.icon_mode)
-        console.print(
+        console.console.print(
             f"\n[bold blue]{info_icon} Opening {config_file_path} in {editor}...[/bold blue]"
         )
         result = subprocess.run([editor, str(config_file_path)], check=True)
@@ -439,19 +441,19 @@ def _handle_interactive_profile_edit(profile_name: str, app_ctx: AppContext) -> 
             new_mtime = config_file_path.stat().st_mtime
             if new_mtime > original_mtime:
                 success_icon = Icons.get_icon("SUCCESS", app_ctx.icon_mode)
-                console.print(
+                console.console.print(
                     f"\n[bold green]{success_icon} Keyboard configuration file modified[/bold green]"
                 )
 
                 # Try to reload the configuration to validate it
                 try:
                     load_keyboard_config(profile_name, app_ctx.user_config)
-                    console.print(
+                    console.console.print(
                         f"[bold green]{success_icon} Keyboard configuration reloaded successfully[/bold green]"
                     )
                 except Exception as e:
                     error_icon = Icons.get_icon("ERROR", app_ctx.icon_mode)
-                    console.print(
+                    console.console.print(
                         f"[bold red]{error_icon} Keyboard configuration file has validation errors: {e}[/bold red]"
                     )
 
@@ -462,38 +464,40 @@ def _handle_interactive_profile_edit(profile_name: str, app_ctx: AppContext) -> 
                         _handle_interactive_profile_edit(profile_name, app_ctx)
                     else:
                         error_icon = Icons.get_icon("ERROR", app_ctx.icon_mode)
-                        console.print(
+                        console.console.print(
                             f"[bold red]{error_icon} Configuration changes were not applied due to validation errors[/bold red]"
                         )
                         raise typer.Exit(1) from e
             else:
                 info_icon = Icons.get_icon("INFO", app_ctx.icon_mode)
-                console.print(
+                console.console.print(
                     f"[blue]{info_icon} No changes made to keyboard configuration file[/blue]"
                 )
         else:
             error_icon = Icons.get_icon("ERROR", app_ctx.icon_mode)
-            console.print(
+            console.console.print(
                 f"[bold red]{error_icon} Keyboard configuration file was deleted during editing[/bold red]"
             )
             raise typer.Exit(1)
 
     except subprocess.CalledProcessError as e:
         error_icon = Icons.get_icon("ERROR", app_ctx.icon_mode)
-        console.print(
+        console.console.print(
             f"[bold red]{error_icon} Editor exited with error code {e.returncode}[/bold red]"
         )
         raise typer.Exit(1) from e
     except FileNotFoundError as e:
         error_icon = Icons.get_icon("ERROR", app_ctx.icon_mode)
-        console.print(
+        console.console.print(
             f"[bold red]{error_icon} Editor '{editor}' not found. Please check your editor configuration.[/bold red]"
         )
-        console.print(
+        console.console.print(
             "[yellow]You can set the editor with: glovebox config edit --set editor=your_editor[/yellow]"
         )
         raise typer.Exit(1) from e
     except KeyboardInterrupt as e:
         warning_icon = Icons.get_icon("WARNING", app_ctx.icon_mode)
-        console.print(f"[yellow]{warning_icon} Interactive editing cancelled[/yellow]")
+        console.console.print(
+            f"[yellow]{warning_icon} Interactive editing cancelled[/yellow]"
+        )
         raise typer.Exit(1) from e

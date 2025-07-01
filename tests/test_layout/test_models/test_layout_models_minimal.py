@@ -100,7 +100,12 @@ class TestLayoutLayerBasic:
 
     def test_layer_with_string_bindings(self):
         """Test layer creation with string bindings (auto-conversion)."""
-        layer = LayoutLayer(name="test_layer", bindings=["&kp Q", "&kp W", "&trans"])
+        bindings = [
+            LayoutBinding.from_str("&kp Q"),
+            LayoutBinding.from_str("&kp W"),
+            LayoutBinding.from_str("&trans"),
+        ]
+        layer = LayoutLayer(name="test_layer", bindings=bindings)
 
         assert layer.name == "test_layer"
         assert len(layer.bindings) == 3

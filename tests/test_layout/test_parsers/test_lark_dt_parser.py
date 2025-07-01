@@ -44,6 +44,7 @@ class TestBasicLarkParsing:
         # Check property
         prop = test_node.get_property("property")
         assert prop is not None
+        assert prop.value is not None
         assert prop.value.value == "value"
 
     def test_parse_array_values(self):
@@ -62,14 +63,19 @@ class TestBasicLarkParsing:
 
         root = roots[0]
         node = root.get_child("node")
+        assert node is not None
 
         # Test numeric array
         positions = node.get_property("positions")
+        assert positions is not None
+        assert positions.value is not None
         assert positions.value.type == DTValueType.ARRAY
         assert positions.value.value == ["0", "1", "2", "3"]
 
         # Test reference array
         bindings = node.get_property("bindings")
+        assert bindings is not None
+        assert bindings.value is not None
         assert bindings.value.type == DTValueType.ARRAY
         assert len(bindings.value.value) == 2
 
@@ -144,15 +150,18 @@ class TestEnhancedPreprocessorDirectives:
         assert len(roots) == 1
         root = roots[0]
         behavior = root.get_child("behavior")
+        assert behavior is not None
 
         # Check hash-prefixed properties
         binding_cells = behavior.get_property("#binding-cells")
         assert binding_cells is not None
+        assert binding_cells.value is not None
         assert binding_cells.value.type == DTValueType.ARRAY
         assert binding_cells.value.value == ["2"]
 
         foo_bar = behavior.get_property("#foo-bar")
         assert foo_bar is not None
+        assert foo_bar.value is not None
         assert foo_bar.value.value == ["1"]
 
     def test_define_with_references(self):
@@ -293,18 +302,22 @@ class TestIdentifierValues:
         assert len(roots) == 1
         root = roots[0]
         behavior = root.get_child("behavior")
+        assert behavior is not None
 
         # Check identifier values
         flavor = behavior.get_property("flavor")
         assert flavor is not None
+        assert flavor.value is not None
         assert flavor.value.value == "tap_preferred"
 
         type_prop = behavior.get_property("type")
         assert type_prop is not None
+        assert type_prop.value is not None
         assert type_prop.value.value == "LEFT_PINKY_HOLDING_TYPE"
 
         mode = behavior.get_property("mode")
         assert mode is not None
+        assert mode.value is not None
         assert mode.value.value == "CUSTOM_MODE_VALUE"
 
 
@@ -363,9 +376,11 @@ class TestComplexRealWorldExamples:
         assert len(roots) == 1
         root = roots[0]
         macro = root.get_child("macro")
+        assert macro is not None
 
         bindings = macro.get_property("bindings")
         assert bindings is not None
+        assert bindings.value is not None
         assert bindings.value.type == DTValueType.ARRAY
         # Should have multiple binding entries
         assert len(bindings.value.value) > 1
@@ -453,15 +468,18 @@ class TestRegressionPrevention:
 
         # Check behavior extraction
         behaviors = root.get_child("behaviors")
+        assert behaviors is not None
         hold_tap = behaviors.get_child("hold_tap")
         assert hold_tap is not None
         assert hold_tap.label == "ht"
 
         # Check keymap structure
         keymap = root.get_child("keymap")
+        assert keymap is not None
         layer = keymap.get_child("default_layer")
         assert layer is not None
 
         bindings = layer.get_property("bindings")
         assert bindings is not None
+        assert bindings.value is not None
         assert bindings.value.type == DTValueType.ARRAY

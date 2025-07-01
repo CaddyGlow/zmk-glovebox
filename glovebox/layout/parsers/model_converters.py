@@ -130,8 +130,9 @@ class ModelConverter:
             return self._convert_reference_value(dt_value.value)
         elif dt_value.type == DTValueType.BOOLEAN:
             return dt_value.value
-        else:
-            return dt_value.value
+
+        # This should never be reached as all enum values are handled above
+        raise ValueError(f"Unknown DTValueType: {dt_value.type}")
 
     def _convert_string_value(self, value: str) -> str | int | float:
         """Convert string value with smart type detection.
@@ -192,11 +193,12 @@ class ModelConverter:
             if value.startswith("0x") or value.startswith("0X"):
                 return int(value, 16)
             # Handle decimal values
-            return int(value)
+            else:
+                return int(value)
 
         return int(value)
 
-    def _convert_array_value(self, value: list[Any]) -> list[Any]:
+    def _convert_array_value(self, value: Any) -> list[Any]:
         """Convert array value with element type conversion.
 
         Args:
@@ -215,15 +217,15 @@ class ModelConverter:
                 if item.startswith("&"):
                     converted.append(item)
                 else:
-                    converted.append(self._convert_string_value(item))
+                    converted.append(self._convert_string_value(item))  # type: ignore[arg-type]
             elif isinstance(item, int | float):
-                converted.append(item)
+                converted.append(item)  # type: ignore[arg-type]
             else:
                 converted.append(str(item))
 
         return converted
 
-    def _convert_reference_value(self, value: str) -> str:
+    def _convert_reference_value(self, value: Any) -> str:
         """Convert reference value with proper formatting.
 
         Args:
@@ -239,7 +241,7 @@ class ModelConverter:
         if not value.startswith("&"):
             return f"&{value}"
 
-        return value
+        return str(value)
 
     def _get_string_property(
         self, node: DTNode, prop_name: str, default: str = ""
@@ -322,8 +324,8 @@ class ModelConverter:
             return default
 
     def _get_array_property(
-        self, node: DTNode, prop_name: str, default: list[int] | None = None
-    ) -> list[int]:
+        self, node: DTNode, prop_name: str, default: list[int | str] | None = None
+    ) -> list[int | str]:
         """Get array property value.
 
         Args:
@@ -343,7 +345,7 @@ class ModelConverter:
 
         if isinstance(value, list):
             # Convert all elements to integers
-            result = []
+            result: list[int | str] = []
             for item in value:
                 try:
                     if isinstance(item, str) and item.startswith("&"):
@@ -357,7 +359,8 @@ class ModelConverter:
         else:
             # Single value, convert to list
             try:
-                return [int(value)]
+                converted_value: list[int | str] = [int(value)]
+                return converted_value
             except (ValueError, TypeError):
                 return default
 
@@ -443,7 +446,7 @@ class ModelConverter:
 
         return parts
 
-    def _convert_binding_parameter(self, param_str: str) -> ParamValue:
+    def _convert_binding_parameter(self, param_str: Any) -> ParamValue:
         """Convert binding parameter with enhanced type detection.
 
         Args:
@@ -677,7 +680,7 @@ class ModelConverter:
             for comment_data in self._global_comments:
                 comment_text = comment_data.get("text", "")
                 if comment_text.startswith("//"):
-                    desc = comment_text[2:].strip()
+                    desc = str(comment_text[2:].strip())
                     if (
                         desc
                         and not desc.startswith("TODO")
@@ -775,7 +778,7 @@ class HoldTapConverter(ModelConverter):
             # Map hold trigger key positions
             key_positions = self._get_array_property(node, "hold-trigger-key-positions")
             if key_positions:
-                behavior.hold_trigger_key_positions = key_positions
+                behavior.hold_trigger_key_positions = key_positions  # type: ignore[assignment]
 
             # Map bindings
             bindings = self._parse_bindings_property(node, "bindings")
@@ -995,7 +998,7 @@ class ComboConverter(ModelConverter):
             behavior = ComboBehavior(
                 name=name,
                 description=self._extract_description(node),
-                key_positions=key_positions,
+                keyPositions=key_positions,  # type: ignore[arg-type]
                 binding=binding,
             )
 
@@ -1005,7 +1008,7 @@ class ComboConverter(ModelConverter):
             # Layers property
             layers = self._get_array_property(node, "layers")
             if layers:
-                behavior.layers = layers
+                behavior.layers = layers  # type: ignore[assignment]
 
             return behavior
 

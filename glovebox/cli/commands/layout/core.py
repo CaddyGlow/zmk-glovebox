@@ -151,6 +151,10 @@ def compile_layout(
         # Profile is already handled by the @with_profile decorator
         keyboard_profile = get_keyboard_profile_from_context(ctx)
 
+        # Ensure keyboard_profile is not None
+        if keyboard_profile is None:
+            raise ValueError("Keyboard profile is required for compilation")
+
         # Generate smart output prefix if not provided
         if output is not None:
             output_file_prefix_final = output
@@ -180,6 +184,8 @@ def compile_layout(
                 original_filename = None  # No original filename for stdin
             else:
                 # Read layout data from file
+                if resolved_json_file is None:
+                    ctx.fail("No JSON file path provided")
                 try:
                     import json
 
@@ -212,40 +218,41 @@ def compile_layout(
             # Use the stem as output prefix
             output_file_prefix_final = Path(keymap_filename).stem
 
-            # Generate keymap using appropriate service method
-            keymap_service = create_full_layout_service()
+        # Generate keymap using appropriate service method
+        keymap_service = create_full_layout_service()
 
-            if using_stdin:
-                # Use data-based service method for stdin input
-                result = keymap_service.compile(
-                    profile=keyboard_profile,
-                    keymap_data=layout_data,
-                    output_file_prefix=output_file_prefix_final,
-                    session_metrics=ctx.obj.session_metrics,
-                    force=force,
-                )
-            else:
-                # Use file-based service method for file input
-                result = keymap_service.generate_from_file(
-                    profile=keyboard_profile,
-                    json_file_path=resolved_json_file,
-                    output_file_prefix=output_file_prefix_final,
-                    session_metrics=ctx.obj.session_metrics,
-                    force=force,
-                )
+        if using_stdin:
+            # Use data-based service method for stdin input
+            if layout_data is None:
+                raise ValueError("Layout data should not be None for stdin input")
+            result = keymap_service.compile(
+                profile=keyboard_profile,
+                keymap_data=layout_data,
+                output_file_prefix=output_file_prefix_final,
+                session_metrics=ctx.obj.session_metrics,
+                force=force,
+            )
+        else:
+            # Use file-based service method for file input
+            assert resolved_json_file is not None  # Already checked above
+            result = keymap_service.generate_from_file(
+                profile=keyboard_profile,
+                json_file_path=resolved_json_file,
+                output_file_prefix=output_file_prefix_final,
+                session_metrics=ctx.obj.session_metrics,
+                force=force,
+            )
 
-            if result.success:
-                output_files = result.get_output_files()
-                return {
-                    "success": True,
-                    "message": "Layout generated successfully",
-                    "output_files": {k: str(v) for k, v in output_files.items()},
-                    "messages": result.messages if hasattr(result, "messages") else [],
-                }
-            else:
-                raise ValueError(
-                    f"Layout generation failed: {'; '.join(result.errors)}"
-                )
+        if result.success:
+            output_files = result.get_output_files()
+            return {
+                "success": True,
+                "message": "Layout generated successfully",
+                "output_files": {k: str(v) for k, v in output_files.items()},
+                "messages": result.messages if hasattr(result, "messages") else [],
+            }
+        else:
+            raise ValueError(f"Layout generation failed: {'; '.join(result.errors)}")
 
     try:
         composer.execute_compilation_operation(
@@ -373,6 +380,10 @@ def show(
         # Profile is already handled by the @with_profile decorator
         keyboard_profile = get_keyboard_profile_from_context(ctx)
 
+        # Ensure keyboard_profile is not None
+        if keyboard_profile is None:
+            raise ValueError("Keyboard profile is required for show command")
+
         # Call the service
         keymap_service = create_full_layout_service()
 
@@ -429,15 +440,15 @@ def show(
                 all_rows = []
                 for row_segments in layout_structure.rows.values():
                     if len(row_segments) == 2:
-                        row = []
-                        row.extend(row_segments[0])
-                        row.extend(row_segments[1])
-                        all_rows.append(row)
+                        left_row: list[int] = []
+                        left_row.extend(row_segments[0])
+                        left_row.extend(row_segments[1])
+                        all_rows.append(left_row)
                     else:
-                        row = []
+                        combined_row: list[int] = []
                         for segment in row_segments:
-                            row.extend(segment)
-                        all_rows.append(row)
+                            combined_row.extend(segment)
+                        all_rows.append(combined_row)
             else:
                 # Default layout rows
                 all_rows = [

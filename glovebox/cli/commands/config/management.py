@@ -83,23 +83,23 @@ def show_config(
                     value = editor.get_field(field_path)
                     if isinstance(value, list):
                         if not value:
-                            console.print(
+                            console.console.print(
                                 f"[${Colors.FIELD_NAME}]{field_path}[/${Colors.FIELD_NAME}]: [${Colors.MUTED}](empty list)[/${Colors.MUTED}]"
                             )
                         else:
-                            console.print(
+                            console.console.print(
                                 f"[${Colors.FIELD_NAME}]{field_path}[/${Colors.FIELD_NAME}]:"
                             )
                             for item in value:
-                                console.print(
+                                console.console.print(
                                     f"  [${Colors.MUTED}]-[/${Colors.MUTED}] {item}"
                                 )
                     elif value is None:
-                        console.print(
+                        console.console.print(
                             f"[${Colors.FIELD_NAME}]{field_path}[/${Colors.FIELD_NAME}]: [${Colors.MUTED}]null[/${Colors.MUTED}]"
                         )
                     else:
-                        console.print(
+                        console.console.print(
                             f"[${Colors.FIELD_NAME}]{field_path}[/${Colors.FIELD_NAME}]: {value}"
                         )
                 except Exception as e:
@@ -284,42 +284,42 @@ def _show_all_config(
         table.add_row(*row_data)
 
     # Print the table
-    console.print(table)
+    console.console.print(table)
 
     # Show helpful usage information based on current mode
     if show_all:
-        console.print(
+        console.console.print(
             "\n[${Colors.MUTED}]Showing all possible configuration fields (use without --all to see only configured values)[/${Colors.MUTED}]"
         )
     else:
         if not keys_to_show:
-            console.print(
+            console.console.print(
                 "\n[${Colors.MUTED}]No configuration values are currently set (use --all to see all possible options)[/${Colors.MUTED}]"
             )
         else:
-            console.print(
+            console.console.print(
                 f"\n[${Colors.MUTED}]Showing {len(keys_to_show)} configured value(s) (use --all to see all possible options)[/${Colors.MUTED}]"
             )
 
-    console.print("\n[${Colors.MUTED}]Available options:[/${Colors.MUTED}]")
-    console.print(
+    console.console.print("\n[${Colors.MUTED}]Available options:[/${Colors.MUTED}]")
+    console.console.print(
         "[${Colors.MUTED}]  --all           Show all possible configuration fields[/${Colors.MUTED}]"
     )
-    console.print(
+    console.console.print(
         "[${Colors.MUTED}]  --defaults      Show both current and default values in separate columns[/${Colors.MUTED}]"
     )
-    console.print(
+    console.console.print(
         "[${Colors.MUTED}]  --sources       Show configuration sources[/${Colors.MUTED}]"
     )
-    console.print(
+    console.console.print(
         "[${Colors.MUTED}]  --descriptions  Show field descriptions[/${Colors.MUTED}]"
     )
-    console.print(
+    console.console.print(
         "[${Colors.MUTED}]  --get <field>   Get specific field value using dot notation[/${Colors.MUTED}]"
     )
-    console.print(
+    console.console.print(
         "\n[${Colors.MUTED}]Use 'glovebox config edit --set <setting>=<value>' to change settings[/${Colors.MUTED}]"
     )
-    console.print(
+    console.console.print(
         "[${Colors.MUTED}]Use 'glovebox config edit --interactive' to edit configuration file directly[/${Colors.MUTED}]"
     )

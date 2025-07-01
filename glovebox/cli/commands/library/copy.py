@@ -174,7 +174,6 @@ def copy_layout(
             fetch_request = FetchRequest(
                 source=temp_path,
                 name=new_name,
-                create_bookmark=False,
                 force_overwrite=force,
             )
 

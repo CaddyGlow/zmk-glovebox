@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import tempfile
 from pathlib import Path
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
@@ -46,7 +47,7 @@ class TestHelperFunctions:
         """Test extracting context from args tuple."""
         ctx = Mock(spec=typer.Context)
         args = (ctx, "other_arg")
-        kwargs = {}
+        kwargs: dict[str, Any] = {}
 
         result = _get_context_from_args(args, kwargs)
         assert result == ctx
@@ -55,7 +56,7 @@ class TestHelperFunctions:
         """Test extracting context from kwargs."""
         ctx = Mock(spec=typer.Context)
         args = ("other_arg",)
-        kwargs = {"ctx": ctx, "other_param": "value"}
+        kwargs: dict[str, Any] = {"ctx": ctx, "other_param": "value"}
 
         result = _get_context_from_args(args, kwargs)
         assert result == ctx
@@ -386,6 +387,7 @@ class TestOutputDecorators:
 
         assert result == "success"
         assert new_dir.exists()
+        assert stored_result is not None
         assert stored_result.resolved_path == new_dir
 
 
@@ -454,6 +456,7 @@ class TestFormatDecorators:
             result = test_command(ctx, output_format="table", json_flag=True)
 
             assert result == "success"
+            assert stored_result is not None
             assert stored_result.format_type == "json"
             assert stored_result.is_json is True
 
@@ -733,7 +736,7 @@ class TestIntegrationScenarios:
             param_name="input_file",
             env_fallback="GLOVEBOX_JSON_FILE",
         )
-        def env_command(ctx: typer.Context, input_file: str):
+        def env_command(ctx: typer.Context, input_file: str | None):
             return "env_success"
 
         stored_result = None

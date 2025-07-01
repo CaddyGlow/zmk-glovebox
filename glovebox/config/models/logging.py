@@ -137,7 +137,7 @@ class LoggingConfig(GloveboxBaseModel):
                 # Compare resolved paths to detect duplicates
                 if handler.file_path in file_paths:
                     raise ValueError(
-                        f"Duplicate file path in handlers: {handler.file_path.original}"
+                        f"Duplicate file path in handlers: {handler.file_path}"
                     )
                 file_paths.append(handler.file_path)
 

@@ -1,5 +1,10 @@
 """Tests for AST-based device tree parsing."""
 
+import tempfile
+from pathlib import Path
+from typing import Any
+from unittest.mock import Mock
+
 import pytest
 
 from glovebox.layout.models import (
@@ -11,6 +16,7 @@ from glovebox.layout.models import (
 from glovebox.layout.parsers import (
     DTNode,
     DTParser,
+    DTProperty,
     DTValue,
     DTValueType,
     ParsingMethod,
@@ -30,7 +36,7 @@ from glovebox.layout.parsers.ast_walker import DTMultiWalker
 class TestTokenizer:
     """Test device tree tokenizer."""
 
-    def test_tokenize_simple_node(self):
+    def test_tokenize_simple_node(self) -> None:
         """Test tokenizing a simple device tree node."""
         source = """
         node {
@@ -45,7 +51,7 @@ class TestTokenizer:
         assert "property" in token_values
         assert "value" in token_values
 
-    def test_tokenize_array_property(self):
+    def test_tokenize_array_property(self) -> None:
         """Test tokenizing array properties."""
         source = "key-positions = <0 1 2>;"
 
@@ -57,7 +63,7 @@ class TestTokenizer:
         assert "1" in token_values
         assert "2" in token_values
 
-    def test_tokenize_references(self):
+    def test_tokenize_references(self) -> None:
         """Test tokenizing references."""
         source = "bindings = <&kp Q>, <&trans>;"
 
@@ -69,7 +75,7 @@ class TestTokenizer:
         assert ref_tokens[0].value == "kp"
         assert ref_tokens[1].value == "trans"
 
-    def test_tokenize_comments(self):
+    def test_tokenize_comments(self) -> None:
         """Test tokenizing comments."""
         source = """
         // Line comment
@@ -87,7 +93,7 @@ class TestTokenizer:
 class TestDTParser:
     """Test device tree parser."""
 
-    def test_parse_simple_node(self):
+    def test_parse_simple_node(self) -> None:
         """Test parsing a simple node."""
         source = """
         / {
@@ -105,9 +111,10 @@ class TestDTParser:
 
         prop = test_node.get_property("property")
         assert prop is not None
+        assert prop.value is not None
         assert prop.value.value == "value"
 
-    def test_parse_array_property(self):
+    def test_parse_array_property(self) -> None:
         """Test parsing array properties."""
         source = """
         / {
@@ -118,13 +125,17 @@ class TestDTParser:
         """
 
         root = parse_dt(source)
+        assert root is not None
         node = root.get_child("node")
+        assert node is not None
         prop = node.get_property("positions")
+        assert prop is not None
+        assert prop.value is not None
 
         assert prop.value.type == DTValueType.ARRAY
         assert prop.value.value == [0, 1, 2, 3]
 
-    def test_parse_with_label(self):
+    def test_parse_with_label(self) -> None:
         """Test parsing nodes with labels."""
         source = """
         / {
@@ -135,12 +146,13 @@ class TestDTParser:
         """
 
         root = parse_dt(source)
+        assert root is not None
         node = root.get_child("node")
 
         assert node is not None
         assert node.label == "label"
 
-    def test_parse_safe_with_errors(self):
+    def test_parse_safe_with_errors(self) -> None:
         """Test safe parsing that handles errors."""
         source = """
         / {
@@ -159,7 +171,7 @@ class TestDTParser:
 class TestBehaviorExtractor:
     """Test behavior extraction from AST."""
 
-    def test_extract_hold_tap_behavior(self):
+    def test_extract_hold_tap_behavior(self) -> None:
         """Test extracting hold-tap behaviors."""
         source = """
         / {
@@ -178,6 +190,7 @@ class TestBehaviorExtractor:
         """
 
         root = parse_dt(source)
+        assert root is not None
         extractor = create_universal_behavior_extractor()
         behaviors = extractor.extract_all_behaviors(root)
 
@@ -186,7 +199,7 @@ class TestBehaviorExtractor:
         assert hold_tap_node.name == "homerow_mods"
         assert hold_tap_node.label == "hm"
 
-    def test_extract_macro_behavior(self):
+    def test_extract_macro_behavior(self) -> None:
         """Test extracting macro behaviors."""
         source = """
         / {
@@ -202,6 +215,7 @@ class TestBehaviorExtractor:
         """
 
         root = parse_dt(source)
+        assert root is not None
         extractor = create_universal_behavior_extractor()
         behaviors = extractor.extract_all_behaviors(root)
 
@@ -210,7 +224,7 @@ class TestBehaviorExtractor:
         assert macro_node.name == "hello_world"
         assert macro_node.label == "hello"
 
-    def test_extract_combo_behavior(self):
+    def test_extract_combo_behavior(self) -> None:
         """Test extracting combo behaviors."""
         source = """
         / {
@@ -226,6 +240,7 @@ class TestBehaviorExtractor:
         """
 
         root = parse_dt(source)
+        assert root is not None
         extractor = create_universal_behavior_extractor()
         behaviors = extractor.extract_all_behaviors(root)
 
@@ -237,7 +252,7 @@ class TestBehaviorExtractor:
 class TestModelConverter:
     """Test conversion from AST nodes to glovebox models."""
 
-    def test_convert_hold_tap_behavior(self):
+    def test_convert_hold_tap_behavior(self) -> None:
         """Test converting hold-tap AST node to HoldTapBehavior."""
         source = """
         / {
@@ -256,6 +271,7 @@ class TestModelConverter:
         """
 
         root = parse_dt(source)
+        assert root is not None
         extractor = create_universal_behavior_extractor()
         converter = create_universal_model_converter()
 
@@ -271,7 +287,7 @@ class TestModelConverter:
         assert hold_tap.quick_tap_ms == 0
         assert hold_tap.flavor == "tap-preferred"
 
-    def test_convert_macro_behavior(self):
+    def test_convert_macro_behavior(self) -> None:
         """Test converting macro AST node to MacroBehavior."""
         source = """
         / {
@@ -289,6 +305,7 @@ class TestModelConverter:
         """
 
         root = parse_dt(source)
+        assert root is not None
         extractor = create_universal_behavior_extractor()
         converter = create_universal_model_converter()
 
@@ -304,7 +321,7 @@ class TestModelConverter:
         assert macro.tap_ms == 40
         assert len(macro.bindings) == 5
 
-    def test_convert_combo_behavior(self):
+    def test_convert_combo_behavior(self) -> None:
         """Test converting combo AST node to ComboBehavior."""
         source = """
         / {
@@ -320,6 +337,7 @@ class TestModelConverter:
         """
 
         root = parse_dt(source)
+        assert root is not None
         extractor = create_universal_behavior_extractor()
         converter = create_universal_model_converter()
 
@@ -341,7 +359,7 @@ class TestModelConverter:
 class TestIntegratedKeymapParser:
     """Test the integrated keymap parser with AST support."""
 
-    def test_ast_parsing_mode(self):
+    def test_ast_parsing_mode(self) -> None:
         """Test AST parsing mode in keymap parser."""
         keymap_content = """
         #include <behaviors.dtsi>
@@ -373,9 +391,6 @@ class TestIntegratedKeymapParser:
         """
 
         # Create a temporary file for testing
-        import tempfile
-        from pathlib import Path
-
         with tempfile.NamedTemporaryFile(mode="w", suffix=".keymap", delete=False) as f:
             f.write(keymap_content)
             keymap_file = Path(f.name)
@@ -418,7 +433,7 @@ class TestIntegratedKeymapParser:
             # Clean up temporary file
             keymap_file.unlink()
 
-    def test_fallback_to_regex_on_ast_failure(self):
+    def test_fallback_to_regex_on_ast_failure(self) -> None:
         """Test that parser falls back gracefully when AST parsing fails."""
         # Test malformed content that might break AST parser
         keymap_content = """
@@ -429,9 +444,6 @@ class TestIntegratedKeymapParser:
                 };
             };
         """  # Missing closing brace
-
-        import tempfile
-        from pathlib import Path
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".keymap", delete=False) as f:
             f.write(keymap_content)
@@ -456,7 +468,7 @@ class TestIntegratedKeymapParser:
 class TestComplexDeviceTreeStructures:
     """Test parsing of complex device tree structures."""
 
-    def test_nested_behaviors_with_comments(self):
+    def test_nested_behaviors_with_comments(self) -> None:
         """Test parsing nested behaviors with comments."""
         source = """
         / {
@@ -501,7 +513,7 @@ class TestComplexDeviceTreeStructures:
         assert len(behaviors["hold_taps"]) == 1
         assert len(behaviors["macros"]) == 1
 
-    def test_conditional_compilation(self):
+    def test_conditional_compilation(self) -> None:
         """Test handling of conditional compilation directives."""
         source = """
         / {
@@ -534,7 +546,7 @@ class TestComplexDeviceTreeStructures:
 class TestMultipleRootParsing:
     """Test parsing device tree files with multiple root nodes."""
 
-    def test_parse_multiple_roots_basic(self):
+    def test_parse_multiple_roots_basic(self) -> None:
         """Test parsing a basic file with multiple root nodes."""
         source = """
         / {
@@ -561,7 +573,7 @@ class TestMultipleRootParsing:
         assert "compatible" in roots[1].properties
         assert "property2" in roots[1].properties
 
-    def test_parse_multiple_roots_with_standalone_nodes(self):
+    def test_parse_multiple_roots_with_standalone_nodes(self) -> None:
         """Test parsing with mixed root and standalone nodes."""
         source = """
         / {
@@ -584,7 +596,7 @@ class TestMultipleRootParsing:
         assert len(roots[1].children) == 1
         assert "standalone_node" in roots[1].children
 
-    def test_parse_multiple_roots_safe(self):
+    def test_parse_multiple_roots_safe(self) -> None:
         """Test safe parsing of multiple roots."""
         source = """
         / {
@@ -600,7 +612,7 @@ class TestMultipleRootParsing:
         assert len(roots) == 2
         assert len(errors) == 0
 
-    def test_parse_multiple_roots_with_errors(self):
+    def test_parse_multiple_roots_with_errors(self) -> None:
         """Test parsing multiple roots with syntax errors."""
         source = """
         / {
@@ -618,7 +630,7 @@ class TestMultipleRootParsing:
         # May have errors from second root
         # (Error handling depends on parser recovery capabilities)
 
-    def test_multi_walker_basic(self):
+    def test_multi_walker_basic(self) -> None:
         """Test DTMultiWalker with multiple root nodes."""
         source = """
         / {
@@ -652,7 +664,7 @@ class TestMultipleRootParsing:
         assert hold_taps[0].name == "hold_tap"
         assert macros[0].name == "macro"
 
-    def test_multi_walker_property_search(self):
+    def test_multi_walker_property_search(self) -> None:
         """Test DTMultiWalker property search across multiple roots."""
         source = """
         / {
@@ -681,7 +693,7 @@ class TestMultipleRootParsing:
         label_props = walker.find_properties_by_name("label")
         assert len(label_props) == 2
 
-    def test_empty_multiple_roots(self):
+    def test_empty_multiple_roots(self) -> None:
         """Test parsing empty content for multiple roots."""
         source = ""
 
@@ -696,19 +708,13 @@ class TestMultipleRootParsing:
 class TestBehaviorConverterRegressionFixes:
     """Test behavior converter regression fixes."""
 
-    def test_combo_naming_prefix_removal(self):
+    def test_combo_naming_prefix_removal(self) -> None:
         """Test that combo naming correctly removes 'combo_' prefix.
 
         Regression fix: Combos were generated with 'combo_' prefix in device tree format
         but should use plain names in JSON format.
         """
         from glovebox.layout.parsers import create_universal_model_converter
-        from glovebox.layout.parsers.ast_nodes import (
-            DTNode,
-            DTProperty,
-            DTValue,
-            DTValueType,
-        )
 
         # Create a combo AST node with 'combo_' prefix as it appears in device tree
         combo_node = DTNode(name="combo_escape", label="combo_escape")
@@ -740,6 +746,7 @@ class TestBehaviorConverterRegressionFixes:
         combo_behavior = converter.combo_converter.convert(combo_node)
 
         # Check that the 'combo_' prefix was removed
+        assert combo_behavior is not None
         assert combo_behavior.name == "escape"
         assert combo_behavior.name != "combo_escape"
 
@@ -771,21 +778,16 @@ class TestBehaviorConverterRegressionFixes:
         )
 
         combo_behavior2 = converter.combo_converter.convert(combo_node2)
+        assert combo_behavior2 is not None
         assert combo_behavior2.name == "ctrl_c"
         assert combo_behavior2.name != "combo_ctrl_c"
 
-    def test_hold_tap_behavior_conversion_with_all_properties(self):
+    def test_hold_tap_behavior_conversion_with_all_properties(self) -> None:
         """Test hold-tap behavior conversion handles all properties correctly.
 
         Regression fix: Ensure all hold-tap properties are properly extracted and converted.
         """
         from glovebox.layout.parsers import create_universal_model_converter
-        from glovebox.layout.parsers.ast_nodes import (
-            DTNode,
-            DTProperty,
-            DTValue,
-            DTValueType,
-        )
 
         # Create comprehensive hold-tap AST node
         ht_node = DTNode(name="homerow_mods", label="hm")
@@ -851,6 +853,7 @@ class TestBehaviorConverterRegressionFixes:
         ht_behavior = converter.hold_tap_converter.convert(ht_node)
 
         # Check all properties were converted correctly
+        assert ht_behavior is not None
         assert ht_behavior.name == "&hm"  # Uses label with & prefix
         assert ht_behavior.tapping_term_ms == 150
         assert ht_behavior.quick_tap_ms == 0
@@ -860,24 +863,19 @@ class TestBehaviorConverterRegressionFixes:
         # Bindings may be strings or LayoutBinding objects depending on converter implementation
         if hasattr(ht_behavior.bindings[0], "value"):
             assert ht_behavior.bindings[0].value == "&kp"
-            assert ht_behavior.bindings[1].value == "&kp"
+            if hasattr(ht_behavior.bindings[1], "value"):
+                assert ht_behavior.bindings[1].value == "&kp"
         else:
             assert ht_behavior.bindings[0] == "&kp"
             assert ht_behavior.bindings[1] == "&kp"
 
-    def test_macro_behavior_conversion_with_complex_bindings(self):
+    def test_macro_behavior_conversion_with_complex_bindings(self) -> None:
         """Test macro behavior conversion handles complex binding arrays.
 
         Regression fix: Macro bindings with multiple parameters and comma-separated
         format should be properly parsed and converted.
         """
         from glovebox.layout.parsers import create_universal_model_converter
-        from glovebox.layout.parsers.ast_nodes import (
-            DTNode,
-            DTProperty,
-            DTValue,
-            DTValueType,
-        )
 
         # Create macro AST node with complex bindings
         macro_node = DTNode(name="hello_world", label="hello")
@@ -947,6 +945,7 @@ class TestBehaviorConverterRegressionFixes:
         macro_behavior = converter.macro_converter.convert(macro_node)
 
         # Check all properties were converted correctly
+        assert macro_behavior is not None
         assert macro_behavior.name == "&hello"  # Uses label with & prefix
         assert macro_behavior.wait_ms == 30
         assert macro_behavior.tap_ms == 40

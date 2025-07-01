@@ -26,5 +26,9 @@ repos:
           - types-psutil>=7.0.0.20250601
           - tomlkit>=0.13.3
           - diskcache>=5.6.3
+          - colorlog>=6.9.0
+          - typer>=0.16.0
+          - lark>=1.2.2
+          - httpx>=0.28.1
 
         args: [--config-file=pyproject.toml]

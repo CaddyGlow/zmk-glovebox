@@ -11,6 +11,7 @@ from glovebox.firmware.flash.models import BlockDevice, FlashResult
 from glovebox.firmware.flash.service import FlashService, create_flash_service
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.protocols.flash_protocols import FlasherProtocol
+from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
 from tests.test_factories import create_flash_service_for_tests
 
 
@@ -108,11 +109,19 @@ def firmware_file(tmp_path):
 
 
 @pytest.fixture
-def flash_service(mock_file_adapter, mock_device_wait_service):
+def mock_usb_adapter():
+    """Create a mock USB adapter for testing."""
+    adapter = Mock(spec=USBAdapterProtocol)
+    return adapter
+
+
+@pytest.fixture
+def flash_service(mock_file_adapter, mock_device_wait_service, mock_usb_adapter):
     """Create a flash service instance for testing."""
     return FlashService(
         file_adapter=mock_file_adapter,
         device_wait_service=mock_device_wait_service,
+        usb_adapter=mock_usb_adapter,
         loglevel="INFO",
     )
 
@@ -120,11 +129,14 @@ def flash_service(mock_file_adapter, mock_device_wait_service):
 class TestFlashServiceInit:
     """Test FlashService initialization."""
 
-    def test_init_with_file_adapter(self, mock_file_adapter, mock_device_wait_service):
+    def test_init_with_file_adapter(
+        self, mock_file_adapter, mock_device_wait_service, mock_usb_adapter
+    ):
         """Test initialization with provided file adapter."""
         service = FlashService(
             file_adapter=mock_file_adapter,
             device_wait_service=mock_device_wait_service,
+            usb_adapter=mock_usb_adapter,
             loglevel="DEBUG",
         )
 

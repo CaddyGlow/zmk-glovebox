@@ -88,13 +88,6 @@ class CacheTTLConfig(GloveboxBaseModel):
         ),
     ]
 
-    layout_bookmarks: Annotated[
-        int,
-        Field(
-            default=30 * 24 * 3600,  # 30 days in seconds
-            description="TTL for layout bookmark data and metadata",
-        ),
-    ]
 
     # Firmware domain cache TTLs
     firmware_build: Annotated[

@@ -197,12 +197,15 @@ class FullKeymapProcessor(BaseKeymapProcessor):
                 from .dt_parser import parse_dt_multiple_safe
 
                 roots, parse_errors = parse_dt_multiple_safe(transformed_content)
+                # Convert DTParseError objects to strings
+                if parse_errors:
+                    context.warnings.extend([str(error) for error in parse_errors])
             except ImportError:
                 # Fallback to Lark parser if enhanced parser not available
-                roots, parse_errors = parse_dt_lark_safe(transformed_content)
-
-            if parse_errors:
-                context.warnings.extend([str(error) for error in parse_errors])
+                roots, parse_error_strings = parse_dt_lark_safe(transformed_content)
+                # These are already strings
+                if parse_error_strings:
+                    context.warnings.extend(parse_error_strings)
 
             if not roots:
                 context.errors.append("Failed to parse device tree AST")
@@ -270,11 +273,16 @@ class TemplateAwareProcessor(BaseKeymapProcessor):
             for section_name, section in extracted_sections.items():
                 if section.type in ("input_listener", "behavior", "macro", "combo"):
                     # Apply transformation to section content before processing
-                    transformed_content = (
-                        self._transform_behavior_references_to_definitions(
-                            section.content
+                    # Ensure content is a string before transformation
+                    if isinstance(section.content, str):
+                        transformed_content: str | dict[str, object] | list[object] = (
+                            self._transform_behavior_references_to_definitions(
+                                section.content
+                            )
                         )
-                    )
+                    else:
+                        # Skip transformation for non-string content
+                        transformed_content = section.content
                     # Create new section with transformed content
                     from .parsing_models import ExtractedSection
 
@@ -434,7 +442,9 @@ class TemplateAwareProcessor(BaseKeymapProcessor):
             if behavior_models.get("input_listeners"):
                 if layout_data.input_listeners is None:
                     layout_data.input_listeners = []
-                layout_data.input_listeners.extend(behavior_models["input_listeners"])
+                input_listeners = behavior_models["input_listeners"]
+                if isinstance(input_listeners, list):
+                    layout_data.input_listeners.extend(input_listeners)
                 self.logger.debug(
                     "Converted %d input listeners from DTSI to JSON models",
                     len(layout_data.input_listeners),
@@ -497,9 +507,11 @@ def create_full_keymap_processor(
         Configured FullKeymapProcessor instance
     """
     if section_extractor is None:
+        from typing import cast
+
         from .section_extractor import create_section_extractor
 
-        section_extractor = create_section_extractor()
+        section_extractor = cast("SectionExtractorProtocol", create_section_extractor())
 
     return FullKeymapProcessor()
 
@@ -516,9 +528,11 @@ def create_template_aware_processor(
         Configured TemplateAwareProcessor instance
     """
     if section_extractor is None:
+        from typing import cast
+
         from .section_extractor import create_section_extractor
 
-        section_extractor = create_section_extractor()
+        section_extractor = cast("SectionExtractorProtocol", create_section_extractor())
 
     return TemplateAwareProcessor(
         section_extractor=section_extractor,

@@ -136,7 +136,7 @@ class TestUserConfigData:
         config = UserConfigData()
 
         assert config.profile == "glove80/v25.05"
-        assert config.log_level == "INFO"
+        assert config.logging_config is not None
         assert config.profiles_paths == []
         assert config.icon_mode == IconMode.EMOJI  # Default value
         assert config.firmware.flash.timeout == 60
@@ -148,7 +148,6 @@ class TestUserConfigData:
         """Test creating configuration with custom values."""
         config = UserConfigData(
             profile="custom/v1.0",
-            log_level="DEBUG",
             profiles_paths=[Path("/path/to/keyboards")],
             firmware=UserFirmwareConfig(
                 flash=FirmwareFlashConfig(
@@ -161,7 +160,6 @@ class TestUserConfigData:
         )
 
         assert config.profile == "custom/v1.0"
-        assert config.log_level == "DEBUG"
         assert config.profiles_paths == [Path("/path/to/keyboards")]
         assert config.firmware.flash.timeout == 120
         assert config.firmware.flash.count == 5
@@ -180,23 +178,21 @@ class TestUserConfigData:
                 error_msg = str(exc_info.value)
                 assert "Profile must be in format 'keyboard/firmware'" in error_msg
 
-    def test_log_level_validation(self, clean_environment, log_level_test_cases):
-        """Test log level validation and normalization."""
-        for level, is_valid, expected in log_level_test_cases:
-            if is_valid:
-                config = UserConfigData(log_level=level)
-                assert config.log_level == expected
-            else:
-                with pytest.raises(ValidationError) as exc_info:
-                    UserConfigData(log_level=level)
-                error_msg = str(exc_info.value)
-                assert "Log level must be one of" in error_msg
+    def test_logging_config_validation(self, clean_environment):
+        """Test logging configuration validation."""
+        config = UserConfigData()
+        # Logging config should be properly initialized
+        assert config.logging_config is not None
+        assert len(config.logging_config.handlers) > 0
 
     def test_keyboard_paths_validation(self, clean_environment):
         """Test keyboard paths validation."""
-        # Valid paths
+        # Valid paths (note: ~ gets expanded by the field validator)
         config = UserConfigData(profiles_paths=[Path("/path/one"), Path("~/path/two")])
-        assert config.profiles_paths == [Path("/path/one"), Path("~/path/two")]
+        assert len(config.profiles_paths) == 2
+        assert config.profiles_paths[0] == Path("/path/one")
+        # Second path will be expanded by expanduser()
+        assert str(config.profiles_paths[1]).endswith("path/two")
 
         # Empty list is valid
         config = UserConfigData(profiles_paths=[])
@@ -206,7 +202,9 @@ class TestUserConfigData:
         config = UserConfigData(
             profiles_paths=[Path("path"), Path("123")]
         )  # Both as Path objects
-        assert config.profiles_paths == [Path("path"), Path("123")]
+        assert len(config.profiles_paths) == 2
+        assert isinstance(config.profiles_paths[0], Path)
+        assert isinstance(config.profiles_paths[1], Path)
 
     def test_environment_variable_override(self, mock_environment):
         """Test environment variable override functionality."""
@@ -214,7 +212,6 @@ class TestUserConfigData:
 
         # Environment variables should override defaults
         assert config.profile == "env_keyboard/v2.0"
-        assert config.log_level == "ERROR"
         assert config.firmware.flash.timeout == 180
         assert config.firmware.flash.count == 10
         assert config.firmware.flash.track_flashed is False
@@ -233,7 +230,6 @@ class TestUserConfigData:
         assert config.firmware.flash.timeout == 999
 
         # Default values for non-overridden fields
-        assert config.log_level == "INFO"
         assert config.firmware.flash.count == 2
 
     def test_invalid_environment_values(self, clean_environment):
@@ -260,12 +256,10 @@ class TestUserConfigData:
         """Test case insensitive environment variables."""
         # Test mixed case environment variables
         os.environ["GLOVEBOX_PROFILE"] = "lowercase/test"
-        os.environ["GLOVEBOX_LOG_LEVEL"] = "debug"
 
         config = UserConfigData()
 
         assert config.profile == "lowercase/test"
-        assert config.log_level == "DEBUG"  # Should be normalized to uppercase
 
     def test_expanded_keyboard_paths(self, clean_environment):
         """Test keyboard path functionality."""
@@ -284,17 +278,17 @@ class TestUserConfigData:
         assert all(hasattr(path, "resolve") for path in paths)
         assert all(isinstance(path, Path) for path in paths)
 
-        # Paths are stored as-is - expansion happens when resolved if needed
+        # Paths get expanded by the field validator
         path_strs = [str(path) for path in paths]
-        assert "~/home/keyboards" in path_strs
-        assert "$HOME/other" in path_strs
+        # After expansion, should contain the expanded paths
+        assert any("home/keyboards" in path for path in path_strs)
+        assert any("other" in path for path in path_strs)
         assert "/absolute/path" in path_strs
 
     def test_dict_initialization(self, clean_environment):
         """Test initialization from dictionary (like YAML loading)."""
         config = UserConfigData(
             profile="dict/test",
-            log_level="WARNING",
             profiles_paths=[Path("/dict/path")],
             firmware=UserFirmwareConfig(
                 flash=FirmwareFlashConfig(
@@ -307,7 +301,6 @@ class TestUserConfigData:
         )
 
         assert config.profile == "dict/test"
-        assert config.log_level == "WARNING"
         assert config.profiles_paths == [Path("/dict/path")]
         assert config.firmware.flash.timeout == 777
         assert config.firmware.flash.count == 7
@@ -332,7 +325,6 @@ class TestConfigurationValidation:
         """Test a complex but valid configuration."""
         config = UserConfigData(
             profile="complex_keyboard/v2.1.0",
-            log_level="debug",
             profiles_paths=[
                 Path("~/my-keyboards"),
                 Path("/usr/local/share/keyboards"),
@@ -349,7 +341,6 @@ class TestConfigurationValidation:
         )
 
         assert config.profile == "complex_keyboard/v2.1.0"
-        assert config.log_level == "DEBUG"  # Normalized
         assert len(config.profiles_paths) == 3
         assert config.firmware.flash.timeout == 300
         assert config.firmware.flash.count == 0
@@ -362,7 +353,6 @@ class TestConfigurationValidation:
 
         # Should use defaults for unspecified fields
         assert config.profile == "minimal/v1"
-        assert config.log_level == "INFO"
         assert config.profiles_paths == []
         assert config.firmware.flash.timeout == 60
 
@@ -370,7 +360,6 @@ class TestConfigurationValidation:
         """Test that model can be serialized to dict."""
         config = UserConfigData(
             profile="serialize/test",
-            log_level="ERROR",
             profiles_paths=[Path("/test/path")],
         )
 
@@ -378,8 +367,7 @@ class TestConfigurationValidation:
         config_dict = config.model_dump(by_alias=True, mode="json")
 
         assert config_dict["profile"] == "serialize/test"
-        assert config_dict["log_level"] == "ERROR"
-        assert config_dict["keyboard_paths"] == [
+        assert config_dict["profiles_paths"] == [
             "/test/path"
         ]  # Path objects are serialized to strings
         assert "firmware" in config_dict

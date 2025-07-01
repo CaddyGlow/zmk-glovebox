@@ -107,7 +107,7 @@ def with_input_file(
                 )
                 raise typer.Exit(1) from e
 
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator
 
@@ -116,12 +116,12 @@ def with_multiple_input_files(
     param_name: str = "input_files",
     validate_existence: bool = True,
     allowed_extensions: list[str] | None = None,
-) -> Callable:
+) -> Callable[[F], F]:
     """Decorator for processing multiple input file parameters."""
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: F) -> F:
         @wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             ctx = _get_context_from_args(args, kwargs)
             if not ctx:
                 return func(*args, **kwargs)
@@ -152,7 +152,7 @@ def with_multiple_input_files(
                 )
                 raise typer.Exit(1) from e
 
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator
 
@@ -169,7 +169,7 @@ def with_output_file(
     force_param: str = "force",
     create_dirs: bool = True,
     backup_existing: bool = False,
-) -> Callable:
+) -> Callable[[F], F]:
     """Decorator for processing output file parameters.
 
     Args:
@@ -181,9 +181,9 @@ def with_output_file(
         backup_existing: Whether to backup existing files
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: F) -> F:
         @wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             ctx = _get_context_from_args(args, kwargs)
             if not ctx:
                 return func(*args, **kwargs)
@@ -212,7 +212,7 @@ def with_output_file(
                 )
                 raise typer.Exit(1) from e
 
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator
 
@@ -221,12 +221,12 @@ def with_output_directory(
     param_name: str = "output_dir",
     create_dirs: bool = True,
     force_param: str = "force",
-) -> Callable:
+) -> Callable[[F], F]:
     """Decorator for processing output directory parameters."""
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: F) -> F:
         @wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             ctx = _get_context_from_args(args, kwargs)
             if not ctx:
                 return func(*args, **kwargs)
@@ -263,7 +263,7 @@ def with_output_directory(
                 )
                 raise typer.Exit(1) from e
 
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator
 
@@ -279,7 +279,7 @@ def with_format(
     default: str = "table",
     supported_formats: list[str] | None = None,
     create_formatter: bool = True,
-) -> Callable:
+) -> Callable[[F], F]:
     """Decorator for processing format parameters.
 
     Args:
@@ -290,9 +290,9 @@ def with_format(
         create_formatter: Whether to create an OutputFormatter instance
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: F) -> F:
         @wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             ctx = _get_context_from_args(args, kwargs)
             if not ctx:
                 return func(*args, **kwargs)
@@ -325,7 +325,7 @@ def with_format(
                 )
                 raise typer.Exit(1) from e
 
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator
 
@@ -344,10 +344,10 @@ def with_input_output(
     smart_defaults: bool = True,
     auto_read: bool = False,
     read_as_json: bool = False,
-) -> Callable:
+) -> Callable[[F], F]:
     """Decorator combining input and output parameter processing."""
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: F) -> F:
         # Apply decorators in order
         func = with_output_file(
             param_name=output_param,
@@ -376,10 +376,10 @@ def with_input_output_format(
     supports_stdin: bool = True,
     supports_stdout: bool = True,
     default_format: str = "table",
-) -> Callable:
+) -> Callable[[F], F]:
     """Decorator combining input, output, and format parameter processing."""
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: F) -> F:
         # Apply decorators in order
         func = with_format(
             format_param=format_param,
@@ -435,7 +435,7 @@ def _process_input_parameter(
     resolved_path = None
     is_stdin = False
     env_fallback_used = False
-    data = None
+    data: dict[str, Any] | str | None = None
 
     # Handle None/empty value
     if not raw_value:
@@ -484,7 +484,7 @@ def _process_input_parameter(
         if auto_read and resolved_path.exists():
             try:
                 if read_as_json:
-                    data = str(read_json_input(str(resolved_path)))
+                    data = read_json_input(str(resolved_path))
                 else:
                     data = read_input_data(str(resolved_path))
             except Exception as e:

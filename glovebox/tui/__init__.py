@@ -1,1 +1,0 @@
-"""Glovebox Textual TUI Application."""

@@ -173,7 +173,9 @@ class ZmkKeymapParser:
                 # Check if profile has custom extraction config
                 # TODO: currently not implemented in profile
                 if hasattr(profile, "keymap_extraction") and profile.keymap_extraction:
-                    return profile.keymap_extraction.sections
+                    extraction_sections = profile.keymap_extraction.sections
+                    # Ensure we return the proper typed list
+                    return list(extraction_sections)
             except Exception as e:
                 exc_info = self.logger.isEnabledFor(logging.DEBUG)
                 self.logger.warning(
@@ -205,9 +207,14 @@ class ZmkKeymapParser:
                 # External template file
                 template_file = profile.keymap.keymap_dtsi_file
                 if template_file:
-                    # Resolve relative to profile config directory
-                    config_dir = Path(profile.config_path).parent
-                    return Path(config_dir / template_file)
+                    # Resolve relative to profile config directory if available
+                    if hasattr(profile, "config_path") and profile.config_path:
+                        config_dir = Path(profile.config_path).parent
+                        return Path(config_dir / template_file)
+                    else:
+                        # Fallback to treating template_file as relative to built-in keyboards
+                        package_path = Path(__file__).parent.parent.parent.parent
+                        return Path(package_path / "keyboards" / template_file)
 
             # Fallback to default template location in the project
             project_root = Path(__file__).parent.parent.parent.parent
