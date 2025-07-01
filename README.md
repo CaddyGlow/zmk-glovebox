@@ -4,19 +4,40 @@ A comprehensive tool for ZMK keyboard firmware management, supporting multiple k
 
 ## Features
 
+### **🎯 Core Workflow**
 - **Multi-Keyboard Support**: Extensible modular architecture with YAML-based configuration system
-- **Keymap Building**: Convert JSON layouts to ZMK keymap and configuration files
+- **JSON→ZMK Pipeline**: Convert JSON layouts to ZMK keymap and configuration files
+- **Firmware Compilation**: Multiple compilation strategies (zmk_config, moergo) with Docker integration
+- **Cross-Platform Flashing**: USB device detection and firmware flashing with retry logic
+- **Profile System**: Unified keyboard/firmware profiles with auto-detection capabilities
+
+### **🔧 Advanced Layout Management**
 - **Variable Substitution System**: Define reusable variables in layouts for consistency and maintainability
-- **Keymap Version Management**: Upgrade custom layouts while preserving customizations when new master versions are released
-- **Advanced Compilation Strategies**: Multiple compilation methods (zmk_config, west, cmake, make, ninja, custom)
-- **Dynamic ZMK Config Generation**: Create complete ZMK config workspaces on-the-fly without external repositories
-- **Intelligent Caching System**: Domain-agnostic caching with filesystem and memory backends
-- **Device Flashing**: Cross-platform USB device detection and firmware flashing with retry logic
-- **Modular Configuration System**: YAML-based configuration with includes and inheritance
-- **Keyboard-Only Profiles**: Minimal configurations for flashing operations without keymap generation
-- **Layout Visualization**: Display keyboard layouts in terminal with customizable formatting
-- **Build Matrix Support**: GitHub Actions style build matrices with automatic split keyboard detection
-- **Debug Tracing**: Comprehensive debug logging with stack traces and multiple verbosity levels
+- **Version Management**: Upgrade custom layouts while preserving customizations when new master versions are released
+- **Unified Editing Interface**: Batch operations for field manipulation, layer management, and variable control
+- **Component Operations**: Split/merge layouts into organized component files
+- **Enhanced Comparison**: DTSI-aware diff with patch generation and JSON output
+- **ZMK Parser**: Import existing ZMK keymap files back to JSON layouts
+
+### **⚡ Performance & Caching**
+- **Intelligent Caching System**: Multi-tier caching with shared coordination across domains
+- **Workspace Management**: Docker-based build workspaces with persistent caching
+- **Dynamic Generation**: Create complete ZMK config workspaces on-the-fly without external repositories
+- **Build Matrix Support**: GitHub Actions style matrices with automatic split keyboard detection
+
+### **🛠 Development & Integration**
+- **Modular CLI Architecture**: Focused command groups with unified interfaces
+- **Library Management**: Fetch, search, and organize layout libraries
+- **MoErgo Integration**: Authentication and API client for MoErgo services
+- **Cloud Storage**: Upload, download, and manage layouts in cloud storage
+- **Debug Tracing**: Comprehensive logging with stack traces and multiple verbosity levels
+
+### **⚙️ Configuration & Profiles**
+- **Type-Safe Configuration**: YAML-based system with includes and inheritance
+- **Profile Management**: Full profiles (keyboard+firmware) and keyboard-only configurations
+- **Auto-Detection**: JSON auto-profiling and library resolution patterns
+- **Batch Configuration**: Multiple operations in unified configuration commands
+- **Environment Support**: Environment variables and flexible input/output handling
 
 ## How It Works
 
@@ -60,111 +81,196 @@ pip install -e .
 
 ### Basic Usage
 
-#### Build a Keymap
+#### Build Layouts & Firmware
 ```bash
-# Build a keymap with a specific keyboard profile
-glovebox layout compile my_layout.json output/my_keymap --profile glove80/v25.05
+# Complete workflow: JSON → Keymap → Firmware
+glovebox layout compile my_layout.json output/keymap --profile glove80/v25.05
+glovebox firmware compile output/keymap.keymap output/keymap.conf --profile glove80/v25.05
 
-# Read from stdin
-cat my_layout.json | glovebox layout compile - output/my_keymap --profile glove80/v25.05
+# Direct compilation from JSON layout (auto-generates keymap/config)
+glovebox firmware compile my_layout.json --profile glove80/v25.05
 
-# Force overwrite of existing files
-glovebox layout compile my_layout.json output/my_keymap --profile glove80/v25.05 --force
-```
+# Read from stdin with auto-profile detection
+cat my_layout.json | glovebox layout compile - output/keymap
 
-#### Build Firmware
-```bash
-# Build firmware with default settings using profile
-glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
-
-# Build with custom output directory
-glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --output-dir build/glove80
-
-# Specify custom branch and repository (overrides profile settings)
-glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05 --branch dev --repo custom/zmk-fork
+# Force overwrite existing files
+glovebox layout compile my_layout.json output/keymap --profile glove80/v25.05 --force
 ```
 
 #### Flash Firmware
 ```bash
-# Flash firmware to detected devices with profile
-glovebox firmware flash glove80.uf2 --profile glove80/v25.05
-
-# Auto-detect keyboard from filename
+# Flash with auto-detected keyboard profile
 glovebox firmware flash glove80.uf2
 
-# Flash with custom device query
-glovebox firmware flash firmware.uf2 --profile glove80/v25.05 --query "vendor=Adafruit and serial~=GLV80-.*"
+# Flash with specific profile
+glovebox firmware flash firmware.uf2 --profile glove80
 
-# Flash multiple devices
-glovebox firmware flash firmware.uf2 --profile glove80/v25.05 --count 2
+# List available USB devices
+glovebox firmware devices --profile glove80
+
+# Flash multiple devices (e.g., split keyboard)
+glovebox firmware flash firmware.uf2 --profile glove80 --count 2
 ```
 
-#### Keymap Version Management (NEW)
+#### Configuration Management
 ```bash
-# Import master layout versions for upgrades
-glovebox layout import-master ~/Downloads/glorious-v42.json v42
+# Show current configuration
+glovebox config show --defaults --descriptions
 
-# Upgrade your custom layout preserving all customizations  
-glovebox layout upgrade my-custom-v41.json --to-master v42
+# Edit configuration with multiple operations
+glovebox config edit \
+  --get cache_strategy \
+  --set icon_mode=text \
+  --add keyboard_paths=/custom/path \
+  --save
 
-# Compare layouts with enhanced DTSI comparison and JSON output
+# List available keyboards and profiles
+glovebox profile list
+glovebox profile firmwares glove80
+```
+
+#### System Status & Diagnostics
+```bash
+# Check system status and diagnostics
+glovebox status --profile glove80
+
+# Show cache information
+glovebox cache show
+
+# Check for updates
+glovebox config check-updates
+```
+
+#### Advanced Layout Operations
+```bash
+# Display layout in terminal
+glovebox layout show my-layout.json
+
+# Validate layout syntax and structure  
+glovebox layout validate my-layout.json
+
+# Split layout into organized component files
+glovebox layout split my-layout.json components/
+
+# Merge component files back into single layout
+glovebox layout merge components/ --output merged-layout.json
+
+# Parse ZMK keymap files to JSON layout
+glovebox layout parse keymap my-keymap.keymap --output layout.json
+```
+
+#### Unified Layout Editing
+```bash
+# Comprehensive editing with multiple operations in one command
+glovebox layout edit my-layout.json \
+  --get "layers[0].name" \
+  --set "title=Updated Layout Title" \
+  --set "description=My custom layout" \
+  --add-layer "SymbolLayer" --layer-position 3 \
+  --remove-layer "UnusedLayer" \
+  --save
+
+# Field manipulation using dot notation
+glovebox layout edit my-layout.json \
+  --get "layers[0]" \
+  --set "config_parameters[0].paramName=NEW_PARAM" \
+  --save
+
+# Layer operations with import/export
+glovebox layout edit my-layout.json \
+  --add-layer "CustomLayer" --layer-import-from layer.json \
+  --export-layer "SymbolLayer" --layer-export-format bindings \
+  --save
+```
+
+#### Version Management & Comparison
+```bash
+# Compare layouts with enhanced DTSI comparison
 glovebox layout diff layout-v41.json layout-v42.json --include-dtsi --json
 
-# Field manipulation for precise layout editing
-glovebox layout get-field my-layout.json "layers[0]"
-glovebox layout set-field my-layout.json "title" "My New Layout Title"
+# Create and apply patches for automated transformations
+glovebox layout diff old-layout.json new-layout.json --create-patch changes.patch
+glovebox layout patch my-layout.json changes.patch --output upgraded-layout.json
+```
 
-# Advanced layer management with import/export
-glovebox layout add-layer my-layout.json "CustomLayer" --import-from layer.json
-glovebox layout remove-layer my-layout.json "UnwantedLayer"
-glovebox layout move-layer my-layout.json "SymbolLayer" --position 3
-glovebox layout export-layer my-layout.json "SymbolLayer" --format bindings
+#### Library & Cloud Management
+```bash
+# Manage layout libraries
+glovebox library search "gaming layout"
+glovebox library fetch @community/uuid-12345 --output gaming-layout.json
+glovebox library list --format json
 
-# Create and apply patches for automated layout transformations
-glovebox layout create-patch old-layout.json new-layout.json --output changes.patch
-glovebox layout patch my-layout.json changes.json --output upgraded-layout.json
+# Cloud storage operations
+glovebox cloud upload my-layout.json --name "My Custom Layout"
+glovebox cloud download layout-id --output downloaded-layout.json
+glovebox cloud list --format table
 
-# List available master versions
-glovebox layout list-masters glove80
+# MoErgo service integration
+glovebox moergo login --username user@email.com
+glovebox moergo status
+```
+
+#### Cache & Workspace Management
+```bash
+# Cache operations
+glovebox cache show --detailed
+glovebox cache workspace show
+glovebox cache workspace cleanup
+
+# Clear cache for fresh builds
+glovebox cache clear
+glovebox cache workspace delete glove80
+```
+
+#### Metrics & Debugging
+```bash
+# Performance metrics
+glovebox metrics list
+glovebox metrics show session-id
+
+# Debug logging with multiple verbosity levels
+glovebox --debug layout compile my-layout.json output/
+glovebox -vv firmware compile keymap.keymap config.conf --log-file debug.log
 ```
 
 **Perfect for:**
 - Keeping custom layouts updated with new master releases
 - Preserving your personal customizations (layers, behaviors, config)
-- Zero-downtime upgrades with automatic rollback capability
-- Tracking firmware builds and maintaining version history
-- Automated layout manipulation and batch operations
-- Detailed comparison including custom DTSI behaviors and device tree code
-- Merge-tool compatible patches for version control workflows
+- Batch editing operations with unified command interfaces
+- Automated layout manipulation and version control workflows
+- Component-based layout organization and management
+- Library integration for community layouts and sharing
+- Performance optimization with intelligent caching systems
 
-#### Variable Substitution System (NEW)
+#### Variable Management System
 ```bash
-# Create layouts with reusable variables for consistency and maintainability
-# Define variables once, use throughout the layout
+# Unified variable operations with the layout edit command
 
-# List all variables in a layout
-glovebox layout variables my-layout.json --list
+# List and inspect variables
+glovebox layout edit my-layout.json \
+  --list-variables \
+  --list-variable-usage \
+  --get-variable timing \
+  --get-variable flavor
 
-# Show variables with their resolved values
-glovebox layout variables my-layout.json --list-resolved
+# Set and modify variables
+glovebox layout edit my-layout.json \
+  --set-variable timing=150 \
+  --set-variable flavor=balanced \
+  --remove-variable old_timing \
+  --save
 
-# Show where each variable is used in the layout
-glovebox layout variables my-layout.json --list-usage
-
-# Get specific variable values
-glovebox layout variables my-layout.json --get timing --get flavor
-
-# Set multiple variables in one command
-glovebox layout variables my-layout.json --set timing=150 --set flavor=balanced
-
-# Validate all variable references are properly defined
-glovebox layout variables my-layout.json --validate
-
-# Flatten layout (resolve all variables and remove variables section)
-glovebox layout variables my-layout.json --flatten --output final-layout.json
+# Validate and flatten operations
+glovebox layout edit my-layout.json \
+  --validate-variables \
+  --flatten-variables \
+  --output final-layout.json
 
 # Batch operations with dry run preview
-glovebox layout variables my-layout.json --set timing=150 --remove old_timing --dry-run
+glovebox layout edit my-layout.json \
+  --set-variable timing=150 \
+  --remove-variable old_timing \
+  --dry-run
 ```
 
 **Example Layout with Variables:**
@@ -898,6 +1004,41 @@ glovebox --debug --log-file debug.log firmware compile keymap.keymap config.conf
 - **Flag Precedence**: `--debug` > `-vv` > `-v` > user config > WARNING (default)
 - **File Logging**: Persist debug information with `--log-file`
 
+## Documentation
+
+Comprehensive documentation is available in the `docs/` directory:
+
+### 📚 Documentation Structure
+
+- **[User Documentation](docs/user/)** - Complete end-user guides and tutorials
+  - [Getting Started](docs/user/getting-started.md) - First-time user tutorial
+  - [CLI Reference](docs/user/cli-reference.md) - Complete command reference
+  - [Configuration Guide](docs/user/configuration.md) - Settings and profiles
+  - [Workflow Examples](docs/user/workflows.md) - Common usage patterns
+  - [Troubleshooting](docs/user/troubleshooting.md) - Problem-solving guide
+
+- **[Developer Documentation](docs/dev/)** - Comprehensive developer resources
+  - [Quick Start](docs/dev/README.md) - Developer overview and setup
+  - [Architecture Guide](docs/dev/architecture/) - System design and patterns
+  - [Development Guides](docs/dev/guides/) - Feature development workflows
+  - [Code Patterns](docs/dev/patterns/) - Established coding conventions
+  - [API Reference](docs/dev/api/) - Programmatic interfaces
+
+- **[Technical Reference](docs/technical/)** - Deep technical documentation
+  - [API Reference](docs/technical/api-reference.md) - Complete API documentation
+  - [Data Models](docs/technical/data-models.md) - Pydantic schemas and validation
+  - [Configuration System](docs/technical/configuration-system.md) - Config file formats
+  - [Protocol Definitions](docs/technical/protocol-definitions.md) - Interface contracts
+  - [Cache Architecture](docs/technical/cache-architecture.md) - Performance optimization
+
+### 🎯 Quick Navigation
+
+**New Users**: Start with [Getting Started](docs/user/getting-started.md) → [CLI Reference](docs/user/cli-reference.md)
+
+**Developers**: Begin with [Developer Quick Start](docs/dev/README.md) → [Architecture Overview](docs/dev/architecture/overview.md)
+
+**Advanced Users**: Reference [Technical Documentation](docs/technical/) for deep integration details
+
 ## Development
 
 ### Development Installation
@@ -915,6 +1056,8 @@ pip install -e ".[dev]"
 pre-commit install
 ```
 
+For complete setup instructions, see the [Development Setup Guide](docs/dev/guides/development-setup.md).
+
 ### Running Tests
 
 ```bash
@@ -928,6 +1071,8 @@ pytest --cov=glovebox
 pytest -m unit
 pytest -m integration
 ```
+
+See [Testing Strategy](docs/dev/guides/testing-strategy.md) for comprehensive testing guidelines.
 
 ### Code Quality
 
@@ -948,14 +1093,18 @@ pre-commit install
 pre-commit run --all-files
 ```
 
+All code must follow the standards outlined in [Code Conventions](docs/dev/patterns/code-conventions.md).
+
 ## Contributing
 
 1. Fork the repository
 2. Create feature branch: `git checkout -b feature/new-keyboard`
-3. Make changes following code conventions
-4. Add tests for new functionality
+3. Follow the [Adding New Features](docs/dev/guides/adding-features.md) guide
+4. Add comprehensive tests (see [Testing Strategy](docs/dev/guides/testing-strategy.md))
 5. Run quality checks: `ruff check . && ruff format . && pytest`
 6. Submit pull request
+
+See [Developer Documentation](docs/dev/) for detailed contribution guidelines.
 
 ## License
 
@@ -963,6 +1112,9 @@ MIT License - see LICENSE file for details.
 
 ## Support
 
-- Issues: GitHub Issues
-- Documentation: docs/
-- Examples: examples/
+- **🐛 Issues**: [GitHub Issues](https://github.com/your-org/glovebox/issues)
+- **📚 Documentation**: [docs/](docs/) directory
+- **❓ Questions**: [GitHub Discussions](https://github.com/your-org/glovebox/discussions)
+- **💡 Feature Requests**: [GitHub Discussions](https://github.com/your-org/glovebox/discussions)
+
+For troubleshooting help, see the [Troubleshooting Guide](docs/user/troubleshooting.md).

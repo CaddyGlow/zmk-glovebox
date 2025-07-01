@@ -140,18 +140,38 @@ class LayoutData(LayoutMetadata):
 
         This is the method to use when you want templates processed.
         """
-        # First create the model without template processing
-        layout = cls.model_validate(data)
-
-        # Then process templates if not in skip context
         from glovebox.layout.utils.json_operations import (
             should_skip_variable_resolution,
         )
 
-        if not should_skip_variable_resolution():
-            layout = layout.process_templates()
+        # Skip template processing if in skip context
+        if should_skip_variable_resolution():
+            return cls.model_validate(data)
 
-        return layout
+        # Check if we have templates to process
+        if not cls._has_template_syntax(data):
+            return cls.model_validate(data)
+
+        # Process templates BEFORE validation using the template service directly
+        from glovebox.layout.template_service import create_jinja2_template_service
+        
+        try:
+            # Create template service and process the raw data directly
+            template_service = create_jinja2_template_service()
+            
+            # Process templates on the raw dictionary data
+            resolved_data = template_service._process_raw_data(data)
+            
+            # Now validate the resolved data
+            return cls.model_validate(resolved_data)
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.warning("Template resolution failed, trying without templates: %s", e, exc_info=exc_info)
+            # Fallback to direct validation if template processing fails
+            return cls.model_validate(data)
 
     @classmethod
     def _has_template_syntax(cls, data: dict[str, Any]) -> bool:

@@ -70,6 +70,7 @@ def process_json_file(
     operation_name: str,
     operation_func: Callable[[LayoutData], T],
     file_adapter: FileAdapterProtocol,
+    process_templates: bool = True,
 ) -> T:
     """Process a JSON keymap file with error handling and validation.
 
@@ -78,6 +79,7 @@ def process_json_file(
         operation_name: Human-readable name of the operation for error messages
         operation_func: Function that takes LayoutData and returns result
         file_adapter: File adapter for reading operations
+        process_templates: Whether to process Jinja2 templates (default: True)
 
     Returns:
         Result from the operation function
@@ -88,9 +90,14 @@ def process_json_file(
     try:
         logger.info("%s from %s...", operation_name, file_path)
 
-        # Load and validate the JSON data
-        json_data = load_json_file(file_path, file_adapter)
-        layout_data = validate_keymap_data(json_data)
+        # Load with or without template processing based on parameter
+        if process_templates:
+            from .json_operations import load_layout_file
+            layout_data = load_layout_file(file_path, file_adapter)
+        else:
+            # Load and validate the JSON data without template processing
+            json_data = load_json_file(file_path, file_adapter)
+            layout_data = validate_keymap_data(json_data)
 
         # Perform the operation
         return operation_func(layout_data)
