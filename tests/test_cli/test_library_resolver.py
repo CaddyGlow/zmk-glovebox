@@ -97,8 +97,13 @@ class TestLibraryReferenceResolution:
             return_value=mock_library_service,
         ):
             result = resolve_library_reference("@test-layout")
-            assert result == mock_library_service.get_layout_entry_by_name.return_value.file_path
-            mock_library_service.get_layout_entry_by_name.assert_called_once_with("test-layout")
+            assert (
+                result
+                == mock_library_service.get_layout_entry_by_name.return_value.file_path
+            )
+            mock_library_service.get_layout_entry_by_name.assert_called_once_with(
+                "test-layout"
+            )
 
     def test_resolve_by_uuid(self, mock_library_service):
         """Test resolving library reference by UUID."""
@@ -108,7 +113,9 @@ class TestLibraryReferenceResolution:
         ):
             uuid = "12345678-1234-1234-1234-123456789abc"
             result = resolve_library_reference(f"@{uuid}")
-            assert result == mock_library_service.get_layout_entry.return_value.file_path
+            assert (
+                result == mock_library_service.get_layout_entry.return_value.file_path
+            )
             mock_library_service.get_layout_entry.assert_called_once_with(uuid)
 
     def test_resolve_not_found_locally(self, mock_library_service):
@@ -124,15 +131,17 @@ class TestLibraryReferenceResolution:
                 resolve_library_reference("@missing-layout", fetch_from_moergo=False)
             assert "Could not resolve library reference" in str(exc_info.value)
 
-    def test_resolve_with_moergo_fallback(self, mock_library_service, mock_moergo_client, tmp_path):
+    def test_resolve_with_moergo_fallback(
+        self, mock_library_service, mock_moergo_client, tmp_path
+    ):
         """Test MoErgo API fallback when UUID not found locally."""
         # Setup: UUID not found locally
         mock_library_service.get_layout_entry.return_value = None
-        
+
         # Setup: Successful MoErgo fetch
         fetched_file = tmp_path / "fetched-layout.json"
         fetched_file.write_text(json.dumps({"title": "Fetched Layout"}))
-        
+
         fetched_entry = LibraryEntry(
             uuid="87654321-4321-4321-4321-210987654321",
             name="fetched-layout",
@@ -143,7 +152,7 @@ class TestLibraryReferenceResolution:
             file_path=fetched_file,
             downloaded_at=datetime.now(),
         )
-        
+
         mock_library_service.fetch_layout.return_value = MagicMock(
             success=True,
             entry=fetched_entry,
@@ -168,7 +177,9 @@ class TestLibraryReferenceResolution:
                     uuid = "87654321-4321-4321-4321-210987654321"
                     result = resolve_library_reference(f"@{uuid}")
                     assert result == fetched_file
-                    mock_moergo_client.get_layout_meta.assert_called_once_with(uuid, use_cache=False)
+                    mock_moergo_client.get_layout_meta.assert_called_once_with(
+                        uuid, use_cache=False
+                    )
 
     def test_resolve_parameter_value_with_reference(self, mock_library_service):
         """Test resolve_parameter_value with library reference."""
@@ -238,8 +249,14 @@ class TestLibraryCompletion:
             assert ("@layout-two", "Layout Two (by User Two)") in completions
 
             # Check UUID references
-            assert ("@11111111-1111-1111-1111-111111111111", "Layout One (UUID)") in completions
-            assert ("@22222222-2222-2222-2222-222222222222", "Layout Two (UUID)") in completions
+            assert (
+                "@11111111-1111-1111-1111-111111111111",
+                "Layout One (UUID)",
+            ) in completions
+            assert (
+                "@22222222-2222-2222-2222-222222222222",
+                "Layout Two (UUID)",
+            ) in completions
 
     def test_get_library_entries_handles_errors(self):
         """Test completion handles errors gracefully."""

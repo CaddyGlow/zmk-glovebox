@@ -211,7 +211,7 @@ def complete_output_formats(incomplete: str) -> list[str]:
 
 def complete_json_files(incomplete: str) -> list[str]:
     """Tab completion for JSON files with path completion and library references.
-    
+
     Supports:
     - File paths: layout.json, ./layouts/, ../
     - Library references: @layout-name, @uuid

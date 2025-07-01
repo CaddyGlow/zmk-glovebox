@@ -119,6 +119,22 @@ def get_keyboard_profile_from_context(
     return keyboard_profile
 
 
+def set_keyboard_profile_in_context(
+    ctx: typer.Context | ClickContext,
+    keyboard_profile: KeyboardProfile,
+) -> None:
+    """Set KeyboardProfile in Typer context.
+
+    Args:
+        ctx: Typer context
+        keyboard_profile: KeyboardProfile instance to set
+    """
+    from glovebox.cli.app import AppContext
+
+    app_ctx: AppContext = ctx.obj
+    app_ctx.keyboard_profile = keyboard_profile
+
+
 def get_keyboard_profile_from_kwargs(**kwargs: Any) -> KeyboardProfile:
     """Get KeyboardProfile from function kwargs.
 

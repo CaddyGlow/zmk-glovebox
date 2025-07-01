@@ -411,12 +411,12 @@ def _get_context_from_args(
     """Extract typer.Context or click.Context from function arguments."""
     # Look for Context in args
     for arg in args:
-        if isinstance(arg, (typer.Context, ClickContext)):
+        if isinstance(arg, typer.Context | ClickContext):
             return arg
 
     # Look for Context in kwargs
     ctx = kwargs.get("ctx")
-    if isinstance(ctx, (typer.Context, ClickContext)):
+    if isinstance(ctx, typer.Context | ClickContext):
         return ctx
 
     return None

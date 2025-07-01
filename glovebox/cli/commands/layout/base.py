@@ -6,12 +6,8 @@ from typing import Any
 
 import typer
 
-from glovebox.cli.helpers import (
-    print_error_message,
-    print_list_item,
-    print_success_message,
-)
 from glovebox.cli.helpers.output_formatter import OutputFormatter
+from glovebox.cli.helpers.theme import get_themed_console
 
 
 class BaseLayoutCommand:
@@ -30,7 +26,8 @@ class BaseLayoutCommand:
         # CLAUDE.md pattern: debug-aware stack traces
         exc_info = self.logger.isEnabledFor(logging.DEBUG)
         self.logger.error("Failed to %s: %s", operation, error, exc_info=exc_info)
-        print_error_message(f"Failed to {operation}: {error}")
+        console = get_themed_console()
+        console.print_error(f"Failed to {operation}: {error}")
         raise typer.Exit(1) from error
 
     def print_operation_success(self, message: str, details: dict[str, Any]) -> None:
@@ -40,10 +37,11 @@ class BaseLayoutCommand:
             message: Main success message
             details: Dictionary of operation details to display
         """
-        print_success_message(message)
+        console = get_themed_console()
+        console.print_success(message)
         for key, value in details.items():
             if value is not None:
-                print_list_item(f"{key.replace('_', ' ').title()}: {value}")
+                console.print_info(f"{key.replace('_', ' ').title()}: {value}")
 
 
 class LayoutFileCommand(BaseLayoutCommand):
@@ -58,16 +56,17 @@ class LayoutFileCommand(BaseLayoutCommand):
         Args:
             file_path: Path to layout file to validate
         """
+        console = get_themed_console()
         if not file_path.exists():
-            print_error_message(f"Layout file not found: {file_path}")
+            console.print_error(f"Layout file not found: {file_path}")
             raise typer.Exit(1)
 
         if not file_path.is_file():
-            print_error_message(f"Path is not a file: {file_path}")
+            console.print_error(f"Path is not a file: {file_path}")
             raise typer.Exit(1)
 
         if file_path.suffix.lower() != ".json":
-            print_error_message(f"Layout file must be a JSON file: {file_path}")
+            console.print_error(f"Layout file must be a JSON file: {file_path}")
             raise typer.Exit(1)
 
 

@@ -541,8 +541,17 @@ def resolve_firmware_input_file(
         else:
             return None
 
-    # Convert to Path and resolve
-    resolved_path = Path(input_file).resolve()
+    # Handle library references
+    if isinstance(input_file, str) and input_file.startswith("@"):
+        from glovebox.cli.helpers.library_resolver import resolve_library_reference
+
+        try:
+            resolved_path = resolve_library_reference(input_file)
+        except ValueError as e:
+            raise FileNotFoundError(f"Could not resolve library reference: {e}") from e
+    else:
+        # Convert to Path and resolve
+        resolved_path = Path(input_file).resolve()
 
     # Check if file exists
     if not resolved_path.exists():
