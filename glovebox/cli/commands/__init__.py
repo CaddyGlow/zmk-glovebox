@@ -14,6 +14,7 @@ from glovebox.cli.commands.firmware import (
     register_commands as register_firmware_commands,
 )
 from glovebox.cli.commands.layout import register_commands as register_layout_commands
+from glovebox.cli.commands.library import register_commands as register_library_commands
 from glovebox.cli.commands.metrics import register_commands as register_metrics_commands
 from glovebox.cli.commands.moergo import register_commands as register_moergo_commands
 from glovebox.cli.commands.profile import (
@@ -29,6 +30,7 @@ def register_all_commands(app: typer.Typer) -> None:
         app: The main Typer app
     """
     register_layout_commands(app)
+    register_library_commands(app)
     register_firmware_commands(app)
     register_config_commands(app)
     register_profile_commands(app)

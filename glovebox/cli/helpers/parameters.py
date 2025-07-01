@@ -1207,7 +1207,9 @@ def complete_config_flags(ctx: typer.Context, incomplete: str) -> list[str]:
                         config_flags.append(f"{flag_name}={option.default}")
                         # Add some common variations for int values
                         if "TIMEOUT" in flag_name.upper() or "MS" in flag_name.upper():
-                            config_flags.extend([f"{flag_name}=30000", f"{flag_name}=60000"])
+                            config_flags.extend(
+                                [f"{flag_name}=30000", f"{flag_name}=60000"]
+                            )
                     elif option.default is not None:
                         config_flags.append(f"{flag_name}={option.default}")
                     else:
@@ -1222,7 +1224,10 @@ def complete_config_flags(ctx: typer.Context, incomplete: str) -> list[str]:
 
             import yaml
 
-            yaml_path = Path(__file__).parent.parent.parent / "keyboards" / "config" / "common" / "all_kconfig.yaml"
+            # Find the project root and locate the YAML file
+            yaml_path = (
+                Path.cwd() / "keyboards" / "config" / "common" / "all_kconfig.yaml"
+            )
             if yaml_path.exists():
                 with yaml_path.open() as f:
                     data = yaml.safe_load(f)
@@ -1244,9 +1249,21 @@ def complete_config_flags(ctx: typer.Context, incomplete: str) -> list[str]:
                         # Add some common variations for int values
                         if isinstance(default_value, int):
                             if default_value < 100:  # Small values like debounce
-                                config_flags.extend([f"{flag_name}=1", f"{flag_name}=5", f"{flag_name}=10"])
+                                config_flags.extend(
+                                    [
+                                        f"{flag_name}=1",
+                                        f"{flag_name}=5",
+                                        f"{flag_name}=10",
+                                    ]
+                                )
                             elif default_value >= 1000:  # Timeout values
-                                config_flags.extend([f"{flag_name}=30000", f"{flag_name}=60000", f"{flag_name}=900000"])
+                                config_flags.extend(
+                                    [
+                                        f"{flag_name}=30000",
+                                        f"{flag_name}=60000",
+                                        f"{flag_name}=900000",
+                                    ]
+                                )
                     else:
                         # String or other types
                         if default_value is not None:
@@ -1274,10 +1291,14 @@ def complete_config_flags(ctx: typer.Context, incomplete: str) -> list[str]:
     except Exception:
         # Ultimate fallback to basic common flags
         return [
-            "ZMK_SLEEP=y", "ZMK_SLEEP=n",
-            "BT_CTLR_TX_PWR_PLUS_8=y", "BT_CTLR_TX_PWR_PLUS_8=n",
-            "ZMK_RGB_UNDERGLOW=y", "ZMK_RGB_UNDERGLOW=n",
-            "ZMK_USB_LOGGING=y", "ZMK_USB_LOGGING=n",
+            "ZMK_SLEEP=y",
+            "ZMK_SLEEP=n",
+            "BT_CTLR_TX_PWR_PLUS_8=y",
+            "BT_CTLR_TX_PWR_PLUS_8=n",
+            "ZMK_RGB_UNDERGLOW=y",
+            "ZMK_RGB_UNDERGLOW=n",
+            "ZMK_USB_LOGGING=y",
+            "ZMK_USB_LOGGING=n",
         ]
 
 

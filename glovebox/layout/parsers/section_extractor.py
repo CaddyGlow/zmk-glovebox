@@ -8,9 +8,7 @@ from typing import TYPE_CHECKING, Protocol
 if TYPE_CHECKING:
 
     class BehaviorExtractorProtocol(Protocol):
-        def extract_behaviors_as_models(
-            self, roots: list, content: str
-        ) -> dict: ...
+        def extract_behaviors_as_models(self, roots: list, content: str) -> dict: ...
 
 
 from .ast_walker import create_universal_behavior_extractor_with_converter

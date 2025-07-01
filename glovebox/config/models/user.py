@@ -31,6 +31,18 @@ else:
         BookmarkCollection = None
 
 
+def get_default_library_path() -> Path:
+    """Get the default library path following XDG Base Directory specification.
+
+    Returns:
+        Default library path: $XDG_DATA_HOME/glovebox/library or ~/.local/share/glovebox/library
+    """
+    xdg_data = os.environ.get("XDG_DATA_HOME")
+    if xdg_data:
+        return Path(xdg_data) / "glovebox" / "library"
+    return Path.home() / ".local" / "share" / "glovebox" / "library"
+
+
 class UserConfigData(BaseSettings):
     """User configuration data model with automatic environment variable support.
 
@@ -178,6 +190,12 @@ class UserConfigData(BaseSettings):
         description="Templates for generating default filenames for various file types",
     )
 
+    # Library configuration
+    library_path: Path = Field(
+        default_factory=get_default_library_path,
+        description="Directory for storing downloaded layout library ($XDG_DATA_HOME/glovebox/library or ~/.local/share/glovebox/library)",
+    )
+
     @field_validator("profile")
     @classmethod
     def validate_profile(cls, v: str) -> str:
@@ -228,6 +246,19 @@ class UserConfigData(BaseSettings):
         # Fallback to default
         return Path(os.path.expandvars("$XDG_CACHE_HOME/glovebox")).expanduser()
 
+    @field_validator("library_path", mode="before")
+    @classmethod
+    def validate_library_path(cls, v: Any) -> Path:
+        """Validate and expand library_path with environment variables."""
+        if isinstance(v, Path):
+            return v
+
+        if isinstance(v, str):
+            return Path(os.path.expandvars(v)).expanduser()
+
+        # Fallback to default
+        return get_default_library_path()
+
     @field_validator("cache_strategy")
     @classmethod
     def validate_cache_strategy(cls, v: str) -> str:
@@ -263,6 +294,11 @@ class UserConfigData(BaseSettings):
     @field_serializer("cache_path", when_used="json")
     def serialize_cache_path(self, value: Path) -> str:
         """Serialize cache_path back to original notation."""
+        return str(value)
+
+    @field_serializer("library_path", when_used="json")
+    def serialize_library_path(self, value: Path) -> str:
+        """Serialize library_path back to original notation."""
         return str(value)
 
     @field_serializer("profiles_paths", when_used="json")

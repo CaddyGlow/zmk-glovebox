@@ -101,10 +101,6 @@ def parse_keymap(
         # Full parsing mode with AST method
         glovebox layout parse-keymap third_party.keymap --mode full --method ast
     """
-    # Validate inputs
-    if keymap_file.suffix != ".keymap":
-        print_error_message("Input file must have .keymap extension")
-        raise typer.Exit(1)
 
     # Auto-detect parsing mode if not specified
     if mode == "auto":
@@ -120,20 +116,6 @@ def parse_keymap(
                 console.print(
                     "Auto-detected full mode (no profile provided)", style="dim"
                 )
-
-    # Validate mode and profile combination
-    if mode == "template" and not profile:
-        print_error_message("Template mode requires a keyboard profile")
-        print_error_message(
-            "Use --profile to specify keyboard (e.g., --profile glove80/v25.05) or use --mode full"
-        )
-        raise typer.Exit(1)
-
-    # Validate method parameter
-    if method not in ["ast", "regex"]:
-        print_error_message(f"Invalid parsing method: {method}")
-        print_error_message("Valid methods: ast, regex")
-        raise typer.Exit(1)
 
     # Determine output file
     if output is None:

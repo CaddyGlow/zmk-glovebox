@@ -25,6 +25,11 @@ class CacheLevel(str, Enum):
     REPO = "repo"  # Repository-only cache (includes .git for branch fetching)
     REPO_BRANCH = "repo_branch"  # Repository + branch cache (excludes .git)
 
+    # Library cache levels
+    LIBRARY_LAYOUTS = "library_layouts"  # Layout content (immutable)
+    LIBRARY_METADATA = "library_metadata"  # Layout metadata (immutable)
+    LIBRARY_SEARCH = "library_search"  # Search results (mutable)
+
 
 class CacheTTLConfig(GloveboxBaseModel):
     """Comprehensive TTL configuration covering all cache types across domains.
@@ -150,6 +155,31 @@ class CacheTTLConfig(GloveboxBaseModel):
         ),
     ]
 
+    # Library domain cache TTLs
+    library_layouts: Annotated[
+        int,
+        Field(
+            default=0,  # Never expire - UUIDs are immutable
+            description="TTL for layout content from library (0 = never expire, UUIDs are immutable)",
+        ),
+    ]
+
+    library_metadata: Annotated[
+        int,
+        Field(
+            default=0,  # Never expire - UUIDs are immutable
+            description="TTL for layout metadata from library (0 = never expire, UUIDs are immutable)",
+        ),
+    ]
+
+    library_search: Annotated[
+        int,
+        Field(
+            default=3600,  # 1 hour in seconds
+            description="TTL for search results and public layout lists (mutable data)",
+        ),
+    ]
+
     def get_ttl_for_level(self, cache_level: CacheLevel) -> int:
         """Get TTL value for a specific cache level.
 
@@ -174,6 +204,10 @@ class CacheTTLConfig(GloveboxBaseModel):
             # New simplified workspace cache levels
             CacheLevel.REPO: self.workspace_base,  # Map repo to base (same concept)
             CacheLevel.REPO_BRANCH: self.workspace_branch,  # Map repo_branch to branch
+            # Library cache levels
+            CacheLevel.LIBRARY_LAYOUTS: self.library_layouts,
+            CacheLevel.LIBRARY_METADATA: self.library_metadata,
+            CacheLevel.LIBRARY_SEARCH: self.library_search,
         }
 
         if cache_level not in level_mapping:

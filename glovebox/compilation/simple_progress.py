@@ -407,6 +407,16 @@ class SimpleProgressCoordinator:
         self.display = display
         self.config = display.config  # Use the same config as the display
 
+        # Required protocol attributes
+        self.current_phase: str = "initialization"
+        self.docker_image_name: str = ""
+        self.compilation_strategy: str = ""
+
+        # Additional progress tracking attributes
+        self.total_repositories: int = 0
+        self.boards_completed: int = 0
+        self.total_boards: int = 0
+
     def start_task_by_name(
         self, task_name: str, description: str = "", percentage: float = 0.0
     ) -> None:
@@ -465,10 +475,14 @@ class SimpleProgressCoordinator:
             phase: Phase name (e.g., "cache_setup", "workspace_setup")
             description: Description for the phase/task
         """
+        # Update current phase for middleware compatibility
+        self.current_phase = phase
+
         # Try to find a matching task name for this phase
         phase_to_task_mapping = {
             "cache": "Cache Setup",
             "cache_setup": "Cache Setup",
+            "cache_restoration": "Cache Setup",
             "workspace": "Workspace Setup",
             "workspace_setup": "Workspace Setup",
             "dependencies": "Dependencies",
@@ -587,6 +601,27 @@ class SimpleProgressCoordinator:
                 status += f" (ETA: {eta_seconds:.0f}s)"
 
         self.update_current_task(status, progress_percentage)
+
+    def update_cache_progress(
+        self,
+        operation: str,
+        current: int = 0,
+        total: int = 100,
+        description: str = "",
+        status: str = "in_progress",
+    ) -> None:
+        """Update cache restoration progress."""
+        if total > 0:
+            progress_percentage = (current / total) * 100
+        else:
+            progress_percentage = 0.0
+
+        status_text = f"{operation}: {description}" if description else operation
+        self.update_current_task(status_text, progress_percentage)
+
+    def update_repository_progress(self, repository_name: str) -> None:
+        """Update repository download progress during west update."""
+        self.update_current_task(f"Downloading repository: {repository_name}")
 
     def update_cache_extraction_progress(
         self,
