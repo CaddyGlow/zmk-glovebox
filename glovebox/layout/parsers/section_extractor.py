@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     class BehaviorExtractorProtocol(Protocol):
         def extract_behaviors_as_models(
             self, roots: list, content: str
-        ) -> tuple[dict, dict]: ...
+        ) -> dict: ...
 
 
 from .ast_walker import create_universal_behavior_extractor_with_converter
@@ -292,10 +292,9 @@ class SectionExtractor:
                 )
 
             # Extract behaviors using AST converter with comment support
-            behavior_models, _ = self.behavior_extractor.extract_behaviors_as_models(
+            converted_behaviors = self.behavior_extractor.extract_behaviors_as_models(
                 roots, content_to_parse
             )
-            converted_behaviors = behavior_models
 
             # Return appropriate data based on section type
             if section.type == "behavior":

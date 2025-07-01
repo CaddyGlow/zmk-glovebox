@@ -1171,5 +1171,115 @@ AppendConfigFieldOption = Annotated[
 ]
 
 
+def complete_config_flags(ctx: typer.Context, incomplete: str) -> list[str]:
+    """Tab completion for config flags based on profile and all_kconfig.yaml.
+
+    Provides completion for config flags from:
+    1. Current keyboard profile kconfig options (if available)
+    2. Common ZMK flags from all_kconfig.yaml
+    3. Supports key=value syntax with type-appropriate values
+
+    Args:
+        ctx: Typer context for accessing profile
+        incomplete: Partial config flag being typed
+
+    Returns:
+        List of matching config flags
+    """
+    try:
+        from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
+
+        config_flags = []
+
+        # Try to get profile-specific kconfig options
+        try:
+            keyboard_profile = get_keyboard_profile_from_context(ctx)
+            if keyboard_profile:
+                kconfig_options = keyboard_profile.kconfig_options
+                for name, option in kconfig_options.items():
+                    # Remove CONFIG_ prefix if present
+                    flag_name = name.replace("CONFIG_", "")
+
+                    # Add appropriate values based on type
+                    if option.type == "bool":
+                        config_flags.extend([f"{flag_name}=y", f"{flag_name}=n"])
+                    elif option.type == "int" and option.default is not None:
+                        config_flags.append(f"{flag_name}={option.default}")
+                        # Add some common variations for int values
+                        if "TIMEOUT" in flag_name.upper() or "MS" in flag_name.upper():
+                            config_flags.extend([f"{flag_name}=30000", f"{flag_name}=60000"])
+                    elif option.default is not None:
+                        config_flags.append(f"{flag_name}={option.default}")
+                    else:
+                        config_flags.append(f"{flag_name}=y")
+        except Exception:
+            # Profile not available yet, continue with YAML loading
+            pass
+
+        # Load common flags from all_kconfig.yaml
+        try:
+            from pathlib import Path
+
+            import yaml
+
+            yaml_path = Path(__file__).parent.parent.parent / "keyboards" / "config" / "common" / "all_kconfig.yaml"
+            if yaml_path.exists():
+                with yaml_path.open() as f:
+                    data = yaml.safe_load(f)
+
+                kconfig_options = data.get("keymap", {}).get("kconfig_options", {})
+                for _key, option in kconfig_options.items():
+                    # Extract the flag name (remove CONFIG_ prefix from the 'name' field)
+                    flag_name = option.get("name", "").replace("CONFIG_", "")
+                    if not flag_name:
+                        continue
+
+                    option_type = option.get("type", "bool")
+                    default_value = option.get("default")
+
+                    if option_type == "bool":
+                        config_flags.extend([f"{flag_name}=y", f"{flag_name}=n"])
+                    elif option_type == "int" and default_value is not None:
+                        config_flags.append(f"{flag_name}={default_value}")
+                        # Add some common variations for int values
+                        if isinstance(default_value, int):
+                            if default_value < 100:  # Small values like debounce
+                                config_flags.extend([f"{flag_name}=1", f"{flag_name}=5", f"{flag_name}=10"])
+                            elif default_value >= 1000:  # Timeout values
+                                config_flags.extend([f"{flag_name}=30000", f"{flag_name}=60000", f"{flag_name}=900000"])
+                    else:
+                        # String or other types
+                        if default_value is not None:
+                            config_flags.append(f"{flag_name}={default_value}")
+                        else:
+                            config_flags.append(f"{flag_name}=y")
+        except Exception:
+            # YAML loading failed, use minimal fallback
+            pass
+
+        # Remove duplicates and sort
+        config_flags = sorted(set(config_flags))
+
+        if not incomplete:
+            return config_flags[:50]  # Limit to first 50 for performance
+
+        # Match flags that start with incomplete text (case insensitive)
+        incomplete_upper = incomplete.upper()
+        matching = []
+        for flag in config_flags:
+            if flag.upper().startswith(incomplete_upper):
+                matching.append(flag)
+
+        return sorted(matching)
+    except Exception:
+        # Ultimate fallback to basic common flags
+        return [
+            "ZMK_SLEEP=y", "ZMK_SLEEP=n",
+            "BT_CTLR_TX_PWR_PLUS_8=y", "BT_CTLR_TX_PWR_PLUS_8=n",
+            "ZMK_RGB_UNDERGLOW=y", "ZMK_RGB_UNDERGLOW=n",
+            "ZMK_USB_LOGGING=y", "ZMK_USB_LOGGING=n",
+        ]
+
+
 # Note: For more complex parameter variations, create new Annotated types
 # following the same pattern as ProfileOption above.

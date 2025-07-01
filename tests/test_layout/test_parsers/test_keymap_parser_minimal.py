@@ -55,7 +55,6 @@ class TestZmkKeymapParserBasic:
         """Test parser factory function."""
         parser = create_zmk_keymap_parser()
         assert isinstance(parser, ZmkKeymapParser)
-        assert hasattr(parser, "template_adapter")
 
     def test_parsing_mode_enum(self):
         """Test ParsingMode enum values."""

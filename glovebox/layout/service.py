@@ -210,20 +210,11 @@ class LayoutService(BaseService):
                 result.add_error(f"Invalid parsing method: {parsing_method}")
                 return result
 
-            # Parse keymap file
-            keyboard_profile_str = None
-            if profile is not None:
-                keyboard_profile_str = (
-                    f"{profile.keyboard_name}/{profile.firmware_version}"
-                    if profile.firmware_version
-                    else profile.keyboard_name
-                )
-
             parse_result = self._keymap_parser.parse_keymap(
                 keymap_file=keymap_file_path,
                 mode=mode,
                 method=method,
-                keyboard_profile=keyboard_profile_str,
+                profile=profile,
             )
 
             if not parse_result.success:
