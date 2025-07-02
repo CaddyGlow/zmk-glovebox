@@ -10,7 +10,10 @@ if TYPE_CHECKING:
 
     class BehaviorExtractorProtocol(Protocol):
         def extract_behaviors_as_models(
-            self, roots: list[object] | list[DTNode], content: str
+            self,
+            roots: list[object] | list[DTNode],
+            content: str,
+            defines: dict[str, str] | None = None,
         ) -> dict[str, object]: ...
 
 
@@ -82,7 +85,7 @@ class SectionExtractor:
 
         for section_name, section in sections.items():
             try:
-                result = self._process_section_by_type(section)
+                result = self._process_section_by_type(section, context)
 
                 if result.success and result.data is not None:
                     processed[section.name] = result.data
@@ -204,12 +207,13 @@ class SectionExtractor:
         return "\n".join(lines) if lines else ""
 
     def _process_section_by_type(
-        self, section: ExtractedSection
+        self, section: ExtractedSection, context: ParsingContext | None = None
     ) -> SectionProcessingResult:
         """Process a section based on its type.
 
         Args:
             section: Section to process
+            context: Optional parsing context with additional information
 
         Returns:
             Processing result with data or error information
@@ -223,7 +227,7 @@ class SectionExtractor:
                 )
 
             elif section.type in ("behavior", "macro", "combo"):
-                return self._process_ast_section(section)
+                return self._process_ast_section(section, context)
 
             elif section.type == "input_listener":
                 # Input listeners need special handling - return as raw content
@@ -235,7 +239,7 @@ class SectionExtractor:
                 )
 
             elif section.type == "keymap":
-                return self._process_keymap_section(section)
+                return self._process_keymap_section(section, context)
 
             else:
                 return SectionProcessingResult(
@@ -256,12 +260,13 @@ class SectionExtractor:
             )
 
     def _process_ast_section(
-        self, section: ExtractedSection
+        self, section: ExtractedSection, context: ParsingContext | None = None
     ) -> SectionProcessingResult:
         """Process a section using AST parsing for behaviors, macros, or combos.
 
         Args:
             section: Section to parse with AST
+            context: Optional parsing context with additional information
 
         Returns:
             Processing result with parsed data
@@ -304,8 +309,12 @@ class SectionExtractor:
                 )
 
             # Extract behaviors using AST converter with comment support
+            # Pass defines if available from context
+            defines = (
+                context.defines if context and hasattr(context, "defines") else None
+            )
             converted_behaviors = self.behavior_extractor.extract_behaviors_as_models(
-                roots, content_to_parse
+                roots, content_to_parse, defines
             )
 
             # Return appropriate data based on section type
@@ -342,12 +351,13 @@ class SectionExtractor:
             )
 
     def _process_keymap_section(
-        self, section: ExtractedSection
+        self, section: ExtractedSection, context: ParsingContext | None = None
     ) -> SectionProcessingResult:
         """Process a keymap section to extract layer information.
 
         Args:
             section: Keymap section to process
+            context: Optional parsing context with defines
 
         Returns:
             Processing result with layer data
@@ -358,6 +368,10 @@ class SectionExtractor:
 
             # Create a temporary parser instance for layer extraction
             temp_parser = ZmkKeymapParser()
+
+            # Pass defines if available from context
+            if context and hasattr(context, "defines"):
+                temp_parser.defines = context.defines
 
             # Parse section content as AST using Lark parser with comment support
             # Ensure we have a string for parsing

@@ -31,6 +31,7 @@ class DTParser:
         self.current_token: Token | None = None
         self.errors: list[DTParseError] = []
         self.comments: list[DTComment] = []
+        self.conditionals: list[DTConditional] = []
         self._advance()
 
     def parse(self) -> DTNode:
@@ -60,6 +61,9 @@ class DTParser:
                 logger.warning("Parsing completed with %d errors", len(self.errors))
                 for error in self.errors:
                     logger.warning(str(error))
+
+            # Add collected conditionals to root
+            root.conditionals.extend(self.conditionals)
 
             return root
 
@@ -106,6 +110,10 @@ class DTParser:
                 logger.warning("Parsing completed with %d errors", len(self.errors))
                 for error in self.errors:
                     logger.warning(str(error))
+
+            # Add collected conditionals to first root if any
+            if roots and self.conditionals:
+                roots[0].conditionals.extend(self.conditionals)
 
             return roots
 
@@ -565,6 +573,9 @@ class DTParser:
                 comment_text = f"#{directive} {condition}".strip()
                 comment = DTComment(comment_text, line, column, False)
                 self.comments.append(comment)
+
+                # Also store as conditional for extraction
+                self.conditionals.append(conditional)
                 consumed = True
                 self._advance()
 

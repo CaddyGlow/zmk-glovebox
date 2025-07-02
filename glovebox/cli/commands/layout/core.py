@@ -41,12 +41,13 @@ from glovebox.layout.service import LayoutService
 logger = logging.getLogger(__name__)
 
 
+
 @handle_errors
 @with_profile(required=False, firmware_optional=False, support_auto_detection=True)
 @with_metrics("compile")
 def compile_layout(
     ctx: typer.Context,
-    json_file: ParameterFactory.json_file_argument(),  # type: ignore[valid-type]
+    json_file: ParameterFactory.json_file_argument_optional() = None,  # type: ignore[valid-type]
     output: ParameterFactory.output_file(  # type: ignore[valid-type]
         help_text="Output directory and base filename (e.g., 'config/my_glove80'). If not specified, generates smart default filenames."
     ) = None,
@@ -305,7 +306,7 @@ def compile_layout(
 @with_layout_context(needs_json=True, needs_profile=True, validate_json=True)
 def validate(
     ctx: typer.Context,
-    json_file: ParameterFactory.json_file_argument(),  # type: ignore[valid-type]
+    json_file: ParameterFactory.json_file_argument_optional() = None,  # type: ignore[valid-type]
     profile: ProfileOption = None,
     no_auto: Annotated[
         bool,
@@ -353,16 +354,32 @@ def validate(
 
     def validation_operation(layout_file: Path) -> dict[str, Any]:
         """Validation operation that returns structured results."""
+        from glovebox.adapters import create_file_adapter
+        from glovebox.layout.utils.json_operations import load_layout_file
+        
         keymap_service = create_full_layout_service()
+        errors = []
 
         try:
-            is_valid = keymap_service.validate_from_file(
+            # First, validate syntax and structure
+            is_syntax_valid = keymap_service.validate_from_file(
                 profile=keyboard_profile, json_file_path=layout_file
             )
+            if not is_syntax_valid:
+                errors.append("Layout syntax/structure validation failed")
+            
+            # Then, validate layer references
+            file_adapter = create_file_adapter()
+            layout_data = load_layout_file(layout_file, file_adapter)
+            layer_ref_errors = layout_data.validate_layer_references()
+            errors.extend(layer_ref_errors)
+            
+            is_valid = is_syntax_valid and len(layer_ref_errors) == 0
+            
             return {
                 "valid": is_valid,
                 "file": str(layout_file),
-                "errors": [] if is_valid else ["Validation failed"],
+                "errors": errors,
             }
         except Exception as e:
             return {"valid": False, "file": str(layout_file), "errors": [str(e)]}
@@ -379,7 +396,7 @@ def validate(
 @with_profile(required=False, firmware_optional=True, support_auto_detection=True)
 def show(
     ctx: typer.Context,
-    json_file: ParameterFactory.json_file_argument(),  # type: ignore[valid-type]
+    json_file: ParameterFactory.json_file_argument_optional() = None,  # type: ignore[valid-type]
     key_width: KeyWidthOption = 10,
     view_mode: ViewModeOption = None,
     layout: Annotated[

@@ -14,10 +14,14 @@ from pydantic import (
 from glovebox.models.base import GloveboxBaseModel
 
 from .behaviors import (
+    CapsWordBehavior,
     ComboBehavior,
     HoldTapBehavior,
     InputListener,
     MacroBehavior,
+    ModMorphBehavior,
+    StickyKeyBehavior,
+    TapDanceBehavior,
 )
 from .config import ConfigParameter
 from .core import LayoutBinding, LayoutLayer
@@ -73,6 +77,10 @@ class LayoutData(LayoutMetadata):
     hold_taps: list[HoldTapBehavior] = Field(default_factory=list, alias="holdTaps")
     combos: list[ComboBehavior] = Field(default_factory=list)
     macros: list[MacroBehavior] = Field(default_factory=list)
+    tap_dances: list[TapDanceBehavior] = Field(default_factory=list, alias="tapDances")
+    sticky_keys: list[StickyKeyBehavior] = Field(default_factory=list, alias="stickyKeys")
+    caps_words: list[CapsWordBehavior] = Field(default_factory=list, alias="capsWords")
+    mod_morphs: list[ModMorphBehavior] = Field(default_factory=list, alias="modMorphs")
     input_listeners: list[InputListener] | None = Field(
         default=None, alias="inputListeners"
     )
@@ -226,6 +234,10 @@ class LayoutData(LayoutMetadata):
             "holdTaps",
             "combos",
             "macros",
+            "tapDances",
+            "stickyKeys",
+            "capsWords",
+            "modMorphs",
             "inputListeners",
             "layers",
             "custom_defined_behaviors",
@@ -312,6 +324,32 @@ class LayoutData(LayoutMetadata):
             structured_layers.append(layer)
 
         return structured_layers
+
+    def validate_layer_references(self) -> list[str]:
+        """Validate that all layer references point to existing layers.
+
+        Returns:
+            List of validation errors (empty if all references are valid)
+        """
+        from glovebox.layout.utils.layer_references import find_layer_references
+
+        errors = []
+        layer_count = len(self.layer_names)
+        references = find_layer_references(self)
+
+        for ref in references:
+            if ref.layer_id < 0 or ref.layer_id >= layer_count:
+                layer_name = (
+                    self.layer_names[ref.layer_index]
+                    if ref.layer_index < len(self.layer_names)
+                    else f"Layer {ref.layer_index}"
+                )
+                errors.append(
+                    f"Invalid layer reference in {layer_name}[{ref.binding_index}]: "
+                    f"{ref.behavior} {ref.layer_id} (valid range: 0-{layer_count - 1})"
+                )
+
+        return errors
 
     def to_flattened_dict(self) -> dict[str, Any]:
         """Export layout with templates resolved and variables section removed.

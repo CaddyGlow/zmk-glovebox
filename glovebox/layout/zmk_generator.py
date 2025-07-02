@@ -14,6 +14,7 @@ from glovebox.layout.models import (
     LayerBindings,
     MacroBehavior,
     SystemBehavior,
+    TapDanceBehavior,
 )
 from glovebox.layout.utils import generate_kconfig_conf
 
@@ -193,6 +194,84 @@ class ZmkFileContentGenerator:
 
         dtsi_parts.pop()  # Remove last blank line
         return "\n".join(self._indent_array(dtsi_parts, " " * 8))
+
+    def generate_tap_dances_dtsi(
+        self, profile: "KeyboardProfile", tap_dances_data: Sequence[TapDanceBehavior]
+    ) -> str:
+        """Generate ZMK tap dance behaviors from tap dance behavior models.
+
+        Args:
+            profile: Keyboard profile containing configuration
+            tap_dances_data: List of tap dance behavior models
+
+        Returns:
+            DTSI behaviors node content as string
+        """
+        if not tap_dances_data:
+            return ""
+
+        dtsi_parts = []
+        dtsi_parts.append("behaviors {")
+
+        for td in tap_dances_data:
+            name = td.name
+            description = td.description or ""
+            tapping_term = td.tapping_term_ms
+            bindings = td.bindings
+
+            # Register the tap dance behavior
+            self._behavior_registry.register_behavior(
+                SystemBehavior(
+                    code=td.name,
+                    name=td.name,
+                    description=td.description,
+                    expected_params=0,  # Tap dances typically take 0 params
+                    origin="user_tap_dance",
+                    params=[],
+                )
+            )
+
+            # Add description as comment
+            if description:
+                comment_lines = description.split("\n")
+                for line in comment_lines:
+                    dtsi_parts.append(f"    // {line}")
+
+            dtsi_parts.append(f"    {name}: {name} {{")
+            compatible_string = "zmk,behavior-tap-dance"
+            dtsi_parts.append(f'        compatible = "{compatible_string}";')
+
+            if description:
+                dtsi_parts.append(f'        label = "{description}";')
+
+            dtsi_parts.append("        #binding-cells = <0>;")
+
+            if tapping_term is not None:
+                dtsi_parts.append(f"        tapping-term-ms = <{tapping_term}>;")
+
+            # Format bindings
+            if bindings:
+                formatted_bindings = []
+                for binding in bindings:
+                    # Format the binding to DTSI format
+                    binding_str = self._behavior_formatter.format_binding_for_hold_tap(
+                        binding
+                    )
+                    formatted_bindings.append(f"<{binding_str}>")
+
+                bindings_line = ", ".join(formatted_bindings)
+                dtsi_parts.append(f"        bindings = {bindings_line};")
+
+            dtsi_parts.append("    };")
+            dtsi_parts.append("")
+
+        dtsi_parts.append("};")
+
+        # Remove last empty line if present
+        if dtsi_parts and dtsi_parts[-2] == "":
+            dtsi_parts.pop(-2)
+
+        return "\n".join(dtsi_parts)
 
     def generate_macros_dtsi(
         self, profile: "KeyboardProfile", macros_data: Sequence[MacroBehavior]

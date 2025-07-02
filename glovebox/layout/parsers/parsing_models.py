@@ -43,6 +43,7 @@ class ParsingContext(GloveboxBaseModel):
     extraction_config: list[ExtractionConfig] = []
     errors: list[str] = []
     warnings: list[str] = []
+    defines: dict[str, str] = {}
 
 
 class SectionProcessingResult(GloveboxBaseModel):

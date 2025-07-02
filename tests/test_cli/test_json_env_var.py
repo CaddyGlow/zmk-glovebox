@@ -90,6 +90,7 @@ def test_layout_compile_with_json_env_var(
             [
                 "layout",
                 "compile",
+                "--output",
                 str(output_dir / "test"),
                 "--profile",
                 "glove80/v25.05",
@@ -140,6 +141,13 @@ def test_layout_validate_with_json_env_var(cli_runner, sample_json_layout, clean
             ["layout", "validate", "--profile", "glove80/v25.05"],
             catch_exceptions=False,
         )
+        
+        # Debug output
+        if cmd_result.exit_code != 0:
+            print(f"Command failed with exit code {cmd_result.exit_code}")
+            print(f"Output: {cmd_result.output}")
+            if cmd_result.exception:
+                print(f"Exception: {cmd_result.exception}")
 
         # Verify layout service was called with the file from env var
         assert mock_layout_service.validate_from_file.called
@@ -255,7 +263,7 @@ def test_firmware_compile_with_json_env_var(cli_runner, sample_json_layout, clea
             "glovebox.cli.helpers.profile.create_profile_from_option"
         ) as mock_create_profile,
         patch(
-            "glovebox.cli.commands.firmware._execute_compilation_from_json"
+            "glovebox.cli.commands.firmware.compile.execute_compilation_from_json"
         ) as mock_compile,
         patch(
             "glovebox.cli.helpers.profile.get_user_config_from_context"
@@ -284,6 +292,13 @@ def test_firmware_compile_with_json_env_var(cli_runner, sample_json_layout, clea
             ["firmware", "compile", "--profile", "glove80/v25.05"],
             catch_exceptions=False,
         )
+        
+        # Debug output
+        if cmd_result.exit_code != 0:
+            print(f"Command failed with exit code {cmd_result.exit_code}")
+            print(f"Output: {cmd_result.output}")
+            if cmd_result.exception:
+                print(f"Exception: {cmd_result.exception}")
 
         # Verify compilation was called with the file from env var
         assert mock_compile.called

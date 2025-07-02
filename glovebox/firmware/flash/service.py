@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 from glovebox.adapters.file_adapter import create_file_adapter
 from glovebox.config.flash_methods import USBFlashConfig
 from glovebox.firmware.flash.device_wait_service import create_device_wait_service
-from glovebox.firmware.flash.models import FlashResult, BlockDevice, USBDeviceType
+from glovebox.firmware.flash.models import BlockDevice, FlashResult, USBDeviceType
 from glovebox.firmware.method_registry import flasher_registry
 from glovebox.protocols import FileAdapterProtocol, USBAdapterProtocol
 from glovebox.protocols.flash_protocols import FlasherProtocol
@@ -85,10 +85,11 @@ class FlashService:
         )
 
         # Validate firmware file existence
-        if not self.file_adapter.check_exists(firmware_file_path):
-            result = FlashResult(success=False)
-            result.add_error(f"Firmware file not found: {firmware_file_path}")
-            return result
+        from glovebox.firmware.flash.flash_helpers import validate_firmware_file
+
+        error_result = validate_firmware_file(self.file_adapter, firmware_file_path)
+        if error_result:
+            return error_result
 
         try:
             # Use the main flash method with wait parameters
@@ -161,18 +162,13 @@ class FlashService:
             logger.info("Selected flasher method: %s", type(flasher).__name__)
 
             # Get devices - either wait for them or list immediately
+            from glovebox.firmware.flash.flash_helpers import get_device_query
+
+            flash_config = flash_configs[0]
+            device_query_to_use = get_device_query(profile, query, flash_config)
+
             devices: list[USBDeviceType]
             if wait:
-                # Use device wait service to wait for devices
-                # Check if we have a USB flash config for device query
-                device_query_to_use = query
-                flash_config = flash_configs[0]
-
-                if hasattr(flash_config, "device_query") and flash_config.device_query:
-                    device_query_to_use = flash_config.device_query
-                elif not device_query_to_use:
-                    device_query_to_use = "removable=true"  # Default query
-
                 # Use wait service with USB flash configs
                 devices = self.device_wait_service.wait_for_devices(
                     target_count=count if count > 0 else 1,
@@ -194,6 +190,11 @@ class FlashService:
                 return result
 
             # Flash to available devices (simplified approach)
+            from glovebox.firmware.flash.flash_helpers import (
+                create_device_result,
+                update_flash_result_counts,
+            )
+
             devices_flashed = 0
             devices_failed = 0
 
@@ -215,14 +216,9 @@ class FlashService:
                 )
 
                 # Store detailed device info
-                device_details = {
-                    "name": device.description or device.path,
-                    "serial": device.serial,
-                    "status": "success" if device_result.success else "failed",
-                }
-
+                error_msg = None
                 if not device_result.success:
-                    device_details["error"] = (
+                    error_msg = (
                         device_result.errors[0]
                         if device_result.errors
                         else "Unknown error"
@@ -231,26 +227,13 @@ class FlashService:
                 else:
                     devices_flashed += 1
 
+                device_details = create_device_result(
+                    device, device_result.success, error_msg
+                )
                 result.device_details.append(device_details)
 
             # Update result with device counts
-            result.devices_flashed = devices_flashed
-            result.devices_failed = devices_failed
-
-            # Overall success depends on whether we flashed any devices and if any failed
-            if devices_flashed == 0 and devices_failed == 0:
-                result.success = False
-                result.add_error("No devices were flashed")
-            elif devices_failed > 0:
-                result.success = False
-                if devices_flashed > 0:
-                    result.add_error(
-                        f"{devices_failed} device(s) failed to flash, {devices_flashed} succeeded"
-                    )
-                else:
-                    result.add_error(f"{devices_failed} device(s) failed to flash")
-            else:
-                result.add_message(f"Successfully flashed {devices_flashed} device(s)")
+            update_flash_result_counts(result, devices_flashed, devices_failed)
 
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
@@ -296,18 +279,21 @@ class FlashService:
             result.add_message(f"Found {len(devices)} device(s) matching query")
 
             # Add device details
+            from glovebox.firmware.flash.flash_helpers import create_device_result
+
             for device in devices:
-                device_info = {
-                    "name": device.description or device.path,
-                    "serial": device.serial,
-                    "vendor": device.vendor,
-                    "model": device.model,
-                    "path": device.path,
-                    "removable": device.removable,
-                    "status": "available",
-                    "vendor_id": device.vendor_id,
-                    "product_id": device.product_id,
-                }
+                # Create device info with additional fields
+                device_info = create_device_result(device, True)
+                device_info.update(
+                    {
+                        "vendor": device.vendor,
+                        "model": device.model,
+                        "path": device.path,
+                        "removable": device.removable,
+                        "vendor_id": device.vendor_id,
+                        "product_id": device.product_id,
+                    }
+                )
                 result.device_details.append(device_info)
 
         except Exception as e:
@@ -434,24 +420,9 @@ def create_flash_service(
         Configured FlashService instance
     """
     if usb_adapter is None:
-        # Import here to avoid circular import when using default
-        from glovebox.adapters.usb_adapter import create_usb_adapter
-        from glovebox.firmware.flash.device_detector import (
-            MountPointCache,
-            create_device_detector,
-        )
-        from glovebox.firmware.flash.flash_operations import create_flash_operations
-        from glovebox.firmware.flash.os_adapters import create_flash_os_adapter
-        from glovebox.firmware.flash.usb_monitor import create_usb_monitor
+        from glovebox.firmware.flash.flash_helpers import create_default_usb_adapter
 
-        # Create required dependencies for USB adapter
-        os_adapter = create_flash_os_adapter()
-        flash_operations = create_flash_operations(os_adapter)
-        mount_cache = MountPointCache()
-        usb_monitor = create_usb_monitor()
-        detector = create_device_detector(usb_monitor, mount_cache)
-
-        usb_adapter = create_usb_adapter(flash_operations, detector)
+        usb_adapter = create_default_usb_adapter()
 
     return FlashService(
         file_adapter=file_adapter,

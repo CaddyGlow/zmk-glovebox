@@ -441,13 +441,15 @@ class UniversalBehaviorExtractor:
                 "zmk,behavior-sticky-key",
                 "zmk,behavior-sk",
             ],
+            "mod_morphs": [
+                "zmk,behavior-mod-morph",
+            ],
             "layers": [
                 "zmk,behavior-momentary-layer",
                 "zmk,behavior-toggle-layer",
                 "zmk,behavior-layer-tap",
             ],
             "mods": [
-                "zmk,behavior-mod-morph",
                 "zmk,behavior-modifier",
             ],
         }
@@ -483,13 +485,17 @@ class UniversalBehaviorExtractor:
         return self._extract_behaviors_from_roots(roots)
 
     def extract_behaviors_as_models(
-        self, roots: list[DTNode], source_content: str = ""
+        self,
+        roots: list[DTNode],
+        source_content: str = "",
+        defines: dict[str, str] | None = None,
     ) -> dict[str, list[Any]]:
         """Extract behaviors as behavior model objects with comments.
 
         Args:
             roots: List of root nodes to search
             source_content: Original source file content for metadata extraction
+            defines: Optional dictionary of preprocessor defines for resolution
 
         Returns:
             Dictionary mapping behavior types to model objects
@@ -498,7 +504,10 @@ class UniversalBehaviorExtractor:
         if self.ast_converter is None:
             from .ast_behavior_converter import create_ast_behavior_converter
 
-            self.ast_converter = create_ast_behavior_converter()
+            self.ast_converter = create_ast_behavior_converter(defines)
+        elif defines and self.ast_converter.defines != defines:
+            # Update defines if they've changed
+            self.ast_converter.defines = defines
 
         # Extract behavior nodes using existing logic
         behavior_nodes = self._extract_behaviors_from_roots(roots)
@@ -509,8 +518,9 @@ class UniversalBehaviorExtractor:
             "macros": [],
             "combos": [],
             "tap_dances": [],
-            "caps_word": [],
             "sticky_keys": [],
+            "caps_words": [],
+            "mod_morphs": [],
             "layers": [],
             "mods": [],
             "other_behaviors": [],
@@ -535,6 +545,30 @@ class UniversalBehaviorExtractor:
             if combo:
                 behavior_models["combos"].append(combo)
 
+        # Convert tap dance nodes
+        for node in behavior_nodes.get("tap_dances", []):
+            tap_dance = self.ast_converter.convert_tap_dance_node(node)
+            if tap_dance:
+                behavior_models["tap_dances"].append(tap_dance)
+
+        # Convert sticky key nodes
+        for node in behavior_nodes.get("sticky_keys", []):
+            sticky_key = self.ast_converter.convert_sticky_key_node(node)
+            if sticky_key:
+                behavior_models["sticky_keys"].append(sticky_key)
+
+        # Convert caps word nodes
+        for node in behavior_nodes.get("caps_word", []):
+            caps_word = self.ast_converter.convert_caps_word_node(node)
+            if caps_word:
+                behavior_models["caps_words"].append(caps_word)
+
+        # Convert mod morph nodes
+        for node in behavior_nodes.get("mod_morphs", []):
+            mod_morph = self.ast_converter.convert_mod_morph_node(node)
+            if mod_morph:
+                behavior_models["mod_morphs"].append(mod_morph)
+
         # Input listeners are now handled through the normal behavior extraction
         # They get converted automatically when they have compatible = "zmk,input-listener"
         # No special handling needed here
@@ -554,9 +588,6 @@ class UniversalBehaviorExtractor:
         # For other behavior types, we'll keep them as nodes for now
         # (could be extended with specific converters later)
         for behavior_type in [
-            "tap_dances",
-            "caps_word",
-            "sticky_keys",
             "layers",
             "mods",
             "other_behaviors",
@@ -568,14 +599,23 @@ class UniversalBehaviorExtractor:
             len(behavior_models["hold_taps"])
             + len(behavior_models["macros"])
             + len(behavior_models["combos"])
+            + len(behavior_models["tap_dances"])
+            + len(behavior_models["sticky_keys"])
+            + len(behavior_models["caps_words"])
+            + len(behavior_models["mod_morphs"])
             + len(behavior_models["input_listeners"])
         )
         self.logger.debug(
-            "Converted %d behavior nodes to model objects: %d hold-taps, %d macros, %d combos, %d input-listeners",
+            "Converted %d behavior nodes to model objects: %d hold-taps, %d macros, %d combos, %d tap-dances, "
+            "%d sticky-keys, %d caps-words, %d mod-morphs, %d input-listeners",
             converted_count,
             len(behavior_models["hold_taps"]),
             len(behavior_models["macros"]),
             len(behavior_models["combos"]),
+            len(behavior_models["tap_dances"]),
+            len(behavior_models["sticky_keys"]),
+            len(behavior_models["caps_words"]),
+            len(behavior_models["mod_morphs"]),
             len(behavior_models["input_listeners"]),
         )
 

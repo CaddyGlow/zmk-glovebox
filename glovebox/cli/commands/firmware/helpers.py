@@ -1,0 +1,532 @@
+"""Helper functions for firmware commands."""
+
+import logging
+import shutil
+import tempfile
+import zipfile
+from pathlib import Path
+from typing import Any
+
+import typer
+
+from glovebox.cli.decorators.profile import (
+    get_compilation_cache_services_from_context,
+    get_tmpdir_from_context,
+)
+from glovebox.cli.helpers import (
+    print_error_message,
+    print_list_item,
+    print_success_message,
+)
+from glovebox.cli.helpers.profile import get_user_config_from_context
+from glovebox.compilation.models import CompilationConfigUnion
+from glovebox.config.profile import KeyboardProfile
+
+
+logger = logging.getLogger(__name__)
+
+
+def resolve_compilation_type(
+    keyboard_profile: KeyboardProfile, strategy: str | None
+) -> tuple[str, CompilationConfigUnion]:
+    """Resolve compilation type and config from profile."""
+    # Get the appropriate compile method config from the keyboard profile
+    if not keyboard_profile.keyboard_config.compile_methods:
+        print_error_message(
+            f"No compile methods configured for keyboard '{keyboard_profile.keyboard_name}'"
+        )
+        raise typer.Exit(1)
+
+    # Determine compilation strategy
+    from glovebox.compilation.models import (
+        MoergoCompilationConfig,
+        ZmkCompilationConfig,
+    )
+
+    compile_config: MoergoCompilationConfig | ZmkCompilationConfig | None = None
+    if strategy:
+        compilation_strategy = strategy
+        # Find the matching compile method config for our strategy
+        for method_config in keyboard_profile.keyboard_config.compile_methods:
+            if (
+                isinstance(method_config, MoergoCompilationConfig)
+                and compilation_strategy == "moergo"
+            ):
+                compile_config = method_config
+                break
+            if (
+                isinstance(method_config, ZmkCompilationConfig)
+                and compilation_strategy == "zmk_config"
+            ):
+                compile_config = method_config
+                break
+    else:
+        # Use first available config if no specific match found
+        compile_config = keyboard_profile.keyboard_config.compile_methods[0]
+        logger.info("Using fallback compile config: %r", type(compile_config).__name__)
+
+    if not compile_config:
+        print_error_message(
+            f"No compile methods configured for keyboard '{keyboard_profile.keyboard_name}'"
+        )
+        raise typer.Exit(1)
+
+    # At this point, compile_config is guaranteed to be not None
+    compilation_strategy = compile_config.method_type
+
+    return compilation_strategy, compile_config
+
+
+def update_config_from_profile(
+    compile_config: CompilationConfigUnion,
+    keyboard_profile: KeyboardProfile,
+) -> None:
+    """Update compile config with firmware settings from profile."""
+    if keyboard_profile.firmware_config is not None:
+        compile_config.branch = keyboard_profile.firmware_config.build_options.branch
+        compile_config.repository = (
+            keyboard_profile.firmware_config.build_options.repository
+        )
+
+
+def format_compilation_output(
+    result: Any, output_format: str, output_dir: Path
+) -> None:
+    """Format and display compilation results."""
+    if result.success:
+        if output_format.lower() == "json":
+            result_data = {
+                "success": True,
+                "message": "Firmware compiled successfully",
+                "messages": result.messages,
+                "output_dir": str(output_dir),
+            }
+            from glovebox.cli.helpers.output_formatter import OutputFormatter
+
+            formatter = OutputFormatter()
+            print(formatter.format(result_data, "json"))
+        else:
+            print_success_message("Firmware compiled successfully")
+            for message in result.messages:
+                print_list_item(message)
+    else:
+        print_error_message("Firmware compilation failed")
+        for error in result.errors:
+            print_list_item(error)
+        raise typer.Exit(1)
+
+
+def determine_firmware_outputs(
+    result: Any,
+    base_filename: str,
+    templates: Any = None,
+    layout_data: dict[str, Any] | None = None,
+    original_filename: str | None = None,
+) -> list[tuple[Path, Path]]:
+    """Determine which firmware files to create based on build result.
+
+    Args:
+        result: BuildResult object from compilation
+        base_filename: Base filename without extension for output files (fallback)
+        templates: Filename template configuration (optional)
+        layout_data: Layout data for template generation (optional)
+        original_filename: Original input filename (optional)
+
+    Returns:
+        List of tuples (source_path, target_path) for firmware files to copy
+    """
+    outputs: list[tuple[Path, Path]] = []
+
+    if not result.success or not result.output_files:
+        return outputs
+
+    # Process all UF2 files
+    for uf2_file in result.output_files.uf2_files:
+        if not uf2_file.exists():
+            continue
+
+        filename_lower = uf2_file.name.lower()
+
+        # Determine board suffix and generate appropriate filename
+        if "lh" in filename_lower or "lf" in filename_lower:
+            # Left hand/front firmware
+            if templates and layout_data:
+                from glovebox.utils.filename_generator import (
+                    FileType,
+                    generate_default_filename,
+                )
+
+                target_filename = generate_default_filename(
+                    FileType.FIRMWARE_UF2,
+                    templates,
+                    layout_data=layout_data,
+                    original_filename=original_filename,
+                    board="lf",
+                )
+            else:
+                target_filename = f"{base_filename}_lf.uf2"
+            outputs.append((uf2_file, Path(target_filename)))
+
+        elif "rh" in filename_lower:
+            # Right hand firmware
+            if templates and layout_data:
+                from glovebox.utils.filename_generator import (
+                    FileType,
+                    generate_default_filename,
+                )
+
+                target_filename = generate_default_filename(
+                    FileType.FIRMWARE_UF2,
+                    templates,
+                    layout_data=layout_data,
+                    original_filename=original_filename,
+                    board="rh",
+                )
+            else:
+                target_filename = f"{base_filename}_rh.uf2"
+            outputs.append((uf2_file, Path(target_filename)))
+
+        else:
+            # Main/unified firmware or first available firmware
+            if templates and layout_data:
+                from glovebox.utils.filename_generator import (
+                    FileType,
+                    generate_default_filename,
+                )
+
+                target_filename = generate_default_filename(
+                    FileType.FIRMWARE_UF2,
+                    templates,
+                    layout_data=layout_data,
+                    original_filename=original_filename,
+                )
+            else:
+                target_filename = f"{base_filename}.uf2"
+            outputs.append((uf2_file, Path(target_filename)))
+
+    return outputs
+
+
+def process_compilation_output(
+    result: Any, input_file: Path, output_dir: Path | None
+) -> None:
+    """Process compilation output based on --output flag.
+
+    Args:
+        result: BuildResult object from compilation
+        input_file: Original input file path for base naming
+        output_dir: Output directory if --output flag provided, None otherwise
+    """
+    if not result.success or not result.output_files:
+        return
+
+    if output_dir is not None:
+        # --output flag provided: keep existing behavior (files already in output_dir)
+        return
+
+    # No --output flag: create smart default filenames using templates
+    from glovebox.config import create_user_config
+    from glovebox.utils.filename_generator import FileType, generate_default_filename
+    from glovebox.utils.filename_helpers import extract_layout_dict_data
+
+    user_config = create_user_config()
+
+    # Extract layout data if input is JSON
+    layout_data = None
+    if input_file.suffix.lower() == ".json":
+        try:
+            import json
+
+            layout_dict = json.loads(input_file.read_text())
+            layout_data = extract_layout_dict_data(layout_dict)
+        except Exception:
+            # Fallback if JSON parsing fails
+            pass
+
+    # Generate base filename (without extension) for firmware files
+    firmware_filename = generate_default_filename(
+        FileType.FIRMWARE_UF2,
+        user_config._config.filename_templates,
+        layout_data=layout_data,
+        original_filename=str(input_file),
+    )
+    base_filename = Path(firmware_filename).stem
+
+    try:
+        # Determine firmware files to create
+        firmware_outputs = determine_firmware_outputs(
+            result,
+            base_filename,
+            templates=user_config._config.filename_templates,
+            layout_data=layout_data,
+            original_filename=str(input_file),
+        )
+
+        # Copy firmware files to current directory
+        for source_path, target_path in firmware_outputs:
+            if source_path.exists():
+                shutil.copy2(source_path, target_path)
+                logger.info("Created firmware file: %s", target_path)
+
+        # Create artifacts zip file using smart filename generation
+        artifacts_filename = generate_default_filename(
+            FileType.ARTIFACTS_ZIP,
+            user_config._config.filename_templates,
+            layout_data=layout_data,
+            original_filename=str(input_file),
+        )
+        artifacts_zip_path = Path(artifacts_filename)
+        if (
+            result.output_files.artifacts_dir
+            and result.output_files.artifacts_dir.exists()
+        ):
+            with zipfile.ZipFile(
+                artifacts_zip_path, "w", zipfile.ZIP_DEFLATED
+            ) as zip_file:
+                for file_path in result.output_files.artifacts_dir.rglob("*"):
+                    if file_path.is_file():
+                        # Store relative path within artifacts directory
+                        arcname = file_path.relative_to(
+                            result.output_files.artifacts_dir
+                        )
+                        zip_file.write(file_path, arcname)
+            logger.info("Created artifacts archive: %s", artifacts_zip_path)
+        elif result.output_files.output_dir and result.output_files.output_dir.exists():
+            # Fallback: archive entire output directory if no specific artifacts_dir
+            with zipfile.ZipFile(
+                artifacts_zip_path, "w", zipfile.ZIP_DEFLATED
+            ) as zip_file:
+                for file_path in result.output_files.output_dir.rglob("*"):
+                    if file_path.is_file():
+                        # Store relative path within output directory
+                        arcname = file_path.relative_to(result.output_files.output_dir)
+                        zip_file.write(file_path, arcname)
+            logger.info(
+                "Created artifacts archive from output directory: %s",
+                artifacts_zip_path,
+            )
+
+    except Exception as e:
+        exc_info = logger.isEnabledFor(logging.DEBUG)
+        logger.error("Failed to process compilation output: %s", e, exc_info=exc_info)
+        print_error_message(f"Failed to create output files: {str(e)}")
+
+
+def setup_progress_display(
+    ctx: typer.Context, show_progress: bool
+) -> tuple[Any, Any, Any]:
+    """Set up progress display components.
+
+    Args:
+        ctx: Typer context with user config
+        show_progress: Whether to show progress
+
+    Returns:
+        Tuple of (progress_display, progress_coordinator, progress_callback)
+    """
+    if not show_progress:
+        return None, None, None
+
+    from rich.console import Console
+
+    from glovebox.cli.helpers.theme import get_icon_mode_from_context
+    from glovebox.compilation.simple_progress import (
+        ProgressConfig,
+        create_simple_compilation_display,
+        create_simple_progress_coordinator,
+    )
+
+    # Get icon mode from context (which contains user config)
+    icon_mode = get_icon_mode_from_context(ctx)
+
+    # Create firmware compilation configuration
+    firmware_config = ProgressConfig(
+        operation_name="Firmware Build",
+        icon_mode=icon_mode,
+    )
+
+    console = Console()
+    progress_display = create_simple_compilation_display(
+        console, firmware_config, icon_mode
+    )
+    progress_coordinator = create_simple_progress_coordinator(progress_display)
+    progress_display.start()
+
+    # Create a bridge callback that forwards to our coordinator
+    def progress_callback(progress: Any) -> None:
+        """Bridge callback that forwards progress updates to our simple coordinator."""
+        if (
+            hasattr(progress, "state")
+            and progress.state
+            and hasattr(progress, "compilation_phase")
+        ):
+            progress_coordinator.transition_to_phase(
+                progress.compilation_phase, progress.description or ""
+            )
+            # Note: This is a basic bridge - more sophisticated mapping could be added
+
+    return progress_display, progress_coordinator, progress_callback
+
+
+def get_cache_services_with_fallback(ctx: typer.Context) -> tuple[Any, Any, Any]:
+    """Get cache services from context with fallback creation.
+
+    Args:
+        ctx: Typer context
+
+    Returns:
+        Tuple of (cache_manager, workspace_service, build_service)
+    """
+    try:
+        return get_compilation_cache_services_from_context(ctx)
+    except RuntimeError:
+        # Fallback: create cache services manually
+        logger.warning("Creating fallback cache services due to decorator issue")
+        from glovebox.compilation.cache import create_compilation_cache_service
+        from glovebox.config import create_user_config
+
+        user_config = get_user_config_from_context(ctx) or create_user_config()
+        return create_compilation_cache_service(user_config)
+
+
+def get_build_output_dir(output: Path | None, ctx: typer.Context) -> tuple[Path, bool]:
+    """Get build output directory with proper cleanup tracking.
+
+    Args:
+        output: User-specified output directory or None
+        ctx: Typer context
+
+    Returns:
+        Tuple of (build_output_dir, manual_cleanup_needed)
+    """
+    if output is not None:
+        # --output flag provided: use specified directory (existing behavior)
+        build_output_dir = output
+        build_output_dir.mkdir(parents=True, exist_ok=True)
+        return build_output_dir, False
+    else:
+        # No --output flag: use temporary directory from decorator
+        try:
+            build_output_dir = get_tmpdir_from_context(ctx)
+            return build_output_dir, False
+        except RuntimeError:
+            # Fallback: create a temporary directory manually
+            temp_dir = tempfile.mkdtemp(prefix="glovebox_build_")
+            build_output_dir = Path(temp_dir)
+            logger.warning(
+                "Using fallback temporary directory due to decorator issue: %s",
+                build_output_dir,
+            )
+            return build_output_dir, True
+
+
+def prepare_config_file(
+    is_json_input: bool,
+    config_file: Path | None,
+    config_flags: list[str] | None,
+    build_output_dir: Path,
+) -> Path | None:
+    """Prepare config file for compilation, handling flags and defaults.
+
+    Args:
+        is_json_input: Whether input is JSON (doesn't need config file)
+        config_file: User-provided config file
+        config_flags: Additional config flags
+        build_output_dir: Directory for temporary files
+
+    Returns:
+        Path to effective config file or None for JSON input
+    """
+    if is_json_input:
+        return None
+
+    effective_config_flags = config_flags or []
+
+    # Case 1: Need to create or augment config file with flags
+    if effective_config_flags:
+        temp_config_file = build_output_dir / "temp_config.conf"
+        config_content = ""
+
+        # Include existing config file content if provided
+        if config_file is not None and config_file.exists():
+            config_content = config_file.read_text()
+            if not config_content.endswith("\n"):
+                config_content += "\n"
+
+        # Add config flags
+        for flag in effective_config_flags:
+            if "=" in flag:
+                config_content += f"CONFIG_{flag}\n"
+            else:
+                config_content += f"CONFIG_{flag}=y\n"
+
+        temp_config_file.write_text(config_content)
+        logger.info(
+            "Created temporary config file with %d flags",
+            len(effective_config_flags),
+        )
+        return temp_config_file
+
+    # Case 2: Use provided config file as-is
+    if config_file is not None:
+        return config_file
+
+    # Case 3: No config file provided and no flags - create empty config
+    temp_config_file = build_output_dir / "empty_config.conf"
+    temp_config_file.write_text("")
+    logger.info("Created empty config file for keymap compilation")
+    return temp_config_file
+
+
+def cleanup_temp_directory(build_output_dir: Path, manual_cleanup_needed: bool) -> None:
+    """Clean up temporary build directory if needed.
+
+    Args:
+        build_output_dir: Directory to clean up
+        manual_cleanup_needed: Whether manual cleanup is required
+    """
+    if manual_cleanup_needed and build_output_dir.exists():
+        try:
+            shutil.rmtree(build_output_dir)
+            logger.debug("Cleaned up temporary build directory: %s", build_output_dir)
+        except Exception as cleanup_error:
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.warning(
+                "Failed to clean up temporary build directory: %s",
+                cleanup_error,
+                exc_info=exc_info,
+            )
+
+
+def create_compilation_service_with_progress(
+    compilation_strategy: str,
+    user_config: Any,
+    session_metrics: Any,
+    progress_coordinator: Any,
+    cache_manager: Any,
+    workspace_cache_service: Any,
+    build_cache_service: Any,
+) -> Any:
+    """Create compilation service with common setup."""
+    from glovebox.adapters import create_docker_adapter, create_file_adapter
+    from glovebox.compilation import create_compilation_service
+
+    docker_adapter = create_docker_adapter()
+    file_adapter = create_file_adapter()
+
+    compilation_service = create_compilation_service(
+        compilation_strategy,
+        user_config=user_config,
+        docker_adapter=docker_adapter,
+        file_adapter=file_adapter,
+        cache_manager=cache_manager,
+        workspace_cache_service=workspace_cache_service,
+        build_cache_service=build_cache_service,
+        session_metrics=session_metrics,
+    )
+
+    # If we have a progress coordinator, try to pass it directly
+    if hasattr(compilation_service, "set_progress_coordinator"):
+        compilation_service.set_progress_coordinator(progress_coordinator)
+
+    return compilation_service
