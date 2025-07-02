@@ -24,6 +24,73 @@ def test_compilation_domain_imports():
     assert callable(create_moergo_nix_service)
 
 
+@pytest.fixture
+def compilation_service_config():
+    """Create test configuration for compilation services."""
+    return {
+        "zmk_config": {
+            "git_clone_timeout": 300,
+            "west_update_timeout": 600,
+            "build_timeout": 1200,
+            "cleanup_workspace": True,
+        },
+        "moergo": {
+            "docker_image": "test-moergo-builder",
+            "build_timeout": 1800,
+            "cleanup_workspace": True,
+        }
+    }
+
+
+@pytest.fixture
+def sample_json_layout():
+    """Sample JSON layout for testing compilation workflow."""
+    return {
+        "keyboard": "glove80",
+        "title": "Test Layout for Compilation",
+        "author": "Test User",
+        "layers": [
+            ["KC_Q", "KC_W", "KC_E", "KC_R", "KC_T"],
+            ["KC_1", "KC_2", "KC_3", "KC_4", "KC_5"],
+        ],
+        "layer_names": ["Base", "Numbers"],
+        "behaviors": {
+            "td_test": {
+                "type": "tap_dance",
+                "tapping_term_ms": 200,
+                "bindings": ["&kp KC_TAB", "&kp KC_ESC"]
+            }
+        }
+    }
+
+
+@pytest.fixture
+def compilation_workflow_environment(
+    isolated_cli_environment,
+    tmp_path,
+    mock_docker_adapter,
+    mock_file_adapter,
+    session_metrics,
+):
+    """Create isolated environment for compilation workflow testing."""
+    # Create output directory structure
+    output_dir = tmp_path / "compilation_output"
+    output_dir.mkdir(parents=True)
+
+    # Create workspace directory
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir(parents=True)
+
+    return {
+        "output_dir": output_dir,
+        "workspace_dir": workspace_dir,
+        "tmp_path": tmp_path,
+        "docker_adapter": mock_docker_adapter,
+        "file_adapter": mock_file_adapter,
+        "session_metrics": session_metrics,
+    }
+
+
 def test_protocol_imports():
     """Test that all protocol imports work correctly."""
     from glovebox.compilation.protocols import CompilationServiceProtocol
