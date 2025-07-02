@@ -20,7 +20,7 @@ class TestCacheUserConfigIntegration:
         """Test default cache configuration from user config."""
         # Use isolated cache path to prevent pollution
         isolated_cache_path = isolated_cache_environment["cache_root"]
-        config = UserConfigData(cache_path=str(isolated_cache_path))
+        config = UserConfigData(cache_path=isolated_cache_path)
 
         assert config.cache_strategy == "shared"
 
@@ -31,10 +31,7 @@ class TestCacheUserConfigIntegration:
         """Test shared cache strategy."""
         # Use isolated cache path to prevent pollution
         isolated_cache_path = isolated_cache_environment["cache_root"]
-        config = UserConfigData(
-            cache_strategy="shared",
-            cache_path=str(isolated_cache_path)
-        )
+        config = UserConfigData(cache_strategy="shared", cache_path=isolated_cache_path)
         cache = create_cache_from_user_config(config)
 
         assert isinstance(cache, DiskCacheManager)
@@ -44,8 +41,7 @@ class TestCacheUserConfigIntegration:
         # Use isolated cache path to prevent pollution
         isolated_cache_path = isolated_cache_environment["cache_root"]
         config = UserConfigData(
-            cache_strategy="disabled",
-            cache_path=str(isolated_cache_path)
+            cache_strategy="disabled", cache_path=isolated_cache_path
         )
         cache = create_cache_from_user_config(config)
 
@@ -54,13 +50,10 @@ class TestCacheUserConfigIntegration:
     def test_cache_with_tag(self, isolated_cache_environment):
         """Test cache creation with tag creates subdirectory."""
         from glovebox.config.models.user import UserConfigData
-        
+
         # Use isolated cache path to prevent directory pollution
         isolated_cache_path = isolated_cache_environment["cache_root"]
-        config = UserConfigData(
-            cache_strategy="shared",
-            cache_path=str(isolated_cache_path)
-        )
+        config = UserConfigData(cache_strategy="shared", cache_path=isolated_cache_path)
         cache = create_cache_from_user_config(config, tag="test_module")
 
         assert isinstance(cache, DiskCacheManager)
@@ -78,7 +71,7 @@ class TestCacheUserConfigIntegration:
                 "GLOVEBOX_CACHE_STRATEGY": "disabled",
             },
         ):
-            config = UserConfigData(cache_path=str(isolated_cache_path))
+            config = UserConfigData(cache_path=isolated_cache_path)
 
             # Environment variables should override defaults
             assert config.cache_strategy == "disabled"
@@ -97,8 +90,7 @@ class TestCacheUserConfigIntegration:
             },
         ):
             config = UserConfigData(
-                cache_strategy="shared",
-                cache_path=str(isolated_cache_path)
+                cache_strategy="shared", cache_path=isolated_cache_path
             )
             cache = create_cache_from_user_config(config)
 
@@ -116,8 +108,7 @@ class TestCacheUserConfigIntegration:
             },
         ):
             config = UserConfigData(
-                cache_strategy="shared",
-                cache_path=str(isolated_cache_path)
+                cache_strategy="shared", cache_path=isolated_cache_path
             )
 
             # Layout module should be disabled
@@ -151,7 +142,7 @@ class TestCacheUserConfigIntegration:
         """Test that XDG_CACHE_HOME is respected."""
         # Use isolated cache path to prevent pollution
         isolated_cache_path = isolated_cli_environment["cache_root"]
-        config = UserConfigData(cache_path=str(isolated_cache_path))
+        config = UserConfigData(cache_path=isolated_cache_path)
 
         # Cache path should use the isolated cache path
         assert config.cache_path == isolated_cache_path
@@ -191,10 +182,7 @@ log_level: INFO
 
         # Use isolated cache path to prevent pollution
         isolated_cache_path = isolated_cache_environment["cache_root"]
-        config = UserConfigData(
-            cache_strategy="shared",
-            cache_path=str(isolated_cache_path)
-        )
+        config = UserConfigData(cache_strategy="shared", cache_path=isolated_cache_path)
         client = create_moergo_client(user_config=config)
 
         # Verify client uses configured cache
@@ -212,10 +200,7 @@ log_level: INFO
         """Test basic cache operations work with user config."""
         # Use isolated cache path to prevent pollution
         isolated_cache_path = isolated_cache_environment["cache_root"]
-        config = UserConfigData(
-            cache_strategy="shared",
-            cache_path=str(isolated_cache_path)
-        )
+        config = UserConfigData(cache_strategy="shared", cache_path=isolated_cache_path)
         cache = create_cache_from_user_config(config)
 
         # Basic set/get
@@ -237,10 +222,7 @@ log_level: INFO
         """Test cache operations with TTL."""
         # Use isolated cache path to prevent pollution
         isolated_cache_path = isolated_cache_environment["cache_root"]
-        config = UserConfigData(
-            cache_strategy="shared",
-            cache_path=str(isolated_cache_path)
-        )
+        config = UserConfigData(cache_strategy="shared", cache_path=isolated_cache_path)
         cache = create_cache_from_user_config(config)
 
         # Set with TTL
@@ -258,8 +240,7 @@ log_level: INFO
         # Use isolated cache path to prevent pollution
         isolated_cache_path = isolated_cache_environment["cache_root"]
         config = UserConfigData(
-            cache_strategy="disabled",
-            cache_path=str(isolated_cache_path)
+            cache_strategy="disabled", cache_path=isolated_cache_path
         )
         cache = create_cache_from_user_config(config)
 
