@@ -36,14 +36,17 @@ class TestProfileCompletionCaching:
         mock_get_keyboards,
         mock_create_cache,
         mock_create_user_config,
+        tmp_path,
     ):
         """Test cache miss scenario where data is fetched and cached."""
-        # Setup mocks
+        # Setup mocks with proper isolation
         mock_user_config = Mock()
         mock_user_config.get.side_effect = lambda key, default=None: {
             "cache_strategy": "shared",
             "cache_file_locking": True,
         }.get(key, default)
+        # Use tmp_path for cache to prevent directory pollution
+        mock_user_config.cache_path = tmp_path / "cache"
         mock_create_user_config.return_value = mock_user_config
 
         mock_cache = Mock()
@@ -95,15 +98,17 @@ class TestProfileCompletionCaching:
     @patch("glovebox.config.create_user_config")
     @patch("glovebox.core.cache.create_default_cache")
     def test_get_cached_profile_data_cache_hit(
-        self, mock_create_cache, mock_create_user_config
+        self, mock_create_cache, mock_create_user_config, tmp_path
     ):
         """Test cache hit scenario where data is returned from cache."""
-        # Setup mocks
+        # Setup mocks with proper isolation
         mock_user_config = Mock()
         mock_user_config.get.side_effect = lambda key, default=None: {
             "cache_strategy": "shared",
             "cache_file_locking": True,
         }.get(key, default)
+        # Use tmp_path for cache to prevent directory pollution
+        mock_user_config.cache_path = tmp_path / "cache"
         mock_create_user_config.return_value = mock_user_config
 
         cached_data = {
@@ -144,14 +149,17 @@ class TestProfileCompletionCaching:
         mock_get_keyboards,
         mock_create_cache,
         mock_create_user_config,
+        tmp_path,
     ):
         """Test error handling when firmware lookup fails for some keyboards."""
-        # Setup mocks
+        # Setup mocks with proper isolation
         mock_user_config = Mock()
         mock_user_config.get.side_effect = lambda key, default=None: {
             "cache_strategy": "shared",
             "cache_file_locking": True,
         }.get(key, default)
+        # Use tmp_path for cache to prevent directory pollution
+        mock_user_config.cache_path = tmp_path / "cache"
         mock_create_user_config.return_value = mock_user_config
 
         mock_cache = Mock()
@@ -188,15 +196,17 @@ class TestProfileCompletionCaching:
     @patch("glovebox.config.create_user_config")
     @patch("glovebox.core.cache.create_default_cache")
     def test_get_cached_profile_data_disabled_cache_override(
-        self, mock_create_cache, mock_create_user_config
+        self, mock_create_cache, mock_create_user_config, tmp_path
     ):
         """Test that disabled cache strategy is overridden for profile completion."""
-        # Setup mocks with disabled cache strategy
+        # Setup mocks with disabled cache strategy and proper isolation
         mock_user_config = Mock()
         mock_user_config.get.side_effect = lambda key, default=None: {
             "cache_strategy": "disabled",
             "cache_file_locking": True,
         }.get(key, default)
+        # Use tmp_path for cache to prevent directory pollution
+        mock_user_config.cache_path = tmp_path / "cache"
         mock_create_user_config.return_value = mock_user_config
 
         mock_cache = Mock()
@@ -496,14 +506,17 @@ class TestProfileCompletionLogging:
         mock_create_cache,
         mock_create_user_config,
         caplog,
+        tmp_path,
     ):
         """Test that appropriate debug logs are generated on cache miss."""
-        # Setup mocks
+        # Setup mocks with proper isolation
         mock_user_config = Mock()
         mock_user_config.get.side_effect = lambda key, default=None: {
             "cache_strategy": "shared",
             "cache_file_locking": True,
         }.get(key, default)
+        # Use tmp_path for cache to prevent directory pollution
+        mock_user_config.cache_path = tmp_path / "cache"
         mock_create_user_config.return_value = mock_user_config
 
         mock_cache = Mock()
@@ -560,15 +573,17 @@ class TestProfileCompletionLogging:
     @patch("glovebox.config.create_user_config")
     @patch("glovebox.core.cache.create_default_cache")
     def test_logging_on_cache_hit(
-        self, mock_create_cache, mock_create_user_config, caplog
+        self, mock_create_cache, mock_create_user_config, caplog, tmp_path
     ):
         """Test that appropriate debug logs are generated on cache hit."""
-        # Setup mocks
+        # Setup mocks with proper isolation
         mock_user_config = Mock()
         mock_user_config.get.side_effect = lambda key, default=None: {
             "cache_strategy": "shared",
             "cache_file_locking": True,
         }.get(key, default)
+        # Use tmp_path for cache to prevent directory pollution
+        mock_user_config.cache_path = tmp_path / "cache"
         mock_create_user_config.return_value = mock_user_config
 
         cached_data = {
@@ -599,14 +614,17 @@ class TestProfileCompletionLogging:
         mock_create_cache,
         mock_create_user_config,
         caplog,
+        tmp_path,
     ):
         """Test that firmware lookup errors are logged but don't break completion."""
-        # Setup mocks
+        # Setup mocks with proper isolation
         mock_user_config = Mock()
         mock_user_config.get.side_effect = lambda key, default=None: {
             "cache_strategy": "shared",
             "cache_file_locking": True,
         }.get(key, default)
+        # Use tmp_path for cache to prevent directory pollution
+        mock_user_config.cache_path = tmp_path / "cache"
         mock_create_user_config.return_value = mock_user_config
 
         mock_cache = Mock()
@@ -629,15 +647,17 @@ class TestProfileCompletionLogging:
     @patch("glovebox.config.create_user_config")
     @patch("glovebox.core.cache.create_default_cache")
     def test_logging_on_disabled_cache_override(
-        self, mock_create_cache, mock_create_user_config, caplog
+        self, mock_create_cache, mock_create_user_config, caplog, tmp_path
     ):
         """Test logging when overriding disabled cache strategy."""
-        # Setup mocks with disabled cache
+        # Setup mocks with disabled cache and proper isolation
         mock_user_config = Mock()
         mock_user_config.get.side_effect = lambda key, default=None: {
             "cache_strategy": "disabled",
             "cache_file_locking": True,
         }.get(key, default)
+        # Use tmp_path for cache to prevent directory pollution
+        mock_user_config.cache_path = tmp_path / "cache"
         mock_create_user_config.return_value = mock_user_config
 
         mock_cache = Mock()
@@ -677,14 +697,17 @@ class TestProfileCompletionIntegration:
         mock_get_keyboards,
         mock_create_cache,
         mock_create_user_config,
+        tmp_path,
     ):
         """Test the complete workflow from cache miss to profile completion."""
-        # Setup realistic mock data
+        # Setup realistic mock data with proper isolation
         mock_user_config = Mock()
         mock_user_config.get.side_effect = lambda key, default=None: {
             "cache_strategy": "shared",
             "cache_file_locking": True,
         }.get(key, default)
+        # Use tmp_path for cache to prevent directory pollution
+        mock_user_config.cache_path = tmp_path / "cache"
         mock_create_user_config.return_value = mock_user_config
 
         mock_cache = Mock()

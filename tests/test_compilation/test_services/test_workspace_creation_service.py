@@ -122,7 +122,7 @@ class TestWorkspaceCreationService:
     @patch("glovebox.compilation.services.workspace_creation_service.time.time")
     def test_create_workspace_metrics_integration(self, mock_time):
         """Test create_workspace with metrics integration."""
-        mock_time.side_effect = [1000.0, 1045.5]  # Start and end times
+        mock_time.side_effect = [1000.0] + [1045.5] * 50  # Start and end times
 
         # Mock metrics
         mock_counter = Mock()
@@ -353,6 +353,9 @@ class TestWorkspaceCreationService:
 
             mock_profile = Mock()
             mock_profile.name = "test_profile"
+            mock_profile.keyboard_name = (
+                "glove80"  # Add keyboard_name for metadata creation
+            )
 
             metadata = self.service._create_workspace_metadata(
                 workspace_path=workspace_path,
@@ -364,7 +367,9 @@ class TestWorkspaceCreationService:
             assert metadata.repository == "moergo-sc/zmk"
             assert metadata.branch == "main"
             assert metadata.docker_image == "test/image:tag"
-            assert metadata.creation_profile == "test_profile"
+            assert (
+                metadata.creation_profile == "glove80"
+            )  # Uses keyboard_name, not name
             assert metadata.creation_method == "direct"
             assert metadata.west_manifest_path == "config/west.yml"
             assert "zmk" in metadata.cached_components
@@ -462,8 +467,10 @@ class TestWorkspaceCreationServiceIntegration:
     @patch("glovebox.compilation.services.workspace_creation_service.time.time")
     def test_full_workspace_creation_success(self, mock_time, mock_temp_dir):
         """Test complete successful workspace creation flow."""
-        # Mock time progression
-        mock_time.side_effect = [1000.0, 1045.5]  # Start and end times
+        # Mock time progression - provide enough values for all calls
+        mock_time.side_effect = [1000.0] + [
+            1045.5
+        ] * 50  # Start time + end time repeated
 
         # Mock temporary directory
         temp_path = Path("/tmp/test_workspace")
@@ -507,7 +514,7 @@ class TestWorkspaceCreationServiceIntegration:
     @patch("glovebox.compilation.services.workspace_creation_service.time.time")
     def test_workspace_creation_with_progress_coordinator(self, mock_time):
         """Test workspace creation with progress coordinator integration."""
-        mock_time.side_effect = [1000.0, 1045.5]
+        mock_time.side_effect = [1000.0] + [1045.5] * 50
 
         # Mock progress coordinator
         mock_progress_coordinator = Mock()

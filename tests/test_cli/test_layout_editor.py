@@ -13,7 +13,7 @@ import pytest
 from glovebox.cli.commands.layout.edit import (
     LayoutEditor,
     parse_comma_separated_fields,
-    # parse_zmk_behavior_string,  # Function not found
+    parse_value,
 )
 from glovebox.layout.models import LayoutData
 
@@ -432,25 +432,19 @@ class TestZmkBehaviorParsing:
 
     def test_parse_simple_behavior(self):
         """Test parsing simple behavior without parameters."""
-        # result = parse_zmk_behavior_string("&trans")  # Function not found
-        result: dict[str, Any] = {}
-
+        result = parse_value("&trans")
         expected = {"value": "&trans", "params": []}
         assert result == expected
 
     def test_parse_behavior_with_single_param(self):
         """Test parsing behavior with single parameter."""
-        # result = parse_zmk_behavior_string  # Function not found
-        result: dict[str, Any] = {}
-
+        result = parse_value("&kp Q")
         expected = {"value": "&kp", "params": [{"value": "Q", "params": []}]}
         assert result == expected
 
     def test_parse_behavior_with_multiple_params(self):
         """Test parsing behavior with multiple parameters."""
-        # result = parse_zmk_behavior_string  # Function not found
-        result: dict[str, Any] = {}
-
+        result = parse_value("&mt LCTRL A")
         expected = {
             "value": "&mt",
             "params": [{"value": "LCTRL", "params": []}, {"value": "A", "params": []}],
@@ -459,9 +453,7 @@ class TestZmkBehaviorParsing:
 
     def test_parse_complex_behavior(self):
         """Test parsing complex behavior with special characters."""
-        # result = parse_zmk_behavior_string  # Function not found
-        result: dict[str, Any] = {}
-
+        result = parse_value("&kp LC(LS(TAB))")
         expected = {"value": "&kp", "params": [{"value": "LC(LS(TAB))", "params": []}]}
         assert result == expected
 
@@ -479,9 +471,7 @@ class TestZmkBehaviorParsing:
 
     def test_parse_behavior_with_extra_whitespace(self):
         """Test parsing behavior with extra whitespace."""
-        # result = parse_zmk_behavior_string  # Function not found
-        result: dict[str, Any] = {}
-
+        result = parse_value("  &kp   Q   A  ")
         expected = {
             "value": "&kp",
             "params": [{"value": "Q", "params": []}, {"value": "A", "params": []}],

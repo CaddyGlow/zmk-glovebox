@@ -307,9 +307,14 @@ class TestExamplePathModel:
         # Serialize to dict
         data = model.model_dump(mode="json")
 
-        # Should handle None correctly
-        assert data["file_path"] is None
+        # Should handle None correctly - with exclude_none=True (default), None values are excluded
+        assert "file_path" not in data
         assert data["cache_path"] == "~/.cache/test"
+
+        # Test with exclude_none=False to include None values
+        data_with_none = model.model_dump(mode="json", exclude_none=False)
+        assert data_with_none["file_path"] is None
+        assert data_with_none["cache_path"] == "~/.cache/test"
 
     def test_model_validation_errors(self):
         """Test that invalid path types raise validation errors."""

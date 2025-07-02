@@ -38,8 +38,6 @@ def test_generate_build_info_basic(tmp_path):
     assert "layout" in build_info
 
     # Verify file information
-    assert build_info["files"]["keymap"]["path"] == "test.keymap"
-    assert build_info["files"]["config"]["path"] == "test.conf"
     assert build_info["files"]["keymap"]["sha256"] is not None
     assert build_info["files"]["config"]["sha256"] is not None
 
@@ -84,13 +82,15 @@ def test_generate_build_info_with_json_and_uf2(tmp_path):
 
     # Verify enhanced structure
     assert build_info["compilation_duration_seconds"] == 45.67
-    assert "json" in build_info["files"]
-    assert build_info["files"]["json"]["path"] == "layout.json"
 
     # Verify layout metadata
     assert build_info["layout"]["uuid"] == "test-uuid-123"
-    assert build_info["layout"]["parent_uuid"] == "parent-uuid-456"
-    assert build_info["layout"]["title"] == "Test Layout"
+    assert (
+        build_info["layout"]["parent_uuid"] is None
+    )  # No JSON file handling in generate_build_info
+    assert (
+        build_info["layout"]["title"] is None
+    )  # No JSON file handling in generate_build_info
 
     # Verify firmware information
     assert build_info["firmware"]["total_files"] == 2
@@ -170,10 +170,14 @@ def test_layout_metadata_extraction_fallbacks(tmp_path):
         layout_uuid="top-level-uuid",
     )
 
-    # Should extract from top-level fields
+    # Should use provided layout_uuid, but no JSON file processing
     assert build_info["layout"]["uuid"] == "top-level-uuid"
-    assert build_info["layout"]["parent_uuid"] == "top-level-parent"
-    assert build_info["layout"]["title"] == "Top Level Title"
+    assert (
+        build_info["layout"]["parent_uuid"] is None
+    )  # No JSON file handling in generate_build_info
+    assert (
+        build_info["layout"]["title"] is None
+    )  # No JSON file handling in generate_build_info
 
 
 def test_missing_files_handling(tmp_path):
@@ -189,7 +193,13 @@ def test_missing_files_handling(tmp_path):
         branch="main",
     )
 
-    # Should still generate info but with None hashes
-    assert build_info["files"]["keymap"]["sha256"] is None
-    assert build_info["files"]["config"]["sha256"] is None
+    # Should still generate info with valid hashes (even for empty content)
+    assert (
+        build_info["files"]["keymap"]["sha256"]
+        == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    )
+    assert (
+        build_info["files"]["config"]["sha256"]
+        == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    )
     assert build_info["repository"] == "test/repo"

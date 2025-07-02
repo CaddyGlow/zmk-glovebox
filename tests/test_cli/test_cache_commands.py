@@ -214,7 +214,7 @@ class TestCacheClearCommand:
         )
 
         assert result.exit_code == 0
-        assert "No cache directory found" in result.stdout
+        assert "No cache found for module" in result.stdout
 
 
 class TestCacheShowCommand:
@@ -306,7 +306,9 @@ class TestCacheKeysCommand:
 
         env = os.environ.copy()
         result = self.runner.invoke(
-            app, ["cache", "keys", "-m", "test_module", "--json"], env=env
+            app,
+            ["cache", "keys", "-m", "test_module", "--output-format", "json"],
+            env=env,
         )
 
         assert result.exit_code == 0

@@ -43,7 +43,7 @@ class TestWorkspaceCacheIntegration:
         assert workspace_service.copy_service is not None
 
         # Copy service should be configured from user config
-        assert not workspace_service.copy_service.use_pipeline
+        assert workspace_service.copy_service.use_pipeline
         # The new interface doesn't have buffer_size_kb attribute
         # Copy service should be configured appropriately
 
@@ -207,9 +207,7 @@ class TestWorkspaceCacheIntegration:
     ):
         """Test that performance information is logged during copy operations."""
         import logging
-
-        # Set debug logging to capture copy performance logs
-        caplog.set_level(logging.DEBUG)
+        from unittest.mock import patch
 
         # Create source directory
         src_dir = tmp_path / "source"
@@ -218,22 +216,28 @@ class TestWorkspaceCacheIntegration:
 
         dst_dir = tmp_path / "destination"
 
-        # Perform copy operation
-        workspace_service._copy_directory(src_dir, dst_dir, include_git=False)
+        # Track if the performance logging method was called
+        original_logger_debug = workspace_service.logger.debug
+        debug_calls = []
 
-        # Verify performance logging occurred
-        log_messages = [
-            record.message
-            for record in caplog.records
-            if record.levelno == logging.DEBUG
-        ]
+        def capture_debug(*args, **kwargs):
+            debug_calls.append((args, kwargs))
+            return original_logger_debug(*args, **kwargs)
+
+        with patch.object(workspace_service.logger, "debug", side_effect=capture_debug):
+            # Perform copy operation
+            workspace_service._copy_directory(src_dir, dst_dir, include_git=False)
+
+        # Verify that the workspace service logged a performance message
         performance_logs = [
-            msg
-            for msg in log_messages
-            if "copy completed using strategy" in msg.lower()
+            args[0] if args else ""
+            for args, kwargs in debug_calls
+            if args and "copy completed using strategy" in str(args[0]).lower()
         ]
 
-        assert len(performance_logs) > 0
+        assert len(performance_logs) > 0, (
+            f"No performance logs found. All debug calls: {debug_calls}"
+        )
 
         # Performance log should include strategy, size, time, and speed
         perf_log = performance_logs[0]

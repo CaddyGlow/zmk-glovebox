@@ -143,6 +143,7 @@ class TestCloudCommands:
             [
                 "download",
                 "12345678-1234-1234-1234-123456789012",
+                "--output",
                 str(output_file),
             ],
             obj=mock_app_context,

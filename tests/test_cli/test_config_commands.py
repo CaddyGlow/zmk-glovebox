@@ -111,7 +111,7 @@ class TestConfigList:
 
     def test_config_list_text_format(self, cli_runner):
         """Test config list with text format."""
-        result = cli_runner.invoke(app, ["config", "list"])
+        result = cli_runner.invoke(app, ["config", "show"])
 
         assert result.exit_code == 0
         assert "Glovebox Configuration" in result.output
@@ -120,7 +120,7 @@ class TestConfigList:
 
     def test_config_list_with_defaults(self, cli_runner):
         """Test config list with defaults option."""
-        result = cli_runner.invoke(app, ["config", "list", "--defaults"])
+        result = cli_runner.invoke(app, ["config", "show", "--defaults"])
 
         assert result.exit_code == 0
         assert "Glovebox Configuration" in result.output
@@ -130,7 +130,7 @@ class TestConfigList:
 
     def test_config_list_with_sources(self, cli_runner):
         """Test config list with sources option."""
-        result = cli_runner.invoke(app, ["config", "list", "--sources"])
+        result = cli_runner.invoke(app, ["config", "show", "--sources"])
 
         assert result.exit_code == 0
         assert "Glovebox Configuration" in result.output
@@ -140,7 +140,7 @@ class TestConfigList:
 
     def test_config_list_with_descriptions(self, cli_runner):
         """Test config list with descriptions option."""
-        result = cli_runner.invoke(app, ["config", "list", "--descriptions"])
+        result = cli_runner.invoke(app, ["config", "show", "--descriptions"])
 
         assert result.exit_code == 0
         assert "Glovebox Configuration" in result.output
@@ -151,7 +151,7 @@ class TestConfigList:
     def test_config_list_all_options(self, cli_runner):
         """Test config list with all options."""
         result = cli_runner.invoke(
-            app, ["config", "list", "--defaults", "--sources", "--descriptions"]
+            app, ["config", "show", "--defaults", "--sources", "--descriptions"]
         )
 
         assert result.exit_code == 0

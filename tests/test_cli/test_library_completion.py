@@ -65,13 +65,15 @@ class TestLibraryCompletion:
             assert "../" in completions
 
             # Partial file match
-            with patch("pathlib.Path.exists", return_value=True):
-                with patch(
+            with (
+                patch("pathlib.Path.exists", return_value=True),
+                patch(
                     "pathlib.Path.iterdir", return_value=[json_file, other_file, subdir]
-                ):
-                    completions = complete_json_files("te")
-                    # Note: The actual implementation might need adjustment
-                    # This is testing the expected behavior
+                ),
+            ):
+                completions = complete_json_files("te")
+                # Note: The actual implementation might need adjustment
+                # This is testing the expected behavior
 
     def test_complete_library_references(self, mock_library_entries):
         """Test _complete_library_references function."""
@@ -116,27 +118,35 @@ class TestParameterIntegration:
 
     def test_json_file_argument_has_library_completion(self):
         """Test that JsonFileArgument uses library-aware completion."""
+        from typing import get_args
+
         from glovebox.cli.helpers.parameters import JsonFileArgument
 
-        # Get the annotation metadata
-        arg_info = JsonFileArgument.__metadata__[0]
+        # Get the annotation metadata - JsonFileArgument is Annotated[type, metadata]
+        metadata = get_args(JsonFileArgument)
+        if len(metadata) > 1:
+            arg_info = metadata[1]  # The typer.Argument() is the second element
 
-        # Check that it uses complete_json_files for autocompletion
-        assert arg_info.autocompletion is complete_json_files
+            # Check that it uses complete_json_files for autocompletion
+            assert arg_info.autocompletion is complete_json_files
 
-        # Check help text mentions library references
-        assert "@library-name/uuid" in arg_info.help
+            # Check help text mentions library references
+            assert "@library-name/uuid" in arg_info.help
 
     def test_parameter_factory_json_file_includes_library_help(self):
         """Test that ParameterFactory includes library reference in help."""
+        from typing import get_args
+
         from glovebox.cli.helpers.parameter_factory import ParameterFactory
 
         # Create a JSON file argument
         param = ParameterFactory.json_file_argument()
 
-        # Get the annotation metadata
-        arg_info = param.__metadata__[0]
+        # Get the annotation metadata - param is Annotated[type, metadata]
+        metadata = get_args(param)
+        if len(metadata) > 1:
+            arg_info = metadata[1]  # The typer.Argument() is the second element
 
-        # Check help text
-        assert "@library-name/uuid" in arg_info.help
-        assert arg_info.autocompletion is complete_json_files
+            # Check help text
+            assert "@library-name/uuid" in arg_info.help
+            assert arg_info.autocompletion is complete_json_files

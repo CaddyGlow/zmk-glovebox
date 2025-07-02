@@ -354,9 +354,7 @@ class TestPipelineStrategy:
 
     def test_fast_directory_stats_fallback(self, strategy, workspace_structure):
         """Test directory stats with rglob fallback."""
-        with patch(
-            "glovebox.core.file_operations.strategies.hasattr", return_value=False
-        ):
+        with patch("glovebox.core.file_operations.service.hasattr", return_value=False):
             file_count, total_size = strategy._fast_directory_stats(workspace_structure)
 
         assert file_count > 0

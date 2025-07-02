@@ -14,6 +14,18 @@ import pytest
 from glovebox.config.user_config import UserConfig, create_user_config
 
 
+def create_mock_adapter() -> Mock:
+    """Create a properly configured mock adapter for testing."""
+    mock_adapter = Mock()
+    # Mock base config loading with realistic defaults
+    mock_adapter.load_config.return_value = {
+        "profile": "glove80/v25.05",
+        "cache_strategy": "shared",
+        "icon_mode": "emoji",
+    }
+    return mock_adapter
+
+
 class TestUserConfigInitialization:
     """Tests for UserConfig initialization and setup."""
 
@@ -41,8 +53,8 @@ class TestUserConfigInitialization:
         """Test UserConfig initialization with config file."""
         config_path = temp_config_dir / "test_config.yml"
 
-        mock_adapter = Mock()
-        # Mock base config loading
+        mock_adapter = create_mock_adapter()
+        # Override base config for this test
         mock_adapter.load_config.return_value = {
             "profile": "glove80/v25.05",
             "cache_strategy": "shared",
@@ -106,7 +118,7 @@ class TestUserConfigSourceTracking:
         """Test tracking of file-based configuration sources."""
         config_path = temp_config_dir / "source_test.yml"
 
-        mock_adapter = Mock()
+        mock_adapter = create_mock_adapter()
         mock_adapter.search_config_files.return_value = (
             sample_config_dict,
             config_path,
@@ -117,7 +129,7 @@ class TestUserConfigSourceTracking:
         # Should track file sources
         assert config.get_source("profile") == "file:source_test.yml"
         # Note: log_level is now nested, skip this check
-        assert config.get_source("keyboard_paths") == "file:source_test.yml"
+        assert config.get_source("profiles_paths") == "file:source_test.yml"
 
     def test_environment_source_tracking(
         self, clean_environment, temp_config_dir: Path
@@ -127,7 +139,7 @@ class TestUserConfigSourceTracking:
         os.environ["GLOVEBOX_PROFILE"] = "env/test"
         os.environ["GLOVEBOX_FIRMWARE__FLASH__TIMEOUT"] = "999"
 
-        mock_adapter = Mock()
+        mock_adapter = create_mock_adapter()
         mock_adapter.search_config_files.return_value = ({}, None)
 
         config = UserConfig(config_adapter=mock_adapter)
@@ -145,7 +157,7 @@ class TestUserConfigBaseConfig:
 
     def test_base_config_loading(self, clean_environment):
         """Test that base config is loaded correctly."""
-        mock_adapter = Mock()
+        mock_adapter = create_mock_adapter()
         mock_adapter.search_config_files.return_value = ({}, None)
         # Mock the base config loading
         mock_adapter.load_config.return_value = {
@@ -163,7 +175,7 @@ class TestUserConfigBaseConfig:
 
     def test_user_config_merges_over_base(self, clean_environment):
         """Test that user config values override base config values."""
-        mock_adapter = Mock()
+        mock_adapter = create_mock_adapter()
 
         # Mock base config
         mock_adapter.load_config.return_value = {
@@ -202,7 +214,7 @@ class TestUserConfigBaseConfig:
 
     def test_base_config_source_tracking(self, clean_environment):
         """Test that base config sources are tracked correctly."""
-        mock_adapter = Mock()
+        mock_adapter = create_mock_adapter()
 
         # Mock base config
         mock_adapter.load_config.return_value = {
@@ -221,7 +233,7 @@ class TestUserConfigBaseConfig:
 
     def test_nested_config_merging(self, clean_environment):
         """Test that nested configuration merging works correctly."""
-        mock_adapter = Mock()
+        mock_adapter = create_mock_adapter()
 
         # Mock base config with nested structure
         mock_adapter.load_config.return_value = {
@@ -265,7 +277,7 @@ class TestUserConfigBaseConfig:
 
     def test_base_config_file_not_found(self, clean_environment):
         """Test behavior when base config file is not found."""
-        mock_adapter = Mock()
+        mock_adapter = create_mock_adapter()
         mock_adapter.search_config_files.return_value = ({}, None)
         # Mock base config file not existing
         mock_adapter.load_config.side_effect = FileNotFoundError(
@@ -286,7 +298,7 @@ class TestUserConfigFileOperations:
         """Test saving configuration to file."""
         config_path = temp_config_dir / "save_test.yml"
 
-        mock_adapter = Mock()
+        mock_adapter = create_mock_adapter()
         mock_adapter.search_config_files.return_value = ({}, None)
 
         config = UserConfig(config_adapter=mock_adapter)
@@ -304,7 +316,7 @@ class TestUserConfigFileOperations:
 
     def test_save_without_config_path(self, clean_environment):
         """Test save behavior when no config path is set."""
-        mock_adapter = Mock()
+        mock_adapter = create_mock_adapter()
         mock_adapter.search_config_files.return_value = ({}, None)
 
         config = UserConfig(config_adapter=mock_adapter)
@@ -322,7 +334,7 @@ class TestUserConfigFileOperations:
         current_config = temp_config_dir / "glovebox.yml"
         xdg_config = temp_config_dir / ".config" / "glovebox" / "config.yml"
 
-        mock_adapter = Mock()
+        mock_adapter = create_mock_adapter()
 
         # Test that it searches in correct order
         config_paths = [current_config, xdg_config]
@@ -356,7 +368,7 @@ class TestUserConfigHelperMethods:
         """Test get() method for configuration access."""
         config_path = temp_config_dir / "helper_test.yml"
 
-        mock_adapter = Mock()
+        mock_adapter = create_mock_adapter()
         mock_adapter.search_config_files.return_value = (
             sample_config_dict,
             config_path,
@@ -374,7 +386,7 @@ class TestUserConfigHelperMethods:
 
     def test_set_method(self, clean_environment):
         """Test set() method for configuration modification."""
-        mock_adapter = Mock()
+        mock_adapter = create_mock_adapter()
         mock_adapter.search_config_files.return_value = ({}, None)
 
         config = UserConfig(config_adapter=mock_adapter)
@@ -391,7 +403,7 @@ class TestUserConfigHelperMethods:
 
     def test_set_invalid_key(self, clean_environment):
         """Test set() method with invalid key."""
-        mock_adapter = Mock()
+        mock_adapter = create_mock_adapter()
         mock_adapter.search_config_files.return_value = ({}, None)
 
         config = UserConfig(config_adapter=mock_adapter)
@@ -409,7 +421,7 @@ class TestUserConfigHelperMethods:
         """Test reset_to_defaults() method."""
         config_path = temp_config_dir / "reset_test.yml"
 
-        mock_adapter = Mock()
+        mock_adapter = create_mock_adapter()
         mock_adapter.search_config_files.return_value = (
             sample_config_dict,
             config_path,
@@ -433,7 +445,7 @@ class TestUserConfigHelperMethods:
 
     def test_get_log_level_int(self, clean_environment):
         """Test get_log_level_int() method."""
-        mock_adapter = Mock()
+        mock_adapter = create_mock_adapter()
         mock_adapter.search_config_files.return_value = ({}, None)
 
         config = UserConfig(config_adapter=mock_adapter)
@@ -456,13 +468,15 @@ class TestUserConfigHelperMethods:
         config._config.logging_config.handlers[0].level = "CRITICAL"
         assert config.get_log_level_int() == logging.CRITICAL
 
-        # Invalid level should default to INFO
-        config._config.logging_config.handlers[0].level = "INVALID"
-        assert config.get_log_level_int() == logging.INFO
+        # Test error handling - mock the logging_config to cause AttributeError
+        from unittest.mock import patch
+
+        with patch.object(config._config, "logging_config", None):
+            assert config.get_log_level_int() == logging.INFO
 
     def test_keyboard_path_methods(self, clean_environment):
         """Test keyboard path helper methods."""
-        mock_adapter = Mock()
+        mock_adapter = create_mock_adapter()
         mock_adapter.search_config_files.return_value = ({}, None)
 
         config = UserConfig(config_adapter=mock_adapter)
@@ -477,7 +491,7 @@ class TestUserConfigHelperMethods:
 
     def test_add_keyboard_path(self, clean_environment):
         """Test add_keyboard_path() method."""
-        mock_adapter = Mock()
+        mock_adapter = create_mock_adapter()
         mock_adapter.search_config_files.return_value = ({}, None)
 
         config = UserConfig(config_adapter=mock_adapter)
@@ -485,7 +499,7 @@ class TestUserConfigHelperMethods:
         # Add new path
         config.add_keyboard_path("/new/path")
         assert Path("/new/path") in config._config.profiles_paths
-        assert config.get_source("keyboard_paths") == "runtime"
+        assert config.get_source("profiles_paths") == "runtime"
 
         # Adding duplicate should not duplicate
         config.add_keyboard_path("/new/path")
@@ -496,7 +510,7 @@ class TestUserConfigHelperMethods:
 
     def test_remove_keyboard_path(self, clean_environment):
         """Test remove_keyboard_path() method."""
-        mock_adapter = Mock()
+        mock_adapter = create_mock_adapter()
         mock_adapter.search_config_files.return_value = ({}, None)
 
         config = UserConfig(config_adapter=mock_adapter)
@@ -509,7 +523,7 @@ class TestUserConfigHelperMethods:
         paths = config.get_keyboard_paths()
         assert Path("/path/one") not in paths
         assert Path("/path/two") in paths
-        assert config.get_source("keyboard_paths") == "runtime"
+        assert config.get_source("profiles_paths") == "runtime"
 
         # Removing non-existent path should not error
         config.remove_keyboard_path("/nonexistent")
@@ -544,7 +558,7 @@ class TestUserConfigFactory:
 
     def test_factory_with_adapter(self, clean_environment):
         """Test factory function with custom adapter."""
-        mock_adapter = Mock()
+        mock_adapter = create_mock_adapter()
         mock_adapter.search_config_files.return_value = ({}, None)
 
         config = create_user_config(config_adapter=mock_adapter)

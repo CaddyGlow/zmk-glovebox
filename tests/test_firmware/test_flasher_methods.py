@@ -37,7 +37,7 @@ def mock_file_adapter():
 def sample_usb_config():
     """Create a sample USB flash configuration."""
     return USBFlashConfig(
-        device_query="model:Glove80_Bootloader",
+        device_query="model=Glove80_Bootloader",
         mount_timeout=30,
         copy_timeout=60,
         sync_after_copy=True,
@@ -87,33 +87,18 @@ class TestUSBFlasherInit:
         assert flasher.usb_adapter is mock_usb_adapter
         assert flasher.file_adapter is mock_file_adapter
 
-    @patch("glovebox.adapters.usb_adapter.create_usb_adapter")
-    @patch("glovebox.adapters.file_adapter.create_file_adapter")
-    def test_init_without_adapters(self, mock_create_file, mock_create_usb):
-        """Test initialization creates adapters when none provided."""
+    def test_init_requires_both_adapters(self):
+        """Test that initialization requires both adapters (no defaults)."""
+        # This test verifies that USBFlasher follows explicit dependency injection
+        # as required by CLAUDE.md guidelines
+
+        # Should work with both adapters provided
         mock_usb = Mock()
         mock_file = Mock()
-        mock_create_usb.return_value = mock_usb
-        mock_create_file.return_value = mock_file
+        flasher = USBFlasher(usb_adapter=mock_usb, file_adapter=mock_file)
 
-        flasher = USBFlasher(mock_usb, mock_file)
-
-        mock_create_usb.assert_called_once()
-        mock_create_file.assert_called_once()
         assert flasher.usb_adapter is mock_usb
         assert flasher.file_adapter is mock_file
-
-    @patch("glovebox.adapters.usb_adapter.create_usb_adapter")
-    def test_init_partial_adapters(self, mock_create_usb, mock_file_adapter):
-        """Test initialization with only one adapter provided."""
-        mock_usb = Mock()
-        mock_create_usb.return_value = mock_usb
-
-        flasher = USBFlasher(usb_adapter=mock_usb, file_adapter=mock_file_adapter)
-
-        mock_create_usb.assert_called_once()
-        assert flasher.usb_adapter is mock_usb
-        assert flasher.file_adapter is mock_file_adapter
 
 
 class TestUSBFlasherFlashDevice:
@@ -294,7 +279,7 @@ class TestUSBFlasherFlashDevice:
     ):
         """Test flashing with filesystem sync enabled."""
         config = USBFlashConfig(
-            device_query="model:Glove80_Bootloader",
+            device_query="model=Glove80_Bootloader",
             mount_timeout=30,
             copy_timeout=60,
             sync_after_copy=True,
@@ -323,7 +308,7 @@ class TestUSBFlasherFlashDevice:
     ):
         """Test flashing with filesystem sync disabled."""
         config = USBFlashConfig(
-            device_query="model:Glove80_Bootloader",
+            device_query="model=Glove80_Bootloader",
             mount_timeout=30,
             copy_timeout=60,
             sync_after_copy=False,
@@ -487,7 +472,7 @@ class TestUSBFlasherValidateConfig:
     def test_validate_config_valid(self, mock_usb_adapter, mock_file_adapter):
         """Test validation with valid configuration."""
         config = USBFlashConfig(
-            device_query="model:Glove80_Bootloader",
+            device_query="model=Glove80_Bootloader",
             mount_timeout=30,
             copy_timeout=60,
         )
@@ -517,7 +502,7 @@ class TestUSBFlasherValidateConfig:
     ):
         """Test validation with invalid mount timeout."""
         config = USBFlashConfig(
-            device_query="model:Glove80_Bootloader",
+            device_query="model=Glove80_Bootloader",
             mount_timeout=0,  # Invalid timeout
             copy_timeout=60,
         )
@@ -533,7 +518,7 @@ class TestUSBFlasherValidateConfig:
     ):
         """Test validation with invalid copy timeout."""
         config = USBFlashConfig(
-            device_query="model:Glove80_Bootloader",
+            device_query="model=Glove80_Bootloader",
             mount_timeout=30,
             copy_timeout=-1,  # Invalid timeout
         )

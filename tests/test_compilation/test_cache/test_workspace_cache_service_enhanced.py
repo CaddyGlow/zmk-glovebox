@@ -24,6 +24,28 @@ from glovebox.models.docker import DockerUserContext
 from glovebox.protocols import MetricsProtocol
 
 
+@pytest.fixture
+def sample_workspace_metadata():
+    """Create a sample WorkspaceCacheMetadata for testing."""
+    return WorkspaceCacheMetadata(
+        workspace_path=Path("/tmp/test_workspace"),
+        repository="moergo-sc/zmk",
+        branch="main",
+        commit_hash="abc123",
+        cache_level=CacheLevel.REPO_BRANCH,
+        cache_key="test-cache-key",
+        cache_directory=Path("/tmp/cache"),
+        file_count=100,
+        total_size_bytes=1024000,
+        content_hash="def456",
+        docker_image="test/image:tag",
+        creation_timestamp=datetime.now(),
+        last_accessed=datetime.now(),
+        access_count=1,
+        ttl_hours=168,
+    )
+
+
 class TestZmkWorkspaceCacheServiceEnhanced:
     """Test enhanced methods in ZmkWorkspaceCacheService for workspace creation."""
 
@@ -39,14 +61,14 @@ class TestZmkWorkspaceCacheServiceEnhanced:
             session_metrics=self.mock_session_metrics,
         )
 
-    def test_create_workspace_from_spec_success(self):
+    def test_create_workspace_from_spec_success(self, sample_workspace_metadata):
         """Test create_workspace_from_spec with successful creation."""
         # Mock workspace creation service
         mock_creation_service = Mock(spec=WorkspaceCreationService)
         mock_creation_result = WorkspaceCreationResult(
             success=True,
             workspace_path=Path("/tmp/workspace"),
-            metadata=Mock(spec=WorkspaceCacheMetadata),
+            metadata=sample_workspace_metadata,
             created_new=True,
             docker_image_used="test/image:tag",
             west_init_success=True,
@@ -61,13 +83,13 @@ class TestZmkWorkspaceCacheServiceEnhanced:
             mock_cache.return_value = WorkspaceCacheResult(
                 success=True,
                 workspace_path=Path("/tmp/cached_workspace"),
-                metadata=mock_creation_result.metadata,
+                metadata=sample_workspace_metadata,
                 created_new=False,
             )
 
-            # Mock creation service instantiation
+            # Mock creation service instantiation - patch the import inside the method
             with patch(
-                "glovebox.compilation.cache.workspace_cache_service.create_workspace_creation_service"
+                "glovebox.compilation.services.workspace_creation_service.create_workspace_creation_service"
             ) as mock_create_service:
                 mock_create_service.return_value = mock_creation_service
 
@@ -100,9 +122,9 @@ class TestZmkWorkspaceCacheServiceEnhanced:
         )
         mock_creation_service.create_workspace.return_value = mock_creation_result
 
-        # Mock creation service instantiation
+        # Mock creation service instantiation - patch the import inside the method
         with patch(
-            "glovebox.compilation.cache.workspace_cache_service.create_workspace_creation_service"
+            "glovebox.compilation.services.workspace_creation_service.create_workspace_creation_service"
         ) as mock_create_service:
             mock_create_service.return_value = mock_creation_service
 
@@ -134,7 +156,7 @@ class TestZmkWorkspaceCacheServiceEnhanced:
 
             # Mock creation service instantiation
             with patch(
-                "glovebox.compilation.cache.workspace_cache_service.create_workspace_creation_service"
+                "glovebox.compilation.services.workspace_creation_service.create_workspace_creation_service"
             ) as mock_create_service:
                 mock_create_service.return_value = mock_creation_service
 
@@ -171,7 +193,7 @@ class TestZmkWorkspaceCacheServiceEnhanced:
 
             # Mock creation service instantiation
             with patch(
-                "glovebox.compilation.cache.workspace_cache_service.create_workspace_creation_service"
+                "glovebox.compilation.services.workspace_creation_service.create_workspace_creation_service"
             ) as mock_create_service:
                 mock_create_service.return_value = mock_creation_service
 
@@ -480,7 +502,7 @@ class TestZmkWorkspaceCacheServiceEnhanced:
         """Test error handling and logging in enhanced methods."""
         # Test create_workspace_from_spec exception handling
         with patch(
-            "glovebox.compilation.cache.workspace_cache_service.create_workspace_creation_service"
+            "glovebox.compilation.services.workspace_creation_service.create_workspace_creation_service"
         ) as mock_create_service:
             mock_create_service.side_effect = Exception("Service creation failed")
 
@@ -512,7 +534,7 @@ class TestZmkWorkspaceCacheServiceEnhanced:
             )
 
             with patch(
-                "glovebox.compilation.cache.workspace_cache_service.create_workspace_creation_service"
+                "glovebox.compilation.services.workspace_creation_service.create_workspace_creation_service"
             ) as mock_create_service:
                 mock_create_service.return_value = mock_creation_service
 
@@ -542,18 +564,16 @@ class TestZmkWorkspaceCacheServiceEnhancedIntegration:
             session_metrics=self.mock_session_metrics,
         )
 
-    def test_full_workflow_create_update_dependencies_switch_branch(self):
+    def test_full_workflow_create_update_dependencies_switch_branch(
+        self, sample_workspace_metadata
+    ):
         """Test complete workflow: create -> update dependencies -> switch branch."""
         # Step 1: Create workspace
         mock_creation_service = Mock(spec=WorkspaceCreationService)
         mock_creation_result = WorkspaceCreationResult(
             success=True,
             workspace_path=Path("/tmp/workspace"),
-            metadata=Mock(
-                repository="moergo-sc/zmk",
-                branch="main",
-                docker_image="test/image:tag",
-            ),
+            metadata=sample_workspace_metadata,
             created_new=True,
         )
         mock_creation_service.create_workspace.return_value = mock_creation_result
@@ -567,7 +587,7 @@ class TestZmkWorkspaceCacheServiceEnhancedIntegration:
             )
 
             with patch(
-                "glovebox.compilation.cache.workspace_cache_service.create_workspace_creation_service"
+                "glovebox.compilation.services.workspace_creation_service.create_workspace_creation_service"
             ) as mock_create_service:
                 mock_create_service.return_value = mock_creation_service
 

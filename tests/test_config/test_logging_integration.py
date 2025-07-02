@@ -74,7 +74,7 @@ class TestUserConfigLoggingIntegration:
         config_data = UserConfigData()
         config_data.logging_config.handlers[0].level = "DEBUG"
 
-        user_config = UserConfig(cli_config_path=isolated_config.config_file)
+        user_config = UserConfig(cli_config_path=isolated_config.config_file_path)
         user_config._config = config_data
 
         assert user_config.get_log_level_int() == logging.DEBUG
@@ -98,7 +98,7 @@ class TestUserConfigLoggingIntegration:
             )
         )
 
-        user_config = UserConfig(cli_config_path=isolated_config.config_file)
+        user_config = UserConfig(cli_config_path=isolated_config.config_file_path)
         user_config._config = config_data
 
         # Should return DEBUG (most restrictive/lowest numeric value)
@@ -193,28 +193,21 @@ class TestUserConfigLoggingIntegration:
 
     def test_user_config_file_roundtrip(self, isolated_config):
         """Test saving and loading logging config from file."""
-        # Create user config with custom logging
-        user_config = UserConfig(cli_config_path=isolated_config.config_file)
-
-        # Modify logging configuration
-        user_config._config.logging_config = LoggingConfig(
-            handlers=[
-                LogHandlerConfig(
-                    type=LogHandlerType.STDERR,
-                    level="ERROR",
-                    format=LogFormat.DETAILED,
-                    colored=False,
-                ),
-            ]
-        )
-
-        # Save configuration
-        user_config.save()
+        # Create custom config file with only the desired handler
+        isolated_config.config_file_path.write_text("""
+profile: test_keyboard/v1.0
+logging:
+  handlers:
+    - type: stderr
+      level: ERROR
+      format: detailed
+      colored: false
+""")
 
         # Load fresh configuration
-        new_user_config = UserConfig(cli_config_path=isolated_config.config_file)
+        new_user_config = UserConfig(cli_config_path=isolated_config.config_file_path)
 
-        # Verify logging configuration was preserved
+        # Verify logging configuration was preserved (user config should override base config)
         assert len(new_user_config._config.logging_config.handlers) == 1
 
         handler = new_user_config._config.logging_config.handlers[0]
@@ -286,7 +279,7 @@ class TestCLIIntegration:
         # Create app context with custom logging config
         app_context = type("AppContext", (), {})()
         app_context.user_config = create_user_config(
-            isolated_cli_environment.config_file
+            isolated_cli_environment["config_file"]
         )
         app_context.user_config._config.logging_config = LoggingConfig(
             handlers=[
@@ -315,7 +308,7 @@ class TestCLIIntegration:
         # Create app context
         app_context = type("AppContext", (), {})()
         app_context.user_config = create_user_config(
-            isolated_cli_environment.config_file
+            isolated_cli_environment["config_file"]
         )
 
         # Test that config is properly initialized
@@ -336,7 +329,7 @@ class TestCLIIntegration:
         # Create app context
         app_context = type("AppContext", (), {})()
         app_context.user_config = create_user_config(
-            isolated_cli_environment.config_file
+            isolated_cli_environment["config_file"]
         )
 
         # Test that config is properly initialized
@@ -375,7 +368,7 @@ class TestRealWorldScenarios:
         }
 
         # Save config
-        isolated_config.config_file.write_text(f"""
+        isolated_config.config_file_path.write_text(f"""
 logging:
   handlers:
     - type: stderr
@@ -389,7 +382,7 @@ logging:
 """)
 
         # Load user config
-        user_config = UserConfig(cli_config_path=isolated_config.config_file)
+        user_config = UserConfig(cli_config_path=isolated_config.config_file_path)
 
         # Verify configuration
         assert len(user_config._config.logging_config.handlers) == 2
@@ -408,7 +401,7 @@ logging:
     def test_production_workflow(self, isolated_config):
         """Test typical production workflow with minimal logging."""
         # Save production config
-        isolated_config.config_file.write_text("""
+        isolated_config.config_file_path.write_text("""
 logging:
   handlers:
     - type: stderr
@@ -418,7 +411,7 @@ logging:
 """)
 
         # Load user config
-        user_config = UserConfig(cli_config_path=isolated_config.config_file)
+        user_config = UserConfig(cli_config_path=isolated_config.config_file_path)
 
         # Verify configuration
         assert len(user_config._config.logging_config.handlers) == 1
@@ -434,7 +427,7 @@ logging:
         ci_log = tmp_path / "ci-build.log"
 
         # Save CI config
-        isolated_config.config_file.write_text(f"""
+        isolated_config.config_file_path.write_text(f"""
 logging:
   handlers:
     - type: stderr
@@ -448,7 +441,7 @@ logging:
 """)
 
         # Load user config
-        user_config = UserConfig(cli_config_path=isolated_config.config_file)
+        user_config = UserConfig(cli_config_path=isolated_config.config_file_path)
 
         # Verify configuration suitable for CI
         assert len(user_config._config.logging_config.handlers) == 2

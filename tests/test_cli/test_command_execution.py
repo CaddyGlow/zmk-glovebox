@@ -22,7 +22,7 @@ def setup_layout_command_test(mock_layout_service, mock_keyboard_profile):
     """Set up common mocks for layout command tests."""
     with (
         patch(
-            "glovebox.cli.commands.layout.core.create_layout_service"
+            "glovebox.cli.commands.layout.dependencies.create_layout_service"
         ) as mock_create_service,
         patch("glovebox.cli.commands.layout.core.Path") as mock_path_cls,
         patch(
@@ -122,13 +122,13 @@ def setup_firmware_command_test(mock_keyboard_profile):
     [
         (
             "layout compile",
-            ["output/test", "--profile", "glove80/v25.05", "input.json"],
+            ["input.json", "--output", "output/test", "--profile", "glove80/v25.05"],
             True,
             "Layout generated successfully",
         ),
         (
             "layout validate",
-            ["--profile", "glove80/v25.05", "input.json"],
+            ["input.json", "--profile", "glove80/v25.05"],
             True,
             "valid",
         ),
@@ -286,7 +286,13 @@ def test_firmware_compile_commands(
     [
         (
             "layout compile",
-            ["output/test", "--profile", "glove80/v25.05", "nonexistent.json"],
+            [
+                "nonexistent.json",
+                "--output",
+                "output/test",
+                "--profile",
+                "glove80/v25.05",
+            ],
         ),
         (
             "firmware flash",
@@ -353,7 +359,7 @@ def test_command_errors(command, args, cli_runner, tmp_path):
 @pytest.mark.parametrize(
     "command,args,output_contains",
     [
-        ("config list", [], "Glovebox Configuration"),
+        ("config show", [], "Glovebox Configuration"),
     ],
 )
 def test_config_commands(
@@ -435,7 +441,7 @@ def test_status_command(cli_runner):
             print(f"Exception: {result.exception}")
         assert result.exit_code == 0
         assert "Glovebox v" in result.output
-        assert "System Dependencies" in result.output
+        assert "System Environment" in result.output
         assert "Docker" in result.output
         assert "Available Keyboards" in result.output
         assert "Environment" in result.output

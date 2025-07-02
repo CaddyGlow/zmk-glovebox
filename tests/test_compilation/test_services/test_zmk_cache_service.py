@@ -24,6 +24,21 @@ class TestZmkCacheService:
         """Mock user config for testing."""
         config = Mock()
         config.cache_strategy = "shared"
+        # Mock the nested _config.cache_path structure
+        config._config = Mock()
+        config._config.cache_path = Path(tempfile.gettempdir()) / "test_cache"
+        config._config.cache_path.mkdir(parents=True, exist_ok=True)
+
+        # Mock cache_ttls with proper TTL values
+        config._config.cache_ttls = Mock()
+        config._config.cache_ttls.get_workspace_ttls.return_value = {
+            "base": 3600,  # 1 hour
+            "branch": 1800,  # 30 minutes
+            "full": 1800,
+            "build": 900,
+            "repo": 3600,
+            "repo_branch": 1800,
+        }
         return config
 
     @pytest.fixture

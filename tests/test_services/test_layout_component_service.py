@@ -107,11 +107,9 @@ class TestLayoutComponentService:
         assert service._service_name == "LayoutComponentService"
         assert service._service_version == "1.0.0"
 
-    def test_decompose_components_success(
-        self, service, sample_keymap_data, output_dir
-    ):
+    def test_split_components_success(self, service, sample_keymap_data, output_dir):
         """Test successful extraction of keymap components."""
-        result = service.decompose_components(sample_keymap_data, output_dir)
+        result = service.split_components(sample_keymap_data, output_dir)
 
         assert result.success is True
         assert result.layer_count == len(sample_keymap_data.layers)
@@ -120,13 +118,24 @@ class TestLayoutComponentService:
         service._file_adapter.create_directory.assert_any_call(output_dir)
         service._file_adapter.create_directory.assert_any_call(output_dir / "layers")
 
-        # Verify metadata extraction
+        # Verify metadata extraction - behavior fields are excluded
+        behavior_fields = {
+            "variables",
+            "holdTaps",
+            "combos",
+            "macros",
+            "inputListeners",
+            "config_parameters",
+            "hold_taps",
+            "input_listeners",
+        }
+        metadata_fields = set(LayoutMetadata.model_fields.keys()) - behavior_fields
         service._file_adapter.write_json.assert_any_call(
             output_dir / "metadata.json",
             sample_keymap_data.model_dump(
                 mode="json",
                 by_alias=True,
-                include=set(LayoutMetadata.model_fields.keys()),
+                include=metadata_fields,
             ),
         )
 
@@ -136,13 +145,13 @@ class TestLayoutComponentService:
             >= len(sample_keymap_data.layer_names) + 1
         )  # +1 for metadata.json
 
-    def test_decompose_components_error(self, service, sample_keymap_data, output_dir):
-        """Test error handling in decompose_components."""
+    def test_split_components_error(self, service, sample_keymap_data, output_dir):
+        """Test error handling in split_components."""
         # Make the file adapter's write_json method raise an exception
         service._file_adapter.write_json.side_effect = Exception("Write error")
 
         with pytest.raises(LayoutError, match="Layer extraction failed"):
-            service.decompose_components(sample_keymap_data, output_dir)
+            service.split_components(sample_keymap_data, output_dir)
 
     def test_extract_dtsi_snippets(self, service, sample_keymap_data, output_dir):
         """Test extraction of DTSI snippets."""
@@ -164,13 +173,24 @@ class TestLayoutComponentService:
         """Test extraction of metadata configuration."""
         service._extract_metadata_config(sample_keymap_data, output_dir)
 
-        # Verify metadata extraction
+        # Verify metadata extraction - behavior fields are excluded
+        behavior_fields = {
+            "variables",
+            "holdTaps",
+            "combos",
+            "macros",
+            "inputListeners",
+            "config_parameters",
+            "hold_taps",
+            "input_listeners",
+        }
+        metadata_fields = set(LayoutMetadata.model_fields.keys()) - behavior_fields
         service._file_adapter.write_json.assert_called_once_with(
             output_dir / "metadata.json",
             sample_keymap_data.model_dump(
                 mode="json",
                 by_alias=True,
-                include=set(LayoutMetadata.model_fields.keys()),
+                include=metadata_fields,
             ),
         )
 
@@ -194,7 +214,7 @@ class TestLayoutComponentService:
         ]
         assert len(layer_writes) >= 1
 
-    def test_compose_components_success(self, service, sample_keymap_data, output_dir):
+    def test_merge_components_success(self, service, sample_keymap_data, output_dir):
         """Test successful combination of keymap components."""
         # Create a metadata keymap with matching number of layers and layer names
         empty_binding = LayoutBinding(value="&none", params=[])
@@ -213,7 +233,7 @@ class TestLayoutComponentService:
 
         # Set up the mock behavior to make compose_components work with our test
         def mock_process_layers(keymap, layers_dir):
-            # Mock implementation of _process_layers_for_combination
+            # Mock implementation of _process_layers_for_merging
             keymap.layers = [
                 [
                     LayoutBinding(value="&kp", params=[LayoutParam(value="A")])
@@ -230,15 +250,13 @@ class TestLayoutComponentService:
             ]
 
         with patch.object(
-            service, "_process_layers_for_combination", side_effect=mock_process_layers
+            service, "_process_layers_for_merging", side_effect=mock_process_layers
         ):
             layers_dir = output_dir / "layers"
 
             # Mock file operations
             with patch.object(service._file_adapter, "is_dir", return_value=True):
-                combined_keymap = service.compose_components(
-                    metadata_keymap, layers_dir
-                )
+                combined_keymap = service.merge_components(metadata_keymap, layers_dir)
 
             # Verify that layers were combined
             assert isinstance(combined_keymap, LayoutData)
@@ -249,7 +267,7 @@ class TestLayoutComponentService:
             service._file_adapter.is_file.assert_any_call(output_dir / "device.dtsi")
             service._file_adapter.is_file.assert_any_call(output_dir / "keymap.dtsi")
 
-    def test_compose_components_directory_not_found(self, service, sample_keymap_data):
+    def test_merge_components_directory_not_found(self, service, sample_keymap_data):
         """Test error handling when layers directory is not found."""
         # Create a metadata keymap with minimal layer data to pass validation
         empty_binding = LayoutBinding(value="&none", params=[])
@@ -269,11 +287,9 @@ class TestLayoutComponentService:
             patch.object(service._file_adapter, "is_dir", return_value=False),
             pytest.raises(LayoutError, match="Layers directory not found"),
         ):
-            service.compose_components(metadata_keymap, non_existent_dir)
+            service.merge_components(metadata_keymap, non_existent_dir)
 
-    def test_process_layers_for_combination(
-        self, service, sample_keymap_data, output_dir
-    ):
+    def test_process_layers_for_merging(self, service, sample_keymap_data, output_dir):
         """Test processing and combining layer files."""
         # Create a starting keymap with matching layer_names and layers
         empty_binding = LayoutBinding(value="&none", params=[])
@@ -329,7 +345,7 @@ class TestLayoutComponentService:
             ),
             patch.object(service._file_adapter, "is_file", return_value=True),
         ):
-            service._process_layers_for_combination(combined_keymap, layers_dir)
+            service._process_layers_for_merging(combined_keymap, layers_dir)
 
         # Verify that layers were added to the combined keymap
         assert len(combined_keymap.layers) == 3

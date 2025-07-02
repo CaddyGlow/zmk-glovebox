@@ -138,7 +138,9 @@ def create_flash_service_for_tests(
     if device_wait_service is None:
         device_wait_service = create_device_wait_service()
 
-    return create_flash_service(file_adapter, device_wait_service, loglevel)
+    return create_flash_service(
+        file_adapter, device_wait_service, usb_adapter=None, loglevel=loglevel
+    )
 
 
 def create_usb_flasher_for_tests(usb_adapter=None, file_adapter=None) -> "USBFlasher":

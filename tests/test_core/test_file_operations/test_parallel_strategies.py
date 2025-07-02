@@ -51,7 +51,7 @@ class TestPipelineStrategy:
 
         assert result.success is True
         assert result.strategy_used == "Pipeline (2 copy workers)"
-        assert result.files_copied > 0
+        assert result.bytes_copied > 0
         assert result.duration > 0
         assert result.error is None
 

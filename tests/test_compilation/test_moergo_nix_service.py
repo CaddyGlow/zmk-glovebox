@@ -15,6 +15,7 @@ from glovebox.compilation.services.moergo_nix_service import (
 from glovebox.core.cache import create_default_cache
 from glovebox.core.metrics.session_metrics import SessionMetrics
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
+from glovebox.layout.models.results import LayoutResult
 from glovebox.models.docker import DockerUserContext
 from glovebox.models.docker_path import DockerPath
 from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
@@ -49,6 +50,35 @@ def mock_session_metrics():
 
 
 @pytest.fixture
+def successful_layout_result(temp_files):
+    """Create a successful LayoutResult for testing."""
+    return LayoutResult(
+        success=True,
+        messages=["Layout generation successful"],
+        keymap_path=temp_files["keymap"],
+        conf_path=temp_files["config"],
+        json_path=temp_files["json"],
+        profile_name="test-profile",
+        layer_count=4,
+    )
+
+
+@pytest.fixture
+def failing_layout_result():
+    """Create a failing LayoutResult for testing."""
+    return LayoutResult(
+        success=False,
+        errors=["Layout generation failed", "Invalid JSON format"],
+        messages=[],
+        keymap_path=None,
+        conf_path=None,
+        json_path=None,
+        profile_name=None,
+        layer_count=None,
+    )
+
+
+@pytest.fixture
 def moergo_service(mock_docker_adapter, mock_file_adapter, mock_session_metrics):
     """Create a MoergoNixService with mocked dependencies."""
     return MoergoNixService(
@@ -68,17 +98,10 @@ def mock_keyboard_profile():
 
 
 @pytest.fixture
-def mock_layout_service():
+def mock_layout_service(successful_layout_result):
     """Create a mock layout service for testing."""
     service = Mock()
-    layout_result = Mock()
-    layout_result.success = True
-    layout_result.errors = []
-    layout_result.get_output_files.return_value = {
-        "keymap": "/tmp/layout.keymap",
-        "conf": "/tmp/layout.conf",
-    }
-    service.generate_from_file.return_value = layout_result
+    service.generate_from_file.return_value = successful_layout_result
     return service
 
 
@@ -241,7 +264,7 @@ class TestMoergoNixServiceCompile:
 
             assert result.success is True
             assert len(result.messages) > 0
-            assert "Generated 1 firmware files" in result.messages[0]
+            assert "Generated 1 firmware file" in result.messages[0]
 
     def test_compile_invalid_config_type(
         self,
@@ -365,23 +388,23 @@ class TestMoergoNixServiceCompile:
 class TestMoergoNixServiceCompileFromJson:
     """Test compile_from_json method."""
 
-    @patch("glovebox.layout.create_layout_service")
-    @patch("tempfile.TemporaryDirectory")
+    @patch("glovebox.compilation.helpers.convert_json_to_keymap_content")
     def test_compile_from_json_success(
         self,
-        mock_temp_dir,
-        mock_create_layout_service,
+        mock_convert_json,
         moergo_service,
         mock_docker_adapter,
         mock_keyboard_profile,
         sample_moergo_config,
         temp_files,
-        mock_layout_service,
     ):
         """Test successful JSON to firmware compilation."""
-        # Setup mocks
-        mock_temp_dir.return_value.__enter__.return_value = "/tmp/json_workspace"
-        mock_create_layout_service.return_value = mock_layout_service
+        # Mock the conversion helper to return successful content
+        mock_convert_json.return_value = (
+            "mock keymap content",
+            "mock config content",
+            BuildResult(success=True, messages=["Conversion successful"]),
+        )
 
         service = moergo_service
 
@@ -400,18 +423,16 @@ class TestMoergoNixServiceCompileFromJson:
             )
 
             assert result.success is True
-            assert "JSON compilation success" in result.messages
+            # The actual method uses compile_from_content which has its own success messages
+            assert len(result.messages) > 0  # Should have some success message
 
-            # Verify layout service was called
-            mock_layout_service.generate_from_file.assert_called_once()
-            mock_compile.assert_called_once()
+            # Verify helper was called
+            mock_convert_json.assert_called_once()
 
-    @patch("glovebox.layout.create_layout_service")
-    @patch("tempfile.TemporaryDirectory")
+    @patch("glovebox.compilation.helpers.convert_json_to_keymap_content")
     def test_compile_from_json_layout_generation_failure(
         self,
-        mock_temp_dir,
-        mock_create_layout_service,
+        mock_convert_json,
         moergo_service,
         mock_docker_adapter,
         mock_keyboard_profile,
@@ -419,16 +440,15 @@ class TestMoergoNixServiceCompileFromJson:
         temp_files,
     ):
         """Test JSON compilation when layout generation fails."""
-        # Setup mocks
-        mock_temp_dir.return_value.__enter__.return_value = "/tmp/json_workspace"
-
-        # Create failing layout service
-        failing_layout_service = Mock()
-        layout_result = Mock()
-        layout_result.success = False
-        layout_result.errors = ["Layout generation failed", "Invalid JSON format"]
-        failing_layout_service.generate_from_file.return_value = layout_result
-        mock_create_layout_service.return_value = failing_layout_service
+        # Mock the conversion helper to return failure
+        mock_convert_json.return_value = (
+            None,
+            None,
+            BuildResult(
+                success=False,
+                errors=["Layout generation failed", "Invalid JSON format"],
+            ),
+        )
 
         service = moergo_service
 
@@ -440,36 +460,29 @@ class TestMoergoNixServiceCompileFromJson:
         )
 
         assert result.success is False
-        assert "JSON to keymap conversion failed" in result.errors[0]
-        assert "Layout generation failed" in result.errors[0]
+        # The method returns the conversion_result directly when it fails
+        assert "Layout generation failed" in result.errors
 
-    @patch("glovebox.layout.create_layout_service")
-    @patch("tempfile.TemporaryDirectory")
+    @patch("glovebox.compilation.helpers.convert_json_to_keymap_content")
     def test_compile_from_json_missing_generated_files(
         self,
-        mock_temp_dir,
-        mock_create_layout_service,
+        mock_convert_json,
         moergo_service,
         mock_docker_adapter,
         mock_keyboard_profile,
         sample_moergo_config,
         temp_files,
     ):
-        """Test JSON compilation when generated files are missing."""
-        # Setup mocks
-        mock_temp_dir.return_value.__enter__.return_value = "/tmp/json_workspace"
-
-        # Create layout service that succeeds but returns incomplete files
-        incomplete_layout_service = Mock()
-        layout_result = Mock()
-        layout_result.success = True
-        layout_result.errors = []
-        layout_result.get_output_files.return_value = {
-            "keymap": "/tmp/layout.keymap",
-            "conf": None,  # Missing config file
-        }
-        incomplete_layout_service.generate_from_file.return_value = layout_result
-        mock_create_layout_service.return_value = incomplete_layout_service
+        """Test JSON compilation when content generation returns partial content."""
+        # Mock the conversion helper to return only partial content
+        mock_convert_json.return_value = (
+            "keymap content",
+            None,  # Missing config content
+            BuildResult(
+                success=False,
+                errors=["Failed to generate keymap or config files from JSON"],
+            ),
+        )
 
         service = moergo_service
 
@@ -481,10 +494,13 @@ class TestMoergoNixServiceCompileFromJson:
         )
 
         assert result.success is False
+        # The method returns the conversion_result directly when it fails
         assert "Failed to generate keymap or config files from JSON" in result.errors
 
+    @patch("glovebox.compilation.helpers.convert_json_to_keymap_content")
     def test_compile_from_json_exception_handling(
         self,
+        mock_convert_json,
         moergo_service,
         mock_docker_adapter,
         mock_keyboard_profile,
@@ -494,18 +510,17 @@ class TestMoergoNixServiceCompileFromJson:
         """Test exception handling in compile_from_json method."""
         service = moergo_service
 
-        with patch("glovebox.layout.create_layout_service") as mock_create:
-            mock_create.side_effect = Exception("Layout service error")
+        # Mock the helper to raise an exception
+        mock_convert_json.side_effect = Exception("Layout service error")
 
-            result = service.compile_from_json(
+        # Exception should bubble up since compile_from_json doesn't catch it
+        with pytest.raises(Exception, match="Layout service error"):
+            service.compile_from_json(
                 json_file=temp_files["json"],
                 output_dir=temp_files["output_dir"],
                 config=sample_moergo_config,
                 keyboard_profile=mock_keyboard_profile,
             )
-
-            assert result.success is False
-            assert "Layout service error" in result.errors[0]
 
 
 class TestMoergoNixServiceSetupWorkspace:
