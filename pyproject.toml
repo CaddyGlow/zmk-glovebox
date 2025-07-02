@@ -69,14 +69,6 @@ version-file = "glovebox/_version.py"
 packages = ["glovebox"]
 include = ["glovebox/config/config.yaml"]
 
-[tool.pytest.ini_options]
-addopts = "-ra -q"
-markers = [
-  "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
-]
-testpaths = ["tests"]
-exclude = ["tests/test_cli/"]
-
 
 [tool.coverage.run]
 include = ["glovebox", "tests"]
@@ -174,41 +166,33 @@ disallow_untyped_calls = false
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = [
-    "-ra",
-    "--strict-markers",
-    "--strict-config",
-    "--disable-warnings",
-    "--tb=short",
-    "-v"
+  "-ra",
+  "--strict-markers",
+  "--strict-config",
+  "--disable-warnings",
+  "--tb=short",
+  "-v",
 ]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 
+
 # Test markers for different test tiers
 markers = [
-    "unit: Fast unit tests that don't require external dependencies (< 1s each)",
-    "integration: Integration tests that may use Docker or external services (< 30s each)",
-    "slow: Slow tests that take significant time or resources (> 30s each)",
-    "docker: Tests that require Docker to be available",
-    "network: Tests that require network access",
-    "regression: Regression tests for specific bug fixes",
-    "smoke: Basic smoke tests for critical functionality"
+  "unit: Fast unit tests that don't require external dependencies (< 1s each)",
+  "integration: Integration tests that may use Docker or external services (< 30s each)",
+  "slow: Slow tests that take significant time or resources (> 30s each)",
+  "docker: Tests that require Docker to be available",
+  "network: Tests that require network access",
+  "regression: Regression tests for specific bug fixes",
+  "smoke: Basic smoke tests for critical functionality",
 ]
 
-# Timeout settings
-timeout = 300  # 5 minutes default timeout per test
+[tool.pytest_timeout]
+timeout = 300
 timeout_method = "thread"
-
-# Coverage settings  
-addopts_coverage = [
-    "--cov=glovebox",
-    "--cov-report=term-missing",
-    "--cov-report=xml",
-    "--cov-report=html",
-    "--cov-fail-under=80"
-]
 
 [tool.tox]
 legacy_tox_ini = """

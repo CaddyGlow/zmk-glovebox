@@ -1,11 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 # Fast unit test suite - runs tests that don't require Docker or external services
 # Target: < 5 minutes total execution time
 
-echo "🚀 Running fast unit test suite..."
-echo "======================================"
+echo "Running fast unit test suite..."
+echo "================================"
 
 # Run only unit tests (exclude integration, slow, docker, network tests)
 uv run pytest \
@@ -16,4 +16,4 @@ uv run pytest \
   "$@"
 
 echo ""
-echo "✅ Fast unit tests completed!"
+echo "Fast unit tests completed!"
