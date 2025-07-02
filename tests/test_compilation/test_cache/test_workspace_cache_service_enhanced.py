@@ -27,15 +27,17 @@ from glovebox.protocols import MetricsProtocol
 @pytest.fixture
 def sample_workspace_metadata():
     """Create a sample WorkspaceCacheMetadata for testing."""
-    return WorkspaceCacheMetadata(
-        workspace_path=Path("/tmp/test_workspace"),
-        repository="moergo-sc/zmk",
-        branch="main",
-        commit_hash="abc123",
-        cache_level=CacheLevel.REPO_BRANCH,
-        size_bytes=1024000,
-        docker_image="test/image:tag",
-    )
+    # Use model_validate to work around mypy issues with default factories
+    data = {
+        "workspace_path": Path("/tmp/test_workspace"),
+        "repository": "moergo-sc/zmk",
+        "branch": "main",
+        "commit_hash": "abc123",
+        "cache_level": CacheLevel.REPO_BRANCH,
+        "size_bytes": 1024000,
+        "docker_image": "test/image:tag",
+    }
+    return WorkspaceCacheMetadata.model_validate(data)
 
 
 class TestZmkWorkspaceCacheServiceEnhanced:
