@@ -271,7 +271,7 @@ class TestUserConfigData:
             ]
         )
 
-        # keyboard_paths are Path objects
+        # profiles_paths are Path objects
         paths = config.profiles_paths
 
         # Should return Path objects

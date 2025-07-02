@@ -32,9 +32,7 @@ def test_firmware_devices_command(cli_runner):
     register_all_commands(app)
 
     with (
-        patch(
-            "glovebox.cli.commands.firmware.create_flash_service"
-        ) as mock_create_service,
+        patch("glovebox.firmware.flash.create_flash_service") as mock_create_service,
         patch(
             "glovebox.cli.helpers.profile.get_keyboard_profile_from_context"
         ) as mock_get_profile,
@@ -200,7 +198,7 @@ def test_firmware_compile_auto_profile_detection(cli_runner, tmp_path):
 
     with (
         patch(
-            "glovebox.cli.commands.firmware._get_auto_profile_from_json"
+            "glovebox.cli.helpers.auto_profile.resolve_profile_with_auto_detection"
         ) as mock_auto_profile,
         patch(
             "glovebox.cli.helpers.profile.create_profile_from_option"
@@ -270,7 +268,7 @@ def test_firmware_compile_no_auto_flag_disables_detection(cli_runner, tmp_path):
 
     with (
         patch(
-            "glovebox.cli.commands.firmware._get_auto_profile_from_json"
+            "glovebox.cli.helpers.auto_profile.resolve_profile_with_auto_detection"
         ) as mock_auto_profile,
         patch(
             "glovebox.cli.helpers.profile.create_profile_from_option"
@@ -338,7 +336,7 @@ def test_firmware_compile_cli_profile_overrides_auto_detection(cli_runner, tmp_p
 
     with (
         patch(
-            "glovebox.cli.commands.firmware._get_auto_profile_from_json"
+            "glovebox.cli.helpers.auto_profile.resolve_profile_with_auto_detection"
         ) as mock_auto_profile,
         patch(
             "glovebox.cli.helpers.profile.create_profile_from_option"
@@ -402,7 +400,7 @@ def test_firmware_compile_auto_detection_only_for_json_files(cli_runner, tmp_pat
 
     with (
         patch(
-            "glovebox.cli.commands.firmware._get_auto_profile_from_json"
+            "glovebox.cli.helpers.auto_profile.resolve_profile_with_auto_detection"
         ) as mock_auto_profile,
         patch(
             "glovebox.cli.helpers.profile.create_profile_from_option"

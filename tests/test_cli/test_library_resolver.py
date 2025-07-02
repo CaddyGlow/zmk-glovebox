@@ -162,24 +162,26 @@ class TestLibraryReferenceResolution:
         mock_user_config = MagicMock()
         mock_user_config._config.moergo_api_key = "test-api-key"
 
-        with patch(
-            "glovebox.cli.helpers.library_resolver.create_library_service",
-            return_value=mock_library_service,
-        ):
-            with patch(
+        with (
+            patch(
+                "glovebox.cli.helpers.library_resolver.create_library_service",
+                return_value=mock_library_service,
+            ),
+            patch(
                 "glovebox.cli.helpers.library_resolver.create_user_config",
                 return_value=mock_user_config,
-            ):
-                with patch(
-                    "glovebox.cli.helpers.library_resolver.create_moergo_client",
-                    return_value=mock_moergo_client,
-                ):
-                    uuid = "87654321-4321-4321-4321-210987654321"
-                    result = resolve_library_reference(f"@{uuid}")
-                    assert result == fetched_file
-                    mock_moergo_client.get_layout_meta.assert_called_once_with(
-                        uuid, use_cache=False
-                    )
+            ),
+            patch(
+                "glovebox.cli.helpers.library_resolver.create_moergo_client",
+                return_value=mock_moergo_client,
+            ),
+        ):
+            uuid = "87654321-4321-4321-4321-210987654321"
+            result = resolve_library_reference(f"@{uuid}")
+            assert result == fetched_file
+            mock_moergo_client.get_layout_meta.assert_called_once_with(
+                uuid, use_cache=False
+            )
 
     def test_resolve_parameter_value_with_reference(self, mock_library_service):
         """Test resolve_parameter_value with library reference."""

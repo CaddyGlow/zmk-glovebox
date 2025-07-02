@@ -25,7 +25,7 @@ class TestEnvironmentVariableOverrides:
         env_vars = {
             "GLOVEBOX_PROFILE": "env/test",
             "GLOVEBOX_LOG_LEVEL": "CRITICAL",
-            "GLOVEBOX_KEYBOARD_PATHS": "/env/path1,/env/path2,~/env/path3",
+            "GLOVEBOX_PROFILES_PATHS": "/env/path1,/env/path2,~/env/path3",
             "GLOVEBOX_FIRMWARE__FLASH__TIMEOUT": "999",
             "GLOVEBOX_FIRMWARE__FLASH__COUNT": "42",
             "GLOVEBOX_FIRMWARE__FLASH__TRACK_FLASHED": "false",
@@ -42,8 +42,12 @@ class TestEnvironmentVariableOverrides:
         # Verify all overrides work
         assert config.profile == "env/test"
         assert config.log_level == "CRITICAL"
-        # Check that paths are converted to Path objects
-        expected_paths = [Path("/env/path1"), Path("/env/path2"), Path("~/env/path3")]
+        # Check that paths are converted to Path objects and expanded
+        expected_paths = [
+            Path("/env/path1"),
+            Path("/env/path2"),
+            Path("~/env/path3").expanduser(),
+        ]
         assert config.profiles_paths == expected_paths
         assert config.firmware.flash.timeout == 999
         assert config.firmware.flash.count == 42
@@ -118,7 +122,7 @@ class TestEnvironmentVariableOverrides:
             "GLOVEBOX_FIRMWARE__FLASH__COUNT": "0",  # String -> Int (edge case)
             "GLOVEBOX_FIRMWARE__FLASH__TRACK_FLASHED": "false",  # String -> Bool
             "GLOVEBOX_FIRMWARE__FLASH__SKIP_EXISTING": "1",  # String -> Bool (truthy)
-            "GLOVEBOX_KEYBOARD_PATHS": "/path1,/path2,/path3",  # String -> List
+            "GLOVEBOX_PROFILES_PATHS": "/path1,/path2,/path3",  # String -> List
         }
 
         for key, value in type_vars.items():
@@ -193,11 +197,11 @@ class TestEnvironmentVariableOverrides:
 
         for env_value, _expected_list in list_test_cases:
             # Clear previous env var
-            if "GLOVEBOX_KEYBOARD_PATHS" in os.environ:
-                del os.environ["GLOVEBOX_KEYBOARD_PATHS"]
+            if "GLOVEBOX_PROFILES_PATHS" in os.environ:
+                del os.environ["GLOVEBOX_PROFILES_PATHS"]
 
             # Set environment variable
-            os.environ["GLOVEBOX_KEYBOARD_PATHS"] = env_value
+            os.environ["GLOVEBOX_PROFILES_PATHS"] = env_value
 
             config = UserConfigData()
             # Check that the environment value is parsed to Path objects
@@ -205,7 +209,9 @@ class TestEnvironmentVariableOverrides:
                 expected_paths = []
             else:
                 expected_paths = [
-                    Path(path.strip()) for path in env_value.split(",") if path.strip()
+                    Path(path.strip()).expanduser()
+                    for path in env_value.split(",")
+                    if path.strip()
                 ]
             assert config.profiles_paths == expected_paths, (
                 f"Failed for value: {env_value}"
@@ -338,7 +344,7 @@ class TestEnvironmentVariableEdgeCases:
         # Set empty environment variables
         os.environ["GLOVEBOX_PROFILE"] = ""
         os.environ["GLOVEBOX_LOG_LEVEL"] = ""
-        os.environ["GLOVEBOX_KEYBOARD_PATHS"] = ""
+        os.environ["GLOVEBOX_PROFILES_PATHS"] = ""
 
         # Profile should fail validation (empty)
         with pytest.raises(ValidationError):
@@ -360,13 +366,16 @@ class TestEnvironmentVariableEdgeCases:
         """Test handling of unicode characters in environment variables."""
         # Set environment variables with unicode
         os.environ["GLOVEBOX_PROFILE"] = "unicode_🚀/test_✨"
-        os.environ["GLOVEBOX_KEYBOARD_PATHS"] = "/path/with/émojis,~/ユニコード/パス"
+        os.environ["GLOVEBOX_PROFILES_PATHS"] = "/path/with/émojis,~/ユニコード/パス"
 
         config = UserConfigData()
 
         # Should handle unicode correctly
         assert config.profile == "unicode_🚀/test_✨"
-        expected_paths = [Path("/path/with/émojis"), Path("~/ユニコード/パス")]
+        expected_paths = [
+            Path("/path/with/émojis"),
+            Path("~/ユニコード/パス").expanduser(),
+        ]
         assert config.profiles_paths == expected_paths
 
     def test_keyboard_only_profile_environment_variables(self, clean_environment):
@@ -390,7 +399,7 @@ class TestEnvironmentVariableEdgeCases:
         )
 
         os.environ["GLOVEBOX_PROFILE"] = long_profile
-        os.environ["GLOVEBOX_KEYBOARD_PATHS"] = long_paths
+        os.environ["GLOVEBOX_PROFILES_PATHS"] = long_paths
 
         config = UserConfigData()
 
@@ -406,7 +415,7 @@ class TestEnvironmentVariableEdgeCases:
         special_paths = "/path/with spaces,/path/with'quotes,/path/with\"double-quotes"
 
         os.environ["GLOVEBOX_PROFILE"] = special_profile
-        os.environ["GLOVEBOX_KEYBOARD_PATHS"] = special_paths
+        os.environ["GLOVEBOX_PROFILES_PATHS"] = special_paths
 
         config = UserConfigData()
 

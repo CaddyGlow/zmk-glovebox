@@ -32,7 +32,7 @@ def sample_config_dict() -> dict[str, Any]:
     return {
         "profile": "test_keyboard/v1.0",
         "log_level": "DEBUG",
-        "keyboard_paths": ["/path/to/keyboards", "~/custom/keyboards"],
+        "profiles_paths": ["/path/to/keyboards", "~/custom/keyboards"],
         "firmware": {
             "flash": {
                 "timeout": 120,
@@ -119,16 +119,15 @@ def mock_config_adapter() -> Mock:
         "firmware": {
             "flash": {
                 "timeout": 30,
-                "verify": True,
-                "auto_detect": True,
-                "wait_for_device": True,
-                "device_wait_timeout": 60,
+                "count": 2,
+                "track_flashed": True,
+                "skip_existing": False,
             }
         },
         "cache_ttls": {
-            "compilation_workspace": 3600,
-            "compilation_build": 3600,
-            "layout_diff": 1800,
+            "workspace_base": 3600,
+            "workspace_branch": 3600,
+            "compilation_build": 1800,
         },
     }
     return adapter
@@ -141,21 +140,21 @@ def user_config_data_factory():
     def _create_config(**kwargs) -> UserConfigData:
         from pathlib import Path
 
-        # Handle special conversion for keyboard_paths
+        # Handle special conversion for profiles_paths
         if (
-            "keyboard_paths" in kwargs
-            and kwargs["keyboard_paths"]
-            and isinstance(kwargs["keyboard_paths"], list)
-            and kwargs["keyboard_paths"]
-            and isinstance(kwargs["keyboard_paths"][0], str)
+            "profiles_paths" in kwargs
+            and kwargs["profiles_paths"]
+            and isinstance(kwargs["profiles_paths"], list)
+            and kwargs["profiles_paths"]
+            and isinstance(kwargs["profiles_paths"][0], str)
         ):
-            kwargs["keyboard_paths"] = [Path(p) for p in kwargs["keyboard_paths"]]
+            kwargs["profiles_paths"] = [Path(p) for p in kwargs["profiles_paths"]]
 
         # Set defaults for missing fields
         config_data = {
             "profile": kwargs.get("profile", "glove80/v25.05"),
             "log_level": kwargs.get("log_level", "INFO"),
-            "keyboard_paths": kwargs.get("keyboard_paths", []),
+            "profiles_paths": kwargs.get("profiles_paths", []),
         }
 
         # Add any other kwargs that aren't the main fields

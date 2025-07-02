@@ -71,14 +71,16 @@ def isolated_config(tmp_path: Path) -> Generator[UserConfig, None, None]:
 
     This fixture provides complete configuration isolation by:
     - Using a temporary config directory instead of ~/.glovebox/
-    - Mocking environment variables to prevent external influence
+    - Preserving test-set environment variables while clearing others
     - Creating a clean UserConfig instance for each test
+    - Supporting reloading after environment variable changes
 
     Usage:
         def test_config_operation(isolated_config):
-            config = isolated_config
-            config.set("profile", "test_keyboard/v1.0")
-            # All operations are isolated to temp directory
+            # Set environment variables for the test
+            os.environ["GLOVEBOX_PROFILE"] = "test/profile"
+            isolated_config.reload()  # Reload to pick up new env vars
+            assert isolated_config._config.profile == "test/profile"
     """
     # Create isolated config directory structure
     config_dir = tmp_path / ".glovebox"
@@ -91,20 +93,21 @@ def isolated_config(tmp_path: Path) -> Generator[UserConfig, None, None]:
     initial_config = {
         "profile": "test_keyboard/v1.0",
         "log_level": "INFO",
-        "keyboard_paths": [],
+        "profiles_paths": [],
         "cache_path": str(cache_dir / "glovebox"),
     }
 
     with config_file.open("w") as f:
         yaml.dump(initial_config, f)
 
-    # Mock environment to prevent external config influence
+    # Mock environment to prevent external config influence but preserve test vars
     original_env = dict(os.environ)
 
-    # Clear any existing GLOVEBOX_ env vars
-    for key in list(os.environ.keys()):
-        if key.startswith("GLOVEBOX_"):
-            del os.environ[key]
+    # Clear any existing GLOVEBOX_ env vars that aren't set by the test
+    # (we'll identify test vars by checking again after yielding)
+    pre_test_glovebox_vars = {
+        k: v for k, v in os.environ.items() if k.startswith("GLOVEBOX_")
+    }
 
     # Set isolated environment
     os.environ["GLOVEBOX_CONFIG_DIR"] = str(config_dir)

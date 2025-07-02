@@ -58,7 +58,7 @@ def test_layout_compile_with_json_env_var(
             "glovebox.cli.commands.layout.core.create_profile_from_option"
         ) as mock_create_profile,
         patch(
-            "glovebox.cli.commands.layout.core.create_layout_service"
+            "glovebox.cli.commands.layout.dependencies.create_layout_service"
         ) as mock_create_service,
         patch(
             "glovebox.cli.commands.layout.core.get_user_config_from_context"
@@ -115,7 +115,7 @@ def test_layout_validate_with_json_env_var(cli_runner, sample_json_layout, clean
             "glovebox.cli.commands.layout.core.create_profile_from_option"
         ) as mock_create_profile,
         patch(
-            "glovebox.cli.commands.layout.core.create_layout_service"
+            "glovebox.cli.commands.layout.dependencies.create_layout_service"
         ) as mock_create_service,
         patch(
             "glovebox.cli.commands.layout.core.get_user_config_from_context"
@@ -159,7 +159,7 @@ def test_layout_show_with_json_env_var(cli_runner, sample_json_layout, clean_env
             "glovebox.cli.commands.layout.core.create_profile_from_option"
         ) as mock_create_profile,
         patch(
-            "glovebox.cli.commands.layout.core.create_layout_service"
+            "glovebox.cli.commands.layout.dependencies.create_layout_service"
         ) as mock_create_service,
         patch(
             "glovebox.cli.commands.layout.core.get_user_config_from_context"
@@ -208,7 +208,7 @@ def test_layout_split_with_json_env_var(
             "glovebox.cli.commands.layout.file_operations.create_profile_from_option"
         ) as mock_create_profile,
         patch(
-            "glovebox.cli.commands.layout.file_operations.create_layout_service"
+            "glovebox.cli.commands.layout.dependencies.create_layout_service"
         ) as mock_create_service,
         patch(
             "glovebox.cli.commands.layout.file_operations.get_user_config_from_context"
@@ -318,7 +318,7 @@ def test_cli_argument_overrides_env_var(
             "glovebox.cli.commands.layout.core.create_profile_from_option"
         ) as mock_create_profile,
         patch(
-            "glovebox.cli.commands.layout.core.create_layout_service"
+            "glovebox.cli.commands.layout.dependencies.create_layout_service"
         ) as mock_create_service,
         patch(
             "glovebox.cli.commands.layout.core.get_user_config_from_context"
@@ -425,7 +425,7 @@ def test_combined_env_var_and_auto_profile_detection(
             "glovebox.cli.commands.layout.core.create_profile_from_option"
         ) as mock_create_profile,
         patch(
-            "glovebox.cli.commands.layout.core.create_layout_service"
+            "glovebox.cli.commands.layout.dependencies.create_layout_service"
         ) as mock_create_service,
         patch(
             "glovebox.cli.commands.layout.core.get_user_config_from_context"

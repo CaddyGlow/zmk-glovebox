@@ -81,7 +81,7 @@ class TestConfigurationPrecedenceChain:
                 {
                     "profile": "file/override",
                     "log_level": "ERROR",
-                    "keyboard_paths": ["/file/path1", "/file/path2"],
+                    "profiles_paths": ["/file/path1", "/file/path2"],
                     "firmware": {
                         "flash": {
                             "timeout": 500,
@@ -120,7 +120,7 @@ class TestConfigurationPrecedenceChain:
             assert config.get_source("profile") == f"file:{config_file_path.name}"
             assert config.get_source("log_level") == f"file:{config_file_path.name}"
             assert (
-                config.get_source("keyboard_paths") == f"file:{config_file_path.name}"
+                config.get_source("profiles_paths") == f"file:{config_file_path.name}"
             )
 
         finally:
@@ -165,7 +165,7 @@ class TestConfigurationPrecedenceChain:
             # Defaults for settings not in file or environment
             assert config._config.profiles_paths == []
             assert config._config.firmware.flash.track_flashed is True
-            assert config.get_source("keyboard_paths") == "default"
+            assert config.get_source("profiles_paths") == "base_config"
             assert config.get_source("firmware.flash.track_flashed") == "default"
 
         finally:
@@ -221,6 +221,11 @@ class TestConfigFileSearchPrecedence:
 
         # Mock the config paths to include both
         mock_adapter = Mock()
+        # Mock base config loading
+        mock_adapter.load_config.return_value = {
+            "profile": "glove80/v25.05",
+            "cache_strategy": "shared",
+        }
         mock_adapter.search_config_files.return_value = (
             {"profile": "current/wins"},
             current_config,
@@ -311,7 +316,7 @@ class TestComplexIntegrationScenarios:
                 {
                     "profile": "glove80/v25.05",
                     "log_level": "INFO",
-                    "keyboard_paths": ["/usr/share/keyboards"],
+                    "profiles_paths": ["/usr/share/keyboards"],
                     "firmware": {"flash": {"timeout": 60, "count": 2}},
                 },
                 f,
@@ -322,7 +327,7 @@ class TestComplexIntegrationScenarios:
             # User customizations via environment
             os.environ["GLOVEBOX_PROFILE"] = "custom_board/experimental"
             os.environ["GLOVEBOX_LOG_LEVEL"] = "DEBUG"
-            os.environ["GLOVEBOX_KEYBOARD_PATHS"] = "/home/user/keyboards,~/my-layouts"
+            os.environ["GLOVEBOX_PROFILES_PATHS"] = "/home/user/keyboards,~/my-layouts"
             os.environ["GLOVEBOX_FIRMWARE__FLASH__TIMEOUT"] = "120"
 
             config = create_user_config(cli_config_path=system_config_path)
@@ -330,8 +335,11 @@ class TestComplexIntegrationScenarios:
             # User preferences override system defaults
             assert config._config.profile == "custom_board/experimental"
             assert config._config.log_level == "DEBUG"
-            # keyboard_paths should be converted from environment variable string
-            expected_paths = [Path("/home/user/keyboards"), Path("~/my-layouts")]
+            # profiles_paths should be converted from environment variable string
+            expected_paths = [
+                Path("/home/user/keyboards"),
+                Path("~/my-layouts").expanduser(),
+            ]
             assert config._config.profiles_paths == expected_paths
             assert config._config.firmware.flash.timeout == 120
 
@@ -356,6 +364,9 @@ class TestComplexIntegrationScenarios:
         # Set CI environment
         for key, value in ci_env_vars.items():
             os.environ[key] = value
+
+        # Reload the isolated config to pick up environment variables
+        isolated_config.reload()
 
         # Use isolated config to prevent pollution
         config = isolated_config
@@ -453,7 +464,7 @@ class TestSourceTrackingInComplexScenarios:
                 {
                     "profile": "file/config",
                     "log_level": "WARNING",
-                    "keyboard_paths": ["/file/path"],
+                    "profiles_paths": ["/file/path"],
                     "firmware": {"flash": {"timeout": 100, "count": 5}},
                 }
             )

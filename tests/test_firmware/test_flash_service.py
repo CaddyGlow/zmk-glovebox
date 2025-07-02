@@ -52,7 +52,7 @@ def mock_flasher_registry():
 def sample_usb_config():
     """Create a sample USB flash configuration."""
     return USBFlashConfig(
-        device_query="model:Glove80_Bootloader",
+        device_query="model=Glove80_Bootloader",
         mount_timeout=30,
         copy_timeout=60,
         sync_after_copy=True,
@@ -90,7 +90,7 @@ def sample_keyboard_profile():
 
     # Mock flash methods
     flash_method = USBFlashConfig(
-        device_query="model:TestKeyboard",
+        device_query="model=Glove80_Bootloader",
         mount_timeout=25,
         copy_timeout=50,
         sync_after_copy=False,
@@ -284,11 +284,14 @@ class TestFlashServiceFlash:
         flash_result = FlashResult(success=True)
         mock_flasher.flash_device.return_value = flash_result
 
-        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
+        # Create service with mocked wait service
+        service = create_flash_service_for_tests(
+            file_adapter=mock_file_adapter, device_wait_service=mock_wait_service
+        )
 
         result = service.flash(
             firmware_file=firmware_file,
-            query="model:TestKeyboard",
+            query="model=Glove80_Bootloader",
             timeout=60,
             count=1,
             wait=True,
@@ -342,7 +345,7 @@ class TestFlashServiceFlash:
 
         result = service.flash(
             firmware_file=firmware_file,
-            query="model:TestKeyboard",
+            query="model=Glove80_Bootloader",
             timeout=60,
             count=1,
             wait=False,
@@ -391,9 +394,14 @@ class TestFlashServiceFlash:
         assert result.success
         # Verify the profile's flash method config was used
         expected_config = sample_keyboard_profile.keyboard_config.flash_methods[0]
-        mock_registry.create_method.assert_called_once_with(
-            "usb", expected_config, file_adapter=mock_file_adapter
-        )
+
+        # Verify the method was called with correct parameters
+        mock_registry.create_method.assert_called_once()
+        call_args = mock_registry.create_method.call_args
+        assert call_args[0] == ("usb", expected_config)
+        assert "file_adapter" in call_args[1]
+        assert call_args[1]["file_adapter"] is mock_file_adapter
+        assert "usb_adapter" in call_args[1]
 
     @patch("glovebox.firmware.flash.service.create_device_wait_service")
     @patch("glovebox.firmware.flash.service.flasher_registry")
@@ -616,7 +624,9 @@ class TestFlashServiceFlash:
         mock_registry.create_method.return_value = mock_flasher
         mock_flasher.flash_device.return_value = FlashResult(success=True)
 
-        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(
+            file_adapter=mock_file_adapter, device_wait_service=mock_wait_service
+        )
 
         result = service.flash(
             firmware_file=firmware_file,
@@ -629,7 +639,7 @@ class TestFlashServiceFlash:
         mock_wait_service.wait_for_devices.assert_called_once()
         call_args = mock_wait_service.wait_for_devices.call_args[1]
         assert (
-            call_args["query"] == "model:TestKeyboard"
+            call_args["query"] == "model=Glove80_Bootloader"
         )  # From sample_keyboard_profile
 
 
@@ -656,7 +666,7 @@ class TestFlashServiceListDevices:
 
         service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
-        result = service.list_devices(query="model:TestKeyboard")
+        result = service.list_devices(query="model=Glove80_Bootloader")
 
         assert result.success
         assert "Found 1 device(s) matching query" in str(result.messages)
@@ -718,9 +728,14 @@ class TestFlashServiceListDevices:
         assert result.success
         # Verify the profile's flash config was used
         expected_config = sample_keyboard_profile.keyboard_config.flash_methods[0]
-        mock_registry.create_method.assert_called_once_with(
-            "usb", expected_config, file_adapter=mock_file_adapter
-        )
+
+        # Verify the method was called with correct parameters
+        mock_registry.create_method.assert_called_once()
+        call_args = mock_registry.create_method.call_args
+        assert call_args[0] == ("usb", expected_config)
+        assert "file_adapter" in call_args[1]
+        assert call_args[1]["file_adapter"] is mock_file_adapter
+        assert "usb_adapter" in call_args[1]
 
     @patch("glovebox.firmware.flash.service.create_device_wait_service")
     @patch("glovebox.firmware.flash.service.flasher_registry")
@@ -817,7 +832,7 @@ class TestFlashServicePrivateMethods:
 
         query = service._get_device_query_from_profile(sample_keyboard_profile)
 
-        assert query == "model:TestKeyboard"
+        assert query == "model=Glove80_Bootloader"
 
     @patch("glovebox.firmware.flash.service.create_device_wait_service")
     def test_get_device_query_from_profile_no_profile(
@@ -872,9 +887,14 @@ class TestFlashServicePrivateMethods:
         flasher = service._create_usb_flasher(sample_usb_config)
 
         assert flasher is mock_flasher
-        mock_registry.create_method.assert_called_once_with(
-            "usb", sample_usb_config, file_adapter=mock_file_adapter
-        )
+
+        # Verify the method was called with correct parameters
+        mock_registry.create_method.assert_called_once()
+        call_args = mock_registry.create_method.call_args
+        assert call_args[0] == ("usb", sample_usb_config)
+        assert "file_adapter" in call_args[1]
+        assert call_args[1]["file_adapter"] is mock_file_adapter
+        assert "usb_adapter" in call_args[1]
 
     @patch("glovebox.firmware.flash.service.create_device_wait_service")
     @patch("glovebox.firmware.flash.service.flasher_registry")
@@ -947,11 +967,18 @@ class TestCreateFlashService:
 
         service = create_flash_service(mock_file_adapter, mock_device_wait_service)
 
-        mock_flash_service_class.assert_called_once_with(
-            file_adapter=mock_file_adapter,
-            device_wait_service=mock_device_wait_service,
-            loglevel="INFO",
-        )
+        # Verify the FlashService was called with correct parameters
+        mock_flash_service_class.assert_called_once()
+        call_args = mock_flash_service_class.call_args
+
+        # Check positional arguments
+        assert "file_adapter" in call_args[1]
+        assert call_args[1]["file_adapter"] is mock_file_adapter
+        assert "device_wait_service" in call_args[1]
+        assert call_args[1]["device_wait_service"] is mock_device_wait_service
+        assert "loglevel" in call_args[1]
+        assert call_args[1]["loglevel"] == "INFO"
+        assert "usb_adapter" in call_args[1]  # Should be provided by factory
         assert service is mock_service
 
     @patch("glovebox.firmware.flash.service.FlashService")
@@ -968,11 +995,18 @@ class TestCreateFlashService:
             loglevel="DEBUG",
         )
 
-        mock_flash_service_class.assert_called_once_with(
-            file_adapter=mock_file_adapter,
-            device_wait_service=mock_device_wait_service,
-            loglevel="DEBUG",
-        )
+        # Verify the FlashService was called with correct parameters
+        mock_flash_service_class.assert_called_once()
+        call_args = mock_flash_service_class.call_args
+
+        # Check positional arguments
+        assert "file_adapter" in call_args[1]
+        assert call_args[1]["file_adapter"] is mock_file_adapter
+        assert "device_wait_service" in call_args[1]
+        assert call_args[1]["device_wait_service"] is mock_device_wait_service
+        assert "loglevel" in call_args[1]
+        assert call_args[1]["loglevel"] == "DEBUG"
+        assert "usb_adapter" in call_args[1]  # Should be provided by factory
         assert service is mock_service
 
 
@@ -1003,14 +1037,14 @@ class TestFlashServiceIntegration:
         service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         # First list devices
-        list_result = service.list_devices(query="model:TestDevice")
+        list_result = service.list_devices(query="model=Glove80_Bootloader")
         assert list_result.success
         assert len(list_result.device_details) == 1
 
         # Then flash the device
         flash_result = service.flash_from_file(
             firmware_file_path=firmware_file,
-            query="model:TestDevice",
+            query="model=Glove80_Bootloader",
             wait=False,
         )
         assert flash_result.success
@@ -1158,7 +1192,9 @@ class TestFlashServiceEdgeCases:
 
         mock_registry.create_method.return_value = mock_flasher
 
-        service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
+        service = create_flash_service_for_tests(
+            file_adapter=mock_file_adapter, device_wait_service=mock_wait_service
+        )
 
         # Mock _get_flash_method_configs to return config without query
         with patch.object(

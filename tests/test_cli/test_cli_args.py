@@ -106,7 +106,7 @@ def test_config_help(cli_runner):
     """Test config help shows subcommands."""
     result = cli_runner.invoke(app, ["config", "--help"])
     assert result.exit_code == 0
-    assert "list" in result.output
+    # Remove the assertion for "list" as the command is now "show"
     assert "show" in result.output
 
 
