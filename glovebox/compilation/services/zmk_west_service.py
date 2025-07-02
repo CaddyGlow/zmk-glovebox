@@ -130,7 +130,9 @@ class ZmkWestService(CompilationServiceProtocol):
         Args:
             progress_coordinator: Progress coordinator for tracking compilation phases
         """
-        self._external_progress_coordinator = progress_coordinator
+        # TODO: Enable after refactoring
+        # self._external_progress_coordinator = progress_coordinator
+        pass
 
     def compile(
         self,
@@ -237,15 +239,18 @@ class ZmkWestService(CompilationServiceProtocol):
                 # Use external progress coordinator if available
                 progress_coordinator = self._external_progress_coordinator
                 if progress_coordinator:
-                    progress_coordinator.transition_to_phase(
-                        "cache_restoration", "Using cached build"
-                    )
+                    # TODO: Enable after refactoring
+                    # progress_coordinator.transition_to_phase(
+                    #     "cache_restoration", "Using cached build"
+                    # )
+                    pass
                     import time
 
                     time.sleep(0.5)  # Brief pause to show progress
-                    progress_coordinator.update_cache_progress(
-                        "restoring", 50, 100, "Loading cached artifacts", "in_progress"
-                    )
+                    # TODO: Enable after refactoring
+                    # progress_coordinator.update_cache_progress(
+                    #     "restoring", 50, 100, "Loading cached artifacts", "in_progress"
+                    # )
 
                 self.logger.info(
                     "Found cached build - copying artifacts and skipping compilation"
@@ -253,24 +258,28 @@ class ZmkWestService(CompilationServiceProtocol):
 
                 # Continue showing progress during cache operations
                 if progress_coordinator:
-                    progress_coordinator.update_cache_progress(
-                        "copying", 75, 100, "Copying cached artifacts", "in_progress"
-                    )
+                    # TODO: Enable after refactoring
+                    # progress_coordinator.update_cache_progress(
+                    #     "copying", 75, 100, "Copying cached artifacts", "in_progress"
+                    # )
+                    pass
 
                 output_files = self._collect_files(cached_build_path, output_dir)
 
                 if progress_coordinator:
-                    progress_coordinator.update_cache_progress(
-                        "completed",
-                        100,
-                        100,
-                        "Cache restoration completed",
-                        "success",
-                    )
+                    # TODO: Enable after refactoring
+                    # progress_coordinator.update_cache_progress(
+                    #     "completed",
+                    #     100,
+                    #     100,
+                    #     "Cache restoration completed",
+                    #     "success",
+                    # )
                     # Signal overall build completion for cached builds
-                    progress_coordinator.complete_build_success(
-                        "Used cached build result"
-                    )
+                    # progress_coordinator.complete_build_success(
+                    #     "Used cached build result"
+                    # )
+                    pass
                     # Small delay to ensure progress update is processed
                     import time
 
@@ -292,14 +301,16 @@ class ZmkWestService(CompilationServiceProtocol):
             if progress_coordinator:
                 # Extract board information for progress tracking
                 board_info = self._extract_board_info_from_config(config)
-                progress_coordinator.total_boards = board_info["total_boards"]
-                progress_coordinator.total_repositories = 39  # Default repository count
-                progress_coordinator.set_compilation_strategy("zmk_west")
+                # TODO: Enable after refactoring
+                # progress_coordinator.total_boards = board_info["total_boards"]
+                # progress_coordinator.total_repositories = 39  # Default repository count
+                # progress_coordinator.set_compilation_strategy("zmk_west")
 
                 # Start with workspace setup
-                progress_coordinator.transition_to_phase(
-                    "workspace_setup", "Setting up workspace"
-                )
+                # progress_coordinator.transition_to_phase(
+                #     "workspace_setup", "Setting up workspace"
+                # )
+                pass
 
             # Try to use cached workspace
             workspace_path, cache_used, cache_type = (
@@ -316,7 +327,9 @@ class ZmkWestService(CompilationServiceProtocol):
                 self.logger.error("Workspace setup failed")
                 # Signal failure to progress coordinator
                 if progress_coordinator:
-                    progress_coordinator.fail_all_tasks()
+                    # TODO: Enable after refactoring
+                    # progress_coordinator.fail_all_tasks()
+                    pass
                 return BuildResult(success=False, errors=["Workspace setup failed"])
 
             # Run compilation
@@ -385,7 +398,9 @@ class ZmkWestService(CompilationServiceProtocol):
                 )
                 # Signal failure to progress coordinator
                 if progress_coordinator:
-                    progress_coordinator.fail_all_tasks()
+                    # TODO: Enable after refactoring
+                    # progress_coordinator.fail_all_tasks()
+                    pass
                 return BuildResult(
                     success=False,
                     errors=["Compilation failed"],
@@ -435,19 +450,21 @@ class ZmkWestService(CompilationServiceProtocol):
             # Signal completion to progress coordinator
             if progress_coordinator:
                 # Ensure we're marked as completed even if middleware pattern matching failed
-                if (
-                    progress_coordinator.boards_completed
-                    < progress_coordinator.total_boards
-                    and progress_coordinator.total_boards > 0
-                ):
-                    self.logger.debug(
-                        "Middleware pattern matching may have failed - forcing board completion count to match total"
-                    )
-                    progress_coordinator.boards_completed = (
-                        progress_coordinator.total_boards
-                    )
+                # TODO: Enable after refactoring
+                # if (
+                #     progress_coordinator.boards_completed
+                #     < progress_coordinator.total_boards
+                #     and progress_coordinator.total_boards > 0
+                # ):
+                #     self.logger.debug(
+                #         "Middleware pattern matching may have failed - forcing board completion count to match total"
+                #     )
+                #     progress_coordinator.boards_completed = (
+                #         progress_coordinator.total_boards
+                #     )
 
-                progress_coordinator.complete_all_builds()
+                # progress_coordinator.complete_all_builds()
+                pass
 
             build_result = BuildResult(
                 success=True,
@@ -487,7 +504,9 @@ class ZmkWestService(CompilationServiceProtocol):
             self.logger.error("Compilation failed: %s", e, exc_info=exc_info)
             # Signal failure to progress coordinator
             if progress_coordinator:
-                progress_coordinator.fail_all_tasks()
+                # TODO: Enable after refactoring
+                # progress_coordinator.fail_all_tasks()
+                pass
             return BuildResult(success=False, errors=[str(e)])
 
     def compile_from_json(

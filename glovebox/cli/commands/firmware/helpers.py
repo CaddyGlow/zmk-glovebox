@@ -330,40 +330,46 @@ def setup_progress_display(
     from rich.console import Console
 
     from glovebox.cli.helpers.theme import get_icon_mode_from_context
-    from glovebox.compilation.simple_progress import (
-        ProgressConfig,
-        create_simple_compilation_display,
-        create_simple_progress_coordinator,
-    )
-
-    # Get icon mode from context (which contains user config)
-    icon_mode = get_icon_mode_from_context(ctx)
-
-    # Create firmware compilation configuration
-    firmware_config = ProgressConfig(
-        operation_name="Firmware Build",
-        icon_mode=icon_mode,
-    )
-
-    console = Console()
-    progress_display = create_simple_compilation_display(
-        console, firmware_config, icon_mode
-    )
-    progress_coordinator = create_simple_progress_coordinator(progress_display)
-    progress_display.start()
+    # TODO: Enable after refactoring - progress functionality temporarily disabled
+    # from glovebox.compilation.simple_progress import (
+    #     ProgressConfig,
+    #     create_simple_compilation_display,
+    #     create_simple_progress_coordinator,
+    # )
+    #
+    # # Get icon mode from context (which contains user config)
+    # icon_mode = get_icon_mode_from_context(ctx)
+    #
+    # # Create firmware compilation configuration
+    # firmware_config = ProgressConfig(
+    #     operation_name="Firmware Build",
+    #     icon_mode=icon_mode,
+    # )
+    #
+    # console = Console()
+    # progress_display = create_simple_compilation_display(
+    #     console, firmware_config, icon_mode
+    # )
+    # progress_coordinator = create_simple_progress_coordinator(progress_display)
+    # progress_display.start()
+    
+    progress_display = None
+    progress_coordinator = None
 
     # Create a bridge callback that forwards to our coordinator
     def progress_callback(progress: Any) -> None:
         """Bridge callback that forwards progress updates to our simple coordinator."""
-        if (
-            hasattr(progress, "state")
-            and progress.state
-            and hasattr(progress, "compilation_phase")
-        ):
-            progress_coordinator.transition_to_phase(
-                progress.compilation_phase, progress.description or ""
-            )
-            # Note: This is a basic bridge - more sophisticated mapping could be added
+        # TODO: Progress coordinator calls disabled
+        # if (
+        #     hasattr(progress, "state")
+        #     and progress.state
+        #     and hasattr(progress, "compilation_phase")
+        # ):
+        #     progress_coordinator.transition_to_phase(
+        #         progress.compilation_phase, progress.description or ""
+        #     )
+        #     # Note: This is a basic bridge - more sophisticated mapping could be added
+        pass  # No-op for disabled progress
 
     return progress_display, progress_coordinator, progress_callback
 
@@ -525,8 +531,8 @@ def create_compilation_service_with_progress(
         session_metrics=session_metrics,
     )
 
-    # If we have a progress coordinator, try to pass it directly
-    if hasattr(compilation_service, "set_progress_coordinator"):
-        compilation_service.set_progress_coordinator(progress_coordinator)
+    # TODO: Enable after refactoring
+    # if hasattr(compilation_service, "set_progress_coordinator"):
+    #     compilation_service.set_progress_coordinator(progress_coordinator)
 
     return compilation_service

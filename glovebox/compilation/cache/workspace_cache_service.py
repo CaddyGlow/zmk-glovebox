@@ -12,7 +12,9 @@ if TYPE_CHECKING:
     from glovebox.protocols.progress_coordinator_protocol import (
         ProgressCoordinatorProtocol,
     )
+    from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
 
+from glovebox.cli.components.noop_progress_context import get_noop_progress_context
 from glovebox.compilation.cache.models import (
     ArchiveFormat,
     WorkspaceCacheMetadata,
@@ -279,6 +281,7 @@ class ZmkWorkspaceCacheService:
         branch: str | None = None,
         progress_callback: CopyProgressCallback | None = None,
         progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
+        progress_context: "ProgressContextProtocol | None" = None,
     ) -> WorkspaceCacheResult:
         """Inject an existing workspace into cache.
 
@@ -286,18 +289,47 @@ class ZmkWorkspaceCacheService:
             workspace_path: Path to existing workspace directory
             repository: Git repository name
             branch: Git branch name (None for repo-only injection)
+            progress_callback: Optional legacy progress callback
+            progress_coordinator: Optional legacy progress coordinator
+            progress_context: Optional progress context (defaults to NoOp if None)
 
         Returns:
             WorkspaceCacheResult with operation results
         """
+        # Convert None to NoOp context once at the beginning
+        if progress_context is None:
+            progress_context = get_noop_progress_context()
+        
         try:
             workspace_path = workspace_path.resolve()
+            
+            # Start validation checkpoint
+            progress_context.start_checkpoint("Validating Source")
+            self.logger.info("Injecting workspace from %s", workspace_path)
 
             if not workspace_path.exists() or not workspace_path.is_dir():
+                progress_context.fail_checkpoint("Validating Source")
                 return WorkspaceCacheResult(
                     success=False,
                     error_message=f"Workspace path does not exist or is not a directory: {workspace_path}",
                 )
+            
+            # Validate workspace structure
+            required_components = ["zmk", "zephyr", "modules", ".west"]
+            found_components = []
+            for component in required_components:
+                if (workspace_path / component).exists():
+                    found_components.append(component)
+            
+            if not found_components:
+                progress_context.fail_checkpoint("Validating Source")
+                return WorkspaceCacheResult(
+                    success=False,
+                    error_message="Invalid workspace: no ZMK components found",
+                )
+            
+            progress_context.complete_checkpoint("Validating Source")
+            progress_context.log(f"Found {len(found_components)} workspace components", "info")
 
             # Determine cache level and git inclusion
             if branch is None:
@@ -316,6 +348,7 @@ class ZmkWorkspaceCacheService:
                 include_git=include_git,
                 progress_callback=progress_callback,
                 progress_coordinator=progress_coordinator,
+                progress_context=progress_context,
             )
 
         except Exception as e:
@@ -323,6 +356,7 @@ class ZmkWorkspaceCacheService:
             self.logger.error(
                 "Failed to inject existing workspace: %s", e, exc_info=exc_info
             )
+            progress_context.fail_checkpoint("Validating Source")
             return WorkspaceCacheResult(
                 success=False, error_message=f"Failed to inject existing workspace: {e}"
             )
@@ -531,14 +565,15 @@ class ZmkWorkspaceCacheService:
                     compression_level = archive_format.default_compression_level
 
                 # Set export task as active if coordinator available
-                if progress_coordinator and hasattr(
-                    progress_coordinator, "set_enhanced_task_status"
-                ):
-                    progress_coordinator.set_enhanced_task_status(
-                        "workspace_export",
-                        "active",
-                        f"Exporting to {archive_format.value}",
-                    )
+                # TODO: Enable after refactoring
+                # if progress_coordinator and hasattr(
+                #     progress_coordinator, "set_enhanced_task_status"
+                # ):
+                #     progress_coordinator.set_enhanced_task_status(
+                #         "workspace_export",
+                #         "active",
+                #         f"Exporting to {archive_format.value}",
+                #     )
 
                 # Calculate workspace size for progress tracking
                 original_size = self._calculate_directory_size(workspace_path)
@@ -580,12 +615,13 @@ class ZmkWorkspaceCacheService:
                 )
 
                 # Mark export as completed
-                if progress_coordinator and hasattr(
-                    progress_coordinator, "set_enhanced_task_status"
-                ):
-                    progress_coordinator.set_enhanced_task_status(
-                        "workspace_export", "completed"
-                    )
+                # TODO: Enable after refactoring
+                # if progress_coordinator and hasattr(
+                #     progress_coordinator, "set_enhanced_task_status"
+                # ):
+                #     progress_coordinator.set_enhanced_task_status(
+                #         "workspace_export", "completed"
+                #     )
 
                 # Update metrics
                 self.metrics.set_context(
@@ -619,12 +655,13 @@ class ZmkWorkspaceCacheService:
 
             except Exception as e:
                 # Mark export as failed
-                if progress_coordinator and hasattr(
-                    progress_coordinator, "set_enhanced_task_status"
-                ):
-                    progress_coordinator.set_enhanced_task_status(
-                        "workspace_export", "failed"
-                    )
+                # TODO: Enable after refactoring
+                # if progress_coordinator and hasattr(
+                #     progress_coordinator, "set_enhanced_task_status"
+                # ):
+                #     progress_coordinator.set_enhanced_task_status(
+                #         "workspace_export", "failed"
+                #     )
 
                 exc_info = self.logger.isEnabledFor(logging.DEBUG)
                 self.logger.error(
@@ -652,6 +689,7 @@ class ZmkWorkspaceCacheService:
         include_git: bool,
         progress_callback: CopyProgressCallback | None = None,
         progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
+        progress_context: "ProgressContextProtocol | None" = None,
     ) -> WorkspaceCacheResult:
         """Internal method to cache workspace with specified options.
 
@@ -661,10 +699,17 @@ class ZmkWorkspaceCacheService:
             branch: Git branch name (can be None)
             cache_level: Cache level enum value
             include_git: Whether to include .git folders
+            progress_callback: Optional legacy progress callback
+            progress_coordinator: Optional legacy progress coordinator
+            progress_context: Optional progress context
 
         Returns:
             WorkspaceCacheResult with operation results
         """
+        # Convert None to NoOp context once at the beginning
+        if progress_context is None:
+            progress_context = get_noop_progress_context()
+            
         try:
             workspace_path = workspace_path.resolve()
 
@@ -688,13 +733,9 @@ class ZmkWorkspaceCacheService:
                 if component_path.exists() and component_path.is_dir():
                     detected_components.append(component)
 
-            # Set workspace injection task as active if coordinator available
-            if progress_coordinator and hasattr(
-                progress_coordinator, "set_enhanced_task_status"
-            ):
-                progress_coordinator.set_enhanced_task_status(
-                    "Copying to Cache", "active", "Copying workspace components"
-                )
+            # Start copying checkpoint
+            progress_context.start_checkpoint("Copying to Cache")
+            progress_context.log(f"Copying {len(detected_components)} components to cache", "info")
 
             # Copy workspace components with progress tracking
             total_components = len(detected_components)
@@ -739,9 +780,9 @@ class ZmkWorkspaceCacheService:
                 if dest_component.exists():
                     shutil.rmtree(dest_component)
 
-                # Create enhanced progress callback that updates both old and new progress systems
+                # Create enhanced progress callback that updates all progress systems
                 component_progress_callback = None
-                if progress_callback or progress_coordinator:
+                if progress_callback or progress_coordinator or progress_context:
 
                     def make_enhanced_callback(
                         comp_name: str,
@@ -758,20 +799,38 @@ class ZmkWorkspaceCacheService:
                             overall_files = files_offset + current_files
                             overall_bytes = bytes_offset + current_bytes
 
+                            # Update progress context
+                            progress_context.update_progress(
+                                overall_files,
+                                total_estimated_files,
+                                f"Copying {comp_name}: {progress.current_file or ''}"
+                            )
+                            
+                            # Update status info
+                            if progress.current_file:
+                                progress_context.set_status_info({
+                                    "current_file": progress.current_file,
+                                    "component": f"{comp_name} ({comp_idx + 1}/{total_components})",
+                                    "files_remaining": total_estimated_files - overall_files,
+                                    "bytes_copied": overall_bytes,
+                                    "total_bytes": total_estimated_bytes,
+                                })
+
                             # Update progress coordinator if available
-                            if progress_coordinator and hasattr(
-                                progress_coordinator, "update_workspace_progress"
-                            ):
-                                progress_coordinator.update_workspace_progress(
-                                    files_copied=overall_files,
-                                    total_files=total_estimated_files,
-                                    bytes_copied=overall_bytes,
-                                    total_bytes=total_estimated_bytes,
-                                    current_file=progress.current_file or "",
-                                    component=f"{comp_name} ({comp_idx + 1}/{total_components})",
-                                    transfer_speed_mb_s=0.0,  # Will be calculated by progress coordinator
-                                    eta_seconds=0.0,
-                                )
+                            # TODO: Enable after refactoring
+                            # if progress_coordinator and hasattr(
+                            #     progress_coordinator, "update_workspace_progress"
+                            # ):
+                            #     progress_coordinator.update_workspace_progress(
+                            #         files_copied=overall_files,
+                            #         total_files=total_estimated_files,
+                            #         bytes_copied=overall_bytes,
+                            #         total_bytes=total_estimated_bytes,
+                            #         current_file=progress.current_file or "",
+                            #         component=f"{comp_name} ({comp_idx + 1}/{total_components})",
+                            #         transfer_speed_mb_s=0.0,  # Will be calculated by progress coordinator
+                            #         eta_seconds=0.0,
+                            #     )
 
                             # Also call original callback if provided
                             if progress_callback:
@@ -842,13 +901,9 @@ class ZmkWorkspaceCacheService:
                 git_remotes={},
             )
 
-            # Mark workspace injection as completed
-            if progress_coordinator and hasattr(
-                progress_coordinator, "set_enhanced_task_status"
-            ):
-                progress_coordinator.set_enhanced_task_status(
-                    "Copying to Cache", "completed"
-                )
+            # Complete copying checkpoint
+            progress_context.complete_checkpoint("Copying to Cache")
+            progress_context.start_checkpoint("Updating Metadata")
 
             # Store metadata in cache manager
             ttls = self.get_ttls_for_cache_levels()
@@ -867,6 +922,15 @@ class ZmkWorkspaceCacheService:
                 ttl,
                 cached_workspace_dir,
             )
+            
+            # Complete metadata checkpoint
+            progress_context.complete_checkpoint("Updating Metadata")
+            progress_context.log(f"Workspace cached successfully at {cached_workspace_dir}", "info")
+            
+            # Start and complete finalizing checkpoint
+            progress_context.start_checkpoint("Finalizing")
+            progress_context.log("Completing workspace cache operation", "info")
+            progress_context.complete_checkpoint("Finalizing")
 
             return WorkspaceCacheResult(
                 success=True,
@@ -878,6 +942,11 @@ class ZmkWorkspaceCacheService:
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.error("Failed to cache workspace: %s", e, exc_info=exc_info)
+            
+            # Fail the current checkpoint
+            progress_context.fail_checkpoint("Copying to Cache")
+            progress_context.log(f"Failed to cache workspace: {e}", "error")
+            
             return WorkspaceCacheResult(
                 success=False, error_message=f"Failed to cache workspace: {e}"
             )
@@ -1123,10 +1192,11 @@ class ZmkWorkspaceCacheService:
                 docker_image = metadata.docker_image or "zmkfirmware/zmk-dev-arm:stable"
 
                 # Update progress coordinator
-                if progress_coordinator:
-                    progress_coordinator.transition_to_phase(
-                        "dependencies_update", f"Updating dependencies for {repository}"
-                    )
+                # TODO: Enable after refactoring
+                # if progress_coordinator:
+                #     progress_coordinator.transition_to_phase(
+                #         "dependencies_update", f"Updating dependencies for {repository}"
+                #     )
 
                 # Run west update in Docker
                 commands = [
@@ -1259,11 +1329,12 @@ class ZmkWorkspaceCacheService:
                 docker_image = metadata.docker_image or "zmkfirmware/zmk-dev-arm:stable"
 
                 # Update progress coordinator
-                if progress_coordinator:
-                    progress_coordinator.transition_to_phase(
-                        "branch_update",
-                        f"Switching {repository} from {old_branch} to {new_branch}",
-                    )
+                # TODO: Enable after refactoring
+                # if progress_coordinator:
+                #     progress_coordinator.transition_to_phase(
+                #         "branch_update",
+                #         f"Switching {repository} from {old_branch} to {new_branch}",
+                #     )
 
                 # Run git operations in Docker
                 commands = [

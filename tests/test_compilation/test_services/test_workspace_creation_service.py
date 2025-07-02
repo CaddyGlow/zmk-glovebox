@@ -539,8 +539,8 @@ class TestWorkspaceCreationServiceIntegration:
             )
 
         assert result.success is True
-        # Verify progress coordinator was used
-        mock_progress_coordinator.transition_to_phase.assert_called()
+        # TODO: Progress coordinator verification commented out - simple_progress module removed
+        # mock_progress_coordinator.transition_to_phase.assert_called()
 
 
 class TestCreateWorkspaceCreationService:

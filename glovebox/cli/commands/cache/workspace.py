@@ -481,92 +481,84 @@ def workspace_add(
         temp_cleanup_dirs: list[Path] = []  # Initialize to avoid undefined variable
 
         # Progress is enabled by default unless explicitly disabled
-        display = None
+        progress_manager = None
+        progress_context = None
         progress_coordinator = None
 
         if progress:
-            # Use simple progress display for cache operations
-            from glovebox.compilation.simple_progress import (
-                ProgressConfig,
-                create_simple_compilation_display,
-                create_simple_progress_coordinator,
-            )
+            from glovebox.cli.components import create_progress_manager
 
-            # Create workspace-specific configuration
-            workspace_config = ProgressConfig(
-                operation_name="Workspace",
-                icon_mode=icon_mode,
-                tasks=[
-                    "Cache Setup",
-                    "Workspace Setup",
+            # Create progress manager with workspace-specific checkpoints
+            progress_manager = create_progress_manager(
+                operation_name="Workspace Cache",
+                checkpoints=[
+                    "Validating Source",
                     "Extracting Files",
                     "Copying to Cache",
+                    "Updating Metadata",
                     "Finalizing",
                 ],
-            )
-
-            display = create_simple_compilation_display(
-                console, workspace_config, icon_mode
-            )
-            progress_coordinator = create_simple_progress_coordinator(display)
-
-            # Start display immediately to show all operations
-            display.start()
-
-            # Start with the first task: Cache Setup
-            progress_coordinator.start_task_by_name(
-                "Cache Setup", "Initializing cache system", 0.0
+                icon_mode=icon_mode,
             )
 
         try:
-            # Determine source type and process accordingly
-            # Disable visual progress in process_workspace_source to avoid competing displays
-            workspace_path, temp_cleanup_dirs = process_workspace_source(
-                workspace_source,
-                progress=False,
-                console=console,
-                progress_coordinator=progress_coordinator,
-            )
+            if progress_manager:
+                # Enter progress context manager
+                with progress_manager as progress_context:
+                    # Determine source type and process accordingly
+                    workspace_path, temp_cleanup_dirs = process_workspace_source(
+                        workspace_source,
+                        progress=False,
+                        console=console,
+                        progress_context=progress_context,
+                    )
 
-            # Use the new workspace cache service for adding external workspace
-            if not repository:
-                typer.echo(
-                    "Error: Repository must be specified when injecting workspace",
-                    err=True,
+                    # Use the new workspace cache service for adding external workspace
+                    if not repository:
+                        typer.echo(
+                            "Error: Repository must be specified when injecting workspace",
+                            err=True,
+                        )
+                        raise typer.Exit(1)
+
+                    logger.info(f"Adding workspace cache for {repository}")
+                    logger.info(f"Source: {workspace_source}")
+
+                    result = workspace_cache_service.inject_existing_workspace(
+                        workspace_path=workspace_path,
+                        repository=repository,
+                        progress_callback=progress_callback,
+                        progress_coordinator=progress_coordinator,
+                        progress_context=progress_context,
+                    )
+
+                    # Result already includes finalizing from service
+                    pass
+            else:
+                # No progress mode - execute directly
+                workspace_path, temp_cleanup_dirs = process_workspace_source(
+                    workspace_source,
+                    progress=False,
+                    console=console,
+                    progress_context=None,
                 )
-                raise typer.Exit(1)
 
-            # Start workspace injection task
-            if progress_coordinator:
-                progress_coordinator.start_task_by_name(
-                    "Copying to Cache", "Adding workspace to cache", 0.0
+                if not repository:
+                    typer.echo(
+                        "Error: Repository must be specified when injecting workspace",
+                        err=True,
+                    )
+                    raise typer.Exit(1)
+
+                result = workspace_cache_service.inject_existing_workspace(
+                    workspace_path=workspace_path,
+                    repository=repository,
+                    progress_callback=None,
+                    progress_coordinator=None,
+                    progress_context=None,
                 )
-
-            logger.info(f"Adding workspace cache for {repository}")
-            logger.info(f"Source: {workspace_source}")
-
-            result = workspace_cache_service.inject_existing_workspace(
-                workspace_path=workspace_path,
-                repository=repository,
-                progress_callback=progress_callback,
-                progress_coordinator=progress_coordinator,
-            )
-
-            # Start and complete finalizing task
-            if progress_coordinator:
-                progress_coordinator.start_task_by_name(
-                    "Finalizing", "Completing workspace addition", 50.0
-                )
-                progress_coordinator.update_current_task(
-                    "Workspace successfully added to cache", 100.0
-                )
-                progress_coordinator.complete_all_tasks()
 
         finally:
-            # Stop display if it was started
-            if display is not None:
-                display.stop()
-
             # Cleanup temporary directories from zip extraction
             cleanup_temp_directories(temp_cleanup_dirs)
 
@@ -769,45 +761,44 @@ def workspace_export(
         progress_coordinator = None
 
         if progress:
-            from glovebox.compilation.simple_progress import (
-                ProgressConfig,
-                create_simple_compilation_display,
-                create_simple_progress_coordinator,
-            )
+            # TODO: Progress display temporarily disabled - simple_progress module removed
+            # from glovebox.compilation.simple_progress import (
+            #     ProgressConfig,
+            #     create_simple_compilation_display,
+            #     create_simple_progress_coordinator,
+            # )
 
-            # Get icon mode from user configuration (already retrieved above)
-            icon_mode = get_icon_mode_from_config(user_config)
-
-            # Create workspace export configuration
-            export_config = ProgressConfig(
-                operation_name="Workspace Export",
-                icon_mode=icon_mode,
-                tasks=[
-                    "Cache Setup",
-                    "Preparing Export",
-                    "Scanning Files",
-                    "Creating Archive",
-                    "Finalizing Export",
-                ],
-            )
-
-            display = create_simple_compilation_display(
-                console, export_config, icon_mode
-            )
-            progress_coordinator = create_simple_progress_coordinator(display)
-            display.start()
-
-            # Set initial phase for export
-            cache_type = "repo+branch" if branch else "repo-only"
-            progress_coordinator.transition_to_phase(
-                "initialization", f"Preparing export for {repository} ({cache_type})"
-            )
-
-            # Set workspace export task as active
-            if hasattr(progress_coordinator, "set_enhanced_task_status"):
-                progress_coordinator.set_enhanced_task_status(
-                    "workspace_export", "active", f"Exporting to {archive_format.value}"
-                )
+            # # Create workspace export configuration
+            # export_config = ProgressConfig(
+            #     operation_name="Workspace Export",
+            #     icon_mode=icon_mode,
+            #     tasks=[
+            #         "Cache Setup",
+            #         "Preparing Export",
+            #         "Scanning Files",
+            #         "Creating Archive",
+            #         "Finalizing Export",
+            #     ],
+            # )
+            #
+            # display = create_simple_compilation_display(
+            #     console, export_config, icon_mode
+            # )
+            # progress_coordinator = create_simple_progress_coordinator(display)
+            # display.start()
+            #
+            # # Set initial phase for export
+            # cache_type = "repo+branch" if branch else "repo-only"
+            # progress_coordinator.transition_to_phase(
+            #     "initialization", f"Preparing export for {repository} ({cache_type})"
+            # )
+            #
+            # # Set workspace export task as active
+            # if hasattr(progress_coordinator, "set_enhanced_task_status"):
+            #     progress_coordinator.set_enhanced_task_status(
+            #         "workspace_export", "active", f"Exporting to {archive_format.value}"
+            #     )
+            pass
 
         try:
             # Perform the export
@@ -822,15 +813,16 @@ def workspace_export(
             )
 
             # Mark as completed
-            if progress_coordinator:
-                if export_result.success:
-                    progress_coordinator.transition_to_phase(
-                        "complete", "Export completed successfully"
-                    )
-                else:
-                    progress_coordinator.transition_to_phase(
-                        "error", f"Export failed: {export_result.error_message}"
-                    )
+            # TODO: Enable after refactoring
+            # if progress_coordinator:
+            #     if export_result.success:
+            #         progress_coordinator.transition_to_phase(
+            #             "complete", "Export completed successfully"
+            #         )
+            #     else:
+            #         progress_coordinator.transition_to_phase(
+            #             "error", f"Export failed: {export_result.error_message}"
+            #         )
 
         finally:
             # Stop display if it was started
@@ -996,38 +988,37 @@ def workspace_create(
         progress_coordinator = None
 
         if progress:
-            from glovebox.compilation.simple_progress import (
-                ProgressConfig,
-                create_simple_compilation_display,
-                create_simple_progress_coordinator,
-            )
+            # TODO: Progress display temporarily disabled - simple_progress module removed
+            # from glovebox.compilation.simple_progress import (
+            #     ProgressConfig,
+            #     create_simple_compilation_display,
+            #     create_simple_progress_coordinator,
+            # )
 
-            # Get icon mode from user configuration (already retrieved above)
-            icon_mode = get_icon_mode_from_config(user_config)
+            # # Create workspace creation configuration
+            # create_config = ProgressConfig(
+            #     operation_name="Workspace Creation",
+            #     icon_mode=icon_mode,
+            #     tasks=[
+            #         "Cache Setup",
+            #         "Repository Clone",
+            #         "Processing Files",
+            #         "Workspace Setup",
+            #         "Finalizing",
+            #     ],
+            # )
 
-            # Create workspace creation configuration
-            create_config = ProgressConfig(
-                operation_name="Workspace Creation",
-                icon_mode=icon_mode,
-                tasks=[
-                    "Cache Setup",
-                    "Repository Clone",
-                    "Processing Files",
-                    "Workspace Setup",
-                    "Finalizing",
-                ],
-            )
-
-            display = create_simple_compilation_display(
-                console, create_config, icon_mode
-            )
-            progress_coordinator = create_simple_progress_coordinator(display)
-            display.start()
-
-            # Set initial phase
-            progress_coordinator.transition_to_phase(
-                "initialization", f"Creating workspace for {repo_spec}"
-            )
+            # display = create_simple_compilation_display(
+            #     console, create_config, icon_mode
+            # )
+            # progress_coordinator = create_simple_progress_coordinator(display)
+            # display.start()
+            #
+            # # Set initial phase
+            # progress_coordinator.transition_to_phase(
+            #     "initialization", f"Creating workspace for {repo_spec}"
+            # )
+            pass
 
         try:
             # Create workspace using the cache service
@@ -1040,15 +1031,16 @@ def workspace_create(
             )
 
             # Mark as completed
-            if progress_coordinator:
-                if result.success:
-                    progress_coordinator.transition_to_phase(
-                        "complete", "Workspace created and cached successfully"
-                    )
-                else:
-                    progress_coordinator.transition_to_phase(
-                        "error", f"Workspace creation failed: {result.error_message}"
-                    )
+            # TODO: Enable after refactoring
+            # if progress_coordinator:
+            #     if result.success:
+            #         progress_coordinator.transition_to_phase(
+            #             "complete", "Workspace created and cached successfully"
+            #         )
+            #     else:
+            #         progress_coordinator.transition_to_phase(
+            #             "error", f"Workspace creation failed: {result.error_message}"
+            #         )
 
         finally:
             # Stop display if it was started
@@ -1256,33 +1248,32 @@ def workspace_update(
         progress_coordinator = None
 
         if progress:
-            from glovebox.compilation.simple_progress import (
-                ProgressConfig,
-                create_simple_compilation_display,
-                create_simple_progress_coordinator,
-            )
+            # TODO: Progress display temporarily disabled - simple_progress module removed
+            # from glovebox.compilation.simple_progress import (
+            #     ProgressConfig,
+            #     create_simple_compilation_display,
+            #     create_simple_progress_coordinator,
+            # )
 
-            # Get icon mode from user configuration (already retrieved above)
-            icon_mode = get_icon_mode_from_config(user_config)
-
-            # Create workspace update configuration
-            update_config = ProgressConfig(
-                operation_name="Workspace Update",
-                icon_mode=icon_mode,
-                tasks=[
-                    "Cache Setup",
-                    "Workspace Setup",
-                    "Updating Dependencies",
-                    "Branch Operations",
-                    "Finalizing",
-                ],
-            )
-
-            display = create_simple_compilation_display(
-                console, update_config, icon_mode
-            )
-            progress_coordinator = create_simple_progress_coordinator(display)
-            display.start()
+            # # Create workspace update configuration
+            # update_config = ProgressConfig(
+            #     operation_name="Workspace Update",
+            #     icon_mode=icon_mode,
+            #     tasks=[
+            #         "Cache Setup",
+            #         "Workspace Setup",
+            #         "Updating Dependencies",
+            #         "Branch Operations",
+            #         "Finalizing",
+            #     ],
+            # )
+            #
+            # display = create_simple_compilation_display(
+            #     console, update_config, icon_mode
+            # )
+            # progress_coordinator = create_simple_progress_coordinator(display)
+            # display.start()
+            pass
 
         try:
             if new_branch:
@@ -1296,11 +1287,12 @@ def workspace_update(
                     )
                     raise typer.Exit(1)
 
-                if progress_coordinator:
-                    progress_coordinator.transition_to_phase(
-                        "branch_update",
-                        f"Switching {repository} from {branch} to {new_branch}",
-                    )
+                # TODO: Enable after refactoring
+                # if progress_coordinator:
+                #     progress_coordinator.transition_to_phase(
+                #         "branch_update",
+                #         f"Switching {repository} from {branch} to {new_branch}",
+                #     )
 
                 result = workspace_cache_service.update_workspace_branch(
                     repository=repository,
@@ -1315,11 +1307,12 @@ def workspace_update(
                 # Update dependencies only
                 target_branch = branch
 
-                if progress_coordinator:
-                    progress_coordinator.transition_to_phase(
-                        "dependencies_update",
-                        f"Updating dependencies for {repository}@{target_branch}",
-                    )
+                # TODO: Enable after refactoring
+                # if progress_coordinator:
+                #     progress_coordinator.transition_to_phase(
+                #         "dependencies_update",
+                #         f"Updating dependencies for {repository}@{target_branch}",
+                #     )
 
                 result = workspace_cache_service.update_workspace_dependencies(
                     repository=repository,
@@ -1330,15 +1323,16 @@ def workspace_update(
                 operation = "updated dependencies"
 
             # Mark as completed
-            if progress_coordinator:
-                if result.success:
-                    progress_coordinator.transition_to_phase(
-                        "complete", f"Workspace {operation} successfully"
-                    )
-                else:
-                    progress_coordinator.transition_to_phase(
-                        "error", f"Workspace update failed: {result.error_message}"
-                    )
+            # TODO: Enable after refactoring
+            # if progress_coordinator:
+            #     if result.success:
+            #         progress_coordinator.transition_to_phase(
+            #             "complete", f"Workspace {operation} successfully"
+            #         )
+            #     else:
+            #         progress_coordinator.transition_to_phase(
+            #             "error", f"Workspace update failed: {result.error_message}"
+            #         )
 
         finally:
             # Stop display if it was started

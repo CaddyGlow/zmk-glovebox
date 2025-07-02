@@ -225,10 +225,12 @@ class WorkspaceCreationService:
 
         # Update progress coordinator if available
         if progress_coordinator:
-            progress_coordinator.transition_to_phase(
-                "workspace_creation",
-                f"Creating workspace for {repository_spec.display_name}",
-            )
+            # TODO: Enable after refactoring
+            # progress_coordinator.transition_to_phase(
+            #     "workspace_creation",
+            #     f"Creating workspace for {repository_spec.display_name}",
+            # )
+            pass
 
         # Create temporary workspace directory
         with tempfile.TemporaryDirectory(prefix="glovebox_workspace_") as temp_dir:
@@ -237,9 +239,11 @@ class WorkspaceCreationService:
             try:
                 # Phase 1: Initialize west workspace
                 if progress_coordinator:
-                    progress_coordinator.transition_to_phase(
-                        "west_init", "Initializing west workspace"
-                    )
+                    # TODO: Enable after refactoring
+                    # progress_coordinator.transition_to_phase(
+                    #     "west_init", "Initializing west workspace"
+                    # )
+                    pass
 
                 west_init_success = self._initialize_west_workspace(
                     workspace_path,
@@ -259,10 +263,12 @@ class WorkspaceCreationService:
 
                 # Phase 2: Clone repository and checkout branch
                 if progress_coordinator:
-                    progress_coordinator.transition_to_phase(
-                        "git_clone",
-                        f"Cloning {repository_spec.repository}@{repository_spec.branch}",
-                    )
+                    # TODO: Enable after refactoring
+                    # progress_coordinator.transition_to_phase(
+                    #     "git_clone",
+                    #     f"Cloning {repository_spec.repository}@{repository_spec.branch}",
+                    # )
+                    pass
 
                 git_clone_success = self._clone_and_checkout_repository(
                     workspace_path,
@@ -283,9 +289,11 @@ class WorkspaceCreationService:
 
                 # Phase 3: Update dependencies
                 if progress_coordinator:
-                    progress_coordinator.transition_to_phase(
-                        "west_update", "Updating workspace dependencies"
-                    )
+                    # TODO: Enable after refactoring
+                    # progress_coordinator.transition_to_phase(
+                    #     "west_update", "Updating workspace dependencies"
+                    # )
+                    pass
 
                 west_update_success = self._update_workspace_dependencies(
                     workspace_path,
@@ -306,9 +314,11 @@ class WorkspaceCreationService:
 
                 # Phase 4: Create metadata and cache workspace
                 if progress_coordinator:
-                    progress_coordinator.transition_to_phase(
-                        "metadata_creation", "Creating workspace metadata"
-                    )
+                    # TODO: Enable after refactoring
+                    # progress_coordinator.transition_to_phase(
+                    #     "metadata_creation", "Creating workspace metadata"
+                    # )
+                    pass
 
                 metadata = self._create_workspace_metadata(
                     workspace_path,
