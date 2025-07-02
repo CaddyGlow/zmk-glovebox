@@ -33,16 +33,8 @@ def sample_workspace_metadata():
         branch="main",
         commit_hash="abc123",
         cache_level=CacheLevel.REPO_BRANCH,
-        cache_key="test-cache-key",
-        cache_directory=Path("/tmp/cache"),
-        file_count=100,
-        total_size_bytes=1024000,
-        content_hash="def456",
+        size_bytes=1024000,
         docker_image="test/image:tag",
-        creation_timestamp=datetime.now(),
-        last_accessed=datetime.now(),
-        access_count=1,
-        ttl_hours=168,
     )
 
 
