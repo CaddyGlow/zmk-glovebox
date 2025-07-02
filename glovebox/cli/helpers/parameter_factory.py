@@ -1,15 +1,20 @@
-"""Factory for creating standardized parameter definitions.
+"""Simplified parameter factory for creating standardized CLI parameters.
 
-This module provides a factory class for creating consistent parameter definitions
+This module provides factory methods for creating consistent parameter definitions
 across CLI commands, eliminating duplication and ensuring standard behavior.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
+
+
+if TYPE_CHECKING:
+    from typer.models import ArgumentInfo, OptionInfo
 
 from glovebox.cli.helpers.parameters import (
     complete_json_files,
@@ -19,675 +24,498 @@ from glovebox.cli.helpers.parameters import (
 
 
 class ParameterFactory:
-    """Factory for creating standardized parameter definitions."""
-
-    # =============================================================================
-    # Output Parameter Factories
-    # =============================================================================
+    """Simplified factory for creating standardized parameter definitions."""
 
     @staticmethod
-    def output_file(
-        help_text: str | None = None,
-        supports_stdout: bool = False,
-        default_help_suffix: str = "",
+    def create_input_parameter(
+        help_text: str = "Input source (file, '-' for stdin, '@name' for library)",
+        default: str | None = None,
+        required: bool = True,
     ) -> Any:
-        """Create a standardized output file parameter.
+        """Create a standardized input parameter.
 
         Args:
-            help_text: Custom help text (uses default if None)
-            supports_stdout: Whether to support '-' for stdout output
-            default_help_suffix: Additional text to append to default help
+            help_text: Help text for the parameter
+            default: Default value if not provided
+            required: Whether the parameter is required
+
+        Returns:
+            Annotated type with Typer Argument configured for input
         """
-        if help_text is None:
-            base_help = "Output file path."
-            if supports_stdout:
-                base_help += " Use '-' for stdout."
-            base_help += " If not specified, generates a smart default filename."
-            help_text = f"{base_help}{default_help_suffix}"
-
         return Annotated[
-            str | None,
-            typer.Option(
-                "--output",
-                "-o",
-                help=help_text,
-            ),
-        ]
-
-    @staticmethod
-    def output_file_path_only(
-        help_text: str | None = None,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create an output file parameter that only accepts file paths (no stdout)."""
-        if help_text is None:
-            help_text = f"Output file path.{default_help_suffix}"
-
-        return Annotated[
-            Path | None,
-            typer.Option(
-                "--output",
-                "-o",
-                help=help_text,
-                dir_okay=False,
-                writable=True,
-            ),
-        ]
-
-    @staticmethod
-    def output_directory(
-        help_text: str | None = None,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create a standardized output directory parameter."""
-        if help_text is None:
-            help_text = f"Output directory path.{default_help_suffix}"
-
-        return Annotated[
-            Path,
-            typer.Option(
-                "--output",
-                "-o",
-                help=help_text,
-                file_okay=False,
-                dir_okay=True,
-                writable=True,
-            ),
-        ]
-
-    @staticmethod
-    def output_directory_optional(
-        help_text: str | None = None,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create an optional output directory parameter."""
-        if help_text is None:
-            help_text = f"Output directory path. If not specified, uses current directory.{default_help_suffix}"
-
-        return Annotated[
-            Path | None,
-            typer.Option(
-                "--output",
-                "-o",
-                help=help_text,
-                file_okay=False,
-                dir_okay=True,
-                writable=True,
-            ),
-        ]
-
-    # =============================================================================
-    # Input Parameter Factories
-    # =============================================================================
-
-    @staticmethod
-    def input_file(
-        help_text: str | None = None,
-        file_extensions: list[str] | None = None,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create a standardized required input file parameter."""
-        if help_text is None:
-            help_text = "Input file path."
-            if file_extensions:
-                help_text += f" Supported formats: {', '.join(file_extensions)}"
-            help_text += default_help_suffix
-
-        return Annotated[
-            Path,
+            str if required and default is None else str | None,
             typer.Argument(
                 help=help_text,
+                show_default=bool(default),
+                autocompletion=complete_json_files
+                if "json" in help_text.lower()
+                else None,
+            ),
+        ]
+
+    @staticmethod
+    def create_output_parameter(
+        help_text: str = "Output destination (file, directory, '-' for stdout)",
+        default: str | None = None,
+        is_option: bool = True,
+    ) -> Any:
+        """Create a standardized output parameter.
+
+        Args:
+            help_text: Help text for the parameter
+            default: Default value if not provided
+            is_option: Whether to create as Option (True) or Argument (False)
+
+        Returns:
+            Annotated type with Typer Option or Argument configured for output
+        """
+        if is_option:
+            # Create option with proper param_decls
+            opt = typer.Option(help=help_text, show_default=bool(default))
+            opt.param_decls = ("--output", "-o")
+            return Annotated[str | None, opt]
+        else:
+            return Annotated[
+                str if default is None else str | None,
+                typer.Argument(
+                    help=help_text,
+                    show_default=bool(default),
+                ),
+            ]
+
+    @staticmethod
+    def create_profile_parameter(
+        help_text: str = "Keyboard profile in format 'keyboard' or 'keyboard/firmware'",
+        default: str | None = None,
+        required: bool = False,
+    ) -> Any:
+        """Create a standardized profile parameter.
+
+        Args:
+            help_text: Help text for the parameter
+            default: Default value if not provided
+            required: Whether the parameter is required
+
+        Returns:
+            Annotated type with Typer Option configured for profile selection
+        """
+        if required and not default:
+            help_text += " (required)"
+
+        opt = _create_option_with_decls(
+            ("--profile", "-p"),
+            help=help_text,
+            show_default=bool(default),
+            autocompletion=complete_profile_names,
+        )
+        return Annotated[
+            str if required and default is None else str | None,
+            opt,
+        ]
+
+
+def _create_option_with_decls(
+    param_decls: tuple[str, ...], **kwargs: Any
+) -> Any:  # Returns typer's internal option type
+    """Helper to create Option with explicit param declarations."""
+    opt = typer.Option(**kwargs)
+    opt.param_decls = param_decls
+    return opt
+
+
+# Legacy compatibility - map old method names to new ones
+# This allows existing code to work without immediate changes
+def _create_legacy_wrapper(factory_class: type[ParameterFactory]) -> None:
+    """Create legacy method wrappers for backward compatibility."""
+    # Type: ignore comments are needed because we're dynamically adding attributes
+
+    # Define all legacy methods
+    legacy_methods: dict[str, Callable[..., Any]] = {
+        # Input parameter legacy methods
+        "input_file": lambda **kwargs: Annotated[
+            Path,
+            typer.Argument(
+                help=kwargs.get(
+                    "help_text",
+                    "Input file path"
+                    + (
+                        f". Supported formats: {', '.join(kwargs.get('file_extensions', []))}"
+                        if kwargs.get("file_extensions")
+                        else ""
+                    )
+                    + kwargs.get("default_help_suffix", ""),
+                ),
                 exists=True,
                 file_okay=True,
                 dir_okay=False,
                 readable=True,
             ),
-        ]
-
-    @staticmethod
-    def input_file_optional(
-        help_text: str | None = None,
-        env_var: str = "GLOVEBOX_JSON_FILE",
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create an optional input file parameter with environment variable fallback."""
-        if help_text is None:
-            help_text = f"Input file path. Uses {env_var} environment variable if not provided.{default_help_suffix}"
-
-        return Annotated[
+        ],
+        "input_file_optional": lambda **kwargs: Annotated[
             Path | None,
             typer.Argument(
-                help=help_text,
+                help=kwargs.get(
+                    "help_text",
+                    f"Input file path. Uses {kwargs.get('env_var', 'GLOVEBOX_JSON_FILE')} environment variable if not provided.{kwargs.get('default_help_suffix', '')}",
+                ),
                 exists=False,  # Will be validated in processing
                 file_okay=True,
                 dir_okay=False,
             ),
-        ]
-
-    @staticmethod
-    def input_file_with_stdin(
-        help_text: str | None = None,
-        library_resolvable: bool = False,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create an input file parameter that supports stdin."""
-        if help_text is None:
-            base_help = "Input file path or '-' for stdin"
-            if library_resolvable:
-                base_help += " or @library-name/uuid"
-            help_text = f"{base_help}.{default_help_suffix}"
-
-        # Library resolution is handled at command level to avoid circular imports
-        return Annotated[
+        ],
+        "input_file_with_stdin": lambda **kwargs: Annotated[
             str,
-            typer.Argument(help=help_text),
-        ]
-
-    @staticmethod
-    def input_file_with_stdin_optional(
-        help_text: str | None = None,
-        env_var: str = "GLOVEBOX_JSON_FILE",
-        library_resolvable: bool = False,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create an optional input file parameter with stdin and env var support."""
-        if help_text is None:
-            base_help = "Input file path or '-' for stdin"
-            if library_resolvable:
-                base_help += " or @library-name/uuid"
-            base_help += f". Uses {env_var} environment variable if not provided"
-            help_text = f"{base_help}.{default_help_suffix}"
-
-        if library_resolvable:
-            from glovebox.cli.decorators.library_params import (
-                library_resolvable_callback,
-            )
-
-            return Annotated[
-                str | None,
-                typer.Argument(
-                    help=help_text,
-                    callback=library_resolvable_callback,
+            typer.Argument(
+                help=kwargs.get("help_text")
+                or (
+                    "Input file path or '-' for stdin"
+                    + (
+                        " or @library-name/uuid"
+                        if kwargs.get("library_resolvable")
+                        else ""
+                    )
+                    + f".{kwargs.get('default_help_suffix', '')}"
                 ),
-            ]
-        else:
-            return Annotated[
-                str | None,
-                typer.Argument(help=help_text),
-            ]
-
-    @staticmethod
-    def input_directory(
-        help_text: str | None = None,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create a standardized input directory parameter."""
-        if help_text is None:
-            help_text = f"Input directory path.{default_help_suffix}"
-
-        return Annotated[
+            ),
+        ],
+        "input_file_with_stdin_optional": lambda **kwargs: Annotated[
+            str | None,
+            typer.Argument(
+                help=kwargs.get(
+                    "help_text",
+                    "Input file path or '-' for stdin"
+                    + (
+                        " or @library-name/uuid"
+                        if kwargs.get("library_resolvable", False)
+                        else ""
+                    )
+                    + f". Uses {kwargs.get('env_var', 'GLOVEBOX_JSON_FILE')} environment variable if not provided.{kwargs.get('default_help_suffix', '')}",
+                ),
+                callback=kwargs.get("callback")
+                if kwargs.get("library_resolvable")
+                else None,
+            ),
+        ],
+        "json_file_argument": lambda **kwargs: Annotated[
+            str | None,
+            typer.Argument(
+                help=kwargs.get("help_text")
+                or "JSON layout file path or '-' for stdin"
+                + (
+                    " or @library-name/uuid"
+                    if kwargs.get("library_resolvable", True)
+                    else ""
+                )
+                + f". Uses {kwargs.get('env_var', 'GLOVEBOX_JSON_FILE')} environment variable if not provided.{kwargs.get('default_help_suffix', '')}",
+                autocompletion=complete_json_files,
+            ),
+        ],
+        "json_file_argument_optional": lambda **kwargs: Annotated[
+            str | None,
+            typer.Argument(
+                help=kwargs.get("help_text")
+                or "JSON layout file path or '-' for stdin"
+                + (
+                    " or @library-name/uuid"
+                    if kwargs.get("library_resolvable", True)
+                    else ""
+                )
+                + f". Uses {kwargs.get('env_var', 'GLOVEBOX_JSON_FILE')} environment variable if not provided.{kwargs.get('default_help_suffix', '')}",
+                autocompletion=complete_json_files,
+            ),
+        ],
+        "input_directory": lambda **kwargs: Annotated[
             Path,
             typer.Argument(
-                help=help_text,
+                help=kwargs.get(
+                    "help_text",
+                    f"Input directory path.{kwargs.get('default_help_suffix', '')}",
+                ),
                 exists=True,
                 file_okay=False,
                 dir_okay=True,
                 readable=True,
             ),
-        ]
-
-    @staticmethod
-    def input_multiple_files(
-        help_text: str | None = None,
-        file_extensions: list[str] | None = None,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create a parameter for multiple input files."""
-        if help_text is None:
-            help_text = "One or more input file paths."
-            if file_extensions:
-                help_text += f" Supported formats: {', '.join(file_extensions)}"
-            help_text += default_help_suffix
-
-        return Annotated[
+        ],
+        "input_multiple_files": lambda **kwargs: Annotated[
             list[Path],
             typer.Argument(
-                help=help_text,
+                help=kwargs.get(
+                    "help_text",
+                    "One or more input file paths."
+                    + (
+                        f" Supported formats: {', '.join(kwargs.get('file_extensions', []))}"
+                        if kwargs.get("file_extensions")
+                        else ""
+                    )
+                    + kwargs.get("default_help_suffix", ""),
+                ),
                 exists=True,
                 file_okay=True,
                 dir_okay=False,
                 readable=True,
             ),
-        ]
-
-    @staticmethod
-    def json_file_argument(
-        help_text: str | None = None,
-        env_var: str = "GLOVEBOX_JSON_FILE",
-        library_resolvable: bool = True,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create a JSON file argument with completion and env var support.
-
-        Args:
-            help_text: Custom help text
-            env_var: Environment variable name for fallback
-            library_resolvable: Whether to support @library-name references
-            default_help_suffix: Additional help text suffix
-        """
-        if help_text is None:
-            base_help = "JSON layout file path or '-' for stdin"
-            if library_resolvable:
-                base_help += " or @library-name/uuid"
-            base_help += f". Uses {env_var} environment variable if not provided"
-            help_text = f"{base_help}.{default_help_suffix}"
-
-        # Library resolution is handled at command level to avoid circular imports
-        return Annotated[
-            str,
-            typer.Argument(
-                help=help_text,
-                autocompletion=complete_json_files,
-            ),
-        ]
-
-    @staticmethod
-    def json_file_argument_optional(
-        help_text: str | None = None,
-        env_var: str = "GLOVEBOX_JSON_FILE",
-        library_resolvable: bool = True,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create an optional JSON file argument with completion and env var support.
-
-        This is the optional version of json_file_argument that allows None values.
-        """
-        if help_text is None:
-            base_help = "JSON layout file path or '-' for stdin"
-            if library_resolvable:
-                base_help += " or @library-name/uuid"
-            base_help += f". Uses {env_var} environment variable if not provided"
-            help_text = f"{base_help}.{default_help_suffix}"
-
-        # Library resolution is handled at command level to avoid circular imports
-        return Annotated[
+        ],
+        # Output parameter legacy methods
+        "output_file": lambda **kwargs: Annotated[
             str | None,
-            typer.Argument(
-                help=help_text,
-                autocompletion=complete_json_files,
+            _create_option_with_decls(
+                ("--output", "-o"),
+                help=kwargs.get("help_text")
+                or (
+                    "Output file path."
+                    + (" Use '-' for stdout." if kwargs.get("supports_stdout") else "")
+                    + " If not specified, generates a smart default filename."
+                    + kwargs.get("default_help_suffix", "")
+                ),
             ),
-        ]
-
-    # =============================================================================
-    # Format Parameter Factories
-    # =============================================================================
-
-    @staticmethod
-    def output_format(
-        help_text: str | None = None,
-        supported_formats: list[str] | None = None,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create a standardized output format parameter."""
-        if supported_formats is None:
-            supported_formats = ["rich-table", "text", "json", "markdown"]
-
-        if help_text is None:
-            format_list = "|".join(supported_formats)
-            help_text = f"Output format: {format_list}{default_help_suffix}"
-
-        return Annotated[
+        ],
+        "output_file_path_only": lambda **kwargs: Annotated[
+            Path | None,
+            _create_option_with_decls(
+                ("--output", "-o"),
+                help=kwargs.get(
+                    "help_text",
+                    f"Output file path.{kwargs.get('default_help_suffix', '')}",
+                ),
+                dir_okay=False,
+                writable=True,
+            ),
+        ],
+        "output_directory": lambda **kwargs: Annotated[
+            Path,
+            _create_option_with_decls(
+                ("--output", "-o"),
+                help=kwargs.get(
+                    "help_text",
+                    f"Output directory path.{kwargs.get('default_help_suffix', '')}",
+                ),
+                file_okay=False,
+                dir_okay=True,
+                writable=True,
+            ),
+        ],
+        "output_directory_optional": lambda **kwargs: Annotated[
+            Path | None,
+            _create_option_with_decls(
+                ("--output", "-o"),
+                help=kwargs.get("help_text")
+                or f"Output directory path. If not specified, uses current directory.{kwargs.get('default_help_suffix', '')}",
+                file_okay=False,
+                dir_okay=True,
+                writable=True,
+            ),
+        ],
+        # Profile parameter legacy method
+        "profile_option": lambda **kwargs: factory_class.create_profile_parameter(
+            help_text=kwargs.get(
+                "help_text",
+                "Keyboard profile in format 'keyboard' or 'keyboard/firmware'",
+            )
+            + kwargs.get("default_help_suffix", ""),
+            required=kwargs.get("required", False),
+        ),
+        # Format parameters
+        "output_format": lambda **kwargs: Annotated[
             str,
-            typer.Option(
-                "--output-format",
-                "-t",
-                help=help_text,
+            _create_option_with_decls(
+                ("--output-format", "-t"),
+                help=kwargs.get("help_text")
+                or f"Output format: {('|'.join(kwargs.get('supported_formats') or ['rich-table', 'text', 'json', 'markdown']))}{kwargs.get('default_help_suffix', '')}",
                 autocompletion=complete_output_formats,
             ),
-        ]
-
-    @staticmethod
-    def legacy_format(
-        help_text: str | None = None,
-        supported_formats: list[str] | None = None,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create a legacy format parameter (--format instead of --output-format)."""
-        if supported_formats is None:
-            supported_formats = ["table", "text", "json", "markdown"]
-
-        if help_text is None:
-            format_list = "|".join(supported_formats)
-            help_text = f"Output format: {format_list}{default_help_suffix}"
-
-        return Annotated[
+        ],
+        "legacy_format": lambda **kwargs: Annotated[
             str,
-            typer.Option(
-                "--format",
-                "-f",
-                help=help_text,
+            _create_option_with_decls(
+                ("--format", "-f"),
+                help=kwargs.get("help_text")
+                or f"Output format: {('|'.join(kwargs.get('supported_formats') or ['table', 'text', 'json', 'markdown']))}{kwargs.get('default_help_suffix', '')}",
                 autocompletion=complete_output_formats,
             ),
-        ]
-
-    @staticmethod
-    def json_boolean_flag(
-        help_text: str | None = None,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create a boolean JSON flag parameter."""
-        if help_text is None:
-            help_text = f"Output in JSON format.{default_help_suffix}"
-
-        return Annotated[
+        ],
+        "json_boolean_flag": lambda **kwargs: Annotated[
             bool,
-            typer.Option(
-                "--json",
-                help=help_text,
+            _create_option_with_decls(
+                ("--json",),
+                help=kwargs.get(
+                    "help_text",
+                    f"Output in JSON format.{kwargs.get('default_help_suffix', '')}",
+                ),
             ),
-        ]
-
-    @staticmethod
-    def format_with_json_flag(
-        help_text: str | None = None,
-        supported_formats: list[str] | None = None,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create a format parameter with separate JSON boolean flag."""
-        if supported_formats is None:
-            supported_formats = ["table", "text", "markdown"]
-
-        if help_text is None:
-            format_list = "|".join(supported_formats)
-            help_text = f"Output format: {format_list} (use --json for JSON format){default_help_suffix}"
-
-        return Annotated[
+        ],
+        "format_with_json_flag": lambda **kwargs: Annotated[
             str,
-            typer.Option(
-                "--format",
-                "-f",
-                help=help_text,
+            _create_option_with_decls(
+                ("--format", "-f"),
+                help=kwargs.get("help_text")
+                or f"Output format: {('|'.join(kwargs.get('supported_formats') or ['table', 'text', 'markdown']))} (use --json for JSON format){kwargs.get('default_help_suffix', '')}",
                 autocompletion=complete_output_formats,
             ),
-        ]
-
-    # =============================================================================
-    # Control Parameter Factories
-    # =============================================================================
-
-    @staticmethod
-    def force_overwrite(
-        help_text: str | None = None,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create a force overwrite parameter."""
-        if help_text is None:
-            help_text = (
-                f"Overwrite existing files without prompting.{default_help_suffix}"
-            )
-
-        return Annotated[
+        ],
+        # Control flags
+        "force_overwrite": lambda **kwargs: Annotated[
             bool,
-            typer.Option(
-                "--force",
-                help=help_text,
+            _create_option_with_decls(
+                ("--force",),
+                help=kwargs.get(
+                    "help_text",
+                    f"Overwrite existing files without prompting.{kwargs.get('default_help_suffix', '')}",
+                ),
             ),
-        ]
-
-    @staticmethod
-    def verbose_flag(
-        help_text: str | None = None,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create a verbose output parameter."""
-        if help_text is None:
-            help_text = f"Enable verbose output.{default_help_suffix}"
-
-        return Annotated[
+        ],
+        "verbose_flag": lambda **kwargs: Annotated[
             bool,
-            typer.Option(
-                "--verbose",
-                "-v",
-                help=help_text,
+            _create_option_with_decls(
+                ("--verbose", "-v"),
+                help=kwargs.get(
+                    "help_text",
+                    f"Enable verbose output.{kwargs.get('default_help_suffix', '')}",
+                ),
             ),
-        ]
-
-    @staticmethod
-    def quiet_flag(
-        help_text: str | None = None,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create a quiet output parameter."""
-        if help_text is None:
-            help_text = f"Suppress non-error output.{default_help_suffix}"
-
-        return Annotated[
+        ],
+        "quiet_flag": lambda **kwargs: Annotated[
             bool,
-            typer.Option(
-                "--quiet",
-                "-q",
-                help=help_text,
+            _create_option_with_decls(
+                ("--quiet", "-q"),
+                help=kwargs.get(
+                    "help_text",
+                    f"Suppress non-error output.{kwargs.get('default_help_suffix', '')}",
+                ),
             ),
-        ]
-
-    @staticmethod
-    def dry_run_flag(
-        help_text: str | None = None,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create a dry run parameter."""
-        if help_text is None:
-            help_text = (
-                f"Show what would be done without making changes.{default_help_suffix}"
-            )
-
-        return Annotated[
+        ],
+        "dry_run_flag": lambda **kwargs: Annotated[
             bool,
-            typer.Option(
-                "--dry-run",
-                help=help_text,
+            _create_option_with_decls(
+                ("--dry-run",),
+                help=kwargs.get(
+                    "help_text",
+                    f"Show what would be done without making changes.{kwargs.get('default_help_suffix', '')}",
+                ),
             ),
-        ]
-
-    @staticmethod
-    def backup_flag(
-        help_text: str | None = None,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create a backup parameter."""
-        if help_text is None:
-            help_text = f"Create backup of existing files before overwriting.{default_help_suffix}"
-
-        return Annotated[
+        ],
+        "backup_flag": lambda **kwargs: Annotated[
             bool,
-            typer.Option(
-                "--backup",
-                help=help_text,
+            _create_option_with_decls(
+                ("--backup",),
+                help=kwargs.get(
+                    "help_text",
+                    f"Create backup of existing files before overwriting.{kwargs.get('default_help_suffix', '')}",
+                ),
             ),
-        ]
-
-    @staticmethod
-    def no_backup_flag(
-        help_text: str | None = None,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create a no-backup parameter."""
-        if help_text is None:
-            help_text = f"Do not create backup of existing files.{default_help_suffix}"
-
-        return Annotated[
+        ],
+        "no_backup_flag": lambda **kwargs: Annotated[
             bool,
-            typer.Option(
-                "--no-backup",
-                help=help_text,
+            _create_option_with_decls(
+                ("--no-backup",),
+                help=kwargs.get(
+                    "help_text",
+                    f"Do not create backup of existing files.{kwargs.get('default_help_suffix', '')}",
+                ),
             ),
-        ]
-
-    # =============================================================================
-    # Profile and Configuration Parameter Factories
-    # =============================================================================
-
-    @staticmethod
-    def profile_option(
-        help_text: str | None = None,
-        required: bool = False,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create a profile parameter."""
-        if help_text is None:
-            base_text = "Keyboard profile in format 'keyboard' or 'keyboard/firmware'"
-            if required:
-                base_text += " (required)"
-            help_text = f"{base_text}.{default_help_suffix}"
-
-        param_type = str if required else str | None
-
-        return Annotated[
-            param_type,
-            typer.Option(
-                "--profile",
-                "-p",
-                help=help_text,
-                autocompletion=complete_profile_names,
-            ),
-        ]
-
-    # =============================================================================
-    # Validation Parameter Factories
-    # =============================================================================
-
-    @staticmethod
-    def validate_only_flag(
-        help_text: str | None = None,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create a validate-only parameter."""
-        if help_text is None:
-            help_text = f"Only validate input without processing.{default_help_suffix}"
-
-        return Annotated[
+        ],
+        # Validation flags
+        "validate_only_flag": lambda **kwargs: Annotated[
             bool,
-            typer.Option(
-                "--validate-only",
-                help=help_text,
+            _create_option_with_decls(
+                ("--validate-only",),
+                help=kwargs.get(
+                    "help_text",
+                    f"Only validate input without processing.{kwargs.get('default_help_suffix', '')}",
+                ),
             ),
-        ]
-
-    @staticmethod
-    def skip_validation_flag(
-        help_text: str | None = None,
-        default_help_suffix: str = "",
-    ) -> Any:
-        """Create a skip-validation parameter."""
-        if help_text is None:
-            help_text = (
-                f"Skip input validation (use with caution).{default_help_suffix}"
-            )
-
-        return Annotated[
+        ],
+        "skip_validation_flag": lambda **kwargs: Annotated[
             bool,
-            typer.Option(
-                "--skip-validation",
-                help=help_text,
+            _create_option_with_decls(
+                ("--skip-validation",),
+                help=kwargs.get(
+                    "help_text",
+                    f"Skip input validation (use with caution).{kwargs.get('default_help_suffix', '')}",
+                ),
             ),
-        ]
+        ],
+    }
+
+    # Add all legacy methods to the factory class
+    for method_name, method_func in legacy_methods.items():
+        setattr(factory_class, method_name, method_func)
 
 
-# =============================================================================
-# Convenience Functions for Common Parameter Combinations
-# =============================================================================
+# Apply legacy wrappers to maintain backward compatibility
+_create_legacy_wrapper(ParameterFactory)
 
 
+# Legacy CommonParameterSets for backward compatibility
 class CommonParameterSets:
-    """Pre-defined parameter sets for common command patterns."""
+    """Legacy parameter sets for backward compatibility."""
 
     @staticmethod
-    def input_output_format(
-        input_help: str | None = None,
-        output_help: str | None = None,
-        format_help: str | None = None,
-        supports_stdin: bool = True,
-        supports_stdout: bool = True,
-        input_extensions: list[str] | None = None,
-        format_types: list[str] | None = None,
-    ) -> dict[str, Any]:
+    def input_output_format(**kwargs: Any) -> dict[str, Any]:
         """Create a standard input/output/format parameter set."""
-        params = {}
-
-        # Input parameter
-        if supports_stdin:
-            params["input_file"] = ParameterFactory.input_file_with_stdin(
-                help_text=input_help,
+        return {
+            "input_file": ParameterFactory.input_file_with_stdin(  # type: ignore[attr-defined]
+                help_text=kwargs.get("input_help"),
+                file_extensions=kwargs.get("input_extensions"),
             )
-        else:
-            params["input_file"] = ParameterFactory.input_file(
-                help_text=input_help,
-                file_extensions=input_extensions,
-            )
-
-        # Output parameter
-        params["output"] = ParameterFactory.output_file(
-            help_text=output_help,
-            supports_stdout=supports_stdout,
-        )
-
-        # Format parameter
-        params["output_format"] = ParameterFactory.output_format(
-            help_text=format_help,
-            supported_formats=format_types,
-        )
-
-        # Force parameter
-        params["force"] = ParameterFactory.force_overwrite()
-
-        return params
+            if kwargs.get("supports_stdin", True)
+            else ParameterFactory.input_file(  # type: ignore[attr-defined]
+                help_text=kwargs.get("input_help"),
+                file_extensions=kwargs.get("input_extensions"),
+            ),
+            "output": ParameterFactory.output_file(  # type: ignore[attr-defined]
+                help_text=kwargs.get("output_help"),
+                supports_stdout=kwargs.get("supports_stdout", False),
+            ),
+            "output_format": ParameterFactory.output_format(  # type: ignore[attr-defined]
+                help_text=kwargs.get("format_help"),
+                supported_formats=kwargs.get("format_types"),
+            ),
+            "force": ParameterFactory.force_overwrite(),  # type: ignore[attr-defined]
+        }
 
     @staticmethod
-    def compilation_parameters(
-        input_help: str | None = None,
-        output_help: str | None = None,
-    ) -> dict[str, Any]:
+    def compilation_parameters(**kwargs: Any) -> dict[str, Any]:
         """Create parameters for compilation commands."""
         return {
-            "json_file": ParameterFactory.json_file_argument(help_text=input_help),
-            "output_dir": ParameterFactory.output_directory_optional(
-                help_text=output_help
+            "json_file": ParameterFactory.json_file_argument(  # type: ignore[attr-defined]
+                help_text=kwargs.get("input_help")
             ),
-            "profile": ParameterFactory.profile_option(),
-            "force": ParameterFactory.force_overwrite(),
-            "verbose": ParameterFactory.verbose_flag(),
+            "output_dir": ParameterFactory.output_directory_optional(  # type: ignore[attr-defined]
+                help_text=kwargs.get("output_help")
+            ),
+            "profile": ParameterFactory.profile_option(),  # type: ignore[attr-defined]
+            "force": ParameterFactory.force_overwrite(),  # type: ignore[attr-defined]
+            "verbose": ParameterFactory.verbose_flag(),  # type: ignore[attr-defined]
         }
 
     @staticmethod
-    def display_parameters(
-        input_help: str | None = None,
-        format_help: str | None = None,
-        format_types: list[str] | None = None,
-    ) -> dict[str, Any]:
+    def display_parameters(**kwargs: Any) -> dict[str, Any]:
         """Create parameters for display/show commands."""
         return {
-            "json_file": ParameterFactory.json_file_argument(help_text=input_help),
-            "output_format": ParameterFactory.output_format(
-                help_text=format_help,
-                supported_formats=format_types,
+            "json_file": ParameterFactory.json_file_argument(  # type: ignore[attr-defined]
+                help_text=kwargs.get("input_help")
             ),
-            "verbose": ParameterFactory.verbose_flag(),
+            "output_format": ParameterFactory.output_format(  # type: ignore[attr-defined]
+                help_text=kwargs.get("format_help"),
+                supported_formats=kwargs.get("format_types"),
+            ),
+            "verbose": ParameterFactory.verbose_flag(),  # type: ignore[attr-defined]
         }
 
     @staticmethod
-    def file_transformation_parameters(
-        input_help: str | None = None,
-        output_help: str | None = None,
-        supports_stdout: bool = True,
-    ) -> dict[str, Any]:
+    def file_transformation_parameters(**kwargs: Any) -> dict[str, Any]:
         """Create parameters for file transformation commands."""
         return {
-            "input_file": ParameterFactory.input_file_with_stdin(help_text=input_help),
-            "output": ParameterFactory.output_file(
-                help_text=output_help,
-                supports_stdout=supports_stdout,
+            "input_file": ParameterFactory.input_file_with_stdin(  # type: ignore[attr-defined]
+                help_text=kwargs.get("input_help")
             ),
-            "force": ParameterFactory.force_overwrite(),
-            "backup": ParameterFactory.backup_flag(),
-            "dry_run": ParameterFactory.dry_run_flag(),
+            "output": ParameterFactory.output_file(  # type: ignore[attr-defined]
+                help_text=kwargs.get("output_help"),
+                supports_stdout=kwargs.get("supports_stdout", True),
+            ),
+            "force": ParameterFactory.force_overwrite(),  # type: ignore[attr-defined]
+            "backup": ParameterFactory.backup_flag(),  # type: ignore[attr-defined]
+            "dry_run": ParameterFactory.dry_run_flag(),  # type: ignore[attr-defined]
         }
+

@@ -90,7 +90,7 @@ class ProgressContext:
             if self.display.state.current_checkpoint == name:
                 self.display.state.current_checkpoint = None
                 self.display.state.status_message = f"Completed {name}"
-                
+
                 # Progress tracking is now handled by the panel display
 
             # Check if all checkpoints are complete

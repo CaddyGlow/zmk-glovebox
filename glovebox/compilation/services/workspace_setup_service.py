@@ -257,7 +257,7 @@ class WorkspaceSetupService:
         total_files_to_copy = 0
         total_bytes_to_copy = 0
 
-        for idx, component in enumerate(expected_components):
+        for _idx, component in enumerate(expected_components):
             component_path = cached_workspace / component
             if progress_coordinator and hasattr(
                 progress_coordinator, "update_folder_scan_progress"

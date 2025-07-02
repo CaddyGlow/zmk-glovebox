@@ -120,23 +120,23 @@ class ProgressDisplay:
         if self._progress and self.state.current_checkpoint:
             # Create a custom progress bar representation
             current_percentage = (self.state.current_progress / self.state.total_progress * 100) if self.state.total_progress > 0 else 0
-            
+
             progress_text = Text()
-            progress_text.append(f"Current: ", style=Colors.MUTED)
+            progress_text.append("Current: ", style=Colors.MUTED)
             progress_text.append(f"{self.state.current_checkpoint} ", style=Colors.RUNNING)
-            
+
             # Create progress bar
             bar_width = 25
             filled_width = int((current_percentage / 100.0) * bar_width)
             empty_width = bar_width - filled_width
-            
+
             filled_char = Icons.get_icon("PROGRESS_FULL", self.config.icon_mode) or "█"
             empty_char = Icons.get_icon("PROGRESS_EMPTY", self.config.icon_mode) or "░"
             progress_bar = filled_char * filled_width + empty_char * empty_width
-            
+
             progress_text.append(progress_bar, style=Colors.LOADING_TEXT)
             progress_text.append(f" {current_percentage:>5.1f}%", style=Colors.MUTED)
-            
+
             table.add_row(progress_text)
             table.add_row("")  # Spacer
 

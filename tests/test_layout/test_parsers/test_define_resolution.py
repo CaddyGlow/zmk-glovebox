@@ -74,7 +74,7 @@ class TestDefineResolution:
 / {
     keymap {
         compatible = "zmk,keymap";
-        
+
         layer_Base {
             bindings = <&mo LAYER_Lower &trans>;
         };
@@ -117,24 +117,24 @@ class TestDefineResolution:
             bindings = <&mo LAYER_Gaming>, <&to LAYER_Gaming>;
         };
     };
-    
+
     keymap {
         compatible = "zmk,keymap";
-        
+
         layer_Base {
             bindings = <
                 &kp Q &mo LAYER_Gaming &lt LAYER_Symbols SPACE
                 &to LAYER_Base &tog LAYER_Gaming &trans
             >;
         };
-        
+
         layer_Gaming {
             bindings = <
                 &trans &trans &trans
                 &to LAYER_Base &trans &trans
             >;
         };
-        
+
         layer_Symbols {
             bindings = <
                 &trans &trans &trans

@@ -18,6 +18,7 @@ from rich.console import Console
 
 from glovebox.cli.components.noop_progress_context import get_noop_progress_context
 
+
 if TYPE_CHECKING:
     from glovebox.compilation.cache.models import (
         ArchiveFormat,
