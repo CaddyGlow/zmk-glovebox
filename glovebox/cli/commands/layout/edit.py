@@ -32,6 +32,12 @@ from glovebox.layout.utils.json_operations import (
     load_layout_file,
     save_layout_file,
 )
+from glovebox.layout.utils.layer_references import (
+    create_layer_mapping_for_add,
+    create_layer_mapping_for_move,
+    create_layer_mapping_for_remove,
+    update_layer_references,
+)
 from glovebox.layout.utils.variable_resolver import VariableResolver
 
 
@@ -51,6 +57,7 @@ class LayoutEditor:
         self.layout_data = layout_data
         self.operations_log: list[str] = []
         self.errors: list[str] = []
+        self.warnings: list[str] = []
 
     def get_field(self, field_path: str) -> Any:
         """Get field value.
@@ -177,8 +184,21 @@ class LayoutEditor:
         if layer_name in self.layout_data.layer_names:
             raise ValueError(f"Layer '{layer_name}' already exists")
 
+        # Track original layer count before adding
+        original_count = len(self.layout_data.layer_names)
+        position = original_count  # Adding at the end
+
+        # Add the layer
         self.layout_data.layer_names.append(layer_name)
         self.layout_data.layers.append(layer_data or [])
+
+        # Update layer references
+        layer_mapping = create_layer_mapping_for_add(original_count, position)
+        self.layout_data, ref_warnings = update_layer_references(
+            self.layout_data, layer_mapping
+        )
+        self.warnings.extend(ref_warnings)
+
         self.operations_log.append(f"Added layer '{layer_name}'")
 
     def remove_layer(self, layer_identifier: str) -> None:
@@ -241,15 +261,16 @@ class LayoutEditor:
             # No matches found - log warning but don't raise error for better UX
             available_layers = ", ".join(self.layout_data.layer_names)
             warning_msg = f"No layers found matching identifier '{layer_identifier}'. Available layers: {available_layers}"
-            if hasattr(self, "warnings"):
-                self.warnings.append(warning_msg)
-            else:
-                self.warnings: list[str] = [warning_msg]
+            self.warnings.append(warning_msg)
             return
 
         # Sort by index in descending order to remove from end to start
         # This prevents index shifting issues
         layers_to_remove.sort(key=lambda x: x["index"], reverse=True)
+
+        # Track original layer count and indices being removed
+        original_count = len(self.layout_data.layer_names)
+        removed_indices = [layer_info["index"] for layer_info in layers_to_remove]
 
         removed_names: list[str] = []
         for layer_info in layers_to_remove:
@@ -262,6 +283,13 @@ class LayoutEditor:
                 self.layout_data.layers.pop(idx)
 
             removed_names.append(name)
+
+        # Update layer references
+        layer_mapping = create_layer_mapping_for_remove(original_count, removed_indices)
+        self.layout_data, ref_warnings = update_layer_references(
+            self.layout_data, layer_mapping
+        )
+        self.warnings.extend(ref_warnings)
 
         # Log the operation
         if removed_names:
@@ -284,6 +312,9 @@ class LayoutEditor:
         if new_position < 0 or new_position >= len(self.layout_data.layers):
             raise ValueError(f"Invalid position {new_position}")
 
+        # Track original positions before moving
+        original_count = len(self.layout_data.layer_names)
+
         # Remove from old position
         layer_name = self.layout_data.layer_names.pop(old_index)
         layer_data = self.layout_data.layers.pop(old_index)
@@ -291,6 +322,15 @@ class LayoutEditor:
         # Insert at new position
         self.layout_data.layer_names.insert(new_position, layer_name)
         self.layout_data.layers.insert(new_position, layer_data)
+
+        # Update layer references
+        layer_mapping = create_layer_mapping_for_move(
+            original_count, old_index, new_position
+        )
+        self.layout_data, ref_warnings = update_layer_references(
+            self.layout_data, layer_mapping
+        )
+        self.warnings.extend(ref_warnings)
 
         self.operations_log.append(
             f"Moved layer '{layer_name}' from position {old_index} to {new_position}"

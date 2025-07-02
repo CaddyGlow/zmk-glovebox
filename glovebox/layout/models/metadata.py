@@ -245,24 +245,54 @@ class LayoutData(LayoutMetadata):
 
         return ordered_data
 
+    @field_validator("layers", mode="before")
+    @classmethod
+    def convert_string_layers(cls, v: Any) -> list[LayerBindings]:
+        """Convert string bindings to LayoutBinding objects before validation."""
+        if not isinstance(v, list):
+            raise ValueError("Layers must be a list")
+
+        converted_layers = []
+        for i, layer in enumerate(v):
+            if not isinstance(layer, list):
+                raise ValueError(f"Layer {i} must be a list of bindings")
+
+            converted_bindings = []
+            for j, binding in enumerate(layer):
+                if isinstance(binding, str):
+                    # Convert string to LayoutBinding
+                    try:
+                        converted_bindings.append(LayoutBinding.from_str(binding))
+                    except Exception as e:
+                        raise ValueError(
+                            f"Layer {i}, binding {j}: Failed to parse '{binding}': {e}"
+                        ) from e
+                elif isinstance(binding, dict):
+                    # Convert dict to LayoutBinding
+                    converted_bindings.append(LayoutBinding.model_validate(binding))
+                elif isinstance(binding, LayoutBinding):
+                    # Already a LayoutBinding
+                    converted_bindings.append(binding)
+                else:
+                    raise ValueError(
+                        f"Layer {i}, binding {j}: Invalid type {type(binding).__name__}"
+                    )
+
+            converted_layers.append(converted_bindings)
+
+        return converted_layers
+
     @field_validator("layers")
     @classmethod
     def validate_layers_structure(cls, v: list[LayerBindings]) -> list[LayerBindings]:
-        """Validate layers structure."""
+        """Validate layers structure after conversion."""
         # Allow empty layers list during construction/processing
         if not v:
             return v
 
         for i, layer in enumerate(v):
-            if not isinstance(layer, list):
-                raise ValueError(f"Layer {i} must be a list of bindings") from None
-
             # Validate each binding in the layer
             for j, binding in enumerate(layer):
-                if not isinstance(binding, LayoutBinding):
-                    raise ValueError(
-                        f"Layer {i}, binding {j} must be a LayoutBinding"
-                    ) from None
                 if not binding.value:
                     raise ValueError(
                         f"Layer {i}, binding {j} missing 'value' field"

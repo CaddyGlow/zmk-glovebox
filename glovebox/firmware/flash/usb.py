@@ -9,7 +9,13 @@ from pathlib import Path
 from glovebox.core.errors import FlashError
 from glovebox.firmware.flash.device_detector import create_device_detector
 from glovebox.firmware.flash.flash_operations import create_flash_operations
-from glovebox.firmware.flash.models import BlockDevice, BlockDeviceError, FlashResult
+from glovebox.firmware.flash.models import (
+    BlockDevice,
+    BlockDeviceError,
+    FlashResult,
+    USBDevice,
+    USBDeviceType,
+)
 from glovebox.protocols.device_detector_protocol import DeviceDetectorProtocol
 from glovebox.protocols.firmware_flasher_protocol import FirmwareFlasherProtocol
 
@@ -62,7 +68,7 @@ class FirmwareFlasherImpl:
         """
         self._lock = threading.RLock()
         self._device_event = threading.Event()
-        self._current_device: BlockDevice | None = None
+        self._current_device: USBDeviceType | None = None
         self._flashed_devices: set[str] = set()
         if detector is None:
             # Import here to avoid circular import
@@ -74,17 +80,20 @@ class FirmwareFlasherImpl:
             detector = create_device_detector(usb_monitor, mount_cache)
         self._detector = detector
 
-    def _extract_device_id(self, device: BlockDevice) -> str:
+    def _extract_device_id(self, device: USBDeviceType) -> str:
         """Extract a unique device ID for tracking."""
-        # Look for USB symlinks which contain the serial number
-        for symlink in device.symlinks:
-            if symlink.startswith("usb-"):
-                return symlink
+        # Look for USB symlinks which contain the serial number (BlockDevice only)
+        if hasattr(device, "symlinks"):
+            for symlink in device.symlinks:
+                if symlink.startswith("usb-"):
+                    return symlink
 
         # Fallback to serial if available, or name as last resort
-        return device.serial if device.serial else device.name
+        serial = getattr(device, "serial", None)
+        name = getattr(device, "name", "unknown")
+        return serial if serial else name
 
-    def _device_callback(self, action: str, device: BlockDevice) -> None:
+    def _device_callback(self, action: str, device: USBDeviceType) -> None:
         """Callback for device detection events."""
         if action != "add":
             return
@@ -236,7 +245,13 @@ class FirmwareFlasherImpl:
                         f"Detected device: {device.name} ({device.model})"
                     )
 
-                    # Attempt to flash the detected device
+                    # Attempt to flash the detected device (must be BlockDevice)
+                    if not isinstance(device, BlockDevice):
+                        logger.warning(
+                            f"Device {device.name} is not a block device, skipping flash"
+                        )
+                        continue
+
                     logger.info(f"Attempting to flash {device.name}...")
                     # Use flash operations for mounting and flashing
                     flash_ops = create_flash_operations()

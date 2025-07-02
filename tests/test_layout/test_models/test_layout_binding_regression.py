@@ -2,6 +2,7 @@
 
 import pytest
 
+
 pytestmark = pytest.mark.unit
 
 from glovebox.layout.models import LayoutBinding, LayoutParam

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from glovebox.config.flash_methods import USBFlashConfig
 
-from glovebox.firmware.flash.models import BlockDevice
+from glovebox.firmware.flash.models import BlockDevice, USBDevice, USBDeviceType
 from glovebox.firmware.flash.usb_monitor import USBDeviceMonitorBase, create_usb_monitor
 from glovebox.firmware.flash.wait_state import DeviceWaitState
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
@@ -65,7 +65,7 @@ class DeviceWaitService:
         flash_config: "USBFlashConfig",
         poll_interval: float = 0.5,
         show_progress: bool = True,
-    ) -> list[BlockDevice]:
+    ) -> list[USBDeviceType]:
         """Wait for devices using event-driven monitoring.
 
         Args:
@@ -77,7 +77,7 @@ class DeviceWaitService:
             show_progress: Whether to show progress messages
 
         Returns:
-            List of found devices (may be fewer than target if timeout)
+            List of found USB devices (may be fewer than target if timeout)
         """
         logger.info(
             "Starting device wait: target=%d, timeout=%.1fs, query='%s'",
@@ -125,7 +125,7 @@ class DeviceWaitService:
             return state.found_devices[:target_count]
 
         # Create callback for device events
-        def device_callback(action: str, device: BlockDevice) -> None:
+        def device_callback(action: str, device: USBDeviceType) -> None:
             if action == "add" and self._matches_query(device, query):
                 state.add_device(device)
                 if show_progress:
@@ -172,7 +172,7 @@ class DeviceWaitService:
             self.usb_monitor.unregister_callback(device_callback)
             self.usb_monitor.stop_monitoring()
 
-    def _matches_query(self, device: BlockDevice, query: str) -> bool:
+    def _matches_query(self, device: USBDeviceType, query: str) -> bool:
         """Check if device matches the query string."""
         # Use USB adapter's existing query matching logic
         matching_devices = self.usb_adapter.list_matching_devices(query)

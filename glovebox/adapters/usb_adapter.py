@@ -9,7 +9,7 @@ from glovebox.firmware.flash.flash_operations import (
     FlashOperations,
     create_flash_operations,
 )
-from glovebox.firmware.flash.models import BlockDevice
+from glovebox.firmware.flash.models import BlockDevice, USBDevice, USBDeviceType
 from glovebox.protocols.device_detector_protocol import DeviceDetectorProtocol
 from glovebox.protocols.flash_os_protocol import FlashOSProtocol
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
@@ -20,7 +20,10 @@ logger = logging.getLogger(__name__)
 
 
 class USBAdapter:
-    """Implementation of USB adapter."""
+    """Implementation of USB adapter.
+
+    Note: This class implements USBAdapterProtocol interface.
+    """
 
     def __init__(
         self,
@@ -41,8 +44,8 @@ class USBAdapter:
         self,
         query: str,
         timeout: int = 60,
-        initial_devices: list[BlockDevice] | None = None,
-    ) -> BlockDevice:
+        initial_devices: list[USBDeviceType] | None = None,
+    ) -> USBDeviceType:
         """
         Detect a USB device matching the query.
 
@@ -52,7 +55,7 @@ class USBAdapter:
             initial_devices: Optional list of devices to exclude from detection
 
         Returns:
-            The first matching BlockDevice
+            The first matching USB device
 
         Raises:
             TimeoutError: If no matching device is found within the timeout
@@ -110,7 +113,7 @@ class USBAdapter:
             logger.error("Device detection failed: %s", e)
             raise error from e
 
-    def list_matching_devices(self, query: str) -> list[BlockDevice]:
+    def list_matching_devices(self, query: str) -> list[USBDeviceType]:
         """
         List all devices matching the query.
 
@@ -118,7 +121,7 @@ class USBAdapter:
             query: Query string to match devices
 
         Returns:
-            List of matching BlockDevice objects
+            List of matching USB device objects
 
         Raises:
             ValueError: If the query string is invalid
@@ -200,15 +203,15 @@ class USBAdapter:
             logger.error("Failed to flash device %s: %s", device.name, e)
             raise error from e
 
-    def get_all_devices(self, query: str = "") -> list[BlockDevice]:
+    def get_all_devices(self, query: str = "") -> list[USBDeviceType]:
         """
-        Get all available block devices, optionally filtered by query.
+        Get all available USB devices, optionally filtered by query.
 
         Args:
             query: Optional query string to filter devices
 
         Returns:
-            List of all BlockDevice objects
+            List of all USB device objects
 
         Raises:
             USBError: If there's an error retrieving devices
@@ -334,7 +337,5 @@ def create_usb_adapter(
         >>> devices = adapter.get_all_devices()
         >>> print(f"Found {len(devices)} devices")
     """
-    adapter: USBAdapterProtocol = USBAdapter(
-        flash_operations=flash_operations, detector=detector
-    )
-    return adapter
+    adapter = USBAdapter(flash_operations=flash_operations, detector=detector)
+    return adapter  # type: ignore[return-value]

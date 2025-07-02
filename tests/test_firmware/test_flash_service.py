@@ -680,6 +680,8 @@ class TestFlashServiceListDevices:
         assert device_info["path"] == sample_block_device.path
         assert device_info["removable"] == sample_block_device.removable
         assert device_info["status"] == "available"
+        assert device_info["vendor_id"] == sample_block_device.vendor_id
+        assert device_info["product_id"] == sample_block_device.product_id
 
     @patch("glovebox.firmware.flash.service.create_device_wait_service")
     @patch("glovebox.firmware.flash.service.flasher_registry")

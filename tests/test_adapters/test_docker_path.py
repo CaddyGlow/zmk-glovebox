@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
+
 pytestmark = [pytest.mark.docker, pytest.mark.integration]
 
 from glovebox.models.docker_path import (

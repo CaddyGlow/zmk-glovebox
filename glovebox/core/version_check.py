@@ -2,6 +2,7 @@
 
 import json
 import logging
+import urllib.error
 import urllib.request
 from datetime import datetime, timedelta
 from typing import Any
@@ -71,6 +72,15 @@ class ZmkVersionChecker:
             if self._user_config._config.disable_version_checks and not force:
                 return VersionCheckResult(has_update=False, check_disabled=True)
 
+            # Check if we're in a rate limit backoff period
+            if not force and self._is_rate_limited():
+                self.logger.debug("Skipping version check due to rate limit backoff")
+                return VersionCheckResult(
+                    has_update=False,
+                    current_version=self._get_current_zmk_version(),
+                    last_check=datetime.now(),
+                )
+
             # Check cache if not forcing
             if not force:
                 cached_result = self._get_cached_result(include_prereleases)
@@ -110,7 +120,7 @@ class ZmkVersionChecker:
             return result
 
         except Exception as e:
-            self.logger.warning("Failed to check for ZMK updates: %s", e)
+            self.logger.debug("Failed to check for ZMK updates: %s", e)
             return VersionCheckResult(
                 has_update=False, current_version=None, last_check=datetime.now()
             )
@@ -143,11 +153,25 @@ class ZmkVersionChecker:
         try:
             url = "https://api.github.com/repos/zmkfirmware/zmk/releases"
 
-            with urllib.request.urlopen(url, timeout=10) as response:
-                if response.status != 200:
-                    self.logger.warning(
-                        "GitHub API returned status %d", response.status
+            # Create request with User-Agent to avoid rate limiting
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "User-Agent": "Glovebox/1.0 (https://github.com/glovebox/glovebox)",
+                    "Accept": "application/vnd.github.v3+json",
+                },
+            )
+
+            with urllib.request.urlopen(req, timeout=10) as response:
+                if response.status == 403:
+                    # Rate limit exceeded - cache a longer failure result
+                    self.logger.debug(
+                        "GitHub API rate limit exceeded, will retry later"
                     )
+                    self._cache_rate_limit_failure()
+                    return None
+                elif response.status != 200:
+                    self.logger.debug("GitHub API returned status %d", response.status)
                     return None
 
                 releases = json.loads(response.read().decode())
@@ -162,8 +186,14 @@ class ZmkVersionChecker:
 
                     return VersionInfo(**release)
 
+        except urllib.error.HTTPError as e:
+            if e.code == 403:
+                self.logger.debug("GitHub API rate limit exceeded, will retry later")
+                self._cache_rate_limit_failure()
+            else:
+                self.logger.debug("HTTP error fetching ZMK releases: %s", e)
         except Exception as e:
-            self.logger.warning("Failed to fetch ZMK releases from GitHub: %s", e)
+            self.logger.debug("Failed to fetch ZMK releases from GitHub: %s", e)
 
         return None
 
@@ -228,19 +258,51 @@ class ZmkVersionChecker:
                 "zmk_version_check", str(include_prereleases)
             )
 
-            # Cache for 24 hours
-            self._cache.set(cache_key, data, ttl=24 * 60 * 60)
+            # Cache for 7 days
+            self._cache.set(cache_key, data, ttl=7 * 24 * 60 * 60)
 
         except Exception as e:
             self.logger.debug("Failed to cache version check result: %s", e)
 
     def _is_cache_valid(self, cached_result: VersionCheckResult) -> bool:
-        """Check if cached result is still valid (less than 24 hours old)."""
+        """Check if cached result is still valid (less than 7 days old)."""
         if not cached_result.last_check:
             return False
 
         age = datetime.now() - cached_result.last_check
-        return age < timedelta(hours=24)
+        return age < timedelta(days=7)
+
+    def _cache_rate_limit_failure(self) -> None:
+        """Cache a rate limit failure to prevent immediate retries."""
+        try:
+            cache_key = CacheKey.from_parts("zmk_version_check", "rate_limit")
+            # Cache for 6 hours when rate limited
+            self._cache.set(
+                cache_key,
+                {"rate_limited_at": datetime.now().isoformat()},
+                ttl=6 * 60 * 60,
+            )
+        except Exception as e:
+            self.logger.debug("Failed to cache rate limit info: %s", e)
+
+    def _is_rate_limited(self) -> bool:
+        """Check if we're currently in a rate limit backoff period."""
+        try:
+            cache_key = CacheKey.from_parts("zmk_version_check", "rate_limit")
+            rate_limit_data = self._cache.get(cache_key)
+
+            if rate_limit_data and "rate_limited_at" in rate_limit_data:
+                rate_limited_at = datetime.fromisoformat(
+                    rate_limit_data["rate_limited_at"]
+                )
+                # Back off for 6 hours after rate limit
+                backoff_duration = timedelta(hours=6)
+                return datetime.now() - rate_limited_at < backoff_duration
+
+            return False
+        except Exception as e:
+            self.logger.debug("Failed to check rate limit status: %s", e)
+            return False
 
     def disable_version_checks(self) -> None:
         """Disable automatic version checks."""

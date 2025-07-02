@@ -4,7 +4,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from glovebox.firmware.flash.models import BlockDevice
+from glovebox.firmware.flash.models import BlockDevice, USBDevice, USBDeviceType
 
 
 @dataclass
@@ -18,7 +18,7 @@ class DeviceWaitState:
     show_progress: bool = True
 
     # Runtime state
-    found_devices: list[BlockDevice] = field(default_factory=list)
+    found_devices: list[USBDeviceType] = field(default_factory=list)
     waiting: bool = True
     start_time: float = field(default_factory=time.time)
 
@@ -42,19 +42,26 @@ class DeviceWaitState:
         """Check if waiting should stop (target reached or timeout)."""
         return not self.waiting or self.is_target_reached or self.is_timeout
 
-    def add_device(self, device: BlockDevice) -> None:
+    def add_device(self, device: USBDeviceType) -> None:
         """Add a device to the found devices list."""
         # Check if device already exists by serial number (or device_node as fallback)
-        device_id = device.serial or device.device_node
-        existing_device_ids = {d.serial or d.device_node for d in self.found_devices}
+        device_id = getattr(device, "serial", None) or getattr(
+            device, "device_node", ""
+        )
+        existing_device_ids = {
+            getattr(d, "serial", None) or getattr(d, "device_node", "")
+            for d in self.found_devices
+        }
 
         if device_id not in existing_device_ids:
             self.found_devices.append(device)
 
-    def remove_device(self, device: BlockDevice) -> None:
+    def remove_device(self, device: USBDeviceType) -> None:
         """Remove a device from the found devices list."""
         self.found_devices = [
-            d for d in self.found_devices if d.device_node != device.device_node
+            d
+            for d in self.found_devices
+            if getattr(d, "device_node", "") != getattr(device, "device_node", "")
         ]
 
     def stop_waiting(self) -> None:
@@ -62,5 +69,5 @@ class DeviceWaitState:
         self.waiting = False
 
 
-DeviceCallback = Callable[[str, BlockDevice], None]
+DeviceCallback = Callable[[str, USBDeviceType], None]
 ProgressCallback = Callable[[DeviceWaitState], None]

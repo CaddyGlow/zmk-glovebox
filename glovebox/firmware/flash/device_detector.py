@@ -10,9 +10,9 @@ from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
-    from glovebox.firmware.flash.models import BlockDevice
+    from glovebox.firmware.flash.models import BlockDevice, USBDevice, USBDeviceType
 
-from glovebox.firmware.flash.models import BlockDevice
+from glovebox.firmware.flash.models import BlockDevice, USBDevice, USBDeviceType
 from glovebox.firmware.flash.usb_monitor import USBDeviceMonitorBase
 from glovebox.protocols.device_detector_protocol import DeviceDetectorProtocol
 
@@ -78,19 +78,19 @@ class DeviceDetector(DeviceDetectorProtocol):
         self._monitor = usb_monitor
         self._mount_cache = mount_cache or MountPointCache()
 
-    def get_devices(self) -> list["BlockDevice"]:
-        """Get all currently detected USB block devices."""
+    def get_devices(self) -> list["USBDeviceType"]:
+        """Get all currently detected USB devices."""
         return self._monitor.get_devices()
 
-    def get_device_by_name(self, name: str) -> "BlockDevice | None":
-        """Get a block device by name."""
+    def get_device_by_name(self, name: str) -> "USBDeviceType | None":
+        """Get a USB device by name."""
         devices = self.get_devices()
         for device in devices:
             if device.name == name:
                 return device
         return None
 
-    def get_devices_by_query(self, **kwargs: Any) -> list["BlockDevice"]:
+    def get_devices_by_query(self, **kwargs: Any) -> list["USBDeviceType"]:
         """Get devices matching the specified criteria."""
         devices = self.get_devices()
         result = []
@@ -114,19 +114,21 @@ class DeviceDetector(DeviceDetectorProtocol):
         """Stop USB device monitoring."""
         self._monitor.stop_monitoring()
 
-    def register_callback(self, callback: Callable[[str, "BlockDevice"], None]) -> None:
+    def register_callback(
+        self, callback: Callable[[str, "USBDeviceType"], None]
+    ) -> None:
         """Register a callback for device events."""
         self._monitor.register_callback(callback)
 
     def unregister_callback(
-        self, callback: Callable[[str, "BlockDevice"], None]
+        self, callback: Callable[[str, "USBDeviceType"], None]
     ) -> None:
         """Unregister a callback."""
         self._monitor.unregister_callback(callback)
 
     def wait_for_device(
         self, timeout: int = 60, poll_interval: float = 0.5
-    ) -> "BlockDevice | None":
+    ) -> "USBDeviceType | None":
         """Wait for a new USB device to appear."""
         return self._monitor.wait_for_device(timeout, poll_interval)
 
@@ -179,12 +181,12 @@ class DeviceDetector(DeviceDetectorProtocol):
         return conditions
 
     def evaluate_condition(
-        self, device: "BlockDevice", field: str, operator: str, value: str
+        self, device: Any, field: str, operator: str, value: str
     ) -> bool:
         """Evaluate if a device matches a condition.
 
         Args:
-            device: BlockDevice object to check
+            device: USB device object to check
             field: Device attribute to check
             operator: Comparison operator ('=', '!=', '~=')
             value: Value to compare against
@@ -229,8 +231,8 @@ class DeviceDetector(DeviceDetectorProtocol):
         self,
         query_str: str,
         timeout: int = 60,
-        initial_devices: list["BlockDevice"] | None = None,
-    ) -> "BlockDevice":
+        initial_devices: list["USBDeviceType"] | None = None,
+    ) -> "USBDeviceType":
         """Wait for and detect a device matching the query.
 
         Args:
@@ -239,7 +241,7 @@ class DeviceDetector(DeviceDetectorProtocol):
             initial_devices: Optional list of devices to exclude from detection
 
         Returns:
-            The first matching BlockDevice
+            The first matching USB device
 
         Raises:
             TimeoutError: If no matching device is found within the timeout.
@@ -274,14 +276,14 @@ class DeviceDetector(DeviceDetectorProtocol):
             f"No device matching query '{query_str}' found within {timeout} seconds"
         )
 
-    def list_matching_devices(self, query_str: str) -> list["BlockDevice"]:
+    def list_matching_devices(self, query_str: str) -> list["USBDeviceType"]:
         """List all devices matching the query.
 
         Args:
             query_str: Query string to match devices
 
         Returns:
-            List of matching BlockDevice objects
+            List of matching USB device objects
 
         Raises:
             ValueError: If the query string is invalid.

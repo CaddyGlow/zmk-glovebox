@@ -9,7 +9,12 @@ if TYPE_CHECKING:
     from glovebox.protocols import FileAdapterProtocol, USBAdapterProtocol
 
 from glovebox.config.flash_methods import USBFlashConfig
-from glovebox.firmware.flash.models import BlockDevice, FlashResult
+from glovebox.firmware.flash.models import (
+    BlockDevice,
+    FlashResult,
+    USBDevice,
+    USBDeviceType,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -101,8 +106,14 @@ class USBFlasher:
         try:
             logger.debug("Listing USB devices with query: %s", config.device_query)
             devices = self.usb_adapter.list_matching_devices(config.device_query)
-            logger.debug("Found %d USB devices", len(devices))
-            return devices
+            # Filter to only BlockDevice for flashing
+            block_devices = [d for d in devices if isinstance(d, BlockDevice)]
+            logger.debug(
+                "Found %d USB devices (%d are block devices)",
+                len(devices),
+                len(block_devices),
+            )
+            return block_devices
         except Exception as e:
             logger.error("Failed to list USB devices: %s", e)
             return []

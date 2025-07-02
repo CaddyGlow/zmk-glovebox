@@ -66,6 +66,23 @@ class LoggerOutputMiddleware(OutputMiddleware[str]):
 class DockerAdapter:
     """Implementation of Docker adapter."""
 
+    def _needs_sudo(self) -> bool:
+        """Check if Docker requires sudo by testing docker info command."""
+        try:
+            subprocess.run(
+                ["docker", "info"], check=True, capture_output=True, text=True
+            )
+            return False
+        except subprocess.CalledProcessError as e:
+            # Check if error suggests permission issues
+            return e.stderr and (
+                "permission denied" in e.stderr.lower()
+                or "dial unix" in e.stderr.lower()
+                or "connect: permission denied" in e.stderr.lower()
+            )
+        except Exception:
+            return False
+
     def is_available(self) -> bool:
         """Check if Docker is available on the system."""
         docker_cmd = ["docker", "--version"]
@@ -91,6 +108,34 @@ class DockerAdapter:
         except Exception as e:
             logger.warning("Unexpected error checking Docker availability: %s", e)
             return False
+
+    def _run_with_sudo_fallback(
+        self, docker_cmd: list[str], middleware: OutputMiddleware[T]
+    ) -> ProcessResult[T]:
+        """Run docker command with automatic sudo fallback if needed."""
+        from glovebox.utils import stream_process
+
+        # Try without sudo first
+        try:
+            result = stream_process.run_command(docker_cmd, middleware)
+            return result
+        except subprocess.SubprocessError as e:
+            # Check if this might be a permission error
+            if hasattr(e, "stderr") and e.stderr:
+                stderr_text = str(e.stderr).lower()
+                if any(
+                    phrase in stderr_text
+                    for phrase in [
+                        "permission denied",
+                        "dial unix",
+                        "connect: permission denied",
+                    ]
+                ):
+                    logger.info("Docker permission denied, trying with sudo...")
+                    sudo_cmd = ["sudo"] + docker_cmd
+                    return stream_process.run_command(sudo_cmd, middleware)
+            # Re-raise if not a permission error
+            raise
 
     def run_container(
         self,
@@ -140,22 +185,10 @@ class DockerAdapter:
             if middleware is None:
                 # Cast is needed because T is unbound at this point
                 middleware = cast(OutputMiddleware[T], LoggerOutputMiddleware(logger))
-            result = stream_process.run_command(docker_cmd, middleware)
-            # return_code: int = result[0]
-            # stdout_lines_raw: list[str] = result[1]
-            # stderr_lines_raw: list[str] = result[2]
-            # stdout_lines: list[str] = stdout_lines_raw
-            # stderr_lines: list[str] = stderr_lines_raw
-            #
-            # if return_code != 0 and stderr_lines:
-            #     error_msg = "\n".join(stderr_lines)
-            #     logger.warning(
-            #         "Docker container exited with non-zero code %d: %s",
-            #         return_code,
-            #         error_msg[:200] + ("..." if len(error_msg) > 200 else ""),
-            #     )
 
-            return result  # return_code, stdout_lines, stderr_lines
+            # Try with sudo fallback if needed
+            result = self._run_with_sudo_fallback(docker_cmd, middleware)
+            return result
 
         except FileNotFoundError as e:
             error = create_docker_error(f"Docker executable not found: {e}", cmd_str, e)
@@ -254,7 +287,7 @@ class DockerAdapter:
                 # Cast is needed because T is unbound at this point
                 middleware = cast(OutputMiddleware[T], LoggerOutputMiddleware(logger))
 
-            result = stream_process.run_command(docker_cmd, middleware)
+            result = self._run_with_sudo_fallback(docker_cmd, middleware)
             return result
 
         except FileNotFoundError as e:
@@ -303,10 +336,32 @@ class DockerAdapter:
             logger.debug("Docker image exists: %s", image_full_name)
             return True
 
-        except subprocess.CalledProcessError:
-            # Image doesn't exist (inspect returns non-zero exit code)
-            logger.debug("Docker image does not exist: %s", image_full_name)
-            return False
+        except subprocess.CalledProcessError as e:
+            # Check if this is a permission error, try with sudo
+            if e.stderr and any(
+                phrase in e.stderr.lower()
+                for phrase in [
+                    "permission denied",
+                    "dial unix",
+                    "connect: permission denied",
+                ]
+            ):
+                try:
+                    logger.debug(
+                        "Docker permission denied, trying with sudo for image check..."
+                    )
+                    sudo_cmd = ["sudo"] + docker_cmd
+                    subprocess.run(sudo_cmd, check=True, capture_output=True, text=True)
+                    logger.debug("Docker image exists (with sudo): %s", image_full_name)
+                    return True
+                except subprocess.CalledProcessError:
+                    # Image doesn't exist even with sudo
+                    logger.debug("Docker image does not exist: %s", image_full_name)
+                    return False
+            else:
+                # Image doesn't exist (inspect returns non-zero exit code)
+                logger.debug("Docker image does not exist: %s", image_full_name)
+                return False
 
         except FileNotFoundError:
             logger.warning("Docker executable not found during image check")
@@ -351,7 +406,7 @@ class DockerAdapter:
                 # Cast is needed because T is unbound at this point
                 middleware = cast(OutputMiddleware[T], LoggerOutputMiddleware(logger))
 
-            result = stream_process.run_command(docker_cmd, middleware)
+            result = self._run_with_sudo_fallback(docker_cmd, middleware)
             return result
 
         except FileNotFoundError as e:

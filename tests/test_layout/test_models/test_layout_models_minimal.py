@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 import pytest
 
+
 pytestmark = pytest.mark.unit
 
 from glovebox.layout.models import (

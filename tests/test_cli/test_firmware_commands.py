@@ -32,7 +32,9 @@ def test_firmware_devices_command(cli_runner):
     register_all_commands(app)
 
     with (
-        patch("glovebox.firmware.flash.create_flash_service") as mock_create_service,
+        patch(
+            "glovebox.cli.commands.firmware.create_flash_service"
+        ) as mock_create_service,
         patch(
             "glovebox.cli.helpers.profile.get_keyboard_profile_from_context"
         ) as mock_get_profile,
@@ -59,12 +61,16 @@ def test_firmware_devices_command(cli_runner):
                 "status": "success",
                 "serial": "GLV80-1234",
                 "path": "/dev/sdX",
+                "vendor_id": "239a",
+                "product_id": "0029",
             },
             {
                 "name": "Device 2",
                 "status": "success",
                 "serial": "GLV80-5678",
                 "path": "/dev/sdY",
+                "vendor_id": "1b1c",
+                "product_id": "1b2f",
             },
         ]
         # Updated to use the correct method name
@@ -82,6 +88,188 @@ def test_firmware_devices_command(cli_runner):
         assert "Device 1" in cmd_result.output
         assert "Device 2" in cmd_result.output
         assert "GLV80-1234" in cmd_result.output
+        # Verify vendor_id and product_id are displayed
+        assert "VID: 239a" in cmd_result.output
+        assert "PID: 0029" in cmd_result.output
+        assert "VID: 1b1c" in cmd_result.output
+        assert "PID: 1b2f" in cmd_result.output
+
+
+def test_firmware_devices_json_output(cli_runner):
+    """Test firmware devices command with JSON output format."""
+    # Register commands
+    from glovebox.cli.commands import register_all_commands
+
+    register_all_commands(app)
+
+    with (
+        patch(
+            "glovebox.cli.commands.firmware.create_flash_service"
+        ) as mock_create_service,
+        patch(
+            "glovebox.cli.helpers.profile.get_keyboard_profile_from_context"
+        ) as mock_get_profile,
+        patch(
+            "glovebox.cli.helpers.profile.create_profile_from_context"
+        ) as mock_create_profile_context,
+    ):
+        # Mock the keyboard profile creation and context access
+        mock_profile = Mock()
+        mock_create_profile_context.return_value = mock_profile
+        mock_get_profile.return_value = mock_profile
+
+        # Create a simple mock flash service
+        mock_flash_service = Mock()
+        mock_create_service.return_value = mock_flash_service
+
+        # Set up result with some devices including vendor_id and product_id
+        from glovebox.firmware.flash.models import FlashResult
+
+        result = FlashResult(success=True)
+        result.device_details = [
+            {
+                "name": "Device 1",
+                "status": "success",
+                "serial": "GLV80-1234",
+                "path": "/dev/sdX",
+                "vendor_id": "239a",
+                "product_id": "0029",
+            },
+        ]
+        mock_flash_service.list_devices.return_value = result
+
+        # Run the command with JSON output format
+        cmd_result = cli_runner.invoke(
+            app,
+            [
+                "firmware",
+                "devices",
+                "--profile",
+                "glove80/v25.05",
+                "--output-format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+
+        # Verify results
+        assert cmd_result.exit_code == 0
+
+        # Parse JSON output
+        output_data = json.loads(cmd_result.output)
+        assert output_data["success"] is True
+        assert output_data["device_count"] == 1
+        assert len(output_data["devices"]) == 1
+
+        # Verify all fields are present in device details
+        device = output_data["devices"][0]
+        assert device["name"] == "Device 1"
+        assert device["serial"] == "GLV80-1234"
+        assert device["path"] == "/dev/sdX"
+        assert device["vendor_id"] == "239a"
+        assert device["product_id"] == "0029"
+
+
+def test_firmware_devices_wait_mode(cli_runner):
+    """Test firmware devices command with --wait flag."""
+    # Register commands
+    from glovebox.cli.commands import register_all_commands
+
+    register_all_commands(app)
+
+    with (
+        patch(
+            "glovebox.cli.commands.firmware.create_flash_service"
+        ) as mock_create_service,
+        patch(
+            "glovebox.cli.helpers.profile.get_keyboard_profile_from_context"
+        ) as mock_get_profile,
+        patch(
+            "glovebox.cli.helpers.profile.create_profile_from_context"
+        ) as mock_create_profile_context,
+        patch("signal.signal") as mock_signal,
+        patch("time.sleep") as mock_sleep,
+    ):
+        # Mock the keyboard profile creation and context access
+        mock_profile = Mock()
+        mock_create_profile_context.return_value = mock_profile
+        mock_get_profile.return_value = mock_profile
+
+        # Create a simple mock flash service
+        mock_flash_service = Mock()
+        mock_create_service.return_value = mock_flash_service
+
+        # Set up initial result with one device
+        from glovebox.firmware.flash.models import FlashResult
+
+        initial_result = FlashResult(success=True)
+        initial_result.device_details = [
+            {
+                "name": "Device 1",
+                "status": "success",
+                "serial": "GLV80-1234",
+                "path": "/dev/sdX",
+                "vendor_id": "239a",
+                "product_id": "0029",
+            }
+        ]
+
+        # Simulate device addition on second poll
+        updated_result = FlashResult(success=True)
+        updated_result.device_details = [
+            {
+                "name": "Device 1",
+                "status": "success",
+                "serial": "GLV80-1234",
+                "path": "/dev/sdX",
+                "vendor_id": "239a",
+                "product_id": "0029",
+            },
+            {
+                "name": "Device 2",
+                "status": "success",
+                "serial": "GLV80-5678",
+                "path": "/dev/sdY",
+                "vendor_id": "1b1c",
+                "product_id": "1b2f",
+            },
+        ]
+
+        # Mock list_devices to return different results
+        call_count = 0
+
+        def mock_list_devices(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return initial_result
+            elif call_count == 2:
+                return updated_result
+            else:
+                # Simulate Ctrl+C after showing the new device
+                raise KeyboardInterrupt()
+
+        mock_flash_service.list_devices.side_effect = mock_list_devices
+
+        # Run the command with --wait flag
+        cmd_result = cli_runner.invoke(
+            app,
+            ["firmware", "devices", "--wait", "--profile", "glove80/v25.05"],
+            catch_exceptions=True,
+        )
+
+        # Verify results
+        assert cmd_result.exit_code == 0
+        assert "Starting continuous device monitoring" in cmd_result.output
+        assert "Currently connected devices: 1" in cmd_result.output
+        assert "Device 1" in cmd_result.output
+        assert "Device connected: Device 2" in cmd_result.output
+        assert "Monitoring for device changes..." in cmd_result.output
+
+        # Verify signal handler was registered
+        mock_signal.assert_called_once()
+        # Verify sleep was called
+        assert mock_sleep.called
 
 
 def test_flash_command_wait_parameters(cli_runner):

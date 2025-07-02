@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 
 if TYPE_CHECKING:
-    from glovebox.firmware.flash.models import BlockDevice
+    from glovebox.firmware.flash.models import BlockDevice, USBDevice, USBDeviceType
     from glovebox.protocols.device_detector_protocol import DeviceDetectorProtocol
 
 
@@ -23,7 +23,7 @@ class USBAdapterProtocol(Protocol):
         query: str,
         timeout: int = 60,
         initial_devices: list["BlockDevice"] | None = None,
-    ) -> "BlockDevice":
+    ) -> "USBDeviceType":
         """Detect a USB device matching the query.
 
         Args:
@@ -32,21 +32,21 @@ class USBAdapterProtocol(Protocol):
             initial_devices: Optional list of devices to exclude from detection
 
         Returns:
-            The first matching BlockDevice
+            The first matching USB device
 
         Raises:
             USBError: If no matching device is found within the timeout
         """
         ...
 
-    def list_matching_devices(self, query: str) -> list["BlockDevice"]:
+    def list_matching_devices(self, query: str) -> list["USBDeviceType"]:
         """List all devices matching the query.
 
         Args:
             query: Query string to match devices
 
         Returns:
-            List of matching BlockDevice objects
+            List of matching USB device objects
 
         Raises:
             USBError: If there's an error retrieving devices
@@ -76,14 +76,14 @@ class USBAdapterProtocol(Protocol):
         """
         ...
 
-    def get_all_devices(self, query: str = "") -> list["BlockDevice"]:
-        """Get all available block devices, optionally filtered by query.
+    def get_all_devices(self, query: str = "") -> list["USBDeviceType"]:
+        """Get all available USB devices, optionally filtered by query.
 
         Args:
             query: Optional query string to filter devices
 
         Returns:
-            List of all BlockDevice objects
+            List of all USB device objects
 
         Raises:
             USBError: If there's an error retrieving devices

@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+
 pytestmark = [pytest.mark.network, pytest.mark.integration]
 
 from glovebox.cli.app import app

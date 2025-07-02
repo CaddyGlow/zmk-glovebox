@@ -352,37 +352,79 @@ glovebox firmware flash firmware.uf2 --profile glove80 --timeout 60
 
 ### `glovebox firmware devices`
 
-List connected keyboards and their status.
+List available devices for firmware flashing.
 
 ```bash
 glovebox firmware devices [OPTIONS]
 ```
 
+Detects and displays USB devices that can be used for flashing firmware.
+Shows device information including name, vendor, mount status, and connection
+details. Supports filtering by device query string and multiple output formats.
+
 **Options:**
 ```bash
---profile PROFILE         # Filter by keyboard profile
---verbose                 # Show detailed device information
---format FORMAT           # Output format (table, json, yaml)
---watch                   # Watch for device changes
+--profile PROFILE         # Keyboard profile for device detection
+--query/-q QUERY          # Device query string for filtering
+--all/-a                  # Show all devices (bypass default removable=true filtering)
+--output-format FORMAT    # Output format (text, table, json)
 ```
+
+**Device Filtering Behavior:**
+- **Default**: Shows only removable devices (`removable=true` filter)
+- **With --all/-a**: Shows all devices including non-removable ones
+- **With --query/-q**: Uses custom query string to filter devices
+- **Profile-based**: Uses device query from keyboard profile if available
+
+**Query String Format:**
+Device queries support attribute matching with operators:
+- `vendor=Adafruit` - Exact vendor match
+- `serial~=GLV80-.*` - Serial regex pattern match  
+- `removable=true` - Boolean attribute match
+- `name:Nice` - Name contains text
+- Combined: `vendor=Adafruit and serial~=GLV80-.*`
+
+**Device Information Displayed:**
+- Device name and vendor identification
+- Mount point and connection status  
+- Device serial number and path
+- Removable device status
+- Compatibility with keyboard profile flash methods
 
 **Examples:**
 ```bash
-# List all devices
+# List available devices (default: only removable devices)
 glovebox firmware devices
 
-# Filter by profile
+# Show all devices including non-removable ones
+glovebox firmware devices --all
+
+# Filter devices by vendor
+glovebox firmware devices --query "vendor=Adafruit"
+
+# Filter by serial pattern
+glovebox firmware devices --query "serial~=GLV80-.*"
+
+# Complex query with multiple conditions
+glovebox firmware devices --query "vendor=Adafruit and removable=true"
+
+# Use with keyboard profile
 glovebox firmware devices --profile glove80
 
-# Verbose device information
-glovebox firmware devices --verbose
+# Enhanced table output
+glovebox firmware devices --output-format table
 
 # JSON output for scripting
-glovebox firmware devices --format json
+glovebox firmware devices --output-format json
 
-# Watch for device changes
-glovebox firmware devices --watch
+# Bypass all filtering to see everything
+glovebox firmware devices --query ""
 ```
+
+**Output Formats:**
+- **text** (default): Simple list with device details
+- **table**: Enhanced Rich table with formatted columns
+- **json**: Machine-readable JSON for automation/scripting
 
 ---
 

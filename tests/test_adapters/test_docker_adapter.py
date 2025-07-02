@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+
 pytestmark = [pytest.mark.docker, pytest.mark.integration]
 
 from glovebox.adapters.docker_adapter import (
@@ -397,6 +398,168 @@ class TestDockerAdapter:
             ),
         ):
             adapter.run_container("ubuntu:latest", [], {})
+
+    def test_needs_sudo_permission_denied(self):
+        """Test _needs_sudo returns True when permission denied."""
+        adapter = DockerAdapter()
+
+        error = subprocess.CalledProcessError(1, "docker")
+        error.stderr = "permission denied while trying to connect to Docker daemon"
+
+        with patch("subprocess.run", side_effect=error):
+            result = adapter._needs_sudo()
+
+        assert result is True
+
+    def test_needs_sudo_dial_unix(self):
+        """Test _needs_sudo returns True when dial unix error."""
+        adapter = DockerAdapter()
+
+        error = subprocess.CalledProcessError(1, "docker")
+        error.stderr = "dial unix /var/run/docker.sock: connect: permission denied"
+
+        with patch("subprocess.run", side_effect=error):
+            result = adapter._needs_sudo()
+
+        assert result is True
+
+    def test_needs_sudo_no_permission_error(self):
+        """Test _needs_sudo returns False when no permission error."""
+        adapter = DockerAdapter()
+
+        error = subprocess.CalledProcessError(1, "docker")
+        error.stderr = "some other docker error"
+
+        with patch("subprocess.run", side_effect=error):
+            result = adapter._needs_sudo()
+
+        assert result is False
+
+    def test_needs_sudo_success(self):
+        """Test _needs_sudo returns False when docker info succeeds."""
+        adapter = DockerAdapter()
+
+        with patch("subprocess.run", return_value=Mock()):
+            result = adapter._needs_sudo()
+
+        assert result is False
+
+    def test_run_with_sudo_fallback_success_without_sudo(self):
+        """Test sudo fallback when command succeeds without sudo."""
+        adapter = DockerAdapter()
+        mock_middleware = Mock()
+
+        mock_result = (0, ["success"], [])
+        with patch(
+            "glovebox.utils.stream_process.run_command", return_value=mock_result
+        ) as mock_run:
+            result = adapter._run_with_sudo_fallback(
+                ["docker", "version"], mock_middleware
+            )
+
+        assert result == mock_result
+        mock_run.assert_called_once_with(["docker", "version"], mock_middleware)
+
+    def test_run_with_sudo_fallback_permission_denied(self):
+        """Test sudo fallback when permission denied error occurs."""
+        adapter = DockerAdapter()
+        mock_middleware = Mock()
+
+        # First call fails with permission denied
+        permission_error = subprocess.CalledProcessError(1, "docker")
+        permission_error.stderr = (
+            "permission denied while trying to connect to Docker daemon"
+        )
+
+        # Second call (with sudo) succeeds
+        sudo_result = (0, ["success with sudo"], [])
+
+        with patch("glovebox.utils.stream_process.run_command") as mock_run:
+            mock_run.side_effect = [permission_error, sudo_result]
+
+            result = adapter._run_with_sudo_fallback(
+                ["docker", "version"], mock_middleware
+            )
+
+        assert result == sudo_result
+        assert mock_run.call_count == 2
+        mock_run.assert_any_call(["docker", "version"], mock_middleware)
+        mock_run.assert_any_call(["sudo", "docker", "version"], mock_middleware)
+
+    def test_run_with_sudo_fallback_non_permission_error(self):
+        """Test sudo fallback doesn't trigger for non-permission errors."""
+        adapter = DockerAdapter()
+        mock_middleware = Mock()
+
+        # Error that's not permission-related
+        other_error = subprocess.CalledProcessError(1, "docker")
+        other_error.stderr = "image not found"
+
+        with patch(
+            "glovebox.utils.stream_process.run_command", side_effect=other_error
+        ) as mock_run:
+            with pytest.raises(subprocess.CalledProcessError):
+                adapter._run_with_sudo_fallback(
+                    ["docker", "run", "nonexistent"], mock_middleware
+                )
+
+        # Should only be called once (no sudo retry)
+        mock_run.assert_called_once_with(
+            ["docker", "run", "nonexistent"], mock_middleware
+        )
+
+    def test_run_container_uses_sudo_fallback(self):
+        """Test that run_container uses the sudo fallback mechanism."""
+        adapter = DockerAdapter()
+
+        # Mock the sudo fallback method
+        mock_result = (0, ["output"], [])
+        with patch.object(
+            adapter, "_run_with_sudo_fallback", return_value=mock_result
+        ) as mock_fallback:
+            result = adapter.run_container("ubuntu:latest", [], {})
+
+        assert result == mock_result
+        mock_fallback.assert_called_once()
+
+        # Verify the docker command was constructed correctly
+        call_args = mock_fallback.call_args[0]
+        docker_cmd = call_args[0]
+        assert docker_cmd == ["docker", "run", "--rm", "ubuntu:latest"]
+
+    def test_image_exists_with_sudo_fallback(self):
+        """Test image_exists uses sudo fallback when permission denied."""
+        adapter = DockerAdapter()
+
+        with patch.object(adapter, "is_available", return_value=True):
+            # First call fails with permission denied
+            permission_error = subprocess.CalledProcessError(1, "docker")
+            permission_error.stderr = (
+                "permission denied while trying to connect to Docker daemon"
+            )
+
+            # Second call (with sudo) succeeds
+            mock_success = Mock()
+
+            with patch("subprocess.run") as mock_run:
+                mock_run.side_effect = [permission_error, mock_success]
+
+                result = adapter.image_exists("ubuntu", "latest")
+
+        assert result is True
+        assert mock_run.call_count == 2
+        mock_run.assert_any_call(
+            ["docker", "inspect", "ubuntu:latest"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        mock_run.assert_any_call(
+            ["sudo", "docker", "inspect", "ubuntu:latest"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
     def test_build_image_success(self):
         """Test successful image building."""

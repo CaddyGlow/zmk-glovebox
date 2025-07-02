@@ -303,12 +303,16 @@ class DeviceListFormatter(OutputFormatter):
         )
         table.add_column("Device", style="cyan", no_wrap=True)
         table.add_column("Serial", style="yellow")
+        table.add_column("Vendor ID", style="magenta")
+        table.add_column("Product ID", style="magenta")
         table.add_column("Path", style="dim")
         table.add_column("Status", style="bold")
 
         for device in devices:
             name = device.get("name", "Unknown")
             serial = device.get("serial", "N/A")
+            vendor_id = device.get("vendor_id", "N/A")
+            product_id = device.get("product_id", "N/A")
             path = device.get("path", "N/A")
             status = device.get("status", "unknown")
 
@@ -326,10 +330,10 @@ class DeviceListFormatter(OutputFormatter):
                 icon = Icons.get_icon("WARNING", icon_mode)
                 status_display = f"{icon} Unknown"
 
-            table.add_row(name, serial, path, status_display)
+            table.add_row(name, serial, vendor_id, product_id, path, status_display)
 
         if not devices:
-            table.add_row("No devices found", "", "", "")
+            table.add_row("No devices found", "", "", "", "", "")
 
         self.console.print(table)
 

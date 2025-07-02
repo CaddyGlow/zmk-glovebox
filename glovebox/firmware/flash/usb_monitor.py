@@ -15,12 +15,16 @@ from glovebox.firmware.flash.models import (
     BlockDeviceDict,
     BlockDevicePathMap,
     DiskInfo,
+    USBDevice,
     USBDeviceInfo,
 )
 from glovebox.protocols.mount_cache_protocol import MountCacheProtocol
 
 
 logger = logging.getLogger(__name__)
+
+# Union type for USB devices to support both storage and non-storage devices
+USBDeviceType = BlockDevice | USBDevice
 
 
 class USBDeviceMonitorBase(abc.ABC):
@@ -29,8 +33,8 @@ class USBDeviceMonitorBase(abc.ABC):
     def __init__(self) -> None:
         """Initialize the USB device monitor."""
         self.known_devices: set[str] = set()
-        self.devices: list[BlockDevice] = []
-        self._callbacks: set[Callable[[str, BlockDevice], None]] = set()
+        self.devices: list[USBDeviceType] = []
+        self._callbacks: set[Callable[[str, USBDeviceType], None]] = set()
         self._lock = threading.RLock()
         self._monitoring = False
         self._monitor_thread: threading.Thread | None = None
@@ -50,8 +54,8 @@ class USBDeviceMonitorBase(abc.ABC):
         """
         pass
 
-    def get_devices(self) -> list[BlockDevice]:
-        """Get the current list of USB block devices."""
+    def get_devices(self) -> list[USBDeviceType]:
+        """Get the current list of USB devices."""
         with self._lock:
             return self.devices.copy()
 
@@ -73,14 +77,18 @@ class USBDeviceMonitorBase(abc.ABC):
             self._monitor_thread = None
         logger.info("Stopped USB device monitoring")
 
-    def _format_device_debug(self, device: BlockDevice) -> str:
+    def _format_device_debug(self, device: USBDeviceType) -> str:
         """Format device information for debug logging in vid:pid:serial:dev format."""
-        vid = device.vendor_id or "unknown"
-        pid = device.product_id or "unknown"
-        serial = device.serial or "unknown"
-        dev = device.path or "unknown"
-        vendor = device.vendor or "unknown"
-        model = device.model or "unknown"
+        vid = getattr(device, "vendor_id", None) or "unknown"
+        pid = getattr(device, "product_id", None) or "unknown"
+        serial = getattr(device, "serial", None) or "unknown"
+        dev = (
+            getattr(device, "device_node", None)
+            or getattr(device, "sys_path", None)
+            or "unknown"
+        )
+        vendor = getattr(device, "vendor", None) or "unknown"
+        model = getattr(device, "model", None) or "unknown"
 
         return f"{vid}:{pid}:{serial}:{dev} ({vendor} {model})"
 
@@ -89,31 +97,39 @@ class USBDeviceMonitorBase(abc.ABC):
         """Main monitoring loop (platform-specific)."""
         pass
 
-    def register_callback(self, callback: Callable[[str, BlockDevice], None]) -> None:
+    def register_callback(self, callback: Callable[[str, USBDeviceType], None]) -> None:
         """Register a callback for device events."""
         self._callbacks.add(callback)
 
-    def unregister_callback(self, callback: Callable[[str, BlockDevice], None]) -> None:
+    def unregister_callback(
+        self, callback: Callable[[str, USBDeviceType], None]
+    ) -> None:
         """Unregister a callback for device events."""
         self._callbacks.discard(callback)
 
     def wait_for_device(
         self, timeout: int = 60, poll_interval: float = 0.5
-    ) -> BlockDevice | None:
+    ) -> USBDeviceType | None:
         """Wait for a new USB device to be connected."""
         start_time = time.time()
-        initial_devices = {d.path for d in self.get_devices()}
+        initial_devices = {
+            getattr(d, "device_node", None) or getattr(d, "sys_path", None)
+            for d in self.get_devices()
+        }
 
         while time.time() - start_time < timeout:
             current_devices = self.get_devices()
             for device in current_devices:
-                if device.path not in initial_devices:
+                device_path = getattr(device, "device_node", None) or getattr(
+                    device, "sys_path", None
+                )
+                if device_path not in initial_devices:
                     return device
             time.sleep(poll_interval)
 
         return None
 
-    def _notify_callbacks(self, action: str, device: BlockDevice) -> None:
+    def _notify_callbacks(self, action: str, device: USBDeviceType) -> None:
         """Notify all registered callbacks of a device event."""
         for callback in self._callbacks:
             try:
@@ -143,26 +159,35 @@ class LinuxUSBDeviceMonitor(USBDeviceMonitorBase):
         self.scan_existing_devices()
 
     def scan_existing_devices(self) -> None:
-        """Scan existing USB block devices and populate the device list."""
+        """Scan existing USB devices and populate the device list."""
         with self._lock:
             self.devices = []
             mount_points = self._mount_cache.get_mountpoints()
 
-            for device in self.context.list_devices(subsystem="block"):
+            for device in self.context.list_devices():
                 if self.is_usb_device(device):
-                    self.known_devices.add(device.device_node)
-                    block_device = BlockDevice.from_pyudev_device(device)
-                    self._update_mountpoints(block_device, mount_points)
-                    self.devices.append(block_device)
-                    logger.debug(
-                        f"Found existing device: {self._format_device_debug(block_device)}"
-                    )
+                    device_node = getattr(device, "device_node", None)
+                    if device_node:
+                        self.known_devices.add(device_node)
+
+                    # Check if this is a storage device to maintain compatibility
+                    if hasattr(device, "subsystem") and device.subsystem == "block":
+                        block_device = BlockDevice.from_pyudev_device(device)
+                        self._update_mountpoints(block_device, mount_points)
+                        self.devices.append(block_device)
+                        logger.debug(
+                            f"Found existing storage device: {self._format_device_debug(block_device)}"
+                        )
+                    else:
+                        # Handle non-storage USB devices
+                        usb_device = USBDevice.from_pyudev_device(device)
+                        self.devices.append(usb_device)
+                        logger.debug(
+                            f"Found existing USB device: {usb_device.name} ({usb_device.device_type})"
+                        )
 
     def is_usb_device(self, device: Any) -> bool:
-        """Check if a device is USB-connected storage."""
-        if hasattr(device, "subsystem") and device.subsystem != "block":
-            return False
-
+        """Check if a device is USB-connected."""
         if hasattr(device, "ancestors"):
             return any(parent.subsystem == "usb" for parent in device.ancestors)
         return False
@@ -181,35 +206,67 @@ class LinuxUSBDeviceMonitor(USBDeviceMonitorBase):
     def _monitor_loop(self) -> None:
         """Main monitoring loop using udev."""
         monitor = self.pyudev.Monitor.from_netlink(self.context)
-        monitor.filter_by(subsystem="block")
+        # monitor.filter_by(subsystem="block")  # Removed to allow all USB device types
 
         def device_event(device: Any) -> None:
             # The device object has an action attribute
             action = device.action
             if action in ("add", "remove") and self.is_usb_device(device):
                 if action == "add":
-                    block_device = BlockDevice.from_pyudev_device(device)
-                    with self._lock:
-                        self.devices.append(block_device)
-                    logger.debug(
-                        f"USB device added: {self._format_device_debug(block_device)}"
-                    )
-                    self._notify_callbacks("add", block_device)
+                    device_node = getattr(device, "device_node", None)
+                    if device_node:
+                        self.known_devices.add(device_node)
+
+                    # Handle storage vs non-storage devices
+                    if hasattr(device, "subsystem") and device.subsystem == "block":
+                        block_device = BlockDevice.from_pyudev_device(device)
+                        with self._lock:
+                            self.devices.append(block_device)
+                        logger.debug(
+                            f"USB storage device added: {self._format_device_debug(block_device)}"
+                        )
+                        self._notify_callbacks("add", block_device)
+                    else:
+                        usb_device = USBDevice.from_pyudev_device(device)
+                        with self._lock:
+                            self.devices.append(usb_device)
+                        logger.debug(
+                            f"USB device added: {usb_device.name} ({usb_device.device_type})"
+                        )
+                        self._notify_callbacks("add", usb_device)
+
                 elif action == "remove":
                     # Find the device being removed for logging
                     removed_device = None
+                    device_node = getattr(device, "device_node", None)
                     with self._lock:
                         for d in self.devices:
-                            if d.path == device.device_node:
+                            # Handle both BlockDevice and USBDevice types
+                            device_path = getattr(d, "device_node", None) or getattr(
+                                d, "sys_path", None
+                            )
+                            if device_path == device_node:
                                 removed_device = d
                                 break
-                        self.devices = [
-                            d for d in self.devices if d.path != device.device_node
-                        ]
+                        if device_node:
+                            self.devices = [
+                                d
+                                for d in self.devices
+                                if (
+                                    getattr(d, "device_node", None)
+                                    or getattr(d, "sys_path", None)
+                                )
+                                != device_node
+                            ]
                     if removed_device:
-                        logger.debug(
-                            f"USB device removed: {self._format_device_debug(removed_device)}"
-                        )
+                        if isinstance(removed_device, BlockDevice):
+                            logger.debug(
+                                f"USB storage device removed: {self._format_device_debug(removed_device)}"
+                            )
+                        else:  # USBDevice
+                            logger.debug(
+                                f"USB device removed: {removed_device.name} ({removed_device.device_type})"
+                            )
 
         self._observer = self.pyudev.MonitorObserver(monitor, callback=device_event)
         self._observer.start()
