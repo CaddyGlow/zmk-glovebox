@@ -4,14 +4,14 @@ A comprehensive tool for ZMK keyboard firmware management, supporting multiple k
 
 ## Features
 
-### **🎯 Core Workflow**
+### **▶ Core Workflow**
 - **Multi-Keyboard Support**: Extensible modular architecture with YAML-based configuration system
 - **JSON→ZMK Pipeline**: Convert JSON layouts to ZMK keymap and configuration files
 - **Firmware Compilation**: Multiple compilation strategies (zmk_config, moergo) with Docker integration
 - **Cross-Platform Flashing**: USB device detection and firmware flashing with retry logic
 - **Profile System**: Unified keyboard/firmware profiles with auto-detection capabilities
 
-### **🔧 Advanced Layout Management**
+### **+ Advanced Layout Management**
 - **Variable Substitution System**: Define reusable variables in layouts for consistency and maintainability
 - **Version Management**: Upgrade custom layouts while preserving customizations when new master versions are released
 - **Unified Editing Interface**: Batch operations for field manipulation, layer management, and variable control
@@ -19,20 +19,20 @@ A comprehensive tool for ZMK keyboard firmware management, supporting multiple k
 - **Enhanced Comparison**: DTSI-aware diff with patch generation and JSON output
 - **ZMK Parser**: Import existing ZMK keymap files back to JSON layouts
 
-### **⚡ Performance & Caching**
+### **^ Performance & Caching**
 - **Intelligent Caching System**: Multi-tier caching with shared coordination across domains
 - **Workspace Management**: Docker-based build workspaces with persistent caching
 - **Dynamic Generation**: Create complete ZMK config workspaces on-the-fly without external repositories
 - **Build Matrix Support**: GitHub Actions style matrices with automatic split keyboard detection
 
-### **🛠 Development & Integration**
+### **■ Development & Integration**
 - **Modular CLI Architecture**: Focused command groups with unified interfaces
 - **Library Management**: Fetch, search, and organize layout libraries
 - **MoErgo Integration**: Authentication and API client for MoErgo services
 - **Cloud Storage**: Upload, download, and manage layouts in cloud storage
 - **Debug Tracing**: Comprehensive logging with stack traces and multiple verbosity levels
 
-### **⚙️ Configuration & Profiles**
+### **○ Configuration & Profiles**
 - **Type-Safe Configuration**: YAML-based system with includes and inheritance
 - **Profile Management**: Full profiles (keyboard+firmware) and keyboard-only configurations
 - **Auto-Detection**: JSON auto-profiling and library resolution patterns
@@ -1008,7 +1008,7 @@ glovebox --debug --log-file debug.log firmware compile keymap.keymap config.conf
 
 Comprehensive documentation is available in the `docs/` directory:
 
-### 📚 Documentation Structure
+### Documentation Structure
 
 - **[User Documentation](docs/user/)** - Complete end-user guides and tutorials
   - [Getting Started](docs/user/getting-started.md) - First-time user tutorial
@@ -1031,7 +1031,7 @@ Comprehensive documentation is available in the `docs/` directory:
   - [Protocol Definitions](docs/technical/protocol-definitions.md) - Interface contracts
   - [Cache Architecture](docs/technical/cache-architecture.md) - Performance optimization
 
-### 🎯 Quick Navigation
+### ▶ Quick Navigation
 
 **New Users**: Start with [Getting Started](docs/user/getting-started.md) → [CLI Reference](docs/user/cli-reference.md)
 
@@ -1112,9 +1112,9 @@ MIT License - see LICENSE file for details.
 
 ## Support
 
-- **🐛 Issues**: [GitHub Issues](https://github.com/your-org/glovebox/issues)
-- **📚 Documentation**: [docs/](docs/) directory
-- **❓ Questions**: [GitHub Discussions](https://github.com/your-org/glovebox/discussions)
-- **💡 Feature Requests**: [GitHub Discussions](https://github.com/your-org/glovebox/discussions)
+- **Issues**: [GitHub Issues](https://github.com/your-org/glovebox/issues)
+- **Documentation**: [docs/](docs/) directory
+- **Questions**: [GitHub Discussions](https://github.com/your-org/glovebox/discussions)
+- **Feature Requests**: [GitHub Discussions](https://github.com/your-org/glovebox/discussions)
 
 For troubleshooting help, see the [Troubleshooting Guide](docs/user/troubleshooting.md).

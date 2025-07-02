@@ -17,11 +17,11 @@ glovebox status --docker --usb --config
 ```
 
 This command checks:
-- ✓ **Configuration**: Valid settings and profiles
-- ✓ **Docker**: Installation and connectivity  
-- ✓ **USB**: Device access and permissions
-- ✓ **Cache**: Cache system and workspace status
-- ✓ **Profiles**: Available keyboards and firmware versions
+- **Configuration**: Valid settings and profiles
+- **Docker**: Installation and connectivity  
+- **USB**: Device access and permissions
+- **Cache**: Cache system and workspace status
+- **Profiles**: Available keyboards and firmware versions
 
 ### Configuration Validation
 
