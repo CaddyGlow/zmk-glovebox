@@ -254,9 +254,7 @@ class ZmkFileContentGenerator:
                 formatted_bindings = []
                 for binding in bindings:
                     # Format the binding to DTSI format
-                    binding_str = self._behavior_formatter.format_binding_for_hold_tap(
-                        binding
-                    )
+                    binding_str = self._behavior_formatter.format_binding(binding)
                     formatted_bindings.append(f"<{binding_str}>")
 
                 bindings_line = ", ".join(formatted_bindings)

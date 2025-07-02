@@ -124,7 +124,12 @@ class TestValidateLayerReferences:
             title="All Behaviors",
             layer_names=["Base", "One", "Two"],
             layers=[
-                ["&mo 3", "&lt 3 A", "&to 3", "&tog 3"],  # All reference invalid layer 3
+                [
+                    "&mo 3",
+                    "&lt 3 A",
+                    "&to 3",
+                    "&tog 3",
+                ],  # All reference invalid layer 3
                 ["&mo 0", "&lt 1 B", "&to 2", "&tog 0"],  # All valid
                 ["&trans"] * 4,
             ],

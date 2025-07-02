@@ -33,9 +33,7 @@ def test_firmware_devices_command(cli_runner):
     register_all_commands(app)
 
     with (
-        patch(
-            "glovebox.firmware.flash.create_flash_service"
-        ) as mock_create_service,
+        patch("glovebox.firmware.flash.create_flash_service") as mock_create_service,
         patch(
             "glovebox.cli.helpers.profile.get_keyboard_profile_from_context"
         ) as mock_get_profile,
@@ -104,9 +102,7 @@ def test_firmware_devices_json_output(cli_runner):
     register_all_commands(app)
 
     with (
-        patch(
-            "glovebox.firmware.flash.create_flash_service"
-        ) as mock_create_service,
+        patch("glovebox.firmware.flash.create_flash_service") as mock_create_service,
         patch(
             "glovebox.cli.helpers.profile.get_keyboard_profile_from_context"
         ) as mock_get_profile,
@@ -179,9 +175,7 @@ def test_firmware_devices_wait_mode(cli_runner):
     register_all_commands(app)
 
     with (
-        patch(
-            "glovebox.firmware.flash.create_flash_service"
-        ) as mock_create_service,
+        patch("glovebox.firmware.flash.create_flash_service") as mock_create_service,
         patch(
             "glovebox.cli.helpers.profile.get_keyboard_profile_from_context"
         ) as mock_get_profile,
@@ -251,9 +245,10 @@ def test_firmware_devices_wait_mode(cli_runner):
                 raise KeyboardInterrupt()
 
         mock_flash_service.list_devices.side_effect = mock_list_devices
-        
+
         # Mock sleep to allow quick test execution
         sleep_count = 0
+
         def mock_sleep_func(duration):
             nonlocal sleep_count
             sleep_count += 1
@@ -261,7 +256,7 @@ def test_firmware_devices_wait_mode(cli_runner):
                 # After a few loops, stop the monitoring
                 raise KeyboardInterrupt()
             time.sleep(0.01)  # Very short sleep for testing
-        
+
         mock_sleep.side_effect = mock_sleep_func
 
         # Run the command with --wait flag
@@ -675,3 +670,35 @@ def test_firmware_compile_help_includes_auto_detection_options(cli_runner):
     assert "auto-profile detection" in cmd_result.output
 
     assert cmd_result.exit_code == 0
+
+
+def test_firmware_flash_accepts_json_files(cli_runner):
+    """Test that firmware flash command accepts JSON files."""
+    from glovebox.cli.commands import register_all_commands
+
+    register_all_commands(app)
+
+    # Test that JSON files are accepted in the help
+    cmd_result = cli_runner.invoke(app, ["firmware", "flash", "--help"])
+
+    # Should mention JSON files in the help text
+    assert cmd_result.exit_code == 0
+    assert ".json" in cmd_result.output
+    assert "layout" in cmd_result.output.lower()
+
+
+def test_firmware_flash_json_auto_detection_help(cli_runner):
+    """Test that firmware flash help mentions auto-detection for JSON files."""
+    from glovebox.cli.commands import register_all_commands
+
+    register_all_commands(app)
+
+    cmd_result = cli_runner.invoke(app, ["firmware", "flash", "--help"])
+
+    # Should mention auto-detection functionality
+    assert cmd_result.exit_code == 0
+    assert (
+        "auto-detect" in cmd_result.output.lower()
+        or "automatic" in cmd_result.output.lower()
+    )
+    assert "keyboard" in cmd_result.output.lower()

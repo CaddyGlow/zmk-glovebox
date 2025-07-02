@@ -1171,8 +1171,8 @@ class ASTBehaviorConverter:
             ):
                 return None
 
-            # Extract name
-            name = node.name
+            # Extract name (strip & prefix if present)
+            name = node.name.lstrip("&") if node.name else ""
 
             # Extract description from label if available
             label_prop = node.get_property("label")
@@ -1269,8 +1269,8 @@ class ASTBehaviorConverter:
             ):
                 return None
 
-            # Extract name
-            name = node.name
+            # Extract name (strip & prefix if present)
+            name = node.name.lstrip("&") if node.name else ""
 
             # Extract description from label if available
             label_prop = node.get_property("label")
@@ -1339,15 +1339,12 @@ class ASTBehaviorConverter:
             sticky_key = StickyKeyBehavior(
                 name=name,
                 description=description,
-                bindings=bindings,
-                quick_release=quick_release,
+                releaseAfterMs=release_after_ms,
+                quickRelease=quick_release,
                 lazy=lazy,
-                ignore_modifiers=ignore_modifiers,
+                ignoreModifiers=ignore_modifiers,
+                bindings=bindings,
             )
-
-            # Set release_after_ms if available
-            if release_after_ms is not None:
-                sticky_key.release_after_ms = release_after_ms
 
             self.logger.debug(
                 "Extracted sticky key '%s' with %d bindings",
@@ -1388,8 +1385,8 @@ class ASTBehaviorConverter:
             ):
                 return None
 
-            # Extract name
-            name = node.name
+            # Extract name (strip & prefix if present)
+            name = node.name.lstrip("&") if node.name else ""
 
             # Extract description from label if available
             label_prop = node.get_property("label")
@@ -1446,12 +1443,9 @@ class ASTBehaviorConverter:
             caps_word = CapsWordBehavior(
                 name=name,
                 description=description,
-                continue_list=continue_list,
+                continueList=continue_list,
+                mods=mods,
             )
-
-            # Set mods if available
-            if mods is not None:
-                caps_word.mods = mods
 
             self.logger.debug(
                 "Extracted caps word '%s' with %d continue-list items",
@@ -1492,8 +1486,8 @@ class ASTBehaviorConverter:
             ):
                 return None
 
-            # Extract name
-            name = node.name
+            # Extract name (strip & prefix if present)
+            name = node.name.lstrip("&") if node.name else ""
 
             # Extract description from label if available
             label_prop = node.get_property("label")

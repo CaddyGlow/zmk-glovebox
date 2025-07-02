@@ -33,7 +33,9 @@ class TestDefineResolution:
 
         # Test layer behavior resolution
         assert converter._resolve_binding_string("&mo LAYER_Lower") == "&mo 1"
-        assert converter._resolve_binding_string("&lt LAYER_Base SPACE") == "&lt 0 SPACE"
+        assert (
+            converter._resolve_binding_string("&lt LAYER_Base SPACE") == "&lt 0 SPACE"
+        )
         assert converter._resolve_binding_string("&to LAYER_Magic") == "&to 2"
         assert converter._resolve_binding_string("&tog LAYER_Lower") == "&tog 1"
 
@@ -58,8 +60,7 @@ class TestDefineResolution:
 
         # Test multiple tokens
         assert (
-            parser._resolve_binding_string("&lt LAYER_Gaming THUMB_KEY")
-            == "&lt 1 53"
+            parser._resolve_binding_string("&lt LAYER_Gaming THUMB_KEY") == "&lt 1 53"
         )
 
     def test_full_processor_extracts_defines(self):
@@ -89,13 +90,13 @@ class TestDefineResolution:
         layout_data = processor.process(context)
 
         # Check defines were extracted and stored in context
-        assert hasattr(context, 'defines'), "Context should have defines attribute"
-        
+        assert hasattr(context, "defines"), "Context should have defines attribute"
+
         # Also check if layout_data was successfully created
         assert layout_data is not None, "Layout data should be created"
-        
+
         assert context.defines == {
-            "LAYER_Base": "0",  
+            "LAYER_Base": "0",
             "LAYER_Lower": "1",
             "LAYER_Magic": "2",
             "MY_TIMEOUT": "200",

@@ -141,7 +141,7 @@ def test_layout_validate_with_json_env_var(cli_runner, sample_json_layout, clean
             ["layout", "validate", "--profile", "glove80/v25.05"],
             catch_exceptions=False,
         )
-        
+
         # Debug output
         if cmd_result.exit_code != 0:
             print(f"Command failed with exit code {cmd_result.exit_code}")
@@ -292,7 +292,7 @@ def test_firmware_compile_with_json_env_var(cli_runner, sample_json_layout, clea
             ["firmware", "compile", "--profile", "glove80/v25.05"],
             catch_exceptions=False,
         )
-        
+
         # Debug output
         if cmd_result.exit_code != 0:
             print(f"Command failed with exit code {cmd_result.exit_code}")
