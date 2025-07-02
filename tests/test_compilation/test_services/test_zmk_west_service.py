@@ -6,6 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
+
 pytestmark = [pytest.mark.docker, pytest.mark.integration]
 
 from glovebox.compilation.models import ZmkCompilationConfig

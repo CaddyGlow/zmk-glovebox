@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 
+
 pytestmark = [pytest.mark.network, pytest.mark.integration]
 
 pytestmark = [pytest.mark.docker, pytest.mark.integration]

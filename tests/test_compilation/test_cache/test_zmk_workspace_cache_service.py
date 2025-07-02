@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+
 pytestmark = [pytest.mark.docker, pytest.mark.integration]
 
 from glovebox.compilation.cache.models import (

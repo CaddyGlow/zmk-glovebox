@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 from glovebox.adapters.file_adapter import create_file_adapter
 from glovebox.config.flash_methods import USBFlashConfig
 from glovebox.firmware.flash.device_wait_service import create_device_wait_service
-from glovebox.firmware.flash.models import FlashResult
+from glovebox.firmware.flash.models import FlashResult, BlockDevice, USBDeviceType
 from glovebox.firmware.method_registry import flasher_registry
 from glovebox.protocols import FileAdapterProtocol, USBAdapterProtocol
 from glovebox.protocols.flash_protocols import FlasherProtocol
@@ -161,6 +161,7 @@ class FlashService:
             logger.info("Selected flasher method: %s", type(flasher).__name__)
 
             # Get devices - either wait for them or list immediately
+            devices: list[USBDeviceType]
             if wait:
                 # Use device wait service to wait for devices
                 # Check if we have a USB flash config for device query
@@ -183,7 +184,9 @@ class FlashService:
                 )
             else:
                 # List available devices immediately using the selected flasher
-                devices = flasher.list_devices(flash_configs[0])
+                # The flasher returns list[BlockDevice], we need to cast for type compatibility
+                block_devices = flasher.list_devices(flash_configs[0])
+                devices = block_devices  # type: ignore[assignment]
 
             if not devices:
                 result.success = False
@@ -195,6 +198,14 @@ class FlashService:
             devices_failed = 0
 
             for device in devices[: count if count > 0 else len(devices)]:
+                # Skip non-block devices
+                if not isinstance(device, BlockDevice):
+                    logger.warning(
+                        "Device %s is not a block device, skipping",
+                        getattr(device, "name", "unknown"),
+                    )
+                    continue
+
                 logger.info("Flashing device: %s", device.description or device.name)
 
                 device_result = flasher.flash_device(
@@ -252,13 +263,14 @@ class FlashService:
     def list_devices(
         self,
         profile: Optional["KeyboardProfile"] = None,
-        query: str = "",
+        query: str | None = None,
     ) -> FlashResult:
         """List devices using method selection.
 
         Args:
             profile: KeyboardProfile with flash configuration
-            query: Device query string (overrides profile-specific query)
+            query: Device query string (overrides profile-specific query).
+                   None = use profile/default, "" = bypass filtering, str = custom query
 
         Returns:
             FlashResult with details of matched devices
@@ -269,7 +281,7 @@ class FlashService:
             # Get flash method configs from profile or use defaults
             flash_configs = self._get_flash_method_configs(profile, query)
 
-            # Select the best available flasher
+            # Select the flasher
             flasher = self._create_usb_flasher(flash_configs[0])
 
             logger.info("Using flasher method: %s", type(flasher).__name__)
@@ -293,6 +305,8 @@ class FlashService:
                     "path": device.path,
                     "removable": device.removable,
                     "status": "available",
+                    "vendor_id": device.vendor_id,
+                    "product_id": device.product_id,
                 }
                 result.device_details.append(device_info)
 
@@ -306,13 +320,14 @@ class FlashService:
     def _get_flash_method_configs(
         self,
         profile: Optional["KeyboardProfile"],
-        query: str,
+        query: str | None,
     ) -> list[USBFlashConfig]:
         """Get flash method configurations from profile or defaults.
 
         Args:
             profile: KeyboardProfile with method configurations (optional)
-            query: Device query string for default configuration
+            query: Device query string for default configuration.
+                   None = use profile/default, "" = bypass filtering, str = custom query
 
         Returns:
             List of flash method configurations to try
@@ -328,12 +343,19 @@ class FlashService:
         # Fallback: Create default USB configuration
         logger.debug("No profile flash methods, using default USB configuration")
 
-        # Use provided query or get default from profile
-        device_query = query
-        if not device_query and profile:
-            device_query = self._get_device_query_from_profile(profile)
-        if not device_query:
-            device_query = "removable=true"  # Default query
+        # Handle query parameter logic
+        if query == "":
+            # Empty string explicitly passed - bypass all filtering
+            device_query = ""
+        elif query is not None:
+            # Explicit query provided
+            device_query = query
+        else:
+            # query is None - use profile default or fallback to removable=true
+            if profile:
+                device_query = self._get_device_query_from_profile(profile)
+            else:
+                device_query = "removable=true"  # Default query
 
         # Create default USB flash config
         default_config = USBFlashConfig(

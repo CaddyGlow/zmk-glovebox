@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
+
 pytestmark = [pytest.mark.network, pytest.mark.integration]
 
 from glovebox.core.metrics.session_metrics import (

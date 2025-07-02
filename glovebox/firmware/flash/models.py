@@ -44,6 +44,163 @@ class USBDeviceInfo:
 
 
 @dataclass
+class USBDevice:
+    """Represents any USB device detected by the system."""
+
+    # Core identification
+    name: str  # Required field - device name
+    device_node: str = ""  # Device node path (may be empty for non-storage)
+    sys_path: str = ""  # Device path in /sys/
+
+    # Device classification
+    subsystem: str = ""  # Device subsystem (block, input, usb, etc.)
+    device_type: str = "unknown"  # Device type (usb, disk, keyboard, etc.)
+
+    # Device metadata
+    model: str = ""  # Device model name
+    vendor: str = ""  # Device vendor name
+    serial: str = ""  # Device serial number
+    vendor_id: str = ""  # USB vendor ID
+    product_id: str = ""  # USB product ID
+
+    # Physical characteristics (optional for non-storage)
+    size: int = 0  # Device size in bytes (0 for non-storage)
+    removable: bool = False  # Whether device is removable
+
+    # Storage-specific fields (optional)
+    uuid: str = ""  # Filesystem UUID
+    label: str = ""  # Filesystem label
+    partitions: list[str] = field(default_factory=list)  # Child partitions
+    mountpoints: dict[str, str] = field(default_factory=dict)  # Mount information
+
+    # System information
+    symlinks: set[str] = field(default_factory=set)  # Device symlinks
+    raw: dict[str, str] = field(default_factory=dict)  # Raw udev properties
+
+    @classmethod
+    def from_pyudev_device(cls, device: Any) -> "USBDevice":
+        """Create a USBDevice from a pyudev Device."""
+        name = device.sys_name or "unknown"
+        device_node = getattr(device, "device_node", "") or ""
+        sys_path = getattr(device, "device_path", "") or ""
+
+        raw_dict = (
+            dict(device.properties.items()) if hasattr(device, "properties") else {}
+        )
+
+        # Basic device information
+        subsystem = getattr(device, "subsystem", "unknown")
+
+        # Size calculation (only for block devices)
+        size = 0
+        if (
+            subsystem == "block"
+            and hasattr(device, "attributes")
+            and device.attributes.get("size")
+        ):
+            try:
+                size = int(device.attributes.get("size", 0)) * 512
+            except (ValueError, TypeError):
+                size = 0
+
+        # Removable status
+        removable = False
+        if hasattr(device, "attributes") and device.attributes.get("removable"):
+            try:
+                removable = bool(int(device.attributes.get("removable", 0)))
+            except (ValueError, TypeError):
+                removable = False
+
+        # Device metadata from properties
+        model = raw_dict.get("ID_MODEL", "")
+        vendor = raw_dict.get("ID_VENDOR", "")
+        serial = raw_dict.get("ID_SERIAL_SHORT", "")
+        vendor_id = raw_dict.get("ID_VENDOR_ID", "")
+        product_id = raw_dict.get("ID_MODEL_ID", "")
+
+        # Device type determination
+        device_type = "unknown"
+        if raw_dict.get("ID_BUS") == "usb":
+            # Determine USB device type based on subsystem
+            if subsystem == "block":
+                device_type = "usb_storage"
+            elif subsystem == "input":
+                device_type = "usb_input"
+            elif subsystem == "usb":
+                device_type = "usb_device"
+            else:
+                device_type = f"usb_{subsystem}"
+        elif name.startswith("sd"):
+            device_type = "disk"
+        elif name.startswith("nvme"):
+            device_type = "nvme"
+        else:
+            device_type = raw_dict.get("DEVTYPE", subsystem)
+
+        # Storage-specific properties (only for block devices)
+        label = raw_dict.get("ID_FS_LABEL", "") if subsystem == "block" else ""
+        uuid = raw_dict.get("ID_FS_UUID", "") if subsystem == "block" else ""
+
+        # Symlinks
+        symlinks = set()
+        if hasattr(device, "device_links"):
+            symlinks = set(device.device_links)
+
+        # Partitions (only for block devices)
+        partitions = []
+        if subsystem == "block" and hasattr(device, "children"):
+            partitions = [child.sys_name for child in device.children]
+
+        return cls(
+            name=name,
+            device_node=device_node,
+            sys_path=sys_path,
+            subsystem=subsystem,
+            device_type=device_type,
+            model=model,
+            vendor=vendor,
+            serial=serial,
+            vendor_id=vendor_id,
+            product_id=product_id,
+            size=size,
+            removable=removable,
+            uuid=uuid,
+            label=label,
+            partitions=partitions,
+            symlinks=symlinks,
+            raw=raw_dict,
+        )
+
+    @property
+    def description(self) -> str:
+        """Return a human-readable description of the device."""
+        if self.label:
+            return f"{self.label} ({self.name})"
+        elif self.vendor and self.model:
+            return f"{self.vendor} {self.model} ({self.name})"
+        elif self.vendor:
+            return f"{self.vendor} {self.name}"
+        elif self.model:
+            return f"{self.model} ({self.name})"
+        else:
+            return self.name
+
+    @property
+    def type(self) -> str:
+        """Alias for device_type for BlockDevice compatibility."""
+        return self.device_type
+
+    @property
+    def path(self) -> str:
+        """Return device_node for BlockDevice compatibility.
+
+        Note: This differs from the sys_path field which contains the /sys/ path.
+        For BlockDevice compatibility, this property returns device_node.
+        """
+        return self.device_node
+
+
+@dataclass
 class DiskInfo:
     """Disk information from diskutil."""
 
@@ -327,3 +484,7 @@ class BlockDevice:
             if volume_name in mounted_volumes
             else {},
         )
+
+
+# Type alias for USB device types
+USBDeviceType = BlockDevice | USBDevice

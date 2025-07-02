@@ -52,7 +52,7 @@ from glovebox.core.file_operations import (
     CompilationProgressCallback,
 )
 from glovebox.firmware.flash import create_flash_service
-from glovebox.firmware.flash.models import FlashResult
+from glovebox.firmware.flash.models import BlockDevice, FlashResult
 
 
 logger = logging.getLogger(__name__)
@@ -116,6 +116,40 @@ def _update_config_from_profile(
         )
 
 
+def _create_compilation_service_with_progress(
+    compilation_strategy: str,
+    user_config: Any,
+    session_metrics: Any,
+    progress_coordinator: Any,
+    cache_manager: Any,
+    workspace_cache_service: Any,
+    build_cache_service: Any,
+) -> Any:
+    """Create compilation service with common setup."""
+    from glovebox.adapters import create_docker_adapter, create_file_adapter
+    from glovebox.compilation import create_compilation_service
+
+    docker_adapter = create_docker_adapter()
+    file_adapter = create_file_adapter()
+
+    compilation_service = create_compilation_service(
+        compilation_strategy,
+        user_config=user_config,
+        docker_adapter=docker_adapter,
+        file_adapter=file_adapter,
+        cache_manager=cache_manager,
+        workspace_cache_service=workspace_cache_service,
+        build_cache_service=build_cache_service,
+        session_metrics=session_metrics,
+    )
+
+    # If we have a progress coordinator, try to pass it directly
+    if hasattr(compilation_service, "set_progress_coordinator"):
+        compilation_service.set_progress_coordinator(progress_coordinator)
+
+    return compilation_service
+
+
 def _execute_compilation_service(
     compilation_strategy: str,
     keymap_file: Path,
@@ -132,29 +166,15 @@ def _execute_compilation_service(
     build_cache_service: Any = None,
 ) -> Any:
     """Execute the compilation service."""
-    from glovebox.adapters import create_docker_adapter, create_file_adapter
-    from glovebox.compilation import create_compilation_service
-
-    docker_adapter = create_docker_adapter()
-    file_adapter = create_file_adapter()
-
-    # Use provided cache services (from @with_cache decorator)
-    # Cache services are now injected by the decorator for zmk_config strategy
-
-    compilation_service = create_compilation_service(
+    compilation_service = _create_compilation_service_with_progress(
         compilation_strategy,
-        user_config=user_config,
-        docker_adapter=docker_adapter,
-        file_adapter=file_adapter,
-        cache_manager=cache_manager,
-        workspace_cache_service=workspace_cache_service,
-        build_cache_service=build_cache_service,
-        session_metrics=session_metrics,
+        user_config,
+        session_metrics,
+        progress_coordinator,
+        cache_manager,
+        workspace_cache_service,
+        build_cache_service,
     )
-
-    # If we have a progress coordinator, try to pass it directly
-    if hasattr(compilation_service, "set_progress_coordinator"):
-        compilation_service.set_progress_coordinator(progress_coordinator)
 
     # Use unified config directly - no conversion needed
     return compilation_service.compile(
@@ -186,30 +206,15 @@ def _execute_compilation_from_json(
     build_cache_service: Any = None,
 ) -> Any:
     """Execute compilation from JSON layout file."""
-    from glovebox.adapters import create_docker_adapter, create_file_adapter
-    from glovebox.compilation import create_compilation_service
-
-    docker_adapter = create_docker_adapter()
-    file_adapter = create_file_adapter()
-
-    # Use provided cache services (from @with_cache decorator)
-    # Cache services are now injected by the decorator for zmk_config strategy
-
-    compilation_service = create_compilation_service(
+    compilation_service = _create_compilation_service_with_progress(
         compilation_strategy,
-        user_config=user_config,
-        docker_adapter=docker_adapter,
-        file_adapter=file_adapter,
-        cache_manager=cache_manager,
-        workspace_cache_service=workspace_cache_service,
-        build_cache_service=build_cache_service,
-        session_metrics=session_metrics,
+        user_config,
+        session_metrics,
+        progress_coordinator,
+        cache_manager,
+        workspace_cache_service,
+        build_cache_service,
     )
-
-    # Use the new compile_from_json method
-    # If we have a progress coordinator, try to pass it directly
-    if hasattr(compilation_service, "set_progress_coordinator"):
-        compilation_service.set_progress_coordinator(progress_coordinator)
 
     return compilation_service.compile_from_json(
         json_file=json_file,
@@ -443,6 +448,195 @@ def _process_compilation_output(
         print_error_message(f"Failed to create output files: {str(e)}")
 
 
+def _setup_progress_display(ctx: typer.Context, show_progress: bool) -> tuple[Any, Any, Any]:
+    """Set up progress display components.
+    
+    Args:
+        ctx: Typer context with user config
+        show_progress: Whether to show progress
+        
+    Returns:
+        Tuple of (progress_display, progress_coordinator, progress_callback)
+    """
+    if not show_progress:
+        return None, None, None
+        
+    from rich.console import Console
+
+    from glovebox.cli.helpers.theme import get_icon_mode_from_context
+    from glovebox.compilation.simple_progress import (
+        ProgressConfig,
+        create_simple_compilation_display,
+        create_simple_progress_coordinator,
+    )
+
+    # Get icon mode from context (which contains user config)
+    icon_mode = get_icon_mode_from_context(ctx)
+
+    # Create firmware compilation configuration
+    firmware_config = ProgressConfig(
+        operation_name="Firmware Build",
+        icon_mode=icon_mode,
+    )
+
+    console = Console()
+    progress_display = create_simple_compilation_display(
+        console, firmware_config, icon_mode
+    )
+    progress_coordinator = create_simple_progress_coordinator(progress_display)
+    progress_display.start()
+
+    # Create a bridge callback that forwards to our coordinator
+    def progress_callback(progress: Any) -> None:
+        """Bridge callback that forwards progress updates to our simple coordinator."""
+        if (
+            hasattr(progress, "state")
+            and progress.state
+            and hasattr(progress, "compilation_phase")
+        ):
+            progress_coordinator.transition_to_phase(
+                progress.compilation_phase, progress.description or ""
+            )
+            # Note: This is a basic bridge - more sophisticated mapping could be added
+            
+    return progress_display, progress_coordinator, progress_callback
+
+
+def _get_cache_services_with_fallback(ctx: typer.Context) -> tuple[Any, Any, Any]:
+    """Get cache services from context with fallback creation.
+    
+    Args:
+        ctx: Typer context
+        
+    Returns:
+        Tuple of (cache_manager, workspace_service, build_service)
+    """
+    try:
+        return get_compilation_cache_services_from_context(ctx)
+    except RuntimeError:
+        # Fallback: create cache services manually
+        logger.warning("Creating fallback cache services due to decorator issue")
+        from glovebox.compilation.cache import create_compilation_cache_service
+        from glovebox.config import create_user_config
+
+        user_config = get_user_config_from_context(ctx) or create_user_config()
+        return create_compilation_cache_service(user_config)
+
+
+def _get_build_output_dir(output: Path | None, ctx: typer.Context) -> tuple[Path, bool]:
+    """Get build output directory with proper cleanup tracking.
+    
+    Args:
+        output: User-specified output directory or None
+        ctx: Typer context
+        
+    Returns:
+        Tuple of (build_output_dir, manual_cleanup_needed)
+    """
+    if output is not None:
+        # --output flag provided: use specified directory (existing behavior)
+        build_output_dir = output
+        build_output_dir.mkdir(parents=True, exist_ok=True)
+        return build_output_dir, False
+    else:
+        # No --output flag: use temporary directory from decorator
+        try:
+            build_output_dir = get_tmpdir_from_context(ctx)
+            return build_output_dir, False
+        except RuntimeError:
+            # Fallback: create a temporary directory manually
+            import tempfile
+
+            temp_dir = tempfile.mkdtemp(prefix="glovebox_build_")
+            build_output_dir = Path(temp_dir)
+            logger.warning(
+                "Using fallback temporary directory due to decorator issue: %s",
+                build_output_dir,
+            )
+            return build_output_dir, True
+
+
+def _prepare_config_file(
+    is_json_input: bool,
+    config_file: Path | None,
+    config_flags: list[str] | None,
+    build_output_dir: Path,
+) -> Path | None:
+    """Prepare config file for compilation, handling flags and defaults.
+    
+    Args:
+        is_json_input: Whether input is JSON (doesn't need config file)
+        config_file: User-provided config file
+        config_flags: Additional config flags
+        build_output_dir: Directory for temporary files
+        
+    Returns:
+        Path to effective config file or None for JSON input
+    """
+    if is_json_input:
+        return None
+        
+    effective_config_flags = config_flags or []
+    
+    # Need to create or augment config file
+    if config_file is None or effective_config_flags:
+        # Create temporary config file with flags
+        temp_config_file = build_output_dir / "temp_config.conf"
+        config_content = ""
+
+        # Include existing config file content if provided
+        if config_file is not None and config_file.exists():
+            config_content = config_file.read_text()
+            if not config_content.endswith("\n"):
+                config_content += "\n"
+
+        # Add config flags
+        for flag in effective_config_flags:
+            if "=" in flag:
+                config_content += f"CONFIG_{flag}\n"
+            else:
+                config_content += f"CONFIG_{flag}=y\n"
+
+        temp_config_file.write_text(config_content)
+        logger.info(
+            "Created temporary config file with %d flags",
+            len(effective_config_flags),
+        )
+        return temp_config_file
+        
+    # Use provided config file as-is
+    if config_file is not None:
+        return config_file
+        
+    # Create empty config file as fallback
+    temp_config_file = build_output_dir / "empty_config.conf"
+    temp_config_file.write_text("")
+    logger.info("Created empty config file for keymap compilation")
+    return temp_config_file
+
+
+def _cleanup_temp_directory(build_output_dir: Path, manual_cleanup_needed: bool) -> None:
+    """Clean up temporary build directory if needed.
+    
+    Args:
+        build_output_dir: Directory to clean up
+        manual_cleanup_needed: Whether manual cleanup is required
+    """
+    if manual_cleanup_needed and build_output_dir.exists():
+        try:
+            shutil.rmtree(build_output_dir)
+            logger.debug(
+                "Cleaned up temporary build directory: %s", build_output_dir
+            )
+        except Exception as cleanup_error:
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.warning(
+                "Failed to clean up temporary build directory: %s", 
+                cleanup_error,
+                exc_info=exc_info
+            )
+
+
 # Create a typer app for firmware commands
 firmware_app = typer.Typer(
     name="firmware",
@@ -614,48 +808,10 @@ def firmware_compile(
         # Determine if progress should be shown (default: enabled)
         show_progress = progress if progress is not None else True
 
-        # Create simple progress display if progress is enabled
-        progress_coordinator = None
-        progress_callback = None
-
-        if show_progress:
-            from rich.console import Console
-
-            from glovebox.cli.helpers.theme import get_icon_mode_from_context
-            from glovebox.compilation.simple_progress import (
-                ProgressConfig,
-                create_simple_compilation_display,
-                create_simple_progress_coordinator,
-            )
-
-            # Get icon mode from context (which contains user config)
-            icon_mode = get_icon_mode_from_context(ctx)
-
-            # Create firmware compilation configuration
-            firmware_config = ProgressConfig(
-                operation_name="Firmware Build",
-                icon_mode=icon_mode,
-            )
-
-            console = Console()
-            progress_display = create_simple_compilation_display(
-                console, firmware_config, icon_mode
-            )
-            progress_coordinator = create_simple_progress_coordinator(progress_display)
-            progress_display.start()
-
-            # Create a bridge callback that forwards to our coordinator
-            def progress_callback(progress: Any) -> None:
-                """Bridge callback that forwards progress updates to our simple coordinator."""
-                if (
-                    hasattr(progress, "state")
-                    and progress.state
-                    and hasattr(progress, "compilation_phase")
-                ):
-                    progress_coordinator.transition_to_phase(
-                        progress.compilation_phase, progress.description or ""
-                    )
-                    # Note: This is a basic bridge - more sophisticated mapping could be added
+        # Create progress display components
+        progress_display, progress_coordinator, progress_callback = _setup_progress_display(
+            ctx, show_progress
+        )
 
         # Resolve input file path - handles both keymap and JSON files
         try:
@@ -699,25 +855,7 @@ def firmware_compile(
             )
 
         # Set output directory based on --output flag
-        if output is not None:
-            # --output flag provided: use specified directory (existing behavior)
-            build_output_dir = output
-            build_output_dir.mkdir(parents=True, exist_ok=True)
-        else:
-            # No --output flag: use temporary directory from decorator
-            try:
-                build_output_dir = get_tmpdir_from_context(ctx)
-            except RuntimeError:
-                # Fallback: create a temporary directory manually
-                import tempfile
-
-                temp_dir = tempfile.mkdtemp(prefix="glovebox_build_")
-                build_output_dir = Path(temp_dir)
-                manual_cleanup_needed = True
-                logger.warning(
-                    "Using fallback temporary directory due to decorator issue: %s",
-                    build_output_dir,
-                )
+        build_output_dir, manual_cleanup_needed = _get_build_output_dir(output, ctx)
 
         compilation_type, compile_config = _resolve_compilation_type(
             keyboard_profile, strategy
@@ -727,20 +865,7 @@ def firmware_compile(
         _update_config_from_profile(compile_config, keyboard_profile)
 
         # Get cache services from context (provided by @with_cache decorator)
-        try:
-            cache_manager, workspace_service, build_service = (
-                get_compilation_cache_services_from_context(ctx)
-            )
-        except RuntimeError:
-            # Fallback: create cache services manually
-            logger.warning("Creating fallback cache services due to decorator issue")
-            from glovebox.compilation.cache import create_compilation_cache_service
-            from glovebox.config import create_user_config
-
-            user_config = get_user_config_from_context(ctx) or create_user_config()
-            cache_manager, workspace_service, build_service = (
-                create_compilation_cache_service(user_config)
-            )
+        cache_manager, workspace_service, build_service = _get_cache_services_with_fallback(ctx)
 
         # Execute compilation
         logger.info(
@@ -748,43 +873,9 @@ def firmware_compile(
         )
 
         # Handle config file creation for keymap files
-        effective_config_file = config_file
-        temp_config_file = None
-
-        effective_config_flags = config_flags or []
-
-        if not is_json_input and (config_file is None or effective_config_flags):
-            # Create temporary config file with flags
-            temp_config_file = build_output_dir / "temp_config.conf"
-            config_content = ""
-
-            # Include existing config file content if provided
-            if config_file is not None and config_file.exists():
-                config_content = config_file.read_text()
-                if not config_content.endswith("\n"):
-                    config_content += "\n"
-
-            # Add config flags
-            for flag in effective_config_flags:
-                if "=" in flag:
-                    config_content += f"CONFIG_{flag}\n"
-                else:
-                    config_content += f"CONFIG_{flag}=y\n"
-
-            temp_config_file.write_text(config_content)
-            effective_config_file = temp_config_file
-            logger.info(
-                "Created temporary config file with %d flags",
-                len(effective_config_flags),
-            )
-
-        # Ensure we have a config file for keymap compilation
-        if not is_json_input and effective_config_file is None:
-            # Create an empty config file as fallback
-            temp_config_file = build_output_dir / "empty_config.conf"
-            temp_config_file.write_text("")
-            effective_config_file = temp_config_file
-            logger.info("Created empty config file for keymap compilation")
+        effective_config_file = _prepare_config_file(
+            is_json_input, config_file, config_flags, build_output_dir
+        )
 
         # Execute compilation based on input type
         if is_json_input:
@@ -822,35 +913,19 @@ def firmware_compile(
                 build_cache_service=build_service,
             )
 
-        # Check if we need manual cleanup (only if not using decorator's temp dir)
-        decorator_tmp_dir = get_tmpdir_from_context(ctx)
-        manual_cleanup_needed = output is None and build_output_dir != decorator_tmp_dir
-
         if result.success:
             # Process compilation output (create .uf2 and _artefacts.zip if --output not provided)
             _process_compilation_output(result, resolved_input_file, output)
 
-            # Format and display results
-            _format_compilation_output(result, output_format, build_output_dir)
-        else:
-            # Format and display results
-            _format_compilation_output(result, output_format, build_output_dir)
+        # Format and display results
+        _format_compilation_output(result, output_format, build_output_dir)
 
         # Clean up progress display after completion (success or failure)
         if progress_display:
             progress_display.stop()
 
         # Clean up temporary build directory if needed (only for manual temp dirs)
-        if manual_cleanup_needed and build_output_dir.exists():
-            try:
-                shutil.rmtree(build_output_dir)
-                logger.debug(
-                    "Cleaned up temporary build directory: %s", build_output_dir
-                )
-            except Exception as cleanup_error:
-                logger.warning(
-                    "Failed to clean up temporary build directory: %s", cleanup_error
-                )
+        _cleanup_temp_directory(build_output_dir, manual_cleanup_needed)
 
     except Exception as e:
         # Clean up progress display if it was used
@@ -861,24 +936,8 @@ def firmware_compile(
         logger.exception("Compilation error details")
 
         # Clean up temporary build directory if needed (only for manual temp dirs)
-        if (
-            "manual_cleanup_needed" in locals()
-            and manual_cleanup_needed
-            and "build_output_dir" in locals()
-            and build_output_dir is not None
-            and build_output_dir.exists()
-        ):
-            try:
-                shutil.rmtree(build_output_dir)
-                logger.debug(
-                    "Cleaned up temporary build directory after error: %s",
-                    build_output_dir,
-                )
-            except Exception as cleanup_error:
-                logger.warning(
-                    "Failed to clean up temporary build directory after error: %s",
-                    cleanup_error,
-                )
+        if "build_output_dir" in locals() and "manual_cleanup_needed" in locals():
+            _cleanup_temp_directory(build_output_dir, manual_cleanup_needed)
 
         raise typer.Exit(1) from None
 
@@ -1139,6 +1198,22 @@ def list_devices(
     query: Annotated[
         str, typer.Option("--query", "-q", help="Device query string")
     ] = "",
+    all_devices: Annotated[
+        bool,
+        typer.Option(
+            "--all",
+            "-a",
+            help="Show all devices (bypass default removable=true filtering)",
+        ),
+    ] = False,
+    wait: Annotated[
+        bool,
+        typer.Option(
+            "--wait",
+            "-w",
+            help="Continuously monitor for device connections/disconnections",
+        ),
+    ] = False,
     output_format: ParameterFactory.output_format() = "text",  # type: ignore[valid-type]
 ) -> None:
     """List available devices for firmware flashing.
@@ -1147,7 +1222,7 @@ def list_devices(
     Shows device information including name, vendor, mount status, and connection
     details. Supports filtering by device query string and multiple output formats.
 
-    \\b
+    \b
     Device information displayed:
     - Device name and vendor identification
     - Mount point and connection status
@@ -1155,14 +1230,23 @@ def list_devices(
     - Compatibility with keyboard profile flash methods
 
     Examples:
-        # List all available devices
+        # List all available devices (default: only removable devices)
         glovebox firmware devices
+
+        # Show all devices including non-removable ones
+        glovebox firmware devices --all
 
         # Filter devices by query string
         glovebox firmware devices --query "nice_nano"
 
         # Show device list in JSON format
         glovebox firmware devices --output-format json --profile glove80
+
+        # Continuously monitor for device connections/disconnections
+        glovebox firmware devices --wait
+
+        # Monitor with specific query filter
+        glovebox firmware devices --wait --query "vendor=Adafruit"
     """
     from glovebox.adapters import create_file_adapter
     from glovebox.firmware.flash.device_wait_service import create_device_wait_service
@@ -1171,45 +1255,243 @@ def list_devices(
     device_wait_service = create_device_wait_service()
     flash_service = create_flash_service(file_adapter, device_wait_service)
 
+    # Get icon mode from context for consistent theming
+    from glovebox.cli.helpers.theme import get_icon_mode_from_context
+
+    icon_mode = get_icon_mode_from_context(ctx)
+
     try:
         # Get the keyboard profile from context
         keyboard_profile = get_keyboard_profile_from_context(ctx)
 
-        # Use profile-based method with keyboard profile
-        result = flash_service.list_devices(
-            profile=keyboard_profile,
-            query=query,
-        )
-
-        if result.success and result.device_details:
-            if output_format.lower() == "json":
-                # JSON output for automation
-                result_data = {
-                    "success": True,
-                    "device_count": len(result.device_details),
-                    "devices": result.device_details,
-                }
-                from glovebox.cli.helpers.output_formatter import OutputFormatter
-
-                formatter = OutputFormatter()
-                print(formatter.format(result_data, "json"))
-            elif output_format.lower() == "table":
-                # Enhanced table output using DeviceListFormatter
-                from glovebox.cli.helpers.output_formatter import DeviceListFormatter
-
-                formatter = DeviceListFormatter()
-                formatter.format_device_list(result.device_details, "table")
-            else:
-                # Text output (default)
-                print_success_message(f"Found {len(result.device_details)} device(s)")
-                for device in result.device_details:
-                    print_list_item(
-                        f"{device['name']} - Serial: {device['serial']} - Path: {device['path']}"
-                    )
+        # Handle --all/-a flag to bypass default filtering
+        if all_devices and not query:
+            # --all flag bypasses default removable=true filtering by using empty query
+            effective_query = ""
+        elif query:
+            # Explicit query provided
+            effective_query = query
         else:
-            print_error_message("No devices found matching criteria")
-            for message in result.messages:
-                print_list_item(message)
+            # No query provided and --all not specified, use None to trigger defaults
+            effective_query = None
+
+        # Check if wait mode is requested
+        if wait:
+            # Continuous monitoring mode using real-time callbacks
+            import signal
+            import sys
+            import threading
+            import time
+            from collections import deque
+
+            print_success_message(
+                "Starting continuous device monitoring (Ctrl+C to stop)..."
+            )
+            print_list_item(
+                f"Query filter: {effective_query or 'None (showing all devices)'}"
+            )
+            print()
+
+            # Track known devices to show add/remove events
+            known_devices: dict[str, dict[str, Any]] = {}  # device_path -> device_info
+            monitoring = True
+            event_queue: deque[tuple[str, dict[str, Any]]] = (
+                deque()
+            )  # Thread-safe queue for device events
+            event_lock = threading.Lock()
+            detector_ref: Any = None  # Will be set after we access the detector
+
+            def format_device_display(device_info: dict[str, Any]) -> str:
+                """Format device info for display."""
+                vendor_id = device_info.get("vendor_id", "N/A")
+                product_id = device_info.get("product_id", "N/A")
+                volume_name = device_info.get("name", "N/A")
+                return f"{device_info['name']} - Serial: {device_info['serial']} - VID: {vendor_id} - PID: {product_id} - Path: {device_info['path']}"
+
+            def matches_query(device: Any) -> bool:
+                """Check if device matches the current query filter."""
+                if not effective_query:
+                    return True
+
+                # Parse and evaluate query conditions
+                try:
+                    # Use the detector instance we have to evaluate the query
+                    if (
+                        detector_ref
+                        and hasattr(detector_ref, "parse_query")
+                        and hasattr(detector_ref, "evaluate_condition")
+                    ):
+                        conditions = detector_ref.parse_query(effective_query)
+
+                        for field, operator, value in conditions:
+                            if not detector_ref.evaluate_condition(
+                                device, field, operator, value
+                            ):
+                                return False
+                        return True
+                    else:
+                        # Fallback if detector not available
+                        return True
+                except Exception:
+                    # If query parsing fails, include the device
+                    return True
+
+            def device_callback(action: str, device: BlockDevice) -> None:
+                """Callback for real-time device events."""
+                if not monitoring:
+                    return
+
+                # Check if device matches query filter
+                if not matches_query(device):
+                    return
+
+                # Convert BlockDevice to device_info dict for display
+                device_info = {
+                    "name": getattr(device, "name", "Unknown"),
+                    "serial": getattr(device, "serial", "Unknown"),
+                    "vendor_id": getattr(device, "vendor_id", "N/A"),
+                    "product_id": getattr(device, "product_id", "N/A"),
+                    "path": getattr(device, "device_node", None)
+                    or getattr(device, "sys_path", "Unknown"),
+                    "vendor": getattr(device, "vendor", "Unknown"),
+                    "model": getattr(device, "model", "Unknown"),
+                }
+
+                # Queue the event for processing in main thread
+                with event_lock:
+                    event_queue.append((action, device_info))
+
+            # Handle Ctrl+C gracefully
+            def signal_handler(sig: int, frame: Any) -> None:
+                nonlocal monitoring
+                print()
+                print_success_message("Stopping device monitoring...")
+                monitoring = False
+                sys.exit(0)
+
+            signal.signal(signal.SIGINT, signal_handler)
+
+            try:
+                # Access the device detector through the USB adapter
+                usb_adapter = getattr(flash_service, "usb_adapter", None)
+                if not usb_adapter:
+                    print_error_message("USB adapter not available")
+                    raise typer.Exit(1)
+
+                detector = getattr(usb_adapter, "detector", None)
+                if not detector:
+                    print_error_message(
+                        "Device monitoring not available in this environment"
+                    )
+                    raise typer.Exit(1)
+
+                # Set the detector reference for use in matches_query
+                detector_ref = detector
+
+                # Register our callback for real-time events
+                detector.register_callback(device_callback)
+
+                # Start monitoring if not already started
+                detector.start_monitoring()
+
+                # Show initial devices
+                initial_result = flash_service.list_devices(
+                    profile=keyboard_profile,
+                    query=effective_query,
+                )
+
+                if initial_result.success and initial_result.device_details:
+                    print_success_message(
+                        f"Currently connected devices: {len(initial_result.device_details)}"
+                    )
+                    for device_info in initial_result.device_details:
+                        known_devices[device_info["path"]] = device_info
+                        print_list_item(format_device_display(device_info))
+                    print()
+                else:
+                    print_list_item("No devices currently connected")
+                    print()
+
+                print_list_item("Monitoring for device changes (real-time)...")
+
+                # Main loop - process events from the queue
+                while monitoring:
+                    # Process any queued events
+                    events_to_process = []
+                    with event_lock:
+                        while event_queue:
+                            events_to_process.append(event_queue.popleft())
+
+                    for action, device_info in events_to_process:
+                        timestamp = time.strftime("%H:%M:%S")
+                        path = device_info["path"]
+
+                        if action == "add" and path not in known_devices:
+                            print(
+                                f"[{timestamp}] {Icons.get_icon('SUCCESS', icon_mode)} Device connected: {format_device_display(device_info)}"
+                            )
+                            known_devices[path] = device_info
+                        elif action == "remove" and path in known_devices:
+                            print(
+                                f"[{timestamp}] {Icons.get_icon('ERROR', icon_mode)} Device disconnected: {format_device_display(device_info)}"
+                            )
+                            del known_devices[path]
+
+                    # Small sleep to prevent busy-waiting
+                    time.sleep(0.1)
+
+            except KeyboardInterrupt:
+                # This should be caught by signal handler, but just in case
+                pass
+            finally:
+                monitoring = False
+                # Unregister callback and stop monitoring
+                if detector:
+                    detector.unregister_callback(device_callback)
+                    # Note: We don't stop monitoring here as other parts of the app might be using it
+
+        else:
+            # Normal one-time listing mode
+            result = flash_service.list_devices(
+                profile=keyboard_profile,
+                query=effective_query,
+            )
+
+            if result.success and result.device_details:
+                if output_format.lower() == "json":
+                    # JSON output for automation
+                    result_data = {
+                        "success": True,
+                        "device_count": len(result.device_details),
+                        "devices": result.device_details,
+                    }
+                    from glovebox.cli.helpers.output_formatter import OutputFormatter
+
+                    formatter = OutputFormatter()
+                    print(formatter.format(result_data, "json"))
+                elif output_format.lower() == "table":
+                    # Enhanced table output using DeviceListFormatter
+                    from glovebox.cli.helpers.output_formatter import (
+                        DeviceListFormatter,
+                    )
+
+                    formatter = DeviceListFormatter()
+                    formatter.format_device_list(result.device_details, "table")
+                else:
+                    # Text output (default)
+                    print_success_message(
+                        f"Found {len(result.device_details)} device(s)"
+                    )
+                    for device in result.device_details:
+                        vendor_id = device.get("vendor_id", "N/A")
+                        product_id = device.get("product_id", "N/A")
+                        print_list_item(
+                            f"{device['name']} - Serial: {device['serial']} - VID: {vendor_id} - PID: {product_id} - Path: {device['path']}"
+                        )
+            else:
+                print_error_message("No devices found matching criteria")
+                for message in result.messages:
+                    print_list_item(message)
     except Exception as e:
         print_error_message(f"Error listing devices: {str(e)}")
         raise typer.Exit(1) from None

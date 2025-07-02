@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
+
 pytestmark = [pytest.mark.network, pytest.mark.integration]
 import requests
 

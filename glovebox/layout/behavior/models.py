@@ -1,8 +1,7 @@
 """Behavior type definitions for ZMK keyboard behaviors.
 
-This module defines type classes for behaviors used in keyboard configuration
-and keymap processing. These types ensure consistent representation of behaviors
-across the application and improve type safety.
+This module defines type classes for behaviors definition used in keyboard configuration
+and keymap processing.
 """
 
 from dataclasses import dataclass, field

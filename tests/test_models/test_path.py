@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+
 pytestmark = pytest.mark.unit
 from pydantic import Field, field_serializer, field_validator
 

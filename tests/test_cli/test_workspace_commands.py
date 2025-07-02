@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+
 pytestmark = [pytest.mark.docker, pytest.mark.integration]
 from typer.testing import CliRunner
 
