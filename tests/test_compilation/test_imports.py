@@ -2,6 +2,8 @@
 
 import pytest
 
+pytestmark = [pytest.mark.docker, pytest.mark.integration]
+
 
 def test_compilation_domain_imports():
     """Test that compilation domain can be imported successfully."""

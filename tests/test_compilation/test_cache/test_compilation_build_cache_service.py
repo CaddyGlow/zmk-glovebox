@@ -8,6 +8,8 @@ from unittest.mock import Mock
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 from glovebox.compilation.cache.compilation_build_cache_service import (
     CompilationBuildCacheService,
 )

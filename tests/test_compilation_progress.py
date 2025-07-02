@@ -7,6 +7,10 @@ from unittest.mock import Mock
 
 import pytest
 
+pytestmark = [pytest.mark.network, pytest.mark.integration]
+
+pytestmark = [pytest.mark.docker, pytest.mark.integration]
+
 from glovebox.adapters.compilation_progress_middleware import (
     CompilationProgressMiddleware,
     create_compilation_progress_middleware,

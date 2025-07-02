@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = [pytest.mark.docker, pytest.mark.integration]
+
 from glovebox.cli.helpers.docker_config import DockerConfigBuilder
 
 

@@ -6,6 +6,8 @@ from unittest.mock import Mock
 
 import pytest
 
+pytestmark = [pytest.mark.docker, pytest.mark.integration]
+
 from glovebox.compilation.models import ZmkCompilationConfig
 from glovebox.compilation.models.build_matrix import BuildMatrix, BuildTarget
 from glovebox.compilation.services.zmk_west_service import create_zmk_west_service
