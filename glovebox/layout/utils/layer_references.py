@@ -137,7 +137,7 @@ def update_layer_references(
                 else f"Layer {ref.layer_index}"
             )
             warnings.append(
-                f"Warning: {ref.behavior} in layer '{layer_name}' references "
+                f"Warning: {ref.behavior} in layer '{layer_name}' key {ref.binding_index} references "
                 f"removed layer {ref.layer_id}"
             )
             # Optionally, we could change it to &none or &trans

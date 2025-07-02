@@ -102,13 +102,13 @@ def test_firmware_devices_wait_realtime_callback(
         partitions=[],
     )
 
-    # Track if callbacks were registered and devices were added  
+    # Track if callbacks were registered and devices were added
     callback_registered = False
     device_added = False
-    
+
     # Keep reference to original register_callback
     original_register = mock_flash_service.usb_adapter.detector.register_callback
-    
+
     def track_register_callback(callback):
         nonlocal callback_registered
         callback_registered = True
@@ -116,13 +116,15 @@ def test_firmware_devices_wait_realtime_callback(
         original_register(callback)
         # Simulate a device event
         callback("add", test_device)
-    
+
     mock_flash_service.usb_adapter.detector.register_callback = track_register_callback
-    
+
     # Mock the necessary context and profile functions
     with (
         patch("glovebox.adapters.create_file_adapter") as mock_create_file,
-        patch("glovebox.firmware.flash.device_wait_service.create_device_wait_service") as mock_create_wait,
+        patch(
+            "glovebox.firmware.flash.device_wait_service.create_device_wait_service"
+        ) as mock_create_wait,
         patch("glovebox.firmware.flash.create_flash_service") as mock_create,
         patch(
             "glovebox.cli.commands.firmware.devices.get_keyboard_profile_from_context"
@@ -138,9 +140,10 @@ def test_firmware_devices_wait_realtime_callback(
         mock_create.return_value = mock_flash_service
         mock_get_profile.return_value = None  # Profile is optional for devices command
         mock_get_icon.return_value = "text"  # Use text mode for testing
-        
+
         # Mock sleep to allow quick test execution
         sleep_count = 0
+
         def mock_sleep_func(duration):
             nonlocal sleep_count
             sleep_count += 1
@@ -148,11 +151,13 @@ def test_firmware_devices_wait_realtime_callback(
                 # After a few loops, stop the monitoring
                 raise KeyboardInterrupt()
             time.sleep(0.01)  # Very short sleep for testing
-        
+
         mock_sleep.side_effect = mock_sleep_func
 
         # Run the command
-        result = cli_runner.invoke(firmware_app, ["devices", "--wait"], catch_exceptions=True)
+        result = cli_runner.invoke(
+            firmware_app, ["devices", "--wait"], catch_exceptions=True
+        )
 
         # Verify that callbacks were registered
         assert callback_registered, "Callback should have been registered"
@@ -193,7 +198,9 @@ def test_firmware_devices_wait_query_filtering(
 
     with (
         patch("glovebox.adapters.create_file_adapter") as mock_create_file,
-        patch("glovebox.firmware.flash.device_wait_service.create_device_wait_service") as mock_create_wait,
+        patch(
+            "glovebox.firmware.flash.device_wait_service.create_device_wait_service"
+        ) as mock_create_wait,
         patch("glovebox.firmware.flash.create_flash_service") as mock_create,
         patch(
             "glovebox.cli.commands.firmware.devices.get_keyboard_profile_from_context"
@@ -209,8 +216,9 @@ def test_firmware_devices_wait_query_filtering(
         mock_get_profile.return_value = None
         mock_get_icon.return_value = "text"
 
-        # Mock sleep to allow quick test execution  
+        # Mock sleep to allow quick test execution
         sleep_count = 0
+
         def mock_sleep_func(duration):
             nonlocal sleep_count
             sleep_count += 1
@@ -218,14 +226,15 @@ def test_firmware_devices_wait_query_filtering(
                 # After a few loops, stop the monitoring
                 raise KeyboardInterrupt()
             time.sleep(0.01)  # Very short sleep for testing
-        
+
         with patch("time.sleep") as mock_sleep:
             mock_sleep.side_effect = mock_sleep_func
-            
+
             # Run command with query filter
             result = cli_runner.invoke(
-                firmware_app, ["devices", "--wait", "--query", "vendor=TestVendor"],
-                catch_exceptions=True
+                firmware_app,
+                ["devices", "--wait", "--query", "vendor=TestVendor"],
+                catch_exceptions=True,
             )
 
             # Check that query filter was applied
@@ -265,7 +274,9 @@ def test_firmware_devices_wait_remove_events(
 
     with (
         patch("glovebox.adapters.create_file_adapter") as mock_create_file,
-        patch("glovebox.firmware.flash.device_wait_service.create_device_wait_service") as mock_create_wait,
+        patch(
+            "glovebox.firmware.flash.device_wait_service.create_device_wait_service"
+        ) as mock_create_wait,
         patch("glovebox.firmware.flash.create_flash_service") as mock_create,
         patch(
             "glovebox.cli.commands.firmware.devices.get_keyboard_profile_from_context"
@@ -281,8 +292,9 @@ def test_firmware_devices_wait_remove_events(
         mock_get_profile.return_value = None
         mock_get_icon.return_value = "text"
 
-        # Mock sleep to allow quick test execution  
+        # Mock sleep to allow quick test execution
         sleep_count = 0
+
         def mock_sleep_func(duration):
             nonlocal sleep_count
             sleep_count += 1
@@ -290,12 +302,14 @@ def test_firmware_devices_wait_remove_events(
                 # After a few loops, stop the monitoring
                 raise KeyboardInterrupt()
             time.sleep(0.01)  # Very short sleep for testing
-        
+
         with patch("time.sleep") as mock_sleep:
             mock_sleep.side_effect = mock_sleep_func
-            
+
             # Run command
-            result = cli_runner.invoke(firmware_app, ["devices", "--wait"], catch_exceptions=True)
+            result = cli_runner.invoke(
+                firmware_app, ["devices", "--wait"], catch_exceptions=True
+            )
 
             # Check the output shows initial devices
             assert result.exit_code == 0

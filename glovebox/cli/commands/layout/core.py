@@ -41,7 +41,6 @@ from glovebox.layout.service import LayoutService
 logger = logging.getLogger(__name__)
 
 
-
 @handle_errors
 @with_profile(required=False, firmware_optional=False, support_auto_detection=True)
 @with_metrics("compile")
@@ -356,7 +355,7 @@ def validate(
         """Validation operation that returns structured results."""
         from glovebox.adapters import create_file_adapter
         from glovebox.layout.utils.json_operations import load_layout_file
-        
+
         keymap_service = create_full_layout_service()
         errors = []
 
@@ -367,15 +366,15 @@ def validate(
             )
             if not is_syntax_valid:
                 errors.append("Layout syntax/structure validation failed")
-            
+
             # Then, validate layer references
             file_adapter = create_file_adapter()
             layout_data = load_layout_file(layout_file, file_adapter)
             layer_ref_errors = layout_data.validate_layer_references()
             errors.extend(layer_ref_errors)
-            
+
             is_valid = is_syntax_valid and len(layer_ref_errors) == 0
-            
+
             return {
                 "valid": is_valid,
                 "file": str(layout_file),

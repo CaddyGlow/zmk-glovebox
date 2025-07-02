@@ -9,9 +9,6 @@ from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
-
-
-pytestmark = [pytest.mark.docker, pytest.mark.integration]
 import yaml
 from typer.testing import CliRunner
 
@@ -40,6 +37,10 @@ from tests.test_factories import (
     create_usb_adapter_for_tests,
     create_usb_flasher_for_tests,
 )
+
+
+# Global test category markers
+pytestmark = [pytest.mark.docker, pytest.mark.integration]
 
 
 # ---- Base Fixtures ----

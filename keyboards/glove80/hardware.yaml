@@ -18,7 +18,7 @@ keymap:
 # Hardware-specific flash configuration
 flash_methods:
   - method_type: usb
-    device_query: "vendor=adafruit and serial~=glv80-.* and removable=true"
+    device_query: "serial~=GLV80-.* and removable=true"
     mount_timeout: 120
     copy_timeot: 60
     sync_after_copy: true

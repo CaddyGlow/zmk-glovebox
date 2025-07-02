@@ -78,7 +78,9 @@ class LayoutData(LayoutMetadata):
     combos: list[ComboBehavior] = Field(default_factory=list)
     macros: list[MacroBehavior] = Field(default_factory=list)
     tap_dances: list[TapDanceBehavior] = Field(default_factory=list, alias="tapDances")
-    sticky_keys: list[StickyKeyBehavior] = Field(default_factory=list, alias="stickyKeys")
+    sticky_keys: list[StickyKeyBehavior] = Field(
+        default_factory=list, alias="stickyKeys"
+    )
     caps_words: list[CapsWordBehavior] = Field(default_factory=list, alias="capsWords")
     mod_morphs: list[ModMorphBehavior] = Field(default_factory=list, alias="modMorphs")
     input_listeners: list[InputListener] | None = Field(

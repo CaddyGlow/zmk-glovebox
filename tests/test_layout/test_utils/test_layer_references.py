@@ -216,6 +216,7 @@ class TestLayerReferenceUpdates:
         # Check that &mo 1 generates warning (removed layer)
         assert len(warnings) == 1
         assert "removed layer 1" in warnings[0]
+        assert "key 0" in warnings[0]  # Check key position is included
 
         # Check that &mo 2 is now &mo 1
         binding = updated_layout.layers[0][1]
@@ -303,6 +304,8 @@ class TestIntegrationScenarios:
 
         # Verify warnings about removed layer
         assert any("removed layer 1" in w for w in warnings)
+        # Check that key position is included in warning
+        assert any("key 0" in w for w in warnings)  # &mo 1 at position 0
 
         # After removing Nav (index 1), the layers are NOT actually removed from layout_data
         # because update_layer_references only updates references, it doesn't remove layers
