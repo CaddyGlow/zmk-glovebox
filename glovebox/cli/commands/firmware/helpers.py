@@ -327,51 +327,18 @@ def setup_progress_display(
     if not show_progress:
         return None, None, None
 
-    from rich.console import Console
+    # New progress system: Let compilation services handle their own progress management
+    # by providing a simple callback that signals progress is enabled
+    from glovebox.core.file_operations import CompilationProgress
 
-    from glovebox.cli.helpers.theme import get_icon_mode_from_context
-    # TODO: Enable after refactoring - progress functionality temporarily disabled
-    # from glovebox.compilation.simple_progress import (
-    #     ProgressConfig,
-    #     create_simple_compilation_display,
-    #     create_simple_progress_coordinator,
-    # )
-    #
-    # # Get icon mode from context (which contains user config)
-    # icon_mode = get_icon_mode_from_context(ctx)
-    #
-    # # Create firmware compilation configuration
-    # firmware_config = ProgressConfig(
-    #     operation_name="Firmware Build",
-    #     icon_mode=icon_mode,
-    # )
-    #
-    # console = Console()
-    # progress_display = create_simple_compilation_display(
-    #     console, firmware_config, icon_mode
-    # )
-    # progress_coordinator = create_simple_progress_coordinator(progress_display)
-    # progress_display.start()
-    
-    progress_display = None
-    progress_coordinator = None
+    def progress_callback(progress: CompilationProgress) -> None:
+        """Simple progress callback that enables progress tracking in compilation services."""
+        # The compilation services now handle their own progress display using progress managers
+        # This callback just needs to exist to signal that progress is enabled
+        pass
 
-    # Create a bridge callback that forwards to our coordinator
-    def progress_callback(progress: Any) -> None:
-        """Bridge callback that forwards progress updates to our simple coordinator."""
-        # TODO: Progress coordinator calls disabled
-        # if (
-        #     hasattr(progress, "state")
-        #     and progress.state
-        #     and hasattr(progress, "compilation_phase")
-        # ):
-        #     progress_coordinator.transition_to_phase(
-        #         progress.compilation_phase, progress.description or ""
-        #     )
-        #     # Note: This is a basic bridge - more sophisticated mapping could be added
-        pass  # No-op for disabled progress
-
-    return progress_display, progress_coordinator, progress_callback
+    # Return None for display and coordinator since services handle their own
+    return None, None, progress_callback
 
 
 def get_cache_services_with_fallback(ctx: typer.Context) -> tuple[Any, Any, Any]:

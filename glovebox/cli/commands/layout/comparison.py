@@ -9,6 +9,7 @@ from glovebox.adapters import create_file_adapter
 from glovebox.cli.commands.layout.base import LayoutOutputCommand
 from glovebox.cli.decorators import handle_errors, with_metrics
 from glovebox.cli.helpers.auto_profile import resolve_json_file_path
+from glovebox.cli.helpers.library_resolver import resolve_parameter_value
 from glovebox.cli.helpers.parameter_factory import ParameterFactory
 from glovebox.cli.helpers.parameters import ProfileOption
 from glovebox.layout.comparison import create_layout_comparison_service
@@ -18,10 +19,15 @@ from glovebox.layout.comparison import create_layout_comparison_service
 @with_metrics("diff")
 def diff(
     ctx: typer.Context,
-    layout2: ParameterFactory.input_file(  # type: ignore[valid-type]
-        help_text="Second layout file to compare", file_extensions=[".json"]
+    layout2: ParameterFactory.input_file_with_stdin_optional(  # type: ignore[valid-type]
+        help_text="Second layout file to compare or @library-name/uuid",
+        library_resolvable=True
     ),
-    layout1: ParameterFactory.input_file_optional(env_var="GLOVEBOX_JSON_FILE"),  # type: ignore[valid-type]
+    layout1: ParameterFactory.input_file_with_stdin_optional(  # type: ignore[valid-type]
+        env_var="GLOVEBOX_JSON_FILE",
+        help_text="First layout file to compare or @library-name/uuid",
+        library_resolvable=True
+    ),
     output_format: ParameterFactory.output_format() = "text",  # type: ignore[valid-type]
     detailed: Annotated[
         bool,
@@ -86,21 +92,51 @@ def diff(
         # Compare your custom layout with a master version
         glovebox layout diff my-custom.json ~/.glovebox/masters/glove80/v42-rc3.json --detailed
     """
-    # Resolve first layout file path (supports environment variable)
-    resolved_layout1 = resolve_json_file_path(layout1, "GLOVEBOX_JSON_FILE")
+    # Resolve library references for both layout files
+    try:
+        # Resolve layout1 (supports environment variable and library references)
+        resolved_layout1_param = resolve_parameter_value(layout1) if layout1 else None
+        if resolved_layout1_param is None:
+            # Try environment variable fallback
+            resolved_layout1_param = resolve_json_file_path(layout1, "GLOVEBOX_JSON_FILE")
 
-    if resolved_layout1 is None:
+        if resolved_layout1_param is None:
+            from glovebox.cli.helpers import print_error_message
+
+            print_error_message(
+                "First layout file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
+            )
+            raise typer.Exit(1)
+
+        # Convert to Path if it's a string
+        if isinstance(resolved_layout1_param, Path):
+            resolved_layout1 = resolved_layout1_param
+        else:
+            resolved_layout1 = Path(resolved_layout1_param)
+
+        # Resolve layout2 (library references)
+        resolved_layout2_param = resolve_parameter_value(layout2)
+        if isinstance(resolved_layout2_param, Path):
+            resolved_layout2 = resolved_layout2_param
+        else:
+            resolved_layout2 = Path(resolved_layout2_param) if resolved_layout2_param else None
+
+        if resolved_layout2 is None:
+            from glovebox.cli.helpers import print_error_message
+
+            print_error_message(f"Second layout file not found: {layout2}")
+            raise typer.Exit(1)
+
+    except Exception as e:
         from glovebox.cli.helpers import print_error_message
 
-        print_error_message(
-            "First layout file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
-        )
-        raise typer.Exit(1)
+        print_error_message(f"Error resolving layout files: {e}")
+        raise typer.Exit(1) from e
 
     # Validate layout files
     command = LayoutOutputCommand()
     command.validate_layout_file(resolved_layout1)
-    command.validate_layout_file(layout2)
+    command.validate_layout_file(resolved_layout2)
 
     # Create composer and execute comparison
     from glovebox.cli.commands.layout.composition import create_layout_command_composer
@@ -146,7 +182,7 @@ def diff(
 
     composer.execute_comparison_operation(
         file1=resolved_layout1,
-        file2=layout2,
+        file2=resolved_layout2,
         operation=comparison_operation,
         operation_name="compare layouts",
         output_format=output_format,
@@ -157,12 +193,13 @@ def diff(
 @with_metrics("patch")
 def patch(
     ctx: typer.Context,
-    layout_file: ParameterFactory.input_file(  # type: ignore[valid-type]
-        help_text="Source layout file to patch", file_extensions=[".json"]
+    layout_file: ParameterFactory.input_file_with_stdin_optional(  # type: ignore[valid-type]
+        help_text="Source layout file to patch or @library-name/uuid",
+        library_resolvable=True
     ),
-    patch_file: ParameterFactory.input_file(  # type: ignore[valid-type]
-        help_text="JSON diff file from 'glovebox layout diff --output changes.json'",
-        file_extensions=[".json"],
+    patch_file: ParameterFactory.input_file_with_stdin_optional(  # type: ignore[valid-type]
+        help_text="JSON diff file from 'glovebox layout diff --output changes.json' or @library-name/uuid",
+        library_resolvable=True
     ),
     output: ParameterFactory.output_file_path_only(  # type: ignore[valid-type]
         help_text="Output path (default: source_layout with -patched suffix)"
@@ -191,8 +228,42 @@ def patch(
         # Apply diff with auto-generated output name
         glovebox layout patch my-layout.json changes.json
     """
+    # Resolve library references for both files
+    try:
+        # Resolve layout_file (library references)
+        resolved_layout_param = resolve_parameter_value(layout_file)
+        if isinstance(resolved_layout_param, Path):
+            resolved_layout_file = resolved_layout_param
+        else:
+            resolved_layout_file = Path(resolved_layout_param) if resolved_layout_param else None
+
+        if resolved_layout_file is None:
+            from glovebox.cli.helpers import print_error_message
+
+            print_error_message(f"Layout file not found: {layout_file}")
+            raise typer.Exit(1)
+
+        # Resolve patch_file (library references)
+        resolved_patch_param = resolve_parameter_value(patch_file)
+        if isinstance(resolved_patch_param, Path):
+            resolved_patch_file = resolved_patch_param
+        else:
+            resolved_patch_file = Path(resolved_patch_param) if resolved_patch_param else None
+
+        if resolved_patch_file is None:
+            from glovebox.cli.helpers import print_error_message
+
+            print_error_message(f"Patch file not found: {patch_file}")
+            raise typer.Exit(1)
+
+    except Exception as e:
+        from glovebox.cli.helpers import print_error_message
+
+        print_error_message(f"Error resolving files: {e}")
+        raise typer.Exit(1) from e
+
     command = LayoutOutputCommand()
-    command.validate_layout_file(layout_file)
+    command.validate_layout_file(resolved_layout_file)
 
     try:
         from glovebox.cli.helpers.profile import get_user_config_from_context
@@ -202,8 +273,8 @@ def patch(
         file_adapter = create_file_adapter()
         comparison_service = create_layout_comparison_service(user_config, file_adapter)
         result = comparison_service.apply_patch(
-            source_layout_path=layout_file,
-            patch_file_path=patch_file,
+            source_layout_path=resolved_layout_file,
+            patch_file_path=resolved_patch_file,
             output=output,
             force=force,
             skip_dtsi=exclude_dtsi,

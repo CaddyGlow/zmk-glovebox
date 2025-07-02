@@ -9,10 +9,10 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from glovebox.core.file_operations.models import CompilationProgress
+    from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
     from glovebox.protocols.progress_coordinator_protocol import (
         ProgressCoordinatorProtocol,
     )
-    from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
 
 from glovebox.cli.components.noop_progress_context import get_noop_progress_context
 from glovebox.compilation.cache.models import (
@@ -103,6 +103,7 @@ class ZmkWorkspaceCacheService:
         repository: str,
         progress_callback: CopyProgressCallback | None = None,
         progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
+        progress_context: "ProgressContextProtocol | None" = None,
     ) -> WorkspaceCacheResult:
         """Cache workspace for repository-only (includes .git folders).
 
@@ -131,6 +132,7 @@ class ZmkWorkspaceCacheService:
                 include_git=True,
                 progress_callback=progress_callback,
                 progress_coordinator=progress_coordinator,
+                progress_context=progress_context,
             )
 
     def cache_workspace_repo_branch(
@@ -140,6 +142,7 @@ class ZmkWorkspaceCacheService:
         branch: str,
         progress_callback: CopyProgressCallback | None = None,
         progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
+        progress_context: "ProgressContextProtocol | None" = None,
     ) -> WorkspaceCacheResult:
         """Cache workspace for repository+branch (excludes .git folders).
 
@@ -168,6 +171,7 @@ class ZmkWorkspaceCacheService:
                 include_git=False,
                 progress_callback=progress_callback,
                 progress_coordinator=progress_coordinator,
+                progress_context=progress_context,
             )
 
     def get_cached_workspace(
@@ -274,6 +278,93 @@ class ZmkWorkspaceCacheService:
                 success=False, error_message=f"Failed to retrieve cached workspace: {e}"
             )
 
+    def cache_workspace_from_archive(
+        self,
+        archive_path: Path,
+        repository: str,
+        branch: str | None = None,
+        progress_context: "ProgressContextProtocol | None" = None,
+    ) -> WorkspaceCacheResult:
+        """Cache workspace by extracting archive directly to cache folder.
+
+        This method eliminates the need for temporary directories by extracting
+        archives directly into the cache location, supporting multiple formats.
+
+        Args:
+            archive_path: Path to archive file (.zip, .tar.gz, .tar.bz2, .tar.xz)
+            repository: Git repository name
+            branch: Git branch name (None for repo-only caching)
+            progress_context: Optional progress context (defaults to NoOp if None)
+
+        Returns:
+            WorkspaceCacheResult with operation results
+        """
+        # Convert None to NoOp context once at the beginning
+        if progress_context is None:
+            progress_context = get_noop_progress_context()
+
+        try:
+            archive_path = archive_path.resolve()
+
+            # Start validation checkpoint
+            progress_context.start_checkpoint("Validating Source")
+            progress_context.log(f"Validating archive: {archive_path.name}", "info")
+
+            if not archive_path.exists() or not archive_path.is_file():
+                progress_context.fail_checkpoint("Validating Source")
+                return WorkspaceCacheResult(
+                    success=False,
+                    error_message=f"Archive path does not exist or is not a file: {archive_path}",
+                )
+
+            # Detect archive format
+            archive_format = self._detect_archive_format(archive_path)
+            if not archive_format:
+                progress_context.fail_checkpoint("Validating Source")
+                return WorkspaceCacheResult(
+                    success=False,
+                    error_message=f"Unsupported archive format: {archive_path.suffix}",
+                )
+
+            progress_context.complete_checkpoint("Validating Source")
+            progress_context.log(f"Detected {archive_format} archive format", "info")
+
+            # Determine cache level and git inclusion
+            if branch is None:
+                cache_level = CacheLevel.REPO
+                include_git = True
+            else:
+                cache_level = CacheLevel.REPO_BRANCH
+                include_git = False
+
+            # Generate cache key and directory
+            cache_key = self._generate_cache_key(repository, branch)
+            cache_base_dir = self.get_cache_directory()
+            cached_workspace_dir = cache_base_dir / cache_key
+            cached_workspace_dir.mkdir(parents=True, exist_ok=True)
+
+            # Extract archive directly to cache directory
+            return self._extract_archive_to_cache(
+                archive_path=archive_path,
+                archive_format=archive_format,
+                cache_dir=cached_workspace_dir,
+                repository=repository,
+                branch=branch,
+                cache_level=cache_level,
+                include_git=include_git,
+                progress_context=progress_context,
+            )
+
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error(
+                "Failed to cache workspace from archive: %s", e, exc_info=exc_info
+            )
+            progress_context.fail_checkpoint("Validating Source")
+            return WorkspaceCacheResult(
+                success=False, error_message=f"Failed to cache workspace from archive: {e}"
+            )
+
     def inject_existing_workspace(
         self,
         workspace_path: Path,
@@ -299,10 +390,10 @@ class ZmkWorkspaceCacheService:
         # Convert None to NoOp context once at the beginning
         if progress_context is None:
             progress_context = get_noop_progress_context()
-        
+
         try:
             workspace_path = workspace_path.resolve()
-            
+
             # Start validation checkpoint
             progress_context.start_checkpoint("Validating Source")
             self.logger.info("Injecting workspace from %s", workspace_path)
@@ -313,21 +404,21 @@ class ZmkWorkspaceCacheService:
                     success=False,
                     error_message=f"Workspace path does not exist or is not a directory: {workspace_path}",
                 )
-            
+
             # Validate workspace structure
             required_components = ["zmk", "zephyr", "modules", ".west"]
             found_components = []
             for component in required_components:
                 if (workspace_path / component).exists():
                     found_components.append(component)
-            
+
             if not found_components:
                 progress_context.fail_checkpoint("Validating Source")
                 return WorkspaceCacheResult(
                     success=False,
                     error_message="Invalid workspace: no ZMK components found",
                 )
-            
+
             progress_context.complete_checkpoint("Validating Source")
             progress_context.log(f"Found {len(found_components)} workspace components", "info")
 
@@ -709,7 +800,7 @@ class ZmkWorkspaceCacheService:
         # Convert None to NoOp context once at the beginning
         if progress_context is None:
             progress_context = get_noop_progress_context()
-            
+
         try:
             workspace_path = workspace_path.resolve()
 
@@ -805,7 +896,7 @@ class ZmkWorkspaceCacheService:
                                 total_estimated_files,
                                 f"Copying {comp_name}: {progress.current_file or ''}"
                             )
-                            
+
                             # Update status info
                             if progress.current_file:
                                 progress_context.set_status_info({
@@ -922,11 +1013,11 @@ class ZmkWorkspaceCacheService:
                 ttl,
                 cached_workspace_dir,
             )
-            
+
             # Complete metadata checkpoint
             progress_context.complete_checkpoint("Updating Metadata")
             progress_context.log(f"Workspace cached successfully at {cached_workspace_dir}", "info")
-            
+
             # Start and complete finalizing checkpoint
             progress_context.start_checkpoint("Finalizing")
             progress_context.log("Completing workspace cache operation", "info")
@@ -942,11 +1033,11 @@ class ZmkWorkspaceCacheService:
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.error("Failed to cache workspace: %s", e, exc_info=exc_info)
-            
+
             # Fail the current checkpoint
             progress_context.fail_checkpoint("Copying to Cache")
             progress_context.log(f"Failed to cache workspace: {e}", "error")
-            
+
             return WorkspaceCacheResult(
                 success=False, error_message=f"Failed to cache workspace: {e}"
             )
@@ -1409,6 +1500,483 @@ class ZmkWorkspaceCacheService:
                 success=False,
                 error_message=f"Failed to update workspace branch: {e}",
             )
+
+    def _detect_archive_format(self, archive_path: Path) -> str | None:
+        """Detect archive format from file extension.
+
+        Args:
+            archive_path: Path to archive file
+
+        Returns:
+            Archive format string or None if unsupported
+        """
+        suffix = archive_path.suffix.lower()
+        name = archive_path.name.lower()
+
+        if suffix == ".zip":
+            return "zip"
+        elif suffix == ".gz" and name.endswith(".tar.gz"):
+            return "tar.gz"
+        elif suffix == ".bz2" and name.endswith(".tar.bz2"):
+            return "tar.bz2"
+        elif suffix == ".xz" and name.endswith(".tar.xz"):
+            return "tar.xz"
+        elif suffix in [".tar"]:
+            return "tar"
+
+        return None
+
+    def _extract_archive_to_cache(
+        self,
+        archive_path: Path,
+        archive_format: str,
+        cache_dir: Path,
+        repository: str,
+        branch: str | None,
+        cache_level: CacheLevel,
+        include_git: bool,
+        progress_context: "ProgressContextProtocol | None" = None,
+    ) -> WorkspaceCacheResult:
+        """Extract archive directly to cache directory.
+
+        Args:
+            archive_path: Path to archive file
+            archive_format: Detected archive format
+            cache_dir: Target cache directory
+            repository: Git repository name
+            branch: Git branch name
+            cache_level: Cache level enum
+            include_git: Whether to include .git folders
+            progress_context: Progress context for tracking
+
+        Returns:
+            WorkspaceCacheResult with operation results
+        """
+        import tarfile
+        import zipfile
+        from datetime import datetime
+
+        if progress_context is None:
+            progress_context = get_noop_progress_context()
+
+        # Track cache directory for cleanup on error/interruption
+        cache_created = False
+
+        try:
+            # Ensure cache directory exists and is empty
+            if cache_dir.exists():
+                shutil.rmtree(cache_dir)
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            cache_created = True
+
+            # Start extraction checkpoint
+            progress_context.start_checkpoint("Extracting Files")
+            progress_context.log(f"Extracting {archive_format} archive directly to cache", "info")
+
+            extracted_bytes = 0
+            total_bytes = 0
+            extracted_files = 0
+
+            if archive_format == "zip":
+                extracted_bytes, total_bytes, extracted_files = self._extract_zip_to_cache(
+                    archive_path, cache_dir, include_git, progress_context
+                )
+            elif archive_format.startswith("tar"):
+                extracted_bytes, total_bytes, extracted_files = self._extract_tar_to_cache(
+                    archive_path, archive_format, cache_dir, include_git, progress_context
+                )
+            else:
+                progress_context.fail_checkpoint("Extracting Files")
+                return WorkspaceCacheResult(
+                    success=False,
+                    error_message=f"Unsupported archive format: {archive_format}",
+                )
+
+            progress_context.complete_checkpoint("Extracting Files")
+            progress_context.log(f"Extracted {extracted_files} files ({extracted_bytes / (1024*1024):.1f} MB)", "info")
+
+            # Validate and reorganize extracted workspace
+            progress_context.start_checkpoint("Copying to Cache")
+            workspace_structure = self._analyze_workspace_structure(cache_dir)
+
+            if not workspace_structure["is_valid"]:
+                progress_context.fail_checkpoint("Copying to Cache")
+                return WorkspaceCacheResult(
+                    success=False,
+                    error_message=f"No valid ZMK workspace found in extracted archive. Found: {workspace_structure['found_components']}",
+                )
+
+            # Reorganize workspace if needed
+            if workspace_structure["needs_reorganization"]:
+                progress_context.log(f"Reorganizing workspace from {workspace_structure['workspace_subdir']}", "info")
+                self._reorganize_workspace_to_cache_root(
+                    workspace_structure["workspace_path"],
+                    cache_dir,
+                    progress_context
+                )
+
+            progress_context.complete_checkpoint("Copying to Cache")
+
+            # Calculate final workspace size
+            workspace_size = self._calculate_directory_size(cache_dir)
+
+            # Create metadata
+            metadata = WorkspaceCacheMetadata(
+                workspace_path=cache_dir,
+                repository=repository,
+                branch=branch,
+                cache_level=cache_level,
+                cached_components=self._detect_workspace_components(cache_dir),
+                size_bytes=workspace_size,
+                notes=f"Extracted from {archive_format} archive, include_git={include_git}",
+                # Explicitly provide optional fields to satisfy mypy
+                commit_hash=None,
+                keymap_hash=None,
+                config_hash=None,
+                auto_detected=False,
+                auto_detected_source=None,
+                build_id=None,
+                build_profile=None,
+                # Explicitly set datetime fields to satisfy mypy
+                created_at=datetime.now(),
+                last_accessed=datetime.now(),
+                # Add required fields
+                creation_method="archive_extraction",
+                docker_image=None,
+                west_manifest_path=None,
+                dependencies_updated=None,
+            )
+
+            # Store in cache
+            progress_context.start_checkpoint("Updating Metadata")
+            cache_key = self._generate_cache_key(repository, branch)
+            ttls = self.get_ttls_for_cache_levels()
+            cache_level_str = cache_level.value if hasattr(cache_level, "value") else str(cache_level)
+            ttl = ttls.get(cache_level_str, 24 * 3600)  # Default 1 day
+
+            self.cache_manager.set(cache_key, metadata.to_cache_value(), ttl=ttl)
+
+            cache_type = "repo+branch" if branch else "repo-only"
+            self.logger.info(
+                "Successfully cached workspace from %s: %s (%s), TTL: %ds at %s",
+                archive_format,
+                repository,
+                cache_type,
+                ttl,
+                cache_dir,
+            )
+
+            progress_context.complete_checkpoint("Updating Metadata")
+            progress_context.log(f"Workspace cached successfully at {cache_dir}", "info")
+
+            # Start and complete finalizing checkpoint
+            progress_context.start_checkpoint("Finalizing")
+            progress_context.log("Completing workspace cache operation", "info")
+            progress_context.complete_checkpoint("Finalizing")
+
+            return WorkspaceCacheResult(
+                success=True,
+                workspace_path=cache_dir,
+                metadata=metadata,
+                created_new=True,
+            )
+
+        except (KeyboardInterrupt, SystemExit):
+            # Handle user interruption (Ctrl+C) - clean up and re-raise
+            self.logger.info("Archive extraction interrupted by user")
+            if cache_created and cache_dir.exists():
+                progress_context.log("Cleaning up interrupted extraction...", "info")
+                shutil.rmtree(cache_dir, ignore_errors=True)
+            raise
+
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("Failed to extract archive to cache: %s", e, exc_info=exc_info)
+
+            # Cleanup cache directory on any error
+            if cache_created and cache_dir.exists():
+                progress_context.log("Cleaning up failed extraction...", "info")
+                shutil.rmtree(cache_dir, ignore_errors=True)
+
+            # Fail the current checkpoint
+            progress_context.fail_checkpoint("Extracting Files")
+            progress_context.log(f"Failed to extract archive: {e}", "error")
+
+            return WorkspaceCacheResult(
+                success=False, error_message=f"Failed to extract archive to cache: {e}"
+            )
+
+    def _extract_zip_to_cache(
+        self,
+        archive_path: Path,
+        cache_dir: Path,
+        include_git: bool,
+        progress_context: "ProgressContextProtocol | None" = None,
+    ) -> tuple[int, int, int]:
+        """Extract ZIP archive directly to cache directory.
+
+        Returns:
+            Tuple of (extracted_bytes, total_bytes, extracted_files)
+        """
+        import time
+        import zipfile
+
+        with zipfile.ZipFile(archive_path, "r") as zip_ref:
+            file_list = zip_ref.infolist()
+            total_uncompressed_size = sum(info.file_size for info in file_list)
+
+            extracted_bytes = 0
+            extracted_files = 0
+            start_time = time.time()
+
+            for i, file_info in enumerate(file_list):
+                # Skip .git files if not including git
+                if not include_git and "/.git/" in file_info.filename:
+                    continue
+
+                # Extract file
+                zip_ref.extract(file_info, cache_dir)
+                extracted_bytes += file_info.file_size
+                extracted_files += 1
+
+                # Update progress every 50 files or for last file
+                if progress_context and ((i + 1) % 50 == 0 or (i + 1) == len(file_list)):
+                    elapsed_time = time.time() - start_time
+                    speed_mb_s = 0.0
+                    eta_seconds = 0.0
+
+                    if elapsed_time > 0 and extracted_bytes > 0:
+                        speed_mb_s = (extracted_bytes / (1024 * 1024)) / elapsed_time
+                        if speed_mb_s > 0:
+                            remaining_bytes = total_uncompressed_size - extracted_bytes
+                            eta_seconds = remaining_bytes / (speed_mb_s * 1024 * 1024)
+
+                    progress_context.update_progress(
+                        current=extracted_bytes,
+                        total=total_uncompressed_size,
+                        status=f"Extracting to cache: {file_info.filename}",
+                    )
+
+                    progress_context.set_status_info({
+                        "current_file": file_info.filename,
+                        "files_remaining": len(file_list) - (i + 1),
+                        "bytes_copied": extracted_bytes,
+                        "total_bytes": total_uncompressed_size,
+                        "transfer_speed": speed_mb_s,
+                        "eta_seconds": eta_seconds,
+                    })
+
+            return extracted_bytes, total_uncompressed_size, extracted_files
+
+    def _extract_tar_to_cache(
+        self,
+        archive_path: Path,
+        archive_format: str,
+        cache_dir: Path,
+        include_git: bool,
+        progress_context: "ProgressContextProtocol | None" = None,
+    ) -> tuple[int, int, int]:
+        """Extract TAR archive directly to cache directory.
+
+        Returns:
+            Tuple of (extracted_bytes, total_bytes, extracted_files)
+        """
+        import tarfile
+        import time
+
+        # Determine compression mode
+        if archive_format == "tar.gz":
+            mode = "r:gz"
+        elif archive_format == "tar.bz2":
+            mode = "r:bz2"
+        elif archive_format == "tar.xz":
+            mode = "r:xz"
+        else:
+            mode = "r"
+
+        with tarfile.open(archive_path, mode) as tar_ref:
+            members = tar_ref.getmembers()
+            total_uncompressed_size = sum(member.size for member in members if member.isfile())
+
+            extracted_bytes = 0
+            extracted_files = 0
+            start_time = time.time()
+
+            for i, member in enumerate(members):
+                # Skip .git files if not including git
+                if not include_git and "/.git/" in member.name:
+                    continue
+
+                # Extract member
+                tar_ref.extract(member, cache_dir)
+                if member.isfile():
+                    extracted_bytes += member.size
+                    extracted_files += 1
+
+                # Update progress every 50 files or for last file
+                if progress_context and ((i + 1) % 50 == 0 or (i + 1) == len(members)):
+                    elapsed_time = time.time() - start_time
+                    speed_mb_s = 0.0
+                    eta_seconds = 0.0
+
+                    if elapsed_time > 0 and extracted_bytes > 0:
+                        speed_mb_s = (extracted_bytes / (1024 * 1024)) / elapsed_time
+                        if speed_mb_s > 0:
+                            remaining_bytes = total_uncompressed_size - extracted_bytes
+                            eta_seconds = remaining_bytes / (speed_mb_s * 1024 * 1024)
+
+                    progress_context.update_progress(
+                        current=extracted_bytes,
+                        total=total_uncompressed_size,
+                        status=f"Extracting to cache: {member.name}",
+                    )
+
+                    progress_context.set_status_info({
+                        "current_file": member.name,
+                        "files_remaining": len(members) - (i + 1),
+                        "bytes_copied": extracted_bytes,
+                        "total_bytes": total_uncompressed_size,
+                        "transfer_speed": speed_mb_s,
+                        "eta_seconds": eta_seconds,
+                    })
+
+            return extracted_bytes, total_uncompressed_size, extracted_files
+
+    def _analyze_workspace_structure(self, cache_dir: Path) -> dict[str, any]:
+        """Analyze workspace structure in extracted cache content.
+
+        Args:
+            cache_dir: Cache directory to analyze
+
+        Returns:
+            Dictionary with analysis results
+        """
+        def get_workspace_components(path: Path) -> list[str]:
+            """Get ZMK workspace components found in path."""
+            required_components = ["zmk", "zephyr", "modules", ".west"]
+            found_components = [
+                component for component in required_components
+                if (path / component).exists()
+            ]
+            return found_components
+
+        def is_valid_workspace(components: list[str]) -> bool:
+            """Check if components constitute a valid workspace."""
+            return len(components) >= 2  # Need at least 2 components
+
+        # Check cache root directory
+        root_components = get_workspace_components(cache_dir)
+        if is_valid_workspace(root_components):
+            return {
+                "is_valid": True,
+                "needs_reorganization": False,
+                "workspace_path": cache_dir,
+                "workspace_subdir": None,
+                "found_components": root_components,
+            }
+
+        # Search subdirectories for workspace
+        best_match = None
+        best_score = 0
+
+        for subdir in cache_dir.iterdir():
+            if subdir.is_dir():
+                components = get_workspace_components(subdir)
+                score = len(components)
+
+                if score > best_score and is_valid_workspace(components):
+                    best_score = score
+                    best_match = {
+                        "is_valid": True,
+                        "needs_reorganization": True,
+                        "workspace_path": subdir,
+                        "workspace_subdir": subdir.name,
+                        "found_components": components,
+                    }
+
+        if best_match:
+            return best_match
+
+        # No valid workspace found anywhere
+        all_found = root_components.copy()
+        for subdir in cache_dir.iterdir():
+            if subdir.is_dir():
+                all_found.extend(get_workspace_components(subdir))
+
+        return {
+            "is_valid": False,
+            "needs_reorganization": False,
+            "workspace_path": None,
+            "workspace_subdir": None,
+            "found_components": list(set(all_found)),  # Remove duplicates
+        }
+
+    def _reorganize_workspace_to_cache_root(
+        self,
+        workspace_path: Path,
+        cache_dir: Path,
+        progress_context: "ProgressContextProtocol | None" = None
+    ) -> None:
+        """Reorganize workspace from subdirectory to cache root.
+
+        Args:
+            workspace_path: Current workspace directory
+            cache_dir: Target cache root directory
+            progress_context: Progress context for logging
+        """
+        if progress_context is None:
+            progress_context = get_noop_progress_context()
+
+        temp_dir = cache_dir.parent / f"{cache_dir.name}_reorganize_temp"
+
+        try:
+            progress_context.log(f"Moving workspace contents from {workspace_path.name}/", "info")
+
+            # Create temporary directory for reorganization
+            temp_dir.mkdir(exist_ok=True)
+
+            # Move workspace contents to temp location
+            items_moved = 0
+            for item in workspace_path.iterdir():
+                shutil.move(str(item), str(temp_dir / item.name))
+                items_moved += 1
+
+            progress_context.log(f"Moved {items_moved} workspace items to temporary location", "info")
+
+            # Clear cache directory
+            shutil.rmtree(cache_dir)
+            cache_dir.mkdir(parents=True, exist_ok=True)
+
+            # Move workspace contents to cache root
+            items_restored = 0
+            for item in temp_dir.iterdir():
+                shutil.move(str(item), str(cache_dir / item.name))
+                items_restored += 1
+
+            progress_context.log(f"Reorganized {items_restored} items to cache root", "info")
+
+        except Exception as e:
+            progress_context.log(f"Error during workspace reorganization: {e}", "error")
+            raise
+        finally:
+            # Cleanup temp directory
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def _detect_workspace_components(self, workspace_path: Path) -> list[str]:
+        """Detect workspace components in the given path.
+
+        Args:
+            workspace_path: Path to workspace directory
+
+        Returns:
+            List of detected component names
+        """
+        detected_components = []
+        for component in ["zmk", "zephyr", "modules", ".west"]:
+            if (workspace_path / component).exists():
+                detected_components.append(component)
+        return detected_components
 
     def _calculate_directory_size(self, directory: Path) -> int:
         """Calculate total size of directory in bytes.

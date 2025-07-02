@@ -35,6 +35,7 @@ Credential Storage:
 @handle_errors
 @with_metrics("moergo_login")
 def login(
+    ctx: typer.Context,
     username: Annotated[
         str | None, typer.Option("--username", "-u", help="MoErgo username/email")
     ] = None,
@@ -56,10 +57,9 @@ def login(
     """
     import os
 
-    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
+    from glovebox.cli.helpers.theme import Icons, get_themed_console
 
-    # Note: This function doesn't have ctx parameter, so we'll use default icon mode
-    icon_mode = "emoji"  # Default behavior for this command
+    console = get_themed_console(ctx=ctx)
 
     try:
         # Get username from parameter, environment, or prompt
@@ -82,93 +82,70 @@ def login(
 
         if keyring_available:
             storage_method = "OS keyring"
-            typer.echo(
-                Icons.format_with_icon(
-                    "SUCCESS",
-                    f"Successfully logged in and stored credentials using {storage_method}",
-                    icon_mode,
-                )
+            console.print_success(
+                f"Successfully logged in and stored credentials using {storage_method}"
             )
-            typer.echo(
-                Icons.format_with_icon(
-                    "INFO",
-                    "Your credentials are securely stored in your system keyring",
-                    icon_mode,
-                )
+            console.print_info(
+                "Your credentials are securely stored in your system keyring"
             )
         else:
             storage_method = "file with basic obfuscation"
-            typer.echo(
-                Icons.format_with_icon(
-                    "SUCCESS",
-                    f"Successfully logged in and stored credentials using {storage_method}",
-                    icon_mode,
-                )
+            console.print_success(
+                f"Successfully logged in and stored credentials using {storage_method}"
             )
-            typer.echo(
-                Icons.format_with_icon(
-                    "WARNING",
-                    "For better security, consider installing the keyring package:",
-                    icon_mode,
-                )
+            console.print_warning(
+                "For better security, consider installing the keyring package:"
             )
-            typer.echo("   pip install keyring")
-            typer.echo("   Then login again to use secure keyring storage")
+            console.console.print("   pip install keyring")
+            console.console.print("   Then login again to use secure keyring storage")
 
     except AuthenticationError as e:
-        typer.echo(Icons.format_with_icon("ERROR", f"Login failed: {e}", icon_mode))
+        console.print_error(f"Login failed: {e}")
         raise typer.Exit(1) from None
     except Exception as e:
-        typer.echo(Icons.format_with_icon("ERROR", f"Unexpected error: {e}", icon_mode))
+        console.print_error(f"Unexpected error: {e}")
         raise typer.Exit(1) from None
 
 
 @moergo_app.command("logout")
-def logout() -> None:
+def logout(ctx: typer.Context) -> None:
     """Clear stored MoErgo credentials."""
-    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
+    from glovebox.cli.helpers.theme import get_themed_console
 
-    icon_mode = "emoji"  # Default behavior for this command
+    console = get_themed_console(ctx=ctx)
 
     try:
         client = create_moergo_client()
         client.logout()
-        typer.echo(
-            Icons.format_with_icon(
-                "SUCCESS", "Successfully logged out and cleared credentials", icon_mode
-            )
-        )
+        console.print_success("Successfully logged out and cleared credentials")
 
     except Exception as e:
-        typer.echo(
-            Icons.format_with_icon("ERROR", f"Error during logout: {e}", icon_mode)
-        )
+        console.print_error(f"Error during logout: {e}")
         raise typer.Exit(1) from None
 
 
 @moergo_app.command("status")
 def status(ctx: typer.Context) -> None:
     """Show MoErgo authentication status and credential information."""
-    from glovebox.cli.app import AppContext
-    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
+    from glovebox.cli.helpers.theme import Icons, get_themed_console
 
-    # Get icon mode from app context
-    icon_mode = get_icon_mode_from_context(ctx)
+    console = get_themed_console(ctx=ctx)
 
     try:
         client = create_moergo_client()
         info = client.get_credential_info()
 
-        typer.echo("MoErgo Authentication Status:")
+        console.console.print("MoErgo Authentication Status:")
 
         # Check authentication status
         is_auth = client.is_authenticated()
-        auth_status = (
-            Icons.format_with_icon("SUCCESS", "Yes", icon_mode)
-            if is_auth
-            else Icons.format_with_icon("ERROR", "No", icon_mode)
-        )
-        typer.echo(f"  Authenticated: {auth_status}")
+        if is_auth:
+            success_icon = Icons.get_icon("SUCCESS", console.icon_mode)
+            auth_status = f"{success_icon} Yes"
+        else:
+            error_icon = Icons.get_icon("ERROR", console.icon_mode)
+            auth_status = f"{error_icon} No"
+        console.console.print(f"  Authenticated: {auth_status}")
 
         # Show token info if authenticated
         if is_auth:
@@ -180,13 +157,13 @@ def status(ctx: typer.Context) -> None:
                         expires_str = f"{expires_in / 60:.1f} hours"
                     else:
                         expires_str = f"{expires_in:.1f} minutes"
-                    typer.echo(f"  Token expires in: {expires_str}")
+                    console.console.print(f"  Token expires in: {expires_str}")
 
                     if token_info.get("needs_renewal", False):
-                        warning_msg = Icons.format_with_icon(
-                            "WARNING", "Token needs renewal soon", icon_mode
+                        warning_icon = Icons.get_icon("WARNING", console.icon_mode)
+                        console.console.print(
+                            f"  {warning_icon} Token needs renewal soon"
                         )
-                        typer.echo(f"  {warning_msg}")
             except Exception:
                 pass  # Don't fail if we can't get token info
 
@@ -196,91 +173,87 @@ def status(ctx: typer.Context) -> None:
             "OS keyring" if info.get("keyring_available") else "file storage"
         )
 
-        creds_status = (
-            Icons.format_with_icon("SUCCESS", "Yes", icon_mode)
-            if has_creds
-            else Icons.format_with_icon("ERROR", "No", icon_mode)
-        )
-        typer.echo(f"  Credentials stored: {creds_status}")
         if has_creds:
-            typer.echo(f"  Storage method: {storage_method}")
+            success_icon = Icons.get_icon("SUCCESS", console.icon_mode)
+            creds_status = f"{success_icon} Yes"
+        else:
+            error_icon = Icons.get_icon("ERROR", console.icon_mode)
+            creds_status = f"{error_icon} No"
+        console.console.print(f"  Credentials stored: {creds_status}")
+        if has_creds:
+            console.console.print(f"  Storage method: {storage_method}")
 
         keyring_available = info.get("keyring_available")
-        keyring_status = (
-            Icons.format_with_icon("SUCCESS", "Yes", icon_mode)
-            if keyring_available
-            else Icons.format_with_icon("ERROR", "No", icon_mode)
-        )
-        typer.echo(f"  Keyring available: {keyring_status}")
-        typer.echo(f"  Platform: {info.get('platform', 'Unknown')}")
+        if keyring_available:
+            success_icon = Icons.get_icon("SUCCESS", console.icon_mode)
+            keyring_status = f"{success_icon} Yes"
+        else:
+            error_icon = Icons.get_icon("ERROR", console.icon_mode)
+            keyring_status = f"{error_icon} No"
+        console.console.print(f"  Keyring available: {keyring_status}")
+        console.console.print(f"  Platform: {info.get('platform', 'Unknown')}")
 
         if info.get("keyring_backend"):
-            typer.echo(f"  Keyring backend: {info['keyring_backend']}")
+            console.console.print(f"  Keyring backend: {info['keyring_backend']}")
 
         if not is_auth and not has_creds:
-            info_msg = Icons.format_with_icon("INFO", "To authenticate:", icon_mode)
-            typer.echo(f"\n{info_msg}")
-            typer.echo("   Interactive: glovebox moergo login")
-            typer.echo(
+            console.console.print()
+            console.print_info("To authenticate:")
+            console.console.print("   Interactive: glovebox moergo login")
+            console.console.print(
                 "   With env vars: MOERGO_USERNAME=user@email.com MOERGO_PASSWORD=*** glovebox moergo login"
             )
 
     except Exception as e:
-        error_msg = Icons.format_with_icon(
-            "ERROR", f"Error checking status: {e}", icon_mode
-        )
-        typer.echo(error_msg)
+        console.print_error(f"Error checking status: {e}")
         raise typer.Exit(1) from None
 
 
 @moergo_app.command("keystore")
-def keystore_info() -> None:
+def keystore_info(ctx: typer.Context) -> None:
     """Show detailed keystore and credential storage information."""
-    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
+    from glovebox.cli.helpers.theme import Icons, get_themed_console
 
-    icon_mode = "emoji"  # Default behavior for this command
+    console = get_themed_console(ctx=ctx)
 
     try:
         client = create_moergo_client()
         info = client.get_credential_info()
-        typer.echo(f"{Icons.get_icon('KEYSTORE', icon_mode)} Keystore Information")
-        typer.echo("=" * 40)
+        keystore_icon = Icons.get_icon("KEYSTORE", console.icon_mode)
+        console.console.print(f"{keystore_icon} Keystore Information")
+        console.console.print("=" * 40)
 
         # Platform info
-        typer.echo(f"Platform: {info.get('platform', 'Unknown')}")
-        typer.echo(f"Config directory: {info.get('config_dir', 'Unknown')}")
+        console.console.print(f"Platform: {info.get('platform', 'Unknown')}")
+        console.console.print(f"Config directory: {info.get('config_dir', 'Unknown')}")
 
         # Keyring availability
         keyring_available = info.get("keyring_available", False)
         if keyring_available:
-            typer.echo(
-                Icons.format_with_icon("SUCCESS", "OS Keyring: Available", icon_mode)
-            )
+            console.print_success("OS Keyring: Available")
             backend = info.get("keyring_backend", "Unknown")
-            typer.echo(f"   Backend: {backend}")
+            console.console.print(f"   Backend: {backend}")
 
             # Platform-specific keyring info
             platform_name = info.get("platform", "")
+            info_icon = Icons.get_icon("INFO", console.icon_mode)
             if platform_name == "Darwin":
-                typer.echo(
-                    f"   {Icons.get_icon('INFO', icon_mode)} Using macOS Keychain"
-                )
+                console.console.print(f"   {info_icon} Using macOS Keychain")
             elif platform_name == "Windows":
-                typer.echo(
-                    f"   {Icons.get_icon('INFO', icon_mode)} Using Windows Credential Manager"
+                console.console.print(
+                    f"   {info_icon} Using Windows Credential Manager"
                 )
             elif platform_name == "Linux":
-                typer.echo(
-                    f"   {Icons.get_icon('INFO', icon_mode)} Using Linux keyring (secretstorage/keyctl)"
+                console.console.print(
+                    f"   {info_icon} Using Linux keyring (secretstorage/keyctl)"
                 )
         else:
-            typer.echo(
-                Icons.format_with_icon("ERROR", "OS Keyring: Not available", icon_mode)
+            console.print_error("OS Keyring: Not available")
+            info_icon = Icons.get_icon("INFO", console.icon_mode)
+            console.console.print(
+                f"   {info_icon} Install keyring package for better security:"
             )
-            typer.echo(
-                f"   {Icons.get_icon('INFO', icon_mode)} Install keyring package for better security:"
-            )
-            typer.echo("   pip install keyring")
+            console.console.print("   pip install keyring")
 
         # Current storage method
         has_creds = info.get("has_credentials", False)
@@ -288,49 +261,51 @@ def keystore_info() -> None:
             storage_method = (
                 "OS keyring" if keyring_available else "file with obfuscation"
             )
-            typer.echo(
-                f"\n{Icons.get_icon('CONFIG', icon_mode)} Current storage method: {storage_method}"
+            config_icon = Icons.get_icon("CONFIG", console.icon_mode)
+            console.console.print(
+                f"\n{config_icon} Current storage method: {storage_method}"
             )
 
             if not keyring_available:
-                typer.echo(
-                    f"   {Icons.format_with_icon('WARNING', 'File storage provides basic obfuscation only', icon_mode)}"
+                warning_icon = Icons.get_icon("WARNING", console.icon_mode)
+                console.console.print(
+                    f"   {warning_icon} File storage provides basic obfuscation only"
                 )
-                typer.echo(
-                    f"   {Icons.get_icon('INFO', icon_mode)} For better security, install keyring package"
+                info_icon = Icons.get_icon("INFO", console.icon_mode)
+                console.console.print(
+                    f"   {info_icon} For better security, install keyring package"
                 )
         else:
-            typer.echo(
-                f"\n{Icons.get_icon('INFO', icon_mode)} No credentials currently stored"
-            )
+            info_icon = Icons.get_icon("INFO", console.icon_mode)
+            console.console.print(f"\n{info_icon} No credentials currently stored")
 
         # Security recommendations
-        typer.echo(f"\n{Icons.get_icon('INFO', icon_mode)} Security Recommendations:")
+        info_icon = Icons.get_icon("INFO", console.icon_mode)
+        console.console.print(f"\n{info_icon} Security Recommendations:")
         if keyring_available:
-            typer.echo(
-                f"   {Icons.format_with_icon('SUCCESS', 'Your credentials are stored securely in OS keyring', icon_mode)}"
+            success_icon = Icons.get_icon("SUCCESS", console.icon_mode)
+            console.console.print(
+                f"   {success_icon} Your credentials are stored securely in OS keyring"
             )
         else:
-            typer.echo(
-                f"   {Icons.get_icon('BULLET', icon_mode)} Install 'keyring' package for secure credential storage"
+            bullet_icon = Icons.get_icon("BULLET", console.icon_mode)
+            console.console.print(
+                f"   {bullet_icon} Install 'keyring' package for secure credential storage"
             )
-            typer.echo(
-                f"   {Icons.get_icon('BULLET', icon_mode)} File storage uses basic obfuscation (not encryption)"
+            console.console.print(
+                f"   {bullet_icon} File storage uses basic obfuscation (not encryption)"
             )
 
-        typer.echo(
-            f"   {Icons.get_icon('BULLET', icon_mode)} Use 'glovebox moergo logout' to clear stored credentials"
+        bullet_icon = Icons.get_icon("BULLET", console.icon_mode)
+        console.console.print(
+            f"   {bullet_icon} Use 'glovebox moergo logout' to clear stored credentials"
         )
-        typer.echo(
-            f"   {Icons.get_icon('BULLET', icon_mode)} Credentials are stored per-user with restricted permissions"
+        console.console.print(
+            f"   {bullet_icon} Credentials are stored per-user with restricted permissions"
         )
 
     except Exception as e:
-        typer.echo(
-            Icons.format_with_icon(
-                "ERROR", f"Error getting keystore info: {e}", icon_mode
-            )
-        )
+        console.print_error(f"Error getting keystore info: {e}")
         raise typer.Exit(1) from None
 
 

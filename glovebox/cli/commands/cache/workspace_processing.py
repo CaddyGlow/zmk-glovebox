@@ -64,6 +64,7 @@ def process_workspace_source(
         workspace_path, temp_dir = download_and_extract_zip(
             source, progress, console, progress_context
         )
+        # For downloads, we don't track extracted bytes yet, use 0
         return workspace_path, [temp_dir]
 
     # Convert to Path for local processing

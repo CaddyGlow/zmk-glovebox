@@ -505,15 +505,13 @@ def workspace_add(
             if progress_manager:
                 # Enter progress context manager
                 with progress_manager as progress_context:
-                    # Determine source type and process accordingly
-                    workspace_path, temp_cleanup_dirs = process_workspace_source(
-                        workspace_source,
-                        progress=False,
-                        console=console,
-                        progress_context=progress_context,
-                    )
+                    # Check if source is an archive for direct extraction
+                    source_path = Path(workspace_source)
+                    is_archive = (source_path.exists() and
+                                 source_path.is_file() and
+                                 source_path.suffix.lower() in [".zip", ".tar", ".gz", ".bz2", ".xz"])
+                    is_url_archive = workspace_source.startswith(("http://", "https://"))
 
-                    # Use the new workspace cache service for adding external workspace
                     if not repository:
                         typer.echo(
                             "Error: Repository must be specified when injecting workspace",
@@ -524,13 +522,31 @@ def workspace_add(
                     logger.info(f"Adding workspace cache for {repository}")
                     logger.info(f"Source: {workspace_source}")
 
-                    result = workspace_cache_service.inject_existing_workspace(
-                        workspace_path=workspace_path,
-                        repository=repository,
-                        progress_callback=progress_callback,
-                        progress_coordinator=progress_coordinator,
-                        progress_context=progress_context,
-                    )
+                    # Use direct archive extraction for supported formats
+                    if is_archive and not is_url_archive:
+                        progress_context.log(f"Using direct archive extraction for {source_path.name}", "info")
+                        result = workspace_cache_service.cache_workspace_from_archive(
+                            archive_path=source_path,
+                            repository=repository,
+                            branch=None,  # TODO: Add branch support
+                            progress_context=progress_context,
+                        )
+                    else:
+                        # Fall back to traditional method for directories and URLs
+                        workspace_path, temp_cleanup_dirs = process_workspace_source(
+                            workspace_source,
+                            progress=False,
+                            console=console,
+                            progress_context=progress_context,
+                        )
+
+                        result = workspace_cache_service.inject_existing_workspace(
+                            workspace_path=workspace_path,
+                            repository=repository,
+                            progress_callback=progress_callback,
+                            progress_coordinator=progress_coordinator,
+                            progress_context=progress_context,
+                        )
 
                     # Result already includes finalizing from service
                     pass
@@ -570,14 +586,45 @@ def workspace_add(
             end_time = time.time()
             total_time = end_time - start_time
 
-            # Display transfer summary using metadata
+            # Display transfer summary using actual transfer amount
             if metadata.size_bytes and metadata.size_bytes > 0 and total_time > 0:
-                avg_speed_mbps = (metadata.size_bytes / (1024 * 1024)) / total_time
+                # Calculate actual transfer amount based on source type and method used
+                actual_transfer_bytes = metadata.size_bytes
+
+                # Check if direct archive extraction was used
+                source_path = Path(workspace_source)
+                used_direct_extraction = (
+                    source_path.exists() and
+                    source_path.is_file() and
+                    source_path.suffix.lower() in [".zip", ".tar", ".gz", ".bz2", ".xz"] and
+                    not workspace_source.startswith(("http://", "https://"))
+                )
+
+                if used_direct_extraction:
+                    # Direct extraction: ARCHIVE→CACHE (1x transfer)
+                    actual_transfer_bytes = metadata.size_bytes
+                elif (not source_path.is_dir() and
+                      source_path.suffix.lower() in [".zip"] and
+                      source_path.exists()):
+                    # Legacy ZIP extraction: ZIP→TMP + TMP→CACHE (2x transfer)
+                    actual_transfer_bytes = metadata.size_bytes * 2
+                elif workspace_source.startswith(("http://", "https://")):
+                    # URL downloads: DOWNLOAD + EXTRACT + COPY (2x transfer for extract+copy)
+                    actual_transfer_bytes = metadata.size_bytes * 2
+
+                avg_speed_mbps = (actual_transfer_bytes / (1024 * 1024)) / total_time
                 transfer_icon = Icons.get_icon("STATS", icon_mode)
+
+                # Add method indicator to transfer summary
+                method_note = ""
+                if used_direct_extraction:
+                    archive_format = metadata.notes.split("archive")[0].split()[-1] if "archive" in metadata.notes else "archive"
+                    method_note = f" (direct {archive_format} extraction)"
+
                 console.print(
                     f"[{Colors.INFO}]{transfer_icon} Transfer Summary:[/{Colors.INFO}] "
-                    f"{format_size_display(metadata.size_bytes)} copied in "
-                    f"{total_time:.1f}s at {avg_speed_mbps:.1f} MB/s"
+                    f"{format_size_display(actual_transfer_bytes)} copied in "
+                    f"{total_time:.1f}s at {avg_speed_mbps:.1f} MB/s{method_note}"
                 )
                 console.print()  # Extra spacing
 

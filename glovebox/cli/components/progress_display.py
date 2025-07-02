@@ -140,13 +140,14 @@ class ProgressDisplay:
             table.add_row(progress_text)
             table.add_row("")  # Spacer
 
-        # Status line
+        # Status lines
         if self.config.show_status_line and (
             self.state.status_message or self.state.status_info
         ):
-            status_text = self._format_status_line()
-            if status_text:
-                table.add_row(status_text)
+            status_lines = self._format_status_line()
+            if status_lines:
+                for status_line in status_lines:
+                    table.add_row(status_line)
                 table.add_row("")  # Spacer
 
         # Checkpoint list
@@ -222,44 +223,53 @@ class ProgressDisplay:
         )
 
 
-    def _format_status_line(self) -> Text | None:
+    def _format_status_line(self) -> list[Text]:
         """Format the status line with current information.
 
         Returns:
-            Formatted status Text or None if no status
+            List of formatted status Text objects, one per line
         """
         if not self.state.status_message and not self.state.status_info:
-            return None
+            return []
 
-        status_text = Text()
-        status_text.append("Status: ", style=Colors.MUTED)
+        status_lines = []
 
         # Add status message if present
         if self.state.status_message:
+            status_text = Text()
+            status_text.append("Status: ", style=Colors.MUTED)
             # Truncate long status messages
             display_status = self.state.status_message
-            if len(display_status) > 80:
-                display_status = display_status[:77] + "..."
+            if len(display_status) > 70:
+                display_status = display_status[:67] + "..."
             status_text.append(display_status, style=Colors.INFO)
+            status_lines.append(status_text)
 
         # Add status info if present
         if self.state.status_info:
-            info_parts = []
-
-            # Format common status fields
+            # Current file
             if "current_file" in self.state.status_info:
+                file_text = Text()
+                file_text.append("File: ", style=Colors.MUTED)
                 filename = self.state.status_info['current_file']
                 # Truncate long filenames
-                if len(filename) > 40:
-                    filename = "..." + filename[-37:]
-                info_parts.append(f"File: {filename}")
+                if len(filename) > 60:
+                    filename = "..." + filename[-57:]
+                file_text.append(filename, style=Colors.NORMAL)
+                status_lines.append(file_text)
 
+            # Component
             if "component" in self.state.status_info:
-                info_parts.append(f"Component: {self.state.status_info['component']}")
+                component_text = Text()
+                component_text.append("Component: ", style=Colors.MUTED)
+                component_text.append(self.state.status_info['component'], style=Colors.INFO)
+                status_lines.append(component_text)
 
+            # Files remaining and data progress on same line
+            progress_parts = []
             if "files_remaining" in self.state.status_info:
                 remaining = self.state.status_info["files_remaining"]
-                info_parts.append(f"Files remaining: {remaining:,}")
+                progress_parts.append(f"Files remaining: {remaining:,}")
 
             if "bytes_copied" in self.state.status_info and "total_bytes" in self.state.status_info:
                 bytes_copied = self.state.status_info["bytes_copied"]
@@ -270,28 +280,34 @@ class ProgressDisplay:
                     if total_mb >= 1024:
                         progress_gb = progress_mb / 1024
                         total_gb = total_mb / 1024
-                        info_parts.append(f"Data: {progress_gb:.1f}/{total_gb:.1f} GB")
+                        progress_parts.append(f"Data: {progress_gb:.1f}/{total_gb:.1f} GB")
                     else:
-                        info_parts.append(f"Data: {progress_mb:.1f}/{total_mb:.1f} MB")
+                        progress_parts.append(f"Data: {progress_mb:.1f}/{total_mb:.1f} MB")
 
-            # Legacy fields for other operations
+            if progress_parts:
+                progress_text = Text()
+                progress_text.append(" | ".join(progress_parts), style=Colors.MUTED)
+                status_lines.append(progress_text)
+
+            # Speed and ETA on same line
+            speed_parts = []
             if "transfer_speed" in self.state.status_info:
                 speed = self.state.status_info["transfer_speed"]
-                info_parts.append(f"Speed: {speed:.1f} MB/s")
+                speed_parts.append(f"Speed: {speed:.1f} MB/s")
 
             if "eta_seconds" in self.state.status_info:
                 eta = self.state.status_info["eta_seconds"]
                 if eta >= 60:
-                    info_parts.append(f"ETA: {eta / 60:.1f}m")
+                    speed_parts.append(f"ETA: {eta / 60:.1f}m")
                 else:
-                    info_parts.append(f"ETA: {eta:.0f}s")
+                    speed_parts.append(f"ETA: {eta:.0f}s")
 
-            if info_parts:
-                if self.state.status_message:
-                    status_text.append(" | ", style=Colors.MUTED)
-                status_text.append(" | ".join(info_parts), style=Colors.MUTED)
+            if speed_parts:
+                speed_text = Text()
+                speed_text.append(" | ".join(speed_parts), style=Colors.MUTED)
+                status_lines.append(speed_text)
 
-        return status_text
+        return status_lines
 
     def _get_checkpoint_icon(self, status: str) -> str:
         """Get icon for checkpoint status.

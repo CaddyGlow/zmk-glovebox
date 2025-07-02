@@ -11,6 +11,8 @@ from typing import Annotated, Optional
 import typer
 
 from glovebox.adapters import create_file_adapter
+from glovebox.cli.helpers.library_resolver import resolve_parameter_value
+from glovebox.cli.helpers.parameters import complete_json_files
 from glovebox.layout.utils.json_operations import load_layout_file
 from glovebox.moergo.client import create_moergo_client
 
@@ -25,8 +27,13 @@ cloud_app = typer.Typer(
 
 @cloud_app.command()
 def upload(
+    ctx: typer.Context,
     layout_file: Annotated[
-        Path, typer.Argument(help="Layout file to upload", exists=True)
+        str,
+        typer.Argument(
+            help="Layout file to upload or @library-name/uuid",
+            autocompletion=complete_json_files,
+        ),
     ],
     title: Annotated[str | None, typer.Option(help="Title for the layout")] = None,
     uuid: Annotated[
@@ -42,28 +49,38 @@ def upload(
     unlisted: Annotated[bool, typer.Option(help="Make the layout unlisted")] = False,
 ) -> None:
     """Upload a layout file to Glove80 cloud service."""
-    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
+    from glovebox.cli.helpers.theme import get_themed_console
 
+    console = get_themed_console(ctx=ctx)
     client = create_moergo_client()
 
     if not client.validate_authentication():
-        typer.echo(
-            Icons.format_with_icon(
-                "ERROR",
-                "Authentication failed. Please run 'glovebox moergo login' first.",
-                "emoji",
-            )
+        console.print_error(
+            "Authentication failed. Please run 'glovebox moergo login' first."
         )
         raise typer.Exit(1)
+
+    # Resolve library reference if needed
+    try:
+        resolved_file = resolve_parameter_value(layout_file)
+        if isinstance(resolved_file, Path):
+            resolved_layout_file: Path | None = resolved_file
+        else:
+            resolved_layout_file = Path(resolved_file) if resolved_file else None
+
+        if resolved_layout_file is None or not resolved_layout_file.exists():
+            console.print_error(f"Layout file not found: {layout_file}")
+            raise typer.Exit(1)
+    except Exception as e:
+        console.print_error(f"Error resolving layout file: {e}")
+        raise typer.Exit(1) from e
 
     # Load the layout file
     try:
         file_adapter = create_file_adapter()
-        layout_data = load_layout_file(layout_file, file_adapter)
+        layout_data = load_layout_file(resolved_layout_file, file_adapter)
     except Exception as e:
-        typer.echo(
-            Icons.format_with_icon("ERROR", f"Error loading layout file: {e}", "emoji")
-        )
+        console.print_error(f"Error loading layout file: {e}")
         raise typer.Exit(1) from e
 
     # Generate UUID if not provided
@@ -91,34 +108,29 @@ def upload(
         "config": layout_data.model_dump(mode="json", by_alias=True),
     }
 
-    typer.echo(
-        Icons.format_with_icon(
-            "UPLOAD",
-            f"Uploading layout '{layout_meta['title']}' with UUID: {layout_uuid}",
-            "emoji",
-        )
+    from glovebox.cli.helpers.theme import Icons
+
+    icon = Icons.get_icon("UPLOAD", console.icon_mode)
+    console.console.print(
+        f"{icon} Uploading layout '{layout_meta['title']}' with UUID: {layout_uuid}",
+        style="info",
     )
 
     try:
         response = client.save_layout(layout_uuid, complete_layout)
-        typer.echo(
-            Icons.format_with_icon("SUCCESS", "Layout uploaded successfully!", "emoji")
-        )
-        typer.echo(Icons.format_with_icon("LINK", f"UUID: {layout_uuid}", "emoji"))
-        typer.echo(
-            Icons.format_with_icon(
-                "DOCUMENT", f"Title: {layout_meta['title']}", "emoji"
-            )
-        )
+        console.print_success("Layout uploaded successfully!")
+        link_icon = Icons.get_icon("LINK", console.icon_mode)
+        console.console.print(f"{link_icon} UUID: {layout_uuid}")
+        doc_icon = Icons.get_icon("DOCUMENT", console.icon_mode)
+        console.console.print(f"{doc_icon} Title: {layout_meta['title']}")
     except Exception as e:
-        typer.echo(
-            Icons.format_with_icon("ERROR", f"Error uploading layout: {e}", "emoji")
-        )
+        console.print_error(f"Error uploading layout: {e}")
         raise typer.Exit(1) from e
 
 
 @cloud_app.command()
 def download(
+    ctx: typer.Context,
     layout_uuid: Annotated[str, typer.Argument(help="UUID of the layout to download")],
     output: Annotated[
         str | None,
@@ -132,19 +144,16 @@ def download(
     """Download a layout from Glove80 cloud service."""
     import sys
 
-    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
+    from glovebox.cli.helpers.theme import Icons, get_themed_console
     from glovebox.utils.filename_generator import FileType, generate_default_filename
     from glovebox.utils.filename_helpers import extract_layout_dict_data
 
+    console = get_themed_console(ctx=ctx)
     client = create_moergo_client()
 
     if not client.validate_authentication():
-        typer.echo(
-            Icons.format_with_icon(
-                "ERROR",
-                "Authentication failed. Please run 'glovebox moergo login' first.",
-                "emoji",
-            )
+        console.print_error(
+            "Authentication failed. Please run 'glovebox moergo login' first."
         )
         raise typer.Exit(1)
 
@@ -182,14 +191,11 @@ def download(
             # Save the config part (the actual layout data)
             output_file.parent.mkdir(parents=True, exist_ok=True)
             output_file.write_text(layout_json)
-            typer.echo(
-                Icons.format_with_icon("SAVE", f"Downloaded to: {output_file}", "emoji")
-            )
+            save_icon = Icons.get_icon("SAVE", console.icon_mode)
+            console.console.print(f"{save_icon} Downloaded to: {output_file}")
 
     except Exception as e:
-        typer.echo(
-            Icons.format_with_icon("ERROR", f"Error downloading layout: {e}", "emoji")
-        )
+        console.print_error(f"Error downloading layout: {e}")
         raise typer.Exit(1) from e
 
 
@@ -202,20 +208,14 @@ def list(
     ] = None,
 ) -> None:
     """List all user's layouts from Glove80 cloud service."""
-    from glovebox.cli.app import AppContext
-    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
+    from glovebox.cli.helpers.theme import Icons, get_themed_console
 
-    icon_mode = get_icon_mode_from_context(ctx)
-
+    console = get_themed_console(ctx=ctx)
     client = create_moergo_client()
 
     if not client.validate_authentication():
-        typer.echo(
-            Icons.format_with_icon(
-                "ERROR",
-                "Authentication failed. Please run 'glovebox moergo login' first.",
-                icon_mode,
-            )
+        console.print_error(
+            "Authentication failed. Please run 'glovebox moergo login' first."
         )
         raise typer.Exit(1)
 
@@ -223,9 +223,8 @@ def list(
         layouts = client.list_user_layouts()
 
         if not layouts:
-            typer.echo(
-                Icons.format_with_icon("MAILBOX", "No layouts found.", icon_mode)
-            )
+            mailbox_icon = Icons.get_icon("MAILBOX", console.icon_mode)
+            console.console.print(f"{mailbox_icon} No layouts found.")
             return
 
         # Filter by tags if provided
@@ -242,29 +241,21 @@ def list(
                     continue
             layouts = filtered_layouts
 
-        typer.echo(
-            Icons.format_with_icon(
-                "DOCUMENT", f"Found {len(layouts)} layouts:", icon_mode
-            )
-        )
-        typer.echo()
+        doc_icon = Icons.get_icon("DOCUMENT", console.icon_mode)
+        console.console.print(f"{doc_icon} Found {len(layouts)} layouts:")
+        console.console.print()
 
         for layout in layouts:
-            typer.echo(f"   {Icons.get_icon('LINK', icon_mode)} {layout['uuid']}")
+            link_icon = Icons.get_icon("LINK", console.icon_mode)
+            console.console.print(f"   {link_icon} {layout['uuid']}")
 
-        typer.echo()
-        typer.echo(
-            Icons.format_with_icon(
-                "INFO",
-                "Use 'glovebox cloud download <uuid> [--output <file>]' to download a layout",
-                icon_mode,
-            )
+        console.console.print()
+        console.print_info(
+            "Use 'glovebox cloud download <uuid> [--output <file>]' to download a layout"
         )
 
     except Exception as e:
-        typer.echo(
-            Icons.format_with_icon("ERROR", f"Error listing layouts: {e}", icon_mode)
-        )
+        console.print_error(f"Error listing layouts: {e}")
         raise typer.Exit(1) from e
 
 
@@ -280,51 +271,35 @@ def browse(
     ] = 20,
 ) -> None:
     """Browse public layouts from Glove80 community."""
-    from glovebox.cli.app import AppContext
-    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
+    from glovebox.cli.helpers.theme import Icons, get_themed_console
 
-    icon_mode = get_icon_mode_from_context(ctx)
-
+    console = get_themed_console(ctx=ctx)
     client = create_moergo_client()
 
     if not client.validate_authentication():
-        typer.echo(
-            Icons.format_with_icon(
-                "ERROR",
-                "Authentication failed. Please run 'glovebox moergo login' first.",
-                icon_mode,
-            )
+        console.print_error(
+            "Authentication failed. Please run 'glovebox moergo login' first."
         )
         raise typer.Exit(1)
 
     try:
+        globe_icon = Icons.get_icon("GLOBE", console.icon_mode)
         if tags:
-            typer.echo(
-                Icons.format_with_icon(
-                    "GLOBE",
-                    f"Browsing public layouts with tags: {', '.join(tags)}",
-                    icon_mode,
-                )
+            console.console.print(
+                f"{globe_icon} Browsing public layouts with tags: {', '.join(tags)}"
             )
         else:
-            typer.echo(
-                Icons.format_with_icon(
-                    "GLOBE",
-                    "Browsing public layouts from Glove80 community...",
-                    icon_mode,
-                )
+            console.console.print(
+                f"{globe_icon} Browsing public layouts from Glove80 community..."
             )
 
         public_uuids = client.list_public_layouts(tags=tags)
 
-        typer.echo(
-            Icons.format_with_icon(
-                "DOCUMENT",
-                f"Found {len(public_uuids)} public layouts (showing {min(limit, len(public_uuids))}):",
-                icon_mode,
-            )
+        doc_icon = Icons.get_icon("DOCUMENT", console.icon_mode)
+        console.console.print(
+            f"{doc_icon} Found {len(public_uuids)} public layouts (showing {min(limit, len(public_uuids))}):"
         )
-        typer.echo()
+        console.console.print()
 
         # Show list with basic info
         for i, uuid in enumerate(public_uuids[:limit]):
@@ -333,111 +308,92 @@ def browse(
                 layout_meta = meta_response["layout_meta"]
 
                 status_icon = (
-                    Icons.get_icon("SUCCESS", icon_mode)
+                    Icons.get_icon("SUCCESS", console.icon_mode)
                     if layout_meta["compiled"]
-                    else Icons.get_icon("DOCUMENT", icon_mode)
+                    else Icons.get_icon("DOCUMENT", console.icon_mode)
                 )
-                typer.echo(f"{i + 1:3d}. {status_icon} {layout_meta['title']}")
-                typer.echo(f"     {Icons.get_icon('LINK', icon_mode)} UUID: {uuid}")
+                console.console.print(
+                    f"{i + 1:3d}. {status_icon} {layout_meta['title']}"
+                )
+                link_icon = Icons.get_icon("LINK", console.icon_mode)
+                console.console.print(f"     {link_icon} UUID: {uuid}")
                 if layout_meta["tags"]:
-                    typer.echo(
-                        f"     {Icons.get_icon('TAG', icon_mode)} Tags: {', '.join(layout_meta['tags'][:3])}"
+                    tag_icon = Icons.get_icon("TAG", console.icon_mode)
+                    console.console.print(
+                        f"     {tag_icon} Tags: {', '.join(layout_meta['tags'][:3])}"
                     )
-                typer.echo()
+                console.console.print()
             except Exception:
-                typer.echo(f"{i + 1:3d}. {Icons.get_icon('LINK', icon_mode)} {uuid}")
-                typer.echo()
+                link_icon = Icons.get_icon("LINK", console.icon_mode)
+                console.console.print(f"{i + 1:3d}. {link_icon} {uuid}")
+                console.console.print()
 
-        typer.echo(
-            Icons.format_with_icon(
-                "INFO",
-                "Use 'glovebox cloud download <uuid> [--output <file>]' to download a layout",
-                icon_mode,
-            )
+        console.print_info(
+            "Use 'glovebox cloud download <uuid> [--output <file>]' to download a layout"
         )
 
     except Exception as e:
-        typer.echo(
-            Icons.format_with_icon(
-                "ERROR", f"Error browsing public layouts: {e}", icon_mode
-            )
-        )
+        console.print_error(f"Error browsing public layouts: {e}")
         raise typer.Exit(1) from e
 
 
 @cloud_app.command()
 def delete(
+    ctx: typer.Context,
     layout_uuid: Annotated[str, typer.Argument(help="UUID of the layout to delete")],
     force: Annotated[
         bool, typer.Option("--force", "-f", help="Skip confirmation prompt")
     ] = False,
 ) -> None:
     """Delete a layout from Glove80 cloud service."""
-    from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
+    from glovebox.cli.helpers.theme import Icons, get_themed_console
 
+    console = get_themed_console(ctx=ctx)
     client = create_moergo_client()
 
     if not client.validate_authentication():
-        typer.echo(
-            Icons.format_with_icon(
-                "ERROR",
-                "Authentication failed. Please run 'glovebox moergo login' first.",
-                "emoji",
-            )
+        console.print_error(
+            "Authentication failed. Please run 'glovebox moergo login' first."
         )
         raise typer.Exit(1)
 
     # Get layout info first
     try:
         layout = client.get_layout(layout_uuid)
-        typer.echo(
-            Icons.format_with_icon(
-                "DOCUMENT", f"Layout to delete: {layout.layout_meta.title}", "emoji"
-            )
+        doc_icon = Icons.get_icon("DOCUMENT", console.icon_mode)
+        console.console.print(
+            f"{doc_icon} Layout to delete: {layout.layout_meta.title}"
         )
-        typer.echo(
-            Icons.format_with_icon(
-                "USER", f"Creator: {layout.layout_meta.creator}", "emoji"
-            )
-        )
-        typer.echo(
-            Icons.format_with_icon(
-                "CALENDAR", f"Created: {layout.layout_meta.created_datetime}", "emoji"
-            )
+        user_icon = Icons.get_icon("USER", console.icon_mode)
+        console.console.print(f"{user_icon} Creator: {layout.layout_meta.creator}")
+        calendar_icon = Icons.get_icon("CALENDAR", console.icon_mode)
+        console.console.print(
+            f"{calendar_icon} Created: {layout.layout_meta.created_datetime}"
         )
     except Exception as e:
-        typer.echo(
-            Icons.format_with_icon("ERROR", f"Error fetching layout: {e}", "emoji")
-        )
+        console.print_error(f"Error fetching layout: {e}")
         raise typer.Exit(1) from e
 
     # Confirmation
     if not force:
+        warning_icon = Icons.get_icon("WARNING", console.icon_mode)
         delete_confirm = typer.confirm(
-            f"{Icons.get_icon('WARNING', 'emoji')} Are you sure you want to delete '{layout.layout_meta.title}'?"
+            f"{warning_icon} Are you sure you want to delete '{layout.layout_meta.title}'?"
         )
         if not delete_confirm:
-            typer.echo(Icons.format_with_icon("ERROR", "Deletion cancelled", "emoji"))
+            console.print_error("Deletion cancelled")
             return
 
     # Delete the layout
     try:
         success = client.delete_layout(layout_uuid)
         if success:
-            typer.echo(
-                Icons.format_with_icon(
-                    "SUCCESS", "Layout deleted successfully!", "emoji"
-                )
-            )
+            console.print_success("Layout deleted successfully!")
         else:
-            typer.echo(
-                Icons.format_with_icon("ERROR", "Failed to delete layout", "emoji")
-            )
+            console.print_error("Failed to delete layout")
             raise typer.Exit(1)
     except Exception as e:
-        typer.echo(
-            Icons.format_with_icon("ERROR", f"Error deleting layout: {e}", "emoji")
-        )
+        console.print_error(f"Error deleting layout: {e}")
         raise typer.Exit(1) from e
 
 

@@ -3,11 +3,13 @@
 import logging
 import shutil
 import tempfile
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
+    from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
     from glovebox.protocols.progress_coordinator_protocol import (
         ProgressCoordinatorProtocol,
     )
@@ -196,8 +198,6 @@ class ZmkWestService(CompilationServiceProtocol):
         json_file: Path | None = None,
     ) -> BuildResult:
         """Execute ZMK compilation."""
-        import time
-
         compilation_start_time = time.time()
 
         try:
@@ -207,6 +207,75 @@ class ZmkWestService(CompilationServiceProtocol):
                 )
 
             self.logger.info("%s@%s", config.repository, config.branch)
+
+            # Setup progress context
+            from glovebox.cli.components import create_progress_manager
+            from glovebox.cli.components.noop_progress_context import (
+                get_noop_progress_context,
+            )
+            from glovebox.cli.helpers.theme import get_icon_mode_from_config
+            from glovebox.config import create_user_config
+
+            if progress_callback is not None:
+                user_config = create_user_config()
+                icon_mode = get_icon_mode_from_config(user_config)
+
+                # Create dynamic checkpoints based on board count
+                board_info = self._extract_board_info_from_config(config)
+                checkpoints = [
+                    "Cache Check",
+                    "Workspace Setup",
+                    "Dependencies Update",
+                ]
+
+                # Add individual board build checkpoints
+                if board_info.get('board_names'):
+                    for board_name in board_info['board_names']:
+                        checkpoints.append(f"Building {board_name}")
+                else:
+                    # Fallback for unknown boards
+                    for i in range(board_info.get('total_boards', 1)):
+                        checkpoints.append(f"Building Board {i+1}")
+
+                checkpoints.append("Caching Results")
+
+                progress_manager = create_progress_manager(
+                    operation_name="ZMK West Compilation",
+                    checkpoints=checkpoints,
+                    icon_mode=icon_mode,
+                )
+
+                with progress_manager as progress_context:
+                    return self._execute_zmk_compilation_with_progress(
+                        progress_context, keymap_file, config_file, output_dir,
+                        config, keyboard_profile, compilation_start_time, json_file
+                    )
+            else:
+                # Use noop progress context when no progress callback
+                progress_context = get_noop_progress_context()
+                return self._execute_zmk_compilation_with_progress(
+                    progress_context, keymap_file, config_file, output_dir,
+                    config, keyboard_profile, compilation_start_time, json_file
+                )
+
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("Compilation failed: %s", e, exc_info=exc_info)
+            return BuildResult(success=False, errors=[str(e)])
+
+    def _execute_zmk_compilation_with_progress(
+        self,
+        progress_context: "ProgressContextProtocol",
+        keymap_file: Path,
+        config_file: Path,
+        output_dir: Path,
+        config: ZmkCompilationConfig,
+        keyboard_profile: "KeyboardProfile",
+        compilation_start_time: float,
+        json_file: Path | None = None,
+    ) -> BuildResult:
+        """Execute ZMK compilation with progress tracking."""
+        try:
             # Initialize cache metrics
             cache_operations = None
             cache_duration = None
@@ -220,6 +289,10 @@ class ZmkWestService(CompilationServiceProtocol):
                     "build_cache_operation_duration_seconds",
                     "Build cache operation duration",
                 )
+
+            # Check for cached build result
+            progress_context.start_checkpoint("Cache Check")
+            progress_context.log("Checking for cached build result", "info")
 
             # Try to use cached build result first (most specific cache)
             if cache_duration:
@@ -236,54 +309,10 @@ class ZmkWestService(CompilationServiceProtocol):
                 if cache_operations:
                     cache_operations.labels("lookup", "hit").inc()
 
-                # Use external progress coordinator if available
-                progress_coordinator = self._external_progress_coordinator
-                if progress_coordinator:
-                    # TODO: Enable after refactoring
-                    # progress_coordinator.transition_to_phase(
-                    #     "cache_restoration", "Using cached build"
-                    # )
-                    pass
-                    import time
-
-                    time.sleep(0.5)  # Brief pause to show progress
-                    # TODO: Enable after refactoring
-                    # progress_coordinator.update_cache_progress(
-                    #     "restoring", 50, 100, "Loading cached artifacts", "in_progress"
-                    # )
-
-                self.logger.info(
-                    "Found cached build - copying artifacts and skipping compilation"
-                )
-
-                # Continue showing progress during cache operations
-                if progress_coordinator:
-                    # TODO: Enable after refactoring
-                    # progress_coordinator.update_cache_progress(
-                    #     "copying", 75, 100, "Copying cached artifacts", "in_progress"
-                    # )
-                    pass
+                progress_context.log("Found cached build - using cached artifacts", "info")
+                progress_context.complete_checkpoint("Cache Check")
 
                 output_files = self._collect_files(cached_build_path, output_dir)
-
-                if progress_coordinator:
-                    # TODO: Enable after refactoring
-                    # progress_coordinator.update_cache_progress(
-                    #     "completed",
-                    #     100,
-                    #     100,
-                    #     "Cache restoration completed",
-                    #     "success",
-                    # )
-                    # Signal overall build completion for cached builds
-                    # progress_coordinator.complete_build_success(
-                    #     "Used cached build result"
-                    # )
-                    pass
-                    # Small delay to ensure progress update is processed
-                    import time
-
-                    time.sleep(0.1)
 
                 result = BuildResult(
                     success=True,
@@ -296,21 +325,19 @@ class ZmkWestService(CompilationServiceProtocol):
             if cache_operations:
                 cache_operations.labels("lookup", "miss").inc()
 
-            # Use external progress coordinator if available
-            progress_coordinator = self._external_progress_coordinator
-            if progress_coordinator:
-                # Extract board information for progress tracking
-                board_info = self._extract_board_info_from_config(config)
-                # TODO: Enable after refactoring
-                # progress_coordinator.total_boards = board_info["total_boards"]
-                # progress_coordinator.total_repositories = 39  # Default repository count
-                # progress_coordinator.set_compilation_strategy("zmk_west")
+            progress_context.log("Cache miss - proceeding with fresh compilation", "info")
+            progress_context.complete_checkpoint("Cache Check")
 
-                # Start with workspace setup
-                # progress_coordinator.transition_to_phase(
-                #     "workspace_setup", "Setting up workspace"
-                # )
-                pass
+            # Extract board information for progress tracking
+            board_info = self._extract_board_info_from_config(config)
+            progress_context.log(f"Building for {board_info['total_boards']} boards: {', '.join(board_info.get('board_names', []))}", "info")
+
+            # Setup workspace with progress
+            progress_context.start_checkpoint("Workspace Setup")
+            progress_context.log("Setting up ZMK workspace", "info")
+
+            # Use external progress coordinator for workspace setup compatibility
+            progress_coordinator = self._external_progress_coordinator
 
             # Try to use cached workspace
             workspace_path, cache_used, cache_type = (
@@ -319,20 +346,19 @@ class ZmkWestService(CompilationServiceProtocol):
                     config_file,
                     config,
                     self.cache_service.get_cached_workspace,
-                    progress_callback,
+                    None,  # progress_callback - let workspace service handle its own progress
                     progress_coordinator,
                 )
             )
             if not workspace_path:
                 self.logger.error("Workspace setup failed")
-                # Signal failure to progress coordinator
-                if progress_coordinator:
-                    # TODO: Enable after refactoring
-                    # progress_coordinator.fail_all_tasks()
-                    pass
                 return BuildResult(success=False, errors=["Workspace setup failed"])
 
-            # Run compilation
+            progress_context.complete_checkpoint("Workspace Setup")
+
+            # Run compilation with individual board tracking
+            self.logger.info("Starting ZMK west compilation for %d boards", board_info['total_boards'])
+
             if self.session_metrics:
                 docker_operations = self.session_metrics.Counter(
                     "docker_operations_total",
@@ -349,8 +375,10 @@ class ZmkWestService(CompilationServiceProtocol):
                         output_dir,
                         cache_used,
                         cache_type,
-                        progress_callback,
+                        None,  # progress_callback - let compilation handle its own progress
                         progress_coordinator,
+                        board_info,
+                        progress_context,
                     )
                 if compilation_success:
                     docker_operations.labels("compilation", "success").inc()
@@ -363,25 +391,33 @@ class ZmkWestService(CompilationServiceProtocol):
                     output_dir,
                     cache_used,
                     cache_type,
-                    progress_callback,
+                    None,  # progress_callback - let compilation handle its own progress
                     progress_coordinator,
+                    board_info,
+                    progress_context,
                 )
 
+            # Individual board checkpoints are completed within _run_compilation
+
             # Cache workspace dependencies if it was created fresh (not from cache)
-            # As per user request: "we never update the two cache once they are created"
+            progress_context.start_checkpoint("Caching Results")
+
             if not cache_used:
+                progress_context.log("Caching workspace for future builds", "info")
                 self.cache_service.cache_workspace(
                     workspace_path, config, progress_coordinator
                 )
             elif (
                 cache_type == "repo_only" and self.cache_service.workspace_cache_service
             ):
+                progress_context.log("Updating branch-specific cache", "info")
                 # Update progress coordinator for workspace cache saving
                 self.cache_service.cache_workspace_repo_branch_only(
                     workspace_path, config, progress_coordinator
                 )
 
             # Always try to collect artifacts, even on build failure (for debugging)
+            progress_context.log("Collecting build artifacts", "info")
             if self.session_metrics:
                 artifact_duration = self.session_metrics.Histogram(
                     "artifact_collection_duration_seconds",
@@ -396,16 +432,19 @@ class ZmkWestService(CompilationServiceProtocol):
                 self.logger.error(
                     "Compilation failed, returning partial results for debugging"
                 )
-                # Signal failure to progress coordinator
-                if progress_coordinator:
-                    # TODO: Enable after refactoring
-                    # progress_coordinator.fail_all_tasks()
-                    pass
                 return BuildResult(
                     success=False,
                     errors=["Compilation failed"],
                     output_files=output_files,  # Include partial artifacts for debugging
                 )
+
+            # Cache the successful build result
+            progress_context.log("Caching build result for future use", "info")
+            self.cache_service.cache_build_result(
+                keymap_file, config_file, config, workspace_path, progress_coordinator
+            )
+
+            progress_context.complete_checkpoint("Caching Results")
 
             # Create build-info.json in artifacts directory
             if output_files.artifacts_dir:
@@ -472,11 +511,6 @@ class ZmkWestService(CompilationServiceProtocol):
             )
             # Set unified success messages for fresh builds
             build_result.set_success_messages("zmk_west", was_cached=False)
-
-            # Cache the successful build result
-            self.cache_service.cache_build_result(
-                keymap_file, config_file, config, workspace_path, progress_coordinator
-            )
 
             # Record final compilation metrics
             if self.session_metrics:
@@ -564,6 +598,8 @@ class ZmkWestService(CompilationServiceProtocol):
         cache_type: str | None = None,
         progress_callback: CompilationProgressCallback | None = None,
         progress_coordinator: Any = None,
+        board_info: dict[str, Any] | None = None,
+        progress_context: "ProgressContextProtocol | None" = None,
     ) -> bool:
         """Run Docker compilation with intelligent west update logic."""
         try:
@@ -576,6 +612,13 @@ class ZmkWestService(CompilationServiceProtocol):
             build_commands = self._generate_build_commands(workspace_path, config)
             if not build_commands:
                 return False
+
+            # Extract board information for progress tracking
+            if board_info is None:
+                board_info = self._extract_board_info_from_config(config)
+
+            board_names = board_info.get('board_names', [])
+            total_boards = board_info.get('total_boards', len(build_commands))
 
             # Build base commands with conditional west initialization and update
             base_commands = ["cd /workspace"]
@@ -606,6 +649,10 @@ class ZmkWestService(CompilationServiceProtocol):
 
             all_commands = base_commands + build_commands
 
+            # Start dependencies update checkpoint if progress context available
+            if progress_context:
+                progress_context.start_checkpoint("Dependencies Update")
+
             # Use current user context to avoid permission issues
             user_context = DockerUserContext.detect_current_user()
 
@@ -619,6 +666,66 @@ class ZmkWestService(CompilationServiceProtocol):
 
             # Add build log middleware first to capture all output
             middlewares.append(build_log_middleware)
+
+            # Add board-specific progress tracking middleware if progress context available
+            if progress_context and board_names:
+                from glovebox.utils.stream_process import DefaultOutputMiddleware
+
+                class BoardProgressMiddleware(DefaultOutputMiddleware):
+                    """Middleware to track individual board build progress."""
+
+                    def __init__(self):
+                        super().__init__()
+                        self.current_board_index = 0
+                        self.boards_completed = 0
+                        self.in_build_phase = False
+
+                    def process_line(self, line: str, is_stderr: bool) -> None:
+                        """Process Docker output line to track board progress."""
+                        line_lower = line.lower()
+
+                        # Detect when west init/update/status commands complete
+                        if "west init" in line_lower and "completed" in line_lower:
+                            progress_context.complete_checkpoint("Dependencies Update")
+
+                        # Detect when a west build command starts
+                        if ("west build" in line_lower and "-b " in line_lower and
+                            self.current_board_index < len(board_names)):
+                                board_name = board_names[self.current_board_index]
+                                checkpoint_name = f"Building {board_name}"
+                                progress_context.start_checkpoint(checkpoint_name)
+                                progress_context.log(f"Starting build for {board_name}", "info")
+                                self.in_build_phase = True
+
+                        # Detect when a build completes successfully
+                        if (self.in_build_phase and ("completed successfully" in line_lower or
+                                                   "build complete" in line_lower or
+                                                   "firmware.uf2" in line_lower) and
+                            self.current_board_index < len(board_names)):
+                                board_name = board_names[self.current_board_index]
+                                checkpoint_name = f"Building {board_name}"
+                                progress_context.complete_checkpoint(checkpoint_name)
+                                progress_context.log(f"Completed build for {board_name}", "info")
+                                self.boards_completed += 1
+                                self.current_board_index += 1
+                                self.in_build_phase = False
+
+                                # Update overall progress
+                                progress_context.update_progress(
+                                    current=self.boards_completed,
+                                    total=total_boards,
+                                    status=f"Built {self.boards_completed}/{total_boards} boards"
+                                )
+
+                        # Detect build failures
+                        if (self.in_build_phase and ("error:" in line_lower or "failed" in line_lower) and
+                            self.current_board_index < len(board_names)):
+                                board_name = board_names[self.current_board_index]
+                                checkpoint_name = f"Building {board_name}"
+                                progress_context.fail_checkpoint(checkpoint_name)
+                                progress_context.log(f"Build failed for {board_name}", "error")
+
+                middlewares.append(BoardProgressMiddleware())
 
             if progress_coordinator:
                 from glovebox.adapters import create_compilation_progress_middleware
