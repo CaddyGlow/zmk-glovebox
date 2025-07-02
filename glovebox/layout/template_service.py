@@ -194,17 +194,33 @@ class TemplateService(BaseService):
 
         return errors
 
-    def _process_raw_data(self, data: dict[str, Any]) -> dict[str, Any]:
+    def process_raw_data(self, data: dict[str, Any]) -> dict[str, Any]:
         """Process templates directly on raw dictionary data.
-        
+
         This method is used when we need to process templates before model validation.
-        
+
         Args:
             data: Raw dictionary data containing templates
-            
+
         Returns:
             Dictionary with resolved templates
-            
+
+        Raises:
+            TemplateError: If template processing fails
+        """
+        return self._process_raw_data(data)
+
+    def _process_raw_data(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Process templates directly on raw dictionary data.
+
+        This method is used when we need to process templates before model validation.
+
+        Args:
+            data: Raw dictionary data containing templates
+
+        Returns:
+            Dictionary with resolved templates
+
         Raises:
             TemplateError: If template processing fails
         """
@@ -231,7 +247,9 @@ class TemplateService(BaseService):
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Raw data template processing failed: %s", e, exc_info=exc_info)
+            self.logger.error(
+                "Raw data template processing failed: %s", e, exc_info=exc_info
+            )
             raise TemplateError(f"Raw data template processing failed: {e}") from e
 
     def _has_templates(self, data: dict[str, Any]) -> bool:
@@ -254,7 +272,7 @@ class TemplateService(BaseService):
         context = self._create_template_context_from_dict(data, "basic")
 
         # Process basic metadata fields
-        basic_fields = ["title", "notes", "creator", "tags"]
+        basic_fields = ["title", "notes", "creator", "tags", "layer_names"]
         for field in basic_fields:
             if field in data:
                 data[field] = self._process_field_value(data[field], context)

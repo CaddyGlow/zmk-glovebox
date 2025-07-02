@@ -376,6 +376,12 @@ class CopyResult:
     elapsed_time: float
     error: str | None = None
     strategy_used: str | None = None
+    files_copied: int = 0  # Number of files copied
+
+    @property
+    def duration(self) -> float:
+        """Alias for elapsed_time to maintain backwards compatibility."""
+        return self.elapsed_time
 
     @property
     def speed_mbps(self) -> float:

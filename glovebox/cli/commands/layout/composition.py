@@ -69,7 +69,9 @@ class LayoutCommandComposer:
                         print_error_message(error_msg)
                 else:
                     print_error_message(f"Failed to {operation_name}: {error_msg}")
-            return None
+
+            # Re-raise the exception so @handle_errors decorator can handle it properly
+            raise
 
     def execute_layout_operation(
         self,

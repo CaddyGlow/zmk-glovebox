@@ -333,18 +333,16 @@ def edit_profile(
             if isinstance(value, list):
                 if not value:
                     console.console.print(
-                        f"[${Colors.FIELD_NAME}]{key}:[/${Colors.FIELD_NAME}] [${Colors.MUTED}](empty list)[/${Colors.MUTED}]"
+                        f"[bold blue]{key}:[/bold blue] [dim](empty list)[/dim]"
                     )
                 else:
-                    console.console.print(
-                        f"[${Colors.FIELD_NAME}]{key}:[/${Colors.FIELD_NAME}]"
-                    )
+                    console.console.print(f"[bold blue]{key}:[/bold blue]")
                     for item in value:
                         bullet_icon = Icons.get_icon("BULLET", app_ctx.icon_mode)
                         console.console.print(f"  {bullet_icon} [white]{item}[/white]")
             else:
                 console.console.print(
-                    f"[${Colors.FIELD_NAME}]{key}:[/${Colors.FIELD_NAME}] [white]{value}[/white]"
+                    f"[bold blue]{key}:[/bold blue] [white]{value}[/white]"
                 )
 
     # For now, we'll show a message that editing keyboard configs directly isn't fully supported
@@ -420,9 +418,7 @@ def _handle_interactive_profile_edit(profile_name: str, app_ctx: AppContext) -> 
         console.console.print("[yellow]Searched in keyboard_paths:[/yellow]")
         for path in keyboard_paths:
             bullet_icon = Icons.get_icon("BULLET", app_ctx.icon_mode)
-            console.console.print(
-                f"  {bullet_icon} [${Colors.MUTED}]{path}[/${Colors.MUTED}]"
-            )
+            console.console.print(f"  {bullet_icon} [dim]{path}[/dim]")
         raise typer.Exit(1)
 
     # Get the file modification time before editing

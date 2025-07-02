@@ -509,7 +509,7 @@ def _process_output_parameter(
     force_overwrite: bool = False,
     create_dirs: bool = True,
     backup_existing: bool = False,
-    ctx: typer.Context | None = None,
+    ctx: typer.Context | ClickContext | None = None,
 ) -> OutputResult:
     """Process an output parameter value."""
     resolved_path = None

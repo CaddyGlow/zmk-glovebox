@@ -16,7 +16,10 @@ from glovebox.compilation.models.west_config import (
 )
 from glovebox.core.errors import CompilationError
 from glovebox.core.file_operations import (
+    CompilationProgress,
     CompilationProgressCallback,
+    CopyProgress,
+    CopyProgressCallback,
     FileCopyService,
     create_copy_service,
 )
@@ -290,7 +293,7 @@ class WorkspaceSetupService:
         start_time = time.time()
         current_component = ""
 
-        def enhanced_copy_progress_wrapper(copy_progress: Any) -> None:
+        def enhanced_copy_progress_wrapper(copy_progress: CopyProgress) -> None:
             nonlocal files_copied, bytes_copied, current_component
 
             if not hasattr(copy_progress, "current_file"):
@@ -353,8 +356,6 @@ class WorkspaceSetupService:
             # Also call original callback if provided - but need to handle type properly
             if progress_callback:
                 # Convert copy_progress to compilation progress for callback compatibility
-                from glovebox.core.file_operations.models import CompilationProgress
-
                 compilation_progress = CompilationProgress(
                     repositories_downloaded=files_copied,
                     total_repositories=total_files_to_copy,
@@ -380,7 +381,7 @@ class WorkspaceSetupService:
             use_pipeline=True,
             progress_callback=enhanced_copy_progress_wrapper
             if progress_coordinator
-            else progress_callback,
+            else None,
         )
         if not result.success:
             raise RuntimeError(f"Copy operation failed: {result.error}")

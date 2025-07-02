@@ -239,7 +239,9 @@ def _run_startup_checks(app_context: AppContext) -> None:
         show_early_display = False
 
         if show_early_display:
-            from glovebox.cli.progress.workspace import create_early_workspace_display
+            from glovebox.cli.progress.workspace import (  # type: ignore[import-untyped]
+                create_early_workspace_display,
+            )
 
             with create_early_workspace_display("Startup Checks"):
                 logger.info(

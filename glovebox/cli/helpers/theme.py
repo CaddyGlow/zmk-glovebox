@@ -546,7 +546,9 @@ class TableStyles:
         icon_mode: IconMode | str | None = None, ctx: "typer.Context | None" = None
     ) -> Table:
         """Create table for status information."""
-        table = TableStyles.create_basic_table("System Status", "SYSTEM", icon_mode, ctx)
+        table = TableStyles.create_basic_table(
+            "System Status", "SYSTEM", icon_mode, ctx
+        )
         table.add_column("Component", style=Colors.PRIMARY, no_wrap=True)
         table.add_column("Status", style="bold")
         table.add_column("Details", style=Colors.MUTED)
@@ -557,7 +559,9 @@ class TableStyles:
         icon_mode: IconMode | str | None = None, ctx: "typer.Context | None" = None
     ) -> Table:
         """Create table for configuration display."""
-        table = TableStyles.create_basic_table("Configuration", "CONFIG", icon_mode, ctx)
+        table = TableStyles.create_basic_table(
+            "Configuration", "CONFIG", icon_mode, ctx
+        )
         table.add_column("Setting", style=Colors.PRIMARY, no_wrap=True)
         table.add_column("Value", style=Colors.NORMAL)
         return table

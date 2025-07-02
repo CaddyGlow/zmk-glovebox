@@ -256,12 +256,23 @@ class UserConfig:
             # Convert env var name to config key format
             config_key = env_name[len(ENV_PREFIX) :].lower()
 
-            # Handle nested firmware configuration
-            if config_key.startswith("firmware__flash__"):
+            # Handle specific mappings for aliases and nested configurations
+            if config_key == "keyboard_paths":
+                # Map keyboard_paths env var to profiles_paths field
+                self._config_sources["profiles_paths"] = "environment"
+            elif config_key.startswith("firmware__flash__"):
+                # Handle nested firmware configuration
                 nested_key = config_key.replace("firmware__flash__", "")
                 self._config_sources[f"firmware.flash.{nested_key}"] = "environment"
             elif config_key in UserConfigData.model_fields:
+                # Handle direct field mappings
                 self._config_sources[config_key] = "environment"
+            else:
+                # Check if it's an alias for any field
+                for field_name, field_info in UserConfigData.model_fields.items():
+                    if hasattr(field_info, "alias") and field_info.alias == config_key:
+                        self._config_sources[field_name] = "environment"
+                        break
 
     def save(self) -> None:
         """
@@ -299,8 +310,8 @@ class UserConfig:
         Returns:
             List of Path objects for user keyboard configurations
         """
-        # Return the expanded Path objects
-        return [Path(path) for path in self._config.profiles_paths]
+        # Return the profiles_paths directly (already Path objects)
+        return self._config.profiles_paths
 
     def add_keyboard_path(self, path: str | Path) -> None:
         """
@@ -317,7 +328,7 @@ class UserConfig:
             self._config.profiles_paths.append(
                 Path(os.path.expandvars(str(path))).expanduser()
             )
-            self._config_sources["keyboard_paths"] = "runtime"
+            self._config_sources["profiles_paths"] = "runtime"
 
     def remove_keyboard_path(self, path: str | Path) -> None:
         """
@@ -331,7 +342,7 @@ class UserConfig:
         for i, existing_path in enumerate(self._config.profiles_paths):
             if Path(existing_path).resolve() == path_to_remove:
                 self._config.profiles_paths.pop(i)
-                self._config_sources["keyboard_paths"] = "runtime"
+                self._config_sources["profiles_paths"] = "runtime"
                 break
 
     def reset_to_defaults(self) -> None:

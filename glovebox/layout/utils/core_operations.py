@@ -93,6 +93,7 @@ def process_json_file(
         # Load with or without template processing based on parameter
         if process_templates:
             from .json_operations import load_layout_file
+
             layout_data = load_layout_file(file_path, file_adapter)
         else:
             # Load and validate the JSON data without template processing

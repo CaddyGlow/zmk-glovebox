@@ -84,23 +84,21 @@ def show_config(
                     if isinstance(value, list):
                         if not value:
                             console.console.print(
-                                f"[${Colors.FIELD_NAME}]{field_path}[/${Colors.FIELD_NAME}]: [${Colors.MUTED}](empty list)[/${Colors.MUTED}]"
+                                f"[bold blue]{field_path}[/bold blue]: [dim](empty list)[/dim]"
                             )
                         else:
                             console.console.print(
-                                f"[${Colors.FIELD_NAME}]{field_path}[/${Colors.FIELD_NAME}]:"
+                                f"[bold blue]{field_path}[/bold blue]:"
                             )
                             for item in value:
-                                console.console.print(
-                                    f"  [${Colors.MUTED}]-[/${Colors.MUTED}] {item}"
-                                )
+                                console.console.print(f"  [dim]-[/dim] {item}")
                     elif value is None:
                         console.console.print(
-                            f"[${Colors.FIELD_NAME}]{field_path}[/${Colors.FIELD_NAME}]: [${Colors.MUTED}]null[/${Colors.MUTED}]"
+                            f"[bold blue]{field_path}[/bold blue]: [dim]null[/dim]"
                         )
                     else:
                         console.console.print(
-                            f"[${Colors.FIELD_NAME}]{field_path}[/${Colors.FIELD_NAME}]: {value}"
+                            f"[bold blue]{field_path}[/bold blue]: {value}"
                         )
                 except Exception as e:
                     print_error_message(f"Cannot get field '{field_path}': {e}")
@@ -111,7 +109,9 @@ def show_config(
             raise typer.Exit(1) from e
 
     # Default behavior: show configured values only (unless --all specified)
-    _show_all_config(app_ctx, show_all, show_sources, show_defaults, show_descriptions, ctx)
+    _show_all_config(
+        app_ctx, show_all, show_sources, show_defaults, show_descriptions, ctx
+    )
 
 
 def _show_all_config(
@@ -291,37 +291,33 @@ def _show_all_config(
     # Show helpful usage information based on current mode
     if show_all:
         console.console.print(
-            "\n[${Colors.MUTED}]Showing all possible configuration fields (use without --all to see only configured values)[/${Colors.MUTED}]"
+            "\n[dim]Showing all possible configuration fields (use without --all to see only configured values)[/dim]"
         )
     else:
         if not keys_to_show:
             console.console.print(
-                "\n[${Colors.MUTED}]No configuration values are currently set (use --all to see all possible options)[/${Colors.MUTED}]"
+                "\n[dim]No configuration values are currently set (use --all to see all possible options)[/dim]"
             )
         else:
             console.console.print(
-                f"\n[${Colors.MUTED}]Showing {len(keys_to_show)} configured value(s) (use --all to see all possible options)[/${Colors.MUTED}]"
+                f"\n[dim]Showing {len(keys_to_show)} configured value(s) (use --all to see all possible options)[/dim]"
             )
 
-    console.console.print("\n[${Colors.MUTED}]Available options:[/${Colors.MUTED}]")
+    console.console.print("\n[dim]Available options:[/dim]")
     console.console.print(
-        "[${Colors.MUTED}]  --all           Show all possible configuration fields[/${Colors.MUTED}]"
+        "[dim]  --all           Show all possible configuration fields[/dim]"
     )
     console.console.print(
-        "[${Colors.MUTED}]  --defaults      Show both current and default values in separate columns[/${Colors.MUTED}]"
+        "[dim]  --defaults      Show both current and default values in separate columns[/dim]"
+    )
+    console.console.print("[dim]  --sources       Show configuration sources[/dim]")
+    console.console.print("[dim]  --descriptions  Show field descriptions[/dim]")
+    console.console.print(
+        "[dim]  --get <field>   Get specific field value using dot notation[/dim]"
     )
     console.console.print(
-        "[${Colors.MUTED}]  --sources       Show configuration sources[/${Colors.MUTED}]"
+        "\n[dim]Use 'glovebox config edit --set <setting>=<value>' to change settings[/dim]"
     )
     console.console.print(
-        "[${Colors.MUTED}]  --descriptions  Show field descriptions[/${Colors.MUTED}]"
-    )
-    console.console.print(
-        "[${Colors.MUTED}]  --get <field>   Get specific field value using dot notation[/${Colors.MUTED}]"
-    )
-    console.console.print(
-        "\n[${Colors.MUTED}]Use 'glovebox config edit --set <setting>=<value>' to change settings[/${Colors.MUTED}]"
-    )
-    console.console.print(
-        "[${Colors.MUTED}]Use 'glovebox config edit --interactive' to edit configuration file directly[/${Colors.MUTED}]"
+        "[dim]Use 'glovebox config edit --interactive' to edit configuration file directly[/dim]"
     )

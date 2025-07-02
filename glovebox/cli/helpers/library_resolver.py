@@ -24,7 +24,7 @@ UUID_PATTERN = re.compile(
 )
 
 
-def is_library_reference(value: str) -> bool:
+def is_library_reference(value: str | None) -> bool:
     """Check if a value is a library reference (starts with @).
 
     Args:
@@ -164,7 +164,7 @@ def _fetch_from_moergo(
 
             if result.success and result.entry:
                 logger.info("Successfully fetched layout %s from MoErgo", uuid)
-                return result.entry
+                return result.entry  # type: ignore[no-any-return]
             else:
                 logger.warning(
                     "Failed to fetch layout %s from MoErgo: %s",
