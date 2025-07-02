@@ -207,17 +207,20 @@ class InputHandler:
         if not lib_id:
             raise InputError("Empty library reference")
 
-        # TODO: Implement actual library resolution logic
-        # This would typically involve:
-        # 1. Checking local cache
-        # 2. Querying a library service
-        # 3. Downloading/loading the library data
-
-        # For now, we'll raise a not implemented error
-        raise InputError(
-            f"Library reference resolution not yet implemented for '{ref}'. "
-            "Please use a file path or stdin instead."
-        )
+        try:
+            # Use the existing library resolver
+            from glovebox.cli.helpers.library_resolver import resolve_library_reference
+            
+            # Resolve to file path
+            file_path = resolve_library_reference(ref)
+            
+            # Load the JSON file
+            return self._load_from_file(str(file_path))
+            
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("Failed to resolve library reference %s: %s", ref, e, exc_info=exc_info)
+            raise InputError(f"Failed to resolve library reference '{ref}': {e}") from e
 
     def load_from_environment(self, var_name: str) -> dict[str, Any]:
         """Load JSON data from an environment variable.

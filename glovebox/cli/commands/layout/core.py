@@ -56,35 +56,43 @@ class CompileLayoutCommand(IOCommand):
     ) -> None:
         """Execute the compile layout command."""
         try:
-            # Load and parse JSON input
+            # Load JSON input using InputHandler (supports @library-refs, stdin, etc.)
             layout_data = self.load_json_input(input)
 
-            # Get or auto-detect keyboard profile
-            keyboard_profile = self._get_keyboard_profile(ctx, layout_data, no_auto)
-
-            # Generate output prefix if not provided
-            if output is None:
-                output = self._generate_output_prefix(layout_data, keyboard_profile)
-
-            # Convert to LayoutData model and compile
-            from glovebox.cli.commands.layout.dependencies import (
-                create_full_layout_service,
-            )
-            from glovebox.layout.models import LayoutData
-
-            layout_model = LayoutData.model_validate(layout_data)
+            # Create layout service with all dependencies
+            from glovebox.cli.commands.layout.dependencies import create_full_layout_service
             service = create_full_layout_service()
 
-            result = service.compile(
-                profile=keyboard_profile,
-                keymap_data=layout_model,
-                output_file_prefix=str(output),
-                session_metrics=ctx.obj.session_metrics if ctx.obj else None,
-                force=force,
-            )
+            # Compile layout (service now takes dict input)
+            result = service.compile(layout_data)
 
             if result.success:
-                self._handle_success(result, format)
+                # Write output using OutputHandler if output specified
+                if output:
+                    if result.keymap_content:
+                        keymap_file = Path(output).with_suffix(".keymap")
+                        self.write_output(result.keymap_content, str(keymap_file), "text")
+                    if result.config_content:
+                        config_file = Path(output).with_suffix(".conf")
+                        self.write_output(result.config_content, str(config_file), "text")
+                    
+                    self.console.print_success("Layout compiled successfully")
+                    self.console.print_info(f"  keymap: {keymap_file}")
+                    self.console.print_info(f"  config: {config_file}")
+                else:
+                    # Output to stdout
+                    if format == "json":
+                        output_data = {
+                            "success": True,
+                            "keymap_content": result.keymap_content,
+                            "config_content": result.config_content,
+                        }
+                        self.format_and_print(output_data, "json")
+                    else:
+                        self.console.print_success("Layout compiled successfully")
+                        if result.keymap_content:
+                            # Use the underlying Rich console for raw output
+                            self.console.console.print(result.keymap_content)
             else:
                 raise ValueError(f"Compilation failed: {'; '.join(result.errors)}")
 

@@ -151,38 +151,29 @@ class IOCommand(BaseCommand):
         return result
 
     def load_json_input(self, source: str | Path | None) -> dict[str, Any]:
-        """Load and parse JSON input from file or stdin.
+        """Load and parse JSON input from file, stdin, or library reference.
 
         Args:
-            source: File path, '-' for stdin, or None
+            source: File path, '-' for stdin, '@ref' for library, or None
 
         Returns:
             Parsed JSON data as dictionary
 
         Raises:
-            ValueError: If JSON is invalid
+            ValueError: If JSON is invalid or source cannot be resolved
         """
-        result = self.load_input(source, allowed_extensions=[".json"])
-
-        if isinstance(result.data, dict):
-            return result.data
-
-        # If data is string, try to parse as JSON
-        import json
-
-        if isinstance(result.data, str):
-            try:
-                parsed = json.loads(result.data)
-                if not isinstance(parsed, dict):
-                    msg = f"Expected JSON object, got {type(parsed).__name__}"
-                    raise ValueError(msg)
-                return parsed
-            except json.JSONDecodeError as e:
-                msg = f"Invalid JSON: {e}"
-                raise ValueError(msg) from e
-
-        msg = f"Unexpected data type: {type(result.data).__name__}"
-        raise ValueError(msg)
+        if source is None:
+            raise ValueError("Input source is required")
+        
+        # Use InputHandler for unified input processing (supports @library refs)
+        from glovebox.core.io import create_input_handler
+        
+        try:
+            input_handler = create_input_handler()
+            return input_handler.load_json_input(str(source))
+        except Exception as e:
+            # Re-raise as ValueError for consistency with existing behavior
+            raise ValueError(f"Failed to load JSON input: {e}") from e
 
     def write_output(
         self,
