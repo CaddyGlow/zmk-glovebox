@@ -96,7 +96,7 @@ class TestParseZmkBehaviorString:
 
     def test_custom_behavior_with_params(self):
         """Test custom behavior with parameters."""
-        result = parse_value
+        result = parse_value("&HRM_left_index_tap_v1B_TKZ A")
         expected = {
             "value": "&HRM_left_index_tap_v1B_TKZ",
             "params": [{"value": "A", "params": []}],
