@@ -11,6 +11,27 @@ env:
   UV_CACHE_DIR: ~/.cache/uv
 
 jobs:
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run smoke tests
+        run: ./scripts/test-smoke.sh
+
   lint:
     name: Code Quality
     runs-on: ubuntu-latest
@@ -46,10 +67,11 @@ jobs:
       - name: Run mypy
         run: uv run mypy glovebox/
 
-  test:
-    name: Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
+  fast-tests:
+    name: Fast Tests - Python ${{ matrix.python-version }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 10
+    needs: [smoke-tests, lint]
     
     strategy:
       fail-fast: false
@@ -60,8 +82,35 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run fast unit tests
+        run: ./scripts/test-fast.sh
+
+  integration-tests:
+    name: Integration Tests - Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    needs: [fast-tests]
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-integration-tests'))
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]  # Reduced matrix for integration tests
+        os: [ubuntu-latest, macos-latest]  # Skip Windows for integration tests
+        
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
@@ -77,7 +126,6 @@ jobs:
         run: |
           sudo systemctl start docker
           sudo usermod -aG docker $USER
-          newgrp docker
 
       - name: Set up Docker (macOS)
         if: runner.os == 'macOS'
@@ -85,20 +133,38 @@ jobs:
           brew install docker
           colima start
 
-      - name: Set up Docker (Windows)
-        if: runner.os == 'Windows'
+      - name: Run integration tests
+        run: ./scripts/test-integration.sh
+
+  full-test-coverage:
+    name: Full Test Suite with Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [fast-tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Set up Docker
         run: |
-          # Docker Desktop should be available in GitHub Actions
-          docker version
+          sudo systemctl start docker
+          sudo usermod -aG docker $USER
 
-      - name: Test Docker availability
-        run: docker run --rm hello-world
-
-      - name: Run tests with coverage
-        run: uv run pytest --cov=glovebox --cov-report=xml --cov-report=term-missing -v
+      - name: Run full test suite with coverage
+        run: ./scripts/test-full.sh
 
       - name: Upload coverage to Codecov
-        if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
@@ -108,7 +174,7 @@ jobs:
     name: Build Docker Image
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [lint, test]
+    needs: [lint, fast-tests]
     
     steps:
       - name: Checkout code

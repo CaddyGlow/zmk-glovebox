@@ -1,8 +1,12 @@
-.PHONY: test lint format fmt coverage setup clean docs docs-clean docs-serve view-docs build check-package publish publish-test docker-image docker-publish release tag-release help
+.PHONY: test test-fast test-integration test-smoke test-full lint format fmt coverage setup clean docs docs-clean docs-serve view-docs build check-package publish publish-test docker-image docker-publish release tag-release help
 
 help:
 	@echo "Available commands:"
 	@echo "  make test       - Run all tests"
+	@echo "  make test-fast  - Run fast unit tests only (< 5 min)"
+	@echo "  make test-integration - Run integration tests (< 15 min)"
+	@echo "  make test-smoke - Run smoke tests (< 2 min)"
+	@echo "  make test-full  - Run comprehensive test suite with coverage"
 	@echo "  make lint       - Run linting checks"
 	@echo "  make format     - Format code and fix linting issues"
 	@echo "  make coverage   - Run tests with coverage reporting"
@@ -21,8 +25,19 @@ help:
 	@echo "  make tag-release - Create and push git tag for release"
 	@echo "  make release    - Full release: tag, build, publish to PyPI and Docker"
 
-test:
-	uv run scripts/test.sh
+test: test-fast
+
+test-fast:
+	./scripts/test-fast.sh
+
+test-integration:
+	./scripts/test-integration.sh
+
+test-smoke:
+	./scripts/test-smoke.sh
+
+test-full:
+	./scripts/test-full.sh
 
 lint:
 	uv run scripts/lint.sh

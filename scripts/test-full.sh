@@ -1,25 +1,25 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 # Full comprehensive test suite - runs ALL tests
 # Target: Complete validation (may take 30+ minutes)
 
-echo "🔍 Running full comprehensive test suite..."
-echo "==========================================="
+echo "Running full comprehensive test suite..."
+echo "========================================"
 
 # Check system requirements
 echo "Checking system requirements..."
 
 # Check if Docker is available
 if ! command -v docker &> /dev/null; then
-    echo "⚠️  Docker not found - some tests will be skipped"
+    echo "WARNING: Docker not found - some tests will be skipped"
     DOCKER_AVAILABLE=false
 else
     if docker info &> /dev/null; then
-        echo "✅ Docker is available and running"
+        echo "Docker is available and running"
         DOCKER_AVAILABLE=true
     else
-        echo "⚠️  Docker found but not running - some tests will be skipped"
+        echo "WARNING: Docker found but not running - some tests will be skipped"
         DOCKER_AVAILABLE=false
     fi
 fi
@@ -54,5 +54,5 @@ else
 fi
 
 echo ""
-echo "✅ Full test suite completed!"
-echo "📊 Coverage report saved to htmlcov/index.html"
+echo "Full test suite completed!"
+echo "Coverage report saved to htmlcov/index.html"

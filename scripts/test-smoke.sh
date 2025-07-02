@@ -1,11 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 # Smoke test suite - runs critical functionality tests
 # Target: < 2 minutes total execution time
 
-echo "💨 Running smoke test suite..."
-echo "=============================="
+echo "Running smoke test suite..."
+echo "============================"
 
 # Run smoke tests (if any are marked) or fallback to basic tests
 uv run pytest \
@@ -28,4 +28,4 @@ uv run pytest \
 }
 
 echo ""
-echo "✅ Smoke tests completed!"
+echo "Smoke tests completed!"
