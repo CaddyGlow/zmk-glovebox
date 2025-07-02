@@ -284,6 +284,33 @@ class ParameterFactory:
 
         # Library resolution is handled at command level to avoid circular imports
         return Annotated[
+            str,
+            typer.Argument(
+                help=help_text,
+                autocompletion=complete_json_files,
+            ),
+        ]
+
+    @staticmethod
+    def json_file_argument_optional(
+        help_text: str | None = None,
+        env_var: str = "GLOVEBOX_JSON_FILE",
+        library_resolvable: bool = True,
+        default_help_suffix: str = "",
+    ) -> Any:
+        """Create an optional JSON file argument with completion and env var support.
+
+        This is the optional version of json_file_argument that allows None values.
+        """
+        if help_text is None:
+            base_help = "JSON layout file path or '-' for stdin"
+            if library_resolvable:
+                base_help += " or @library-name/uuid"
+            base_help += f". Uses {env_var} environment variable if not provided"
+            help_text = f"{base_help}.{default_help_suffix}"
+
+        # Library resolution is handled at command level to avoid circular imports
+        return Annotated[
             str | None,
             typer.Argument(
                 help=help_text,

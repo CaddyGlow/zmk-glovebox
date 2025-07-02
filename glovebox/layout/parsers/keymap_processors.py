@@ -41,6 +41,54 @@ class BaseKeymapProcessor:
         """Process keymap content according to parsing strategy."""
         raise NotImplementedError("Subclasses must implement process method")
 
+    def _extract_defines_from_ast(self, roots: list[DTNode]) -> dict[str, str]:
+        """Extract all #define statements from parsed AST.
+
+        Args:
+            roots: List of root DTNode objects
+
+        Returns:
+            Dictionary mapping define names to their values
+        """
+        defines = {}
+
+        # Look for preprocessor directives in all root nodes
+        for root in roots:
+            for conditional in root.conditionals:
+                if conditional.directive == "define":
+                    # Parse the define content: "NAME VALUE"
+                    parts = conditional.condition.split(
+                        None, 1
+                    )  # Split on first whitespace
+                    if len(parts) >= 2:
+                        name = parts[0]
+                        value = parts[1]
+                        defines[name] = value
+                        self.logger.debug("Found define: %s = %s", name, value)
+                    elif len(parts) == 1:
+                        # Define without value (just the name)
+                        name = parts[0]
+                        defines[name] = ""
+                        self.logger.debug("Found define without value: %s", name)
+
+        return defines
+
+    def _resolve_define(self, token: str, defines: dict[str, str]) -> str:
+        """Resolve a token against the defines dictionary.
+
+        Args:
+            token: Token to check for define replacement
+            defines: Dictionary of define mappings
+
+        Returns:
+            Resolved value if token is a define, otherwise the original token
+        """
+        if token in defines:
+            resolved = defines[token]
+            self.logger.debug("Resolved define %s -> %s", token, resolved)
+            return resolved
+        return token
+
     def _create_base_layout_data(self, context: ParsingContext) -> LayoutData:
         """Create base layout data with default values."""
         keyboard_name = context.keyboard_name
@@ -105,11 +153,14 @@ class BaseKeymapProcessor:
 
         return transformed
 
-    def _extract_layers_from_roots(self, roots: list[DTNode]) -> dict[str, Any] | None:
+    def _extract_layers_from_roots(
+        self, roots: list[DTNode], defines: dict[str, str] | None = None
+    ) -> dict[str, Any] | None:
         """Extract layer definitions from AST roots.
 
         Args:
             roots: List of parsed device tree root nodes
+            defines: Optional dictionary of preprocessor defines for resolution
 
         Returns:
             Dictionary with layer_names and layers lists
@@ -118,6 +169,8 @@ class BaseKeymapProcessor:
         from .keymap_parser import ZmkKeymapParser
 
         temp_parser = ZmkKeymapParser()
+        if defines:
+            temp_parser.defines = defines
 
         for root in roots:
             layers_data = temp_parser._extract_layers_from_ast(root)
@@ -127,13 +180,14 @@ class BaseKeymapProcessor:
         return None
 
     def _extract_behaviors_and_metadata(
-        self, roots: list[DTNode], content: str
+        self, roots: list[DTNode], content: str, defines: dict[str, str] | None = None
     ) -> dict[str, Any]:
         """Extract behaviors from AST roots.
 
         Args:
             roots: List of parsed device tree root nodes
             content: Original keymap content
+            defines: Optional dictionary of preprocessor defines for resolution
 
         Returns:
             Dictionary of behavior models
@@ -141,7 +195,7 @@ class BaseKeymapProcessor:
         # Extract behaviors using AST converter with comment support
         behavior_models = (
             self.section_extractor.behavior_extractor.extract_behaviors_as_models(
-                roots, content
+                roots, content, defines
             )
         )
         return behavior_models
@@ -163,6 +217,18 @@ class BaseKeymapProcessor:
 
         if converted_behaviors.get("combos"):
             layout_data.combos = converted_behaviors["combos"]
+
+        if converted_behaviors.get("tap_dances"):
+            layout_data.tap_dances = converted_behaviors["tap_dances"]
+
+        if converted_behaviors.get("sticky_keys"):
+            layout_data.sticky_keys = converted_behaviors["sticky_keys"]
+
+        if converted_behaviors.get("caps_words"):
+            layout_data.caps_words = converted_behaviors["caps_words"]
+
+        if converted_behaviors.get("mod_morphs"):
+            layout_data.mod_morphs = converted_behaviors["mod_morphs"]
 
         if converted_behaviors.get("input_listeners"):
             if layout_data.input_listeners is None:
@@ -211,18 +277,25 @@ class FullKeymapProcessor(BaseKeymapProcessor):
                 context.errors.append("Failed to parse device tree AST")
                 return None
 
+            # Extract all #define statements from AST
+            context.defines = self._extract_defines_from_ast(roots)
+            if context.defines:
+                self.logger.info(
+                    "Extracted %d define statements from keymap", len(context.defines)
+                )
+
             # Create base layout data with enhanced metadata
             layout_data = self._create_base_layout_data(context)
 
-            # Extract layers using AST from all roots
-            layers_data = self._extract_layers_from_roots(roots)
+            # Extract layers using AST from all roots with defines
+            layers_data = self._extract_layers_from_roots(roots, context.defines)
             if layers_data:
                 layout_data.layer_names = layers_data["layer_names"]
                 layout_data.layers = layers_data["layers"]
 
             # Extract behaviors (use transformed content for metadata extraction too)
             behaviors_dict = self._extract_behaviors_and_metadata(
-                roots, transformed_content
+                roots, transformed_content, context.defines
             )
 
             # Populate behaviors directly (already converted by AST converter)
@@ -256,6 +329,24 @@ class TemplateAwareProcessor(BaseKeymapProcessor):
             Parsed LayoutData or None if parsing fails
         """
         try:
+            # Parse the beginning of the keymap to extract defines
+            # We only need to parse up to where the actual device tree content starts
+            try:
+                from .dt_parser import parse_dt_multiple_safe
+
+                # Parse the full content to extract defines (they appear at the top)
+                roots, parse_errors = parse_dt_multiple_safe(context.keymap_content)
+                if roots:
+                    context.defines = self._extract_defines_from_ast(roots)
+                    if context.defines:
+                        self.logger.info(
+                            "Extracted %d define statements from keymap",
+                            len(context.defines),
+                        )
+            except Exception as e:
+                self.logger.debug("Could not extract defines: %s", e)
+                # Continue anyway - defines are optional
+
             layout_data = self._create_base_layout_data(context)
 
             # Use configured extraction or default

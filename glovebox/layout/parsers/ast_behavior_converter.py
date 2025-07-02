@@ -4,10 +4,14 @@ import logging
 from typing import Any
 
 from glovebox.layout.models import (
+    CapsWordBehavior,
     ComboBehavior,
     HoldTapBehavior,
     LayoutBinding,
     MacroBehavior,
+    ModMorphBehavior,
+    StickyKeyBehavior,
+    TapDanceBehavior,
 )
 from glovebox.layout.parsers.ast_nodes import DTNode, DTProperty, DTValue, DTValueType
 
@@ -18,9 +22,73 @@ logger = logging.getLogger(__name__)
 class ASTBehaviorConverter:
     """Convert device tree AST nodes directly to behavior model objects."""
 
-    def __init__(self) -> None:
-        """Initialize AST behavior converter."""
+    def __init__(self, defines: dict[str, str] | None = None) -> None:
+        """Initialize AST behavior converter.
+
+        Args:
+            defines: Optional dictionary of preprocessor defines for resolution
+        """
         self.logger = logging.getLogger(__name__)
+        self.defines = defines or {}
+
+    def _resolve_token(self, token: str) -> str:
+        """Resolve a token against defines dictionary.
+
+        Args:
+            token: Token to resolve
+
+        Returns:
+            Resolved value if token is a define, otherwise original token
+        """
+        if token in self.defines:
+            resolved = self.defines[token]
+            self.logger.debug("Resolved define %s -> %s", token, resolved)
+            return resolved
+        return token
+
+    def _resolve_binding_string(self, binding_str: str) -> str:
+        """Resolve defines in a binding string.
+
+        Args:
+            binding_str: Binding string that may contain defines
+
+        Returns:
+            Binding string with defines resolved
+        """
+        if not self.defines:
+            return binding_str
+
+        # Handle nested function calls by recursively resolving tokens
+        result = binding_str
+
+        # Keep resolving until no more changes occur
+        changed = True
+        while changed:
+            changed = False
+            # Split by whitespace, parentheses, and commas to handle nested functions
+            import re
+
+            tokens = re.split(r"(\s+|\(|\)|,)", result)
+            resolved_tokens = []
+
+            for token in tokens:
+                # Skip empty tokens and delimiters
+                if not token or token in (" ", "\t", "\n", "(", ")", ","):
+                    resolved_tokens.append(token)
+                    continue
+
+                # Check if token is a define (but not a behavior reference starting with &)
+                if not token.startswith("&") and token in self.defines:
+                    resolved = self._resolve_token(token)
+                    resolved_tokens.append(resolved)
+                    if resolved != token:
+                        changed = True
+                else:
+                    resolved_tokens.append(token)
+
+            result = "".join(resolved_tokens)
+
+        return result
 
     def convert_hold_tap_node(self, node: DTNode) -> HoldTapBehavior | None:
         """Convert a device tree node to HoldTapBehavior.
@@ -608,7 +676,11 @@ class ASTBehaviorConverter:
                                 self._preprocess_moergo_binding_edge_cases(binding_str)
                             )
 
-                            binding = LayoutBinding.from_str(preprocessed_binding_str)
+                            # Resolve defines in the binding string
+                            resolved_binding_str = self._resolve_binding_string(
+                                preprocessed_binding_str
+                            )
+                            binding = LayoutBinding.from_str(resolved_binding_str)
                             bindings.append(binding)
 
                             # Debug log the parsed parameters
@@ -657,7 +729,11 @@ class ASTBehaviorConverter:
                                 self._preprocess_moergo_binding_edge_cases(part)
                             )
 
-                            binding = LayoutBinding.from_str(preprocessed_part)
+                            # Resolve defines in the binding string
+                            resolved_part = self._resolve_binding_string(
+                                preprocessed_part
+                            )
+                            binding = LayoutBinding.from_str(resolved_part)
                             bindings.append(binding)
                         except Exception as e:
                             self.logger.warning(
@@ -717,7 +793,11 @@ class ASTBehaviorConverter:
                             self._preprocess_moergo_binding_edge_cases(fixed_raw)
                         )
 
-                        return LayoutBinding.from_str(preprocessed_fixed_raw)
+                        # Resolve defines in the binding string
+                        resolved_fixed_raw = self._resolve_binding_string(
+                            preprocessed_fixed_raw
+                        )
+                        return LayoutBinding.from_str(resolved_fixed_raw)
                     except Exception as e:
                         self.logger.debug(
                             "Failed to parse fixed raw value '%s': %s", fixed_raw, e
@@ -729,7 +809,11 @@ class ASTBehaviorConverter:
                         self._preprocess_moergo_binding_edge_cases(cleaned_raw)
                     )
 
-                    return LayoutBinding.from_str(preprocessed_cleaned_raw)
+                    # Resolve defines in the binding string
+                    resolved_cleaned_raw = self._resolve_binding_string(
+                        preprocessed_cleaned_raw
+                    )
+                    return LayoutBinding.from_str(resolved_cleaned_raw)
 
             # Fallback to array parsing for simpler cases
             if prop.value.type == DTValueType.ARRAY and prop.value.value:
@@ -749,7 +833,11 @@ class ASTBehaviorConverter:
                         self._preprocess_moergo_binding_edge_cases(complete_binding)
                     )
 
-                    return LayoutBinding.from_str(preprocessed_complete_binding)
+                    # Resolve defines in the binding string
+                    resolved_complete_binding = self._resolve_binding_string(
+                        preprocessed_complete_binding
+                    )
+                    return LayoutBinding.from_str(resolved_complete_binding)
 
             # Return fallback binding
             return LayoutBinding(value="&none", params=[])
@@ -1061,11 +1149,457 @@ class ASTBehaviorConverter:
 
         return processors
 
+    def convert_tap_dance_node(self, node: DTNode) -> TapDanceBehavior | None:
+        """Convert a device tree node to TapDanceBehavior.
 
-def create_ast_behavior_converter() -> ASTBehaviorConverter:
+        Args:
+            node: Device tree node representing a tap dance behavior
+
+        Returns:
+            TapDanceBehavior object or None if conversion fails
+        """
+        try:
+            # Verify this is a tap dance behavior
+            compatible_prop = node.get_property("compatible")
+            if not compatible_prop or not compatible_prop.value:
+                return None
+
+            compatible_value = compatible_prop.value.value
+            if (
+                not isinstance(compatible_value, str)
+                or "zmk,behavior-tap-dance" not in compatible_value
+            ):
+                return None
+
+            # Extract name
+            name = node.name
+
+            # Extract description from label if available
+            label_prop = node.get_property("label")
+            description = (
+                str(label_prop.value.value) if label_prop and label_prop.value else ""
+            )
+
+            # Extract tapping-term-ms
+            tapping_term_ms = None
+            tapping_prop = node.get_property("tapping-term-ms")
+            if tapping_prop and tapping_prop.value:
+                value = tapping_prop.value.value
+                # Handle array values (extract first element)
+                if isinstance(value, list) and len(value) > 0:
+                    value = value[0]
+
+                if isinstance(value, int):
+                    tapping_term_ms = value
+                else:
+                    try:
+                        tapping_term_ms = int(value)
+                    except (ValueError, TypeError):
+                        self.logger.warning(
+                            "Invalid tapping-term-ms value for tap dance '%s': %s",
+                            name,
+                            tapping_prop.value.value,
+                        )
+
+            # Extract bindings
+            bindings_prop = node.get_property("bindings")
+            bindings = []
+            if bindings_prop:
+                raw_bindings = self._extract_bindings_from_property(bindings_prop)
+                for binding_str in raw_bindings:
+                    # Resolve defines in binding string
+                    resolved_binding_str = self._resolve_binding_string(binding_str)
+                    try:
+                        binding = LayoutBinding.from_str(resolved_binding_str)
+                        bindings.append(binding)
+                    except Exception as e:
+                        self.logger.warning(
+                            "Failed to parse tap dance binding '%s': %s",
+                            binding_str,
+                            e,
+                        )
+
+            # Create tap dance behavior
+            tap_dance = TapDanceBehavior(
+                name=name,
+                description=description,
+                bindings=bindings,
+            )
+
+            # Set tapping_term_ms if available
+            if tapping_term_ms is not None:
+                tap_dance.tapping_term_ms = tapping_term_ms
+
+            self.logger.debug(
+                "Extracted tap dance '%s' with %d bindings",
+                name,
+                len(bindings),
+            )
+
+            return tap_dance
+
+        except Exception as e:
+            self.logger.error(
+                "Failed to convert tap dance node '%s': %s",
+                node.name if node else "unknown",
+                e,
+                exc_info=self.logger.isEnabledFor(logging.DEBUG),
+            )
+            return None
+
+    def convert_sticky_key_node(self, node: DTNode) -> StickyKeyBehavior | None:
+        """Convert a device tree node to StickyKeyBehavior.
+
+        Args:
+            node: Device tree node representing a sticky key behavior
+
+        Returns:
+            StickyKeyBehavior object or None if conversion fails
+        """
+        try:
+            # Verify this is a sticky key behavior
+            compatible_prop = node.get_property("compatible")
+            if not compatible_prop or not compatible_prop.value:
+                return None
+
+            compatible_value = compatible_prop.value.value
+            if (
+                not isinstance(compatible_value, str)
+                or "zmk,behavior-sticky-key" not in compatible_value
+            ):
+                return None
+
+            # Extract name
+            name = node.name
+
+            # Extract description from label if available
+            label_prop = node.get_property("label")
+            description = (
+                str(label_prop.value.value) if label_prop and label_prop.value else ""
+            )
+
+            # Extract release-after-ms
+            release_after_ms = None
+            release_prop = node.get_property("release-after-ms")
+            if release_prop and release_prop.value:
+                value = release_prop.value.value
+                # Handle array values (extract first element)
+                if isinstance(value, list) and len(value) > 0:
+                    value = value[0]
+
+                if isinstance(value, int):
+                    release_after_ms = value
+                else:
+                    try:
+                        release_after_ms = int(value)
+                    except (ValueError, TypeError):
+                        self.logger.warning(
+                            "Invalid release-after-ms value for sticky key '%s': %s",
+                            name,
+                            release_prop.value.value,
+                        )
+
+            # Extract quick-release
+            quick_release = False
+            quick_prop = node.get_property("quick-release")
+            if quick_prop:
+                quick_release = True  # Presence of property means enabled
+
+            # Extract lazy
+            lazy = False
+            lazy_prop = node.get_property("lazy")
+            if lazy_prop:
+                lazy = True  # Presence of property means enabled
+
+            # Extract ignore-modifiers
+            ignore_modifiers = False
+            ignore_prop = node.get_property("ignore-modifiers")
+            if ignore_prop:
+                ignore_modifiers = True  # Presence of property means enabled
+
+            # Extract bindings (usually just one for sticky key)
+            bindings_prop = node.get_property("bindings")
+            bindings = []
+            if bindings_prop:
+                raw_bindings = self._extract_bindings_from_property(bindings_prop)
+                for binding_str in raw_bindings:
+                    # Resolve defines in binding string
+                    resolved_binding_str = self._resolve_binding_string(binding_str)
+                    try:
+                        binding = LayoutBinding.from_str(resolved_binding_str)
+                        bindings.append(binding)
+                    except Exception as e:
+                        self.logger.warning(
+                            "Failed to parse sticky key binding '%s': %s",
+                            binding_str,
+                            e,
+                        )
+
+            # Create sticky key behavior
+            sticky_key = StickyKeyBehavior(
+                name=name,
+                description=description,
+                bindings=bindings,
+                quick_release=quick_release,
+                lazy=lazy,
+                ignore_modifiers=ignore_modifiers,
+            )
+
+            # Set release_after_ms if available
+            if release_after_ms is not None:
+                sticky_key.release_after_ms = release_after_ms
+
+            self.logger.debug(
+                "Extracted sticky key '%s' with %d bindings",
+                name,
+                len(bindings),
+            )
+
+            return sticky_key
+
+        except Exception as e:
+            self.logger.error(
+                "Failed to convert sticky key node '%s': %s",
+                node.name if node else "unknown",
+                e,
+                exc_info=self.logger.isEnabledFor(logging.DEBUG),
+            )
+            return None
+
+    def convert_caps_word_node(self, node: DTNode) -> CapsWordBehavior | None:
+        """Convert a device tree node to CapsWordBehavior.
+
+        Args:
+            node: Device tree node representing a caps word behavior
+
+        Returns:
+            CapsWordBehavior object or None if conversion fails
+        """
+        try:
+            # Verify this is a caps word behavior
+            compatible_prop = node.get_property("compatible")
+            if not compatible_prop or not compatible_prop.value:
+                return None
+
+            compatible_value = compatible_prop.value.value
+            if (
+                not isinstance(compatible_value, str)
+                or "zmk,behavior-caps-word" not in compatible_value
+            ):
+                return None
+
+            # Extract name
+            name = node.name
+
+            # Extract description from label if available
+            label_prop = node.get_property("label")
+            description = (
+                str(label_prop.value.value) if label_prop and label_prop.value else ""
+            )
+
+            # Extract continue-list
+            continue_list = []
+            continue_prop = node.get_property("continue-list")
+            if continue_prop and continue_prop.value:
+                if continue_prop.value.type == DTValueType.ARRAY:
+                    # Process array of key codes
+                    array_value = continue_prop.value.value
+                    if isinstance(array_value, list):
+                        for item in array_value:
+                            if isinstance(item, str):
+                                # Resolve defines in the string
+                                resolved_item = self._resolve_token(item)
+                                continue_list.append(resolved_item)
+                            else:
+                                continue_list.append(str(item))
+                else:
+                    # Single value case
+                    value = continue_prop.value.value
+                    if isinstance(value, str):
+                        resolved_value = self._resolve_token(value)
+                        continue_list.append(resolved_value)
+                    else:
+                        continue_list.append(str(value))
+
+            # Extract mods
+            mods = None
+            mods_prop = node.get_property("mods")
+            if mods_prop and mods_prop.value:
+                value = mods_prop.value.value
+                # Handle array values (extract first element)
+                if isinstance(value, list) and len(value) > 0:
+                    value = value[0]
+
+                if isinstance(value, int):
+                    mods = value
+                else:
+                    try:
+                        mods = int(value)
+                    except (ValueError, TypeError):
+                        self.logger.warning(
+                            "Invalid mods value for caps word '%s': %s",
+                            name,
+                            mods_prop.value.value,
+                        )
+
+            # Create caps word behavior
+            caps_word = CapsWordBehavior(
+                name=name,
+                description=description,
+                continue_list=continue_list,
+            )
+
+            # Set mods if available
+            if mods is not None:
+                caps_word.mods = mods
+
+            self.logger.debug(
+                "Extracted caps word '%s' with %d continue-list items",
+                name,
+                len(continue_list),
+            )
+
+            return caps_word
+
+        except Exception as e:
+            self.logger.error(
+                "Failed to convert caps word node '%s': %s",
+                node.name if node else "unknown",
+                e,
+                exc_info=self.logger.isEnabledFor(logging.DEBUG),
+            )
+            return None
+
+    def convert_mod_morph_node(self, node: DTNode) -> ModMorphBehavior | None:
+        """Convert a device tree node to ModMorphBehavior.
+
+        Args:
+            node: Device tree node representing a mod-morph behavior
+
+        Returns:
+            ModMorphBehavior object or None if conversion fails
+        """
+        try:
+            # Verify this is a mod-morph behavior
+            compatible_prop = node.get_property("compatible")
+            if not compatible_prop or not compatible_prop.value:
+                return None
+
+            compatible_value = compatible_prop.value.value
+            if (
+                not isinstance(compatible_value, str)
+                or "zmk,behavior-mod-morph" not in compatible_value
+            ):
+                return None
+
+            # Extract name
+            name = node.name
+
+            # Extract description from label if available
+            label_prop = node.get_property("label")
+            description = (
+                str(label_prop.value.value) if label_prop and label_prop.value else ""
+            )
+
+            # Extract mods (required)
+            mods = 0
+            mods_prop = node.get_property("mods")
+            if mods_prop and mods_prop.value:
+                value = mods_prop.value.value
+                # Handle array values (extract first element)
+                if isinstance(value, list) and len(value) > 0:
+                    value = value[0]
+
+                if isinstance(value, int):
+                    mods = value
+                else:
+                    try:
+                        mods = int(value)
+                    except (ValueError, TypeError):
+                        self.logger.warning(
+                            "Invalid mods value for mod-morph '%s': %s",
+                            name,
+                            mods_prop.value.value,
+                        )
+
+            # Extract keep-mods
+            keep_mods = None
+            keep_mods_prop = node.get_property("keep-mods")
+            if keep_mods_prop and keep_mods_prop.value:
+                value = keep_mods_prop.value.value
+                # Handle array values (extract first element)
+                if isinstance(value, list) and len(value) > 0:
+                    value = value[0]
+
+                if isinstance(value, int):
+                    keep_mods = value
+                else:
+                    try:
+                        keep_mods = int(value)
+                    except (ValueError, TypeError):
+                        self.logger.warning(
+                            "Invalid keep-mods value for mod-morph '%s': %s",
+                            name,
+                            keep_mods_prop.value.value,
+                        )
+
+            # Extract bindings (should be exactly 2)
+            bindings_prop = node.get_property("bindings")
+            bindings = []
+            if bindings_prop:
+                raw_bindings = self._extract_bindings_from_property(bindings_prop)
+                for binding_str in raw_bindings:
+                    # Resolve defines in binding string
+                    resolved_binding_str = self._resolve_binding_string(binding_str)
+                    try:
+                        binding = LayoutBinding.from_str(resolved_binding_str)
+                        bindings.append(binding)
+                    except Exception as e:
+                        self.logger.warning(
+                            "Failed to parse mod-morph binding '%s': %s",
+                            binding_str,
+                            e,
+                        )
+
+            # Create mod-morph behavior
+            mod_morph = ModMorphBehavior(
+                name=name,
+                description=description,
+                mods=mods,
+                bindings=bindings,
+            )
+
+            # Set keep_mods if available
+            if keep_mods is not None:
+                mod_morph.keep_mods = keep_mods
+
+            self.logger.debug(
+                "Extracted mod-morph '%s' with %d bindings",
+                name,
+                len(bindings),
+            )
+
+            return mod_morph
+
+        except Exception as e:
+            self.logger.error(
+                "Failed to convert mod-morph node '%s': %s",
+                node.name if node else "unknown",
+                e,
+                exc_info=self.logger.isEnabledFor(logging.DEBUG),
+            )
+            return None
+
+
+def create_ast_behavior_converter(
+    defines: dict[str, str] | None = None,
+) -> ASTBehaviorConverter:
     """Create AST behavior converter instance.
+
+    Args:
+        defines: Optional dictionary of preprocessor defines for resolution
 
     Returns:
         Configured ASTBehaviorConverter instance
     """
-    return ASTBehaviorConverter()
+    return ASTBehaviorConverter(defines)

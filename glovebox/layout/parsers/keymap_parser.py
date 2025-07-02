@@ -75,12 +75,40 @@ class ZmkKeymapParser:
         """
         self.logger = logging.getLogger(__name__)
         self.model_factory = ModelFactory()
+        self.defines: dict[str, str] = {}
 
         # Initialize processors for different parsing modes
         self.processors = processors or {
             ParsingMode.FULL: create_full_keymap_processor(),
             ParsingMode.TEMPLATE_AWARE: create_template_aware_processor(),
         }
+
+    def _resolve_binding_string(self, binding_str: str) -> str:
+        """Resolve defines in a binding string.
+
+        Args:
+            binding_str: Binding string that may contain defines
+
+        Returns:
+            Binding string with defines resolved
+        """
+        if not self.defines:
+            return binding_str
+
+        # Split the binding string into tokens
+        tokens = binding_str.split()
+        resolved_tokens = []
+
+        for token in tokens:
+            # Check if token is a define (but not a behavior reference starting with &)
+            if not token.startswith("&") and token in self.defines:
+                resolved = self.defines[token]
+                self.logger.debug("Resolved define %s -> %s", token, resolved)
+                resolved_tokens.append(resolved)
+            else:
+                resolved_tokens.append(token)
+
+        return " ".join(resolved_tokens)
 
     def parse_keymap(
         self,
@@ -436,8 +464,13 @@ class ZmkKeymapParser:
                             self._preprocess_moergo_binding_edge_cases(binding_str)
                         )
 
+                        # Resolve defines in the binding string
+                        resolved_binding_str = self._resolve_binding_string(
+                            preprocessed_binding_str
+                        )
+
                         # Use the existing LayoutBinding.from_str method
-                        binding = LayoutBinding.from_str(preprocessed_binding_str)
+                        binding = LayoutBinding.from_str(resolved_binding_str)
                         bindings.append(binding)
 
                         # Debug log the parsed parameters
@@ -478,7 +511,12 @@ class ZmkKeymapParser:
                         self._preprocess_moergo_binding_edge_cases(binding_str)
                     )
 
-                    binding = LayoutBinding.from_str(preprocessed_binding_str)
+                    # Resolve defines in the binding string
+                    resolved_binding_str = self._resolve_binding_string(
+                        preprocessed_binding_str
+                    )
+
+                    binding = LayoutBinding.from_str(resolved_binding_str)
                     bindings.append(binding)
                 except Exception as e:
                     exc_info = self.logger.isEnabledFor(logging.DEBUG)
