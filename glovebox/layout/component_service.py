@@ -2,7 +2,12 @@
 
 import logging
 from pathlib import Path
-from typing import Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias
+
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
+    from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
 
 from glovebox.core.errors import LayoutError
 from glovebox.layout.models import (
@@ -33,6 +38,75 @@ class LayoutComponentService(BaseService):
         """Initialize layout component service with adapter dependencies."""
         super().__init__(service_name="LayoutComponentService", service_version="1.0.0")
         self._file_adapter = file_adapter
+
+    def process_keymap_components(
+        self,
+        profile: "KeyboardProfile | None",
+        keymap_data: LayoutData | dict[str, Any],
+        behavior_registry: "BehaviorRegistryProtocol",
+    ) -> dict[str, Any]:
+        """Process keymap components for compilation.
+
+        Args:
+            profile: Keyboard profile configuration (optional)
+            keymap_data: Layout data to process
+            behavior_registry: Behavior registry for validation
+
+        Returns:
+            Dictionary of processed component data
+
+        Raises:
+            LayoutError: If component processing fails
+        """
+        from glovebox.core.errors import LayoutError
+
+        # Handle both LayoutData objects and raw dictionaries
+        if isinstance(keymap_data, dict):
+            keyboard_name = keymap_data.get('keyboard', 'unknown')
+        else:
+            keyboard_name = getattr(keymap_data, 'keyboard', 'unknown')
+        logger.info(
+            "Processing keymap components for %s", keyboard_name
+        )
+
+        try:
+            # Handle both LayoutData objects and raw dictionaries
+            def get_attr_or_key(obj: LayoutData | dict[str, Any], attr_name: str, default: Any = None) -> Any:
+                if hasattr(obj, attr_name):
+                    return getattr(obj, attr_name) or default
+                elif isinstance(obj, dict):
+                    return obj.get(attr_name, default)
+                return default
+
+            # Process behaviors and components
+            components = {
+                "profile": profile,
+                "keymap_data": keymap_data,
+                "layer_names": get_attr_or_key(keymap_data, "layer_names", []),
+                "layers": get_attr_or_key(keymap_data, "layers", []),
+                "hold_taps": get_attr_or_key(keymap_data, "hold_taps", []),
+                "combos": get_attr_or_key(keymap_data, "combos", []),
+                "macros": get_attr_or_key(keymap_data, "macros", []),
+                "input_listeners": get_attr_or_key(keymap_data, "input_listeners", []),
+                "config_parameters": get_attr_or_key(keymap_data, "config_parameters", []),
+                "custom_defined_behaviors": get_attr_or_key(keymap_data, "custom_defined_behaviors", ""),
+                "custom_devicetree": get_attr_or_key(keymap_data, "custom_devicetree", ""),
+            }
+
+            logger.debug(
+                "Processed components: %d layers, %d behaviors",
+                len(components["layers"]),
+                len(components["hold_taps"])
+                + len(components["combos"])
+                + len(components["macros"]),
+            )
+
+            return components
+
+        except Exception as e:
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("Component processing failed: %s", e, exc_info=exc_info)
+            raise LayoutError(f"Component processing failed: {e}") from e
 
     def split_components(self, layout: LayoutData, output_dir: Path) -> LayoutResult:
         """Split layout into individual components and layers.

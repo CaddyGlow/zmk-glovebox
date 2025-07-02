@@ -1,5 +1,6 @@
 """Layout comparison CLI commands."""
 
+import logging
 from pathlib import Path
 from typing import Annotated, Any, TypeAlias
 
@@ -7,6 +8,7 @@ import typer
 
 from glovebox.adapters import create_file_adapter
 from glovebox.cli.commands.layout.base import LayoutOutputCommand
+from glovebox.cli.core.command_base import IOCommand
 from glovebox.cli.decorators import handle_errors, with_metrics
 from glovebox.cli.helpers.auto_profile import resolve_json_file_path
 from glovebox.cli.helpers.library_resolver import resolve_parameter_value
@@ -19,16 +21,15 @@ from glovebox.layout.comparison import create_layout_comparison_service
 @with_metrics("diff")
 def diff(
     ctx: typer.Context,
-    layout2: ParameterFactory.input_file_with_stdin_optional(  # type: ignore[valid-type]
-        help_text="Second layout file to compare or @library-name/uuid",
-        library_resolvable=True
+    layout1: ParameterFactory.create_input_parameter(
+        help_text="First layout file, @library-ref, '-' for stdin, or env:GLOVEBOX_JSON_FILE"
     ),
-    layout1: ParameterFactory.input_file_with_stdin_optional(  # type: ignore[valid-type]
-        env_var="GLOVEBOX_JSON_FILE",
-        help_text="First layout file to compare or @library-name/uuid",
-        library_resolvable=True
+    layout2: ParameterFactory.create_input_parameter(
+        help_text="Second layout file to compare or @library-name/uuid", required=True
     ),
-    output_format: ParameterFactory.output_format() = "text",  # type: ignore[valid-type]
+    output: ParameterFactory.create_output_parameter(
+        help_text="Create LayoutDiff patch file for later application"
+    ) = None,
     detailed: Annotated[
         bool,
         typer.Option("--detailed", help="Show detailed key changes within layers"),
@@ -39,9 +40,6 @@ def diff(
             "--include-dtsi", help="Include custom DTSI fields in diff output"
         ),
     ] = False,
-    output: ParameterFactory.output_file_path_only(  # type: ignore[valid-type]
-        help_text="Create LayoutDiff patch file for later application"
-    ) = None,
     patch_section: Annotated[
         str,
         typer.Option(
@@ -49,143 +47,23 @@ def diff(
             help="DTSI section for patch: behaviors, devicetree, or both",
         ),
     ] = "both",
+    format: Annotated[
+        str,
+        typer.Option("--format", help="Output format: text, json, table"),
+    ] = "text",
 ) -> None:
     """Compare two layouts showing differences with optional patch creation.
 
-    Shows differences between two layout files, focusing on layers,
-    behaviors, custom DTSI code, and configuration changes. Can also
-    create LayoutDiff patch files for later application.
-
-    The first layout file can be provided as an argument or via the
-    GLOVEBOX_JSON_FILE environment variable for convenience.
-
-    Output Formats:
-        text     - Summary with change counts (default)
-        json     - LayoutDiff structure for automation/patching
-        table    - Tabular view of changes
-    Use --detailed to show individual key differences within layers.
-    Use --include-dtsi to include custom DTSI fields in diffs.
-
     Examples:
-        # Basic comparison showing layer and config changes
         glovebox layout diff my-layout-v42.json my-layout-v41.json
-
-        # Using environment variable for first layout
+        glovebox layout diff @my-layout layout2.json --detailed
+        glovebox layout diff layout2.json layout1.json --output changes.json
         export GLOVEBOX_JSON_FILE=my-layout.json
-        glovebox layout diff my-layout-v42.json
-
-        # Detailed view with individual key differences
-        glovebox layout diff layout2.json layout1.json --detailed
-
-        # Include custom DTSI code differences
-        glovebox layout diff layout2.json layout1.json --include-dtsi
-
-        # Create diff file for later patching
-        glovebox layout diff new.json old.json --output changes.json
-
-        # JSON output with LayoutDiff structure
-        glovebox layout diff layout2.json layout1.json --output-format json
-
-        # Detailed comparison with DTSI and diff file creation
-        glovebox layout diff layout2.json layout1.json --detailed --include-dtsi --output changes.json
-
-        # Compare your custom layout with a master version
-        glovebox layout diff my-custom.json ~/.glovebox/masters/glove80/v42-rc3.json --detailed
+        glovebox layout diff - layout2.json
     """
-    # Resolve library references for both layout files
-    try:
-        # Resolve layout1 (supports environment variable and library references)
-        resolved_layout1_param = resolve_parameter_value(layout1) if layout1 else None
-        if resolved_layout1_param is None:
-            # Try environment variable fallback
-            resolved_layout1_param = resolve_json_file_path(layout1, "GLOVEBOX_JSON_FILE")
-
-        if resolved_layout1_param is None:
-            from glovebox.cli.helpers import print_error_message
-
-            print_error_message(
-                "First layout file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
-            )
-            raise typer.Exit(1)
-
-        # Convert to Path if it's a string
-        if isinstance(resolved_layout1_param, Path):
-            resolved_layout1 = resolved_layout1_param
-        else:
-            resolved_layout1 = Path(resolved_layout1_param)
-
-        # Resolve layout2 (library references)
-        resolved_layout2_param = resolve_parameter_value(layout2)
-        if isinstance(resolved_layout2_param, Path):
-            resolved_layout2 = resolved_layout2_param
-        else:
-            resolved_layout2 = Path(resolved_layout2_param) if resolved_layout2_param else None
-
-        if resolved_layout2 is None:
-            from glovebox.cli.helpers import print_error_message
-
-            print_error_message(f"Second layout file not found: {layout2}")
-            raise typer.Exit(1)
-
-    except Exception as e:
-        from glovebox.cli.helpers import print_error_message
-
-        print_error_message(f"Error resolving layout files: {e}")
-        raise typer.Exit(1) from e
-
-    # Validate layout files
-    command = LayoutOutputCommand()
-    command.validate_layout_file(resolved_layout1)
-    command.validate_layout_file(resolved_layout2)
-
-    # Create composer and execute comparison
-    from glovebox.cli.commands.layout.composition import create_layout_command_composer
-
-    # Get icon mode from context for proper display
-    from glovebox.cli.helpers.theme import get_icon_mode_from_context
-
-    icon_mode = get_icon_mode_from_context(ctx)
-
-    composer = create_layout_command_composer(icon_mode)
-
-    def comparison_operation(file1: Path, file2: Path) -> dict[str, Any]:
-        """Comparison operation that returns structured results."""
-        from glovebox.cli.helpers.profile import get_user_config_from_context
-        from glovebox.config import create_user_config
-
-        user_config = get_user_config_from_context(ctx) or create_user_config()
-        file_adapter = create_file_adapter()
-        comparison_service = create_layout_comparison_service(user_config, file_adapter)
-
-        result = comparison_service.compare_layouts(
-            layout1_path=file1,
-            layout2_path=file2,
-            output_format=output_format,
-            include_dtsi=include_dtsi,
-            detailed=detailed,
-        )
-
-        # Handle diff file creation if requested
-        if output:
-            try:
-                patch_result = comparison_service.create_diff_file(
-                    layout1_path=file1,
-                    layout2_path=file2,
-                    output_path=output,
-                    include_dtsi=include_dtsi,
-                )
-                result["diff_file_created"] = patch_result
-            except Exception as e:
-                result["diff_file_error"] = str(e)
-
-        return result
-
-    composer.execute_comparison_operation(
-        file1=resolved_layout1,
-        file2=resolved_layout2,
-        operation=comparison_operation,
-        operation_name="compare layouts",
-        output_format=output_format,
+    command = DiffLayoutCommand()
+    command.execute(
+        ctx, layout1, layout2, output, detailed, include_dtsi, patch_section, format
     )
 
 
@@ -193,18 +71,22 @@ def diff(
 @with_metrics("patch")
 def patch(
     ctx: typer.Context,
-    layout_file: ParameterFactory.input_file_with_stdin_optional(  # type: ignore[valid-type]
-        help_text="Source layout file to patch or @library-name/uuid",
-        library_resolvable=True
+    layout_file: ParameterFactory.create_input_parameter(
+        help_text="Source layout file to patch, @library-ref, or '-' for stdin"
     ),
-    patch_file: ParameterFactory.input_file_with_stdin_optional(  # type: ignore[valid-type]
-        help_text="JSON diff file from 'glovebox layout diff --output changes.json' or @library-name/uuid",
-        library_resolvable=True
+    patch_file: ParameterFactory.create_input_parameter(
+        help_text="JSON diff file from 'glovebox layout diff --output changes.json'",
+        required=True,
     ),
-    output: ParameterFactory.output_file_path_only(  # type: ignore[valid-type]
-        help_text="Output path (default: source_layout with -patched suffix)"
+    output: ParameterFactory.create_output_parameter(
+        help_text="Create LayoutDiff patch file for later application"
     ) = None,
-    force: ParameterFactory.force_overwrite() = False,  # type: ignore[valid-type]
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force", "-f", help="Overwrite existing files without prompting"
+        ),
+    ] = False,
     exclude_dtsi: Annotated[
         bool,
         typer.Option(
@@ -213,10 +95,6 @@ def patch(
     ] = False,
 ) -> None:
     """Apply a JSON diff patch to transform a layout.
-
-    Takes a source layout and applies changes from a JSON diff file
-    (generated by 'glovebox layout diff --output changes.json') to create
-    a new transformed layout.
 
     Examples:
         # Generate a diff
@@ -228,68 +106,319 @@ def patch(
         # Apply diff with auto-generated output name
         glovebox layout patch my-layout.json changes.json
     """
-    # Resolve library references for both files
-    try:
-        # Resolve layout_file (library references)
-        resolved_layout_param = resolve_parameter_value(layout_file)
-        if isinstance(resolved_layout_param, Path):
-            resolved_layout_file = resolved_layout_param
-        else:
-            resolved_layout_file = Path(resolved_layout_param) if resolved_layout_param else None
+    command = PatchLayoutCommand()
+    command.execute(ctx, layout_file, patch_file, output, force, exclude_dtsi)
 
-        if resolved_layout_file is None:
-            from glovebox.cli.helpers import print_error_message
 
-            print_error_message(f"Layout file not found: {layout_file}")
-            raise typer.Exit(1)
+class DiffLayoutCommand(IOCommand):
+    """Command to compare two layouts showing differences."""
 
-        # Resolve patch_file (library references)
-        resolved_patch_param = resolve_parameter_value(patch_file)
-        if isinstance(resolved_patch_param, Path):
-            resolved_patch_file = resolved_patch_param
-        else:
-            resolved_patch_file = Path(resolved_patch_param) if resolved_patch_param else None
+    def execute(
+        self,
+        ctx: typer.Context,
+        layout1: str,
+        layout2: str,
+        output: str | None,
+        detailed: bool,
+        include_dtsi: bool,
+        patch_section: str,
+        format: str,
+    ) -> None:
+        """Execute the diff layout command."""
+        try:
+            # Load both layout files
+            layout1_data = self.load_json_input(layout1)
+            layout2_data = self.load_json_input(layout2)
 
-        if resolved_patch_file is None:
-            from glovebox.cli.helpers import print_error_message
+            # Create comparison service
+            user_config = self._get_user_config(ctx)
+            file_adapter = create_file_adapter()
+            comparison_service = create_layout_comparison_service(
+                user_config, file_adapter
+            )
 
-            print_error_message(f"Patch file not found: {patch_file}")
-            raise typer.Exit(1)
+            # Perform comparison using temp files
+            result = self._compare_with_temp_files(
+                layout1_data,
+                layout2_data,
+                comparison_service,
+                format,
+                include_dtsi,
+                detailed,
+            )
 
-    except Exception as e:
-        from glovebox.cli.helpers import print_error_message
+            # Handle patch file creation if requested
+            if output:
+                result["diff_file_created"] = self._create_patch_file(
+                    layout1_data, layout2_data, comparison_service, output, include_dtsi
+                )
 
-        print_error_message(f"Error resolving files: {e}")
-        raise typer.Exit(1) from e
+            self._handle_diff_result(result, format, output)
 
-    command = LayoutOutputCommand()
-    command.validate_layout_file(resolved_layout_file)
+        except Exception as e:
+            self.handle_service_error(e, "compare layouts")
 
-    try:
+    def _get_user_config(self, ctx: typer.Context):
+        """Get user config from context."""
         from glovebox.cli.helpers.profile import get_user_config_from_context
         from glovebox.config import create_user_config
 
-        user_config = get_user_config_from_context(ctx) or create_user_config()
-        file_adapter = create_file_adapter()
-        comparison_service = create_layout_comparison_service(user_config, file_adapter)
-        result = comparison_service.apply_patch(
-            source_layout_path=resolved_layout_file,
-            patch_file_path=resolved_patch_file,
-            output=output,
-            force=force,
-            skip_dtsi=exclude_dtsi,
-        )
+        return get_user_config_from_context(ctx) or create_user_config()
 
-        # Show success with details
-        command.print_operation_success(
-            "Applied patch successfully",
-            {
-                "source": result["source"],
-                "patch": result["patch"],
-                "output": result["output"],
-                # "applied_changes": result["total_changes"],
-            },
-        )
+    def _compare_with_temp_files(
+        self,
+        layout1_data: dict,
+        layout2_data: dict,
+        service,
+        format: str,
+        include_dtsi: bool,
+        detailed: bool,
+    ) -> dict:
+        """Compare layouts using temporary files."""
+        import json
+        import tempfile
 
-    except Exception as e:
-        command.handle_service_error(e, "apply patch")
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f1:
+            f1.write(json.dumps(layout1_data))
+            temp_path1 = Path(f1.name)
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f2:
+            f2.write(json.dumps(layout2_data))
+            temp_path2 = Path(f2.name)
+
+        try:
+            return service.compare_layouts(
+                layout1_path=temp_path1,
+                layout2_path=temp_path2,
+                output_format=format,
+                include_dtsi=include_dtsi,
+                detailed=detailed,
+            )
+        finally:
+            temp_path1.unlink(missing_ok=True)
+            temp_path2.unlink(missing_ok=True)
+
+    def _create_patch_file(
+        self,
+        layout1_data: dict,
+        layout2_data: dict,
+        service,
+        output: str,
+        include_dtsi: bool,
+    ) -> str:
+        """Create patch file from comparison."""
+        import json
+        import tempfile
+
+        from glovebox.cli.helpers.parameter_helpers import process_output_parameter
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f1:
+            f1.write(json.dumps(layout1_data))
+            temp_path1 = Path(f1.name)
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f2:
+            f2.write(json.dumps(layout2_data))
+            temp_path2 = Path(f2.name)
+
+        try:
+            output_result = process_output_parameter(
+                value=output,
+                supports_stdout=False,
+                force_overwrite=True,
+                create_dirs=True,
+            )
+
+            service.create_diff_file(
+                layout1_path=temp_path1,
+                layout2_path=temp_path2,
+                output_path=Path(output_result.path),
+                include_dtsi=include_dtsi,
+            )
+            return str(output_result.path)
+        finally:
+            temp_path1.unlink(missing_ok=True)
+            temp_path2.unlink(missing_ok=True)
+
+    def _handle_diff_result(
+        self, result: dict, format: str, output: str | None
+    ) -> None:
+        """Handle diff result output."""
+        if format == "json":
+            self.format_and_print(result, "json")
+        elif format == "table":
+            self._format_table_output(result)
+        else:
+            self._format_text_output(result, output)
+
+    def _format_table_output(self, result: dict) -> None:
+        """Format table output for diff results."""
+        changes_list = []
+        if "layer_changes" in result:
+            for change in result["layer_changes"]:
+                changes_list.append(
+                    {
+                        "Type": "Layer",
+                        "Change": change.get("type", "unknown"),
+                        "Details": change.get("description", ""),
+                    }
+                )
+        if "behavior_changes" in result:
+            for change in result["behavior_changes"]:
+                changes_list.append(
+                    {
+                        "Type": "Behavior",
+                        "Change": change.get("type", "unknown"),
+                        "Details": change.get("description", ""),
+                    }
+                )
+        self.format_and_print(changes_list, "table")
+
+    def _format_text_output(self, result: dict, output: str | None) -> None:
+        """Format text output for diff results."""
+        if result.get("has_changes", False):
+            self.console.print_info("Layout differences found:")
+            self._print_summary(result.get("summary"))
+            if output and "diff_file_created" in result:
+                self.console.print_success(
+                    f"Diff file created: {result['diff_file_created']}"
+                )
+        else:
+            self.console.print_success("No differences found between layouts")
+
+    def _print_summary(self, summary) -> None:
+        """Print summary information."""
+        if isinstance(summary, dict):
+            for category, stats in summary.items():
+                if isinstance(stats, dict):
+                    if any(isinstance(v, dict) for v in stats.values()):
+                        for subcat, substats in stats.items():
+                            if isinstance(substats, dict):
+                                for change_type, count in substats.items():
+                                    if isinstance(count, int) and count > 0:
+                                        self.console.print_info(
+                                            f"  {category}/{subcat} {change_type}: {count}"
+                                        )
+                    else:
+                        for change_type, count in stats.items():
+                            if isinstance(count, int) and count > 0:
+                                self.console.print_info(
+                                    f"  {category} {change_type}: {count}"
+                                )
+                elif isinstance(stats, int) and stats > 0:
+                    self.console.print_info(f"  {category}: {stats}")
+        else:
+            for line in str(summary).split("\n"):
+                self.console.print_info(f"  {line}")
+
+    def handle_service_error(self, error: Exception, operation: str) -> None:
+        """Handle service layer errors with consistent messaging."""
+        exc_info = self.logger.isEnabledFor(logging.DEBUG)
+        self.logger.error("Failed to %s: %s", operation, error, exc_info=exc_info)
+        self.console.print_error(f"Failed to {operation}: {error}")
+        raise typer.Exit(1) from error
+
+
+class PatchLayoutCommand(IOCommand):
+    """Command to apply patches to layouts."""
+
+    def execute(
+        self,
+        ctx: typer.Context,
+        layout_file: str,
+        patch_file: str,
+        output: str | None,
+        force: bool,
+        exclude_dtsi: bool,
+    ) -> None:
+        """Execute the patch layout command."""
+        try:
+            # Load layout and patch files
+            layout_data = self.load_json_input(layout_file)
+            patch_data = self.load_json_input(patch_file)
+
+            # Create comparison service
+            user_config = self._get_user_config(ctx)
+            file_adapter = create_file_adapter()
+            comparison_service = create_layout_comparison_service(
+                user_config, file_adapter
+            )
+
+            # Determine output path
+            if output is None:
+                layout_title = layout_data.get("title", "layout")
+                output = f"{layout_title}-patched.json"
+
+            # Apply patch using temp files
+            result = self._apply_patch_with_temp_files(
+                layout_data, patch_data, comparison_service, output, force, exclude_dtsi
+            )
+
+            self._handle_patch_success(result, output)
+
+        except Exception as e:
+            self.handle_service_error(e, "apply patch")
+
+    def _get_user_config(self, ctx: typer.Context):
+        """Get user config from context."""
+        from glovebox.cli.helpers.profile import get_user_config_from_context
+        from glovebox.config import create_user_config
+
+        return get_user_config_from_context(ctx) or create_user_config()
+
+    def _apply_patch_with_temp_files(
+        self,
+        layout_data: dict,
+        patch_data: dict,
+        service,
+        output: str,
+        force: bool,
+        exclude_dtsi: bool,
+    ) -> dict:
+        """Apply patch using temporary files."""
+        import json
+        import tempfile
+
+        from glovebox.cli.helpers.parameter_helpers import process_output_parameter
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f1:
+            f1.write(json.dumps(layout_data))
+            temp_layout_path = Path(f1.name)
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f2:
+            f2.write(json.dumps(patch_data))
+            temp_patch_path = Path(f2.name)
+
+        try:
+            output_result = process_output_parameter(
+                value=output,
+                supports_stdout=False,
+                force_overwrite=force,
+                create_dirs=True,
+            )
+
+            result = service.apply_patch(
+                source_layout_path=temp_layout_path,
+                patch_file_path=temp_patch_path,
+                output=Path(output_result.path),
+                force=force,
+                skip_dtsi=exclude_dtsi,
+            )
+            result["output_path"] = str(output_result.path)
+            return result
+        finally:
+            temp_layout_path.unlink(missing_ok=True)
+            temp_patch_path.unlink(missing_ok=True)
+
+    def _handle_patch_success(self, result: dict, output: str) -> None:
+        """Handle successful patch application."""
+        self.console.print_success("Applied patch successfully")
+        self.console.print_info(f"  Output: {result.get('output_path', output)}")
+        if "changes_applied" in result:
+            self.console.print_info(f"  Applied changes: {result['changes_applied']}")
+
+    def handle_service_error(self, error: Exception, operation: str) -> None:
+        """Handle service layer errors with consistent messaging."""
+        exc_info = self.logger.isEnabledFor(logging.DEBUG)
+        self.logger.error("Failed to %s: %s", operation, error, exc_info=exc_info)
+        self.console.print_error(f"Failed to {operation}: {error}")
+        raise typer.Exit(1) from error

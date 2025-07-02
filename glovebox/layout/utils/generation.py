@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from glovebox.layout.zmk_generator import ZmkFileContentGenerator
 
 from glovebox.core.errors import LayoutError
-from glovebox.layout.models import LayoutData
+from glovebox.layout.models import LayoutData, LayoutResult
 from glovebox.protocols import FileAdapterProtocol
 
 
@@ -363,3 +363,142 @@ def convert_keymap_section_from_dict(keymap_dict: dict[str, Any]) -> Any:
         system_behaviors_dts=keymap_dict.get("system_behaviors_dts"),
         key_position_header=keymap_dict.get("key_position_header"),
     )
+
+
+def generate_keymap_file_with_result(
+    profile: "KeyboardProfile",
+    keymap_data: LayoutData,
+    components: dict[str, Any],
+    output_path: Path,
+    behavior_formatter: Any,
+    template_adapter: Any,
+    file_adapter: FileAdapterProtocol,
+    force: bool = False,
+) -> "LayoutResult":
+    """Generate keymap file and return result object for LayoutService.
+
+    This is a wrapper function that matches the signature expected by LayoutService
+    and returns a LayoutResult object instead of void.
+
+    Args:
+        profile: Keyboard profile configuration
+        keymap_data: Layout data for keymap generation
+        components: Processed component data (unused but kept for compatibility)
+        output_path: Path to write the keymap file
+        behavior_formatter: Behavior formatter (unused but kept for compatibility)
+        template_adapter: Template adapter for rendering
+        file_adapter: File adapter for writing files
+        force: Whether to overwrite existing files
+
+    Returns:
+        LayoutResult with generation status
+
+    Raises:
+        LayoutError: If keymap generation fails
+    """
+    from glovebox.layout.models import LayoutResult
+
+    result = LayoutResult(success=False)
+
+    try:
+        # Check if file exists and force flag
+        if file_adapter.is_file(output_path) and not force:
+            error_msg = f"Keymap file already exists: {output_path}"
+            result.add_error(error_msg)
+            return result
+
+        # Get the dtsi_generator from the service (we'll need to pass it properly)
+        # For now, we'll create one - this is a temporary solution
+        # Create behavior formatter for dtsi generator
+        from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
+        from glovebox.layout.behavior.service import create_behavior_registry
+        from glovebox.layout.zmk_generator import create_zmk_file_generator
+
+        behavior_registry = create_behavior_registry()
+        behavior_formatter = BehaviorFormatterImpl(behavior_registry)
+        dtsi_generator = create_zmk_file_generator(behavior_formatter)
+
+        # Use the existing generate_keymap_file function
+        generate_keymap_file(
+            file_adapter=file_adapter,
+            template_adapter=template_adapter,
+            dtsi_generator=dtsi_generator,
+            keymap_data=keymap_data,
+            profile=profile,
+            output_path=output_path,
+        )
+
+        result.success = True
+        result.keymap_path = output_path
+        result.add_message(f"Generated keymap file: {output_path}")
+
+        return result
+
+    except Exception as e:
+        exc_info = logger.isEnabledFor(logging.DEBUG)
+        logger.error("Keymap generation failed: %s", e, exc_info=exc_info)
+        result.add_error(f"Keymap generation failed: {e}")
+        return result
+
+
+def generate_config_file_with_result(
+    profile: "KeyboardProfile",
+    keymap_data: LayoutData,
+    components: dict[str, Any],
+    output_path: Path,
+    dtsi_generator: Any,
+    file_adapter: FileAdapterProtocol,
+    force: bool = False,
+) -> "LayoutResult":
+    """Generate config file and return result object for LayoutService.
+
+    This is a wrapper function that matches the signature expected by LayoutService
+    and returns a LayoutResult object instead of a simple dictionary.
+
+    Args:
+        profile: Keyboard profile configuration
+        keymap_data: Layout data for configuration generation
+        components: Processed component data (unused but kept for compatibility)
+        output_path: Path to write the configuration file
+        dtsi_generator: DTSI generator (unused but kept for compatibility)
+        file_adapter: File adapter for writing files
+        force: Whether to overwrite existing files
+
+    Returns:
+        LayoutResult with generation status
+
+    Raises:
+        LayoutError: If config generation fails
+    """
+    from glovebox.layout.models import LayoutResult
+
+    result = LayoutResult(success=False)
+
+    try:
+        # Check if file exists and force flag
+        if file_adapter.is_file(output_path) and not force:
+            error_msg = f"Config file already exists: {output_path}"
+            result.add_error(error_msg)
+            return result
+
+        # Use the existing generate_config_file function
+        kconfig_settings = generate_config_file(
+            file_adapter=file_adapter,
+            profile=profile,
+            keymap_data=keymap_data,
+            output_path=output_path,
+        )
+
+        result.success = True
+        result.conf_path = output_path
+        result.add_message(f"Generated config file: {output_path}")
+        if kconfig_settings:
+            result.add_message(f"Applied {len(kconfig_settings)} configuration options")
+
+        return result
+
+    except Exception as e:
+        exc_info = logger.isEnabledFor(logging.DEBUG)
+        logger.error("Config generation failed: %s", e, exc_info=exc_info)
+        result.add_error(f"Config generation failed: {e}")
+        return result

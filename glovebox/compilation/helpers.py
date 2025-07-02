@@ -41,6 +41,7 @@ def convert_json_to_keymap_content(
         # Import layout dependencies
         from glovebox.adapters import create_file_adapter, create_template_adapter
         from glovebox.layout import (
+            ZmkFileContentGenerator,
             create_behavior_registry,
         )
         from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
@@ -49,7 +50,6 @@ def convert_json_to_keymap_content(
             build_template_context,
             generate_kconfig_conf,
         )
-        from glovebox.layout.zmk_generator import ZmkFileContentGenerator
 
         # Create adapters and services
         file_adapter = create_file_adapter()
@@ -222,13 +222,12 @@ def convert_layout_data_to_keymap_content(
     try:
         # Import layout dependencies
         from glovebox.adapters import create_template_adapter
-        from glovebox.layout import create_behavior_registry
+        from glovebox.layout import ZmkFileContentGenerator, create_behavior_registry
         from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
         from glovebox.layout.utils.generation import (
             build_template_context,
             generate_kconfig_conf,
         )
-        from glovebox.layout.zmk_generator import ZmkFileContentGenerator
 
         # Create adapters and services
         template_adapter = create_template_adapter()

@@ -12,9 +12,11 @@ if TYPE_CHECKING:
     from glovebox.firmware.flash.device_detector import DeviceDetector
     from glovebox.firmware.flash.flasher_methods import USBFlasher
     from glovebox.firmware.flash.service import FlashService
-    from glovebox.layout.component_service import LayoutComponentService
-    from glovebox.layout.display_service import LayoutDisplayService
-    from glovebox.layout.service import LayoutService
+    from glovebox.layout import (
+        LayoutComponentService,
+        LayoutDisplayService,
+        LayoutService,
+    )
     from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
 
 
@@ -34,6 +36,7 @@ def create_layout_service_for_tests(
     """
     from glovebox.adapters import create_file_adapter, create_template_adapter
     from glovebox.layout import (
+        ZmkFileContentGenerator,
         create_behavior_registry,
         create_grid_layout_formatter,
         create_layout_component_service,
@@ -41,7 +44,6 @@ def create_layout_service_for_tests(
         create_layout_service,
     )
     from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
-    from glovebox.layout.zmk_generator import ZmkFileContentGenerator
 
     # Create defaults if not provided
     if file_adapter is None:
