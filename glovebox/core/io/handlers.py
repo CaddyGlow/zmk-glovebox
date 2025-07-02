@@ -210,13 +210,13 @@ class InputHandler:
         try:
             # Use the existing library resolver
             from glovebox.cli.helpers.library_resolver import resolve_library_reference
-            
+
             # Resolve to file path
             file_path = resolve_library_reference(ref)
-            
+
             # Load the JSON file
             return self._load_from_file(str(file_path))
-            
+
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.error("Failed to resolve library reference %s: %s", ref, e, exc_info=exc_info)

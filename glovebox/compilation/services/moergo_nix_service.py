@@ -218,18 +218,18 @@ class MoergoNixService(CompilationServiceProtocol):
                 ]
 
                 # Add individual board build checkpoints (MoErgo typically builds left and right)
-                if board_info.get('board_names'):
-                    for board_name in board_info['board_names']:
+                if board_info.get("board_names"):
+                    for board_name in board_info["board_names"]:
                         checkpoints.append(f"Building {board_name}")
                 else:
                     # Fallback for unknown boards
-                    for i in range(board_info.get('total_boards', 2)):
+                    for i in range(board_info.get("total_boards", 2)):
                         if i == 0:
                             checkpoints.append("Building Left Hand")
                         elif i == 1:
                             checkpoints.append("Building Right Hand")
                         else:
-                            checkpoints.append(f"Building Board {i+1}")
+                            checkpoints.append(f"Building Board {i + 1}")
 
                 checkpoints.append("Collecting Artifacts")
 
@@ -241,17 +241,31 @@ class MoergoNixService(CompilationServiceProtocol):
 
                 with progress_manager as progress_context:
                     return self._execute_compilation_with_progress(
-                        progress_context, board_info, config, keyboard_profile,
-                        keymap_file, config_file, keymap_content, config_content,
-                        output_dir, compilation_start_time
+                        progress_context,
+                        board_info,
+                        config,
+                        keyboard_profile,
+                        keymap_file,
+                        config_file,
+                        keymap_content,
+                        config_content,
+                        output_dir,
+                        compilation_start_time,
                     )
             else:
                 # Use noop progress context when no progress callback
                 progress_context = get_noop_progress_context()
                 return self._execute_compilation_with_progress(
-                    progress_context, board_info, config, keyboard_profile,
-                    keymap_file, config_file, keymap_content, config_content,
-                    output_dir, compilation_start_time
+                    progress_context,
+                    board_info,
+                    config,
+                    keyboard_profile,
+                    keymap_file,
+                    config_file,
+                    keymap_content,
+                    config_content,
+                    output_dir,
+                    compilation_start_time,
                 )
 
         except Exception as e:
@@ -276,7 +290,7 @@ class MoergoNixService(CompilationServiceProtocol):
         try:
             progress_context.log(
                 f"Starting MoErgo compilation for {board_info['total_boards']} boards",
-                "info"
+                "info",
             )
 
             # Check/build Docker image with progress
@@ -393,41 +407,111 @@ class MoergoNixService(CompilationServiceProtocol):
         keyboard_profile: "KeyboardProfile",
         progress_callback: CompilationProgressCallback | None = None,
     ) -> BuildResult:
-        """Execute compilation from JSON layout file (optimized - no temp files)."""
+        """Execute compilation from JSON layout file.
+
+        This method reads the JSON file and delegates to compile_from_data
+        following the unified input/output patterns.
+        """
         self.logger.info("Starting JSON to firmware compilation")
 
-        # Use optimized helper to convert JSON to content (eliminates temp files)
-        from glovebox.compilation.helpers import convert_json_to_keymap_content
+        try:
+            # Read and parse JSON file to get layout data
+            from glovebox.adapters import create_file_adapter
+            from glovebox.layout.utils import process_json_file
 
-        keymap_content, config_content, conversion_result = (
-            convert_json_to_keymap_content(
-                json_file=json_file,
-                keyboard_profile=keyboard_profile,
-                session_metrics=self.session_metrics,
+            file_adapter = create_file_adapter()
+
+            def extract_layout_data(layout_data: Any) -> dict[str, Any]:
+                """Extract layout data for delegation to compile_from_data."""
+                return layout_data
+
+            layout_data = process_json_file(
+                json_file,
+                "JSON parsing for compilation",
+                extract_layout_data,
+                file_adapter,
             )
-        )
 
-        if not conversion_result.success:
-            return conversion_result
+            # Delegate to memory-first method
+            return self.compile_from_data(
+                layout_data=layout_data,
+                output_dir=output_dir,
+                config=config,
+                keyboard_profile=keyboard_profile,
+                progress_callback=progress_callback,
+            )
 
-        # Ensure content was generated successfully (type safety)
-        assert keymap_content is not None, (
-            "Keymap content should be generated on success"
-        )
-        assert config_content is not None, (
-            "Config content should be generated on success"
-        )
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("JSON compilation failed: %s", e, exc_info=exc_info)
+            return BuildResult(success=False, errors=[str(e)])
 
-        # Compile directly from content (no temp files needed)
-        return self.compile_from_content(
-            keymap_content=keymap_content,
-            config_content=config_content,
-            output_dir=output_dir,
-            config=config,
-            keyboard_profile=keyboard_profile,
-            progress_callback=progress_callback,
-            json_file=json_file,
-        )
+    def compile_from_data(
+        self,
+        layout_data: dict[str, Any],
+        output_dir: Path,
+        config: CompilationConfigUnion,
+        keyboard_profile: "KeyboardProfile",
+        progress_callback: CompilationProgressCallback | None = None,
+    ) -> BuildResult:
+        """Execute compilation from layout data dictionary (memory-first pattern).
+
+        This is the memory-first method that takes layout data as input
+        and returns content in the result object, following the unified
+        input/output patterns established in Phase 1/2 refactoring.
+
+        Args:
+            layout_data: Layout data dictionary (validated as LayoutData)
+            output_dir: Output directory for build artifacts
+            config: Compilation configuration
+            keyboard_profile: Keyboard profile for dynamic generation
+            progress_callback: Optional callback for compilation progress updates
+
+        Returns:
+            BuildResult: Results of compilation with generated content
+        """
+        self.logger.info("Starting compilation from layout data")
+
+        try:
+            # Convert layout data to keymap and config content
+            from glovebox.compilation.helpers import (
+                convert_layout_data_to_keymap_content,
+            )
+
+            keymap_content, config_content, conversion_result = (
+                convert_layout_data_to_keymap_content(
+                    layout_data=layout_data,
+                    keyboard_profile=keyboard_profile,
+                    session_metrics=self.session_metrics,
+                )
+            )
+
+            if not conversion_result.success:
+                return conversion_result
+
+            # Ensure content was generated successfully (type safety)
+            assert keymap_content is not None, (
+                "Keymap content should be generated on success"
+            )
+            assert config_content is not None, (
+                "Config content should be generated on success"
+            )
+
+            # Compile directly from content (no temp files needed for MoErgo)
+            return self.compile_from_content(
+                keymap_content=keymap_content,
+                config_content=config_content,
+                output_dir=output_dir,
+                config=config,
+                keyboard_profile=keyboard_profile,
+                progress_callback=progress_callback,
+                json_file=None,  # No original JSON file since we have data directly
+            )
+
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("Compilation from data failed: %s", e, exc_info=exc_info)
+            return BuildResult(success=False, errors=[str(e)])
 
     def validate_config(self, config: CompilationConfigUnion) -> bool:
         """Validate configuration."""
@@ -537,8 +621,8 @@ class MoergoNixService(CompilationServiceProtocol):
             if board_info is None:
                 board_info = self._extract_board_info_from_config(config)
 
-            board_names = board_info.get('board_names', [])
-            total_boards = board_info.get('total_boards', 2)
+            board_names = board_info.get("board_names", [])
+            total_boards = board_info.get("total_boards", 2)
 
             # Default to left/right hand for MoErgo if no specific names
             if not board_names:
@@ -569,55 +653,78 @@ class MoergoNixService(CompilationServiceProtocol):
                     line_lower = line.lower()
 
                     # Detect Nix environment setup start
-                    if not self.started_nix_env and ("nix-shell" in line_lower or "entering nix" in line_lower):
+                    if not self.started_nix_env and (
+                        "nix-shell" in line_lower or "entering nix" in line_lower
+                    ):
                         progress_context.start_checkpoint("Nix Environment")
                         progress_context.log("Setting up Nix environment", "info")
                         self.started_nix_env = True
 
                     # Detect when Nix environment is ready and building starts
-                    if self.started_nix_env and ("building" in line_lower or "compiling" in line_lower) and not self.in_build_phase:
+                    if (
+                        self.started_nix_env
+                        and ("building" in line_lower or "compiling" in line_lower)
+                        and not self.in_build_phase
+                    ):
                         progress_context.complete_checkpoint("Nix Environment")
                         # Start first board build
                         if self.current_board_index < len(board_names):
                             board_name = board_names[self.current_board_index]
                             checkpoint_name = f"Building {board_name}"
                             progress_context.start_checkpoint(checkpoint_name)
-                            progress_context.log(f"Starting build for {board_name}", "info")
+                            progress_context.log(
+                                f"Starting build for {board_name}", "info"
+                            )
                             self.in_build_phase = True
 
                     # Detect when a .uf2 file is created (indicates board completion)
-                    if (self.in_build_phase and ".uf2" in line_lower and ("created" in line_lower or "generated" in line_lower) and
-                        self.current_board_index < len(board_names)):
+                    if (
+                        self.in_build_phase
+                        and ".uf2" in line_lower
+                        and ("created" in line_lower or "generated" in line_lower)
+                        and self.current_board_index < len(board_names)
+                    ):
+                        board_name = board_names[self.current_board_index]
+                        checkpoint_name = f"Building {board_name}"
+                        progress_context.complete_checkpoint(checkpoint_name)
+                        progress_context.log(
+                            f"Completed build for {board_name}", "info"
+                        )
+                        self.boards_completed += 1
+                        self.current_board_index += 1
+
+                        # Update overall progress
+                        progress_context.update_progress(
+                            current=self.boards_completed,
+                            total=total_boards,
+                            status=f"Built {self.boards_completed}/{total_boards} boards",
+                        )
+
+                        # Start next board if available
+                        if self.current_board_index < len(board_names):
                             board_name = board_names[self.current_board_index]
                             checkpoint_name = f"Building {board_name}"
-                            progress_context.complete_checkpoint(checkpoint_name)
-                            progress_context.log(f"Completed build for {board_name}", "info")
-                            self.boards_completed += 1
-                            self.current_board_index += 1
-
-                            # Update overall progress
-                            progress_context.update_progress(
-                                current=self.boards_completed,
-                                total=total_boards,
-                                status=f"Built {self.boards_completed}/{total_boards} boards"
+                            progress_context.start_checkpoint(checkpoint_name)
+                            progress_context.log(
+                                f"Starting build for {board_name}", "info"
                             )
-
-                            # Start next board if available
-                            if self.current_board_index < len(board_names):
-                                board_name = board_names[self.current_board_index]
-                                checkpoint_name = f"Building {board_name}"
-                                progress_context.start_checkpoint(checkpoint_name)
-                                progress_context.log(f"Starting build for {board_name}", "info")
-                            else:
-                                self.in_build_phase = False
+                        else:
+                            self.in_build_phase = False
 
                     # Detect build failures
-                    if (self.in_build_phase and ("error:" in line_lower or "failed" in line_lower or "make: *** [" in line_lower) and
-                        self.current_board_index < len(board_names)):
-                            board_name = board_names[self.current_board_index]
-                            checkpoint_name = f"Building {board_name}"
-                            progress_context.fail_checkpoint(checkpoint_name)
-                            progress_context.log(f"Build failed for {board_name}", "error")
+                    if (
+                        self.in_build_phase
+                        and (
+                            "error:" in line_lower
+                            or "failed" in line_lower
+                            or "make: *** [" in line_lower
+                        )
+                        and self.current_board_index < len(board_names)
+                    ):
+                        board_name = board_names[self.current_board_index]
+                        checkpoint_name = f"Building {board_name}"
+                        progress_context.fail_checkpoint(checkpoint_name)
+                        progress_context.log(f"Build failed for {board_name}", "error")
 
             middlewares.append(MoErgoBoardProgressMiddleware())
 
@@ -658,7 +765,10 @@ class MoergoNixService(CompilationServiceProtocol):
             return False
 
     def _collect_files(
-        self, workspace_path: Path, output_dir: Path, progress_context: "ProgressContextProtocol"
+        self,
+        workspace_path: Path,
+        output_dir: Path,
+        progress_context: "ProgressContextProtocol",
     ) -> FirmwareOutputFiles:
         """Collect firmware files from artifacts directory, including partial artifacts for debugging."""
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -787,7 +897,9 @@ class MoergoNixService(CompilationServiceProtocol):
         )
 
     def _ensure_docker_image(
-        self, config: MoergoCompilationConfig, progress_context: "ProgressContextProtocol"
+        self,
+        config: MoergoCompilationConfig,
+        progress_context: "ProgressContextProtocol",
     ) -> bool:
         """Ensure Docker image exists, build if not found."""
         try:
@@ -811,7 +923,9 @@ class MoergoNixService(CompilationServiceProtocol):
                 progress_context.log("Docker image ready", "info")
                 return True
 
-            progress_context.log(f"Building Docker image: {versioned_image_name}", "info")
+            progress_context.log(
+                f"Building Docker image: {versioned_image_name}", "info"
+            )
 
             self.logger.info(
                 "Docker image not found, building versioned image: %s:%s",

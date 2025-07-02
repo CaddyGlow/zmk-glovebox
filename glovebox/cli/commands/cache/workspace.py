@@ -507,10 +507,15 @@ def workspace_add(
                 with progress_manager as progress_context:
                     # Check if source is an archive for direct extraction
                     source_path = Path(workspace_source)
-                    is_archive = (source_path.exists() and
-                                 source_path.is_file() and
-                                 source_path.suffix.lower() in [".zip", ".tar", ".gz", ".bz2", ".xz"])
-                    is_url_archive = workspace_source.startswith(("http://", "https://"))
+                    is_archive = (
+                        source_path.exists()
+                        and source_path.is_file()
+                        and source_path.suffix.lower()
+                        in [".zip", ".tar", ".gz", ".bz2", ".xz"]
+                    )
+                    is_url_archive = workspace_source.startswith(
+                        ("http://", "https://")
+                    )
 
                     if not repository:
                         typer.echo(
@@ -524,7 +529,10 @@ def workspace_add(
 
                     # Use direct archive extraction for supported formats
                     if is_archive and not is_url_archive:
-                        progress_context.log(f"Using direct archive extraction for {source_path.name}", "info")
+                        progress_context.log(
+                            f"Using direct archive extraction for {source_path.name}",
+                            "info",
+                        )
                         result = workspace_cache_service.cache_workspace_from_archive(
                             archive_path=source_path,
                             repository=repository,
@@ -594,18 +602,21 @@ def workspace_add(
                 # Check if direct archive extraction was used
                 source_path = Path(workspace_source)
                 used_direct_extraction = (
-                    source_path.exists() and
-                    source_path.is_file() and
-                    source_path.suffix.lower() in [".zip", ".tar", ".gz", ".bz2", ".xz"] and
-                    not workspace_source.startswith(("http://", "https://"))
+                    source_path.exists()
+                    and source_path.is_file()
+                    and source_path.suffix.lower()
+                    in [".zip", ".tar", ".gz", ".bz2", ".xz"]
+                    and not workspace_source.startswith(("http://", "https://"))
                 )
 
                 if used_direct_extraction:
                     # Direct extraction: ARCHIVE→CACHE (1x transfer)
                     actual_transfer_bytes = metadata.size_bytes
-                elif (not source_path.is_dir() and
-                      source_path.suffix.lower() in [".zip"] and
-                      source_path.exists()):
+                elif (
+                    not source_path.is_dir()
+                    and source_path.suffix.lower() in [".zip"]
+                    and source_path.exists()
+                ):
                     # Legacy ZIP extraction: ZIP→TMP + TMP→CACHE (2x transfer)
                     actual_transfer_bytes = metadata.size_bytes * 2
                 elif workspace_source.startswith(("http://", "https://")):
@@ -618,7 +629,11 @@ def workspace_add(
                 # Add method indicator to transfer summary
                 method_note = ""
                 if used_direct_extraction:
-                    archive_format = metadata.notes.split("archive")[0].split()[-1] if "archive" in metadata.notes else "archive"
+                    archive_format = (
+                        metadata.notes.split("archive")[0].split()[-1]
+                        if "archive" in metadata.notes
+                        else "archive"
+                    )
                     method_note = f" (direct {archive_format} extraction)"
 
                 console.print(

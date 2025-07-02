@@ -164,10 +164,10 @@ class IOCommand(BaseCommand):
         """
         if source is None:
             raise ValueError("Input source is required")
-        
+
         # Use InputHandler for unified input processing (supports @library refs)
         from glovebox.core.io import create_input_handler
-        
+
         try:
             input_handler = create_input_handler()
             return input_handler.load_json_input(str(source))

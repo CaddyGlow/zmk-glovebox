@@ -199,9 +199,7 @@ def download_and_extract_zip(
         #     progress_coordinator.set_enhanced_task_status("download", "completed")
 
         # Extract the downloaded zip
-        workspace_path = extract_zip_file(
-            zip_path, progress, console, progress_context
-        )
+        workspace_path = extract_zip_file(zip_path, progress, console, progress_context)
 
         # Return both workspace path and temp directory for cleanup
         return workspace_path, temp_dir

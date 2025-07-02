@@ -1,5 +1,7 @@
 """CLI components for reusable UI elements."""
 
+from typing import Any
+
 from glovebox.cli.components.noop_progress_context import get_noop_progress_context
 from glovebox.cli.components.progress_config import ProgressConfig
 from glovebox.cli.components.progress_context import ProgressContext
@@ -9,16 +11,23 @@ from glovebox.cli.helpers.theme import IconMode
 from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
 
 
-def create_progress_display(config: ProgressConfig) -> ProgressDisplay:
+def create_progress_display(config: ProgressConfig) -> Any:
     """Create a progress display instance.
 
     Args:
         config: Progress display configuration
 
     Returns:
-        Configured ProgressDisplay instance
+        Configured ProgressDisplay instance (v1 or v2 based on config)
     """
-    return ProgressDisplay(config)
+    if config.use_v2_display:
+        return ProgressDisplay(config)
+    else:
+        # Import v1 implementation for fallback
+        from glovebox.cli.components.progress_display_v1 import (
+            ProgressDisplay as ProgressDisplayV1,
+        )
+        return ProgressDisplayV1(config)
 
 
 def create_progress_manager(

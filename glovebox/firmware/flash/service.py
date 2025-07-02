@@ -50,67 +50,7 @@ class FlashService:
         self.usb_adapter = usb_adapter
         self.loglevel = loglevel
 
-    def flash_from_file(
-        self,
-        firmware_file_path: Path,
-        profile: Optional["KeyboardProfile"] = None,
-        query: str = "",
-        timeout: int = 60,
-        count: int = 1,
-        track_flashed: bool = True,
-        skip_existing: bool = False,
-        wait: bool = False,
-        poll_interval: float = 0.5,
-        show_progress: bool = True,
-    ) -> FlashResult:
-        """Flash firmware from a file to devices using method selection.
 
-        Args:
-            firmware_file_path: Path to the firmware file to flash
-            profile: KeyboardProfile with flash configuration
-            query: Device query string (overrides profile-specific query)
-            timeout: Timeout in seconds for waiting for devices
-            count: Number of devices to flash (0 for unlimited)
-            track_flashed: Whether to track which devices have been flashed
-            skip_existing: Whether to skip devices already present at startup
-            wait: Wait for devices to connect before flashing
-            poll_interval: Polling interval in seconds when waiting for devices
-            show_progress: Show real-time device detection progress
-
-        Returns:
-            FlashResult with details of the flash operation
-        """
-        logger.info(
-            "Starting firmware flash operation from file: %s", firmware_file_path
-        )
-
-        # Validate firmware file existence
-        from glovebox.firmware.flash.flash_helpers import validate_firmware_file
-
-        error_result = validate_firmware_file(self.file_adapter, firmware_file_path)
-        if error_result:
-            return error_result
-
-        try:
-            # Use the main flash method with wait parameters
-            return self.flash(
-                firmware_file=firmware_file_path,
-                profile=profile,
-                query=query,
-                timeout=timeout,
-                count=count,
-                track_flashed=track_flashed,
-                skip_existing=skip_existing,
-                wait=wait,
-                poll_interval=poll_interval,
-                show_progress=show_progress,
-            )
-        except Exception as e:
-            exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Error preparing flash operation: %s", e, exc_info=exc_info)
-            result = FlashResult(success=False)
-            result.add_error(f"Flash preparation failed: {str(e)}")
-            return result
 
     def flash(
         self,
@@ -157,6 +97,13 @@ class FlashService:
             # Convert firmware_file to Path if it's a string
             if isinstance(firmware_file, str):
                 firmware_file = Path(firmware_file)
+
+            # Validate firmware file existence
+            from glovebox.firmware.flash.flash_helpers import validate_firmware_file
+
+            error_result = validate_firmware_file(self.file_adapter, firmware_file)
+            if error_result:
+                return error_result
 
             # Get flash method configs from profile or use defaults
             flash_configs = self._get_flash_method_configs(profile, query)

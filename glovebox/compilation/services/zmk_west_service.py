@@ -229,13 +229,13 @@ class ZmkWestService(CompilationServiceProtocol):
                 ]
 
                 # Add individual board build checkpoints
-                if board_info.get('board_names'):
-                    for board_name in board_info['board_names']:
+                if board_info.get("board_names"):
+                    for board_name in board_info["board_names"]:
                         checkpoints.append(f"Building {board_name}")
                 else:
                     # Fallback for unknown boards
-                    for i in range(board_info.get('total_boards', 1)):
-                        checkpoints.append(f"Building Board {i+1}")
+                    for i in range(board_info.get("total_boards", 1)):
+                        checkpoints.append(f"Building Board {i + 1}")
 
                 checkpoints.append("Caching Results")
 
@@ -247,15 +247,27 @@ class ZmkWestService(CompilationServiceProtocol):
 
                 with progress_manager as progress_context:
                     return self._execute_zmk_compilation_with_progress(
-                        progress_context, keymap_file, config_file, output_dir,
-                        config, keyboard_profile, compilation_start_time, json_file
+                        progress_context,
+                        keymap_file,
+                        config_file,
+                        output_dir,
+                        config,
+                        keyboard_profile,
+                        compilation_start_time,
+                        json_file,
                     )
             else:
                 # Use noop progress context when no progress callback
                 progress_context = get_noop_progress_context()
                 return self._execute_zmk_compilation_with_progress(
-                    progress_context, keymap_file, config_file, output_dir,
-                    config, keyboard_profile, compilation_start_time, json_file
+                    progress_context,
+                    keymap_file,
+                    config_file,
+                    output_dir,
+                    config,
+                    keyboard_profile,
+                    compilation_start_time,
+                    json_file,
                 )
 
         except Exception as e:
@@ -309,7 +321,9 @@ class ZmkWestService(CompilationServiceProtocol):
                 if cache_operations:
                     cache_operations.labels("lookup", "hit").inc()
 
-                progress_context.log("Found cached build - using cached artifacts", "info")
+                progress_context.log(
+                    "Found cached build - using cached artifacts", "info"
+                )
                 progress_context.complete_checkpoint("Cache Check")
 
                 output_files = self._collect_files(cached_build_path, output_dir)
@@ -325,12 +339,17 @@ class ZmkWestService(CompilationServiceProtocol):
             if cache_operations:
                 cache_operations.labels("lookup", "miss").inc()
 
-            progress_context.log("Cache miss - proceeding with fresh compilation", "info")
+            progress_context.log(
+                "Cache miss - proceeding with fresh compilation", "info"
+            )
             progress_context.complete_checkpoint("Cache Check")
 
             # Extract board information for progress tracking
             board_info = self._extract_board_info_from_config(config)
-            progress_context.log(f"Building for {board_info['total_boards']} boards: {', '.join(board_info.get('board_names', []))}", "info")
+            progress_context.log(
+                f"Building for {board_info['total_boards']} boards: {', '.join(board_info.get('board_names', []))}",
+                "info",
+            )
 
             # Setup workspace with progress
             progress_context.start_checkpoint("Workspace Setup")
@@ -357,7 +376,10 @@ class ZmkWestService(CompilationServiceProtocol):
             progress_context.complete_checkpoint("Workspace Setup")
 
             # Run compilation with individual board tracking
-            self.logger.info("Starting ZMK west compilation for %d boards", board_info['total_boards'])
+            self.logger.info(
+                "Starting ZMK west compilation for %d boards",
+                board_info["total_boards"],
+            )
 
             if self.session_metrics:
                 docker_operations = self.session_metrics.Counter(
@@ -551,35 +573,125 @@ class ZmkWestService(CompilationServiceProtocol):
         keyboard_profile: "KeyboardProfile",
         progress_callback: CompilationProgressCallback | None = None,
     ) -> BuildResult:
-        """Execute compilation from JSON layout file (optimized - reduced temp files)."""
+        """Execute compilation from JSON layout file.
+
+        This method reads the JSON file and delegates to compile_from_data
+        following the unified input/output patterns.
+        """
         self.logger.info("Starting JSON to firmware compilation")
 
-        # Use optimized helper to get content first, then minimal temp files
-        from glovebox.compilation.helpers import convert_json_to_keymap
+        try:
+            # Read and parse JSON file to get layout data
+            from glovebox.adapters import create_file_adapter
+            from glovebox.layout.utils import process_json_file
 
-        keymap_file, config_file, conversion_result = convert_json_to_keymap(
-            json_file=json_file,
-            keyboard_profile=keyboard_profile,
-            session_metrics=self.session_metrics,
-        )
+            file_adapter = create_file_adapter()
 
-        if not conversion_result.success:
-            return conversion_result
+            def extract_layout_data(layout_data: Any) -> dict[str, Any]:
+                """Extract layout data for delegation to compile_from_data."""
+                return layout_data
 
-        # Ensure files were created successfully (type safety)
-        assert keymap_file is not None, "Keymap file should be created on success"
-        assert config_file is not None, "Config file should be created on success"
+            layout_data = process_json_file(
+                json_file,
+                "JSON parsing for compilation",
+                extract_layout_data,
+                file_adapter,
+            )
 
-        # Compile using the generated files (ZMK workspace setup already optimized)
-        return self.compile(
-            keymap_file=keymap_file,
-            config_file=config_file,
-            output_dir=output_dir,
-            config=config,
-            keyboard_profile=keyboard_profile,
-            progress_callback=progress_callback,
-            json_file=json_file,
-        )
+            # Delegate to memory-first method
+            return self.compile_from_data(
+                layout_data=layout_data,
+                output_dir=output_dir,
+                config=config,
+                keyboard_profile=keyboard_profile,
+                progress_callback=progress_callback,
+            )
+
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("JSON compilation failed: %s", e, exc_info=exc_info)
+            return BuildResult(success=False, errors=[str(e)])
+
+    def compile_from_data(
+        self,
+        layout_data: dict[str, Any],
+        output_dir: Path,
+        config: CompilationConfigUnion,
+        keyboard_profile: "KeyboardProfile",
+        progress_callback: CompilationProgressCallback | None = None,
+    ) -> BuildResult:
+        """Execute compilation from layout data dictionary (memory-first pattern).
+
+        This is the memory-first method that takes layout data as input
+        and returns content in the result object, following the unified
+        input/output patterns established in Phase 1/2 refactoring.
+
+        Args:
+            layout_data: Layout data dictionary (validated as LayoutData)
+            output_dir: Output directory for build artifacts
+            config: Compilation configuration
+            keyboard_profile: Keyboard profile for dynamic generation
+            progress_callback: Optional callback for compilation progress updates
+
+        Returns:
+            BuildResult: Results of compilation with generated content
+        """
+        self.logger.info("Starting compilation from layout data")
+
+        try:
+            # Convert layout data to keymap and config content
+            from glovebox.compilation.helpers import (
+                convert_layout_data_to_keymap_content,
+            )
+
+            keymap_content, config_content, conversion_result = (
+                convert_layout_data_to_keymap_content(
+                    layout_data=layout_data,
+                    keyboard_profile=keyboard_profile,
+                    session_metrics=self.session_metrics,
+                )
+            )
+
+            if not conversion_result.success:
+                return conversion_result
+
+            # Ensure content was generated successfully (type safety)
+            assert keymap_content is not None, (
+                "Keymap content should be generated on success"
+            )
+            assert config_content is not None, (
+                "Config content should be generated on success"
+            )
+
+            # Create temporary files for ZMK West build process
+            # ZMK West compilation requires actual files in a workspace
+            import tempfile
+            from pathlib import Path
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_path = Path(temp_dir)
+                keymap_file = temp_path / "keymap.keymap"
+                config_file = temp_path / "config.conf"
+
+                # Write content to temporary files
+                keymap_file.write_text(keymap_content, encoding="utf-8")
+                config_file.write_text(config_content, encoding="utf-8")
+
+                # Execute compilation using the generated files
+                return self.compile(
+                    keymap_file=keymap_file,
+                    config_file=config_file,
+                    output_dir=output_dir,
+                    config=config,
+                    keyboard_profile=keyboard_profile,
+                    progress_callback=progress_callback,
+                    json_file=None,  # No original JSON file since we have data directly
+                )
+
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("Compilation from data failed: %s", e, exc_info=exc_info)
+            return BuildResult(success=False, errors=[str(e)])
 
     def validate_config(self, config: CompilationConfigUnion) -> bool:
         """Validate configuration."""
@@ -617,8 +729,8 @@ class ZmkWestService(CompilationServiceProtocol):
             if board_info is None:
                 board_info = self._extract_board_info_from_config(config)
 
-            board_names = board_info.get('board_names', [])
-            total_boards = board_info.get('total_boards', len(build_commands))
+            board_names = board_info.get("board_names", [])
+            total_boards = board_info.get("total_boards", len(build_commands))
 
             # Build base commands with conditional west initialization and update
             base_commands = ["cd /workspace"]
@@ -689,41 +801,58 @@ class ZmkWestService(CompilationServiceProtocol):
                             progress_context.complete_checkpoint("Dependencies Update")
 
                         # Detect when a west build command starts
-                        if ("west build" in line_lower and "-b " in line_lower and
-                            self.current_board_index < len(board_names)):
-                                board_name = board_names[self.current_board_index]
-                                checkpoint_name = f"Building {board_name}"
-                                progress_context.start_checkpoint(checkpoint_name)
-                                progress_context.log(f"Starting build for {board_name}", "info")
-                                self.in_build_phase = True
+                        if (
+                            "west build" in line_lower
+                            and "-b " in line_lower
+                            and self.current_board_index < len(board_names)
+                        ):
+                            board_name = board_names[self.current_board_index]
+                            checkpoint_name = f"Building {board_name}"
+                            progress_context.start_checkpoint(checkpoint_name)
+                            progress_context.log(
+                                f"Starting build for {board_name}", "info"
+                            )
+                            self.in_build_phase = True
 
                         # Detect when a build completes successfully
-                        if (self.in_build_phase and ("completed successfully" in line_lower or
-                                                   "build complete" in line_lower or
-                                                   "firmware.uf2" in line_lower) and
-                            self.current_board_index < len(board_names)):
-                                board_name = board_names[self.current_board_index]
-                                checkpoint_name = f"Building {board_name}"
-                                progress_context.complete_checkpoint(checkpoint_name)
-                                progress_context.log(f"Completed build for {board_name}", "info")
-                                self.boards_completed += 1
-                                self.current_board_index += 1
-                                self.in_build_phase = False
+                        if (
+                            self.in_build_phase
+                            and (
+                                "completed successfully" in line_lower
+                                or "build complete" in line_lower
+                                or "firmware.uf2" in line_lower
+                            )
+                            and self.current_board_index < len(board_names)
+                        ):
+                            board_name = board_names[self.current_board_index]
+                            checkpoint_name = f"Building {board_name}"
+                            progress_context.complete_checkpoint(checkpoint_name)
+                            progress_context.log(
+                                f"Completed build for {board_name}", "info"
+                            )
+                            self.boards_completed += 1
+                            self.current_board_index += 1
+                            self.in_build_phase = False
 
-                                # Update overall progress
-                                progress_context.update_progress(
-                                    current=self.boards_completed,
-                                    total=total_boards,
-                                    status=f"Built {self.boards_completed}/{total_boards} boards"
-                                )
+                            # Update overall progress
+                            progress_context.update_progress(
+                                current=self.boards_completed,
+                                total=total_boards,
+                                status=f"Built {self.boards_completed}/{total_boards} boards",
+                            )
 
                         # Detect build failures
-                        if (self.in_build_phase and ("error:" in line_lower or "failed" in line_lower) and
-                            self.current_board_index < len(board_names)):
-                                board_name = board_names[self.current_board_index]
-                                checkpoint_name = f"Building {board_name}"
-                                progress_context.fail_checkpoint(checkpoint_name)
-                                progress_context.log(f"Build failed for {board_name}", "error")
+                        if (
+                            self.in_build_phase
+                            and ("error:" in line_lower or "failed" in line_lower)
+                            and self.current_board_index < len(board_names)
+                        ):
+                            board_name = board_names[self.current_board_index]
+                            checkpoint_name = f"Building {board_name}"
+                            progress_context.fail_checkpoint(checkpoint_name)
+                            progress_context.log(
+                                f"Build failed for {board_name}", "error"
+                            )
 
                 middlewares.append(BoardProgressMiddleware())
 

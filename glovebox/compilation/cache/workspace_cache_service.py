@@ -362,7 +362,8 @@ class ZmkWorkspaceCacheService:
             )
             progress_context.fail_checkpoint("Validating Source")
             return WorkspaceCacheResult(
-                success=False, error_message=f"Failed to cache workspace from archive: {e}"
+                success=False,
+                error_message=f"Failed to cache workspace from archive: {e}",
             )
 
     def inject_existing_workspace(
@@ -420,7 +421,9 @@ class ZmkWorkspaceCacheService:
                 )
 
             progress_context.complete_checkpoint("Validating Source")
-            progress_context.log(f"Found {len(found_components)} workspace components", "info")
+            progress_context.log(
+                f"Found {len(found_components)} workspace components", "info"
+            )
 
             # Determine cache level and git inclusion
             if branch is None:
@@ -826,7 +829,9 @@ class ZmkWorkspaceCacheService:
 
             # Start copying checkpoint
             progress_context.start_checkpoint("Copying to Cache")
-            progress_context.log(f"Copying {len(detected_components)} components to cache", "info")
+            progress_context.log(
+                f"Copying {len(detected_components)} components to cache", "info"
+            )
 
             # Copy workspace components with progress tracking
             total_components = len(detected_components)
@@ -894,18 +899,21 @@ class ZmkWorkspaceCacheService:
                             progress_context.update_progress(
                                 overall_files,
                                 total_estimated_files,
-                                f"Copying {comp_name}: {progress.current_file or ''}"
+                                f"Copying {comp_name}: {progress.current_file or ''}",
                             )
 
                             # Update status info
                             if progress.current_file:
-                                progress_context.set_status_info({
-                                    "current_file": progress.current_file,
-                                    "component": f"{comp_name} ({comp_idx + 1}/{total_components})",
-                                    "files_remaining": total_estimated_files - overall_files,
-                                    "bytes_copied": overall_bytes,
-                                    "total_bytes": total_estimated_bytes,
-                                })
+                                progress_context.set_status_info(
+                                    {
+                                        "current_file": progress.current_file,
+                                        "component": f"{comp_name} ({comp_idx + 1}/{total_components})",
+                                        "files_remaining": total_estimated_files
+                                        - overall_files,
+                                        "bytes_copied": overall_bytes,
+                                        "total_bytes": total_estimated_bytes,
+                                    }
+                                )
 
                             # Update progress coordinator if available
                             # TODO: Enable after refactoring
@@ -1016,7 +1024,9 @@ class ZmkWorkspaceCacheService:
 
             # Complete metadata checkpoint
             progress_context.complete_checkpoint("Updating Metadata")
-            progress_context.log(f"Workspace cached successfully at {cached_workspace_dir}", "info")
+            progress_context.log(
+                f"Workspace cached successfully at {cached_workspace_dir}", "info"
+            )
 
             # Start and complete finalizing checkpoint
             progress_context.start_checkpoint("Finalizing")
@@ -1571,19 +1581,29 @@ class ZmkWorkspaceCacheService:
 
             # Start extraction checkpoint
             progress_context.start_checkpoint("Extracting Files")
-            progress_context.log(f"Extracting {archive_format} archive directly to cache", "info")
+            progress_context.log(
+                f"Extracting {archive_format} archive directly to cache", "info"
+            )
 
             extracted_bytes = 0
             total_bytes = 0
             extracted_files = 0
 
             if archive_format == "zip":
-                extracted_bytes, total_bytes, extracted_files = self._extract_zip_to_cache(
-                    archive_path, cache_dir, include_git, progress_context
+                extracted_bytes, total_bytes, extracted_files = (
+                    self._extract_zip_to_cache(
+                        archive_path, cache_dir, include_git, progress_context
+                    )
                 )
             elif archive_format.startswith("tar"):
-                extracted_bytes, total_bytes, extracted_files = self._extract_tar_to_cache(
-                    archive_path, archive_format, cache_dir, include_git, progress_context
+                extracted_bytes, total_bytes, extracted_files = (
+                    self._extract_tar_to_cache(
+                        archive_path,
+                        archive_format,
+                        cache_dir,
+                        include_git,
+                        progress_context,
+                    )
                 )
             else:
                 progress_context.fail_checkpoint("Extracting Files")
@@ -1593,7 +1613,10 @@ class ZmkWorkspaceCacheService:
                 )
 
             progress_context.complete_checkpoint("Extracting Files")
-            progress_context.log(f"Extracted {extracted_files} files ({extracted_bytes / (1024*1024):.1f} MB)", "info")
+            progress_context.log(
+                f"Extracted {extracted_files} files ({extracted_bytes / (1024 * 1024):.1f} MB)",
+                "info",
+            )
 
             # Validate and reorganize extracted workspace
             progress_context.start_checkpoint("Copying to Cache")
@@ -1608,11 +1631,12 @@ class ZmkWorkspaceCacheService:
 
             # Reorganize workspace if needed
             if workspace_structure["needs_reorganization"]:
-                progress_context.log(f"Reorganizing workspace from {workspace_structure['workspace_subdir']}", "info")
+                progress_context.log(
+                    f"Reorganizing workspace from {workspace_structure['workspace_subdir']}",
+                    "info",
+                )
                 self._reorganize_workspace_to_cache_root(
-                    workspace_structure["workspace_path"],
-                    cache_dir,
-                    progress_context
+                    workspace_structure["workspace_path"], cache_dir, progress_context
                 )
 
             progress_context.complete_checkpoint("Copying to Cache")
@@ -1651,7 +1675,9 @@ class ZmkWorkspaceCacheService:
             progress_context.start_checkpoint("Updating Metadata")
             cache_key = self._generate_cache_key(repository, branch)
             ttls = self.get_ttls_for_cache_levels()
-            cache_level_str = cache_level.value if hasattr(cache_level, "value") else str(cache_level)
+            cache_level_str = (
+                cache_level.value if hasattr(cache_level, "value") else str(cache_level)
+            )
             ttl = ttls.get(cache_level_str, 24 * 3600)  # Default 1 day
 
             self.cache_manager.set(cache_key, metadata.to_cache_value(), ttl=ttl)
@@ -1667,7 +1693,9 @@ class ZmkWorkspaceCacheService:
             )
 
             progress_context.complete_checkpoint("Updating Metadata")
-            progress_context.log(f"Workspace cached successfully at {cache_dir}", "info")
+            progress_context.log(
+                f"Workspace cached successfully at {cache_dir}", "info"
+            )
 
             # Start and complete finalizing checkpoint
             progress_context.start_checkpoint("Finalizing")
@@ -1691,7 +1719,9 @@ class ZmkWorkspaceCacheService:
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Failed to extract archive to cache: %s", e, exc_info=exc_info)
+            self.logger.error(
+                "Failed to extract archive to cache: %s", e, exc_info=exc_info
+            )
 
             # Cleanup cache directory on any error
             if cache_created and cache_dir.exists():
@@ -1740,7 +1770,9 @@ class ZmkWorkspaceCacheService:
                 extracted_files += 1
 
                 # Update progress every 50 files or for last file
-                if progress_context and ((i + 1) % 50 == 0 or (i + 1) == len(file_list)):
+                if progress_context and (
+                    (i + 1) % 50 == 0 or (i + 1) == len(file_list)
+                ):
                     elapsed_time = time.time() - start_time
                     speed_mb_s = 0.0
                     eta_seconds = 0.0
@@ -1757,14 +1789,16 @@ class ZmkWorkspaceCacheService:
                         status=f"Extracting to cache: {file_info.filename}",
                     )
 
-                    progress_context.set_status_info({
-                        "current_file": file_info.filename,
-                        "files_remaining": len(file_list) - (i + 1),
-                        "bytes_copied": extracted_bytes,
-                        "total_bytes": total_uncompressed_size,
-                        "transfer_speed": speed_mb_s,
-                        "eta_seconds": eta_seconds,
-                    })
+                    progress_context.set_status_info(
+                        {
+                            "current_file": file_info.filename,
+                            "files_remaining": len(file_list) - (i + 1),
+                            "bytes_copied": extracted_bytes,
+                            "total_bytes": total_uncompressed_size,
+                            "transfer_speed": speed_mb_s,
+                            "eta_seconds": eta_seconds,
+                        }
+                    )
 
             return extracted_bytes, total_uncompressed_size, extracted_files
 
@@ -1796,7 +1830,9 @@ class ZmkWorkspaceCacheService:
 
         with tarfile.open(archive_path, mode) as tar_ref:
             members = tar_ref.getmembers()
-            total_uncompressed_size = sum(member.size for member in members if member.isfile())
+            total_uncompressed_size = sum(
+                member.size for member in members if member.isfile()
+            )
 
             extracted_bytes = 0
             extracted_files = 0
@@ -1831,14 +1867,16 @@ class ZmkWorkspaceCacheService:
                         status=f"Extracting to cache: {member.name}",
                     )
 
-                    progress_context.set_status_info({
-                        "current_file": member.name,
-                        "files_remaining": len(members) - (i + 1),
-                        "bytes_copied": extracted_bytes,
-                        "total_bytes": total_uncompressed_size,
-                        "transfer_speed": speed_mb_s,
-                        "eta_seconds": eta_seconds,
-                    })
+                    progress_context.set_status_info(
+                        {
+                            "current_file": member.name,
+                            "files_remaining": len(members) - (i + 1),
+                            "bytes_copied": extracted_bytes,
+                            "total_bytes": total_uncompressed_size,
+                            "transfer_speed": speed_mb_s,
+                            "eta_seconds": eta_seconds,
+                        }
+                    )
 
             return extracted_bytes, total_uncompressed_size, extracted_files
 
@@ -1851,11 +1889,13 @@ class ZmkWorkspaceCacheService:
         Returns:
             Dictionary with analysis results
         """
+
         def get_workspace_components(path: Path) -> list[str]:
             """Get ZMK workspace components found in path."""
             required_components = ["zmk", "zephyr", "modules", ".west"]
             found_components = [
-                component for component in required_components
+                component
+                for component in required_components
                 if (path / component).exists()
             ]
             return found_components
@@ -1915,7 +1955,7 @@ class ZmkWorkspaceCacheService:
         self,
         workspace_path: Path,
         cache_dir: Path,
-        progress_context: "ProgressContextProtocol | None" = None
+        progress_context: "ProgressContextProtocol | None" = None,
     ) -> None:
         """Reorganize workspace from subdirectory to cache root.
 
@@ -1930,7 +1970,9 @@ class ZmkWorkspaceCacheService:
         temp_dir = cache_dir.parent / f"{cache_dir.name}_reorganize_temp"
 
         try:
-            progress_context.log(f"Moving workspace contents from {workspace_path.name}/", "info")
+            progress_context.log(
+                f"Moving workspace contents from {workspace_path.name}/", "info"
+            )
 
             # Create temporary directory for reorganization
             temp_dir.mkdir(exist_ok=True)
@@ -1941,7 +1983,9 @@ class ZmkWorkspaceCacheService:
                 shutil.move(str(item), str(temp_dir / item.name))
                 items_moved += 1
 
-            progress_context.log(f"Moved {items_moved} workspace items to temporary location", "info")
+            progress_context.log(
+                f"Moved {items_moved} workspace items to temporary location", "info"
+            )
 
             # Clear cache directory
             shutil.rmtree(cache_dir)
@@ -1953,7 +1997,9 @@ class ZmkWorkspaceCacheService:
                 shutil.move(str(item), str(cache_dir / item.name))
                 items_restored += 1
 
-            progress_context.log(f"Reorganized {items_restored} items to cache root", "info")
+            progress_context.log(
+                f"Reorganized {items_restored} items to cache root", "info"
+            )
 
         except Exception as e:
             progress_context.log(f"Error during workspace reorganization: {e}", "error")

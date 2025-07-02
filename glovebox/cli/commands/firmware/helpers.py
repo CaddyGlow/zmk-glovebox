@@ -5,7 +5,11 @@ import shutil
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
 
 import typer
 
@@ -503,3 +507,193 @@ def create_compilation_service_with_progress(
     #     compilation_service.set_progress_coordinator(progress_coordinator)
 
     return compilation_service
+
+
+def compile_json_to_firmware(
+    json_file: Path, keyboard_profile: "KeyboardProfile", ctx: typer.Context
+) -> list[Path]:
+    """Compile JSON file to firmware and return list of UF2 files.
+
+    Args:
+        json_file: Path to JSON layout file
+        keyboard_profile: Keyboard profile for compilation
+        ctx: Typer context
+
+    Returns:
+        List of compiled UF2 firmware file paths
+
+    Raises:
+        typer.Exit: If compilation fails
+    """
+    import shutil
+    from pathlib import Path
+    from tempfile import mkdtemp
+
+    from glovebox.cli.helpers import (
+        print_error_message,
+        print_success_message,
+    )
+    from glovebox.cli.helpers.profile import get_user_config_from_context
+    from glovebox.config import create_user_config
+
+    print_success_message(f"Compiling JSON layout to firmware: {json_file.name}")
+
+    try:
+        # Get user config
+        user_config = get_user_config_from_context(ctx) or create_user_config()
+
+        # Create temporary directory for compilation output
+        temp_dir = Path(mkdtemp(prefix="glovebox_compile_"))
+
+        try:
+            # Resolve compilation strategy and config
+            compilation_strategy, compile_config = resolve_compilation_type(
+                keyboard_profile, None
+            )
+
+            # Update config with profile settings
+            update_config_from_profile(compile_config, keyboard_profile)
+
+            # Get cache services
+            cache_manager, workspace_cache_service, build_cache_service = (
+                get_cache_services_with_fallback(ctx)
+            )
+
+            # Create compilation service
+            compilation_service = create_compilation_service_with_progress(
+                compilation_strategy,
+                user_config,
+                ctx.obj.session_metrics,
+                None,  # No progress coordinator for flash compilation
+                cache_manager,
+                workspace_cache_service,
+                build_cache_service,
+            )
+
+            # Compile the JSON file
+            result = compilation_service.compile_from_json(
+                json_file_path=json_file,
+                profile=keyboard_profile,
+                output_dir=temp_dir,
+            )
+
+            if not result.success:
+                print_error_message(
+                    f"Failed to compile {json_file.name}: {'; '.join(result.errors)}"
+                )
+                raise typer.Exit(1)
+
+            # Find all UF2 files in the output
+            uf2_files = []
+            if result.output_files and result.output_files.uf2_files:
+                # Copy UF2 files to persistent location (current directory)
+                for uf2_file in result.output_files.uf2_files:
+                    if uf2_file.exists():
+                        # Create a name based on the original JSON file
+                        base_name = json_file.stem
+                        if (
+                            "lh" in uf2_file.name.lower()
+                            or "lf" in uf2_file.name.lower()
+                        ):
+                            target_name = f"{base_name}_lf.uf2"
+                        elif "rh" in uf2_file.name.lower():
+                            target_name = f"{base_name}_rh.uf2"
+                        else:
+                            target_name = f"{base_name}.uf2"
+
+                        target_path = Path(target_name)
+                        shutil.copy2(uf2_file, target_path)
+                        uf2_files.append(target_path)
+                        print_success_message(f"Created firmware file: {target_path}")
+
+            if not uf2_files:
+                print_error_message(
+                    f"No firmware files were generated from {json_file.name}"
+                )
+                raise typer.Exit(1)
+
+            return uf2_files
+
+        finally:
+            # Clean up temporary directory
+            try:
+                shutil.rmtree(temp_dir)
+            except Exception as cleanup_error:
+                logger.warning(
+                    "Failed to clean up temporary directory: %s", cleanup_error
+                )
+
+    except Exception as e:
+        print_error_message(f"Compilation failed for {json_file.name}: {str(e)}")
+        raise typer.Exit(1) from None
+
+
+def execute_compilation_service(
+    compilation_strategy: str,
+    keymap_file: Path,
+    kconfig_file: Path,
+    build_output_dir: Path,
+    compile_config: Any,
+    keyboard_profile: Any,
+    session_metrics: Any = None,
+    user_config: Any = None,
+    progress_coordinator: Any = None,
+    progress_callback: Any = None,
+    cache_manager: Any = None,
+    workspace_cache_service: Any = None,
+    build_cache_service: Any = None,
+) -> Any:
+    """Execute the compilation service."""
+    compilation_service = create_compilation_service_with_progress(
+        compilation_strategy,
+        user_config,
+        session_metrics,
+        progress_coordinator,
+        cache_manager,
+        workspace_cache_service,
+        build_cache_service,
+    )
+
+    # Use unified config directly - no conversion needed
+    return compilation_service.compile(
+        keymap_file=keymap_file,
+        config_file=kconfig_file,
+        output_dir=build_output_dir,
+        config=compile_config,
+        keyboard_profile=keyboard_profile,
+        progress_callback=progress_callback,
+    )
+
+
+def execute_compilation_from_json(
+    compilation_strategy: str,
+    json_file: Path,
+    build_output_dir: Path,
+    compile_config: Any,
+    keyboard_profile: Any,
+    session_metrics: Any = None,
+    user_config: Any = None,
+    progress_coordinator: Any = None,
+    progress_callback: Any = None,
+    cache_manager: Any = None,
+    workspace_cache_service: Any = None,
+    build_cache_service: Any = None,
+) -> Any:
+    """Execute compilation from JSON layout file."""
+    compilation_service = create_compilation_service_with_progress(
+        compilation_strategy,
+        user_config,
+        session_metrics,
+        progress_coordinator,
+        cache_manager,
+        workspace_cache_service,
+        build_cache_service,
+    )
+
+    return compilation_service.compile_from_json(
+        json_file=json_file,
+        output_dir=build_output_dir,
+        config=compile_config,
+        keyboard_profile=keyboard_profile,
+        progress_callback=progress_callback,
+    )

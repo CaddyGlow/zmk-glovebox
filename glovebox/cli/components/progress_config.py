@@ -24,7 +24,6 @@ class ProgressConfig(GloveboxBaseModel):
     icon_mode: IconMode = IconMode.TEXT
     """Icon mode for visual indicators (default: ASCII per CLAUDE.md)"""
 
-
     show_overall_progress: bool = True
     """Whether to show overall progress bar at bottom"""
 
@@ -39,6 +38,9 @@ class ProgressConfig(GloveboxBaseModel):
 
     panel_title_suffix: str = ""
     """Optional suffix for panel title"""
+
+    use_v2_display: bool = True
+    """Whether to use the v2 table-based display (default: True)"""
 
     @property
     def full_operation_name(self) -> str:

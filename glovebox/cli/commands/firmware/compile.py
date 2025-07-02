@@ -1,11 +1,16 @@
-"""Firmware compile command implementation."""
+"""Refactored firmware compile command using IOCommand pattern."""
 
 import logging
 from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
+
+from glovebox.cli.commands.firmware.base import FirmwareOutputCommand
 from glovebox.cli.decorators import (
     handle_errors,
     with_cache,
@@ -13,103 +18,231 @@ from glovebox.cli.decorators import (
     with_profile,
     with_tmpdir,
 )
-from glovebox.cli.helpers import print_error_message
 from glovebox.cli.helpers.parameter_factory import ParameterFactory
 from glovebox.cli.helpers.parameter_helpers import resolve_firmware_input_file
-from glovebox.cli.helpers.parameters import ProfileOption, complete_config_flags
+from glovebox.cli.helpers.parameters import ProfileOption
 from glovebox.cli.helpers.profile import (
     get_keyboard_profile_from_context,
     get_user_config_from_context,
-)
-from glovebox.cli.helpers.theme import Icons
-from glovebox.compilation.models import CompilationConfigUnion
-
-from .helpers import (
-    cleanup_temp_directory,
-    create_compilation_service_with_progress,
-    format_compilation_output,
-    get_build_output_dir,
-    get_cache_services_with_fallback,
-    prepare_config_file,
-    process_compilation_output,
-    resolve_compilation_type,
-    setup_progress_display,
-    update_config_from_profile,
 )
 
 
 logger = logging.getLogger(__name__)
 
 
-def execute_compilation_service(
-    compilation_strategy: str,
-    keymap_file: Path,
-    kconfig_file: Path,
-    build_output_dir: Path,
-    compile_config: CompilationConfigUnion,
-    keyboard_profile: Any,
-    session_metrics: Any = None,
-    user_config: Any = None,
-    progress_coordinator: Any = None,
-    progress_callback: Any = None,
-    cache_manager: Any = None,
-    workspace_cache_service: Any = None,
-    build_cache_service: Any = None,
-) -> Any:
-    """Execute the compilation service."""
-    compilation_service = create_compilation_service_with_progress(
-        compilation_strategy,
-        user_config,
-        session_metrics,
-        progress_coordinator,
-        cache_manager,
-        workspace_cache_service,
-        build_cache_service,
-    )
+class CompileFirmwareCommand(FirmwareOutputCommand):
+    """Command to compile firmware from keymap/config files or JSON layout."""
 
-    # Use unified config directly - no conversion needed
-    return compilation_service.compile(
-        keymap_file=keymap_file,
-        config_file=kconfig_file,
-        output_dir=build_output_dir,
-        config=compile_config,
-        keyboard_profile=keyboard_profile,
-        progress_callback=progress_callback,
-    )
+    def execute(
+        self,
+        ctx: typer.Context,
+        input_file: str | None,
+        config_file: Path | None,
+        profile: "KeyboardProfile | None",
+        strategy: str | None,
+        output_format: str,
+        progress: bool | None,
+        show_logs: bool,
+        debug: bool,
+        output: Path | None,
+        config_flags: list[str] | None,
+    ) -> None:
+        """Execute the compile firmware command."""
+        try:
+            # Resolve input file
+            resolved_input_file = self._resolve_input_file(input_file)
 
+            # Validate profile
+            if profile is None:
+                raise ValueError(
+                    "No keyboard profile available. Profile is required for firmware compilation."
+                )
 
-def execute_compilation_from_json(
-    compilation_strategy: str,
-    json_file: Path,
-    build_output_dir: Path,
-    compile_config: CompilationConfigUnion,
-    keyboard_profile: Any,
-    session_metrics: Any = None,
-    user_config: Any = None,
-    progress_coordinator: Any = None,
-    progress_callback: Any = None,
-    cache_manager: Any = None,
-    workspace_cache_service: Any = None,
-    build_cache_service: Any = None,
-) -> Any:
-    """Execute compilation from JSON layout file."""
-    compilation_service = create_compilation_service_with_progress(
-        compilation_strategy,
-        user_config,
-        session_metrics,
-        progress_coordinator,
-        cache_manager,
-        workspace_cache_service,
-        build_cache_service,
-    )
+            # Detect input type and setup parameters
+            is_json_input = resolved_input_file.suffix.lower() == ".json"
 
-    return compilation_service.compile_from_json(
-        json_file=json_file,
-        output_dir=build_output_dir,
-        config=compile_config,
-        keyboard_profile=keyboard_profile,
-        progress_callback=progress_callback,
-    )
+            # Get build directory and compilation parameters
+            from glovebox.cli.commands.firmware.helpers import (
+                cleanup_temp_directory,
+                get_build_output_dir,
+                get_cache_services_with_fallback,
+                prepare_config_file,
+                resolve_compilation_type,
+                setup_progress_display,
+                update_config_from_profile,
+            )
+
+            build_output_dir, manual_cleanup_needed = get_build_output_dir(output, ctx)
+            compilation_type, compile_config = resolve_compilation_type(
+                profile, strategy
+            )
+            update_config_from_profile(compile_config, profile)
+
+            # Setup progress display
+            show_progress = progress if progress is not None else True
+            progress_display, progress_coordinator, progress_callback = (
+                setup_progress_display(ctx, show_progress)
+            )
+
+            # Get cache services
+            cache_manager, workspace_service, build_service = (
+                get_cache_services_with_fallback(ctx)
+            )
+
+            try:
+                # Prepare config file
+                effective_config_file = prepare_config_file(
+                    is_json_input, config_file, config_flags, build_output_dir
+                )
+
+                # Execute compilation
+                user_config = get_user_config_from_context(ctx)
+
+                if is_json_input:
+                    result = self._execute_json_compilation(
+                        compilation_type,
+                        resolved_input_file,
+                        build_output_dir,
+                        compile_config,
+                        profile,
+                        ctx,
+                        user_config,
+                        progress_coordinator,
+                        progress_callback,
+                        cache_manager,
+                        workspace_service,
+                        build_service,
+                    )
+                else:
+                    if effective_config_file is None:
+                        raise ValueError(
+                            "Config file is required for keymap compilation"
+                        )
+                    result = self._execute_keymap_compilation(
+                        compilation_type,
+                        resolved_input_file,
+                        effective_config_file,
+                        build_output_dir,
+                        compile_config,
+                        profile,
+                        ctx,
+                        user_config,
+                        progress_coordinator,
+                        progress_callback,
+                        cache_manager,
+                        workspace_service,
+                        build_service,
+                    )
+
+                # Process results
+                if result.success:
+                    from glovebox.cli.commands.firmware.helpers import (
+                        format_compilation_output,
+                        process_compilation_output,
+                    )
+
+                    process_compilation_output(result, resolved_input_file, output)
+                    format_compilation_output(result, output_format, build_output_dir)
+                else:
+                    raise ValueError(f"Compilation failed: {'; '.join(result.errors)}")
+
+            finally:
+                if progress_display:
+                    progress_display.stop()
+                cleanup_temp_directory(build_output_dir, manual_cleanup_needed)
+
+        except Exception as e:
+            self.handle_service_error(e, "compile firmware")
+
+    def _resolve_input_file(self, input_file: str | None) -> Path:
+        """Resolve input file path."""
+        try:
+            resolved_input_file = resolve_firmware_input_file(
+                input_file,
+                env_var="GLOVEBOX_JSON_FILE",
+                allowed_extensions=[".json", ".keymap"],
+            )
+        except (FileNotFoundError, ValueError) as e:
+            raise ValueError(str(e)) from e
+
+        if resolved_input_file is None:
+            raise ValueError(
+                "Input file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
+            )
+
+        return resolved_input_file
+
+    def _execute_json_compilation(
+        self,
+        compilation_type: str,
+        json_file: Path,
+        build_output_dir: Path,
+        compile_config: Any,
+        profile: "KeyboardProfile",
+        ctx: typer.Context,
+        user_config: Any,
+        progress_coordinator: Any,
+        progress_callback: Any,
+        cache_manager: Any,
+        workspace_service: Any,
+        build_service: Any,
+    ) -> Any:
+        """Execute JSON file compilation."""
+        from glovebox.cli.commands.firmware.helpers import (
+            execute_compilation_from_json,
+        )
+
+        return execute_compilation_from_json(
+            compilation_type,
+            json_file,
+            build_output_dir,
+            compile_config,
+            profile,
+            session_metrics=ctx.obj.session_metrics,
+            user_config=user_config,
+            progress_coordinator=progress_coordinator,
+            progress_callback=progress_callback,
+            cache_manager=cache_manager,
+            workspace_cache_service=workspace_service,
+            build_cache_service=build_service,
+        )
+
+    def _execute_keymap_compilation(
+        self,
+        compilation_type: str,
+        keymap_file: Path,
+        config_file: Path,
+        build_output_dir: Path,
+        compile_config: Any,
+        profile: "KeyboardProfile",
+        ctx: typer.Context,
+        user_config: Any,
+        progress_coordinator: Any,
+        progress_callback: Any,
+        cache_manager: Any,
+        workspace_service: Any,
+        build_service: Any,
+    ) -> Any:
+        """Execute keymap file compilation."""
+        from glovebox.cli.commands.firmware.helpers import (
+            execute_compilation_service,
+        )
+
+        return execute_compilation_service(
+            compilation_type,
+            keymap_file,
+            config_file,
+            build_output_dir,
+            compile_config,
+            profile,
+            session_metrics=ctx.obj.session_metrics,
+            user_config=user_config,
+            progress_coordinator=progress_coordinator,
+            progress_callback=progress_callback,
+            cache_manager=cache_manager,
+            workspace_cache_service=workspace_service,
+            build_cache_service=build_service,
+        )
 
 
 @handle_errors
@@ -180,7 +313,6 @@ def compile(
             "-D",
             "--define",
             help="Config flags to add to build (e.g., -D CONFIG_ZMK_SLEEP=y -D CONFIG_BT_CTLR_TX_PWR_PLUS_8=y)",
-            autocompletion=complete_config_flags,
         ),
     ] = None,
 ) -> None:
@@ -189,12 +321,10 @@ def compile(
     Compiles .keymap and .conf files, or a .json layout file, into a flashable
     .uf2 firmware file using Docker and the ZMK build system. Requires Docker to be running.
 
-    \b
     For JSON input, the layout is automatically converted to .keymap and .conf files
     before compilation. The config_file argument is optional for both JSON and keymap input.
     Config flags can be added using -D options (e.g., -D ZMK_SLEEP=y).
 
-    \b
     Output behavior:
     - With --output: Creates build files in specified directory (traditional behavior)
     - Without --output: Creates {filename}.uf2 and {filename}_artefacts.zip in current directory
@@ -202,21 +332,19 @@ def compile(
     - Unified firmware: Creates {filename}.uf2 file (when available)
     - Both unified and split files can be created simultaneously
 
-    \b
     Profile precedence (highest to lowest):
     1. CLI --profile flag (overrides all)
     2. Auto-detection from JSON keyboard field (unless --no-auto)
     3. User config default profile
     4. Hardcoded fallback profile
 
-    \b
     Supports multiple compilation strategies:
     - zmk_config: ZMK config repository builds (default, recommended)
     - moergo: Moergo-specific compilation strategy
-    \b
+
     Configuration options like Docker settings, workspace management, and build
     parameters are managed through profile configurations and user config files.
-    \b
+
     Examples:
         # Default behavior: Creates my_layout.uf2 and my_layout_artefacts.zip
         glovebox firmware compile my_layout.json
@@ -245,150 +373,19 @@ def compile(
         # JSON output for automation
         glovebox firmware compile layout.json --profile glove80/v25.05 --output-format json
     """
-    # Initialize variables that might be referenced in error handlers
-    progress_display = None
-    build_output_dir = None
-    manual_cleanup_needed = False
+    keyboard_profile = get_keyboard_profile_from_context(ctx)
 
-    try:
-        # Determine if progress should be shown (default: enabled)
-        show_progress = progress if progress is not None else True
-
-        # Create progress display components
-        progress_display, progress_coordinator, progress_callback = (
-            setup_progress_display(ctx, show_progress)
-        )
-
-        # Resolve input file path - handles both keymap and JSON files
-        try:
-            resolved_input_file = resolve_firmware_input_file(
-                input_file,
-                env_var="GLOVEBOX_JSON_FILE",
-                allowed_extensions=[".json", ".keymap"],
-            )
-        except (FileNotFoundError, ValueError) as e:
-            if progress_display:
-                progress_display.stop()
-            print_error_message(str(e))
-            raise typer.Exit(1) from e
-
-        if resolved_input_file is None:
-            if progress_display:
-                progress_display.stop()
-            print_error_message(
-                "Input file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
-            )
-            raise typer.Exit(1)
-
-        # Profile is already handled by the @with_profile decorator
-        keyboard_profile = get_keyboard_profile_from_context(ctx)
-
-        # Ensure we have a valid keyboard profile
-        if keyboard_profile is None:
-            if progress_display:
-                progress_display.stop()
-            print_error_message(
-                "No keyboard profile available. Profile is required for firmware compilation."
-            )
-            raise typer.Exit(1)
-
-        # Detect input file type and validate arguments
-        is_json_input = resolved_input_file.suffix.lower() == ".json"
-
-        if is_json_input and config_file is not None:
-            logger.info(
-                "Config file provided for JSON input will be ignored (generated automatically)"
-            )
-
-        # Set output directory based on --output flag
-        build_output_dir, manual_cleanup_needed = get_build_output_dir(output, ctx)
-
-        compilation_type, compile_config = resolve_compilation_type(
-            keyboard_profile, strategy
-        )
-
-        # Update config with profile firmware settings
-        update_config_from_profile(compile_config, keyboard_profile)
-
-        # Get cache services from context (provided by @with_cache decorator)
-        cache_manager, workspace_service, build_service = (
-            get_cache_services_with_fallback(ctx)
-        )
-
-        # Execute compilation
-        logger.info(
-            "%s Starting firmware compilation...", Icons.get_icon("BUILD", "text")
-        )
-
-        # Handle config file creation for keymap files
-        effective_config_file = prepare_config_file(
-            is_json_input, config_file, config_flags, build_output_dir
-        )
-
-        # Execute compilation based on input type
-        if is_json_input:
-            result = execute_compilation_from_json(
-                compilation_type,
-                resolved_input_file,
-                build_output_dir,
-                compile_config,
-                keyboard_profile,
-                session_metrics=ctx.obj.session_metrics,
-                user_config=get_user_config_from_context(ctx),
-                progress_coordinator=progress_coordinator,
-                progress_callback=progress_callback,
-                cache_manager=cache_manager,
-                workspace_cache_service=workspace_service,
-                build_cache_service=build_service,
-            )
-        else:
-            assert effective_config_file is not None, (
-                "Config file should be created for keymap compilation"
-            )
-            result = execute_compilation_service(
-                compilation_type,
-                resolved_input_file,  # keymap_file
-                effective_config_file,  # kconfig_file (could be temp file or original)
-                build_output_dir,
-                compile_config,
-                keyboard_profile,
-                session_metrics=ctx.obj.session_metrics,
-                user_config=get_user_config_from_context(ctx),
-                progress_coordinator=progress_coordinator,
-                progress_callback=progress_callback,
-                cache_manager=cache_manager,
-                workspace_cache_service=workspace_service,
-                build_cache_service=build_service,
-            )
-
-        if result.success:
-            # Process compilation output (create .uf2 and _artefacts.zip if --output not provided)
-            process_compilation_output(result, resolved_input_file, output)
-
-        # Format and display results
-        format_compilation_output(result, output_format, build_output_dir)
-
-        # Clean up progress display after completion (success or failure)
-        if progress_display:
-            progress_display.stop()
-
-        # Clean up temporary build directory if needed (only for manual temp dirs)
-        cleanup_temp_directory(build_output_dir, manual_cleanup_needed)
-
-    except Exception as e:
-        # Clean up progress display if it was used
-        if progress_display:
-            progress_display.stop()
-
-        print_error_message(f"Firmware compilation failed: {str(e)}")
-        logger.exception("Compilation error details")
-
-        # Clean up temporary build directory if needed (only for manual temp dirs)
-        if (
-            "build_output_dir" in locals()
-            and build_output_dir is not None
-            and "manual_cleanup_needed" in locals()
-        ):
-            cleanup_temp_directory(build_output_dir, manual_cleanup_needed)
-
-        raise typer.Exit(1) from None
+    command = CompileFirmwareCommand()
+    command.execute(
+        ctx=ctx,
+        input_file=input_file,
+        config_file=config_file,
+        profile=keyboard_profile,
+        strategy=strategy,
+        output_format=output_format,
+        progress=progress,
+        show_logs=show_logs,
+        debug=debug,
+        output=output,
+        config_flags=config_flags,
+    )
