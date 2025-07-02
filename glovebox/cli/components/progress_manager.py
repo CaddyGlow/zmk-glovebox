@@ -44,6 +44,7 @@ class ProgressManager:
         self.context = ProgressContext(self.display)
 
 
+
     def __enter__(self) -> ProgressContextProtocol:
         """Enter context manager, starting display.
 

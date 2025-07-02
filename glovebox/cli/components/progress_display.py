@@ -46,6 +46,7 @@ class ProgressDisplay:
         self.console = Console()
         self.state = ProgressState()
 
+
         # Rich components
         self._live: Live | None = None
         self._progress: Progress | None = None
@@ -58,11 +59,11 @@ class ProgressDisplay:
 
 
     def start(self) -> None:
-        """Start the progress display."""
-        if self._progress is not None:
+        """Start the live display."""
+        if self._live is not None:
             return
 
-        # Initialize progress tracking with our console
+        # Initialize progress tracking
         self._progress = Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
@@ -71,27 +72,40 @@ class ProgressDisplay:
             console=self.console,
             transient=False,
         )
-        
+
         # Add a main task for current checkpoint progress
         self._main_task_id = self._progress.add_task("Starting...", total=100)
 
-        # Start progress display (this will handle logs automatically)
-        self._progress.start()
+        # Start live display with combined progress and checkpoint panel
+        self._live = Live(
+            self._generate_combined_display(),
+            console=self.console,
+            refresh_per_second=self.config.refresh_rate,
+            transient=False,
+        )
+        self._live.start()
 
         # Record start time
         self.state.start_time = time.time()
 
     def stop(self) -> None:
-        """Stop the progress display."""
-        # Stop progress display
-        if self._progress is not None:
-            self._progress.stop()
-            self._progress = None
+        """Stop the live display."""
+        # Stop live display
+        if self._live is not None:
+            self._live.stop()
+            self._live = None
 
+        self._progress = None
 
     def _update_display(self) -> None:
-        """Update the display (no-op since Rich Progress handles updates automatically)."""
-        pass
+        """Update the live display."""
+        if self._live is not None:
+            self._live.update(self._generate_combined_display())
+
+    def _generate_combined_display(self) -> Panel:
+        """Generate combined display with progress and checkpoint panel."""
+        # Just return the checkpoint panel - it now includes the progress bar inside
+        return self._generate_checkpoint_panel()
 
     def _generate_checkpoint_panel(self) -> Panel:
         """Generate checkpoint status panel.
@@ -101,6 +115,30 @@ class ProgressDisplay:
         """
         table = Table.grid(padding=(0, 1))
         table.add_column(style=Colors.NORMAL, no_wrap=False, width=None)
+
+        # Current task progress bar (if active)
+        if self._progress and self.state.current_checkpoint:
+            # Create a custom progress bar representation
+            current_percentage = (self.state.current_progress / self.state.total_progress * 100) if self.state.total_progress > 0 else 0
+            
+            progress_text = Text()
+            progress_text.append(f"Current: ", style=Colors.MUTED)
+            progress_text.append(f"{self.state.current_checkpoint} ", style=Colors.RUNNING)
+            
+            # Create progress bar
+            bar_width = 25
+            filled_width = int((current_percentage / 100.0) * bar_width)
+            empty_width = bar_width - filled_width
+            
+            filled_char = Icons.get_icon("PROGRESS_FULL", self.config.icon_mode) or "█"
+            empty_char = Icons.get_icon("PROGRESS_EMPTY", self.config.icon_mode) or "░"
+            progress_bar = filled_char * filled_width + empty_char * empty_width
+            
+            progress_text.append(progress_bar, style=Colors.LOADING_TEXT)
+            progress_text.append(f" {current_percentage:>5.1f}%", style=Colors.MUTED)
+            
+            table.add_row(progress_text)
+            table.add_row("")  # Spacer
 
         # Status line
         if self.config.show_status_line and (
@@ -210,8 +248,33 @@ class ProgressDisplay:
 
             # Format common status fields
             if "current_file" in self.state.status_info:
-                info_parts.append(f"File: {self.state.status_info['current_file']}")
+                filename = self.state.status_info['current_file']
+                # Truncate long filenames
+                if len(filename) > 40:
+                    filename = "..." + filename[-37:]
+                info_parts.append(f"File: {filename}")
 
+            if "component" in self.state.status_info:
+                info_parts.append(f"Component: {self.state.status_info['component']}")
+
+            if "files_remaining" in self.state.status_info:
+                remaining = self.state.status_info["files_remaining"]
+                info_parts.append(f"Files remaining: {remaining:,}")
+
+            if "bytes_copied" in self.state.status_info and "total_bytes" in self.state.status_info:
+                bytes_copied = self.state.status_info["bytes_copied"]
+                total_bytes = self.state.status_info["total_bytes"]
+                if total_bytes > 0:
+                    progress_mb = bytes_copied / (1024 * 1024)
+                    total_mb = total_bytes / (1024 * 1024)
+                    if total_mb >= 1024:
+                        progress_gb = progress_mb / 1024
+                        total_gb = total_mb / 1024
+                        info_parts.append(f"Data: {progress_gb:.1f}/{total_gb:.1f} GB")
+                    else:
+                        info_parts.append(f"Data: {progress_mb:.1f}/{total_mb:.1f} MB")
+
+            # Legacy fields for other operations
             if "transfer_speed" in self.state.status_info:
                 speed = self.state.status_info["transfer_speed"]
                 info_parts.append(f"Speed: {speed:.1f} MB/s")

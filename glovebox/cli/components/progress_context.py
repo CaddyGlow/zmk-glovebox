@@ -71,17 +71,7 @@ class ProgressContext:
             self.display.state.total_progress = 100
             self.display.state.status_message = f"Starting {name}"
 
-            # Update Rich Progress task
-            if self.display._progress and hasattr(self.display, '_main_task_id'):
-                self.display._progress.update(
-                    self.display._main_task_id,
-                    completed=0,
-                    description=f"Starting {name}"
-                )
-                
-            # Print checkpoint status to console
-            if self.display._progress:
-                self.display._progress.console.print(f"→ Starting {name}")
+            # Progress tracking is now handled by the panel display
 
             self.display._update_display()
 
@@ -101,17 +91,7 @@ class ProgressContext:
                 self.display.state.current_checkpoint = None
                 self.display.state.status_message = f"Completed {name}"
                 
-                # Update Rich Progress task to show completion
-                if self.display._progress and hasattr(self.display, '_main_task_id'):
-                    self.display._progress.update(
-                        self.display._main_task_id,
-                        completed=100,
-                        description=f"Completed {name}"
-                    )
-                    
-                # Print checkpoint completion to console
-                if self.display._progress:
-                    self.display._progress.console.print(f"✅ Completed {name}")
+                # Progress tracking is now handled by the panel display
 
             # Check if all checkpoints are complete
             all_complete = all(
@@ -158,15 +138,7 @@ class ProgressContext:
         if status:
             self.display.state.status_message = status
 
-        # Update Rich Progress task
-        if self.display._progress and hasattr(self.display, '_main_task_id'):
-            percentage = (current / total * 100) if total > 0 else 0
-            task_description = status or self.display.state.current_checkpoint or "Processing..."
-            self.display._progress.update(
-                self.display._main_task_id,
-                completed=percentage,
-                description=task_description
-            )
+        # Progress tracking is now handled by the panel display
 
         self.display._update_display()
 
@@ -177,9 +149,8 @@ class ProgressContext:
             message: Log message
             level: Log level (info, warning, error, debug)
         """
-        # Print directly to progress console if available
-        if self.display._progress is not None:
-            self.display._progress.console.print(message)
+        # Print directly to the display console
+        self.display.console.print(message)
 
     def set_status_info(self, info: dict[str, Any]) -> None:
         """Set status information for display.
