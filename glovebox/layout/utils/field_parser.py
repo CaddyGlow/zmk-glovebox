@@ -63,11 +63,11 @@ def _resolve_pydantic_field_alias(model: Any, field_name: str) -> str | None:
         Actual Python attribute name if field_name is an alias, None otherwise
     """
     # Check if this is a Pydantic model
-    if not hasattr(model, "model_fields"):
+    if not hasattr(model.__class__, "model_fields"):
         return None
 
     # Iterate through model fields to find alias matches
-    for python_name, field_info in model.model_fields.items():
+    for python_name, field_info in model.__class__.model_fields.items():
         # Check if field_name matches the alias
         if hasattr(field_info, "alias") and field_info.alias == field_name:
             return str(python_name)

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
+from click import Context as ClickContext
 
 from glovebox.config.profile import KeyboardProfile
 
@@ -829,7 +830,7 @@ ProfileOption = Annotated[
 
 
 def create_profile_from_param_unified(
-    ctx: typer.Context,
+    ctx: typer.Context | ClickContext,
     profile: str | None,
     default_profile: str | None = None,
     json_file: Path | None = None,

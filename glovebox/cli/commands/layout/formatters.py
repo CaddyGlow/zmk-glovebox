@@ -522,7 +522,9 @@ class LayoutOutputFormatter:
                 name = behavior.get("name", "Unknown")
                 changes = behavior.get("changes", {})
                 change_count = len(changes)
-                console.print_info(f"  ~ Modified: {name} ({change_count} field changes)")
+                console.print_info(
+                    f"  ~ Modified: {name} ({change_count} field changes)"
+                )
 
                 # Show specific field changes (limited)
                 for field_name, change_info in list(changes.items())[:3]:
@@ -533,7 +535,9 @@ class LayoutOutputFormatter:
                     ):
                         old_val = str(change_info["old"])[:25]
                         new_val = str(change_info["new"])[:25]
-                        console.print_info(f"    {field_name}: '{old_val}' → '{new_val}'")
+                        console.print_info(
+                            f"    {field_name}: '{old_val}' → '{new_val}'"
+                        )
 
     def _format_detailed_metadata_changes(self, diff_data: dict[str, Any]) -> None:
         """Format detailed metadata changes."""
@@ -592,7 +596,9 @@ class LayoutOutputFormatter:
         if dtsi_changes:
             from glovebox.cli.helpers.theme import Icons
 
-            console.print_info(f"{Icons.get_icon('STATS', self.icon_mode)} DTSI Changes:")
+            console.print_info(
+                f"{Icons.get_icon('STATS', self.icon_mode)} DTSI Changes:"
+            )
             for change in dtsi_changes:
                 console.print_info(change)
 

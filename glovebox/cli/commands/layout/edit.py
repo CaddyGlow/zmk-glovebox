@@ -411,14 +411,20 @@ def resolve_import(source: str, base_path: Path) -> Any:
                 # JSON path syntax: @lib-ref$.path.to.field
                 file_part, json_path = source.split("$.", 1)
                 from glovebox.cli.helpers.auto_profile import resolve_json_file_path
+
                 file_path = resolve_json_file_path(file_part)
             elif ":" in source:
                 # Shortcut syntax: @lib-ref:LayerName
                 file_part, shortcut = source.split(":", 1)
                 from glovebox.cli.helpers.auto_profile import resolve_json_file_path
+
                 file_path = resolve_json_file_path(file_part)
 
                 # Load file to resolve shortcut
+                if file_path is None:
+                    raise ValueError(
+                        f"Could not resolve library reference: {file_part}"
+                    )
                 import_data = json.loads(file_path.read_text())
 
                 # Common shortcuts
@@ -439,7 +445,10 @@ def resolve_import(source: str, base_path: Path) -> Any:
             else:
                 # Full library import: @lib-ref
                 from glovebox.cli.helpers.auto_profile import resolve_json_file_path
+
                 file_path = resolve_json_file_path(source)
+                if file_path is None:
+                    raise ValueError(f"Could not resolve library reference: {source}")
                 return json.loads(file_path.read_text())
         elif "$." in source:
             # JSON path syntax: file.json$.path.to.field
@@ -475,6 +484,8 @@ def resolve_import(source: str, base_path: Path) -> Any:
 
         # Handle JSON path if needed
         if "$." in source:
+            if file_path is None:
+                raise ValueError(f"Could not resolve file path for JSON path: {source}")
             import_data = json.loads(file_path.read_text())
             current = import_data
             for part in json_path.split("."):

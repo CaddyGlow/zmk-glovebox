@@ -154,22 +154,27 @@ class LayoutData(LayoutMetadata):
 
         # Process templates BEFORE validation using the template service directly
         from glovebox.layout.template_service import create_jinja2_template_service
-        
+
         try:
             # Create template service and process the raw data directly
             template_service = create_jinja2_template_service()
-            
+
             # Process templates on the raw dictionary data
-            resolved_data = template_service._process_raw_data(data)
-            
+            resolved_data = template_service.process_raw_data(data)
+
             # Now validate the resolved data
             return cls.model_validate(resolved_data)
-            
+
         except Exception as e:
             import logging
+
             logger = logging.getLogger(__name__)
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.warning("Template resolution failed, trying without templates: %s", e, exc_info=exc_info)
+            logger.warning(
+                "Template resolution failed, trying without templates: %s",
+                e,
+                exc_info=exc_info,
+            )
             # Fallback to direct validation if template processing fails
             return cls.model_validate(data)
 

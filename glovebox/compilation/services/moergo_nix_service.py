@@ -179,6 +179,10 @@ class MoergoNixService(CompilationServiceProtocol):
         compilation_start_time: float = 0.0,
     ) -> BuildResult:
         """Internal compilation method with progress tracking."""
+        # Initialize display variables for cleanup
+        display = None
+        progress_coordinator = None
+
         try:
             if not isinstance(config, MoergoCompilationConfig):
                 return BuildResult(
@@ -189,17 +193,40 @@ class MoergoNixService(CompilationServiceProtocol):
             board_info = self._extract_board_info_from_config(config)
 
             # Always create progress coordinator (no conditional checks)
-            from glovebox.cli.components.unified_progress_coordinator import (
-                create_unified_progress_coordinator,
+            from glovebox.cli.helpers.theme import get_themed_console
+            from glovebox.compilation.simple_progress import (
+                ProgressConfig,
+                create_simple_compilation_display,
+                create_simple_progress_coordinator,
             )
 
-            progress_coordinator = create_unified_progress_coordinator(
-                tui_callback=progress_callback,
-                total_boards=board_info["total_boards"],
-                board_names=board_info["board_names"],
-                total_repositories=1,  # MoErgo doesn't use west update
-                strategy="moergo_nix",
+            # Create themed console and display
+            themed_console = get_themed_console()
+
+            # Create progress config for MoErgo Nix compilation
+            progress_config = ProgressConfig(
+                operation_name="MoErgo Compilation",
+                tasks=[
+                    "Cache Setup",
+                    "Docker Verification",
+                    "Nix Environment",
+                    "Building Firmware",
+                    "Post Processing",
+                ],
             )
+
+            # Create display and coordinator (use the underlying Rich Console)
+            display = create_simple_compilation_display(
+                themed_console.console, progress_config
+            )
+            progress_coordinator = create_simple_progress_coordinator(display)
+
+            # Set MoErgo-specific attributes
+            progress_coordinator.total_boards = board_info["total_boards"]
+            progress_coordinator.compilation_strategy = "moergo_nix"
+
+            # Start the display
+            display.start()
 
             # Start with initialization phase
             progress_coordinator.transition_to_phase(
@@ -305,11 +332,18 @@ class MoergoNixService(CompilationServiceProtocol):
             )
             # Set unified success messages for MoErgo builds
             result.set_success_messages("moergo_nix", was_cached=False)
+
+            # Stop the display
+            display.stop()
             return result
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.error("Compilation failed: %s", e, exc_info=exc_info)
+
+            # Stop the display on error if it was created
+            if display is not None:
+                display.stop()
             return BuildResult(success=False, errors=[str(e)])
 
     def compile_from_json(

@@ -162,6 +162,8 @@ class CompilationConfig(GloveboxBaseModel):
     @property
     def image(self) -> str:
         """Return the versioned image name."""
+        if not self.image_:
+            return ""
         if ":" in self.image_:
             return self.image_
         return f"{self.image_}:{self.get_versioned_docker_tag()}"

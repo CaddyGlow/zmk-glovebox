@@ -160,9 +160,6 @@ def resolve_json_file_path(
         else:
             return None
 
-    if resolved_path is None:
-        return None
-
     # Validate the resolved path
     try:
         resolved_path = resolved_path.resolve()

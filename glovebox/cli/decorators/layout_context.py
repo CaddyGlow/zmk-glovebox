@@ -150,13 +150,15 @@ def with_layout_context(
             # Clean up kwargs to remove parameters not in the original function signature
             # This prevents TypeError: got an unexpected keyword argument
             import inspect
+
             sig = inspect.signature(func)
             func_params = set(sig.parameters.keys())
 
             # Remove injected parameters that are not in the function signature
             injected_params = {"resolved_json_file", "keyboard_profile"}
             filtered_kwargs = {
-                k: v for k, v in kwargs.items()
+                k: v
+                for k, v in kwargs.items()
                 if k in func_params or k not in injected_params
             }
 

@@ -203,16 +203,14 @@ def cache_show(
             print(formatter.format(cache_data, "json"))
             return
 
-        console.print(
-            f"[bold]{Colors.PRIMARY}Glovebox Cache System Overview[/{Colors.PRIMARY}][/bold]"
-        )
+        console.print("[bold cyan]Glovebox Cache System Overview[/bold cyan]")
         console.print("=" * 60)
 
         # Show performance statistics if requested or in verbose mode
         if stats or verbose:
             stats_icon = Icons.get_icon("INFO", "text")
             console.print(
-                f"\n[bold {Colors.INFO}]{stats_icon} Cache Performance Statistics[/{Colors.INFO}][/bold]"
+                f"\n[bold {Colors.INFO}]{stats_icon} Cache Performance Statistics[/bold {Colors.INFO}]"
             )
             cache_stats = cache_manager.get_stats()
 
@@ -253,7 +251,7 @@ def cache_show(
         # Show workspace cache information using the service
         workspace_icon = Icons.get_icon("FOLDER", "text")
         console.print(
-            f"\n[bold {Colors.INFO}]{workspace_icon} Workspace Cache (ZMK Compilation)[/{Colors.INFO}][/bold]"
+            f"\n[bold {Colors.INFO}]{workspace_icon} Workspace Cache (ZMK Compilation)[/bold {Colors.INFO}]"
         )
         cache_manager, workspace_cache_service, user_config = (
             get_cache_manager_and_service()
@@ -392,7 +390,7 @@ def cache_show(
         # Show DiskCache information
         disk_icon = Icons.get_icon("FILE", "text")
         console.print(
-            f"\n[bold {Colors.INFO}]{disk_icon} DiskCache System (Domain Modules)[/{Colors.INFO}][/bold]"
+            f"\n[bold {Colors.INFO}]{disk_icon} DiskCache System (Domain Modules)[/bold {Colors.INFO}]"
         )
         try:
             user_config = create_user_config()
@@ -555,7 +553,7 @@ def cache_show(
         if verbose:
             coordination_icon = Icons.get_icon("INFO", "text")
             console.print(
-                f"\n[bold {Colors.INFO}]{coordination_icon} Cache Coordination System[/{Colors.INFO}][/bold]"
+                f"\n[bold {Colors.INFO}]{coordination_icon} Cache Coordination System[/bold {Colors.INFO}]"
             )
             try:
                 from glovebox.core.cache import (
@@ -579,7 +577,7 @@ def cache_show(
         # Show usage instructions
         tools_icon = Icons.get_icon("INFO", "text")
         console.print(
-            f"\n[bold {Colors.INFO}]{tools_icon} Cache Management Commands[/{Colors.INFO}][/bold]"
+            f"\n[bold {Colors.INFO}]{tools_icon} Cache Management Commands[/bold {Colors.INFO}]"
         )
         console.print("[dim]Workspace cache:[/dim]")
         console.print("  • glovebox cache workspace show")

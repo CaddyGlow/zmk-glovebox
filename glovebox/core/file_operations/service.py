@@ -135,6 +135,7 @@ class BaselineStrategy:
                 elapsed_time=elapsed_time,
                 error=str(e),
                 strategy_used=self.name,
+                files_copied=0,
             )
 
     def _copy_single_file(self, src_file: Path, dst_file: Path) -> int:
@@ -355,6 +356,7 @@ class PipelineStrategy:
                 bytes_copied=copied_total,
                 elapsed_time=elapsed_time,
                 strategy_used=self.name,
+                files_copied=completed_tasks,
             )
 
         except Exception as e:
@@ -367,6 +369,7 @@ class PipelineStrategy:
                 elapsed_time=elapsed_time,
                 error=str(e),
                 strategy_used=self.name,
+                files_copied=0,
             )
 
     def _get_component_info(
@@ -457,11 +460,15 @@ class PipelineStrategy:
             bytes_copied = self._calculate_directory_size(dst)
             elapsed_time = time.time() - start_time
 
+            # Calculate file count for tracking
+            file_count, _ = self._fast_directory_stats(dst)
+
             return CopyResult(
                 success=True,
                 bytes_copied=bytes_copied,
                 elapsed_time=elapsed_time,
                 strategy_used=f"{self.name} (fallback)",
+                files_copied=file_count,
             )
 
         except Exception as e:
@@ -474,6 +481,7 @@ class PipelineStrategy:
                 elapsed_time=elapsed_time,
                 error=str(e),
                 strategy_used=f"{self.name} (fallback)",
+                files_copied=0,
             )
 
     def _calculate_directory_size(self, directory: Path) -> int:
@@ -511,6 +519,17 @@ class PipelineStrategy:
 
         _scandir_stats_recursive(directory)
         return file_count, total_size
+
+    def _fast_directory_stats(self, directory: Path) -> tuple[int, int]:
+        """Get directory stats using fast method.
+
+        This is an alias for _scandir_stats to maintain backwards compatibility
+        with existing tests.
+
+        Returns:
+            Tuple of (file_count, total_size)
+        """
+        return self._scandir_stats(directory)
 
 
 class FileCopyService:

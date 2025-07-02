@@ -53,3 +53,19 @@ class TemplateServiceProtocol(Protocol):
             List of validation error messages (empty if valid)
         """
         ...
+
+    def process_raw_data(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Process templates directly on raw dictionary data.
+
+        This method is used when we need to process templates before model validation.
+
+        Args:
+            data: Raw dictionary data containing templates
+
+        Returns:
+            Dictionary with resolved templates
+
+        Raises:
+            TemplateError: If template processing fails
+        """
+        ...
