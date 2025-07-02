@@ -12,6 +12,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+
+pytestmark = [pytest.mark.docker, pytest.mark.integration]
 import yaml
 
 from glovebox.config.keyboard_profile import (

@@ -2,6 +2,10 @@
 
 import pytest
 
+pytestmark = [pytest.mark.network, pytest.mark.integration]
+
+pytestmark = pytest.mark.integration
+
 from glovebox.compilation.parsers.repository_spec_parser import (
     RepositorySpec,
     RepositorySpecParser,

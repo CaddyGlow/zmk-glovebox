@@ -6,6 +6,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+pytestmark = [pytest.mark.docker, pytest.mark.integration]
+
 from glovebox.cli import app
 from glovebox.cli.commands import register_all_commands
 from glovebox.firmware.models import BuildResult

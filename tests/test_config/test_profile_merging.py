@@ -2,6 +2,8 @@
 
 import pytest
 
+pytestmark = [pytest.mark.network, pytest.mark.integration]
+
 from glovebox.config.models import (
     BuildOptions,
     FirmwareConfig,

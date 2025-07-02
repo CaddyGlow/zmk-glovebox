@@ -9,6 +9,8 @@ from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
+
+pytestmark = [pytest.mark.docker, pytest.mark.integration]
 import yaml
 from typer.testing import CliRunner
 

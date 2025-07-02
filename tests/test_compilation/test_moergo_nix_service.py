@@ -7,6 +7,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+pytestmark = [pytest.mark.docker, pytest.mark.integration]
+
 from glovebox.compilation.models import MoergoCompilationConfig, ZmkCompilationConfig
 from glovebox.compilation.services.moergo_nix_service import (
     MoergoNixService,
