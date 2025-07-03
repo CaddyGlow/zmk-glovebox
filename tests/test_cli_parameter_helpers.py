@@ -266,6 +266,21 @@ class TestInputParameterProcessing:
                 allowed_extensions=[".json", ".yaml"],
             )
 
+    def test_process_input_parameter_library_reference_skips_extension_validation(self):
+        """Test that library references skip file extension validation."""
+        # Library references should not be validated for file extensions
+        # since they are resolved later by the library resolver
+        result = process_input_parameter(
+            "@some-library-reference",
+            allowed_extensions=[".json", ".keymap"],
+            validate_existence=False,  # Don't validate existence for library refs
+        )
+
+        assert result.raw_value == "@some-library-reference"
+        assert result.resolved_path == Path("@some-library-reference")
+        assert not result.is_stdin
+        assert not result.env_fallback_used
+
     def test_read_input_from_result_json(self, tmp_path):
         """Test reading JSON input from result."""
         # Create test file

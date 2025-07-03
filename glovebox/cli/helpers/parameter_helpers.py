@@ -178,10 +178,13 @@ def process_input_parameter(
         if validate_existence and not resolved_path.exists():
             raise typer.BadParameter(f"Input file does not exist: {resolved_path}")
 
-        # Validate file extension
-        if allowed_extensions and resolved_path.suffix.lower() not in [
-            ext.lower() for ext in allowed_extensions
-        ]:
+        # Validate file extension (skip for library references as they're resolved later)
+        if (
+            allowed_extensions
+            and not str(value).startswith("@")
+            and resolved_path.suffix.lower()
+            not in [ext.lower() for ext in allowed_extensions]
+        ):
             raise typer.BadParameter(
                 f"Unsupported file extension. Allowed: {', '.join(allowed_extensions)}"
             )
