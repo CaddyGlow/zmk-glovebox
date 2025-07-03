@@ -102,13 +102,6 @@ class UploadLayoutCommand(IOCommand):
         except Exception as e:
             self.handle_service_error(e, "upload layout")
 
-    def handle_service_error(self, error: Exception, operation: str) -> None:
-        """Handle service layer errors with consistent messaging."""
-        exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.error("Failed to %s: %s", operation, error, exc_info=exc_info)
-        self.console.print_error(f"Failed to {operation}: {error}")
-        raise typer.Exit(1) from error
-
 
 class DownloadLayoutCommand(IOCommand):
     """Command to download a layout from Glove80 cloud service."""

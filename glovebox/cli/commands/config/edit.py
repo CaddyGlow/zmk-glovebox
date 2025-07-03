@@ -372,10 +372,8 @@ def edit(
             return
 
         except Exception as e:
-            exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Failed to read configuration: %s", e, exc_info=exc_info)
-            print_error_message(f"Failed to read configuration: {e}")
-            raise typer.Exit(1) from e
+            # Let @handle_errors decorator handle the exception consistently
+            raise
 
     # Handle write operations
     try:
@@ -491,10 +489,8 @@ def edit(
             print_success_message("No operations performed")
 
     except Exception as e:
-        exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.error("Failed to edit configuration: %s", e, exc_info=exc_info)
-        print_error_message(f"Failed to edit configuration: {e}")
-        raise typer.Exit(1) from e
+        # Let @handle_errors decorator handle the exception consistently
+        raise
 
 
 def _handle_interactive_edit(app_ctx: AppContext) -> None:

@@ -157,7 +157,7 @@ class TestIOCommand:
         """Test required input validation."""
         cmd = ConcreteIOCommand()
 
-        with pytest.raises(typer.BadParameter, match="Input file is required"):
+        with pytest.raises(typer.BadParameter, match="Input is required"):
             cmd.load_input(None, required=True)
 
     def test_load_input_optional_missing(self):
@@ -195,13 +195,15 @@ class TestIOCommand:
             cmd.load_json_input(test_file)
 
     def test_load_json_input_not_object(self, tmp_path):
-        """Test JSON input that's not an object."""
+        """Test JSON input that's not an object (now wraps in dict)."""
         cmd = ConcreteIOCommand()
         test_file = tmp_path / "test.json"
         test_file.write_text('["array", "not", "object"]')
 
-        with pytest.raises(ValueError, match="Expected JSON object"):
-            cmd.load_json_input(test_file)
+        # Now expects wrapping behavior, not exception
+        result = cmd.load_json_input(test_file)
+        assert "data" in result
+        assert result["data"] == ["array", "not", "object"]
 
     def test_write_output_json_to_file(self, tmp_path):
         """Test writing JSON output to file."""
@@ -311,14 +313,14 @@ class TestIOCommand:
         cmd = ConcreteIOCommand()
         test_file = tmp_path / "missing.json"
 
-        with pytest.raises(typer.Exit):
+        with pytest.raises(FileNotFoundError, match="Input file does not exist"):
             cmd.validate_input_file(test_file)
 
     def test_validate_input_file_is_directory(self, tmp_path):
         """Test validating directory as input file."""
         cmd = ConcreteIOCommand()
 
-        with pytest.raises(typer.Exit):
+        with pytest.raises(ValueError, match="Path is not a file"):
             cmd.validate_input_file(tmp_path)
 
     def test_validate_output_path_new_file(self, tmp_path):

@@ -12,33 +12,21 @@ from glovebox.cli.core.command_base import IOCommand
 class BaseFirmwareCommand(IOCommand):
     """Base class for firmware commands with common error handling patterns."""
 
-    def handle_service_error(self, error: Exception, operation: str) -> None:
-        """Handle service layer errors with consistent messaging.
 
-        Args:
-            error: Exception from service layer
-            operation: Operation description for error message
-        """
-        # CLAUDE.md pattern: debug-aware stack traces
-        exc_info = self.logger.isEnabledFor(logging.DEBUG)
-        self.logger.error("Failed to %s: %s", operation, error, exc_info=exc_info)
-        self.console.print_error(f"Failed to {operation}: {error}")
-        raise typer.Exit(1) from error
+def print_operation_success(
+    self, message: str, details: dict[str, Any] | None = None
+) -> None:
+    """Print success message with operation details.
 
-    def print_operation_success(
-        self, message: str, details: dict[str, Any] | None = None
-    ) -> None:
-        """Print success message with operation details.
-
-        Args:
-            message: Main success message
-            details: Dictionary of operation details to display
-        """
-        self.console.print_success(message)
-        if details:
-            for key, value in details.items():
-                if value is not None:
-                    self.console.print_info(f"{key.replace('_', ' ').title()}: {value}")
+    Args:
+        message: Main success message
+        details: Dictionary of operation details to display
+    """
+    self.console.print_success(message)
+    if details:
+        for key, value in details.items():
+            if value is not None:
+                self.console.print_info(f"{key.replace('_', ' ').title()}: {value}")
 
 
 class FirmwareFileCommand(BaseFirmwareCommand):

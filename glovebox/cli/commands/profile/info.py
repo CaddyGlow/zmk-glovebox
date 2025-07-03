@@ -138,14 +138,14 @@ def _print_keyboard_config_table(
 
     # Create table with appropriate columns
     table = Table(title=f"Keyboard Configuration: {keyboard_name}")
-    table.add_column("Setting", style="cyan", width=25)
-    table.add_column("Current Value", style="green", width=30)
+    table.add_column("Setting", style=Colors.PRIMARY, width=25)
+    table.add_column("Current Value", style=Colors.SUCCESS, width=30)
 
     if show_defaults:
-        table.add_column("Default Value", style="blue", width=25)
+        table.add_column("Default Value", style=Colors.SECONDARY, width=25)
 
     if show_sources:
-        table.add_column("Source", style="yellow", width=35)
+        table.add_column("Source", style=Colors.WARNING, width=35)
 
     # Get defaults and sources if requested
     defaults = _get_keyboard_field_defaults() if show_defaults else {}
@@ -236,7 +236,9 @@ def _print_keyboard_config_table(
     # Print header with icon
     header_icon = Icons.get_icon("KEYBOARD", app_ctx.icon_mode)
     console.print(
-        Panel(f"{header_icon} Keyboard Configuration Details", border_style="cyan")
+        Panel(
+            f"{header_icon} Keyboard Configuration Details", border_style=Colors.PRIMARY
+        )
     )
     console.print(table)
 
@@ -464,9 +466,13 @@ def _print_keyboard_details_rich(
     # Header panel
     keyboard_name = config_data.get("keyboard", "Unknown")
     keyboard_icon = Icons.get_icon("KEYBOARD", icon_mode)
-    header = Text(f"Keyboard Configuration: {keyboard_name}", style="bold magenta")
+    header = Text(f"Keyboard Configuration: {keyboard_name}", style=Colors.HEADER)
     console.print(
-        Panel(header, title=f"{keyboard_icon} Keyboard Details", border_style="blue")
+        Panel(
+            header,
+            title=f"{keyboard_icon} Keyboard Details",
+            border_style=Colors.SECONDARY,
+        )
     )
     console.print()
 
@@ -474,10 +480,10 @@ def _print_keyboard_details_rich(
     basic_table = Table(
         title=f"{Icons.get_icon('INFO', icon_mode)} Basic Information",
         show_header=True,
-        header_style="bold green",
+        header_style=Colors.HEADER,
     )
-    basic_table.add_column("Property", style="cyan", no_wrap=True)
-    basic_table.add_column("Value", style="white")
+    basic_table.add_column("Property", style=Colors.PRIMARY, no_wrap=True)
+    basic_table.add_column("Value", style=Colors.FIELD_VALUE)
 
     # Add basic properties
     basic_properties = [
@@ -499,11 +505,11 @@ def _print_keyboard_details_rich(
         flash_table = Table(
             title=f"{Icons.get_icon('FLASH', icon_mode)} Flash Methods",
             show_header=True,
-            header_style="bold yellow",
+            header_style=Colors.HEADER,
         )
-        flash_table.add_column("Priority", style="cyan", no_wrap=True)
-        flash_table.add_column("Method", style="yellow")
-        flash_table.add_column("Details", style="white")
+        flash_table.add_column("Priority", style=Colors.PRIMARY, no_wrap=True)
+        flash_table.add_column("Method", style=Colors.WARNING)
+        flash_table.add_column("Details", style=Colors.FIELD_VALUE)
 
         for method in flash_methods:
             priority = str(method.get("priority", "Unknown"))
@@ -530,11 +536,11 @@ def _print_keyboard_details_rich(
         compile_table = Table(
             title=f"{Icons.get_icon('BUILD', icon_mode)} Compile Methods",
             show_header=True,
-            header_style="bold blue",
+            header_style=Colors.HEADER,
         )
-        compile_table.add_column("Priority", style="cyan", no_wrap=True)
-        compile_table.add_column("Method", style="blue")
-        compile_table.add_column("Details", style="white")
+        compile_table.add_column("Priority", style=Colors.PRIMARY, no_wrap=True)
+        compile_table.add_column("Method", style=Colors.SECONDARY)
+        compile_table.add_column("Details", style=Colors.FIELD_VALUE)
 
         for method in compile_methods:
             priority = str(method.get("priority", "Unknown"))
@@ -561,11 +567,11 @@ def _print_keyboard_details_rich(
         firmware_table = Table(
             title=f"{Icons.get_icon('FIRMWARE', icon_mode)} Available Firmwares ({len(firmwares)})",
             show_header=True,
-            header_style="bold magenta",
+            header_style=Colors.HEADER,
         )
-        firmware_table.add_column("Firmware", style="cyan", no_wrap=True)
-        firmware_table.add_column("Version", style="green")
-        firmware_table.add_column("Description", style="white")
+        firmware_table.add_column("Firmware", style=Colors.PRIMARY, no_wrap=True)
+        firmware_table.add_column("Version", style=Colors.SUCCESS)
+        firmware_table.add_column("Description", style=Colors.FIELD_VALUE)
 
         for name, fw_data in firmwares.items():
             version = fw_data.get("version", "Unknown")
@@ -583,10 +589,10 @@ def _print_keyboard_details_rich(
             selected_table = Table(
                 title=f"{Icons.get_icon('STAR', icon_mode)} Selected Firmware: {selected_fw}",
                 show_header=True,
-                header_style="bold magenta",
+                header_style=Colors.HEADER,
             )
-            selected_table.add_column("Property", style="cyan", no_wrap=True)
-            selected_table.add_column("Value", style="white")
+            selected_table.add_column("Property", style=Colors.PRIMARY, no_wrap=True)
+            selected_table.add_column("Value", style=Colors.FIELD_VALUE)
 
             for prop, value in fw_details.items():
                 if isinstance(value, dict):
@@ -654,13 +660,13 @@ def list_profiles(
         keyboard_icon = Icons.get_icon("KEYBOARD", app_ctx.icon_mode)
         header = Text(
             f"Available Profile Configurations ({len(keyboards)})",
-            style="bold magenta",
+            style=Colors.HEADER,
         )
         console.print(
             Panel(
                 header,
                 title=f"{keyboard_icon} Profile Configurations",
-                border_style="blue",
+                border_style=Colors.SECONDARY,
             )
         )
         console.print()
@@ -669,13 +675,13 @@ def list_profiles(
         table = Table(
             title=f"{keyboard_icon} Keyboard Details",
             show_header=True,
-            header_style="bold blue",
+            header_style=Colors.HEADER,
         )
-        table.add_column("Keyboard", style="cyan", no_wrap=True)
-        table.add_column("Description", style="white")
-        table.add_column("Vendor", style="yellow")
-        table.add_column("Key Count", style="green")
-        table.add_column("Firmwares", style="magenta")
+        table.add_column("Keyboard", style=Colors.PRIMARY, no_wrap=True)
+        table.add_column("Description", style=Colors.FIELD_VALUE)
+        table.add_column("Vendor", style=Colors.WARNING)
+        table.add_column("Key Count", style=Colors.SUCCESS)
+        table.add_column("Firmwares", style=Colors.ACCENT)
 
         # Get and display detailed information for each keyboard
         for keyboard_name in keyboards:

@@ -14,7 +14,7 @@ from glovebox.config.models import (
 )
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import LayoutError
-from glovebox.layout import LayoutService
+from glovebox.layout import LayoutService, create_layout_service
 from glovebox.layout.models import LayoutData, SystemBehavior
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.protocols.template_adapter_protocol import TemplateAdapterProtocol
@@ -62,7 +62,7 @@ def keymap_service():
     # Create mock keymap parser
     keymap_parser = Mock()
 
-    service = LayoutService(
+    service = create_layout_service(
         file_adapter=file_adapter,
         template_adapter=template_adapter,
         behavior_registry=behavior_registry,
@@ -200,7 +200,7 @@ class TestLayoutServiceWithKeyboardConfig:
         self.mock_keymap_parser = Mock()
 
         # Create the service
-        self.service = LayoutService(
+        self.service = create_layout_service(
             file_adapter=self.mock_file_adapter,
             template_adapter=self.mock_template_adapter,
             behavior_registry=self.mock_behavior_registry,

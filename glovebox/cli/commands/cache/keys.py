@@ -14,6 +14,7 @@ from rich.table import Table
 from glovebox.cli.core.command_base import IOCommand
 from glovebox.cli.decorators.error_handling import handle_errors
 from glovebox.cli.helpers.parameters import OutputFormatOption
+from glovebox.cli.helpers.theme import Colors
 from glovebox.config.user_config import create_user_config
 
 from .utils import format_size_display
@@ -247,17 +248,17 @@ class CacheKeysCommand(IOCommand):
         self, cache_keys: list[str], module_cache, metadata: bool, values: bool
     ) -> None:
         """Display cache keys in table format."""
-        table = Table(show_header=True, header_style="bold green")
-        table.add_column("Cache Key", style="cyan")
+        table = Table(show_header=True, header_style=Colors.HEADER)
+        table.add_column("Cache Key", style=Colors.PRIMARY)
 
         if metadata:
-            table.add_column("Size", style="white")
-            table.add_column("Age", style="blue")
-            table.add_column("Accesses", style="yellow")
-            table.add_column("TTL", style="magenta")
+            table.add_column("Size", style=Colors.FIELD_VALUE)
+            table.add_column("Age", style=Colors.SECONDARY)
+            table.add_column("Accesses", style=Colors.WARNING)
+            table.add_column("TTL", style=Colors.ACCENT)
 
         if values:
-            table.add_column("Cached Value", style="green")
+            table.add_column("Cached Value", style=Colors.SUCCESS)
 
         for key in sorted(cache_keys):
             row_data = [key]

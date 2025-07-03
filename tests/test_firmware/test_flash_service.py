@@ -118,7 +118,7 @@ def mock_usb_adapter():
 @pytest.fixture
 def flash_service(mock_file_adapter, mock_device_wait_service, mock_usb_adapter):
     """Create a flash service instance for testing."""
-    return FlashService(
+    return create_flash_service(
         file_adapter=mock_file_adapter,
         device_wait_service=mock_device_wait_service,
         usb_adapter=mock_usb_adapter,
@@ -133,7 +133,7 @@ class TestFlashServiceInit:
         self, mock_file_adapter, mock_device_wait_service, mock_usb_adapter
     ):
         """Test initialization with provided file adapter."""
-        service = FlashService(
+        service = create_flash_service(
             file_adapter=mock_file_adapter,
             device_wait_service=mock_device_wait_service,
             usb_adapter=mock_usb_adapter,

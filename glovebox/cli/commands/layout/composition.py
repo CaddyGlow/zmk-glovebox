@@ -19,6 +19,8 @@ class LayoutCommandComposer:
     """Composer for layout command operations with common patterns."""
 
     def __init__(self, icon_mode: str = "text") -> None:
+        """Initialize layout command composer with logging and formatter."""
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.formatter = create_layout_output_formatter(icon_mode)
 
     def execute_with_error_handling(
@@ -40,8 +42,8 @@ class LayoutCommandComposer:
         try:
             return operation()
         except Exception as e:
-            exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Failed to %s: %s", operation_name, e, exc_info=exc_info)
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("Failed to %s: %s", operation_name, e, exc_info=exc_info)
 
             if output_format.lower() == "json":
                 error_result = {"error": str(e), "operation": operation_name}
@@ -233,8 +235,8 @@ class LayoutCommandComposer:
                 result = operation(item)
                 results.append(result)
             except Exception as e:
-                exc_info = logger.isEnabledFor(logging.DEBUG)
-                logger.error(
+                exc_info = self.logger.isEnabledFor(logging.DEBUG)
+                self.logger.error(
                     "Failed to %s item %s: %s",
                     operation_name,
                     item,

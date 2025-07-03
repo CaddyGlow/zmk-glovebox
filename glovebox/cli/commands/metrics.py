@@ -14,7 +14,7 @@ from rich.table import Table
 from glovebox.cli.core.command_base import BaseCommand, IOCommand
 from glovebox.cli.decorators import handle_errors
 from glovebox.cli.helpers.parameters import OutputFormatOption
-from glovebox.cli.helpers.theme import Icons, get_themed_console
+from glovebox.cli.helpers.theme import Colors, Icons, get_themed_console
 from glovebox.config.user_config import create_user_config
 from glovebox.core.cache import create_default_cache
 from glovebox.core.cache.cache_manager import CacheManager
@@ -193,12 +193,12 @@ class ListSessionsCommand(BaseCommand):
     ) -> None:
         """Output sessions as formatted table."""
         table = Table(title="Recent Metrics Sessions")
-        table.add_column("UUID", style="cyan")
-        table.add_column("Started", style="blue")
-        table.add_column("Duration", style="green")
+        table.add_column("UUID", style=Colors.PRIMARY)
+        table.add_column("Started", style=Colors.SECONDARY)
+        table.add_column("Duration", style=Colors.SUCCESS)
         table.add_column("Status", style="bold")
-        table.add_column("Command", style="white")
-        table.add_column("Metrics", style="yellow")
+        table.add_column("Command", style=Colors.FIELD_VALUE)
+        table.add_column("Metrics", style=Colors.WARNING)
 
         for session in sessions:
             # Format status

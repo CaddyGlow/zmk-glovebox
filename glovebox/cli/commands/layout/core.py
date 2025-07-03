@@ -168,13 +168,6 @@ class CompileLayoutCommand(IOCommand):
             for file_type, file_path in output_data["output_files"].items():
                 self.console.print_info(f"  {file_type}: {file_path}")
 
-    def handle_service_error(self, error: Exception, operation: str) -> None:
-        """Handle service layer errors with consistent messaging."""
-        exc_info = self.logger.isEnabledFor(logging.DEBUG)
-        self.logger.error("Failed to %s: %s", operation, error, exc_info=exc_info)
-        self.console.print_error(f"Failed to {operation}: {error}")
-        raise typer.Exit(1) from error
-
 
 class ValidateLayoutCommand(IOCommand):
     """Command to validate keymap syntax and structure."""
@@ -259,13 +252,6 @@ class ValidateLayoutCommand(IOCommand):
                 for error in result["errors"]:
                     self.console.print_error(f"  - {error}")
                 raise typer.Exit(1)
-
-    def handle_service_error(self, error: Exception, operation: str) -> None:
-        """Handle service layer errors with consistent messaging."""
-        exc_info = self.logger.isEnabledFor(logging.DEBUG)
-        self.logger.error("Failed to %s: %s", operation, error, exc_info=exc_info)
-        self.console.print_error(f"Failed to {operation}: {error}")
-        raise typer.Exit(1) from error
 
 
 class ShowLayoutCommand(IOCommand):
@@ -432,13 +418,6 @@ class ShowLayoutCommand(IOCommand):
         )
 
         typer.echo(result)
-
-    def handle_service_error(self, error: Exception, operation: str) -> None:
-        """Handle service layer errors with consistent messaging."""
-        exc_info = self.logger.isEnabledFor(logging.DEBUG)
-        self.logger.error("Failed to %s: %s", operation, error, exc_info=exc_info)
-        self.console.print_error(f"Failed to {operation}: {error}")
-        raise typer.Exit(1) from error
 
 
 @handle_errors

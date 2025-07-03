@@ -139,25 +139,32 @@ class ProgressDisplay:
             and self.state.status_info["log_lines"]
         )
 
-        if show_logs:
-            logs_panel = self._create_recent_logs_panel()
-            return Group(
-                header,
-                "",  # Empty line
-                task_table,
-                "",  # Empty line
-                logs_panel,
-                "",  # Empty line
-                footer,
-            )
-        else:
-            return Group(
-                header,
-                "",  # Empty line
-                task_table,
-                "",  # Empty line
-                footer,
-            )
+        # if show_logs:
+        #     logs_panel = self._create_recent_logs_panel()
+        #     return Group(
+        #         header,
+        #         "",  # Empty line
+        #         task_table,
+        #         "",  # Empty line
+        #         logs_panel,
+        #         "",  # Empty line
+        #         footer,
+        #     )
+        # else:
+        #     return Group(
+        #         header,
+        #         "",  # Empty line
+        #         task_table,
+        #         "",  # Empty line
+        #         footer,
+        #     )
+        return Group(
+            header,
+            "",  # Empty line
+            task_table,
+            "",  # Empty line
+            footer,
+        )
 
     def _create_header(self) -> Panel:
         """Create header panel with operation statistics."""
@@ -191,12 +198,12 @@ class ProgressDisplay:
             Align.center(title), Align.center(Text(status_text, style="dim"))
         )
 
-        return Panel(header_content, style="blue")
+        return Panel(header_content, style=Colors.SECONDARY)
 
     def _create_task_status_table(self) -> Table:
         """Create table showing checkpoint statuses with embedded progress bars."""
         table = Table(show_header=True, header_style="bold magenta", box=None)
-        table.add_column("Task", style="cyan", no_wrap=True, width=20)
+        table.add_column("Task", style=Colors.PRIMARY, no_wrap=True, width=20)
         table.add_column("Status", justify="center", width=10)
         table.add_column("Progress", justify="left", width=30)
         table.add_column("%", justify="center", width=8)
@@ -265,7 +272,7 @@ class ProgressDisplay:
                 )
             )
 
-        return Panel(footer_content, style="green")
+        return Panel(footer_content, style=Colors.SUCCESS)
 
     def _create_recent_logs_panel(self) -> Panel:
         """Create panel showing recent log entries."""
@@ -301,11 +308,11 @@ class ProgressDisplay:
     def _get_status_display(self, status: str) -> Text:
         """Get formatted status display."""
         if status == "active":
-            return Text("↻ Run", style="yellow")
+            return Text("↻ Run", style=Colors.WARNING)
         elif status == "completed":
-            return Text("✓ Done", style="green")
+            return Text("✓ Done", style=Colors.SUCCESS)
         elif status == "failed":
-            return Text("✗ Fail", style="red")
+            return Text("✗ Fail", style=Colors.ERROR)
         else:
             return Text("○ Wait", style="dim")
 

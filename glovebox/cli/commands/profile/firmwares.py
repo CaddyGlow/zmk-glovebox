@@ -127,13 +127,13 @@ def list_firmwares(
         firmware_icon = Icons.get_icon("FIRMWARE", app_ctx.icon_mode)
         header = Text(
             f"Available Firmware Versions for {profile_name} ({len(firmwares)})",
-            style="bold magenta",
+            style=Colors.HEADER,
         )
         console.print(
             Panel(
                 header,
                 title=f"{firmware_icon} Firmware Configurations",
-                border_style="blue",
+                border_style=Colors.SECONDARY,
             )
         )
         console.print()
@@ -142,13 +142,13 @@ def list_firmwares(
         table = Table(
             title=f"{firmware_icon} Firmware Details",
             show_header=True,
-            header_style="bold blue",
+            header_style=Colors.HEADER,
         )
-        table.add_column("Firmware", style="cyan", no_wrap=True)
-        table.add_column("Version", style="green")
-        table.add_column("Description", style="white")
-        table.add_column("Repository", style="yellow")
-        table.add_column("Branch", style="magenta")
+        table.add_column("Firmware", style=Colors.PRIMARY, no_wrap=True)
+        table.add_column("Version", style=Colors.SUCCESS)
+        table.add_column("Description", style=Colors.FIELD_VALUE)
+        table.add_column("Repository", style=Colors.WARNING)
+        table.add_column("Branch", style=Colors.ACCENT)
 
         for firmware_name, firmware in firmwares.items():
             version = firmware.version
@@ -222,9 +222,13 @@ def show_firmware(
 
     # Create header panel
     firmware_icon = Icons.get_icon("FIRMWARE", app_ctx.icon_mode)
-    header = Text(f"Firmware: {firmware_name} for {profile_name}", style="bold magenta")
+    header = Text(f"Firmware: {firmware_name} for {profile_name}", style=Colors.HEADER)
     console.print(
-        Panel(header, title=f"{firmware_icon} Firmware Details", border_style="blue")
+        Panel(
+            header,
+            title=f"{firmware_icon} Firmware Details",
+            border_style=Colors.SECONDARY,
+        )
     )
     console.print()
 
@@ -232,10 +236,10 @@ def show_firmware(
     basic_table = Table(
         title=f"{Icons.get_icon('INFO', app_ctx.icon_mode)} Basic Information",
         show_header=True,
-        header_style="bold green",
+        header_style=Colors.HEADER,
     )
-    basic_table.add_column("Property", style="cyan", no_wrap=True)
-    basic_table.add_column("Value", style="white")
+    basic_table.add_column("Property", style=Colors.PRIMARY, no_wrap=True)
+    basic_table.add_column("Value", style=Colors.FIELD_VALUE)
 
     # Display basic information
     version = firmware_config.version
@@ -255,10 +259,10 @@ def show_firmware(
         build_table = Table(
             title=f"{Icons.get_icon('BUILD', app_ctx.icon_mode)} Build Options",
             show_header=True,
-            header_style="bold blue",
+            header_style=Colors.HEADER,
         )
-        build_table.add_column("Option", style="cyan", no_wrap=True)
-        build_table.add_column("Value", style="white")
+        build_table.add_column("Option", style=Colors.PRIMARY, no_wrap=True)
+        build_table.add_column("Value", style=Colors.FIELD_VALUE)
 
         build_table.add_row("Repository", build_options.repository or "N/A")
         build_table.add_row("Branch", build_options.branch or "N/A")
@@ -276,12 +280,12 @@ def show_firmware(
         kconfig_table = Table(
             title=f"{Icons.get_icon('CONFIG', app_ctx.icon_mode)} Kconfig Options ({len(kconfig)})",
             show_header=True,
-            header_style="bold yellow",
+            header_style=Colors.HEADER,
         )
-        kconfig_table.add_column("Option", style="cyan", no_wrap=True)
-        kconfig_table.add_column("Type", style="yellow")
-        kconfig_table.add_column("Default", style="green")
-        kconfig_table.add_column("Description", style="white")
+        kconfig_table.add_column("Option", style=Colors.PRIMARY, no_wrap=True)
+        kconfig_table.add_column("Type", style=Colors.WARNING)
+        kconfig_table.add_column("Default", style=Colors.SUCCESS)
+        kconfig_table.add_column("Description", style=Colors.FIELD_VALUE)
 
         for _key, config in kconfig.items():
             # config is always a KConfigOption instance

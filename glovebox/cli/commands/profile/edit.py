@@ -246,12 +246,9 @@ class ProfileEditCommand(IOCommand):
         try:
             return load_keyboard_config(profile_name, self.app_ctx.user_config)
         except Exception as e:
-            exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error(
-                "Failed to load keyboard configuration: %s", e, exc_info=exc_info
-            )
-            self.console.print_error(f"Failed to load keyboard configuration: {e}")
-            raise typer.Exit(1) from e
+            self.handle_service_error(e, "load keyboard configuration")
+            # This line is never reached but required for type checking
+            raise  # pragma: no cover
 
     def _validate_interactive_mode(
         self,
