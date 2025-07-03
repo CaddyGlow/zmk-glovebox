@@ -15,6 +15,10 @@ from .analysis import (
     get_required_includes_for_layout,
     register_layout_behaviors,
 )
+from .management import (
+    BehaviorManagementService,
+    create_behavior_management_service,
+)
 
 # Import and re-export all behavior models
 from .models import (
@@ -50,4 +54,6 @@ __all__ = [
     "register_layout_behaviors",
     # Behavior services
     "create_behavior_registry",
+    "BehaviorManagementService",
+    "create_behavior_management_service",
 ]

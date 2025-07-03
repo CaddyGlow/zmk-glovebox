@@ -24,6 +24,7 @@ from glovebox.utils.stream_process import (
 
 
 logger = logging.getLogger(__name__)
+logger_rich = logging.getLogger("rich")
 
 
 class LoggerOutputMiddleware(OutputMiddleware[str]):
@@ -57,8 +58,10 @@ class LoggerOutputMiddleware(OutputMiddleware[str]):
             The original line (unmodified)
         """
         if stream_type == "stdout":
+            logger_rich.info(f"{self.stdout_prefix}{line}")
             logger.debug(f"{self.stdout_prefix}{line}")
         else:
+            logger_rich.info(f"{self.stderr_prefix}{line}")
             logger.info(f"{self.stderr_prefix}{line}")
         return line
 

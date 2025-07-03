@@ -568,6 +568,7 @@ class TestLayoutServiceWithMockedConfig:
 
         # Should raise LayoutError for invalid data
         from glovebox.core.errors import LayoutError
+
         with pytest.raises(LayoutError):
             service.compile(layout_data=invalid_data)
 
@@ -589,6 +590,7 @@ class TestLayoutServiceWithMockedConfig:
 
         # Should raise LayoutError for empty layers
         from glovebox.core.errors import LayoutError
+
         with pytest.raises(LayoutError, match="No layers found"):
             service.compile(layout_data=empty_data)
 

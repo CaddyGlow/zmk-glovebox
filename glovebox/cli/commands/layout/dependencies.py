@@ -7,6 +7,7 @@ from glovebox.adapters import create_file_adapter, create_template_adapter
 from glovebox.layout import (
     LayoutService,
     ZmkFileContentGenerator,
+    create_behavior_management_service,
     create_behavior_registry,
     create_grid_layout_formatter,
     create_layout_component_service,

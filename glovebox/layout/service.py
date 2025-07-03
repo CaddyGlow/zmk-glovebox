@@ -57,11 +57,14 @@ class LayoutService(BaseService):
         self._layout_service = layout_service
         self._keymap_parser = keymap_parser
 
-    def compile(self, layout_data: dict[str, Any]) -> LayoutResult:
+    def compile(
+        self, layout_data: dict[str, Any], profile: "KeyboardProfile | None" = None
+    ) -> LayoutResult:
         """Generate ZMK keymap and config content from keymap data.
 
         Args:
             layout_data: Raw layout data dictionary
+            profile: Optional keyboard profile for enhanced compilation
 
         Returns:
             LayoutResult with compilation status and generated content
@@ -79,19 +82,92 @@ class LayoutService(BaseService):
             if not keymap_data.layers:
                 raise LayoutError("No layers found in layout data")
 
-            # TODO: For now, return a simplified result without full profile integration
-            # This allows the refactoring to complete while maintaining test compatibility
-            logger.warning(
-                "Simplified compilation - full profile integration needed for complete functionality"
-            )
+            # Determine keyboard name
+            keyboard_name = keymap_data.keyboard or "unknown"
+            if profile and profile.keyboard_config:
+                keyboard_name = profile.keyboard_config.keyboard
 
-            # Generate basic content for now
-            # TODO: Implement full compilation with proper profile integration
-            keymap_content = f"""// Generated keymap for {keymap_data.keyboard or "unknown"}
-// Layers: {len(keymap_data.layers)}"""
-            config_content = (
-                f"// Generated config for {keymap_data.keyboard or 'unknown'}"
-            )
+            # Generate proper ZMK content using existing infrastructure
+            if profile:
+                # Use full ZMK generation with profile
+                from glovebox.layout.behavior.management import (
+                    create_behavior_management_service,
+                )
+                from glovebox.layout.utils.generation import (
+                    build_template_context,
+                    generate_kconfig_conf,
+                )
+
+                # Create behavior management service and prepare behaviors
+                behavior_manager = create_behavior_management_service()
+
+                # Build complete template context with behavior management
+                context = build_template_context(
+                    keymap_data, profile, self._dtsi_generator, behavior_manager
+                )
+
+                # Generate keymap content from template context
+                keymap_parts = []
+
+                # Add includes
+                if context.get("resolved_includes"):
+                    keymap_parts.append(context["resolved_includes"])
+                    keymap_parts.append("")
+
+                # Add layer defines
+                if context.get("layer_defines"):
+                    keymap_parts.append(context["layer_defines"])
+                    keymap_parts.append("")
+
+                # Add custom devicetree
+                if context.get("custom_devicetree"):
+                    keymap_parts.append(context["custom_devicetree"])
+                    keymap_parts.append("")
+
+                # Add behaviors
+                if context.get("user_behaviors_dtsi"):
+                    keymap_parts.append(context["user_behaviors_dtsi"])
+                    keymap_parts.append("")
+
+                # Add macros
+                if context.get("user_macros_dtsi"):
+                    keymap_parts.append(context["user_macros_dtsi"])
+                    keymap_parts.append("")
+
+                # Add combos
+                if context.get("combos_dtsi"):
+                    keymap_parts.append(context["combos_dtsi"])
+                    keymap_parts.append("")
+
+                # Add input listeners
+                if context.get("input_listeners_dtsi"):
+                    keymap_parts.append(context["input_listeners_dtsi"])
+                    keymap_parts.append("")
+
+                # Add main keymap node
+                if context.get("keymap_node"):
+                    keymap_parts.append(context["keymap_node"])
+
+                keymap_content = "\n".join(keymap_parts)
+
+                # Generate config content
+                config_content, _ = generate_kconfig_conf(keymap_data, profile)
+
+            else:
+                # Fallback to basic generation without profile
+                keymap_content = f"""// Generated keymap for {keyboard_name}
+// Layers: {len(keymap_data.layers)}
+// Note: Profile required for full ZMK generation
+
+/ {{
+    keymap {{
+        compatible = "zmk,keymap";
+        // Layer definitions would go here
+    }};
+}};"""
+
+                config_content = f"""# Generated config for {keyboard_name}
+# Note: Profile required for full configuration"""
 
             # Return result with content instead of file paths
             return LayoutResult(

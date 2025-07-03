@@ -246,9 +246,9 @@ def test_layout_commands(
         mock_config_path = Mock()
         mock_config_path.exists.return_value = False
 
-        setup_layout_command_test["mock_path_cls"].return_value.with_suffix.side_effect = [
-            mock_keymap_path, mock_config_path
-        ]
+        setup_layout_command_test[
+            "mock_path_cls"
+        ].return_value.with_suffix.side_effect = [mock_keymap_path, mock_config_path]
     elif "split" in command:
         mock_result = Mock()
         mock_result.success = success
@@ -257,9 +257,7 @@ def test_layout_commands(
         ].decompose_components_from_file.return_value = mock_result
     elif "validate" in command:
         # Mock layout service validate method and layer reference validation
-        setup_layout_command_test[
-            "mock_layout_service"
-        ].validate.return_value = success
+        setup_layout_command_test["mock_layout_service"].validate.return_value = success
 
         # Mock the LayoutData model's validate_layer_references method
         mock_layout_data = setup_layout_command_test["mock_layout_data"]

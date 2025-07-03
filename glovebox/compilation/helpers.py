@@ -70,17 +70,20 @@ def convert_json_to_keymap_content(
 
         # Process JSON file to get layout data
         def process_layout_data(layout_data: Any) -> tuple[str, str]:
-            # Register behaviors before processing
-            from glovebox.layout.behavior.analysis import register_layout_behaviors
+            # Create behavior management service and prepare behaviors
+            from glovebox.layout.behavior.management import (
+                create_behavior_management_service,
+            )
 
-            register_layout_behaviors(keyboard_profile, layout_data, behavior_registry)
+            behavior_manager = create_behavior_management_service()
+            behavior_manager.prepare_behaviors(keyboard_profile, layout_data)
 
             # Generate config content
             config_content, _ = generate_kconfig_conf(layout_data, keyboard_profile)
 
             # Generate keymap content using the same logic as generate_keymap_file
             context = build_template_context(
-                layout_data, keyboard_profile, dtsi_generator
+                layout_data, keyboard_profile, dtsi_generator, behavior_manager
             )
 
             # Get template content from keymap configuration

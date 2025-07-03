@@ -1,8 +1,9 @@
 """Base classes for layout CLI commands."""
 
 import logging
+from abc import abstractmethod
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import typer
 
@@ -11,24 +12,128 @@ from glovebox.cli.helpers.output_formatter import OutputFormatter
 from glovebox.cli.helpers.theme import get_themed_console
 
 
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
+    from glovebox.layout.service import LayoutService
+
+
 class BaseLayoutCommand(IOCommand):
     """Base class with common error handling patterns."""
 
+    def print_operation_success(
+        self, message: str, details: dict[str, Any] | None = None
+    ) -> None:
+        """Print success message with operation details.
 
-def print_operation_success(
-    self, message: str, details: dict[str, Any] | None = None
-) -> None:
-    """Print success message with operation details.
+        Args:
+            message: Main success message
+            details: Dictionary of operation details to display
+        """
+        self.console.print_success(message)
+        if details:
+            for key, value in details.items():
+                if value is not None:
+                    self.console.print_info(f"{key.replace('_', ' ').title()}: {value}")
 
-    Args:
-        message: Main success message
-        details: Dictionary of operation details to display
-    """
-    self.console.print_success(message)
-    if details:
-        for key, value in details.items():
-            if value is not None:
-                self.console.print_info(f"{key.replace('_', ' ').title()}: {value}")
+
+class ProfileAwareLayoutCommand(BaseLayoutCommand):
+    """Base class for layout commands that need keyboard profile resolution."""
+
+    def get_keyboard_profile(
+        self, ctx: typer.Context, layout_data: dict, no_auto: bool
+    ) -> "KeyboardProfile":
+        """Get keyboard profile from context or auto-detect.
+
+        Args:
+            ctx: Typer context containing profile information
+            layout_data: Layout data dictionary that may contain keyboard field
+            no_auto: Whether to disable automatic profile detection
+
+        Returns:
+            KeyboardProfile instance
+
+        Raises:
+            typer.Exit: If no profile can be determined
+        """
+        from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
+
+        keyboard_profile = get_keyboard_profile_from_context(ctx)
+
+        if keyboard_profile is None and not no_auto:
+            keyboard_field = layout_data.get("keyboard")
+            if keyboard_field:
+                from glovebox.config import create_keyboard_profile
+
+                keyboard_profile = create_keyboard_profile(keyboard_field)
+
+        if keyboard_profile is None:
+            self.console.print_error(
+                "No keyboard profile available. Use --profile or enable auto-detection."
+            )
+            raise typer.Exit(1)
+
+        return keyboard_profile
+
+    def create_layout_service(self) -> "LayoutService":
+        """Create and return layout service with all dependencies.
+
+        Returns:
+            LayoutService instance with full dependency injection
+        """
+        from glovebox.cli.commands.layout.dependencies import (
+            create_full_layout_service,
+        )
+
+        return create_full_layout_service()
+
+    def execute_with_profile(
+        self, ctx: typer.Context, input: str, no_auto: bool, **kwargs: Any
+    ) -> None:
+        """Template method for profile-aware command execution.
+
+        Args:
+            ctx: Typer context
+            input: Input source (file, stdin, library reference)
+            no_auto: Whether to disable automatic profile detection
+            **kwargs: Additional command-specific parameters
+        """
+        try:
+            layout_data = self.load_json_input(input)
+            keyboard_profile = self.get_keyboard_profile(ctx, layout_data, no_auto)
+            service = self.create_layout_service()
+
+            # Call abstract method for specific command logic
+            self.execute_command(layout_data, keyboard_profile, service, **kwargs)
+
+        except Exception as e:
+            self.handle_service_error(e, self.get_operation_name())
+
+    @abstractmethod
+    def execute_command(
+        self,
+        layout_data: dict,
+        keyboard_profile: "KeyboardProfile",
+        service: "LayoutService",
+        **kwargs: Any,
+    ) -> None:
+        """Execute the specific command logic.
+
+        Args:
+            layout_data: Parsed layout data dictionary
+            keyboard_profile: Resolved keyboard profile
+            service: Layout service instance
+            **kwargs: Additional command-specific parameters
+        """
+        pass
+
+    @abstractmethod
+    def get_operation_name(self) -> str:
+        """Get the operation name for error reporting.
+
+        Returns:
+            Human-readable operation name for error messages
+        """
+        pass
 
 
 class LayoutFileCommand(BaseLayoutCommand):

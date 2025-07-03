@@ -5,11 +5,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from glovebox.layout.behavior.analysis import get_required_includes_for_layout
+from glovebox.layout.behavior.analysis import (
+    get_required_includes_for_layout,
+    register_layout_behaviors,
+)
 
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
+    from glovebox.layout.behavior.management import BehaviorManagementService
     from glovebox.layout.zmk_generator import ZmkFileContentGenerator
 
 from glovebox.core.errors import LayoutError
@@ -58,6 +62,7 @@ def build_template_context(
     keymap_data: LayoutData,
     profile: "KeyboardProfile",
     dtsi_generator: "ZmkFileContentGenerator",
+    behavior_manager: "BehaviorManagementService | None" = None,
 ) -> dict[str, Any]:
     """Build template context with generated DTSI content.
 
@@ -65,6 +70,7 @@ def build_template_context(
         keymap_data: Keymap data model
         profile: Keyboard profile with configuration
         dtsi_generator: DTSI generator for creating template content
+        behavior_manager: Optional behavior management service (will create one if None)
 
     Returns:
         Dictionary with template context
@@ -93,6 +99,19 @@ def build_template_context(
     resolved_includes.extend(
         [f"#include <{include}>" for include in additional_includes]
     )
+
+    # Prepare behaviors using the management service
+    if behavior_manager is None:
+        from glovebox.layout.behavior.management import (
+            create_behavior_management_service,
+        )
+
+        behavior_manager = create_behavior_management_service()
+
+    behavior_manager.prepare_behaviors(profile, keymap_data)
+
+    # Update the dtsi_generator's behavior registry to use the managed registry
+    dtsi_generator._behavior_registry = behavior_manager.get_behavior_registry()
 
     # Generate DTSI components
     # IMPORTANT: Generate behaviors first so they are registered before keymap generation
@@ -218,6 +237,7 @@ def generate_keymap_file(
     keymap_data: LayoutData,
     profile: "KeyboardProfile",
     output_path: Path,
+    behavior_manager: "BehaviorManagementService | None" = None,
 ) -> None:
     """Generate keymap file.
 
@@ -228,6 +248,7 @@ def generate_keymap_file(
         keymap_data: Layout data for keymap generation
         profile: Keyboard profile with configuration
         output_path: Path to write the keymap file
+        behavior_manager: Optional behavior management service
 
     Raises:
         LayoutError: If keymap generation fails
@@ -239,7 +260,9 @@ def generate_keymap_file(
     )
 
     # Build template context using the function
-    context = build_template_context(keymap_data, profile, dtsi_generator)
+    context = build_template_context(
+        keymap_data, profile, dtsi_generator, behavior_manager
+    )
 
     # Get template content from keymap configuration - support both inline and file templates
     keymap_section = profile.keyboard_config.keymap
@@ -426,6 +449,7 @@ def generate_keymap_file_with_result(
             keymap_data=keymap_data,
             profile=profile,
             output_path=output_path,
+            behavior_manager=None,  # Let it create its own
         )
 
         result.success = True

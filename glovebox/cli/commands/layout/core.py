@@ -8,7 +8,10 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 
-from glovebox.cli.commands.layout.base import LayoutOutputCommand
+from glovebox.cli.commands.layout.base import (
+    LayoutOutputCommand,
+    ProfileAwareLayoutCommand,
+)
 from glovebox.cli.commands.layout.dependencies import create_full_layout_service
 from glovebox.cli.core.command_base import IOCommand
 from glovebox.cli.decorators import (
@@ -41,8 +44,12 @@ from glovebox.layout import LayoutService, ViewMode
 logger = logging.getLogger(__name__)
 
 
-class CompileLayoutCommand(IOCommand):
+class CompileLayoutCommand(ProfileAwareLayoutCommand):
     """Command to compile ZMK keymap and config files from JSON layout."""
+
+    def get_operation_name(self) -> str:
+        """Get the operation name for error reporting."""
+        return "compile layout"
 
     def execute(
         self,
@@ -55,122 +62,61 @@ class CompileLayoutCommand(IOCommand):
         format: str,
     ) -> None:
         """Execute the compile layout command."""
-        try:
-            # Load JSON input using InputHandler (supports @library-refs, stdin, etc.)
-            layout_data = self.load_json_input(input)
+        self.execute_with_profile(
+            ctx, input, no_auto, output=output, force=force, format=format
+        )
 
-            # Create layout service with all dependencies
-            from glovebox.cli.commands.layout.dependencies import (
-                create_full_layout_service,
-            )
+    def execute_command(
+        self,
+        layout_data: dict,
+        keyboard_profile,
+        service,
+        output: str | None = None,
+        force: bool = False,
+        format: str = "text",
+        **kwargs,
+    ) -> None:
+        """Execute the specific compilation logic."""
+        # Compile layout with profile information
+        result = service.compile(layout_data, profile=keyboard_profile)
 
-            service = create_full_layout_service()
+        if result.success:
+            # Write output using OutputHandler if output specified
+            if output:
+                if result.keymap_content:
+                    keymap_file = Path(output).with_suffix(".keymap")
+                    self.write_output(result.keymap_content, str(keymap_file), "text")
+                if result.config_content:
+                    config_file = Path(output).with_suffix(".conf")
+                    self.write_output(result.config_content, str(config_file), "text")
 
-            # Compile layout (service now takes dict input)
-            result = service.compile(layout_data)
-
-            if result.success:
-                # Write output using OutputHandler if output specified
-                if output:
-                    if result.keymap_content:
-                        keymap_file = Path(output).with_suffix(".keymap")
-                        self.write_output(
-                            result.keymap_content, str(keymap_file), "text"
-                        )
-                    if result.config_content:
-                        config_file = Path(output).with_suffix(".conf")
-                        self.write_output(
-                            result.config_content, str(config_file), "text"
-                        )
-
-                    self.console.print_success("Layout compiled successfully")
-                    self.console.print_info(f"  keymap: {keymap_file}")
-                    self.console.print_info(f"  config: {config_file}")
-                else:
-                    # Output to stdout
-                    if format == "json":
-                        output_data = {
-                            "success": True,
-                            "keymap_content": result.keymap_content,
-                            "config_content": result.config_content,
-                        }
-                        self.format_and_print(output_data, "json")
-                    else:
-                        self.console.print_success("Layout compiled successfully")
-                        if result.keymap_content:
-                            # Use the underlying Rich console for raw output
-                            self.console.console.print(result.keymap_content)
+                self.console.print_success("Layout compiled successfully")
+                self.console.print_info(f"  keymap: {keymap_file}")
+                self.console.print_info(f"  config: {config_file}")
             else:
-                raise ValueError(f"Compilation failed: {'; '.join(result.errors)}")
-
-        except Exception as e:
-            self.handle_service_error(e, "compile layout")
-
-    def _get_keyboard_profile(
-        self, ctx: typer.Context, layout_data: dict, no_auto: bool
-    ):
-        """Get keyboard profile from context or auto-detect."""
-        from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
-
-        keyboard_profile = get_keyboard_profile_from_context(ctx)
-
-        if keyboard_profile is None and not no_auto:
-            keyboard_field = layout_data.get("keyboard")
-            if keyboard_field:
-                from glovebox.config import create_keyboard_profile
-
-                keyboard_profile = create_keyboard_profile(keyboard_field)
-
-        if keyboard_profile is None:
-            self.console.print_error(
-                "No keyboard profile available. Use --profile or enable auto-detection."
-            )
-            raise typer.Exit(1)
-
-        return keyboard_profile
-
-    def _generate_output_prefix(self, layout_data: dict, keyboard_profile) -> str:
-        """Generate output prefix from layout data and profile."""
-        from glovebox.config import create_user_config
-        from glovebox.utils.filename_generator import (
-            FileType,
-            generate_default_filename,
-        )
-        from glovebox.utils.filename_helpers import (
-            extract_layout_dict_data,
-            extract_profile_data,
-        )
-
-        user_config = create_user_config()
-        profile_data = extract_profile_data(keyboard_profile)
-        layout_info = extract_layout_dict_data(layout_data)
-
-        output = generate_default_filename(
-            FileType.KEYMAP,
-            user_config._config.filename_templates,
-            layout_data=layout_info,
-            profile_data=profile_data,
-        )
-        return Path(output).stem
-
-    def _handle_success(self, result, format: str) -> None:
-        """Handle successful compilation result."""
-        output_data = {
-            "success": True,
-            "message": "Layout compiled successfully",
-            "output_files": {k: str(v) for k, v in result.get_output_files().items()},
-        }
-
-        if format == "json":
-            self.format_and_print(output_data, "json")
+                # Output to stdout
+                if format == "json":
+                    output_data = {
+                        "success": True,
+                        "keymap_content": result.keymap_content,
+                        "config_content": result.config_content,
+                    }
+                    self.format_and_print(output_data, "json")
+                else:
+                    self.console.print_success("Layout compiled successfully")
+                    if result.keymap_content:
+                        # Use the underlying Rich console for raw output
+                        self.console.console.print(result.keymap_content)
         else:
-            self.console.print_success(output_data["message"])
-            for file_type, file_path in output_data["output_files"].items():
-                self.console.print_info(f"  {file_type}: {file_path}")
+            raise ValueError(f"Compilation failed: {'; '.join(result.errors)}")
 
 
-class ValidateLayoutCommand(IOCommand):
+class ValidateLayoutCommand(ProfileAwareLayoutCommand):
     """Command to validate keymap syntax and structure."""
+
+    def get_operation_name(self) -> str:
+        """Get the operation name for error reporting."""
+        return "validate layout"
 
     def execute(
         self,
@@ -181,62 +127,36 @@ class ValidateLayoutCommand(IOCommand):
         format: str,
     ) -> None:
         """Execute the validate layout command."""
-        try:
-            # Load and parse JSON input
-            layout_data = self.load_json_input(input)
+        self.execute_with_profile(ctx, input, no_auto, format=format)
 
-            # Get or auto-detect keyboard profile
-            keyboard_profile = self._get_keyboard_profile(ctx, layout_data, no_auto)
+    def execute_command(
+        self,
+        layout_data: dict,
+        keyboard_profile,
+        service,
+        format: str = "text",
+        **kwargs,
+    ) -> None:
+        """Execute the specific validation logic."""
+        # Convert to LayoutData model and validate
+        from glovebox.layout.models import LayoutData
 
-            # Convert to LayoutData model and validate
-            from glovebox.cli.commands.layout.dependencies import (
-                create_full_layout_service,
-            )
-            from glovebox.layout.models import LayoutData
+        layout_model = LayoutData.model_validate(layout_data)
 
-            layout_model = LayoutData.model_validate(layout_data)
-            service = create_full_layout_service()
+        # Perform validation
+        errors = []
+        is_syntax_valid = service.validate(layout_data)
+        if not is_syntax_valid:
+            errors.append("Layout syntax/structure validation failed")
 
-            # Perform validation
-            errors = []
-            is_syntax_valid = service.validate(
-                profile=keyboard_profile, keymap_data=layout_model
-            )
-            if not is_syntax_valid:
-                errors.append("Layout syntax/structure validation failed")
+        # Validate layer references
+        layer_ref_errors = layout_model.validate_layer_references()
+        errors.extend(layer_ref_errors)
 
-            # Validate layer references
-            layer_ref_errors = layout_model.validate_layer_references()
-            errors.extend(layer_ref_errors)
+        is_valid = is_syntax_valid and len(layer_ref_errors) == 0
+        result = {"valid": is_valid, "errors": errors}
 
-            is_valid = is_syntax_valid and len(layer_ref_errors) == 0
-            result = {"valid": is_valid, "errors": errors}
-
-            self._handle_validation_result(result, format)
-
-        except Exception as e:
-            self.handle_service_error(e, "validate layout")
-
-    def _get_keyboard_profile(
-        self, ctx: typer.Context, layout_data: dict, no_auto: bool
-    ):
-        """Get keyboard profile from context or auto-detect."""
-        keyboard_profile = get_keyboard_profile_from_context(ctx)
-
-        if keyboard_profile is None and not no_auto:
-            keyboard_field = layout_data.get("keyboard")
-            if keyboard_field:
-                from glovebox.config import create_keyboard_profile
-
-                keyboard_profile = create_keyboard_profile(keyboard_field)
-
-        if keyboard_profile is None:
-            self.console.print_error(
-                "No keyboard profile available. Use --profile or enable auto-detection."
-            )
-            raise typer.Exit(1)
-
-        return keyboard_profile
+        self._handle_validation_result(result, format)
 
     def _handle_validation_result(self, result: dict, format: str) -> None:
         """Handle validation result output."""
@@ -246,16 +166,20 @@ class ValidateLayoutCommand(IOCommand):
             self.format_and_print(result["errors"], "table")
         else:
             if result["valid"]:
-                self.console.print_success("✓ Layout is valid")
+                self.console.print_success("Layout is valid")
             else:
-                self.console.print_error("✗ Layout validation failed")
+                self.console.print_error("Layout validation failed")
                 for error in result["errors"]:
                     self.console.print_error(f"  - {error}")
                 raise typer.Exit(1)
 
 
-class ShowLayoutCommand(IOCommand):
+class ShowLayoutCommand(ProfileAwareLayoutCommand):
     """Command to display keymap layout in terminal."""
+
+    def get_operation_name(self) -> str:
+        """Get the operation name for error reporting."""
+        return "show layout"
 
     def execute(
         self,
@@ -268,55 +192,39 @@ class ShowLayoutCommand(IOCommand):
         format: str,
     ) -> None:
         """Execute the show layout command."""
-        try:
-            # Load and parse JSON input
-            layout_data = self.load_json_input(input)
+        self.execute_with_profile(
+            ctx, input, no_auto, key_width=key_width, layer=layer, format=format
+        )
 
-            # Get or auto-detect keyboard profile
-            keyboard_profile = self._get_keyboard_profile(ctx, layout_data, no_auto)
+    def execute_command(
+        self,
+        layout_data: dict,
+        keyboard_profile,
+        service,
+        key_width: int = 10,
+        layer: str | None = None,
+        format: str = "text",
+        **kwargs,
+    ) -> None:
+        """Execute the specific show logic."""
+        # Resolve layer parameter
+        resolved_layer_index = self._resolve_layer_index(layer, layout_data)
 
-            # Resolve layer parameter
-            resolved_layer_index = self._resolve_layer_index(layer, layout_data)
-
-            # Handle different output formats
-            if format == "json":
-                self.format_and_print(layout_data, "json")
-            elif format.startswith("rich"):
-                self._handle_rich_format(
-                    layout_data,
-                    keyboard_profile,
-                    key_width,
-                    resolved_layer_index,
-                    format,
-                )
-            else:
-                self._handle_text_format(
-                    layout_data, keyboard_profile, key_width, resolved_layer_index
-                )
-
-        except Exception as e:
-            self.handle_service_error(e, "show layout")
-
-    def _get_keyboard_profile(
-        self, ctx: typer.Context, layout_data: dict, no_auto: bool
-    ):
-        """Get keyboard profile from context or auto-detect."""
-        keyboard_profile = get_keyboard_profile_from_context(ctx)
-
-        if keyboard_profile is None and not no_auto:
-            keyboard_field = layout_data.get("keyboard")
-            if keyboard_field:
-                from glovebox.config import create_keyboard_profile
-
-                keyboard_profile = create_keyboard_profile(keyboard_field)
-
-        if keyboard_profile is None:
-            self.console.print_error(
-                "No keyboard profile available. Use --profile or enable auto-detection."
+        # Handle different output formats
+        if format == "json":
+            self.format_and_print(layout_data, "json")
+        elif format.startswith("rich"):
+            self._handle_rich_format(
+                layout_data,
+                keyboard_profile,
+                key_width,
+                resolved_layer_index,
+                format,
             )
-            raise typer.Exit(1)
-
-        return keyboard_profile
+        else:
+            self._handle_text_format(
+                layout_data, keyboard_profile, key_width, resolved_layer_index, service
+            )
 
     def _resolve_layer_index(self, layer: str | None, layout_data: dict) -> int | None:
         """Resolve layer parameter to index."""
@@ -402,20 +310,14 @@ class ShowLayoutCommand(IOCommand):
         keyboard_profile,
         key_width: int,
         layer_index: int | None,
+        service,
     ) -> None:
         """Handle text format display."""
         from glovebox.layout.models import LayoutData
 
-        service = create_full_layout_service()
         layout_model = LayoutData.model_validate(layout_data)
 
-        result = service.show(
-            keymap_data=layout_model,
-            profile=keyboard_profile,
-            key_width=key_width,
-            view_mode=ViewMode.NORMAL,
-            layer_index=layer_index,
-        )
+        result = service.show(layout_data, mode=ViewMode.NORMAL)
 
         typer.echo(result)
 

@@ -156,106 +156,36 @@ def register_layout_behaviors(
 ) -> None:
     """Register all behaviors needed for this profile+layout combination.
 
+    DEPRECATED: Use BehaviorManagementService.prepare_behaviors() instead.
+
+    This function is maintained for backward compatibility but should not be
+    used in new code. The BehaviorManagementService provides better error handling,
+    conflict detection, and lifecycle management.
+
     Args:
         profile: Keyboard profile containing configuration
         layout_data: Layout data containing custom behaviors, macros, and combos
         behavior_registry: The registry to register behaviors with
     """
-    from .models import SystemBehavior
+    import warnings
 
-    # Track registered behaviors for summary logging
-    registered_behaviors: list[str] = []
+    from .management import create_behavior_management_service
 
-    # Register system behaviors from profile
-    for behavior in profile.system_behaviors:
+    warnings.warn(
+        "register_layout_behaviors() is deprecated. Use BehaviorManagementService.prepare_behaviors() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    # Use the new management service for consistency
+    behavior_manager = create_behavior_management_service()
+    behavior_manager.prepare_behaviors(profile, layout_data)
+
+    # Copy behaviors to the provided registry for backward compatibility
+    managed_registry = behavior_manager.get_behavior_registry()
+    all_behaviors = managed_registry.list_behaviors()
+
+    for behavior in all_behaviors.values():
         behavior_registry.register_behavior(behavior)
-        registered_behaviors.append(f"system:{behavior.code}")
 
-    # Register custom hold-tap behaviors defined in the layout
-    hold_taps = getattr(layout_data, "hold_taps", [])
-    for hold_tap in hold_taps:
-        # Handle names that may or may not already include the "&" prefix
-        behavior_code = (
-            hold_tap.name if hold_tap.name.startswith("&") else f"&{hold_tap.name}"
-        )
-        behavior_name = hold_tap.name.lstrip(
-            "&"
-        )  # Remove "&" prefix for the name field
-
-        ht_behavior = SystemBehavior(
-            code=behavior_code,
-            name=behavior_name,
-            description=hold_tap.description
-            or f"Custom hold-tap behavior: {behavior_name}",
-            expected_params=2,  # Hold-tap behaviors typically take tap and hold parameters
-            origin="layout",
-            params=[],
-            type="hold_tap",
-            parameters={
-                "tapping_term_ms": hold_tap.tapping_term_ms,
-                "quick_tap_ms": hold_tap.quick_tap_ms,
-                "flavor": hold_tap.flavor,
-                "tap_behavior": hold_tap.tap_behavior,
-                "hold_behavior": hold_tap.hold_behavior,
-            },
-        )
-        behavior_registry.register_behavior(ht_behavior)
-        registered_behaviors.append(f"hold-tap:{ht_behavior.code}")
-
-    # Register custom combo behaviors defined in the layout
-    combos = getattr(layout_data, "combos", [])
-    for combo in combos:
-        # Handle names that may or may not already include the "&" prefix
-        combo_code = f"&combo_{combo.name.lstrip('&')}"
-        combo_name = f"combo_{combo.name.lstrip('&')}"
-
-        combo_behavior = SystemBehavior(
-            code=combo_code,
-            name=combo_name,
-            description=combo.description or f"Custom combo behavior: {combo_name}",
-            expected_params=0,  # Combos don't take parameters when referenced
-            origin="layout",
-            params=[],
-            type="combo",
-            parameters={
-                "timeout_ms": combo.timeout_ms,
-                "key_positions": combo.key_positions,
-                "layers": combo.layers,
-                "binding": combo.binding.value if combo.binding else None,
-            },
-        )
-        behavior_registry.register_behavior(combo_behavior)
-        registered_behaviors.append(f"combo:{combo_behavior.code}")
-
-    # Register custom macro behaviors defined in the layout
-    macros = getattr(layout_data, "macros", [])
-    for macro in macros:
-        # Handle names that may or may not already include the "&" prefix
-        macro_code = macro.name if macro.name.startswith("&") else f"&{macro.name}"
-        macro_name = macro.name.lstrip("&")  # Remove "&" prefix for the name field
-
-        # Analyze usage in the layout to determine expected parameters
-        expected_params = _analyze_behavior_param_usage(layout_data, macro_code)
-
-        macro_behavior = SystemBehavior(
-            code=macro_code,
-            name=macro_name,
-            description=macro.description or f"Custom macro behavior: {macro_name}",
-            expected_params=expected_params,
-            origin="layout",
-            params=[],
-            type="macro",
-            parameters={
-                "wait_ms": macro.wait_ms,
-                "tap_ms": macro.tap_ms,
-                "bindings": [binding.value for binding in macro.bindings]
-                if macro.bindings
-                else [],
-            },
-        )
-        behavior_registry.register_behavior(macro_behavior)
-        registered_behaviors.append(f"macro:{macro_behavior.code}")
-
-    # Summary logging
-    if registered_behaviors:
-        logger.debug("Registered %d behaviors", len(registered_behaviors))
+    logger.debug("Registered %d behaviors (via management service)", len(all_behaviors))

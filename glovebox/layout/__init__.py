@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 # Import and re-export behavior functionality from behavior package
 from glovebox.layout.behavior import (
     BehaviorCommand,
+    BehaviorManagementService,
     BehaviorParameter,
     KeymapBehavior,
     ParameterType,
@@ -21,6 +22,7 @@ from glovebox.layout.behavior import (
     SystemBehavior,
     SystemBehaviorParam,
     SystemParamList,
+    create_behavior_management_service,
     create_behavior_registry,
     extract_behavior_codes_from_layout,
     get_required_includes_for_layout,
@@ -111,6 +113,7 @@ __all__ = [
     "BehaviorParameter",
     "ParameterType",
     "ParamValue",
+    "BehaviorManagementService",
     # Service classes
     "LayoutService",
     "LayoutComponentService",
@@ -125,6 +128,7 @@ __all__ = [
     "create_grid_layout_formatter",
     "create_zmk_file_generator",
     "create_behavior_registry",
+    "create_behavior_management_service",
     "create_template_service",
     "create_jinja2_template_service",
     "create_zmk_keymap_parser",

@@ -33,6 +33,10 @@ logger = logging.getLogger(__name__)
 class CompileFirmwareCommand(FirmwareOutputCommand):
     """Command to compile firmware from keymap/config files or JSON layout."""
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._temp_stdin_file: Path | None = None
+
     def execute(
         self,
         ctx: typer.Context,
@@ -150,27 +154,96 @@ class CompileFirmwareCommand(FirmwareOutputCommand):
                 if progress_display:
                     progress_display.stop()
                 cleanup_temp_directory(build_output_dir, manual_cleanup_needed)
+                self._cleanup_temp_stdin_file()
 
         except Exception as e:
             self.handle_service_error(e, "compile firmware")
 
     def _resolve_input_file(self, input_file: str | None) -> Path:
-        """Resolve input file path."""
+        """Resolve input file path, including stdin support."""
+        from glovebox.cli.helpers.parameter_helpers import (
+            process_input_parameter,
+            read_input_from_result,
+        )
+
         try:
-            resolved_input_file = resolve_firmware_input_file(
+            # Process input parameter with stdin support
+            result = process_input_parameter(
                 input_file,
-                env_var="GLOVEBOX_JSON_FILE",
+                supports_stdin=True,
+                env_fallback="GLOVEBOX_JSON_FILE",
+                required=True,
+                validate_existence=False,  # Don't validate stdin
                 allowed_extensions=[".json", ".keymap"],
             )
+
+            # Handle stdin input
+            if result.is_stdin:
+                # Read data from stdin
+                content = read_input_from_result(result, as_json=False, as_binary=False)
+                if not content or not content.strip():
+                    raise ValueError("No data provided on stdin")
+
+                # Determine file type from content
+                import json
+                import tempfile
+
+                # Try to parse as JSON to determine type
+                try:
+                    json.loads(content)
+                    file_suffix = ".json"
+                except json.JSONDecodeError:
+                    # Assume it's a keymap file if not JSON
+                    file_suffix = ".keymap"
+
+                # Create temporary file
+                with tempfile.NamedTemporaryFile(
+                    mode="w", suffix=file_suffix, delete=False, encoding="utf-8"
+                ) as tmp_file:
+                    tmp_file.write(content)
+                    temp_path = Path(tmp_file.name)
+                    self._temp_stdin_file = temp_path
+                    logger.debug(
+                        "Created temporary file for stdin input: %s", temp_path
+                    )
+                    return temp_path
+
+            # Handle file path input
+            elif result.resolved_path:
+                resolved_input_file = resolve_firmware_input_file(
+                    result.resolved_path,
+                    env_var="GLOVEBOX_JSON_FILE",
+                    allowed_extensions=[".json", ".keymap"],
+                )
+                if resolved_input_file is None:
+                    raise ValueError("Could not resolve input file")
+                return resolved_input_file
+
+            else:
+                raise ValueError(
+                    "Input file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
+                )
+
         except (FileNotFoundError, ValueError) as e:
             raise ValueError(str(e)) from e
 
-        if resolved_input_file is None:
-            raise ValueError(
-                "Input file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
-            )
-
-        return resolved_input_file
+    def _cleanup_temp_stdin_file(self) -> None:
+        """Clean up temporary file created from stdin input."""
+        if self._temp_stdin_file and self._temp_stdin_file.exists():
+            try:
+                self._temp_stdin_file.unlink()
+                logger.debug(
+                    "Cleaned up temporary stdin file: %s", self._temp_stdin_file
+                )
+            except Exception as cleanup_error:
+                exc_info = logger.isEnabledFor(logging.DEBUG)
+                logger.warning(
+                    "Failed to clean up temporary stdin file: %s",
+                    cleanup_error,
+                    exc_info=exc_info,
+                )
+            finally:
+                self._temp_stdin_file = None
 
     def _execute_json_compilation(
         self,
