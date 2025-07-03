@@ -8,7 +8,21 @@ import typer
 
 
 if TYPE_CHECKING:
+    from glovebox.compilation.cache.compilation_build_cache_service import (
+        CompilationBuildCacheService,
+    )
+    from glovebox.compilation.cache.workspace_cache_service import (
+        ZmkWorkspaceCacheService,
+    )
+    from glovebox.compilation.models import CompilationConfigUnion
     from glovebox.config.profile import KeyboardProfile
+    from glovebox.config.user_config import UserConfig
+    from glovebox.core.cache.cache_manager import CacheManager
+    from glovebox.core.file_operations.models import CompilationProgressCallback
+    from glovebox.firmware.models import BuildResult
+    from glovebox.protocols.progress_coordinator_protocol import (
+        ProgressCoordinatorProtocol,
+    )
 
 from glovebox.cli.commands.firmware.base import FirmwareOutputCommand
 from glovebox.cli.decorators import (
@@ -104,7 +118,8 @@ class CompileFirmwareCommand(FirmwareOutputCommand):
                 )
 
                 # Execute compilation
-                user_config = get_user_config_from_context(ctx)
+                from glovebox.config import create_user_config
+                user_config = get_user_config_from_context(ctx) or create_user_config()
 
                 if is_json_input:
                     result = self._execute_json_compilation(
@@ -258,16 +273,16 @@ class CompileFirmwareCommand(FirmwareOutputCommand):
         compilation_type: str,
         json_file: Path,
         build_output_dir: Path,
-        compile_config: Any,
+        compile_config: "CompilationConfigUnion",
         profile: "KeyboardProfile",
         ctx: typer.Context,
-        user_config: Any,
-        progress_coordinator: Any,
-        progress_callback: Any,
-        cache_manager: Any,
-        workspace_service: Any,
-        build_service: Any,
-    ) -> Any:
+        user_config: "UserConfig",
+        progress_coordinator: "ProgressCoordinatorProtocol | None",
+        progress_callback: "CompilationProgressCallback | None",
+        cache_manager: "CacheManager",
+        workspace_service: "ZmkWorkspaceCacheService",
+        build_service: "CompilationBuildCacheService",
+    ) -> "BuildResult":
         """Execute JSON file compilation."""
         from glovebox.adapters import create_docker_adapter, create_file_adapter
         from glovebox.compilation import create_compilation_service
@@ -303,16 +318,16 @@ class CompileFirmwareCommand(FirmwareOutputCommand):
         keymap_file: Path,
         config_file: Path,
         build_output_dir: Path,
-        compile_config: Any,
+        compile_config: "CompilationConfigUnion",
         profile: "KeyboardProfile",
         ctx: typer.Context,
-        user_config: Any,
-        progress_coordinator: Any,
-        progress_callback: Any,
-        cache_manager: Any,
-        workspace_service: Any,
-        build_service: Any,
-    ) -> Any:
+        user_config: "UserConfig",
+        progress_coordinator: "ProgressCoordinatorProtocol | None",
+        progress_callback: "CompilationProgressCallback | None",
+        cache_manager: "CacheManager",
+        workspace_service: "ZmkWorkspaceCacheService",
+        build_service: "CompilationBuildCacheService",
+    ) -> "BuildResult":
         """Execute keymap file compilation."""
         from glovebox.adapters import create_docker_adapter, create_file_adapter
         from glovebox.compilation import create_compilation_service
