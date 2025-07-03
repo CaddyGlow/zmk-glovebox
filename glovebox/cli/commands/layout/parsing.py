@@ -82,7 +82,7 @@ class ParseKeymapCommand(BaseLayoutCommand):
 
             # Create keymap parser
             from glovebox.layout import create_zmk_keymap_parser
-            from glovebox.layout.parsers.models import ParsingMethod, ParsingMode
+            from glovebox.layout.parsers.keymap_parser import ParsingMethod, ParsingMode
 
             keymap_parser = create_zmk_keymap_parser()
 
@@ -223,7 +223,7 @@ class ImportKeymapCommand(BaseLayoutCommand):
 
             # Create keymap parser
             from glovebox.layout import create_zmk_keymap_parser
-            from glovebox.layout.parsers.models import ParsingMethod, ParsingMode
+            from glovebox.layout.parsers.keymap_parser import ParsingMethod, ParsingMode
 
             keymap_parser = create_zmk_keymap_parser()
 
