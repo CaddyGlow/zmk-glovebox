@@ -62,16 +62,16 @@ class LayoutComponentService(BaseService):
 
         # Handle both LayoutData objects and raw dictionaries
         if isinstance(keymap_data, dict):
-            keyboard_name = keymap_data.get('keyboard', 'unknown')
+            keyboard_name = keymap_data.get("keyboard", "unknown")
         else:
-            keyboard_name = getattr(keymap_data, 'keyboard', 'unknown')
-        logger.info(
-            "Processing keymap components for %s", keyboard_name
-        )
+            keyboard_name = getattr(keymap_data, "keyboard", "unknown")
+        logger.info("Processing keymap components for %s", keyboard_name)
 
         try:
             # Handle both LayoutData objects and raw dictionaries
-            def get_attr_or_key(obj: LayoutData | dict[str, Any], attr_name: str, default: Any = None) -> Any:
+            def get_attr_or_key(
+                obj: LayoutData | dict[str, Any], attr_name: str, default: Any = None
+            ) -> Any:
                 if hasattr(obj, attr_name):
                     return getattr(obj, attr_name) or default
                 elif isinstance(obj, dict):
@@ -88,9 +88,15 @@ class LayoutComponentService(BaseService):
                 "combos": get_attr_or_key(keymap_data, "combos", []),
                 "macros": get_attr_or_key(keymap_data, "macros", []),
                 "input_listeners": get_attr_or_key(keymap_data, "input_listeners", []),
-                "config_parameters": get_attr_or_key(keymap_data, "config_parameters", []),
-                "custom_defined_behaviors": get_attr_or_key(keymap_data, "custom_defined_behaviors", ""),
-                "custom_devicetree": get_attr_or_key(keymap_data, "custom_devicetree", ""),
+                "config_parameters": get_attr_or_key(
+                    keymap_data, "config_parameters", []
+                ),
+                "custom_defined_behaviors": get_attr_or_key(
+                    keymap_data, "custom_defined_behaviors", ""
+                ),
+                "custom_devicetree": get_attr_or_key(
+                    keymap_data, "custom_devicetree", ""
+                ),
             }
 
             logger.debug(

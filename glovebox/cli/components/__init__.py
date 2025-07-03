@@ -27,6 +27,7 @@ def create_progress_display(config: ProgressConfig) -> Any:
         from glovebox.cli.components.progress_display_v1 import (
             ProgressDisplay as ProgressDisplayV1,
         )
+
         return ProgressDisplayV1(config)
 
 
@@ -54,7 +55,7 @@ def create_progress_manager(
 
 
 def create_progress_context(
-    display: ProgressDisplay | None = None
+    display: ProgressDisplay | None = None,
 ) -> ProgressContextProtocol:
     """Create a progress context, returning NoOp if no display provided.
 

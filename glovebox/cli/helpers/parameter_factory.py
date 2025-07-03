@@ -518,4 +518,3 @@ class CommonParameterSets:
             "backup": ParameterFactory.backup_flag(),  # type: ignore[attr-defined]
             "dry_run": ParameterFactory.dry_run_flag(),  # type: ignore[attr-defined]
         }
-

@@ -63,6 +63,7 @@ class CompileLayoutCommand(IOCommand):
             from glovebox.cli.commands.layout.dependencies import (
                 create_full_layout_service,
             )
+
             service = create_full_layout_service()
 
             # Compile layout (service now takes dict input)
@@ -73,10 +74,14 @@ class CompileLayoutCommand(IOCommand):
                 if output:
                     if result.keymap_content:
                         keymap_file = Path(output).with_suffix(".keymap")
-                        self.write_output(result.keymap_content, str(keymap_file), "text")
+                        self.write_output(
+                            result.keymap_content, str(keymap_file), "text"
+                        )
                     if result.config_content:
                         config_file = Path(output).with_suffix(".conf")
-                        self.write_output(result.config_content, str(config_file), "text")
+                        self.write_output(
+                            result.config_content, str(config_file), "text"
+                        )
 
                     self.console.print_success("Layout compiled successfully")
                     self.console.print_info(f"  keymap: {keymap_file}")

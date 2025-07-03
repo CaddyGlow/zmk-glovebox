@@ -265,27 +265,29 @@ class TestInputParameterProcessing:
                 allowed_extensions=[".json", ".yaml"],
             )
 
-    @patch("glovebox.cli.helpers.parameter_helpers.read_json_input")
-    def test_read_input_from_result_json(self, mock_read_json):
+    def test_read_input_from_result_json(self, tmp_path):
         """Test reading JSON input from result."""
-        mock_read_json.return_value = {"test": "data"}
-        result = InputResult(raw_value="test.json", resolved_path=Path("test.json"))
+        # Create test file
+        test_file = tmp_path / "test.json"
+        test_data = {"test": "data"}
+        test_file.write_text(json.dumps(test_data))
 
+        result = InputResult(raw_value=str(test_file), resolved_path=test_file)
         data = read_input_from_result(result, as_json=True)
 
-        mock_read_json.assert_called_once_with("test.json")
-        assert data == {"test": "data"}
+        assert data == test_data
 
-    @patch("glovebox.cli.helpers.parameter_helpers.read_input_data")
-    def test_read_input_from_result_text(self, mock_read_data):
+    def test_read_input_from_result_text(self, tmp_path):
         """Test reading text input from result."""
-        mock_read_data.return_value = "test data"
-        result = InputResult(raw_value="test.txt", resolved_path=Path("test.txt"))
+        # Create test file
+        test_file = tmp_path / "test.txt"
+        test_data = "test data"
+        test_file.write_text(test_data)
 
+        result = InputResult(raw_value=str(test_file), resolved_path=test_file)
         data = read_input_from_result(result)
 
-        mock_read_data.assert_called_once_with("test.txt")
-        assert data == "test data"
+        assert data == test_data
 
     def test_read_input_from_result_cached_data(self):
         """Test reading input when data is already cached."""
@@ -302,12 +304,8 @@ class TestInputParameterProcessing:
         """Test reading input from stdin result."""
         result = InputResult(raw_value="-", is_stdin=True)
 
-        with patch(
-            "glovebox.cli.helpers.parameter_helpers.read_input_data",
-            return_value="stdin data",
-        ) as mock_read:
+        with patch("sys.stdin.read", return_value="stdin data"):
             data = read_input_from_result(result)
-            mock_read.assert_called_once_with("-")
             assert data == "stdin data"
 
 

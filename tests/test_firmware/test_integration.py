@@ -13,7 +13,8 @@ import pytest
 from glovebox.config import create_user_config
 from glovebox.core.metrics import create_session_metrics
 from glovebox.firmware.flash import create_flash_service
-from glovebox.firmware.models import DeviceInfo, FirmwareOutputFiles, FlashResult
+from glovebox.firmware.flash.models import FlashResult, USBDeviceInfo
+from glovebox.firmware.models import FirmwareOutputFiles
 
 
 pytestmark = pytest.mark.integration
@@ -92,7 +93,7 @@ def sample_json_layout_with_compilation(tmp_path):
 @pytest.fixture
 def mock_device_info():
     """Mock device information for testing."""
-    return DeviceInfo(
+    return USBDeviceInfo(
         path="/dev/test_device",
         vendor_id="1234",
         product_id="5678",
@@ -124,21 +125,20 @@ class TestFirmwareFlashIntegration:
             # Mock successful flash
             mock_result = FlashResult(
                 success=True,
-                messages=["Firmware flashed successfully to /dev/test_device"],
-                device_path="/dev/test_device"
+                devices_flashed=1
             )
+            mock_result.add_message("Firmware flashed successfully to /dev/test_device")
             mock_flash.return_value = mock_result
 
             # Test flash from file
-            result = flash_service.flash_from_file(
+            result = flash_service.flash(
                 firmware_file=sample_firmware_file,
-                keyboard_profile=mock_keyboard_profile,
-                device_path="/dev/test_device"
+                profile=mock_keyboard_profile
             )
 
             assert result.success is True
             assert "Firmware flashed successfully" in result.messages[0]
-            assert result.device_path == "/dev/test_device"
+            assert result.devices_flashed == 1
 
     def test_flash_with_device_auto_detection(
         self,
@@ -158,20 +158,19 @@ class TestFirmwareFlashIntegration:
             # Mock successful flash
             mock_result = FlashResult(
                 success=True,
-                messages=["Auto-detected and flashed device"],
-                device_path="/dev/test_device"
+                devices_flashed=1
             )
+            mock_result.add_message("Firmware flashed successfully to /dev/test_device")
             mock_flash.return_value = mock_result
 
             # Test flash without specifying device (should auto-detect)
-            result = flash_service.flash_from_file(
+            result = flash_service.flash(
                 firmware_file=sample_firmware_file,
-                keyboard_profile=mock_keyboard_profile,
-                device_path=None  # Auto-detect
+                profile=mock_keyboard_profile
             )
 
             assert result.success is True
-            assert result.device_path == "/dev/test_device"
+            assert result.devices_flashed == 1
 
     def test_flash_no_devices_found(
         self,
@@ -184,10 +183,9 @@ class TestFirmwareFlashIntegration:
             # Mock no devices found
             mock_list_devices.return_value = []
 
-            result = flash_service.flash_from_file(
+            result = flash_service.flash(
                 firmware_file=sample_firmware_file,
-                keyboard_profile=mock_keyboard_profile,
-                device_path=None
+                profile=mock_keyboard_profile
             )
 
             assert result.success is False
@@ -200,7 +198,7 @@ class TestFirmwareFlashIntegration:
         mock_keyboard_profile,
     ):
         """Test error handling when multiple devices found without specific path."""
-        mock_device1 = DeviceInfo(
+        mock_device1 = USBDeviceInfo(
             path="/dev/device1",
             vendor_id="1234",
             product_id="5678",
@@ -208,7 +206,7 @@ class TestFirmwareFlashIntegration:
             manufacturer="Test Manufacturer",
             product="Test Keyboard",
         )
-        mock_device2 = DeviceInfo(
+        mock_device2 = USBDeviceInfo(
             path="/dev/device2",
             vendor_id="1234",
             product_id="5678",
@@ -221,10 +219,9 @@ class TestFirmwareFlashIntegration:
             # Mock multiple devices found
             mock_list_devices.return_value = [mock_device1, mock_device2]
 
-            result = flash_service.flash_from_file(
+            result = flash_service.flash(
                 firmware_file=sample_firmware_file,
-                keyboard_profile=mock_keyboard_profile,
-                device_path=None
+                profile=mock_keyboard_profile
             )
 
             assert result.success is False
@@ -275,9 +272,9 @@ class TestFirmwareWorkflowIntegration:
             mock_list_devices.return_value = [mock_device_info]
             mock_flash_result = FlashResult(
                 success=True,
-                messages=["Firmware flashed successfully"],
-                device_path="/dev/test_device"
+                devices_flashed=1
             )
+            mock_flash_result.add_message("Firmware flashed successfully")
             mock_flash.return_value = mock_flash_result
 
             # Step 2: Simulate compilation phase
@@ -293,10 +290,9 @@ class TestFirmwareWorkflowIntegration:
             assert firmware_file in compilation_result.output_files.uf2_files
 
             # Step 3: Simulate flash phase using compiled firmware
-            flash_result = flash_service.flash_from_file(
+            flash_result = flash_service.flash(
                 firmware_file=firmware_file,
-                keyboard_profile=mock_keyboard_profile,
-                device_path="/dev/test_device"
+                profile=mock_keyboard_profile
             )
 
             assert flash_result.success is True
@@ -357,7 +353,7 @@ class TestFirmwareDeviceManagement:
     ):
         """Test device listing functionality."""
         mock_devices = [
-            DeviceInfo(
+            USBDeviceInfo(
                 path="/dev/device1",
                 vendor_id="1234",
                 product_id="5678",
@@ -365,7 +361,7 @@ class TestFirmwareDeviceManagement:
                 manufacturer="Test Manufacturer",
                 product="Test Keyboard Left",
             ),
-            DeviceInfo(
+            USBDeviceInfo(
                 path="/dev/device2",
                 vendor_id="1234",
                 product_id="5679",
@@ -407,7 +403,7 @@ class TestFirmwareDeviceManagement:
             # Mock device waiting (this would typically be in a separate service)
             devices = []
             max_attempts = 3
-            for attempt in range(max_attempts):
+            for _attempt in range(max_attempts):
                 devices = flash_service.list_devices(keyboard_profile=mock_keyboard_profile)
                 if devices:
                     break
@@ -445,12 +441,10 @@ class TestFirmwareServiceFactoryIntegration:
     ):
         """Test that flash service has required methods."""
         # Verify required methods exist
-        assert hasattr(flash_service, "flash_from_file")
         assert hasattr(flash_service, "flash")
         assert hasattr(flash_service, "list_devices")
 
         # Verify methods are callable
-        assert callable(flash_service.flash_from_file)
         assert callable(flash_service.flash)
         assert callable(flash_service.list_devices)
 
@@ -473,16 +467,15 @@ class TestFirmwareIOPatterns:
             mock_list_devices.return_value = [mock_device_info]
             mock_result = FlashResult(
                 success=True,
-                messages=["Flash successful"],
-                device_path="/dev/test_device"
+                devices_flashed=1
             )
+            mock_result.add_message("Firmware flashed successfully to /dev/test_device")
             mock_flash.return_value = mock_result
 
             # Test file input pattern
-            result = flash_service.flash_from_file(
+            result = flash_service.flash(
                 firmware_file=sample_firmware_file,
-                keyboard_profile=mock_keyboard_profile,
-                device_path="/dev/test_device"
+                profile=mock_keyboard_profile
             )
 
             assert result.success is True
@@ -504,28 +497,24 @@ class TestFirmwareIOPatterns:
             mock_list_devices.return_value = [mock_device_info]
             mock_result = FlashResult(
                 success=True,
-                messages=["Device flashed successfully"],
-                device_path="/dev/test_device",
-                bytes_written=1024,
-                flash_duration=2.5
+                devices_flashed=1
             )
+            mock_result.add_message("Device flashed successfully")
             mock_flash.return_value = mock_result
 
-            result = flash_service.flash_from_file(
+            result = flash_service.flash(
                 firmware_file=sample_firmware_file,
-                keyboard_profile=mock_keyboard_profile,
-                device_path="/dev/test_device"
+                profile=mock_keyboard_profile
             )
 
             # Test output pattern structure
             assert hasattr(result, "success")
             assert hasattr(result, "messages")
-            assert hasattr(result, "device_path")
-            assert hasattr(result, "bytes_written")
-            assert hasattr(result, "flash_duration")
+            assert hasattr(result, "devices_flashed")
+            assert hasattr(result, "devices_failed")
+            assert hasattr(result, "device_details")
 
             # Test values
             assert result.success is True
-            assert result.device_path == "/dev/test_device"
-            assert result.bytes_written == 1024
-            assert result.flash_duration == 2.5
+            assert result.devices_flashed == 1
+            assert len(result.device_details) == 1

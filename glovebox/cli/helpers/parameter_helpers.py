@@ -22,9 +22,6 @@ from glovebox.cli.helpers.parameter_types import (
 )
 from glovebox.cli.helpers.stdin_utils import (
     is_stdin_input,
-    read_binary_input,
-    read_input_data,
-    read_json_input,
 )
 from glovebox.cli.helpers.theme import get_themed_console
 
@@ -215,22 +212,48 @@ def read_input_from_result(
         return result.data
 
     if result.is_stdin:
-        source = "-"
+        # Read from stdin using core IO infrastructure
+        try:
+            from glovebox.core.io import create_input_handler
+
+            input_handler = create_input_handler()
+
+            if as_json:
+                return input_handler.load_json_input("-")
+            elif as_binary:
+                import sys
+
+                return sys.stdin.buffer.read()
+            else:
+                import sys
+
+                return sys.stdin.read()
+        except Exception as e:
+            logger.error("Failed to read from stdin: %s", e)
+            raise typer.BadParameter(f"Failed to read from stdin: {e}") from e
     elif result.resolved_path:
-        source = str(result.resolved_path)
+        # Read from file using pathlib (CLAUDE.md requirement)
+        try:
+            if as_binary:
+                return result.resolved_path.read_bytes()
+            elif as_json:
+                import json
+
+                content = result.resolved_path.read_text(encoding="utf-8")
+                parsed_data = json.loads(content)
+                if not isinstance(parsed_data, dict):
+                    msg = f"Expected JSON object from {result.resolved_path}, got {type(parsed_data).__name__}"
+                    raise ValueError(msg)
+                return parsed_data
+            else:
+                return result.resolved_path.read_text(encoding="utf-8")
+        except Exception as e:
+            logger.error("Failed to read from %s: %s", result.resolved_path, e)
+            raise typer.BadParameter(
+                f"Failed to read file {result.resolved_path}: {e}"
+            ) from e
     else:
         raise ValueError("No valid input source in result")
-
-    try:
-        if as_binary:
-            return read_binary_input(source)
-        elif as_json:
-            return read_json_input(source)
-        else:
-            return read_input_data(source)
-    except Exception as e:
-        logger.error("Failed to read input from %s: %s", source, e)
-        raise typer.BadParameter(f"Failed to read input: {e}") from e
 
 
 # =============================================================================

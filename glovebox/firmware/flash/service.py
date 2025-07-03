@@ -50,8 +50,6 @@ class FlashService:
         self.usb_adapter = usb_adapter
         self.loglevel = loglevel
 
-
-
     def flash(
         self,
         firmware_file: str | Path,
@@ -374,7 +372,8 @@ class FlashService:
                             "Found new device %d/%d: %s",
                             devices_flashed + 1,
                             target_count,
-                            new_device.description or getattr(new_device, "name", "Unknown"),
+                            new_device.description
+                            or getattr(new_device, "name", "Unknown"),
                         )
 
                         # Flash the device

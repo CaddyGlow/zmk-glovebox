@@ -210,8 +210,6 @@ class DiffLayoutCommand(IOCommand):
         import json
         import tempfile
 
-        from glovebox.cli.helpers.parameter_helpers import process_output_parameter
-
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f1:
             f1.write(json.dumps(layout1_data))
             temp_path1 = Path(f1.name)
@@ -221,20 +219,20 @@ class DiffLayoutCommand(IOCommand):
             temp_path2 = Path(f2.name)
 
         try:
-            output_result = process_output_parameter(
-                value=output,
-                supports_stdout=False,
-                force_overwrite=True,
-                create_dirs=True,
-            )
+            # Use IOCommand validate_output_path for path handling
+            output_path = Path(output)
+            self.validate_output_path(output_path, force=True)
+
+            # Create parent directories if needed
+            output_path.parent.mkdir(parents=True, exist_ok=True)
 
             service.create_diff_file(
                 layout1_path=temp_path1,
                 layout2_path=temp_path2,
-                output_path=Path(output_result.path),
+                output_path=output_path,
                 include_dtsi=include_dtsi,
             )
-            return str(output_result.path)
+            return str(output_path)
         finally:
             temp_path1.unlink(missing_ok=True)
             temp_path2.unlink(missing_ok=True)

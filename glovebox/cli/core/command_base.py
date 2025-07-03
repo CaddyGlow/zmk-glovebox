@@ -137,11 +137,47 @@ class IOCommand(BaseCommand):
         Returns:
             InputResult with loaded data
         """
-        result = process_input_parameter(
-            value=source,
-            supports_stdin=supports_stdin,
-            required=required,
-            allowed_extensions=allowed_extensions,
+        import os
+
+        import typer
+
+        from glovebox.cli.helpers.parameter_helpers import InputResult
+
+        resolved_path = None
+        is_stdin = False
+        env_fallback_used = False
+
+        # Handle None/empty value
+        if not source:
+            if required:
+                raise typer.BadParameter("Input is required.")
+            else:
+                return InputResult(raw_value=None)
+
+        # Handle stdin input
+        if supports_stdin and str(source) == "-":
+            is_stdin = True
+        else:
+            # Handle file path
+            resolved_path = Path(str(source))
+
+            # Validate file existence
+            if not resolved_path.exists():
+                raise typer.BadParameter(f"Input file does not exist: {resolved_path}")
+
+            # Validate file extension
+            if allowed_extensions and resolved_path.suffix.lower() not in [
+                ext.lower() for ext in allowed_extensions
+            ]:
+                raise typer.BadParameter(
+                    f"Unsupported file extension. Allowed: {', '.join(allowed_extensions)}"
+                )
+
+        result = InputResult(
+            raw_value=source,
+            resolved_path=resolved_path,
+            is_stdin=is_stdin,
+            env_fallback_used=env_fallback_used,
         )
 
         # Load data if not already loaded
@@ -197,11 +233,39 @@ class IOCommand(BaseCommand):
         Returns:
             OutputResult with write details
         """
-        result = process_output_parameter(
-            value=destination,
-            supports_stdout=supports_stdout,
-            force_overwrite=force_overwrite,
-            create_dirs=create_dirs,
+        import typer
+
+        from glovebox.cli.helpers.parameter_helpers import OutputResult
+        from glovebox.cli.helpers.theme import get_themed_console
+
+        resolved_path = None
+        is_stdout = False
+        smart_default_used = False
+        template_vars: dict[str, str] = {}
+
+        # Handle stdout output
+        if supports_stdout and destination == "-":
+            is_stdout = True
+        elif destination:
+            resolved_path = Path(str(destination))
+
+            # Create parent directories if needed
+            if create_dirs and resolved_path.parent != Path():
+                resolved_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Check for existing file
+            if resolved_path.exists() and not force_overwrite:
+                console = get_themed_console()
+                console.print_warning(f"Output file already exists: {resolved_path}")
+                if not typer.confirm("Overwrite existing file?"):
+                    raise typer.Abort()
+
+        result = OutputResult(
+            raw_value=destination,
+            resolved_path=resolved_path,
+            is_stdout=is_stdout,
+            smart_default_used=smart_default_used,
+            template_vars=template_vars,
         )
 
         # Format data based on requested format
@@ -246,21 +310,20 @@ class IOCommand(BaseCommand):
         self.output_formatter.print_formatted(data, format)
 
     def validate_input_file(self, file_path: Path) -> None:
-        """Validate that an input file exists and is readable.
+        """Validate input file exists and is accessible.
 
         Args:
             file_path: Path to validate
 
         Raises:
-            typer.Exit: If validation fails
+            FileNotFoundError: If file does not exist
+            ValueError: If path is not a file
         """
         if not file_path.exists():
-            self.console.print_error(f"Input file not found: {file_path}")
-            raise typer.Exit(1)
+            raise FileNotFoundError(f"Input file does not exist: {file_path}")
 
         if not file_path.is_file():
-            self.console.print_error(f"Path is not a file: {file_path}")
-            raise typer.Exit(1)
+            raise ValueError(f"Path is not a file: {file_path}")
 
     def validate_output_path(self, output_path: Path, force: bool = False) -> None:
         """Validate output path and handle existing files.

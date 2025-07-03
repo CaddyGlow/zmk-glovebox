@@ -72,26 +72,25 @@ def split(
     """
     # Use IO helper methods directly
     from glovebox.cli.helpers.output_formatter import create_output_formatter
-    from glovebox.cli.helpers.parameter_helpers import (
-        process_input_parameter,
-        process_output_parameter,
-        read_input_from_result,
-        write_output_from_result,
-    )
+
+    # Deprecated functions removed - using IOCommand instead
     from glovebox.cli.helpers.theme import get_themed_console
 
     console = get_themed_console()
     output_formatter = create_output_formatter()
 
     try:
-        # Load JSON input
-        input_result = process_input_parameter(
-            value=input,
+        # Load JSON input using IOCommand
+        from glovebox.cli.core.command_base import IOCommand
+
+        command = IOCommand(output_formatter)
+        input_result = command.load_input(
+            source=input,
             supports_stdin=True,
             required=True,
             allowed_extensions=[".json"],
         )
-        raw_data = read_input_from_result(input_result)
+        raw_data = input_result.data
         import json
 
         if isinstance(raw_data, str):
@@ -198,12 +197,8 @@ def merge(
     """
     # Use IO helper methods directly
     from glovebox.cli.helpers.output_formatter import create_output_formatter
-    from glovebox.cli.helpers.parameter_helpers import (
-        process_input_parameter,
-        process_output_parameter,
-        read_input_from_result,
-        write_output_from_result,
-    )
+
+    # Deprecated functions removed - using IOCommand instead
     from glovebox.cli.helpers.theme import get_themed_console
 
     console = get_themed_console()
@@ -240,15 +235,19 @@ def merge(
 
                     merged_data = json.load(f)
 
-                # Write to specified output
-                output_result = process_output_parameter(
-                    value=output,
+                # Write to specified output using IOCommand
+                from glovebox.cli.core.command_base import IOCommand
+
+                command = IOCommand(output_formatter)
+                formatted_data = json.dumps(merged_data, indent=2)
+                command.write_output(
+                    data=formatted_data,
+                    destination=output,
+                    format="text",  # Already formatted as JSON string
                     supports_stdout=True,
                     force_overwrite=force,
                     create_dirs=True,
                 )
-                formatted_data = json.dumps(merged_data, indent=2)
-                write_output_from_result(output_result, formatted_data)
 
                 result_data = {
                     "success": True,

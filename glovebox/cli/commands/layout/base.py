@@ -27,7 +27,9 @@ class BaseLayoutCommand(IOCommand):
         self.console.print_error(f"Failed to {operation}: {error}")
         raise typer.Exit(1) from error
 
-    def print_operation_success(self, message: str, details: dict[str, Any] | None = None) -> None:
+    def print_operation_success(
+        self, message: str, details: dict[str, Any] | None = None
+    ) -> None:
         """Print success message with operation details.
 
         Args:

@@ -174,7 +174,7 @@ class TestFlashServiceInit:
 
 
 class TestFlashServiceFlashFromFile:
-    """Test FlashService flash_from_file method."""
+    """Test FlashService flash method (formerly flash_from_file)."""
 
     @patch("glovebox.firmware.flash.service.create_device_wait_service")
     def test_flash_from_file_success(
@@ -193,8 +193,8 @@ class TestFlashServiceFlashFromFile:
         # Mock the main flash method
         expected_result = FlashResult(success=True, devices_flashed=1)
         with patch.object(service, "flash", return_value=expected_result) as mock_flash:
-            result = service.flash_from_file(
-                firmware_file_path=firmware_file,
+            result = service.flash(
+                firmware_file=firmware_file,
                 profile=sample_keyboard_profile,
                 query="test:query",
                 timeout=30,
@@ -231,7 +231,7 @@ class TestFlashServiceFlashFromFile:
 
         service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
-        result = service.flash_from_file(firmware_file_path=firmware_file)
+        result = service.flash(firmware_file=firmware_file)
 
         assert not result.success
         assert "Firmware file not found" in str(result.errors)
@@ -251,10 +251,10 @@ class TestFlashServiceFlashFromFile:
         with patch.object(
             service, "flash", side_effect=Exception("Flash error")
         ) as mock_flash:
-            result = service.flash_from_file(firmware_file_path=firmware_file)
+            result = service.flash(firmware_file=firmware_file)
 
             assert not result.success
-            assert "Flash preparation failed: Flash error" in str(result.errors)
+            assert "Flash operation failed: Flash error" in str(result.errors)
             mock_flash.assert_called_once()
 
 
@@ -1044,8 +1044,8 @@ class TestFlashServiceIntegration:
         assert len(list_result.device_details) == 1
 
         # Then flash the device
-        flash_result = service.flash_from_file(
-            firmware_file_path=firmware_file,
+        flash_result = service.flash(
+            firmware_file=firmware_file,
             query="model=Glove80_Bootloader",
             wait=False,
         )
@@ -1070,7 +1070,7 @@ class TestFlashServiceIntegration:
         service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         # First attempt should fail
-        result = service.flash_from_file(firmware_file_path=firmware_file)
+        result = service.flash(firmware_file=firmware_file)
         assert not result.success
         assert "Flash operation failed" in str(result.errors)
 
@@ -1080,7 +1080,7 @@ class TestFlashServiceIntegration:
         mock_flasher.list_devices.return_value = []  # No devices
 
         # Second attempt should handle no devices gracefully
-        result = service.flash_from_file(firmware_file_path=firmware_file)
+        result = service.flash(firmware_file=firmware_file)
         assert not result.success
         assert "No compatible devices found" in str(result.errors)
 

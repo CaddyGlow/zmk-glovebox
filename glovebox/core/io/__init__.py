@@ -17,5 +17,5 @@ __all__ = [
     "create_input_handler",
     "OutputHandler",
     "OutputError",
-    "create_output_handler"
+    "create_output_handler",
 ]

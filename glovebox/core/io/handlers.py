@@ -219,7 +219,9 @@ class InputHandler:
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Failed to resolve library reference %s: %s", ref, e, exc_info=exc_info)
+            self.logger.error(
+                "Failed to resolve library reference %s: %s", ref, e, exc_info=exc_info
+            )
             raise InputError(f"Failed to resolve library reference '{ref}': {e}") from e
 
     def load_from_environment(self, var_name: str) -> dict[str, Any]:

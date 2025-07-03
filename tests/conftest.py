@@ -930,7 +930,6 @@ def mock_flash_service() -> Mock:
         ],
     )
     mock.flash.return_value = result
-    mock.flash_from_file.return_value = result
 
     return mock
 

@@ -446,5 +446,5 @@ def test_status_command(cli_runner):
         assert "Glovebox v" in result.output
         assert "System Environment" in result.output
         assert "Docker" in result.output
-        assert "Available Keyboards" in result.output
+        assert "Configuration" in result.output
         assert "Environment" in result.output

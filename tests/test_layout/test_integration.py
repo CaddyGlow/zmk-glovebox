@@ -15,7 +15,6 @@ import pytest
 from glovebox.adapters import create_file_adapter, create_template_adapter
 from glovebox.cli.helpers.stdin_utils import (
     is_stdin_input,
-    read_json_input,
     resolve_input_source_with_env,
 )
 from glovebox.config.models import (
@@ -267,22 +266,28 @@ class TestInputHandling:
     """Test various input handling scenarios."""
 
     def test_read_json_from_stdin(self, minimal_layout_json: dict[str, Any]):
-        """Test reading JSON from stdin."""
+        """Test reading JSON from stdin using core IO infrastructure."""
+        from glovebox.core.io import create_input_handler
+
         # Mock stdin
         json_str = json.dumps(minimal_layout_json)
 
         with patch("sys.stdin.read", return_value=json_str):
-            result = read_json_input("-")
+            input_handler = create_input_handler()
+            result = input_handler.load_json_input("-")
 
         assert result == minimal_layout_json
 
     def test_malformed_json_from_stdin(self):
-        """Test error handling for malformed JSON from stdin."""
+        """Test error handling for malformed JSON from stdin using core IO infrastructure."""
+        from glovebox.core.io import create_input_handler
+
         malformed = '{"invalid": json}'
 
         with patch("sys.stdin.read", return_value=malformed):
             with pytest.raises(ValueError) as exc_info:
-                read_json_input("-")
+                input_handler = create_input_handler()
+                input_handler.load_json_input("-")
             assert "Invalid JSON" in str(exc_info.value)
 
     def test_environment_variable_precedence(self, tmp_path: Path):

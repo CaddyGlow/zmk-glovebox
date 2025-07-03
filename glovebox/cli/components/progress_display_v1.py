@@ -46,7 +46,6 @@ class ProgressDisplay:
         self.console = Console()
         self.state = ProgressState()
 
-
         # Rich components
         self._live: Live | None = None
         self._progress: Progress | None = None
@@ -56,7 +55,6 @@ class ProgressDisplay:
             self.state.checkpoints[checkpoint_name] = CheckpointState(
                 name=checkpoint_name
             )
-
 
     def start(self) -> None:
         """Start the live display."""
@@ -119,11 +117,17 @@ class ProgressDisplay:
         # Current task progress bar (if active)
         if self._progress and self.state.current_checkpoint:
             # Create a custom progress bar representation
-            current_percentage = (self.state.current_progress / self.state.total_progress * 100) if self.state.total_progress > 0 else 0
+            current_percentage = (
+                (self.state.current_progress / self.state.total_progress * 100)
+                if self.state.total_progress > 0
+                else 0
+            )
 
             progress_text = Text()
             progress_text.append("Current: ", style=Colors.MUTED)
-            progress_text.append(f"{self.state.current_checkpoint} ", style=Colors.RUNNING)
+            progress_text.append(
+                f"{self.state.current_checkpoint} ", style=Colors.RUNNING
+            )
 
             # Create progress bar
             bar_width = 25
@@ -222,7 +226,6 @@ class ProgressDisplay:
             border_style=border_style,
         )
 
-
     def _format_status_line(self) -> list[Text]:
         """Format the status line with current information.
 
@@ -251,7 +254,7 @@ class ProgressDisplay:
             if "current_file" in self.state.status_info:
                 file_text = Text()
                 file_text.append("File: ", style=Colors.MUTED)
-                filename = self.state.status_info['current_file']
+                filename = self.state.status_info["current_file"]
                 # Truncate long filenames
                 if len(filename) > 60:
                     filename = "..." + filename[-57:]
@@ -262,7 +265,9 @@ class ProgressDisplay:
             if "component" in self.state.status_info:
                 component_text = Text()
                 component_text.append("Component: ", style=Colors.MUTED)
-                component_text.append(self.state.status_info['component'], style=Colors.INFO)
+                component_text.append(
+                    self.state.status_info["component"], style=Colors.INFO
+                )
                 status_lines.append(component_text)
 
             # Files remaining and data progress on same line
@@ -271,7 +276,10 @@ class ProgressDisplay:
                 remaining = self.state.status_info["files_remaining"]
                 progress_parts.append(f"Files remaining: {remaining:,}")
 
-            if "bytes_copied" in self.state.status_info and "total_bytes" in self.state.status_info:
+            if (
+                "bytes_copied" in self.state.status_info
+                and "total_bytes" in self.state.status_info
+            ):
                 bytes_copied = self.state.status_info["bytes_copied"]
                 total_bytes = self.state.status_info["total_bytes"]
                 if total_bytes > 0:
@@ -280,9 +288,13 @@ class ProgressDisplay:
                     if total_mb >= 1024:
                         progress_gb = progress_mb / 1024
                         total_gb = total_mb / 1024
-                        progress_parts.append(f"Data: {progress_gb:.1f}/{total_gb:.1f} GB")
+                        progress_parts.append(
+                            f"Data: {progress_gb:.1f}/{total_gb:.1f} GB"
+                        )
                     else:
-                        progress_parts.append(f"Data: {progress_mb:.1f}/{total_mb:.1f} MB")
+                        progress_parts.append(
+                            f"Data: {progress_mb:.1f}/{total_mb:.1f} MB"
+                        )
 
             if progress_parts:
                 progress_text = Text()

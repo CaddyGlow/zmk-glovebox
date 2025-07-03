@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from glovebox.adapters import create_file_adapter
+from glovebox.cli.commands.layout.base import BaseLayoutCommand
 from glovebox.cli.decorators import handle_errors, with_metrics
 from glovebox.cli.helpers import (
     print_error_message,
@@ -574,141 +575,281 @@ def complete_layer_operation(ctx: typer.Context, incomplete: str) -> list[str]:
         return []
 
 
-def _collect_field_operations(
-    get: list[str] | None,
-    set: list[str] | None,
-    unset: list[str] | None,
-    merge: list[str] | None,
-    append: list[str] | None,
-) -> tuple[list[tuple[str, str, str | None]], dict[str, Any]]:
-    """Parse field operations into standard format.
+class LayoutEditCommand(BaseLayoutCommand):
+    """Command class for layout editing operations with atomic transactions."""
 
-    Returns:
-        Tuple of (operations_list, read_results)
-    """
-    operations: list[tuple[str, str, str | None]] = []
-    read_results: dict[str, Any] = {}
+    def execute(
+        self,
+        layout_file: JsonFileArgument = None,
+        # Field operations
+        get: list[str] | None = None,
+        set: list[str] | None = None,
+        unset: list[str] | None = None,
+        merge: list[str] | None = None,
+        append: list[str] | None = None,
+        # Layer operations
+        add_layer: list[str] | None = None,
+        remove_layer: list[str] | None = None,
+        move_layer: list[str] | None = None,
+        copy_layer: list[str] | None = None,
+        # Info operations
+        list_layers: bool = False,
+        list_usage: bool = False,
+        # Output options
+        output: Path | None = None,
+        output_format: str = "text",
+        force: bool = False,
+        dry_run: bool = False,
+    ) -> None:
+        """Execute the layout edit command."""
+        # Resolve JSON file path
+        resolved_file = resolve_json_file_path(layout_file, "GLOVEBOX_JSON_FILE")
+        if not resolved_file:
+            self.console.print_error(
+                "JSON file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
+            )
+            raise typer.Exit(1)
 
-    # Handle read operations
-    if get:
-        parsed_fields = parse_comma_separated_fields(get)
-        for field_path in parsed_fields:
-            operations.append(("get", field_path, None))
+        # Check if only read operations are requested
+        has_writes = self._has_write_operations(
+            set, unset, merge, append, add_layer, remove_layer, move_layer, copy_layer
+        )
 
-    # Handle write operations
-    if set:
-        for op in set:
-            if "=" not in op:
-                raise ValueError(f"Invalid set syntax: {op} (use key=value)")
-            field_path, value_str = op.split("=", 1)
-            operations.append(("set", field_path, value_str))
+        if not has_writes:
+            self._handle_read_operations(
+                resolved_file, get, list_layers, list_usage, output_format
+            )
+        else:
+            self._handle_write_operations(
+                resolved_file,
+                get,
+                set,
+                unset,
+                merge,
+                append,
+                add_layer,
+                remove_layer,
+                move_layer,
+                copy_layer,
+                output,
+                output_format,
+                dry_run,
+            )
 
-    if unset:
-        for field_path in unset:
-            operations.append(("unset", field_path, None))
+    def _has_write_operations(
+        self,
+        set: list[str] | None,
+        unset: list[str] | None,
+        merge: list[str] | None,
+        append: list[str] | None,
+        add_layer: list[str] | None,
+        remove_layer: list[str] | None,
+        move_layer: list[str] | None,
+        copy_layer: list[str] | None,
+    ) -> bool:
+        """Check if any write operations are specified."""
+        return any(
+            [set, unset, merge, append, add_layer, remove_layer, move_layer, copy_layer]
+        )
 
-    if merge:
-        for op in merge:
-            if "=" not in op:
-                raise ValueError(f"Invalid merge syntax: {op} (use key=value)")
-            field_path, value_str = op.split("=", 1)
-            operations.append(("merge", field_path, value_str))
-
-    if append:
-        for op in append:
-            if "=" not in op:
-                raise ValueError(f"Invalid append syntax: {op} (use key=value)")
-            field_path, value_str = op.split("=", 1)
-            operations.append(("append", field_path, value_str))
-
-    return operations, read_results
-
-
-def _collect_layer_operations(
-    add_layer: list[str] | None,
-    remove_layer: list[str] | None,
-    move_layer: list[str] | None,
-    copy_layer: list[str] | None,
-) -> list[tuple[str, str, str | None]]:
-    """Parse layer operations into standard format."""
-    operations: list[tuple[str, str, str | None]] = []
-
-    if add_layer:
-        for layer_spec in add_layer:
-            if "=from:" in layer_spec:
-                layer_name, source = layer_spec.split("=from:", 1)
-                operations.append(("add_layer_from", layer_name, source))
-            else:
-                operations.append(("add_layer", layer_spec, None))
-
-    if remove_layer:
-        for layer_id in remove_layer:
-            operations.append(("remove_layer", layer_id, None))
-
-    if move_layer:
-        for move_spec in move_layer:
-            if ":" not in move_spec:
-                raise ValueError(
-                    f"Invalid move syntax: {move_spec} (use name:position)"
+    def _handle_read_operations(
+        self,
+        resolved_file: Path,
+        get: list[str] | None,
+        list_layers: bool,
+        list_usage: bool,
+        output_format: str,
+    ) -> None:
+        """Handle read-only operations."""
+        try:
+            file_adapter = create_file_adapter()
+            with VariableResolutionContext(skip=True):
+                layout_data = load_layout_file(
+                    resolved_file,
+                    file_adapter,
+                    skip_variable_resolution=True,
+                    skip_template_processing=True,
                 )
-            layer_name, position = move_spec.split(":", 1)
-            operations.append(("move_layer", layer_name, position))
 
-    if copy_layer:
-        for copy_spec in copy_layer:
-            if ":" not in copy_spec:
-                raise ValueError(
-                    f"Invalid copy syntax: {copy_spec} (use source:target)"
-                )
-            source, target = copy_spec.split(":", 1)
-            operations.append(("copy_layer", source, target))
+            editor = LayoutEditor(layout_data)
+            results = self._execute_read_operations(
+                editor, get, list_layers, list_usage
+            )
 
-    return operations
+            # Use LayoutOutputFormatter for output
+            from glovebox.cli.commands.layout.formatters import (
+                create_layout_output_formatter,
+            )
 
+            formatter = create_layout_output_formatter()
+            formatter.format_edit_result(results, output_format)
 
-def _execute_read_operations(
-    editor: "LayoutEditor",
-    get: list[str] | None,
-    list_layers: bool,
-    list_usage: bool,
-) -> dict[str, Any]:
-    """Execute read-only operations and return results."""
-    results = {}
+        except Exception as e:
+            self.handle_service_error(e, "read layout")
 
-    if get:
-        parsed_fields = parse_comma_separated_fields(get)
-        for field_path in parsed_fields:
-            try:
-                value = editor.get_field(field_path)
-                results[f"get:{field_path}"] = value
-            except Exception as e:
-                results[f"get:{field_path}"] = f"Error: {e}"
+    def _handle_write_operations(
+        self,
+        resolved_file: Path,
+        get: list[str] | None,
+        set: list[str] | None,
+        unset: list[str] | None,
+        merge: list[str] | None,
+        append: list[str] | None,
+        add_layer: list[str] | None,
+        remove_layer: list[str] | None,
+        move_layer: list[str] | None,
+        copy_layer: list[str] | None,
+        output: Path | None,
+        output_format: str,
+        dry_run: bool,
+    ) -> None:
+        """Handle write operations using composer."""
+        try:
+            # Collect operations
+            field_operations, _ = self._collect_field_operations(
+                get, set, unset, merge, append
+            )
+            layer_operations = self._collect_layer_operations(
+                add_layer, remove_layer, move_layer, copy_layer
+            )
 
-    if list_layers:
-        layer_names = editor.get_layer_names()
-        results["layers"] = layer_names
+            # Create composer and execute edit operation
+            from glovebox.cli.commands.layout.composition import (
+                create_layout_command_composer,
+            )
 
-    if list_usage:
-        usage = editor.get_variable_usage()
-        results["variable_usage"] = usage
+            composer = create_layout_command_composer()
 
-    return results
+            composer.execute_edit_operation(
+                layout_file=resolved_file,
+                field_operations=field_operations,
+                layer_operations=layer_operations,
+                operation_name="edit layout",
+                output_format=output_format,
+                save=not dry_run,
+                dry_run=dry_run,
+                output_file=output,
+            )
 
+        except Exception as e:
+            self.handle_service_error(e, "edit layout")
 
-def _has_write_operations(
-    set: list[str] | None,
-    unset: list[str] | None,
-    merge: list[str] | None,
-    append: list[str] | None,
-    add_layer: list[str] | None,
-    remove_layer: list[str] | None,
-    move_layer: list[str] | None,
-    copy_layer: list[str] | None,
-) -> bool:
-    """Check if any write operations are specified."""
-    return any(
-        [set, unset, merge, append, add_layer, remove_layer, move_layer, copy_layer]
-    )
+    def _collect_field_operations(
+        self,
+        get: list[str] | None,
+        set: list[str] | None,
+        unset: list[str] | None,
+        merge: list[str] | None,
+        append: list[str] | None,
+    ) -> tuple[list[tuple[str, str, str | None]], dict[str, Any]]:
+        """Parse field operations into standard format."""
+        operations: list[tuple[str, str, str | None]] = []
+        read_results: dict[str, Any] = {}
+
+        # Handle read operations
+        if get:
+            parsed_fields = parse_comma_separated_fields(get)
+            for field_path in parsed_fields:
+                operations.append(("get", field_path, None))
+
+        # Handle write operations
+        if set:
+            for op in set:
+                if "=" not in op:
+                    raise ValueError(f"Invalid set syntax: {op} (use key=value)")
+                field_path, value_str = op.split("=", 1)
+                operations.append(("set", field_path, value_str))
+
+        if unset:
+            for field_path in unset:
+                operations.append(("unset", field_path, None))
+
+        if merge:
+            for op in merge:
+                if "=" not in op:
+                    raise ValueError(f"Invalid merge syntax: {op} (use key=value)")
+                field_path, value_str = op.split("=", 1)
+                operations.append(("merge", field_path, value_str))
+
+        if append:
+            for op in append:
+                if "=" not in op:
+                    raise ValueError(f"Invalid append syntax: {op} (use key=value)")
+                field_path, value_str = op.split("=", 1)
+                operations.append(("append", field_path, value_str))
+
+        return operations, read_results
+
+    def _collect_layer_operations(
+        self,
+        add_layer: list[str] | None,
+        remove_layer: list[str] | None,
+        move_layer: list[str] | None,
+        copy_layer: list[str] | None,
+    ) -> list[tuple[str, str, str | None]]:
+        """Parse layer operations into standard format."""
+        operations: list[tuple[str, str, str | None]] = []
+
+        if add_layer:
+            for layer_spec in add_layer:
+                if "=from:" in layer_spec:
+                    layer_name, source = layer_spec.split("=from:", 1)
+                    operations.append(("add_layer_from", layer_name, source))
+                else:
+                    operations.append(("add_layer", layer_spec, None))
+
+        if remove_layer:
+            for layer_id in remove_layer:
+                operations.append(("remove_layer", layer_id, None))
+
+        if move_layer:
+            for move_spec in move_layer:
+                if ":" not in move_spec:
+                    raise ValueError(
+                        f"Invalid move syntax: {move_spec} (use name:position)"
+                    )
+                layer_name, position = move_spec.split(":", 1)
+                operations.append(("move_layer", layer_name, position))
+
+        if copy_layer:
+            for copy_spec in copy_layer:
+                if ":" not in copy_spec:
+                    raise ValueError(
+                        f"Invalid copy syntax: {copy_spec} (use source:target)"
+                    )
+                source, target = copy_spec.split(":", 1)
+                operations.append(("copy_layer", source, target))
+
+        return operations
+
+    def _execute_read_operations(
+        self,
+        editor: "LayoutEditor",
+        get: list[str] | None,
+        list_layers: bool,
+        list_usage: bool,
+    ) -> dict[str, Any]:
+        """Execute read-only operations and return results."""
+        results = {}
+
+        if get:
+            parsed_fields = parse_comma_separated_fields(get)
+            for field_path in parsed_fields:
+                try:
+                    value = editor.get_field(field_path)
+                    results[f"get:{field_path}"] = value
+                except Exception as e:
+                    results[f"get:{field_path}"] = f"Error: {e}"
+
+        if list_layers:
+            layer_names = editor.get_layer_names()
+            results["layers"] = layer_names
+
+        if list_usage:
+            usage = editor.get_variable_usage()
+            results["variable_usage"] = usage
+
+        return results
 
 
 @handle_errors
@@ -838,77 +979,23 @@ def edit(
         # Preview without saving
         glovebox layout edit layout.json --set title="Test" --dry-run
     """
-    # Resolve JSON file path
-    resolved_file = resolve_json_file_path(layout_file, "GLOVEBOX_JSON_FILE")
-    if not resolved_file:
-        print_error_message(
-            "JSON file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
-        )
-        raise typer.Exit(1)
-
-    # Check if only read operations are requested
-    has_writes = _has_write_operations(
-        set, unset, merge, append, add_layer, remove_layer, move_layer, copy_layer
+    # Delegate to command class
+    command = LayoutEditCommand()
+    command.execute(
+        layout_file=layout_file,
+        get=get,
+        set=set,
+        unset=unset,
+        merge=merge,
+        append=append,
+        add_layer=add_layer,
+        remove_layer=remove_layer,
+        move_layer=move_layer,
+        copy_layer=copy_layer,
+        list_layers=list_layers,
+        list_usage=list_usage,
+        output=output,
+        output_format=output_format,
+        force=force,
+        dry_run=dry_run,
     )
-
-    if not has_writes:
-        # Handle read-only operations
-        try:
-            file_adapter = create_file_adapter()
-            with VariableResolutionContext(skip=True):
-                layout_data = load_layout_file(
-                    resolved_file,
-                    file_adapter,
-                    skip_variable_resolution=True,
-                    skip_template_processing=True,
-                )
-
-            editor = LayoutEditor(layout_data)
-            results = _execute_read_operations(editor, get, list_layers, list_usage)
-
-            # Use LayoutOutputFormatter for output
-            from glovebox.cli.commands.layout.formatters import (
-                create_layout_output_formatter,
-            )
-
-            formatter = create_layout_output_formatter()
-            formatter.format_edit_result(results, output_format)
-            return
-
-        except Exception as e:
-            exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Failed to read layout: %s", e, exc_info=exc_info)
-            print_error_message(f"Failed to read layout: {e}")
-            raise typer.Exit(1) from e
-
-    # Handle write operations using composer
-    try:
-        # Collect operations
-        field_operations, _ = _collect_field_operations(get, set, unset, merge, append)
-        layer_operations = _collect_layer_operations(
-            add_layer, remove_layer, move_layer, copy_layer
-        )
-
-        # Create composer and execute edit operation
-        from glovebox.cli.commands.layout.composition import (
-            create_layout_command_composer,
-        )
-
-        composer = create_layout_command_composer()
-
-        composer.execute_edit_operation(
-            layout_file=resolved_file,
-            field_operations=field_operations,
-            layer_operations=layer_operations,
-            operation_name="edit layout",
-            output_format=output_format,
-            save=not dry_run,
-            dry_run=dry_run,
-            output_file=output,
-        )
-
-    except Exception as e:
-        exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.error("Failed to edit layout: %s", e, exc_info=exc_info)
-        print_error_message(f"Failed to edit layout: {e}")
-        raise typer.Exit(1) from e

@@ -43,8 +43,6 @@ class ProgressManager:
         self.display = ProgressDisplay(config)
         self.context = ProgressContext(self.display)
 
-
-
     def __enter__(self) -> ProgressContextProtocol:
         """Enter context manager, starting display.
 
@@ -85,4 +83,3 @@ class ProgressManager:
 
         # Don't suppress exceptions
         return False
-

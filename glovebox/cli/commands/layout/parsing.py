@@ -92,8 +92,12 @@ class ParseKeymapCommand(BaseLayoutCommand):
                 self.console.print_info(f"Output file: {output}")
 
             # Convert string modes to enum values
-            parsing_mode = ParsingMode.TEMPLATE_AWARE if mode == "template" else ParsingMode.FULL
-            parsing_method = ParsingMethod.AST if method == "ast" else ParsingMethod.REGEX
+            parsing_mode = (
+                ParsingMode.TEMPLATE_AWARE if mode == "template" else ParsingMode.FULL
+            )
+            parsing_method = (
+                ParsingMethod.AST if method == "ast" else ParsingMethod.REGEX
+            )
 
             # Parse keymap file
             result = keymap_parser.parse_keymap(
@@ -112,6 +116,7 @@ class ParseKeymapCommand(BaseLayoutCommand):
             # Save the parsed layout data to output file
             if result.layout_data:
                 from glovebox.adapters import create_file_adapter
+
                 file_adapter = create_file_adapter()
                 file_adapter.write_json(output, result.layout_data.to_dict())
 
@@ -223,8 +228,12 @@ class ImportKeymapCommand(BaseLayoutCommand):
             keymap_parser = create_zmk_keymap_parser()
 
             # Convert string modes to enum values
-            parsing_mode = ParsingMode.TEMPLATE_AWARE if mode == "template" else ParsingMode.FULL
-            parsing_method = ParsingMethod.AST if method == "ast" else ParsingMethod.REGEX
+            parsing_mode = (
+                ParsingMode.TEMPLATE_AWARE if mode == "template" else ParsingMode.FULL
+            )
+            parsing_method = (
+                ParsingMethod.AST if method == "ast" else ParsingMethod.REGEX
+            )
 
             # Parse keymap file
             result = keymap_parser.parse_keymap(
@@ -243,6 +252,7 @@ class ImportKeymapCommand(BaseLayoutCommand):
             # Save the parsed layout data to output file
             if result.layout_data:
                 from glovebox.adapters import create_file_adapter
+
                 file_adapter = create_file_adapter()
                 file_adapter.write_json(output_file, result.layout_data.to_dict())
 
