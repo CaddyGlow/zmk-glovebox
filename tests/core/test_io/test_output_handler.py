@@ -54,7 +54,9 @@ class TestOutputHandler:
         assert handler.service_name == "OutputHandler"
         assert handler.service_version == "1.0.0"
 
-    def test_write_to_stdout_json(self, handler: OutputHandler, sample_data: dict) -> None:
+    def test_write_to_stdout_json(
+        self, handler: OutputHandler, sample_data: dict
+    ) -> None:
         """Test writing JSON to stdout."""
         with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
             handler.write_to_stdout(sample_data, format="json")
@@ -64,7 +66,9 @@ class TestOutputHandler:
             parsed = json.loads(output.strip())
             assert parsed == sample_data
 
-    def test_write_to_stdout_yaml(self, handler: OutputHandler, sample_data: dict) -> None:
+    def test_write_to_stdout_yaml(
+        self, handler: OutputHandler, sample_data: dict
+    ) -> None:
         """Test writing YAML to stdout."""
         with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
             handler.write_to_stdout(sample_data, format="yaml")
@@ -127,9 +131,7 @@ class TestOutputHandler:
             loaded = yaml.safe_load(f)
             assert loaded == sample_data
 
-    def test_write_to_file_text(
-        self, handler: OutputHandler, tmp_path: Path
-    ) -> None:
+    def test_write_to_file_text(self, handler: OutputHandler, tmp_path: Path) -> None:
         """Test writing text to file."""
         text_data = "Hello, world!\nMultiple lines\nof text"
         output_file = tmp_path / "output.txt"
@@ -162,9 +164,7 @@ class TestOutputHandler:
             assert loaded["value"] == 42
             assert "optional" not in loaded
 
-    def test_write_to_directory(
-        self, handler: OutputHandler, tmp_path: Path
-    ) -> None:
+    def test_write_to_directory(self, handler: OutputHandler, tmp_path: Path) -> None:
         """Test writing multiple files to directory."""
         files = {
             "data.json": {"key": "value"},
@@ -309,6 +309,7 @@ class TestOutputHandler:
         """Test error handling includes stack trace in debug mode."""
         # Set debug level
         import logging
+
         handler.logger.setLevel(logging.DEBUG)
 
         # Create a read-only directory to trigger permission error
@@ -317,7 +318,7 @@ class TestOutputHandler:
         output_file = output_dir / "test.json"
         output_file.write_text("existing")
         output_file.chmod(0o444)  # Read-only
-        output_dir.chmod(0o555)   # Read-only directory
+        output_dir.chmod(0o555)  # Read-only directory
 
         try:
             with pytest.raises(OutputError):
@@ -330,9 +331,7 @@ class TestOutputHandler:
             output_dir.chmod(0o755)
             output_file.chmod(0o644)
 
-    def test_write_to_stdout_adds_newline(
-        self, handler: OutputHandler
-    ) -> None:
+    def test_write_to_stdout_adds_newline(self, handler: OutputHandler) -> None:
         """Test stdout write adds newline if missing."""
         with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
             handler.write_to_stdout("no newline", format="text")

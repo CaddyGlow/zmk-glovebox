@@ -495,9 +495,12 @@ class TestDockerAdapter:
         other_error = subprocess.CalledProcessError(1, "docker")
         other_error.stderr = "image not found"
 
-        with patch(
-            "glovebox.utils.stream_process.run_command", side_effect=other_error
-        ) as mock_run, pytest.raises(subprocess.CalledProcessError):
+        with (
+            patch(
+                "glovebox.utils.stream_process.run_command", side_effect=other_error
+            ) as mock_run,
+            pytest.raises(subprocess.CalledProcessError),
+        ):
             adapter._run_with_sudo_fallback(
                 ["docker", "run", "nonexistent"], mock_middleware
             )

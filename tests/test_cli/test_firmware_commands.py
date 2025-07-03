@@ -399,7 +399,7 @@ def test_firmware_compile_auto_profile_detection(cli_runner, tmp_path):
             "glovebox.cli.helpers.profile.create_profile_from_option"
         ) as mock_create_profile,
         patch(
-            "glovebox.cli.commands.firmware.compile.execute_compilation_from_json"
+            "glovebox.cli.commands.firmware.helpers.execute_compilation_from_json"
         ) as mock_compile,
         patch(
             "glovebox.cli.helpers.profile.get_user_config_from_context"
@@ -469,7 +469,7 @@ def test_firmware_compile_no_auto_flag_disables_detection(cli_runner, tmp_path):
             "glovebox.cli.helpers.profile.create_profile_from_option"
         ) as mock_create_profile,
         patch(
-            "glovebox.cli.commands.firmware.compile.execute_compilation_from_json"
+            "glovebox.cli.commands.firmware.helpers.execute_compilation_from_json"
         ) as mock_compile,
         patch(
             "glovebox.cli.helpers.profile.get_user_config_from_context"
@@ -537,7 +537,7 @@ def test_firmware_compile_cli_profile_overrides_auto_detection(cli_runner, tmp_p
             "glovebox.cli.helpers.profile.create_profile_from_option"
         ) as mock_create_profile,
         patch(
-            "glovebox.cli.commands.firmware.compile.execute_compilation_from_json"
+            "glovebox.cli.commands.firmware.helpers.execute_compilation_from_json"
         ) as mock_compile,
         patch(
             "glovebox.cli.helpers.profile.get_user_config_from_context"

@@ -94,9 +94,7 @@ class TestRefactoredLayoutCompile:
 
     @patch("glovebox.cli.helpers.parameter_helpers.process_input_parameter")
     @patch("glovebox.cli.helpers.parameter_helpers.read_input_from_result")
-    def test_compile_from_stdin(
-        self, mock_read_input, mock_process_input, cli_runner
-    ):
+    def test_compile_from_stdin(self, mock_read_input, mock_process_input, cli_runner):
         """Test compilation from stdin input."""
         # Setup mocks
         layout_data = {
@@ -110,8 +108,12 @@ class TestRefactoredLayoutCompile:
         mock_read_input.return_value = json.dumps(layout_data)
 
         with (
-            patch("glovebox.cli.commands.layout.dependencies.create_full_layout_service") as mock_create_service,
-            patch("glovebox.cli.helpers.profile.get_keyboard_profile_from_context") as mock_get_profile,
+            patch(
+                "glovebox.cli.commands.layout.dependencies.create_full_layout_service"
+            ) as mock_create_service,
+            patch(
+                "glovebox.cli.helpers.profile.get_keyboard_profile_from_context"
+            ) as mock_get_profile,
         ):
             mock_profile = Mock(keyboard_name="glove80")
             mock_get_profile.return_value = mock_profile
@@ -152,10 +154,18 @@ class TestRefactoredLayoutCompile:
             json.dump(layout_data, f)
 
         with (
-            patch("glovebox.cli.helpers.parameter_helpers.process_input_parameter") as mock_process_input,
-            patch("glovebox.cli.helpers.parameter_helpers.read_input_from_result") as mock_read_input,
-            patch("glovebox.cli.commands.layout.dependencies.create_full_layout_service") as mock_create_service,
-            patch("glovebox.cli.helpers.profile.get_keyboard_profile_from_context") as mock_get_profile,
+            patch(
+                "glovebox.cli.helpers.parameter_helpers.process_input_parameter"
+            ) as mock_process_input,
+            patch(
+                "glovebox.cli.helpers.parameter_helpers.read_input_from_result"
+            ) as mock_read_input,
+            patch(
+                "glovebox.cli.commands.layout.dependencies.create_full_layout_service"
+            ) as mock_create_service,
+            patch(
+                "glovebox.cli.helpers.profile.get_keyboard_profile_from_context"
+            ) as mock_get_profile,
             patch("glovebox.config.create_keyboard_profile") as mock_create_profile,
         ):
             # Setup mocks
@@ -187,8 +197,12 @@ class TestRefactoredLayoutCompile:
     def test_compile_error_handling(self, cli_runner, tmp_path):
         """Test error handling in compile command."""
         with (
-            patch("glovebox.cli.helpers.parameter_helpers.process_input_parameter") as mock_process_input,
-            patch("glovebox.cli.helpers.parameter_helpers.read_input_from_result") as mock_read_input,
+            patch(
+                "glovebox.cli.helpers.parameter_helpers.process_input_parameter"
+            ) as mock_process_input,
+            patch(
+                "glovebox.cli.helpers.parameter_helpers.read_input_from_result"
+            ) as mock_read_input,
         ):
             # Simulate JSON parsing error
             mock_process_input.return_value = Mock(type="file")
@@ -196,7 +210,13 @@ class TestRefactoredLayoutCompile:
 
             result = cli_runner.invoke(
                 app,
-                ["layout", "compile", str(tmp_path / "test.json"), "--profile", "glove80/v25.05"],
+                [
+                    "layout",
+                    "compile",
+                    str(tmp_path / "test.json"),
+                    "--profile",
+                    "glove80/v25.05",
+                ],
             )
 
         assert result.exit_code == 1
@@ -279,8 +299,12 @@ class TestRefactoredLayoutValidate:
         mock_service.validate.return_value = False  # Syntax invalid
 
         with (
-            patch("glovebox.cli.helpers.profile.get_keyboard_profile_from_context") as mock_get_profile,
-            patch("glovebox.cli.helpers.output_formatter.create_output_formatter") as mock_formatter_factory,
+            patch(
+                "glovebox.cli.helpers.profile.get_keyboard_profile_from_context"
+            ) as mock_get_profile,
+            patch(
+                "glovebox.cli.helpers.output_formatter.create_output_formatter"
+            ) as mock_formatter_factory,
         ):
             mock_profile = Mock(keyboard_name="glove80")
             mock_get_profile.return_value = mock_profile
@@ -290,7 +314,15 @@ class TestRefactoredLayoutValidate:
 
             result = cli_runner.invoke(
                 app,
-                ["layout", "validate", "test.json", "--profile", "glove80/v25.05", "--format", "json"],
+                [
+                    "layout",
+                    "validate",
+                    "test.json",
+                    "--profile",
+                    "glove80/v25.05",
+                    "--format",
+                    "json",
+                ],
             )
 
         # Should call formatter with JSON format
@@ -374,8 +406,12 @@ class TestRefactoredLayoutShow:
         mock_read_input.return_value = json.dumps(layout_data)
 
         with (
-            patch("glovebox.cli.commands.layout.dependencies.create_full_layout_service") as mock_create_service,
-            patch("glovebox.cli.helpers.profile.get_keyboard_profile_from_context") as mock_get_profile,
+            patch(
+                "glovebox.cli.commands.layout.dependencies.create_full_layout_service"
+            ) as mock_create_service,
+            patch(
+                "glovebox.cli.helpers.profile.get_keyboard_profile_from_context"
+            ) as mock_get_profile,
         ):
             mock_profile = Mock(keyboard_name="glove80")
             mock_get_profile.return_value = mock_profile
@@ -387,7 +423,15 @@ class TestRefactoredLayoutShow:
             # Test with layer name
             result = cli_runner.invoke(
                 app,
-                ["layout", "show", "test.json", "--layer", "Numbers", "--profile", "glove80/v25.05"],
+                [
+                    "layout",
+                    "show",
+                    "test.json",
+                    "--layer",
+                    "Numbers",
+                    "--profile",
+                    "glove80/v25.05",
+                ],
             )
             assert result.exit_code == 0
             # Check that layer index 1 was resolved
@@ -397,7 +441,15 @@ class TestRefactoredLayoutShow:
             # Test with layer index
             result = cli_runner.invoke(
                 app,
-                ["layout", "show", "test.json", "--layer", "2", "--profile", "glove80/v25.05"],
+                [
+                    "layout",
+                    "show",
+                    "test.json",
+                    "--layer",
+                    "2",
+                    "--profile",
+                    "glove80/v25.05",
+                ],
             )
             assert result.exit_code == 0
             # Check that layer index 2 was used
@@ -463,10 +515,14 @@ class TestRefactoredLayoutDiff:
             "diff": {
                 "layers": {
                     "modified": [
-                        {"index": 0, "name": "Base", "changes": [{"key": 0, "old": "KC_Q", "new": "KC_A"}]}
+                        {
+                            "index": 0,
+                            "name": "Base",
+                            "changes": [{"key": 0, "old": "KC_Q", "new": "KC_A"}],
+                        }
                     ]
                 }
-            }
+            },
         }
 
         result = cli_runner.invoke(
@@ -515,17 +571,26 @@ class TestRefactoredLayoutDiff:
         mock_service.compare_layouts.return_value = {
             "has_changes": True,
             "summary": {"layers": {"modified": 1}},
-            "diff": {}
+            "diff": {},
         }
         mock_service.create_diff_file.return_value = {
             "diff_file": str(tmp_path / "diff.json")
         }
 
-        mock_process_output.return_value = Mock(type="file", path=tmp_path / "diff.json")
+        mock_process_output.return_value = Mock(
+            type="file", path=tmp_path / "diff.json"
+        )
 
         result = cli_runner.invoke(
             app,
-            ["layout", "diff", "layout1.json", "layout2.json", "--output", str(tmp_path / "diff.json")],
+            [
+                "layout",
+                "diff",
+                "layout1.json",
+                "layout2.json",
+                "--output",
+                str(tmp_path / "diff.json"),
+            ],
         )
 
         assert result.exit_code == 0
@@ -562,7 +627,12 @@ class TestRefactoredLayoutPatch:
     ):
         """Test patch application."""
         # Setup mocks
-        layout_data = {"keyboard": "glove80", "title": "Original", "layers": [], "layer_names": []}
+        layout_data = {
+            "keyboard": "glove80",
+            "title": "Original",
+            "layers": [],
+            "layer_names": [],
+        }
         # Valid LayoutDiff structure
         patch_data = {
             "base_version": "1.0",
@@ -575,7 +645,7 @@ class TestRefactoredLayoutPatch:
             "combos": {"added": [], "removed": [], "modified": []},
             "macros": {"added": [], "removed": [], "modified": []},
             "inputListeners": {"added": [], "removed": [], "modified": []},
-            "title": [{"op": "replace", "path": "/title", "value": "Patched"}]
+            "title": [{"op": "replace", "path": "/title", "value": "Patched"}],
         }
 
         mock_process_input.side_effect = [
@@ -590,22 +660,36 @@ class TestRefactoredLayoutPatch:
         mock_service = Mock()
         mock_create_service.return_value = mock_service
         patched_layout = Mock()
-        patched_layout.to_dict.return_value = {"keyboard": "glove80", "title": "Patched"}
+        patched_layout.to_dict.return_value = {
+            "keyboard": "glove80",
+            "title": "Patched",
+        }
         mock_service.apply_patch.return_value = {
             "patched_layout": patched_layout,
             "applied_changes": 1,
         }
 
-        mock_process_output.return_value = Mock(type="file", path=tmp_path / "patched.json")
+        mock_process_output.return_value = Mock(
+            type="file", path=tmp_path / "patched.json"
+        )
 
         result = cli_runner.invoke(
             app,
-            ["layout", "patch", "layout.json", "patch.json", "--output", str(tmp_path / "patched.json")],
+            [
+                "layout",
+                "patch",
+                "layout.json",
+                "patch.json",
+                "--output",
+                str(tmp_path / "patched.json"),
+            ],
         )
 
         # For now, just check that the command exists and runs
         # The patch format is complex and would need proper test fixtures
-        assert result.exception is not None  # Command ran but had an error, which is expected with mock data
+        assert (
+            result.exception is not None
+        )  # Command ran but had an error, which is expected with mock data
 
 
 class TestRefactoredLayoutSplit:
@@ -658,7 +742,14 @@ class TestRefactoredLayoutSplit:
 
             result = cli_runner.invoke(
                 app,
-                ["layout", "split", "layout.json", str(output_dir), "--profile", "glove80/v25.05"],
+                [
+                    "layout",
+                    "split",
+                    "layout.json",
+                    str(output_dir),
+                    "--profile",
+                    "glove80/v25.05",
+                ],
             )
 
         assert result.exit_code == 0
@@ -703,7 +794,9 @@ class TestRefactoredLayoutMerge:
             get_output_files=Mock(return_value={"json": output_json}),
         )
 
-        mock_process_output.return_value = Mock(type="file", path=tmp_path / "output.json")
+        mock_process_output.return_value = Mock(
+            type="file", path=tmp_path / "output.json"
+        )
 
         with patch(
             "glovebox.cli.helpers.profile.get_keyboard_profile_from_context"
@@ -713,7 +806,14 @@ class TestRefactoredLayoutMerge:
 
             result = cli_runner.invoke(
                 app,
-                ["layout", "merge", str(components_dir), str(tmp_path / "output.json"), "--profile", "glove80/v25.05"],
+                [
+                    "layout",
+                    "merge",
+                    str(components_dir),
+                    str(tmp_path / "output.json"),
+                    "--profile",
+                    "glove80/v25.05",
+                ],
             )
 
         assert result.exit_code == 0
@@ -786,9 +886,15 @@ class TestErrorHandling:
     def test_compile_error_logging(self, cli_runner, tmp_path):
         """Test that compile command logs errors properly."""
         with (
-            patch("glovebox.cli.helpers.parameter_helpers.process_input_parameter") as mock_process,
-            patch("glovebox.cli.helpers.parameter_helpers.read_input_from_result") as mock_read,
-            patch("glovebox.cli.commands.layout.dependencies.create_full_layout_service") as mock_service,
+            patch(
+                "glovebox.cli.helpers.parameter_helpers.process_input_parameter"
+            ) as mock_process,
+            patch(
+                "glovebox.cli.helpers.parameter_helpers.read_input_from_result"
+            ) as mock_read,
+            patch(
+                "glovebox.cli.commands.layout.dependencies.create_full_layout_service"
+            ) as mock_service,
         ):
             # Simulate service error
             mock_process.return_value = Mock()
@@ -806,10 +912,18 @@ class TestErrorHandling:
     def test_validate_layer_reference_errors(self, cli_runner):
         """Test validation of layer references."""
         with (
-            patch("glovebox.cli.helpers.parameter_helpers.process_input_parameter") as mock_process,
-            patch("glovebox.cli.helpers.parameter_helpers.read_input_from_result") as mock_read,
-            patch("glovebox.cli.commands.layout.dependencies.create_full_layout_service") as mock_service,
-            patch("glovebox.cli.helpers.profile.get_keyboard_profile_from_context") as mock_profile,
+            patch(
+                "glovebox.cli.helpers.parameter_helpers.process_input_parameter"
+            ) as mock_process,
+            patch(
+                "glovebox.cli.helpers.parameter_helpers.read_input_from_result"
+            ) as mock_read,
+            patch(
+                "glovebox.cli.commands.layout.dependencies.create_full_layout_service"
+            ) as mock_service,
+            patch(
+                "glovebox.cli.helpers.profile.get_keyboard_profile_from_context"
+            ) as mock_profile,
         ):
             # Layout with invalid layer reference
             layout_data = {

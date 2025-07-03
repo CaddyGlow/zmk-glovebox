@@ -38,7 +38,7 @@ def compilation_service_config():
             "docker_image": "test-moergo-builder",
             "build_timeout": 1800,
             "cleanup_workspace": True,
-        }
+        },
     }
 
 
@@ -58,9 +58,9 @@ def sample_json_layout():
             "td_test": {
                 "type": "tap_dance",
                 "tapping_term_ms": 200,
-                "bindings": ["&kp KC_TAB", "&kp KC_ESC"]
+                "bindings": ["&kp KC_TAB", "&kp KC_ESC"],
             }
-        }
+        },
     }
 
 

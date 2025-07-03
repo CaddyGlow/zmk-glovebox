@@ -98,7 +98,7 @@ class TestStackTraceOutput:
         ):
             # Make the layout service raise an error to test stack trace
             mock_service = Mock()
-            mock_service.generate_from_file.side_effect = RuntimeError(
+            mock_service.compile.side_effect = RuntimeError(
                 "Test error for stack trace"
             )
             mock_create_service.return_value = mock_service
@@ -125,7 +125,7 @@ class TestStackTraceOutput:
         ):
             # Make the layout service raise an error to test stack trace
             mock_service = Mock()
-            mock_service.generate_from_file.side_effect = RuntimeError(
+            mock_service.compile.side_effect = RuntimeError(
                 "Test error for stack trace"
             )
             mock_create_service.return_value = mock_service
@@ -152,7 +152,7 @@ class TestStackTraceOutput:
         ):
             # Make the layout service raise an error
             mock_service = Mock()
-            mock_service.generate_from_file.side_effect = RuntimeError(
+            mock_service.compile.side_effect = RuntimeError(
                 "Test error without stack trace"
             )
             mock_create_service.return_value = mock_service

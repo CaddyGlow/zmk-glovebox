@@ -33,15 +33,15 @@ class TestSimplifiedParameterFactory:
         argument = args[1]
         assert isinstance(argument, typer.models.ArgumentInfo)
         assert argument.default == ...  # Required parameter uses ellipsis
-        assert argument.help == "Input source (file, '-' for stdin, '@name' for library)"
+        assert (
+            argument.help == "Input source (file, '-' for stdin, '@name' for library)"
+        )
         assert not argument.show_default
 
     def test_create_input_parameter_optional(self):
         """Test creating an optional input parameter."""
         param = ParameterFactory.create_input_parameter(
-            help_text="Custom input help",
-            default="default.json",
-            required=False
+            help_text="Custom input help", default="default.json", required=False
         )
 
         # Verify the annotation
@@ -57,9 +57,7 @@ class TestSimplifiedParameterFactory:
 
     def test_create_input_parameter_json_completion(self):
         """Test JSON files get autocompletion."""
-        param = ParameterFactory.create_input_parameter(
-            help_text="JSON layout file"
-        )
+        param = ParameterFactory.create_input_parameter(help_text="JSON layout file")
 
         args = get_args(param)
         argument = args[1]
@@ -83,9 +81,7 @@ class TestSimplifiedParameterFactory:
     def test_create_output_parameter_argument(self):
         """Test creating an output argument parameter."""
         param = ParameterFactory.create_output_parameter(
-            help_text="Output file",
-            default="out.txt",
-            is_option=False
+            help_text="Output file", default="out.txt", is_option=False
         )
 
         args = get_args(param)
@@ -110,14 +106,15 @@ class TestSimplifiedParameterFactory:
         assert isinstance(option, typer.models.OptionInfo)
         # param_decls are still specified in create_profile_parameter
         assert option.param_decls == ("--profile", "-p")
-        assert option.help == "Keyboard profile in format 'keyboard' or 'keyboard/firmware'"
+        assert (
+            option.help
+            == "Keyboard profile in format 'keyboard' or 'keyboard/firmware'"
+        )
         assert option.autocompletion is not None
 
     def test_create_profile_parameter_required(self):
         """Test creating a required profile parameter."""
-        param = ParameterFactory.create_profile_parameter(
-            required=True
-        )
+        param = ParameterFactory.create_profile_parameter(required=True)
 
         args = get_args(param)
         type_arg = args[0]
@@ -130,8 +127,7 @@ class TestSimplifiedParameterFactory:
     def test_create_profile_parameter_with_default(self):
         """Test creating a profile parameter with default."""
         param = ParameterFactory.create_profile_parameter(
-            default="glove80/v25.05",
-            required=True
+            default="glove80/v25.05", required=True
         )
 
         args = get_args(param)
@@ -157,6 +153,7 @@ class TestLegacyCompatibility:
         argument = args[1]
 
         from pathlib import Path
+
         assert type_arg == Path
         assert argument.help == "Input file path"
         assert argument.exists is True
@@ -315,17 +312,13 @@ class TestParameterCustomization:
 
     def test_legacy_custom_help(self):
         """Test legacy methods accept custom help."""
-        param = ParameterFactory.force_overwrite(
-            help_text="Custom force help"
-        )
+        param = ParameterFactory.force_overwrite(help_text="Custom force help")
         args = get_args(param)
         assert args[1].help == "Custom force help"
 
     def test_legacy_env_var_customization(self):
         """Test legacy methods handle env var customization."""
-        param = ParameterFactory.input_file_optional(
-            env_var="MY_CUSTOM_ENV"
-        )
+        param = ParameterFactory.input_file_optional(env_var="MY_CUSTOM_ENV")
         args = get_args(param)
         assert "MY_CUSTOM_ENV" in args[1].help
 
@@ -356,8 +349,7 @@ class TestEdgeCases:
 
         # Has default = show_default
         param2 = ParameterFactory.create_input_parameter(
-            default="test.txt",
-            required=False
+            default="test.txt", required=False
         )
         args = get_args(param2)
         assert args[1].show_default
@@ -371,8 +363,7 @@ class TestEdgeCases:
     def test_required_profile_with_default(self):
         """Test required profile with default doesn't add (required)."""
         param = ParameterFactory.create_profile_parameter(
-            required=True,
-            default="glove80"
+            required=True, default="glove80"
         )
         args = get_args(param)
         assert "(required)" not in args[1].help

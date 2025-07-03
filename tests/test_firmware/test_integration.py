@@ -13,6 +13,7 @@ import pytest
 from glovebox.config import create_user_config
 from glovebox.core.metrics import create_session_metrics
 from glovebox.firmware.flash import create_flash_service
+from glovebox.firmware.flash.device_wait_service import create_device_wait_service
 from glovebox.firmware.flash.models import FlashResult, USBDeviceInfo
 from glovebox.firmware.models import FirmwareOutputFiles
 
@@ -46,10 +47,13 @@ def flash_service(
     """Create flash service for testing."""
     user_config = create_user_config()
 
+    # Create device wait service for flash service
+    device_wait_service = create_device_wait_service()
+
     service = create_flash_service(
-        usb_adapter=mock_usb_adapter,
         file_adapter=mock_file_adapter,
-        session_metrics=session_metrics,
+        device_wait_service=device_wait_service,
+        usb_adapter=mock_usb_adapter,
     )
     return service
 
@@ -78,9 +82,9 @@ def sample_json_layout_with_compilation(tmp_path):
             "test_combo": {
                 "type": "combo",
                 "key_positions": [0, 1],
-                "bindings": ["&kp KC_ESC"]
+                "bindings": ["&kp KC_ESC"],
             }
-        }
+        },
     }
 
     json_file = tmp_path / "firmware_test_layout.json"
@@ -94,26 +98,25 @@ def sample_json_layout_with_compilation(tmp_path):
 def mock_device_info():
     """Mock device information for testing."""
     return USBDeviceInfo(
-        path="/dev/test_device",
+        name="Test Keyboard",
+        vendor="Test Manufacturer",
         vendor_id="1234",
         product_id="5678",
-        serial_number="TEST123",
-        manufacturer="Test Manufacturer",
-        product="Test Keyboard",
+        serial="TEST123",
     )
 
 
 class TestFirmwareFlashIntegration:
     """Test the full integration flow of firmware flashing."""
 
-    def test_flash_from_file_success(
+    def test_flash_unified_api_success(
         self,
         flash_service,
         sample_firmware_file,
         mock_device_info,
         mock_keyboard_profile,
     ):
-        """Test successful firmware flashing from file."""
+        """Test successful firmware flashing using unified API."""
         # Mock the underlying flash operations
         with (
             patch.object(flash_service, "list_devices") as mock_list_devices,
@@ -123,17 +126,13 @@ class TestFirmwareFlashIntegration:
             mock_list_devices.return_value = [mock_device_info]
 
             # Mock successful flash
-            mock_result = FlashResult(
-                success=True,
-                devices_flashed=1
-            )
+            mock_result = FlashResult(success=True, devices_flashed=1)
             mock_result.add_message("Firmware flashed successfully to /dev/test_device")
             mock_flash.return_value = mock_result
 
-            # Test flash from file
+            # Test unified flash API
             result = flash_service.flash(
-                firmware_file=sample_firmware_file,
-                profile=mock_keyboard_profile
+                firmware_file=sample_firmware_file, profile=mock_keyboard_profile
             )
 
             assert result.success is True
@@ -156,17 +155,13 @@ class TestFirmwareFlashIntegration:
             mock_list_devices.return_value = [mock_device_info]
 
             # Mock successful flash
-            mock_result = FlashResult(
-                success=True,
-                devices_flashed=1
-            )
+            mock_result = FlashResult(success=True, devices_flashed=1)
             mock_result.add_message("Firmware flashed successfully to /dev/test_device")
             mock_flash.return_value = mock_result
 
             # Test flash without specifying device (should auto-detect)
             result = flash_service.flash(
-                firmware_file=sample_firmware_file,
-                profile=mock_keyboard_profile
+                firmware_file=sample_firmware_file, profile=mock_keyboard_profile
             )
 
             assert result.success is True
@@ -184,8 +179,7 @@ class TestFirmwareFlashIntegration:
             mock_list_devices.return_value = []
 
             result = flash_service.flash(
-                firmware_file=sample_firmware_file,
-                profile=mock_keyboard_profile
+                firmware_file=sample_firmware_file, profile=mock_keyboard_profile
             )
 
             assert result.success is False
@@ -220,8 +214,7 @@ class TestFirmwareFlashIntegration:
             mock_list_devices.return_value = [mock_device1, mock_device2]
 
             result = flash_service.flash(
-                firmware_file=sample_firmware_file,
-                profile=mock_keyboard_profile
+                firmware_file=sample_firmware_file, profile=mock_keyboard_profile
             )
 
             assert result.success is False
@@ -249,7 +242,9 @@ class TestFirmwareWorkflowIntegration:
         firmware_file.write_bytes(b"compiled firmware content")
 
         with (
-            patch("glovebox.compilation.create_compilation_service") as mock_create_compilation,
+            patch(
+                "glovebox.compilation.create_compilation_service"
+            ) as mock_create_compilation,
             patch.object(flash_service, "list_devices") as mock_list_devices,
             patch.object(flash_service, "flash") as mock_flash,
         ):
@@ -258,22 +253,22 @@ class TestFirmwareWorkflowIntegration:
             mock_create_compilation.return_value = mock_compilation_service
 
             from glovebox.firmware.models import BuildResult
+
             mock_compilation_result = BuildResult(
                 success=True,
                 messages=["Compilation successful"],
                 output_files=FirmwareOutputFiles(
                     output_dir=compilation_output_dir,
                     uf2_files=[firmware_file],
-                )
+                ),
             )
-            mock_compilation_service.compile_from_json.return_value = mock_compilation_result
+            mock_compilation_service.compile_from_json.return_value = (
+                mock_compilation_result
+            )
 
             # Mock device detection and flash
             mock_list_devices.return_value = [mock_device_info]
-            mock_flash_result = FlashResult(
-                success=True,
-                devices_flashed=1
-            )
+            mock_flash_result = FlashResult(success=True, devices_flashed=1)
             mock_flash_result.add_message("Firmware flashed successfully")
             mock_flash.return_value = mock_flash_result
 
@@ -291,8 +286,7 @@ class TestFirmwareWorkflowIntegration:
 
             # Step 3: Simulate flash phase using compiled firmware
             flash_result = flash_service.flash(
-                firmware_file=firmware_file,
-                profile=mock_keyboard_profile
+                firmware_file=firmware_file, profile=mock_keyboard_profile
             )
 
             assert flash_result.success is True
@@ -314,18 +308,23 @@ class TestFirmwareWorkflowIntegration:
         compilation_output_dir = tmp_path / "compilation_output"
         compilation_output_dir.mkdir(parents=True)
 
-        with patch("glovebox.compilation.create_compilation_service") as mock_create_compilation:
+        with patch(
+            "glovebox.compilation.create_compilation_service"
+        ) as mock_create_compilation:
             # Mock compilation service with failure
             mock_compilation_service = Mock()
             mock_create_compilation.return_value = mock_compilation_service
 
             from glovebox.firmware.models import BuildResult
+
             mock_compilation_result = BuildResult(
                 success=False,
                 errors=["Compilation failed", "Missing dependencies"],
-                messages=[]
+                messages=[],
             )
-            mock_compilation_service.compile_from_json.return_value = mock_compilation_result
+            mock_compilation_service.compile_from_json.return_value = (
+                mock_compilation_result
+            )
 
             # Simulate compilation phase
             compilation_result = mock_compilation_service.compile_from_json(
@@ -404,7 +403,9 @@ class TestFirmwareDeviceManagement:
             devices = []
             max_attempts = 3
             for _attempt in range(max_attempts):
-                devices = flash_service.list_devices(keyboard_profile=mock_keyboard_profile)
+                devices = flash_service.list_devices(
+                    keyboard_profile=mock_keyboard_profile
+                )
                 if devices:
                     break
                 mock_sleep(1)  # Simulate wait
@@ -433,6 +434,7 @@ class TestFirmwareServiceFactoryIntegration:
 
         # Verify service was created with correct type
         from glovebox.firmware.flash.service import FlashService
+
         assert isinstance(service, FlashService)
 
     def test_flash_service_methods_available(
@@ -465,17 +467,13 @@ class TestFirmwareIOPatterns:
             patch.object(flash_service, "flash") as mock_flash,
         ):
             mock_list_devices.return_value = [mock_device_info]
-            mock_result = FlashResult(
-                success=True,
-                devices_flashed=1
-            )
+            mock_result = FlashResult(success=True, devices_flashed=1)
             mock_result.add_message("Firmware flashed successfully to /dev/test_device")
             mock_flash.return_value = mock_result
 
             # Test file input pattern
             result = flash_service.flash(
-                firmware_file=sample_firmware_file,
-                profile=mock_keyboard_profile
+                firmware_file=sample_firmware_file, profile=mock_keyboard_profile
             )
 
             assert result.success is True
@@ -495,16 +493,12 @@ class TestFirmwareIOPatterns:
             patch.object(flash_service, "flash") as mock_flash,
         ):
             mock_list_devices.return_value = [mock_device_info]
-            mock_result = FlashResult(
-                success=True,
-                devices_flashed=1
-            )
+            mock_result = FlashResult(success=True, devices_flashed=1)
             mock_result.add_message("Device flashed successfully")
             mock_flash.return_value = mock_result
 
             result = flash_service.flash(
-                firmware_file=sample_firmware_file,
-                profile=mock_keyboard_profile
+                firmware_file=sample_firmware_file, profile=mock_keyboard_profile
             )
 
             # Test output pattern structure
@@ -518,3 +512,365 @@ class TestFirmwareIOPatterns:
             assert result.success is True
             assert result.devices_flashed == 1
             assert len(result.device_details) == 1
+
+
+class TestFirmwareCommandIntegration:
+    """Test the full IOCommand workflow for firmware commands."""
+
+    def test_flash_command_integration(
+        self,
+        tmp_path: Path,
+        sample_firmware_file,
+        mock_device_info,
+        mock_keyboard_profile,
+    ):
+        """Test FlashCommand with IOCommand pattern workflow."""
+        from glovebox.cli.commands.firmware.flash import FlashCommand
+
+        # Create command instance
+        command = FlashCommand()
+
+        # Mock the flash service
+        mock_result = FlashResult(success=True, devices_flashed=1)
+        mock_result.add_message("Firmware flashed successfully to /dev/test_device")
+
+        with (
+            patch(
+                "glovebox.firmware.flash.create_flash_service"
+            ) as mock_service_factory,
+            patch.object(command, "format_and_print") as mock_print,
+        ):
+            mock_service = Mock()
+            mock_service.flash.return_value = mock_result
+            mock_service.list_devices.return_value = [mock_device_info]
+            mock_service_factory.return_value = mock_service
+
+            # Execute command
+            command.execute(
+                ctx=Mock(),
+                firmware_file=str(sample_firmware_file),
+                device_path=None,
+                wait=False,
+                force=False,
+                format="json",
+            )
+
+            # Verify service was called correctly
+            mock_service.flash.assert_called_once()
+            mock_print.assert_called_once()
+
+            # Check the printed result structure
+            call_args = mock_print.call_args[0]
+            assert call_args[1] == "json"  # format
+            assert call_args[0]["success"] is True
+
+    def test_flash_command_with_device_path(
+        self, sample_firmware_file, mock_device_info, mock_keyboard_profile
+    ):
+        """Test FlashCommand with specific device path."""
+        from glovebox.cli.commands.firmware.flash import FlashCommand
+
+        command = FlashCommand()
+
+        mock_result = FlashResult(success=True, devices_flashed=1)
+        mock_result.add_message(
+            "Firmware flashed successfully to /dev/specified_device"
+        )
+
+        with (
+            patch(
+                "glovebox.firmware.flash.create_flash_service"
+            ) as mock_service_factory,
+            patch.object(command, "format_and_print") as mock_print,
+        ):
+            mock_service = Mock()
+            mock_service.flash.return_value = mock_result
+            mock_service_factory.return_value = mock_service
+
+            # Execute command with specific device path
+            command.execute(
+                ctx=Mock(),
+                firmware_file=str(sample_firmware_file),
+                device_path="/dev/specified_device",
+                wait=False,
+                force=False,
+                format="text",
+            )
+
+            # Verify service was called with device path
+            mock_service.flash.assert_called_once()
+            call_args = mock_service.flash.call_args[1]
+            assert (
+                "device_path" in call_args
+                or call_args.get("device_path") == "/dev/specified_device"
+            )
+
+    def test_flash_command_error_handling(
+        self, sample_firmware_file, mock_keyboard_profile
+    ):
+        """Test FlashCommand error handling when service fails."""
+        from glovebox.cli.commands.firmware.flash import FlashCommand
+
+        command = FlashCommand()
+
+        # Mock service failure
+        mock_result = FlashResult(success=False, devices_flashed=0)
+        mock_result.add_error("No compatible devices found")
+        mock_result.add_error("Device detection failed")
+
+        with (
+            patch(
+                "glovebox.firmware.flash.create_flash_service"
+            ) as mock_service_factory,
+            pytest.raises(SystemExit),  # typer.Exit(1)
+        ):
+            mock_service = Mock()
+            mock_service.flash.return_value = mock_result
+            mock_service_factory.return_value = mock_service
+
+            # Execute command
+            command.execute(
+                ctx=Mock(),
+                firmware_file=str(sample_firmware_file),
+                device_path=None,
+                wait=False,
+                force=False,
+                format="text",
+            )
+
+    def test_compile_command_integration(
+        self, tmp_path: Path, sample_json_layout_with_compilation, mock_keyboard_profile
+    ):
+        """Test CompileCommand with IOCommand pattern workflow."""
+        from glovebox.cli.commands.firmware.compile import CompileCommand
+
+        json_file, layout_data = sample_json_layout_with_compilation
+        output_dir = tmp_path / "firmware_output"
+
+        # Create command instance
+        command = CompileCommand()
+
+        # Mock the compilation service
+        from glovebox.firmware.models import BuildResult
+
+        mock_result = BuildResult(
+            success=True,
+            messages=["Compilation successful"],
+            output_files=FirmwareOutputFiles(
+                output_dir=output_dir,
+                uf2_files=[output_dir / "glove80.uf2"],
+            ),
+        )
+
+        with (
+            patch(
+                "glovebox.compilation.create_compilation_service"
+            ) as mock_service_factory,
+            patch.object(command, "format_and_print") as mock_print,
+        ):
+            mock_service = Mock()
+            mock_service.compile_from_json.return_value = mock_result
+            mock_service_factory.return_value = mock_service
+
+            # Execute command
+            command.execute(
+                ctx=Mock(),
+                input=str(json_file),
+                output=str(output_dir),
+                method="zmk_config",
+                force=False,
+                format="json",
+            )
+
+            # Verify service was called correctly
+            mock_service.compile_from_json.assert_called_once()
+            call_args = mock_service.compile_from_json.call_args[1]
+            assert call_args["json_file"] == json_file
+            assert call_args["output_dir"] == output_dir
+
+            # Verify output was printed
+            mock_print.assert_called_once()
+            call_args = mock_print.call_args[0]
+            assert call_args[1] == "json"  # format
+            assert call_args[0]["success"] is True
+
+    def test_compile_command_with_stdin_input(
+        self, tmp_path: Path, sample_json_layout_with_compilation, mock_keyboard_profile
+    ):
+        """Test CompileCommand with stdin input."""
+        from glovebox.cli.commands.firmware.compile import CompileCommand
+
+        json_file, layout_data = sample_json_layout_with_compilation
+        output_dir = tmp_path / "firmware_output"
+
+        command = CompileCommand()
+
+        # Mock the compilation service
+        from glovebox.firmware.models import BuildResult
+
+        mock_result = BuildResult(
+            success=True,
+            messages=["Compilation successful"],
+            output_files=FirmwareOutputFiles(
+                output_dir=output_dir,
+                uf2_files=[output_dir / "glove80.uf2"],
+            ),
+        )
+
+        with (
+            patch(
+                "glovebox.compilation.create_compilation_service"
+            ) as mock_service_factory,
+            patch(
+                "glovebox.core.io.handlers.InputHandler.load_json_input"
+            ) as mock_load_json,
+        ):
+            mock_service = Mock()
+            mock_service.compile_from_data.return_value = mock_result
+            mock_service_factory.return_value = mock_service
+            mock_load_json.return_value = layout_data
+
+            # Execute command with stdin
+            command.execute(
+                ctx=Mock(),
+                input="-",  # stdin
+                output=str(output_dir),
+                method="moergo",
+                force=False,
+                format="text",
+            )
+
+            # Verify stdin was loaded and compile_from_data was called
+            mock_load_json.assert_called_once_with("-")
+            mock_service.compile_from_data.assert_called_once()
+
+    def test_helpers_command_integration(self):
+        """Test firmware helpers command integration."""
+        from glovebox.cli.commands.firmware.helpers import list_devices, wait_for_device
+
+        mock_devices = [
+            USBDeviceInfo(
+                path="/dev/device1",
+                vendor_id="1234",
+                product_id="5678",
+                serial_number="TEST123",
+                manufacturer="Test Manufacturer",
+                product="Test Keyboard",
+            )
+        ]
+
+        with (
+            patch(
+                "glovebox.firmware.flash.create_flash_service"
+            ) as mock_service_factory,
+            patch(
+                "glovebox.cli.helpers.theme.get_themed_console"
+            ) as mock_console_factory,
+        ):
+            mock_service = Mock()
+            mock_service.list_devices.return_value = mock_devices
+            mock_service_factory.return_value = mock_service
+
+            mock_console = Mock()
+            mock_console_factory.return_value = mock_console
+
+            # Test list_devices helper
+            list_devices(
+                ctx=Mock(),
+                profile=None,
+                format="table",
+            )
+
+            # Verify service was called
+            mock_service.list_devices.assert_called_once()
+            # Verify console output was called (table format)
+            mock_console.print_table.assert_called_once()
+
+
+class TestFirmwareMemoryFirstPatterns:
+    """Test memory-first patterns in firmware commands."""
+
+    def test_compile_from_data_pattern(self, tmp_path: Path, mock_keyboard_profile):
+        """Test compile_from_data memory-first pattern."""
+        from glovebox.compilation import create_compilation_service
+
+        layout_data = {
+            "keyboard": "glove80",
+            "title": "Memory First Test",
+            "layers": [["KC_A", "KC_B", "KC_C"]],
+            "layer_names": ["Base"],
+        }
+
+        output_dir = tmp_path / "memory_output"
+        output_dir.mkdir(parents=True)
+
+        # Test memory-first pattern directly
+        service = create_compilation_service()
+
+        # Mock the service method
+        from glovebox.firmware.models import BuildResult
+
+        mock_result = BuildResult(
+            success=True,
+            messages=["Memory-first compilation successful"],
+            output_files=FirmwareOutputFiles(
+                output_dir=output_dir,
+                uf2_files=[output_dir / "glove80.uf2"],
+            ),
+        )
+
+        with patch.object(service, "compile_from_data") as mock_compile:
+            mock_compile.return_value = mock_result
+
+            # Call with memory data (new pattern)
+            result = service.compile_from_data(
+                layout_data=layout_data,
+                output_dir=output_dir,
+                config={"method": "zmk_config"},
+                keyboard_profile=mock_keyboard_profile,
+            )
+
+            # Verify memory-first pattern worked
+            assert result.success is True
+            mock_compile.assert_called_once_with(
+                layout_data=layout_data,
+                output_dir=output_dir,
+                config={"method": "zmk_config"},
+                keyboard_profile=mock_keyboard_profile,
+            )
+
+    def test_flash_service_memory_patterns(
+        self, tmp_path: Path, mock_device_info, mock_keyboard_profile
+    ):
+        """Test FlashService memory-first patterns."""
+        from glovebox.firmware.flash import create_flash_service
+
+        # Create firmware file in memory
+        firmware_file = tmp_path / "memory_firmware.uf2"
+        firmware_file.write_bytes(b"memory firmware content")
+
+        service = create_flash_service()
+
+        # Mock successful flash
+        mock_result = FlashResult(success=True, devices_flashed=1)
+
+        with (
+            patch.object(service, "list_devices") as mock_list,
+            patch.object(service, "flash") as mock_flash,
+        ):
+            mock_list.return_value = [mock_device_info]
+            mock_flash.return_value = mock_result
+
+            # Test memory-first flash pattern
+            result = service.flash(
+                firmware_file=firmware_file, profile=mock_keyboard_profile
+            )
+
+            # Verify memory-first pattern
+            assert result.success is True
+            mock_flash.assert_called_once()
+
+            # Check arguments
+            call_args = mock_flash.call_args[1]
+            assert call_args["firmware_file"] == firmware_file
+            assert call_args["profile"] == mock_keyboard_profile

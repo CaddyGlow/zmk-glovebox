@@ -201,10 +201,10 @@ class TestServiceMocking:
         service = create_layout_service_for_tests(file_adapter=mock_file_adapter)
         assert service is not None
 
-        # Verify service has expected methods
-        assert hasattr(service, "generate_from_file")
-        assert hasattr(service, "validate_from_file")
-        assert hasattr(service, "show_from_file")
+        # Verify service has expected methods (memory-first patterns)
+        assert hasattr(service, "compile")
+        assert hasattr(service, "validate")
+        assert hasattr(service, "show")
 
     def test_component_service_factory(
         self, isolated_cli_environment, mock_file_adapter
@@ -420,25 +420,7 @@ class TestBasicCLIStructure:
         result = cli_runner.invoke(app, ["layout", "diff", "--help"])
         assert result.exit_code == 0
 
-
-# Legacy compatibility tests - marked for eventual removal
-class TestLegacyCompatibility:
-    """Test that legacy functionality still works during transition."""
-
-    @pytest.mark.skip(
-        reason="Legacy functionality - will be removed after full migration"
-    )
-    def test_legacy_base_command_methods(self, isolated_cli_environment):
-        """Test that BaseLayoutCommand methods still exist for compatibility."""
-        from glovebox.cli.commands.layout.base import BaseLayoutCommand
-
-        command = BaseLayoutCommand()
-        assert hasattr(command, "handle_service_error")
-        assert hasattr(command, "print_operation_success")
-
-    @pytest.mark.skip(reason="Legacy functionality - marked for deletion")
-    def test_deprecated_formatters(self, isolated_cli_environment):
-        """Test that deprecated formatters are marked but still functional."""
+        # Legacy compatibility tests have been removed as part of the refactoring integration
         from glovebox.cli.commands.layout.formatters import LayoutOutputFormatter
 
         formatter = LayoutOutputFormatter()
@@ -494,8 +476,8 @@ class TestFixtureUsage:
         display_service = create_layout_display_service_for_tests()
         assert display_service is not None
 
-        # Verify services have expected interfaces
-        assert hasattr(layout_service, "generate_from_file")
+        # Verify services have expected interfaces (memory-first patterns)
+        assert hasattr(layout_service, "compile")
         assert hasattr(component_service, "split_components")
         assert hasattr(display_service, "show")
 

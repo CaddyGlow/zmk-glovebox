@@ -67,7 +67,7 @@ def test_layout_compile_auto_profile_detection(
         mock_result.keymap_path = output_dir / "test.keymap"
         mock_result.conf_path = output_dir / "test.conf"
         mock_result.json_path = output_dir / "test.json"
-        mock_layout_service.generate_from_file.return_value = mock_result
+        mock_layout_service.compile.return_value = mock_result
         mock_create_service.return_value = mock_layout_service
 
         # Mock user config
@@ -124,7 +124,7 @@ def test_layout_compile_no_auto_flag_disables_detection(
         mock_result.keymap_path = output_dir / "test.keymap"
         mock_result.conf_path = output_dir / "test.conf"
         mock_result.json_path = output_dir / "test.json"
-        mock_layout_service.generate_from_file.return_value = mock_result
+        mock_layout_service.compile.return_value = mock_result
         mock_create_service.return_value = mock_layout_service
 
         # Mock user config
@@ -333,7 +333,7 @@ def test_layout_commands_cli_profile_overrides_auto_detection(
         mock_result.keymap_path = output_dir / "test.keymap"
         mock_result.conf_path = output_dir / "test.conf"
         mock_result.json_path = output_dir / "test.json"
-        mock_layout_service.generate_from_file.return_value = mock_result
+        mock_layout_service.compile.return_value = mock_result
         mock_layout_service.validate_from_file.return_value = True
         mock_layout_service.show_from_file.return_value = "Layout display"
         mock_layout_service.decompose_components_from_file.return_value = mock_result
