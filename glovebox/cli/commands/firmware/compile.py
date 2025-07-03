@@ -80,6 +80,8 @@ class CompileFirmwareCommand(FirmwareOutputCommand):
             compilation_type, compile_config = resolve_compilation_type(
                 profile, strategy
             )
+
+            # TODO: we don't need to update the config from the profile here TBC
             update_config_from_profile(compile_config, profile)
 
             # Setup progress display
@@ -95,6 +97,8 @@ class CompileFirmwareCommand(FirmwareOutputCommand):
 
             try:
                 # Prepare config file
+                # TODO: we should create it later if json we will need to merge
+                # it with the config flag set in the file
                 effective_config_file = prepare_config_file(
                     is_json_input, config_file, config_flags, build_output_dir
                 )
@@ -151,8 +155,6 @@ class CompileFirmwareCommand(FirmwareOutputCommand):
                     raise ValueError(f"Compilation failed: {'; '.join(result.errors)}")
 
             finally:
-                if progress_display:
-                    progress_display.stop()
                 cleanup_temp_directory(build_output_dir, manual_cleanup_needed)
                 self._cleanup_temp_stdin_file()
 
@@ -210,8 +212,14 @@ class CompileFirmwareCommand(FirmwareOutputCommand):
 
             # Handle file path input
             elif result.resolved_path:
+                # For library references, pass the raw value; for regular files, pass the resolved path
+                input_to_resolve = (
+                    result.raw_value
+                    if str(result.raw_value).startswith("@")
+                    else result.resolved_path
+                )
                 resolved_input_file = resolve_firmware_input_file(
-                    result.resolved_path,
+                    input_to_resolve,
                     env_var="GLOVEBOX_JSON_FILE",
                     allowed_extensions=[".json", ".keymap"],
                 )
@@ -261,23 +269,32 @@ class CompileFirmwareCommand(FirmwareOutputCommand):
         build_service: Any,
     ) -> Any:
         """Execute JSON file compilation."""
-        from glovebox.cli.commands.firmware.helpers import (
-            execute_compilation_from_json,
-        )
+        from glovebox.adapters import create_docker_adapter, create_file_adapter
+        from glovebox.compilation import create_compilation_service
 
-        return execute_compilation_from_json(
+        # Create adapters directly
+        docker_adapter = create_docker_adapter()
+        file_adapter = create_file_adapter()
+
+        # Create compilation service directly
+        compilation_service = create_compilation_service(
             compilation_type,
-            json_file,
-            build_output_dir,
-            compile_config,
-            profile,
-            session_metrics=ctx.obj.session_metrics,
             user_config=user_config,
-            progress_coordinator=progress_coordinator,
-            progress_callback=progress_callback,
+            docker_adapter=docker_adapter,
+            file_adapter=file_adapter,
             cache_manager=cache_manager,
             workspace_cache_service=workspace_service,
             build_cache_service=build_service,
+            session_metrics=ctx.obj.session_metrics,
+        )
+
+        # Call service method directly
+        return compilation_service.compile_from_json(
+            json_file=json_file,
+            output_dir=build_output_dir,
+            config=compile_config,
+            keyboard_profile=profile,
+            progress_callback=progress_callback,
         )
 
     def _execute_keymap_compilation(
@@ -297,24 +314,33 @@ class CompileFirmwareCommand(FirmwareOutputCommand):
         build_service: Any,
     ) -> Any:
         """Execute keymap file compilation."""
-        from glovebox.cli.commands.firmware.helpers import (
-            execute_compilation_service,
-        )
+        from glovebox.adapters import create_docker_adapter, create_file_adapter
+        from glovebox.compilation import create_compilation_service
 
-        return execute_compilation_service(
+        # Create adapters directly
+        docker_adapter = create_docker_adapter()
+        file_adapter = create_file_adapter()
+
+        # Create compilation service directly
+        compilation_service = create_compilation_service(
             compilation_type,
-            keymap_file,
-            config_file,
-            build_output_dir,
-            compile_config,
-            profile,
-            session_metrics=ctx.obj.session_metrics,
             user_config=user_config,
-            progress_coordinator=progress_coordinator,
-            progress_callback=progress_callback,
+            docker_adapter=docker_adapter,
+            file_adapter=file_adapter,
             cache_manager=cache_manager,
             workspace_cache_service=workspace_service,
             build_cache_service=build_service,
+            session_metrics=ctx.obj.session_metrics,
+        )
+
+        # Call service method directly
+        return compilation_service.compile(
+            keymap_file=keymap_file,
+            config_file=config_file,
+            output_dir=build_output_dir,
+            config=compile_config,
+            keyboard_profile=profile,
+            progress_callback=progress_callback,
         )
 
 

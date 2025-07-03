@@ -5,11 +5,19 @@ import shutil
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
+    from glovebox.config.user_config import UserConfig
+    from glovebox.core.metrics.session_metrics import SessionMetrics
+    from glovebox.protocols.compilation_service_protocol import (
+        CompilationServiceProtocol,
+    )
+    from glovebox.protocols.progress_coordinator_protocol import (
+        ProgressCoordinatorProtocol,
+    )
 
 import typer
 
@@ -23,8 +31,19 @@ from glovebox.cli.helpers import (
     print_success_message,
 )
 from glovebox.cli.helpers.profile import get_user_config_from_context
+from glovebox.compilation.cache.compilation_build_cache_service import (
+    CompilationBuildCacheService,
+)
+from glovebox.compilation.cache.workspace_cache_service import ZmkWorkspaceCacheService
 from glovebox.compilation.models import CompilationConfigUnion
+from glovebox.config.models.filename_templates import FilenameTemplateConfig
 from glovebox.config.profile import KeyboardProfile
+from glovebox.core.cache.cache_manager import CacheManager
+from glovebox.core.file_operations.models import (
+    CompilationProgress,
+    CompilationProgressCallback,
+)
+from glovebox.firmware.models import BuildResult
 
 
 logger = logging.getLogger(__name__)
@@ -94,7 +113,7 @@ def update_config_from_profile(
 
 
 def format_compilation_output(
-    result: Any, output_format: str, output_dir: Path
+    result: BuildResult, output_format: str, output_dir: Path
 ) -> None:
     """Format and display compilation results."""
     if result.success:
@@ -121,10 +140,10 @@ def format_compilation_output(
 
 
 def determine_firmware_outputs(
-    result: Any,
+    result: BuildResult,
     base_filename: str,
-    templates: Any = None,
-    layout_data: dict[str, Any] | None = None,
+    templates: FilenameTemplateConfig | None = None,
+    layout_data: dict[str, str] | None = None,
     original_filename: str | None = None,
 ) -> list[tuple[Path, Path]]:
     """Determine which firmware files to create based on build result.
@@ -212,7 +231,7 @@ def determine_firmware_outputs(
 
 
 def process_compilation_output(
-    result: Any, input_file: Path, output_dir: Path | None
+    result: BuildResult, input_file: Path, output_dir: Path | None
 ) -> None:
     """Process compilation output based on --output flag.
 
@@ -318,7 +337,7 @@ def process_compilation_output(
 
 def setup_progress_display(
     ctx: typer.Context, show_progress: bool
-) -> tuple[Any, Any, Any]:
+) -> tuple[None, None, CompilationProgressCallback | None]:
     """Set up progress display components.
 
     Args:
@@ -333,7 +352,6 @@ def setup_progress_display(
 
     # New progress system: Let compilation services handle their own progress management
     # by providing a simple callback that signals progress is enabled
-    from glovebox.core.file_operations import CompilationProgress
 
     def progress_callback(progress: CompilationProgress) -> None:
         """Simple progress callback that enables progress tracking in compilation services."""
@@ -345,7 +363,9 @@ def setup_progress_display(
     return None, None, progress_callback
 
 
-def get_cache_services_with_fallback(ctx: typer.Context) -> tuple[Any, Any, Any]:
+def get_cache_services_with_fallback(
+    ctx: typer.Context,
+) -> tuple[CacheManager, ZmkWorkspaceCacheService, CompilationBuildCacheService]:
     """Get cache services from context with fallback creation.
 
     Args:
@@ -475,38 +495,6 @@ def cleanup_temp_directory(build_output_dir: Path, manual_cleanup_needed: bool) 
             )
 
 
-def create_compilation_service_with_progress(
-    compilation_strategy: str,
-    user_config: Any,
-    session_metrics: Any,
-    progress_coordinator: Any,
-    cache_manager: Any,
-    workspace_cache_service: Any,
-    build_cache_service: Any,
-) -> Any:
-    """Create compilation service with common setup."""
-    from glovebox.adapters import create_docker_adapter, create_file_adapter
-    from glovebox.compilation import create_compilation_service
-
-    docker_adapter = create_docker_adapter()
-    file_adapter = create_file_adapter()
-
-    compilation_service = create_compilation_service(
-        compilation_strategy,
-        user_config=user_config,
-        docker_adapter=docker_adapter,
-        file_adapter=file_adapter,
-        cache_manager=cache_manager,
-        workspace_cache_service=workspace_cache_service,
-        build_cache_service=build_cache_service,
-        session_metrics=session_metrics,
-    )
-
-    # TODO: Enable after refactoring
-    # if hasattr(compilation_service, "set_progress_coordinator"):
-    #     compilation_service.set_progress_coordinator(progress_coordinator)
-
-    return compilation_service
 
 
 def compile_json_to_firmware(
@@ -559,22 +547,30 @@ def compile_json_to_firmware(
                 get_cache_services_with_fallback(ctx)
             )
 
-            # Create compilation service
-            compilation_service = create_compilation_service_with_progress(
+            # Create compilation service directly
+            from glovebox.adapters import create_docker_adapter, create_file_adapter
+            from glovebox.compilation import create_compilation_service
+
+            docker_adapter = create_docker_adapter()
+            file_adapter = create_file_adapter()
+
+            compilation_service = create_compilation_service(
                 compilation_strategy,
-                user_config,
-                ctx.obj.session_metrics,
-                None,  # No progress coordinator for flash compilation
-                cache_manager,
-                workspace_cache_service,
-                build_cache_service,
+                user_config=user_config,
+                docker_adapter=docker_adapter,
+                file_adapter=file_adapter,
+                cache_manager=cache_manager,
+                workspace_cache_service=workspace_cache_service,
+                build_cache_service=build_cache_service,
+                session_metrics=ctx.obj.session_metrics,
             )
 
             # Compile the JSON file
             result = compilation_service.compile_from_json(
-                json_file_path=json_file,
-                profile=keyboard_profile,
+                json_file=json_file,
                 output_dir=temp_dir,
+                config=compile_config,
+                keyboard_profile=keyboard_profile,
             )
 
             if not result.success:
@@ -628,72 +624,3 @@ def compile_json_to_firmware(
         raise typer.Exit(1) from None
 
 
-def execute_compilation_service(
-    compilation_strategy: str,
-    keymap_file: Path,
-    kconfig_file: Path,
-    build_output_dir: Path,
-    compile_config: Any,
-    keyboard_profile: Any,
-    session_metrics: Any = None,
-    user_config: Any = None,
-    progress_coordinator: Any = None,
-    progress_callback: Any = None,
-    cache_manager: Any = None,
-    workspace_cache_service: Any = None,
-    build_cache_service: Any = None,
-) -> Any:
-    """Execute the compilation service."""
-    compilation_service = create_compilation_service_with_progress(
-        compilation_strategy,
-        user_config,
-        session_metrics,
-        progress_coordinator,
-        cache_manager,
-        workspace_cache_service,
-        build_cache_service,
-    )
-
-    # Use unified config directly - no conversion needed
-    return compilation_service.compile(
-        keymap_file=keymap_file,
-        config_file=kconfig_file,
-        output_dir=build_output_dir,
-        config=compile_config,
-        keyboard_profile=keyboard_profile,
-        progress_callback=progress_callback,
-    )
-
-
-def execute_compilation_from_json(
-    compilation_strategy: str,
-    json_file: Path,
-    build_output_dir: Path,
-    compile_config: Any,
-    keyboard_profile: Any,
-    session_metrics: Any = None,
-    user_config: Any = None,
-    progress_coordinator: Any = None,
-    progress_callback: Any = None,
-    cache_manager: Any = None,
-    workspace_cache_service: Any = None,
-    build_cache_service: Any = None,
-) -> Any:
-    """Execute compilation from JSON layout file."""
-    compilation_service = create_compilation_service_with_progress(
-        compilation_strategy,
-        user_config,
-        session_metrics,
-        progress_coordinator,
-        cache_manager,
-        workspace_cache_service,
-        build_cache_service,
-    )
-
-    return compilation_service.compile_from_json(
-        json_file=json_file,
-        output_dir=build_output_dir,
-        config=compile_config,
-        keyboard_profile=keyboard_profile,
-        progress_callback=progress_callback,
-    )
