@@ -6,7 +6,7 @@ import logging
 import shlex
 import subprocess
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from glovebox.models.docker import DockerUserContext
 from glovebox.protocols.docker_adapter_protocol import (
@@ -22,6 +22,9 @@ from glovebox.utils.stream_process import (
     create_chained_middleware,
 )
 
+
+if TYPE_CHECKING:
+    from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
 
 logger = logging.getLogger(__name__)
 logger_rich = logging.getLogger("rich")
@@ -145,6 +148,7 @@ class DockerAdapter:
         image: str,
         volumes: list[DockerVolume],
         environment: DockerEnv,
+        progress_context: "ProgressContextProtocol",
         command: list[str] | None = None,
         middleware: OutputMiddleware[T] | None = None,
         user_context: DockerUserContext | None = None,
@@ -184,6 +188,12 @@ class DockerAdapter:
         cmd_str = " ".join(shlex.quote(arg) for arg in docker_cmd)
         logger.debug("Docker command: %s", cmd_str)
 
+        # Update progress context with container start
+        progress_context.log(f"Starting container: {image}")
+        progress_context.set_status_info(
+            {"docker_status": "starting_container", "component": image}
+        )
+
         try:
             if middleware is None:
                 # Cast is needed because T is unbound at this point
@@ -191,19 +201,29 @@ class DockerAdapter:
 
             # Try with sudo fallback if needed
             result = self._run_with_sudo_fallback(docker_cmd, middleware)
+
+            # Update progress on successful completion
+            progress_context.log(f"Container completed: {image}")
+            progress_context.set_status_info(
+                {"docker_status": "container_completed", "component": image}
+            )
+
             return result
 
         except FileNotFoundError as e:
+            progress_context.log("ERROR: Docker executable not found")
             error = create_docker_error(f"Docker executable not found: {e}", cmd_str, e)
             logger.error("Docker executable not found: %s", e)
             raise error from e
 
         except subprocess.SubprocessError as e:
+            progress_context.log(f"ERROR: Docker subprocess error: {e}")
             error = create_docker_error(f"Docker subprocess error: {e}", cmd_str, e)
             logger.error("Docker subprocess error: %s", e)
             raise error from e
 
         except Exception as e:
+            progress_context.log(f"ERROR: Failed to run Docker container: {e}")
             error = create_docker_error(
                 f"Failed to run Docker container: {e}",
                 cmd_str,
@@ -221,6 +241,7 @@ class DockerAdapter:
         self,
         dockerfile_dir: Path,
         image_name: str,
+        progress_context: "ProgressContextProtocol",
         image_tag: str = "latest",
         no_cache: bool = False,
         middleware: OutputMiddleware[T] | None = None,
@@ -285,25 +306,43 @@ class DockerAdapter:
         logger.info("Building Docker image: %s", image_full_name)
         logger.debug("Docker command: %s", cmd_str)
 
+        # Update progress context with build start
+        progress_context.log(f"Building Docker image: {image_full_name}")
+        progress_context.set_status_info(
+            {"docker_status": "building_image", "component": image_full_name}
+        )
+
         try:
             if middleware is None:
                 # Cast is needed because T is unbound at this point
                 middleware = cast(OutputMiddleware[T], LoggerOutputMiddleware(logger))
 
             result = self._run_with_sudo_fallback(docker_cmd, middleware)
+
+            # Update progress on successful build
+            progress_context.log(f"Successfully built image: {image_full_name}")
+            progress_context.set_status_info(
+                {"docker_status": "image_built", "component": image_full_name}
+            )
+
             return result
 
         except FileNotFoundError as e:
+            progress_context.log(
+                "ERROR: Docker executable not found during image build"
+            )
             error = create_docker_error(f"Docker executable not found: {e}", cmd_str, e)
             logger.error("Docker executable not found during image build: %s", e)
             raise error from e
 
         except subprocess.SubprocessError as e:
+            progress_context.log(f"ERROR: Docker subprocess error during build: {e}")
             error = create_docker_error(f"Docker subprocess error: {e}", cmd_str, e)
             logger.error("Docker subprocess error: %s", e)
             raise error from e
 
         except Exception as e:
+            progress_context.log(f"ERROR: Failed to build Docker image: {e}")
             error = create_docker_error(
                 f"Unexpected error building Docker image: {e}",
                 cmd_str,
@@ -377,6 +416,7 @@ class DockerAdapter:
     def pull_image(
         self,
         image_name: str,
+        progress_context: "ProgressContextProtocol",
         image_tag: str = "latest",
         middleware: OutputMiddleware[T] | None = None,
     ) -> ProcessResult[T]:
@@ -404,25 +444,41 @@ class DockerAdapter:
         logger.info("Pulling Docker image: %s", image_full_name)
         logger.debug("Docker command: %s", cmd_str)
 
+        # Update progress context with pull start
+        progress_context.log(f"Pulling Docker image: {image_full_name}")
+        progress_context.set_status_info(
+            {"docker_status": "pulling_image", "component": image_full_name}
+        )
+
         try:
             if middleware is None:
                 # Cast is needed because T is unbound at this point
                 middleware = cast(OutputMiddleware[T], LoggerOutputMiddleware(logger))
 
             result = self._run_with_sudo_fallback(docker_cmd, middleware)
+
+            # Update progress on successful pull
+            progress_context.log(f"Successfully pulled image: {image_full_name}")
+            progress_context.set_status_info(
+                {"docker_status": "image_pulled", "component": image_full_name}
+            )
+
             return result
 
         except FileNotFoundError as e:
+            progress_context.log("ERROR: Docker executable not found during image pull")
             error = create_docker_error(f"Docker executable not found: {e}", cmd_str, e)
             logger.error("Docker executable not found during image pull: %s", e)
             raise error from e
 
         except subprocess.SubprocessError as e:
+            progress_context.log(f"ERROR: Docker subprocess error during pull: {e}")
             error = create_docker_error(f"Docker subprocess error: {e}", cmd_str, e)
             logger.error("Docker subprocess error: %s", e)
             raise error from e
 
         except Exception as e:
+            progress_context.log(f"ERROR: Failed to pull Docker image: {e}")
             error = create_docker_error(
                 f"Unexpected error pulling Docker image: {e}",
                 cmd_str,

@@ -240,10 +240,25 @@ class TestConfigEdit:
                 "--set",
                 "disable_version_checks=false",
                 "--set",
-                "emoji_mode=true",
+                "icon_mode=emoji",
                 "--save",
             ],
         )
+
+        # Debug output if command fails
+        if result.exit_code != 0:
+            print(f"Command failed with exit code {result.exit_code}")
+            print(f"STDOUT: {result.stdout}")
+            if result.exception:
+                print(f"Exception: {result.exception}")
+                import traceback
+
+                traceback.print_exception(
+                    type(result.exception),
+                    result.exception,
+                    result.exception.__traceback__,
+                )
+
         assert result.exit_code == 0
 
         # Now get multiple values using comma-separated syntax
@@ -253,14 +268,14 @@ class TestConfigEdit:
                 "config",
                 "edit",
                 "--get",
-                "log_level,disable_version_checks,emoji_mode",
+                "log_level,disable_version_checks,icon_mode",
                 "--no-save",
             ],
         )
         assert result.exit_code == 0
         assert "log_level: INFO" in result.output
         assert "disable_version_checks: False" in result.output
-        assert "emoji_mode: True" in result.output
+        assert "icon_mode: emoji" in result.output
 
     def test_get_comma_separated_with_spaces(
         self, isolated_cli_environment, cli_runner
@@ -275,7 +290,7 @@ class TestConfigEdit:
                 "--set",
                 "log_level=DEBUG",
                 "--set",
-                "emoji_mode=false",
+                "icon_mode=text",
                 "--save",
             ],
         )
@@ -288,13 +303,13 @@ class TestConfigEdit:
                 "config",
                 "edit",
                 "--get",
-                "log_level, emoji_mode",
+                "log_level, icon_mode",
                 "--no-save",
             ],
         )
         assert result.exit_code == 0
         assert "log_level: DEBUG" in result.output
-        assert "emoji_mode: False" in result.output
+        assert "icon_mode: text" in result.output
 
     def test_get_mixed_comma_and_flag_syntax(
         self, isolated_cli_environment, cli_runner
@@ -311,7 +326,7 @@ class TestConfigEdit:
                 "--set",
                 "disable_version_checks=true",
                 "--set",
-                "emoji_mode=false",
+                "icon_mode=text",
                 "--save",
             ],
         )
@@ -326,14 +341,14 @@ class TestConfigEdit:
                 "--get",
                 "log_level,disable_version_checks",
                 "--get",
-                "emoji_mode",
+                "icon_mode",
                 "--no-save",
             ],
         )
         assert result.exit_code == 0
         assert "log_level: ERROR" in result.output
         assert "disable_version_checks: True" in result.output
-        assert "emoji_mode: False" in result.output
+        assert "icon_mode: text" in result.output
 
     def test_set_single_value(self, isolated_cli_environment, cli_runner):
         """Test setting a single configuration value."""
@@ -369,84 +384,13 @@ class TestConfigEdit:
             [
                 "config",
                 "edit",
-                "--add",
-                "keyboard_paths=/test/unique/add/path",
+                "--append",
+                "profiles_paths=/test/unique/add/path",
                 "--no-save",
             ],
         )
         assert result.exit_code == 0
-        assert "Added '/test/unique/add/path' to keyboard_paths" in result.output
-
-    def test_remove_from_list(self, isolated_cli_environment, cli_runner):
-        """Test removing values from a list configuration."""
-        # First add a value and save it
-        result = cli_runner.invoke(
-            app,
-            [
-                "config",
-                "edit",
-                "--add",
-                "keyboard_paths=/test/unique/remove/path",
-                "--save",
-            ],
-        )
-        assert result.exit_code == 0
-
-        # Then remove it
-        result = cli_runner.invoke(
-            app,
-            [
-                "config",
-                "edit",
-                "--remove",
-                "keyboard_paths=/test/unique/remove/path",
-                "--no-save",
-            ],
-        )
-        assert result.exit_code == 0
-        assert "Removed '/test/unique/remove/path' from keyboard_paths" in result.output
-
-    def test_clear_list(self, isolated_cli_environment, cli_runner):
-        """Test clearing a list configuration."""
-        # First add some values and save them
-        result = cli_runner.invoke(
-            app,
-            [
-                "config",
-                "edit",
-                "--add",
-                "keyboard_paths=/test/clear/path1",
-                "--add",
-                "keyboard_paths=/test/clear/path2",
-                "--save",
-            ],
-        )
-        assert result.exit_code == 0
-
-        # Then clear the list
-        result = cli_runner.invoke(
-            app,
-            ["config", "edit", "--clear", "keyboard_paths", "--no-save"],
-        )
-        assert result.exit_code == 0
-        assert "Cleared all values from keyboard_paths" in result.output
-
-    def test_clear_regular_field(self, isolated_cli_environment, cli_runner):
-        """Test clearing a regular field to default."""
-        # First set a value to something non-default and save it
-        result = cli_runner.invoke(
-            app,
-            ["config", "edit", "--set", "log_level=ERROR", "--save"],
-        )
-        assert result.exit_code == 0
-
-        # Then clear it
-        result = cli_runner.invoke(
-            app,
-            ["config", "edit", "--clear", "log_level", "--no-save"],
-        )
-        assert result.exit_code == 0
-        assert "Cleared log_level" in result.output
+        assert "Appended to profiles_paths" in result.output
 
     def test_combined_operations(self, isolated_cli_environment, cli_runner):
         """Test multiple operations in one command."""
@@ -457,14 +401,14 @@ class TestConfigEdit:
                 "edit",
                 "--set",
                 "log_level=WARNING",
-                "--add",
-                "keyboard_paths=/test/combined/path",
+                "--append",
+                "profiles_paths=/test/combined/path",
                 "--no-save",
             ],
         )
         assert result.exit_code == 0
         assert "Set log_level = WARNING" in result.output
-        assert "Added '/test/combined/path' to keyboard_paths" in result.output
+        assert "Appended to profiles_paths" in result.output
 
     def test_invalid_key(self, isolated_cli_environment, cli_runner):
         """Test handling of invalid configuration key."""
@@ -504,204 +448,6 @@ class TestConfigEdit:
         assert "Configuration saved" in result.output
 
 
-class TestConfigRemove:
-    """Test config edit --remove command (now integrated into edit)."""
-
-    def test_remove_from_keyboard_paths(self, isolated_cli_environment, cli_runner):
-        """Test removing a path from keyboard_paths list."""
-        # First add some paths and save them
-        result = cli_runner.invoke(
-            app,
-            [
-                "config",
-                "edit",
-                "--add",
-                "keyboard_paths=/test/remove_test/path1",
-                "--add",
-                "keyboard_paths=/test/remove_test/path2",
-                "--save",
-            ],
-        )
-        assert result.exit_code == 0
-
-        # Remove one path
-        result = cli_runner.invoke(
-            app,
-            [
-                "config",
-                "edit",
-                "--remove",
-                "keyboard_paths=/test/remove_test/path1",
-                "--no-save",
-            ],
-        )
-        assert result.exit_code == 0
-        assert "Removed '/test/remove_test/path1' from keyboard_paths" in result.output
-
-    def test_remove_nonexistent_value(self, isolated_cli_environment, cli_runner):
-        """Test removing a value that doesn't exist."""
-        result = cli_runner.invoke(
-            app,
-            ["config", "edit", "--remove", "keyboard_paths=/nonexistent", "--no-save"],
-        )
-        assert result.exit_code == 0
-        assert "Value '/nonexistent' not found in keyboard_paths" in result.output
-
-    def test_remove_from_non_list_field(self, isolated_cli_environment, cli_runner):
-        """Test error when trying to remove from non-list field."""
-        result = cli_runner.invoke(
-            app,
-            ["config", "edit", "--remove", "log_level=DEBUG", "--no-save"],
-        )
-        assert result.exit_code == 0
-        assert "Configuration key 'log_level' is not a list" in result.output
-
-    def test_remove_multiple_values(self, isolated_cli_environment, cli_runner):
-        """Test removing multiple values in one command."""
-        # First add some paths and save them
-        result = cli_runner.invoke(
-            app,
-            [
-                "config",
-                "edit",
-                "--add",
-                "keyboard_paths=/test/multi_remove/path1",
-                "--add",
-                "keyboard_paths=/test/multi_remove/path2",
-                "--add",
-                "keyboard_paths=/test/multi_remove/path3",
-                "--save",
-            ],
-        )
-        assert result.exit_code == 0
-
-        # Remove multiple paths
-        result = cli_runner.invoke(
-            app,
-            [
-                "config",
-                "edit",
-                "--remove",
-                "keyboard_paths=/test/multi_remove/path1",
-                "--remove",
-                "keyboard_paths=/test/multi_remove/path2",
-                "--no-save",
-            ],
-        )
-        assert result.exit_code == 0
-        assert "Removed '/test/multi_remove/path1' from keyboard_paths" in result.output
-        assert "Removed '/test/multi_remove/path2' from keyboard_paths" in result.output
-
-
-class TestConfigClear:
-    """Test config edit --clear command (now integrated into edit)."""
-
-    def test_clear_list_field(self, isolated_cli_environment, cli_runner):
-        """Test clearing a list configuration field."""
-        # First add some values
-        result = cli_runner.invoke(
-            app,
-            [
-                "config",
-                "edit",
-                "--add",
-                "keyboard_paths=/test/clear_field/path1",
-                "--add",
-                "keyboard_paths=/test/clear_field/path2",
-                "--no-save",
-            ],
-        )
-        assert result.exit_code == 0
-
-        # Clear the list
-        result = cli_runner.invoke(
-            app,
-            ["config", "edit", "--clear", "keyboard_paths", "--no-save"],
-        )
-        assert result.exit_code == 0
-        assert "Cleared all values from keyboard_paths" in result.output
-
-    def test_clear_already_empty_list(self, isolated_cli_environment, cli_runner):
-        """Test clearing an already empty list."""
-        # First clear any existing items
-        cli_runner.invoke(
-            app,
-            ["config", "edit", "--clear", "keyboard_paths", "--save"],
-        )
-
-        # Now clear again - should be empty
-        result = cli_runner.invoke(
-            app,
-            ["config", "edit", "--clear", "keyboard_paths", "--no-save"],
-        )
-        assert result.exit_code == 0
-        assert "List 'keyboard_paths' is already empty" in result.output
-
-    def test_clear_regular_field(self, isolated_cli_environment, cli_runner):
-        """Test clearing a regular field to default value."""
-        # First set a value
-        result = cli_runner.invoke(
-            app,
-            ["config", "edit", "--set", "log_level=DEBUG", "--no-save"],
-        )
-        assert result.exit_code == 0
-
-        # Clear it
-        result = cli_runner.invoke(
-            app,
-            ["config", "edit", "--clear", "log_level", "--no-save"],
-        )
-        assert result.exit_code == 0
-        assert "Cleared log_level" in result.output
-
-    def test_clear_multiple_fields(self, isolated_cli_environment, cli_runner):
-        """Test clearing multiple fields in one command."""
-        # First set some values and save them
-        result = cli_runner.invoke(
-            app,
-            [
-                "config",
-                "edit",
-                "--set",
-                "log_level=DEBUG",
-                "--add",
-                "keyboard_paths=/test/isolated_clear_multiple_fields/path",
-                "--save",
-            ],
-        )
-        assert result.exit_code == 0
-
-        # Clear both
-        result = cli_runner.invoke(
-            app,
-            [
-                "config",
-                "edit",
-                "--clear",
-                "log_level",
-                "--clear",
-                "keyboard_paths",
-                "--no-save",
-            ],
-        )
-        assert result.exit_code == 0
-        assert "Cleared log_level" in result.output
-        # Accept either message - depends on whether the list had items or was already empty
-        assert (
-            "Cleared all values from keyboard_paths" in result.output
-            or "List 'keyboard_paths' is already empty" in result.output
-        )
-
-    def test_clear_invalid_field(self, isolated_cli_environment, cli_runner):
-        """Test clearing an invalid configuration field."""
-        result = cli_runner.invoke(
-            app,
-            ["config", "edit", "--clear", "invalid_field", "--no-save"],
-        )
-        assert result.exit_code == 0
-        assert "Unknown configuration key: invalid_field" in result.output
-
-
 class TestConfigInteractive:
     """Test interactive configuration editing functionality."""
 
@@ -726,48 +472,6 @@ class TestConfigInteractive:
         result = cli_runner.invoke(
             app,
             ["config", "edit", "--interactive", "--set", "log_level=DEBUG"],
-        )
-        assert result.exit_code == 1
-        assert (
-            "Interactive mode (--interactive) cannot be combined with other operations"
-            in result.output
-        )
-
-    def test_interactive_mode_exclusive_with_clear(
-        self, isolated_cli_environment, cli_runner
-    ):
-        """Test that interactive mode cannot be combined with clear operations."""
-        result = cli_runner.invoke(
-            app,
-            ["config", "edit", "--interactive", "--clear", "log_level"],
-        )
-        assert result.exit_code == 1
-        assert (
-            "Interactive mode (--interactive) cannot be combined with other operations"
-            in result.output
-        )
-
-    def test_interactive_mode_exclusive_with_add(
-        self, isolated_cli_environment, cli_runner
-    ):
-        """Test that interactive mode cannot be combined with add operations."""
-        result = cli_runner.invoke(
-            app,
-            ["config", "edit", "--interactive", "--add", "keyboard_paths=/test"],
-        )
-        assert result.exit_code == 1
-        assert (
-            "Interactive mode (--interactive) cannot be combined with other operations"
-            in result.output
-        )
-
-    def test_interactive_mode_exclusive_with_remove(
-        self, isolated_cli_environment, cli_runner
-    ):
-        """Test that interactive mode cannot be combined with remove operations."""
-        result = cli_runner.invoke(
-            app,
-            ["config", "edit", "--interactive", "--remove", "keyboard_paths=/test"],
         )
         assert result.exit_code == 1
         assert (

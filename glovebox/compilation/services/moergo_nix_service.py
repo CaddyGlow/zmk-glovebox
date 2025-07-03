@@ -39,6 +39,7 @@ from glovebox.utils.stream_process import (
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
+    from glovebox.layout.models import LayoutData
     from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
 
 
@@ -448,20 +449,20 @@ class MoergoNixService(CompilationServiceProtocol):
 
     def compile_from_data(
         self,
-        layout_data: dict[str, Any],
+        layout_data: "LayoutData",
         output_dir: Path,
         config: CompilationConfigUnion,
         keyboard_profile: "KeyboardProfile",
         progress_callback: CompilationProgressCallback | None = None,
     ) -> BuildResult:
-        """Execute compilation from layout data dictionary (memory-first pattern).
+        """Execute compilation from layout data (memory-first pattern).
 
         This is the memory-first method that takes layout data as input
         and returns content in the result object, following the unified
         input/output patterns established in Phase 1/2 refactoring.
 
         Args:
-            layout_data: Layout data dictionary (validated as LayoutData)
+            layout_data: Layout data object for compilation
             output_dir: Output directory for build artifacts
             config: Compilation configuration
             keyboard_profile: Keyboard profile for dynamic generation
@@ -634,7 +635,9 @@ class MoergoNixService(CompilationServiceProtocol):
             middlewares: list[Any] = []
 
             # Create build log middleware
-            build_log_middleware = create_build_log_middleware(output_dir)
+            build_log_middleware = create_build_log_middleware(
+                output_dir, progress_context
+            )
             middlewares.append(build_log_middleware)
 
             # Add board-specific progress tracking middleware
@@ -745,11 +748,12 @@ class MoergoNixService(CompilationServiceProtocol):
             try:
                 return_code, _, stderr = self.docker_adapter.run_container(
                     image=config.image,
-                    command=["build.sh"],  # Use the build script, not direct nix-build
                     volumes=[workspace_path.vol()],
                     environment=environment,
-                    user_context=user_context,
+                    progress_context=progress_context,
+                    command=["build.sh"],  # Use the build script, not direct nix-build
                     middleware=create_chained_middleware(middlewares),
+                    user_context=user_context,
                 )
             finally:
                 # Always close the build log middleware
@@ -960,6 +964,7 @@ class MoergoNixService(CompilationServiceProtocol):
             result: tuple[int, list[str], list[str]] = self.docker_adapter.build_image(
                 dockerfile_dir=dockerfile_dir,
                 image_name=versioned_image_name,
+                progress_context=progress_context,
                 image_tag=versioned_tag,
                 middleware=middleware,
             )

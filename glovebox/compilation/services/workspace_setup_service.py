@@ -57,7 +57,6 @@ class WorkspaceSetupService:
             [ZmkCompilationConfig], tuple[Path | None, bool, str | None]
         ],
         progress_callback: CompilationProgressCallback | None = None,
-        progress_coordinator: "ProgressCoordinatorProtocol | None" = None,
     ) -> tuple[Path | None, bool, str | None]:
         """Get cached workspace or create new one.
 
@@ -86,7 +85,6 @@ class WorkspaceSetupService:
                     config,
                     get_cached_workspace_func,
                     progress_callback,
-                    progress_coordinator,
                 )
         else:
             return self._get_or_create_workspace_internal(
@@ -95,7 +93,6 @@ class WorkspaceSetupService:
                 config,
                 get_cached_workspace_func,
                 progress_callback,
-                progress_coordinator,
             )
 
     def _get_or_create_workspace_internal(
@@ -107,7 +104,6 @@ class WorkspaceSetupService:
             [ZmkCompilationConfig], tuple[Path | None, bool, str | None]
         ],
         progress_callback: CompilationProgressCallback | None = None,
-        progress_coordinator: Any = None,
     ) -> tuple[Path | None, bool, str | None]:
         """Internal method for workspace creation."""
         # Track cache operations with SessionMetrics
@@ -150,7 +146,6 @@ class WorkspaceSetupService:
                             cached_workspace,
                             workspace_path,
                             progress_callback,
-                            progress_coordinator,
                         )
                         self.setup_workspace(
                             keymap_file, config_file, config, workspace_path
@@ -162,7 +157,6 @@ class WorkspaceSetupService:
                         cached_workspace,
                         workspace_path,
                         progress_callback,
-                        progress_coordinator,
                     )
                     self.setup_workspace(
                         keymap_file, config_file, config, workspace_path
@@ -170,36 +164,12 @@ class WorkspaceSetupService:
 
                 self.logger.info("Successfully restored workspace from cache")
 
-                # Mark cache restoration as successful in progress coordinator
-                if progress_coordinator and hasattr(
-                    progress_coordinator, "update_cache_progress"
-                ):
-                    # TODO: Enable after refactoring
-                    # progress_coordinator.update_cache_progress(
-                    #     "completed", 100, 100, "Cache restoration completed", "success"
-                    # )
-                    pass
-
                 return workspace_path, True, cache_type
             except Exception as e:
                 exc_info = self.logger.isEnabledFor(logging.DEBUG)
                 self.logger.error(
                     "Failed to use cached workspace: %s", e, exc_info=exc_info
                 )
-
-                # Mark cache restoration as failed in progress coordinator
-                if progress_coordinator and hasattr(
-                    progress_coordinator, "update_cache_progress"
-                ):
-                    # TODO: Enable after refactoring
-                    # progress_coordinator.update_cache_progress(
-                    #     "failed",
-                    #     0,
-                    #     100,
-                    #     f"Cache restoration failed: {str(e)[:50]}",
-                    #     "failed",
-                    # )
-                    pass
 
                 shutil.rmtree(workspace_path, ignore_errors=True)
                 if cache_operations:
@@ -223,33 +193,9 @@ class WorkspaceSetupService:
         cached_workspace: Path,
         workspace_path: Path,
         progress_callback: CompilationProgressCallback | None = None,
-        progress_coordinator: Any = None,
     ) -> None:
         """Restore workspace from cached directory with enhanced progress tracking."""
         import time
-
-        # Phase 1: Analyze cached workspace structure
-        if progress_coordinator and hasattr(
-            progress_coordinator, "set_enhanced_task_status"
-        ):
-            # TODO: Enable after refactoring
-            # progress_coordinator.set_enhanced_task_status(
-            #     "cache_analysis", "active", "Analyzing cached workspace"
-            # )
-            pass
-
-        if progress_coordinator and hasattr(
-            progress_coordinator, "update_folder_scan_progress"
-        ):
-            # TODO: Enable after refactoring
-            # progress_coordinator.update_folder_scan_progress(
-            #     operation="cache analysis",
-            #     directories_scanned=0,
-            #     total_directories=4,  # Expected: zmk, zephyr, modules, .west
-            #     files_found=0,
-            #     current_directory=str(cached_workspace),
-            # )
-            pass
 
         # Detect workspace components and calculate sizes
         expected_components = ["zmk", "zephyr", "modules", ".west"]
@@ -259,18 +205,6 @@ class WorkspaceSetupService:
 
         for _idx, component in enumerate(expected_components):
             component_path = cached_workspace / component
-            if progress_coordinator and hasattr(
-                progress_coordinator, "update_folder_scan_progress"
-            ):
-                # TODO: Enable after refactoring
-                # progress_coordinator.update_folder_scan_progress(
-                #     operation="cache analysis",
-                #     directories_scanned=idx + 1,
-                #     total_directories=len(expected_components),
-                #     files_found=total_files_to_copy,
-                #     current_directory=str(component_path),
-                # )
-                pass
 
             if component_path.exists():
                 detected_components.append(component)
@@ -290,14 +224,6 @@ class WorkspaceSetupService:
                     # Fallback estimates
                     total_files_to_copy += 200  # Rough estimate per component
                     total_bytes_to_copy += 50 * 1024 * 1024  # 50MB estimate
-
-        # Mark cache analysis as completed
-        if progress_coordinator and hasattr(
-            progress_coordinator, "set_enhanced_task_status"
-        ):
-            # TODO: Enable after refactoring
-            # progress_coordinator.set_enhanced_task_status("cache_analysis", "completed")
-            pass
 
         # Phase 2: Enhanced cache restoration with component-level progress
         files_copied = 0
@@ -336,39 +262,6 @@ class WorkspaceSetupService:
                     remaining_bytes = total_bytes_to_copy - bytes_copied
                     eta_seconds = remaining_bytes / (transfer_speed_mb_s * 1024 * 1024)
 
-            # Use enhanced cache restoration progress if available
-            if progress_coordinator and hasattr(
-                progress_coordinator, "update_cache_restoration_progress"
-            ):
-                # TODO: Enable after refactoring
-                # progress_coordinator.update_cache_restoration_progress(
-                #     operation="restoring",
-                #     component=current_component,
-                #     files_copied=files_copied,
-                #     total_files=total_files_to_copy,
-                #     bytes_copied=bytes_copied,
-                #     total_bytes=total_bytes_to_copy,
-                #     current_file=current_file,
-                #     transfer_speed_mb_s=transfer_speed_mb_s,
-                #     eta_seconds=eta_seconds,
-                # )
-                pass
-            elif progress_coordinator and hasattr(
-                progress_coordinator, "update_cache_progress"
-            ):
-                # Fallback to basic cache progress
-                # TODO: Enable after refactoring
-                # progress_coordinator.update_cache_progress(
-                #     operation="restoring",
-                #     current=bytes_copied,
-                #     total=total_bytes_to_copy,
-                #     description=f"{current_component}: {current_file}"
-                #     if current_component
-                #     else current_file,
-                #     status="in_progress",
-                # )
-                pass
-
             # Also call original callback if provided - but need to handle type properly
             if progress_callback:
                 # Convert copy_progress to compilation progress for callback compatibility
@@ -395,30 +288,10 @@ class WorkspaceSetupService:
             dst=workspace_path,
             exclude_git=False,
             use_pipeline=True,
-            progress_callback=enhanced_copy_progress_wrapper
-            if progress_coordinator
-            else None,
+            progress_callback=enhanced_copy_progress_wrapper,
         )
         if not result.success:
             raise RuntimeError(f"Copy operation failed: {result.error}")
-
-        # Phase 3: Workspace validation
-        if progress_coordinator and hasattr(
-            progress_coordinator, "update_cache_restoration_progress"
-        ):
-            # TODO: Enable after refactoring
-            # progress_coordinator.update_cache_restoration_progress(
-            #     operation="validating",
-            #     component="",
-            #     files_copied=total_files_to_copy,
-            #     total_files=total_files_to_copy,
-            #     bytes_copied=total_bytes_to_copy,
-            #     total_bytes=total_bytes_to_copy,
-            #     current_file="workspace structure",
-            #     transfer_speed_mb_s=0.0,
-            #     eta_seconds=0.0,
-            # )
-            pass
 
         self.logger.info(
             "Cache restoration completed using strategy '%s': %.1f MB in %.2f seconds (%.1f MB/s)",

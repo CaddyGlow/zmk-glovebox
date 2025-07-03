@@ -132,39 +132,36 @@ class ProgressDisplay:
         )
         footer = self._create_footer()
 
-        # Check if we should show recent logs
-        show_logs = (
-            self.config.show_status_line
-            and "log_lines" in self.state.status_info
-            and self.state.status_info["log_lines"]
+        # Check if we should show detailed status
+        show_details = (
+            self.state.current_checkpoint
+            and self.state.current_checkpoint in self.state.checkpoints
+            and self.state.checkpoints[self.state.current_checkpoint].status == "active"
         )
 
-        # if show_logs:
-        #     logs_panel = self._create_recent_logs_panel()
-        #     return Group(
-        #         header,
-        #         "",  # Empty line
-        #         task_table,
-        #         "",  # Empty line
-        #         logs_panel,
-        #         "",  # Empty line
-        #         footer,
-        #     )
-        # else:
-        #     return Group(
-        #         header,
-        #         "",  # Empty line
-        #         task_table,
-        #         "",  # Empty line
-        #         footer,
-        #     )
-        return Group(
+        components = [
             header,
             "",  # Empty line
             task_table,
-            "",  # Empty line
-            footer,
+        ]
+
+        if show_details:
+            details_panel = self._create_active_task_details()
+            components.extend(
+                [
+                    "",  # Empty line
+                    details_panel,
+                ]
+            )
+
+        components.extend(
+            [
+                "",  # Empty line
+                footer,
+            ]
         )
+
+        return Group(*components)
 
     def _create_header(self) -> Panel:
         """Create header panel with operation statistics."""
@@ -274,6 +271,58 @@ class ProgressDisplay:
 
         return Panel(footer_content, style=Colors.SUCCESS)
 
+    def _create_active_task_details(self) -> Panel:
+        """Create detailed status panel for the currently active task."""
+        if not self.state.current_checkpoint:
+            return Panel(Text("No active task", style="dim"), title="Task Details")
+
+        details_table = Table.grid(padding=(0, 2))
+        details_table.add_column("Label", style="cyan", width=12)
+        details_table.add_column("Value", style="white")
+
+        # Current file being processed
+        if "current_file" in self.state.status_info:
+            current_file = str(self.state.status_info["current_file"])
+            details_table.add_row("File:", current_file)
+
+        # Processing speed
+        if "speed" in self.state.status_info:
+            speed = self.state.status_info["speed"]
+            details_table.add_row("Speed:", f"{speed} files/sec")
+
+        # Files processed vs total
+        if "files_copied" in self.state.status_info:
+            files_copied = self.state.status_info["files_copied"]
+            details_table.add_row("Processed:", f"{files_copied} files")
+
+        # Remaining files
+        if "files_remaining" in self.state.status_info:
+            files_remaining = self.state.status_info["files_remaining"]
+            details_table.add_row("Remaining:", f"{files_remaining} files")
+
+        # Component info
+        if "component" in self.state.status_info:
+            component = self.state.status_info["component"]
+            details_table.add_row("Component:", component)
+
+        # Docker status
+        if "docker_status" in self.state.status_info:
+            docker_status = self.state.status_info["docker_status"]
+            details_table.add_row("Docker:", docker_status)
+
+        # Time elapsed for current task
+        checkpoint = self.state.checkpoints[self.state.current_checkpoint]
+        if checkpoint.start_time:
+            elapsed = time.time() - checkpoint.start_time
+            details_table.add_row("Elapsed:", f"{elapsed:.1f}s")
+
+        return Panel(
+            details_table,
+            title=f"{self.state.current_checkpoint} Details",
+            border_style=Colors.INFO,
+            style="dim",
+        )
+
     def _create_recent_logs_panel(self) -> Panel:
         """Create panel showing recent log entries."""
         if "log_lines" not in self.state.status_info:
@@ -376,39 +425,20 @@ class ProgressDisplay:
         return completion_text, completion_style
 
     def _get_checkpoint_details(self, checkpoint_name: str) -> str:
-        """Get details text for checkpoint."""
+        """Get brief details text for checkpoint in table."""
         details_list = []
+        checkpoint = self.state.checkpoints[checkpoint_name]
 
-        # Show current file if this is the active checkpoint
-        if (
-            checkpoint_name == self.state.current_checkpoint
-            and "current_file" in self.state.status_info
-        ):
-            file_name = str(self.state.status_info["current_file"])
-            if "/" in file_name:
-                file_name = file_name.split("/")[-1]  # Just filename
-            if len(file_name) > 15:
-                file_name = file_name[:12] + "..."
-            details_list.append(file_name)
-
-        # Show files copied/remaining
-        if "files_copied" in self.state.status_info:
-            details_list.append(f"Files: {self.state.status_info['files_copied']}")
-        elif "files_remaining" in self.state.status_info:
-            details_list.append(
-                f"Remaining: {self.state.status_info['files_remaining']}"
-            )
-
-        # Show component info
-        if "component" in self.state.status_info:
-            details_list.append(f"Component: {self.state.status_info['component']}")
-
-        # Show docker status
-        if "docker_status" in self.state.status_info:
-            details_list.append(f"Docker: {self.state.status_info['docker_status']}")
+        # For active checkpoint, show brief progress info
+        if checkpoint_name == self.state.current_checkpoint:
+            if "files_remaining" in self.state.status_info:
+                remaining = self.state.status_info["files_remaining"]
+                details_list.append(f"Remaining: {remaining}")
+            elif "files_copied" in self.state.status_info:
+                copied = self.state.status_info["files_copied"]
+                details_list.append(f"Processed: {copied}")
 
         # Show duration for completed checkpoints
-        checkpoint = self.state.checkpoints[checkpoint_name]
         if checkpoint.duration is not None:
             details_list.append(f"({checkpoint.duration:.1f}s)")
 

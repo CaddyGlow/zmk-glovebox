@@ -510,13 +510,21 @@ class WorkspaceCreationService:
 
             self.logger.debug("Running %s in Docker", operation_name)
 
+            # Create noop progress context for docker adapter
+            from glovebox.cli.components.noop_progress_context import (
+                get_noop_progress_context,
+            )
+
+            noop_progress_context = get_noop_progress_context()
+
             result = self.docker_adapter.run_container(
                 image=docker_image,
-                command=["sh", "-c", "set -xeu; " + " && ".join(commands)],
                 volumes=[(str(workspace_path), "/workspace")],
                 environment={},
-                user_context=user_context,
+                progress_context=noop_progress_context,
+                command=["sh", "-c", "set -xeu; " + " && ".join(commands)],
                 middleware=chained,
+                user_context=user_context,
             )
 
             return_code, stdout, stderr = result

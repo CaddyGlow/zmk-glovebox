@@ -168,7 +168,7 @@ class ZmkWorkspaceCacheService:
                 repository=repository,
                 branch=branch,
                 cache_level=CacheLevel.REPO_BRANCH,
-                include_git=False,
+                include_git=True,
                 progress_callback=progress_callback,
                 progress_coordinator=progress_coordinator,
                 progress_context=progress_context,

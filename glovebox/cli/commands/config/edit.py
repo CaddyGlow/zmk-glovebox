@@ -6,7 +6,7 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 
@@ -27,8 +27,9 @@ from glovebox.config.models.firmware import (
     FirmwareDockerConfig,
     FirmwareFlashConfig,
 )
-from glovebox.config.models.user import UserConfigData
 
+if TYPE_CHECKING:
+    from glovebox.config.user_config import UserConfig
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ logger = logging.getLogger(__name__)
 class ConfigEditor:
     """Atomic configuration editor that performs all operations in memory."""
 
-    def __init__(self, user_config: Any):
+    def __init__(self, user_config: "UserConfig"):
         """Initialize editor with user configuration.
 
         Args:
@@ -49,6 +50,8 @@ class ConfigEditor:
     def get_field(self, field_path: str) -> Any:
         """Get field value.
 
+        TODO: Handle errors better
+
         Args:
             field_path: Dot notation path to field
 
@@ -59,7 +62,8 @@ class ConfigEditor:
             ValueError: If field not found
         """
         try:
-            return self.user_config.get(field_path)
+            if not self.user_config.get(field_path):
+                raise ValueError(f"Cannot get field '{field_path}': {e}") from e
         except Exception as e:
             raise ValueError(f"Cannot get field '{field_path}': {e}") from e
 

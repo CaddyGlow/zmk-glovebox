@@ -4,9 +4,13 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from threading import Lock
-from typing import Any, TextIO
+from typing import TYPE_CHECKING, Any, TextIO
 
 from glovebox.utils.stream_process import OutputMiddleware
+
+
+if TYPE_CHECKING:
+    from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
 
 
 logger = logging.getLogger(__name__)
@@ -30,6 +34,7 @@ class BuildLogCaptureMiddleware(OutputMiddleware[str]):
     def __init__(
         self,
         log_file_path: Path,
+        progress_context: "ProgressContextProtocol",
         include_timestamps: bool = True,
         include_stream_type: bool = True,
     ) -> None:
@@ -39,12 +44,15 @@ class BuildLogCaptureMiddleware(OutputMiddleware[str]):
             log_file_path: Path where the build log should be saved
             include_timestamps: Whether to include timestamps in log entries
             include_stream_type: Whether to indicate stream type (stdout/stderr)
+            progress_context: Progress context for file writing progress updates
         """
         self.log_file_path = log_file_path
         self.include_timestamps = include_timestamps
         self.include_stream_type = include_stream_type
+        self.progress_context = progress_context
         self._file_handle: TextIO | None = None
         self._lock = Lock()
+        self._lines_written = 0
         self._initialize_log_file()
 
     def _initialize_log_file(self) -> None:
@@ -66,6 +74,14 @@ class BuildLogCaptureMiddleware(OutputMiddleware[str]):
 
             logger.debug("Initialized build log file: %s", self.log_file_path)
 
+            # Update progress context
+            self.progress_context.log(
+                f"Initialized build log: {self.log_file_path.name}"
+            )
+            self.progress_context.set_status_info(
+                {"current_file": str(self.log_file_path.name)}
+            )
+
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.error(
@@ -74,6 +90,7 @@ class BuildLogCaptureMiddleware(OutputMiddleware[str]):
                 e,
                 exc_info=exc_info,
             )
+            self.progress_context.log(f"ERROR: Failed to initialize build log: {e}")
             self._file_handle = None
 
     def process(self, line: str, stream_type: str) -> str:
@@ -110,9 +127,22 @@ class BuildLogCaptureMiddleware(OutputMiddleware[str]):
                 self._file_handle.write(log_entry)
                 self._file_handle.flush()  # Ensure immediate write for real-time monitoring
 
+                # Update line counter and progress
+                self._lines_written += 1
+
+                # Update progress context every 100 lines to avoid spam
+                if self._lines_written % 100 == 0:
+                    self.progress_context.set_status_info(
+                        {
+                            "current_file": str(self.log_file_path.name),
+                            "files_copied": f"{self._lines_written} lines",
+                        }
+                    )
+
         except Exception as e:
             # Don't let logging errors break the compilation process
             logger.warning("Failed to write to build log file: %s", e)
+            self.progress_context.log(f"WARNING: Failed to write to build log: {e}")
 
         # Return original line for chaining
         return line
@@ -128,8 +158,21 @@ class BuildLogCaptureMiddleware(OutputMiddleware[str]):
                     self._file_handle.close()
                     self._file_handle = None
                     logger.debug("Closed build log file: %s", self.log_file_path)
+
+                    # Update progress context
+                    self.progress_context.log(
+                        f"Completed build log: {self._lines_written} lines written"
+                    )
+                    self.progress_context.set_status_info(
+                        {
+                            "current_file": str(self.log_file_path.name),
+                            "files_copied": f"{self._lines_written} lines total",
+                        }
+                    )
+
         except Exception as e:
             logger.warning("Error closing build log file: %s", e)
+            self.progress_context.log(f"WARNING: Error closing build log: {e}")
 
     def __enter__(self) -> "BuildLogCaptureMiddleware":
         """Context manager entry."""
@@ -147,6 +190,7 @@ class BuildLogCaptureMiddleware(OutputMiddleware[str]):
 
 def create_build_log_middleware(
     artifacts_dir: Path,
+    progress_context: "ProgressContextProtocol",
     log_filename: str = "build.log",
     include_timestamps: bool = True,
     include_stream_type: bool = True,
@@ -158,6 +202,7 @@ def create_build_log_middleware(
         log_filename: Name of the log file (default: "build.log")
         include_timestamps: Whether to include timestamps in log entries
         include_stream_type: Whether to indicate stream type (stdout/stderr)
+        progress_context: Progress context for file writing progress updates
 
     Returns:
         BuildLogCaptureMiddleware instance
@@ -184,6 +229,7 @@ def create_build_log_middleware(
     log_file_path = artifacts_dir / log_filename
     return BuildLogCaptureMiddleware(
         log_file_path=log_file_path,
+        progress_context=progress_context,
         include_timestamps=include_timestamps,
         include_stream_type=include_stream_type,
     )

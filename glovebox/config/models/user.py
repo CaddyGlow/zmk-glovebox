@@ -287,7 +287,14 @@ class UserConfigData(BaseSettings):
     @field_serializer("icon_mode", when_used="json")
     def serialize_icon_mode(self, value: "IconMode") -> str:
         """Serialize IconMode enum to string for config file storage."""
-        return value.value
+        if isinstance(value, IconMode):
+            return value.value
+        elif isinstance(value, str):
+            # Already a string, return as-is (after validation it should be valid)
+            return value
+        else:
+            # Fallback - convert to string
+            return str(value)
 
     @field_serializer("cache_path", when_used="json")
     def serialize_cache_path(self, value: Path) -> str:

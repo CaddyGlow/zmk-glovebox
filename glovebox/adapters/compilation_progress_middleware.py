@@ -14,6 +14,7 @@ from glovebox.utils.stream_process import OutputMiddleware
 
 if TYPE_CHECKING:
     from glovebox.compilation.models.compilation_config import ProgressPhasePatterns
+    from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
     from glovebox.protocols.progress_coordinator_protocol import (
         ProgressCoordinatorProtocol,
     )
@@ -37,6 +38,7 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
     def __init__(
         self,
         progress_coordinator: "ProgressCoordinatorProtocol",
+        progress_context: "ProgressContextProtocol",
         progress_patterns: "ProgressPhasePatterns | None" = None,
         skip_west_update: bool = False,  # Set to True if compilation starts directly with building
     ) -> None:
@@ -46,8 +48,10 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
             progress_coordinator: Progress coordinator to delegate updates to
             progress_patterns: Regex patterns for phase detection (defaults to standard patterns)
             skip_west_update: Whether to skip west update phase and start with building
+            progress_context: Progress context for UI updates
         """
         self.progress_coordinator = progress_coordinator
+        self.progress_context = progress_context
         self.skip_west_update = skip_west_update
 
         # Initialize coordinator to correct phase
@@ -110,177 +114,142 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
             return line
 
         try:
-            # Enhanced initialization detection for cache vs west init
-            # TODO: Enable after refactoring - making no-op
-            # if self.progress_coordinator.current_phase == "initialization":
-            #     init_type = self._detect_initialization_type(line_stripped)
-            #     package_count = self._extract_package_count(line_stripped)
-            #
-            #     if init_type == "cache_restore":
-            #         self.progress_coordinator.transition_to_phase(
-            #             "cache_restoration", "Restoring cached workspace"
-            #         )
-            #         self.progress_coordinator.update_cache_progress(
-            #             "restoring", 25, 100, "Loading cached workspace"
-            #         )
-            #     elif init_type == "west_init":
-            #         # Show warning about long duration for west init
-            #         if package_count:
-            #             desc = f"Downloading dependencies ({package_count} packages - this may take 15+ minutes)"
-            #         else:
-            #             desc = "Downloading dependencies (west update - this may take 15+ minutes)"
-            #
-            #         self.progress_coordinator.transition_to_phase("west_update", desc)
-            #         if package_count:
-            #             # Update total repositories count with actual package count
-            #             self.progress_coordinator.total_repositories = package_count
-            #             # Reset download counter for the new session
-            #             self.progress_coordinator.repositories_downloaded = 0
-            pass
+            # Initialization detection for cache vs west init
+            init_type = self._detect_initialization_type(line_stripped)
+            package_count = self._extract_package_count(line_stripped)
+
+            if init_type == "cache_restore":
+                self.progress_context.log("Restoring cached workspace")
+                self.progress_context.set_status_info(
+                    {"docker_status": "cache_restore"}
+                )
+            elif init_type == "west_init":
+                if package_count:
+                    msg = f"Downloading dependencies ({package_count} packages)"
+                    self.progress_context.set_status_info(
+                        {"docker_status": "west_init", "total_packages": package_count}
+                    )
+                else:
+                    msg = "Downloading dependencies (west update)"
+                    self.progress_context.set_status_info(
+                        {"docker_status": "west_init"}
+                    )
+
+                self.progress_context.log(msg)
 
             # Check for build start patterns to detect phase transitions
             build_match = self.build_start_pattern.search(line_stripped)
             build_progress_match = self.build_progress_pattern.search(line_stripped)
 
-            # If we detect build activity and not already in building phase, transition to building
-            # TODO: Enable after refactoring - making no-op
-            # if (
-            #     build_match or build_progress_match
-            # ) and self.progress_coordinator.current_phase != "building":
-            #     logger.info(
-            #         "Detected build activity, transitioning from %s to building phase",
-            #         self.progress_coordinator.current_phase,
-            #     )
-            #     # Reset board completion counter for the new build session
-            #     self.progress_coordinator.boards_completed = 0
-            #     self.progress_coordinator.transition_to_phase(
-            #         "building", "Starting compilation"
-            #     )
-            pass
+            # If we detect build activity, update progress context
+            if build_match or build_progress_match:
+                self.progress_context.log("Starting compilation")
+                self.progress_context.set_status_info({"docker_status": "building"})
 
             # Parse repository downloads during west update
-            # TODO: Enable after refactoring - making no-op
-            # if self.progress_coordinator.current_phase == "west_update":
-            #     # Check for repository start
-            #     repo_match = self.repo_download_pattern.match(line_stripped)
-            #     if repo_match:
-            #         repository_name = repo_match.group(1)
-            #         self._current_repository = repository_name
-            #         self.progress_coordinator.update_repository_progress(
-            #             repository_name
-            #         )
-            #
-            #     # Enhanced git clone progress tracking
-            #     if hasattr(self.progress_coordinator, "update_git_clone_progress"):
-            #         # Parse "Receiving objects" progress
-            #         objects_match = self.git_objects_pattern.search(line_stripped)
-            #         if objects_match and self._current_repository:
-            #             try:
-            #                 # Extract progress data
-            #                 percent = int(objects_match.group(1))
-            #                 current_objects = int(objects_match.group(2))
-            #                 total_objects = int(objects_match.group(3))
-            #
-            #                 # Extract transfer speed if available
-            #                 transfer_speed_kb_s = 0.0
-            #                 if objects_match.group(4) and objects_match.group(5):
-            #                     speed_value = float(objects_match.group(4))
-            #                     speed_unit = objects_match.group(5)
-            #
-            #                     # Convert to KB/s
-            #                     if speed_unit == "GiB":
-            #                         transfer_speed_kb_s = speed_value * 1024 * 1024
-            #                     elif speed_unit == "MiB":
-            #                         transfer_speed_kb_s = speed_value * 1024
-            #                     else:  # KiB
-            #                         transfer_speed_kb_s = speed_value
-            #
-            #                 self.progress_coordinator.update_git_clone_progress(
-            #                     repository_name=self._current_repository,
-            #                     objects_received=current_objects,
-            #                     total_objects=total_objects,
-            #                     transfer_speed_kb_s=transfer_speed_kb_s,
-            #                 )
-            #             except (ValueError, IndexError) as e:
-            #                 logger.debug("Error parsing git objects progress: %s", e)
-            #
-            #         # Parse "Resolving deltas" progress
-            #         deltas_match = self.git_deltas_pattern.search(line_stripped)
-            #         if deltas_match and self._current_repository:
-            #             try:
-            #                 percent = int(deltas_match.group(1))
-            #                 current_deltas = int(deltas_match.group(2))
-            #                 total_deltas = int(deltas_match.group(3))
-            #
-            #                 self.progress_coordinator.update_git_clone_progress(
-            #                     repository_name=self._current_repository,
-            #                     deltas_resolved=current_deltas,
-            #                     total_deltas=total_deltas,
-            #                 )
-            #             except (ValueError, IndexError) as e:
-            #                 logger.debug("Error parsing git deltas progress: %s", e)
-            pass
+            repo_match = self.repo_download_pattern.match(line_stripped)
+            if repo_match:
+                repository_name = repo_match.group(1)
+                self._current_repository = repository_name
+                self.progress_context.log(f"Downloading {repository_name}")
+                self.progress_context.set_status_info({"current_file": repository_name})
+
+            # Enhanced git clone progress tracking
+            objects_match = self.git_objects_pattern.search(line_stripped)
+            if objects_match and self._current_repository:
+                try:
+                    percent = int(objects_match.group(1))
+                    current_objects = int(objects_match.group(2))
+                    total_objects = int(objects_match.group(3))
+
+                    # Extract transfer speed if available
+                    speed = 0.0
+                    if objects_match.group(4) and objects_match.group(5):
+                        speed_value = float(objects_match.group(4))
+                        speed_unit = objects_match.group(5)
+                        # Convert to MB/s for display
+                        if speed_unit == "GiB":
+                            speed = speed_value * 1024
+                        elif speed_unit == "MiB":
+                            speed = speed_value
+                        else:  # KiB
+                            speed = speed_value / 1024
+
+                    self.progress_context.update_progress(
+                        current_objects, total_objects
+                    )
+                    if speed > 0:
+                        self.progress_context.set_status_info(
+                            {
+                                "current_file": self._current_repository,
+                                "speed": f"{speed:.1f} MB/s",
+                            }
+                        )
+                except (ValueError, IndexError) as e:
+                    logger.debug("Error parsing git objects progress: %s", e)
+
+            # Parse "Resolving deltas" progress
+            deltas_match = self.git_deltas_pattern.search(line_stripped)
+            if deltas_match and self._current_repository:
+                try:
+                    percent = int(deltas_match.group(1))
+                    current_deltas = int(deltas_match.group(2))
+                    total_deltas = int(deltas_match.group(3))
+
+                    self.progress_context.update_progress(current_deltas, total_deltas)
+                    self.progress_context.set_status_info(
+                        {
+                            "current_file": self._current_repository,
+                            "component": "resolving deltas",
+                        }
+                    )
+                except (ValueError, IndexError) as e:
+                    logger.debug("Error parsing git deltas progress: %s", e)
 
             # Parse build progress during building phase
-            # TODO: Enable after refactoring - making no-op
-            # elif self.progress_coordinator.current_phase == "building":
-            #     # Detect board start
-            #     board_match = self.board_detection_pattern.search(line_stripped)
-            #     if board_match:
-            #         board_name = board_match.group(1)
-            #         self.progress_coordinator.update_board_progress(
-            #             board_name=board_name
-            #         )
-            #
-            #     # Check for build progress indicators [xx/xx] Building...
-            #     build_progress_match = self.build_progress_pattern.search(line_stripped)
-            #     if build_progress_match:
-            #         current_step = int(build_progress_match.group(1))
-            #         total_steps = int(build_progress_match.group(2))
-            #         self.progress_coordinator.update_board_progress(
-            #             current_step=current_step, total_steps=total_steps
-            #         )
-            #
-            #     # Check for individual board completion using multiple patterns
-            #     board_completion_indicators = [
-            #         self.board_complete_pattern.search(line_stripped),
-            #         # Additional patterns for different ZMK output formats
-            #         re.search(r"Memory region.*Used Size", line_stripped),
-            #         re.search(r"Generating zephyr/merged\.hex", line_stripped),
-            #         re.search(r"west build.*completed", line_stripped, re.IGNORECASE),
-            #         re.search(r"Build complete", line_stripped, re.IGNORECASE),
-            #     ]
-            #
-            #     if any(board_completion_indicators):
-            #         logger.debug("Board completion detected: %s", line_stripped)
-            #         self.progress_coordinator.update_board_progress(completed=True)
-            #
-            #     # Check for overall build completion with improved patterns
-            #     build_completion_indicators = [
-            #         self.build_complete_pattern.search(line_stripped),
-            #         # Additional completion patterns
-            #         re.search(r"Memory region\s+Used Size", line_stripped),
-            #         re.search(r"FLASH.*region.*overlaps", line_stripped),
-            #         re.search(
-            #             r"west build.*completed.*successfully",
-            #             line_stripped,
-            #             re.IGNORECASE,
-            #         ),
-            #     ]
-            #
-            #     # Only transition when all boards are actually done OR we detect overall completion
-            #     if any(build_completion_indicators) and (
-            #         self.progress_coordinator.boards_completed
-            #         >= self.progress_coordinator.total_boards
-            #         or re.search(
-            #             r"All builds completed|Compilation finished",
-            #             line_stripped,
-            #             re.IGNORECASE,
-            #         )
-            #     ):
-            #         logger.info("All builds completed - transitioning to completion")
-            #         self.progress_coordinator.complete_all_builds()
-            pass
+            # Detect board start
+            board_match = self.board_detection_pattern.search(line_stripped)
+            if board_match:
+                board_name = board_match.group(1)
+                self.progress_context.log(f"Building {board_name}")
+                self.progress_context.set_status_info({"component": board_name})
+
+            # Check for build progress indicators [xx/xx] Building...
+            if build_progress_match:
+                current_step = int(build_progress_match.group(1))
+                total_steps = int(build_progress_match.group(2))
+                self.progress_context.update_progress(current_step, total_steps)
+
+            # Check for individual board completion using multiple patterns
+            board_completion_indicators = [
+                self.board_complete_pattern.search(line_stripped),
+                # Additional patterns for different ZMK output formats
+                re.search(r"Memory region.*Used Size", line_stripped),
+                re.search(r"Generating zephyr/merged\.hex", line_stripped),
+                re.search(r"west build.*completed", line_stripped, re.IGNORECASE),
+                re.search(r"Build complete", line_stripped, re.IGNORECASE),
+            ]
+
+            if any(board_completion_indicators):
+                logger.debug("Board completion detected: %s", line_stripped)
+                self.progress_context.log("Board build completed")
+
+            # Check for overall build completion with improved patterns
+            build_completion_indicators = [
+                self.build_complete_pattern.search(line_stripped),
+                # Additional completion patterns
+                re.search(r"Memory region\s+Used Size", line_stripped),
+                re.search(r"FLASH.*region.*overlaps", line_stripped),
+                re.search(
+                    r"west build.*completed.*successfully",
+                    line_stripped,
+                    re.IGNORECASE,
+                ),
+            ]
+
+            if any(build_completion_indicators):
+                logger.info("All builds completed")
+                self.progress_context.log("Compilation completed successfully")
 
             # Cache saving phase is handled by the service layer, not Docker output
             # No need to track it in the middleware
@@ -291,18 +260,19 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
 
         # Forward interesting Docker output to the progress display
         # This captures build tool output (west, cmake, gcc) that doesn't go through glovebox loggers
-        # TODO: Enable after refactoring - making no-op
-        # try:
-        #     if hasattr(
-        #         self.progress_coordinator, "print_docker_log"
-        #     ) and self._should_forward_docker_output(line_stripped):
-        #         # Determine log level based on content
-        #         log_level = self._determine_log_level(line_stripped)
-        #         self.progress_coordinator.print_docker_log(line_stripped, log_level)
-        # except Exception as e:
-        #     # Don't let log forwarding break the compilation
-        #     logger.debug("Error forwarding Docker output to display: %s", e)
-        pass
+        try:
+            if self._should_forward_docker_output(line_stripped):
+                # Determine log level based on content
+                log_level = self._determine_log_level(line_stripped)
+                if log_level == "error":
+                    self.progress_context.log(f"ERROR: {line_stripped}")
+                elif log_level == "warning":
+                    self.progress_context.log(f"WARNING: {line_stripped}")
+                else:
+                    self.progress_context.log(line_stripped)
+        except Exception as e:
+            # Don't let log forwarding break the compilation
+            logger.debug("Error forwarding Docker output to display: %s", e)
 
         return line
 
@@ -487,6 +457,7 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
 
 def create_compilation_progress_middleware(
     progress_coordinator: "ProgressCoordinatorProtocol",
+    progress_context: "ProgressContextProtocol",
     progress_patterns: "ProgressPhasePatterns | None" = None,
     skip_west_update: bool = False,
 ) -> CompilationProgressMiddleware:
@@ -496,12 +467,14 @@ def create_compilation_progress_middleware(
         progress_coordinator: Progress coordinator to delegate updates to
         progress_patterns: Regex patterns for phase detection (defaults to standard patterns)
         skip_west_update: Whether to skip west update phase and start with building
+        progress_context: Progress context for UI updates
 
     Returns:
         Configured CompilationProgressMiddleware instance
     """
     return CompilationProgressMiddleware(
         progress_coordinator=progress_coordinator,
+        progress_context=progress_context,
         progress_patterns=progress_patterns,
         skip_west_update=skip_west_update,
     )

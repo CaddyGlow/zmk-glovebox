@@ -57,21 +57,42 @@ def with_profile(
             # Extract the profile from kwargs
             profile_option = kwargs.get(profile_param_name)
 
-            # Handle missing profile when required
-            if required and profile_option is None:
-                from glovebox.cli.helpers import print_error_message
-
-                print_error_message(
-                    "Profile is required. Use --profile KEYBOARD/FIRMWARE (e.g., --profile glove80/v25.05)"
-                )
-                raise typer.Exit(1)
-
             # Handle non-required profiles - but still try auto-detection if enabled
             if not required and profile_option is None and not support_auto_detection:
-                # For non-required profiles without auto-detection, store None in context and continue
-                if hasattr(ctx.obj, "__dict__"):
-                    ctx.obj.keyboard_profile = None
-                return func(*args, **kwargs)
+                # For non-required profiles without auto-detection, still try user config defaults
+                # Use the unified profile resolution logic to get user config defaults
+                try:
+                    from glovebox.cli.helpers.profile import (
+                        resolve_and_create_profile_unified,
+                    )
+
+                    # Apply default profile if provided
+                    effective_default_profile = default_profile
+                    if firmware_optional and default_profile and "/" in default_profile:
+                        # Extract just the keyboard part for firmware-optional profiles
+                        effective_default_profile = default_profile.split("/")[0]
+
+                    profile_obj = resolve_and_create_profile_unified(
+                        ctx=ctx,
+                        profile_option=profile_option,
+                        default_profile=effective_default_profile,
+                        json_file_path=None,
+                        no_auto=True,
+                    )
+
+                    # For firmware_optional, allow keyboard-only profiles
+                    if firmware_optional and profile_obj.firmware_version is None:
+                        # This is acceptable for firmware-optional commands
+                        pass
+
+                    # Profile is already stored in context by the unified function
+                    # Call the original function
+                    return func(*args, **kwargs)
+                except Exception:
+                    # If profile resolution fails and it's not required, continue with None
+                    if hasattr(ctx.obj, "__dict__"):
+                        ctx.obj.keyboard_profile = None
+                    return func(*args, **kwargs)
 
             try:
                 # Determine if we need to support auto-detection
@@ -167,6 +188,15 @@ def with_profile(
                 raise
             except Exception as e:
                 logger.error("Error with profile %s: %s", profile_option, e)
+
+                # If profile is required and we failed to resolve it, provide helpful error
+                if required:
+                    from glovebox.cli.helpers import print_error_message
+
+                    print_error_message(
+                        "Profile is required but could not be resolved. Use --profile KEYBOARD/FIRMWARE (e.g., --profile glove80/v25.05)"
+                    )
+
                 raise typer.Exit(1) from e
 
         return wrapper

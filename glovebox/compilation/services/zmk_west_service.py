@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
+    from glovebox.layout.models import LayoutData
     from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
     from glovebox.protocols.progress_coordinator_protocol import (
         ProgressCoordinatorProtocol,
@@ -132,9 +133,7 @@ class ZmkWestService(CompilationServiceProtocol):
         Args:
             progress_coordinator: Progress coordinator for tracking compilation phases
         """
-        # TODO: Enable after refactoring
-        # self._external_progress_coordinator = progress_coordinator
-        pass
+        self._external_progress_coordinator = progress_coordinator
 
     def compile(
         self,
@@ -511,21 +510,19 @@ class ZmkWestService(CompilationServiceProtocol):
             # Signal completion to progress coordinator
             if progress_coordinator:
                 # Ensure we're marked as completed even if middleware pattern matching failed
-                # TODO: Enable after refactoring
-                # if (
-                #     progress_coordinator.boards_completed
-                #     < progress_coordinator.total_boards
-                #     and progress_coordinator.total_boards > 0
-                # ):
-                #     self.logger.debug(
-                #         "Middleware pattern matching may have failed - forcing board completion count to match total"
-                #     )
-                #     progress_coordinator.boards_completed = (
-                #         progress_coordinator.total_boards
-                #     )
+                if (
+                    progress_coordinator.boards_completed
+                    < progress_coordinator.total_boards
+                    and progress_coordinator.total_boards > 0
+                ):
+                    self.logger.debug(
+                        "Middleware pattern matching may have failed - forcing board completion count to match total"
+                    )
+                    progress_coordinator.boards_completed = (
+                        progress_coordinator.total_boards
+                    )
 
-                # progress_coordinator.complete_all_builds()
-                pass
+                progress_coordinator.complete_all_builds()
 
             build_result = BuildResult(
                 success=True,
@@ -560,9 +557,7 @@ class ZmkWestService(CompilationServiceProtocol):
             self.logger.error("Compilation failed: %s", e, exc_info=exc_info)
             # Signal failure to progress coordinator
             if progress_coordinator:
-                # TODO: Enable after refactoring
-                # progress_coordinator.fail_all_tasks()
-                pass
+                progress_coordinator.fail_all_tasks()
             return BuildResult(success=False, errors=[str(e)])
 
     def compile_from_json(
@@ -581,22 +576,12 @@ class ZmkWestService(CompilationServiceProtocol):
         self.logger.info("Starting JSON to firmware compilation")
 
         try:
-            # Read and parse JSON file to get layout data
+            # Load layout data directly from JSON file
             from glovebox.adapters import create_file_adapter
-            from glovebox.layout.utils import process_json_file
+            from glovebox.layout.utils.json_operations import load_layout_file
 
             file_adapter = create_file_adapter()
-
-            def extract_layout_data(layout_data: Any) -> dict[str, Any]:
-                """Extract layout data for delegation to compile_from_data."""
-                return layout_data
-
-            layout_data = process_json_file(
-                json_file,
-                "JSON parsing for compilation",
-                extract_layout_data,
-                file_adapter,
-            )
+            layout_data = load_layout_file(json_file, file_adapter)
 
             # Delegate to memory-first method
             return self.compile_from_data(
@@ -614,20 +599,20 @@ class ZmkWestService(CompilationServiceProtocol):
 
     def compile_from_data(
         self,
-        layout_data: dict[str, Any],
+        layout_data: "LayoutData",
         output_dir: Path,
         config: CompilationConfigUnion,
         keyboard_profile: "KeyboardProfile",
         progress_callback: CompilationProgressCallback | None = None,
     ) -> BuildResult:
-        """Execute compilation from layout data dictionary (memory-first pattern).
+        """Execute compilation from layout data (memory-first pattern).
 
         This is the memory-first method that takes layout data as input
         and returns content in the result object, following the unified
         input/output patterns established in Phase 1/2 refactoring.
 
         Args:
-            layout_data: Layout data dictionary (validated as LayoutData)
+            layout_data: Layout data object for compilation
             output_dir: Output directory for build artifacts
             config: Compilation configuration
             keyboard_profile: Keyboard profile for dynamic generation
@@ -748,10 +733,10 @@ class ZmkWestService(CompilationServiceProtocol):
                 base_commands.append("west init -l config")
 
             # Only run west update if needed based on cache usage and type
-            if not cache_was_used:
-                base_commands.append("west update")
-            else:
-                self.logger.info("Skipping west update for cached workspace")
+            # if not cache_was_used:
+            base_commands.append("west update")
+            # else:
+            #     self.logger.info("Skipping west update for cached workspace")
 
             # Always run west zephyr-export to set up Zephyr environment variables
             base_commands.append("west zephyr-export")
@@ -774,7 +759,9 @@ class ZmkWestService(CompilationServiceProtocol):
             middlewares: list[OutputMiddleware[Any]] = []
 
             # Create build log middleware
-            build_log_middleware = create_build_log_middleware(output_dir)
+            build_log_middleware = create_build_log_middleware(
+                output_dir, progress_context
+            )
 
             # Add build log middleware first to capture all output
             middlewares.append(build_log_middleware)
@@ -786,7 +773,7 @@ class ZmkWestService(CompilationServiceProtocol):
                 class BoardProgressMiddleware(DefaultOutputMiddleware):
                     """Middleware to track individual board build progress."""
 
-                    def __init__(self):
+                    def __init__(self) -> None:
                         super().__init__()
                         self.current_board_index = 0
                         self.boards_completed = 0
@@ -795,6 +782,10 @@ class ZmkWestService(CompilationServiceProtocol):
                     def process_line(self, line: str, is_stderr: bool) -> None:
                         """Process Docker output line to track board progress."""
                         line_lower = line.lower()
+
+                        # progress_context is guaranteed to be non-None since this middleware
+                        # is only created when progress_context is not None
+                        assert progress_context is not None
 
                         # Detect when west init/update/status commands complete
                         if "west init" in line_lower and "completed" in line_lower:
@@ -875,11 +866,12 @@ class ZmkWestService(CompilationServiceProtocol):
                 result: tuple[int, list[str], list[str]] = (
                     self.docker_adapter.run_container(
                         image=config.image,
-                        command=["sh", "-c", "set -xeu; " + " && ".join(all_commands)],
                         volumes=[(str(workspace_path), "/workspace")],
                         environment={},  # {"JOBS": "4"},
-                        user_context=user_context,
+                        progress_context=progress_context,
+                        command=["sh", "-c", "set -xeu; " + " && ".join(all_commands)],
                         middleware=chained,
+                        user_context=user_context,
                     )
                 )
                 return_code, stdout, stderr = result
@@ -1125,9 +1117,15 @@ class ZmkWestService(CompilationServiceProtocol):
             self.logger.info("Docker image not found, pulling: %s", config.image)
 
             # Pull the image using the new pull_image method with middleware to show progress
+            from glovebox.cli.components.noop_progress_context import (
+                get_noop_progress_context,
+            )
+
             middleware = DefaultOutputMiddleware()
+            noop_progress_context = get_noop_progress_context()
             result: tuple[int, list[str], list[str]] = self.docker_adapter.pull_image(
                 image_name=image_name,
+                progress_context=noop_progress_context,
                 image_tag=image_tag,
                 middleware=middleware,
             )

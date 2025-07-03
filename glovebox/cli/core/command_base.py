@@ -259,6 +259,9 @@ class IOCommand(BaseCommand):
                 console.print_warning(f"Output file already exists: {resolved_path}")
                 if not typer.confirm("Overwrite existing file?"):
                     raise typer.Abort()
+        elif supports_stdout:
+            # Default to stdout when no destination specified and stdout is supported
+            is_stdout = True
 
         result = OutputResult(
             raw_value=destination,
