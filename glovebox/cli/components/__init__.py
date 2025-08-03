@@ -70,6 +70,74 @@ def create_progress_context(
     return ProgressContext(display)
 
 
+def create_compilation_progress_manager(
+    operation_name: str,
+    base_checkpoints: list[str],
+    final_checkpoints: list[str],
+    board_info: dict[str, Any],
+    progress_callback: Any | None = None,
+    use_moergo_fallback: bool = False,
+) -> ProgressManager:
+    """Create a progress manager for compilation operations with dynamic board checkpoints.
+
+    This factory function handles the common pattern used in compilation services
+    where progress tracking depends on board configuration and includes dynamic
+    checkpoints for individual board builds.
+
+    Args:
+        operation_name: Name of the compilation operation (e.g., "ZMK West Compilation")
+        base_checkpoints: Initial checkpoints before board builds
+        final_checkpoints: Final checkpoints after board builds
+        board_info: Board information dictionary with 'board_names' and 'total_boards'
+        progress_callback: Progress callback to determine if manager should be created
+        use_moergo_fallback: Use MoErgo-specific fallback naming for boards (Left/Right Hand)
+
+    Returns:
+        Context manager that provides progress tracking functionality
+    """
+    if progress_callback is None:
+        return get_noop_progress_context()
+
+    # Import required dependencies for progress setup
+    from glovebox.cli.helpers.theme import get_icon_mode_from_config
+    from glovebox.config import create_user_config
+
+    # Get user configuration for theming
+    user_config = create_user_config()
+    icon_mode = get_icon_mode_from_config(user_config)
+
+    # Build dynamic checkpoints
+    checkpoints = base_checkpoints.copy()
+
+    # Add individual board build checkpoints
+    if board_info.get("board_names"):
+        for board_name in board_info["board_names"]:
+            checkpoints.append(f"Building {board_name}")
+    else:
+        # Fallback for unknown boards
+        total_boards = board_info.get("total_boards", 2 if use_moergo_fallback else 1)
+        for i in range(total_boards):
+            if use_moergo_fallback:
+                if i == 0:
+                    checkpoints.append("Building Left Hand")
+                elif i == 1:
+                    checkpoints.append("Building Right Hand")
+                else:
+                    checkpoints.append(f"Building Board {i + 1}")
+            else:
+                checkpoints.append(f"Building Board {i + 1}")
+
+    # Add final checkpoints
+    checkpoints.extend(final_checkpoints)
+
+    # Create and return progress manager (context manager)
+    return create_progress_manager(
+        operation_name=operation_name,
+        checkpoints=checkpoints,
+        icon_mode=icon_mode,
+    )
+
+
 __all__ = [
     "ProgressConfig",
     "ProgressDisplay",
@@ -79,5 +147,6 @@ __all__ = [
     "create_progress_display",
     "create_progress_manager",
     "create_progress_context",
+    "create_compilation_progress_manager",
     "get_noop_progress_context",
 ]

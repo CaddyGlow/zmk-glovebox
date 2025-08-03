@@ -37,7 +37,6 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
 
     def __init__(
         self,
-        progress_coordinator: "ProgressCoordinatorProtocol",
         progress_context: "ProgressContextProtocol",
         progress_patterns: "ProgressPhasePatterns | None" = None,
         skip_west_update: bool = False,  # Set to True if compilation starts directly with building
@@ -50,17 +49,8 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
             skip_west_update: Whether to skip west update phase and start with building
             progress_context: Progress context for UI updates
         """
-        self.progress_coordinator = progress_coordinator
         self.progress_context = progress_context
         self.skip_west_update = skip_west_update
-
-        # Initialize coordinator to correct phase
-        # TODO: Enable after refactoring - making no-op
-        # if skip_west_update:
-        #     self.progress_coordinator.transition_to_phase(
-        #         "building", "Starting compilation"
-        #     )
-        pass
 
         # Use provided patterns or create default ones
         if progress_patterns is None:
@@ -444,19 +434,8 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
 
         return None
 
-    def get_current_progress(self) -> CompilationProgress:
-        """Get the current progress state from the coordinator.
-
-        Returns:
-            Current CompilationProgress object
-        """
-        # TODO: Enable after refactoring - making no-op, return empty progress
-        # return self.progress_coordinator.get_current_progress()
-        return CompilationProgress()
-
 
 def create_compilation_progress_middleware(
-    progress_coordinator: "ProgressCoordinatorProtocol",
     progress_context: "ProgressContextProtocol",
     progress_patterns: "ProgressPhasePatterns | None" = None,
     skip_west_update: bool = False,
@@ -473,7 +452,6 @@ def create_compilation_progress_middleware(
         Configured CompilationProgressMiddleware instance
     """
     return CompilationProgressMiddleware(
-        progress_coordinator=progress_coordinator,
         progress_context=progress_context,
         progress_patterns=progress_patterns,
         skip_west_update=skip_west_update,

@@ -15,6 +15,9 @@ if TYPE_CHECKING:
         ProgressCoordinatorProtocol,
     )
 
+from glovebox.adapters.compilation_progress_middleware import (
+    create_compilation_progress_middleware,
+)
 from glovebox.adapters.docker_adapter import LoggerOutputMiddleware
 from glovebox.compilation.cache.compilation_build_cache_service import (
     CompilationBuildCacheService,
@@ -94,6 +97,7 @@ class ZmkWestService(CompilationServiceProtocol):
         workspace_setup_service: WorkspaceSetupService | None = None,
         cache_service: ZmkCacheService | None = None,
         copy_service: FileCopyService | None = None,
+        default_progress_callback: "CompilationProgressCallback | None" = None,
     ) -> None:
         """Initialize with Docker adapter, user config, file adapter, cache services, and metrics."""
         self.docker_adapter = docker_adapter
@@ -105,6 +109,7 @@ class ZmkWestService(CompilationServiceProtocol):
         self.copy_service = copy_service or create_copy_service(
             use_pipeline=True, max_workers=3
         )
+        self.default_progress_callback = default_progress_callback
 
         # Progress coordinator for enhanced progress tracking
         self._external_progress_coordinator: ProgressCoordinatorProtocol | None = None
@@ -124,16 +129,6 @@ class ZmkWestService(CompilationServiceProtocol):
             cache_manager=cache_manager,
             session_metrics=session_metrics,
         )
-
-    def set_progress_coordinator(
-        self, progress_coordinator: "ProgressCoordinatorProtocol | None"
-    ) -> None:
-        """Set the external progress coordinator for enhanced progress tracking.
-
-        Args:
-            progress_coordinator: Progress coordinator for tracking compilation phases
-        """
-        self._external_progress_coordinator = progress_coordinator
 
     def compile(
         self,
@@ -207,57 +202,29 @@ class ZmkWestService(CompilationServiceProtocol):
 
             self.logger.info("%s@%s", config.repository, config.branch)
 
-            # Setup progress context
-            from glovebox.cli.components import create_progress_manager
-            from glovebox.cli.components.noop_progress_context import (
-                get_noop_progress_context,
-            )
-            from glovebox.cli.helpers.theme import get_icon_mode_from_config
-            from glovebox.config import create_user_config
+            # Setup progress context using compilation-specific factory
+            from glovebox.cli.components import create_compilation_progress_manager
 
-            if progress_callback is not None:
-                user_config = create_user_config()
-                icon_mode = get_icon_mode_from_config(user_config)
+            # Extract board information for progress tracking
+            board_info = self._extract_board_info_from_config(config)
 
-                # Create dynamic checkpoints based on board count
-                board_info = self._extract_board_info_from_config(config)
-                checkpoints = [
+            # Use provided progress_callback or fall back to default
+            effective_progress_callback = progress_callback or self.default_progress_callback
+
+            # Create progress manager with ZMK-specific checkpoints
+            progress_manager = create_compilation_progress_manager(
+                operation_name="ZMK West Compilation",
+                base_checkpoints=[
                     "Cache Check",
                     "Workspace Setup",
                     "Dependencies Update",
-                ]
+                ],
+                final_checkpoints=["Caching Results"],
+                board_info=board_info,
+                progress_callback=effective_progress_callback,
+            )
 
-                # Add individual board build checkpoints
-                if board_info.get("board_names"):
-                    for board_name in board_info["board_names"]:
-                        checkpoints.append(f"Building {board_name}")
-                else:
-                    # Fallback for unknown boards
-                    for i in range(board_info.get("total_boards", 1)):
-                        checkpoints.append(f"Building Board {i + 1}")
-
-                checkpoints.append("Caching Results")
-
-                progress_manager = create_progress_manager(
-                    operation_name="ZMK West Compilation",
-                    checkpoints=checkpoints,
-                    icon_mode=icon_mode,
-                )
-
-                with progress_manager as progress_context:
-                    return self._execute_zmk_compilation_with_progress(
-                        progress_context,
-                        keymap_file,
-                        config_file,
-                        output_dir,
-                        config,
-                        keyboard_profile,
-                        compilation_start_time,
-                        json_file,
-                    )
-            else:
-                # Use noop progress context when no progress callback
-                progress_context = get_noop_progress_context()
+            with progress_manager as progress_context:
                 return self._execute_zmk_compilation_with_progress(
                     progress_context,
                     keymap_file,
@@ -354,9 +321,6 @@ class ZmkWestService(CompilationServiceProtocol):
             progress_context.start_checkpoint("Workspace Setup")
             progress_context.log("Setting up ZMK workspace", "info")
 
-            # Use external progress coordinator for workspace setup compatibility
-            progress_coordinator = self._external_progress_coordinator
-
             # Try to use cached workspace
             workspace_path, cache_used, cache_type = (
                 self.workspace_setup_service.get_or_create_workspace(
@@ -364,8 +328,7 @@ class ZmkWestService(CompilationServiceProtocol):
                     config_file,
                     config,
                     self.cache_service.get_cached_workspace,
-                    None,  # progress_callback - let workspace service handle its own progress
-                    progress_coordinator,
+                    None,
                 )
             )
             if not workspace_path:
@@ -397,7 +360,6 @@ class ZmkWestService(CompilationServiceProtocol):
                         cache_used,
                         cache_type,
                         None,  # progress_callback - let compilation handle its own progress
-                        progress_coordinator,
                         board_info,
                         progress_context,
                     )
@@ -413,7 +375,6 @@ class ZmkWestService(CompilationServiceProtocol):
                     cache_used,
                     cache_type,
                     None,  # progress_callback - let compilation handle its own progress
-                    progress_coordinator,
                     board_info,
                     progress_context,
                 )
@@ -426,7 +387,8 @@ class ZmkWestService(CompilationServiceProtocol):
             if not cache_used:
                 progress_context.log("Caching workspace for future builds", "info")
                 self.cache_service.cache_workspace(
-                    workspace_path, config, progress_coordinator
+                    workspace_path,
+                    config,
                 )
             elif (
                 cache_type == "repo_only" and self.cache_service.workspace_cache_service
@@ -434,7 +396,8 @@ class ZmkWestService(CompilationServiceProtocol):
                 progress_context.log("Updating branch-specific cache", "info")
                 # Update progress coordinator for workspace cache saving
                 self.cache_service.cache_workspace_repo_branch_only(
-                    workspace_path, config, progress_coordinator
+                    workspace_path,
+                    config,
                 )
 
             # Always try to collect artifacts, even on build failure (for debugging)
@@ -462,7 +425,10 @@ class ZmkWestService(CompilationServiceProtocol):
             # Cache the successful build result
             progress_context.log("Caching build result for future use", "info")
             self.cache_service.cache_build_result(
-                keymap_file, config_file, config, workspace_path, progress_coordinator
+                keymap_file,
+                config_file,
+                config,
+                workspace_path,
             )
 
             progress_context.complete_checkpoint("Caching Results")
@@ -507,23 +473,6 @@ class ZmkWestService(CompilationServiceProtocol):
                 except Exception as e:
                     self.logger.warning("Failed to create build-info.json: %s", e)
 
-            # Signal completion to progress coordinator
-            if progress_coordinator:
-                # Ensure we're marked as completed even if middleware pattern matching failed
-                if (
-                    progress_coordinator.boards_completed
-                    < progress_coordinator.total_boards
-                    and progress_coordinator.total_boards > 0
-                ):
-                    self.logger.debug(
-                        "Middleware pattern matching may have failed - forcing board completion count to match total"
-                    )
-                    progress_coordinator.boards_completed = (
-                        progress_coordinator.total_boards
-                    )
-
-                progress_coordinator.complete_all_builds()
-
             build_result = BuildResult(
                 success=True,
                 output_files=output_files,
@@ -555,9 +504,6 @@ class ZmkWestService(CompilationServiceProtocol):
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.error("Compilation failed: %s", e, exc_info=exc_info)
-            # Signal failure to progress coordinator
-            if progress_coordinator:
-                progress_coordinator.fail_all_tasks()
             return BuildResult(success=False, errors=[str(e)])
 
     def compile_from_json(
@@ -694,7 +640,6 @@ class ZmkWestService(CompilationServiceProtocol):
         cache_was_used: bool = False,
         cache_type: str | None = None,
         progress_callback: CompilationProgressCallback | None = None,
-        progress_coordinator: Any = None,
         board_info: dict[str, Any] | None = None,
         progress_context: "ProgressContextProtocol | None" = None,
     ) -> bool:
@@ -847,12 +792,9 @@ class ZmkWestService(CompilationServiceProtocol):
 
                 middlewares.append(BoardProgressMiddleware())
 
-            if progress_coordinator:
-                from glovebox.adapters import create_compilation_progress_middleware
-
                 # Create middleware that delegates to existing coordinator
                 middleware = create_compilation_progress_middleware(
-                    progress_coordinator=progress_coordinator,
+                    progress_context=progress_context,
                     progress_patterns=config.progress_patterns,
                     skip_west_update=cache_was_used,  # Skip west update if cache was used
                 )
@@ -1157,6 +1099,7 @@ def create_zmk_west_service(
     session_metrics: MetricsProtocol,
     workspace_cache_service: ZmkWorkspaceCacheService | None = None,
     build_cache_service: CompilationBuildCacheService | None = None,
+    default_progress_callback: "CompilationProgressCallback | None" = None,
 ) -> ZmkWestService:
     """Create ZMK West service with dual cache management and metrics.
 
@@ -1168,6 +1111,7 @@ def create_zmk_west_service(
         workspace_cache_service: Optional workspace cache service
         build_cache_service: Optional build cache service
         session_metrics: Optional session metrics for tracking operations
+        default_progress_callback: Optional default progress callback for compilation tracking
 
     Returns:
         Configured ZmkWestService instance
@@ -1178,4 +1122,5 @@ def create_zmk_west_service(
         file_adapter=file_adapter,
         cache_manager=cache_manager,
         session_metrics=session_metrics,
+        default_progress_callback=default_progress_callback,
     )

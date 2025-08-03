@@ -51,11 +51,13 @@ class MoergoNixService(CompilationServiceProtocol):
         docker_adapter: DockerAdapterProtocol,
         file_adapter: FileAdapterProtocol,
         session_metrics: MetricsProtocol,
+        default_progress_callback: "CompilationProgressCallback | None" = None,
     ) -> None:
         """Initialize with Docker adapter, file adapter, and session metrics."""
         self.docker_adapter = docker_adapter
         self.file_adapter = file_adapter
         self.session_metrics = session_metrics
+        self.default_progress_callback = default_progress_callback
         self.logger = logging.getLogger(__name__)
 
     def compile(
@@ -194,68 +196,27 @@ class MoergoNixService(CompilationServiceProtocol):
             # Extract board information dynamically
             board_info = self._extract_board_info_from_config(config)
 
-            # Setup progress display using the new progress manager
-            from glovebox.cli.components import create_progress_manager
-            from glovebox.cli.components.noop_progress_context import (
-                get_noop_progress_context,
-            )
-            from glovebox.cli.helpers.theme import (
-                get_icon_mode_from_config,
-                get_themed_console,
-            )
-            from glovebox.config import create_user_config
+            # Setup progress context using compilation-specific factory
+            from glovebox.cli.components import create_compilation_progress_manager
 
-            # Get user config for icon mode
-            user_config = create_user_config()
-            icon_mode = get_icon_mode_from_config(user_config)
+            # Use provided progress_callback or fall back to default
+            effective_progress_callback = progress_callback or self.default_progress_callback
 
-            # Create progress manager with MoErgo-specific checkpoints or use noop context
-            if progress_callback is not None:
-                # Create dynamic checkpoints based on board count
-                checkpoints = [
+            # Create progress manager with MoErgo-specific checkpoints
+            progress_manager = create_compilation_progress_manager(
+                operation_name="MoErgo Compilation",
+                base_checkpoints=[
                     "Docker Verification",
                     "Workspace Setup",
                     "Nix Environment",
-                ]
+                ],
+                final_checkpoints=["Collecting Artifacts"],
+                board_info=board_info,
+                progress_callback=effective_progress_callback,
+                use_moergo_fallback=True,
+            )
 
-                # Add individual board build checkpoints (MoErgo typically builds left and right)
-                if board_info.get("board_names"):
-                    for board_name in board_info["board_names"]:
-                        checkpoints.append(f"Building {board_name}")
-                else:
-                    # Fallback for unknown boards
-                    for i in range(board_info.get("total_boards", 2)):
-                        if i == 0:
-                            checkpoints.append("Building Left Hand")
-                        elif i == 1:
-                            checkpoints.append("Building Right Hand")
-                        else:
-                            checkpoints.append(f"Building Board {i + 1}")
-
-                checkpoints.append("Collecting Artifacts")
-
-                progress_manager = create_progress_manager(
-                    operation_name="MoErgo Compilation",
-                    checkpoints=checkpoints,
-                    icon_mode=icon_mode,
-                )
-
-                with progress_manager as progress_context:
-                    return self._execute_compilation_with_progress(
-                        progress_context,
-                        board_info,
-                        config,
-                        keyboard_profile,
-                        keymap_file,
-                        config_file,
-                        keymap_content,
-                        config_content,
-                        output_dir,
-                        compilation_start_time,
-                    )
-            else:
-                # Use noop progress context when no progress callback
-                progress_context = get_noop_progress_context()
+            with progress_manager as progress_context:
                 return self._execute_compilation_with_progress(
                     progress_context,
                     board_info,
@@ -1054,6 +1015,7 @@ def create_moergo_nix_service(
     docker_adapter: DockerAdapterProtocol,
     file_adapter: FileAdapterProtocol,
     session_metrics: MetricsProtocol,
+    default_progress_callback: "CompilationProgressCallback | None" = None,
 ) -> MoergoNixService:
     """Create Moergo nix service with session metrics for progress tracking.
 
@@ -1061,8 +1023,9 @@ def create_moergo_nix_service(
         docker_adapter: Docker adapter for container operations
         file_adapter: File adapter for file operations
         session_metrics: Session metrics for tracking operations
+        default_progress_callback: Optional default progress callback for compilation tracking
 
     Returns:
         Configured MoergoNixService instance
     """
-    return MoergoNixService(docker_adapter, file_adapter, session_metrics)
+    return MoergoNixService(docker_adapter, file_adapter, session_metrics, default_progress_callback)

@@ -28,6 +28,7 @@ from glovebox.config.models.firmware import (
     FirmwareFlashConfig,
 )
 
+
 if TYPE_CHECKING:
     from glovebox.config.user_config import UserConfig
 
