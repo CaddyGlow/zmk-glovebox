@@ -29,6 +29,7 @@ dependencies = [
 
 [project.scripts]
 glovebox = "glovebox.cli:main"
+zmk-glovebox = "glovebox.cli:main"
 
 [build-system]
 # Using hatchling to used git tag for version 

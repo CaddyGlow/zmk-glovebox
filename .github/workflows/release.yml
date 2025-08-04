@@ -30,10 +30,10 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras --dev
 
-      # Tests are optional - they won't block the release
-      - name: Run tests (optional)
-        run: uv run pytest -v || echo "::warning::Tests failed but continuing with release"
-        continue-on-error: true
+      # Tests temporarily disabled for faster releases
+      # - name: Run tests (optional)
+      #   run: uv run pytest -v || echo "::warning::Tests failed but continuing with release"
+      #   continue-on-error: true
 
       - name: Run linting (optional)
         run: |

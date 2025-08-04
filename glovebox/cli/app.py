@@ -24,6 +24,7 @@ try:
 except ImportError:
     try:
         from importlib.metadata import distribution
+
         __version__ = distribution("glovebox").version
     except Exception:
         __version__ = "unknown"

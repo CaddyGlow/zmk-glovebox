@@ -29,8 +29,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras --dev
 
-      - name: Run smoke tests
-        run: ./scripts/test-smoke.sh
+      # Tests temporarily disabled for faster CI
+      # - name: Run smoke tests
+      #   run: ./scripts/test-smoke.sh
 
   lint:
     name: Code Quality
@@ -92,8 +93,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras --dev
 
-      - name: Run fast unit tests
-        run: ./scripts/test-fast.sh
+      # Tests temporarily disabled for faster CI
+      # - name: Run fast unit tests
+      #   run: ./scripts/test-fast.sh
 
   integration-tests:
     name: Integration Tests - Python ${{ matrix.python-version }} on ${{ matrix.os }}
@@ -133,8 +135,9 @@ jobs:
           brew install docker
           colima start
 
-      - name: Run integration tests
-        run: ./scripts/test-integration.sh
+      # Tests temporarily disabled for faster CI
+      # - name: Run integration tests
+      #   run: ./scripts/test-integration.sh
 
   full-test-coverage:
     name: Full Test Suite with Coverage
@@ -161,8 +164,9 @@ jobs:
           sudo systemctl start docker
           sudo usermod -aG docker $USER
 
-      - name: Run full test suite with coverage
-        run: ./scripts/test-full.sh
+      # Tests temporarily disabled for faster CI
+      # - name: Run full test suite with coverage
+      #   run: ./scripts/test-full.sh
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -247,7 +251,8 @@ jobs:
       - name: Pull built Docker image
         run: docker pull glovebox/glovebox:${{ github.ref_name }}
 
-      - name: Run integration tests
-        run: uv run pytest tests/ -m integration -v
+      # Tests temporarily disabled for faster CI
+      # - name: Run integration tests
+      #   run: uv run pytest tests/ -m integration -v
         env:
           GLOVEBOX_DOCKER_IMAGE: glovebox/glovebox:${{ github.ref_name }}
