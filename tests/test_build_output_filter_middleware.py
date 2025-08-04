@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from glovebox.utils.build_output_filter_middleware import (
-    BuildOutputFilterMiddleware,
     create_build_output_filter_middleware,
 )
 

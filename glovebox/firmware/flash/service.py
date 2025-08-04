@@ -116,7 +116,6 @@ class FlashService:
 
             # Import firmware side detection
             from glovebox.firmware.flash.models import (
-                FirmwareSide,
                 detect_firmware_side,
             )
 

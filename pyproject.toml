@@ -1,5 +1,5 @@
 [project]
-name = "glovebox"
+name = "zmk-glovebox"
 dynamic = ["version"]
 description = "Comprehensive tool for ZMK keyboard firmware management"
 readme = "README.md"

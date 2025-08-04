@@ -14,7 +14,6 @@ from glovebox.core.logging import setup_logging, setup_logging_from_config
 
 
 if TYPE_CHECKING:
-    from glovebox.cli.helpers.theme import Icons
     from glovebox.config.profile import KeyboardProfile
 
 
