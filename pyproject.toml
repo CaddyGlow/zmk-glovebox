@@ -189,6 +189,8 @@ markers = [
   "network: Tests that require network access",
   "regression: Regression tests for specific bug fixes",
   "smoke: Basic smoke tests for critical functionality",
+  "fast: Optimized tests using direct function calls or minimal fixtures (< 0.5s each)",
+  "benchmark: Performance benchmark tests (requires pytest-benchmark)",
 ]
 
 [tool.pytest_timeout]

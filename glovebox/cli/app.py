@@ -5,14 +5,17 @@ import sys
 
 # Import version from package metadata directly to avoid circular imports
 from importlib.metadata import distribution
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 
 from glovebox.cli.decorators.error_handling import print_stack_trace_if_verbose
-from glovebox.cli.helpers.theme import Icons
-from glovebox.config.profile import KeyboardProfile
 from glovebox.core.logging import setup_logging, setup_logging_from_config
+
+
+if TYPE_CHECKING:
+    from glovebox.cli.helpers.theme import Icons
+    from glovebox.config.profile import KeyboardProfile
 
 
 # Export setup_logging to make it available when importing from this module
@@ -28,7 +31,7 @@ logger = logging.getLogger(__name__)
 class AppContext:
     """Application context for storing shared state."""
 
-    keyboard_profile: KeyboardProfile | None = None
+    keyboard_profile: "KeyboardProfile | None" = None
 
     def __init__(
         self,
@@ -243,6 +246,7 @@ def _run_startup_checks(app_context: AppContext) -> None:
             )
 
             with create_early_workspace_display("Startup Checks"):
+                from glovebox.cli.helpers.theme import Icons
                 logger.info(
                     "%s Running startup checks...", Icons.get_icon("FIRMWARE", "text")
                 )

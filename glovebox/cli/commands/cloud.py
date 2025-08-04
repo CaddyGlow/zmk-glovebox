@@ -13,7 +13,6 @@ import typer
 from glovebox.cli.core.command_base import IOCommand
 from glovebox.cli.decorators.error_handling import handle_errors
 from glovebox.cli.helpers.parameters import complete_json_files
-from glovebox.moergo.client import create_moergo_client
 
 
 logger = logging.getLogger(__name__)
@@ -41,6 +40,11 @@ class UploadLayoutCommand(IOCommand):
     ) -> None:
         """Execute the upload layout command."""
         try:
+            # Lazy import MoErgo client only when cloud commands are used
+            from glovebox.moergo.client import create_moergo_client
+
+            # Lazy import MoErgo client only when cloud commands are used
+
             # Validate authentication
             client = create_moergo_client()
             if not client.validate_authentication():
@@ -110,6 +114,9 @@ class DownloadLayoutCommand(IOCommand):
     ) -> None:
         """Execute the download layout command."""
         try:
+            # Lazy import MoErgo client only when cloud commands are used
+            from glovebox.moergo.client import create_moergo_client
+
             # Validate authentication
             client = create_moergo_client()
             if not client.validate_authentication():
@@ -177,6 +184,9 @@ class ListLayoutsCommand(IOCommand):
     ) -> None:
         """Execute the list layouts command."""
         try:
+            # Lazy import MoErgo client only when cloud commands are used
+            from glovebox.moergo.client import create_moergo_client
+
             # Validate authentication
             client = create_moergo_client()
             if not client.validate_authentication():
@@ -270,6 +280,9 @@ class DeleteLayoutCommand(IOCommand):
     ) -> None:
         """Execute the delete layout command."""
         try:
+            # Lazy import MoErgo client only when cloud commands are used
+            from glovebox.moergo.client import create_moergo_client
+
             # Validate authentication
             client = create_moergo_client()
             if not client.validate_authentication():
