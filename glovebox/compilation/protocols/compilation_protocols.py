@@ -10,6 +10,7 @@ from glovebox.firmware.models import BuildResult
 if TYPE_CHECKING:
     from glovebox.compilation.models import CompilationConfigUnion
     from glovebox.config.profile import KeyboardProfile
+    from glovebox.layout.models import LayoutData
 
 
 @runtime_checkable
@@ -61,6 +62,32 @@ class CompilationServiceProtocol(Protocol):
 
         Returns:
             BuildResult: Results of compilation
+        """
+        ...
+
+    def compile_from_data(
+        self,
+        layout_data: "LayoutData",
+        output_dir: Path,
+        config: "CompilationConfigUnion",
+        keyboard_profile: "KeyboardProfile",
+        progress_callback: CompilationProgressCallback | None = None,
+    ) -> BuildResult:
+        """Execute compilation from layout data.
+
+        This is the memory-first method that takes layout data as input
+        and returns content in the result object, following the unified
+        input/output patterns established in Phase 1/2 refactoring.
+
+        Args:
+            layout_data: Layout data object
+            output_dir: Output directory for build artifacts
+            config: Compilation configuration
+            keyboard_profile: Keyboard profile for dynamic generation
+            progress_callback: Optional callback for compilation progress updates
+
+        Returns:
+            BuildResult: Results of compilation with generated content
         """
         ...
 

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 
 if TYPE_CHECKING:
-    from glovebox.firmware.flash.models import BlockDevice, USBDevice, USBDeviceType
+    from glovebox.firmware.flash.models import USBDeviceType
 
 
 @runtime_checkable

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from glovebox.cli.helpers.parameter_types import (
     FormatResult,
     InputResult,

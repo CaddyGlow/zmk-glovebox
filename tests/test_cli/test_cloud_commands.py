@@ -1,11 +1,8 @@
 """Unit tests for cloud CLI commands."""
 
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
-from uuid import uuid4
+from unittest.mock import Mock, patch
 
 import pytest
-import typer
 from typer.testing import CliRunner
 
 from glovebox.cli.commands.cloud import cloud_app

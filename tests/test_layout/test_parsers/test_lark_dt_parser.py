@@ -1,11 +1,7 @@
 """Tests for Lark-based device tree parser with enhanced grammar support."""
 
-import pytest
-
 from glovebox.layout.parsers.ast_nodes import (
-    DTConditional,
     DTNode,
-    DTValue,
     DTValueType,
 )
 from glovebox.layout.parsers.lark_dt_parser import LarkDTParser, create_lark_dt_parser

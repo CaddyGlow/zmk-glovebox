@@ -9,7 +9,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from jinja2 import Environment, Template
+from jinja2 import Environment
 
 from glovebox.config.models.filename_templates import FilenameTemplateConfig
 

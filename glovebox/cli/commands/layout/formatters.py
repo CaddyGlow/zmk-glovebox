@@ -6,12 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
 from glovebox.cli.helpers.output_formatter import OutputFormatter
-from glovebox.cli.helpers.theme import get_themed_console
+from glovebox.cli.helpers.theme import Colors, get_themed_console
 
 
 logger = logging.getLogger(__name__)
@@ -141,8 +139,8 @@ class LayoutOutputFormatter:
     def _format_table(self, results: dict[str, Any], title: str) -> None:
         """Format results as a table."""
         table = Table(title=title)
-        table.add_column("Operation", style="cyan")
-        table.add_column("Result", style="green")
+        table.add_column("Operation", style=Colors.PRIMARY)
+        table.add_column("Result", style=Colors.SUCCESS)
 
         for key, value in results.items():
             if isinstance(value, list | dict):
@@ -181,9 +179,9 @@ class LayoutOutputFormatter:
     def _format_field_table(self, results: dict[str, Any]) -> None:
         """Format field operation results as a specialized table."""
         table = Table(title="Field Operations")
-        table.add_column("Field Path", style="cyan")
-        table.add_column("Operation", style="yellow")
-        table.add_column("Result", style="green")
+        table.add_column("Field Path", style=Colors.PRIMARY)
+        table.add_column("Operation", style=Colors.WARNING)
+        table.add_column("Result", style=Colors.SUCCESS)
 
         for key, value in results.items():
             if key.startswith("get:"):
@@ -244,8 +242,8 @@ class LayoutOutputFormatter:
     def _format_layer_table(self, layers: list[str]) -> None:
         """Format layer names as a table."""
         table = Table(title="Layout Layers")
-        table.add_column("Index", style="cyan")
-        table.add_column("Layer Name", style="green")
+        table.add_column("Index", style=Colors.PRIMARY)
+        table.add_column("Layer Name", style=Colors.SUCCESS)
 
         for i, layer in enumerate(layers):
             table.add_row(str(i), layer)
@@ -267,9 +265,9 @@ class LayoutOutputFormatter:
     def _format_comparison_table(self, diff_results: dict[str, Any]) -> None:
         """Format comparison results as a table."""
         table = Table(title="Layout Comparison")
-        table.add_column("Section", style="cyan")
-        table.add_column("Changes", style="yellow")
-        table.add_column("Details", style="green")
+        table.add_column("Section", style=Colors.PRIMARY)
+        table.add_column("Changes", style=Colors.WARNING)
+        table.add_column("Details", style=Colors.SUCCESS)
 
         for section, changes in diff_results.items():
             if isinstance(changes, dict):
@@ -867,8 +865,8 @@ class LayoutOutputFormatter:
     def _format_compilation_table(self, result: dict[str, Any]) -> None:
         """Format compilation results as a table."""
         table = Table(title="Compilation Results")
-        table.add_column("File Type", style="cyan")
-        table.add_column("Output Path", style="green")
+        table.add_column("File Type", style=Colors.PRIMARY)
+        table.add_column("Output Path", style=Colors.SUCCESS)
 
         output_files = result.get("output_files", {})
         for file_type, file_path in output_files.items():
@@ -904,9 +902,9 @@ class LayoutOutputFormatter:
     def _format_edit_table(self, result: dict[str, Any]) -> None:
         """Format edit operation results as a table."""
         table = Table(title="Edit Operations")
-        table.add_column("Operation", style="cyan")
-        table.add_column("Status", style="green")
-        table.add_column("Details", style="yellow")
+        table.add_column("Operation", style=Colors.PRIMARY)
+        table.add_column("Status", style=Colors.SUCCESS)
+        table.add_column("Details", style=Colors.WARNING)
 
         operations = result.get("operations", [])
         for op in operations:
@@ -948,9 +946,9 @@ class LayoutOutputFormatter:
             usage = result["variable_usage"]
             if usage:
                 table = Table(title="Variable Usage")
-                table.add_column("Variable", style="cyan")
-                table.add_column("Used In", style="green")
-                table.add_column("Count", style="blue")
+                table.add_column("Variable", style=Colors.PRIMARY)
+                table.add_column("Used In", style=Colors.SUCCESS)
+                table.add_column("Count", style=Colors.SECONDARY)
 
                 for var_name, paths in usage.items():
                     usage_str = (

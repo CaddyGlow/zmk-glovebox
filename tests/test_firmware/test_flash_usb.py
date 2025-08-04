@@ -1,15 +1,12 @@
 """Tests for USB device flashing functionality."""
 
-import platform
 import threading
-import time
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
 from glovebox.core.errors import FlashError
-from glovebox.firmware.flash.models import BlockDevice, BlockDeviceError, FlashResult
+from glovebox.firmware.flash.models import BlockDevice, BlockDeviceError
 from glovebox.firmware.flash.usb import (
     FirmwareFlasherImpl,
     create_firmware_flasher,

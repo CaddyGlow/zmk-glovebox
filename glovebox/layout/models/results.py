@@ -49,6 +49,7 @@ class LayoutResult(GloveboxBaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
     messages: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
     @field_serializer("timestamp", when_used="json")
     def serialize_timestamp(self, dt: datetime) -> int:
@@ -58,6 +59,12 @@ class LayoutResult(GloveboxBaseModel):
     keymap_path: Path | None = None
     conf_path: Path | None = None
     json_path: Path | None = None
+
+    # Content fields for data-focused operations
+    keymap_content: str | None = None
+    config_content: str | None = None
+    json_content: dict[str, Any] | None = None
+
     profile_name: str | None = None
     layer_count: int | None = None
 

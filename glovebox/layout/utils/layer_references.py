@@ -2,9 +2,8 @@
 
 import logging
 from collections.abc import Mapping
-from typing import Any
 
-from glovebox.layout.models import LayoutBinding, LayoutData, LayoutParam
+from glovebox.layout.models import LayoutBinding, LayoutData
 
 
 logger = logging.getLogger(__name__)

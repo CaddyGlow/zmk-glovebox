@@ -2,8 +2,6 @@
 
 from unittest.mock import Mock, patch
 
-import pytest
-
 from glovebox.cli.app import AppContext
 from glovebox.cli.helpers.theme import IconMode
 

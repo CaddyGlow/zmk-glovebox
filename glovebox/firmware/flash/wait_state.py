@@ -4,7 +4,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from glovebox.firmware.flash.models import BlockDevice, USBDevice, USBDeviceType
+from glovebox.firmware.flash.models import USBDeviceType
 
 
 @dataclass

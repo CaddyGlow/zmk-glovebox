@@ -33,6 +33,7 @@ def create_compilation_service(
     session_metrics: "SessionMetrics",
     workspace_cache_service: Any | None = None,
     build_cache_service: Any | None = None,
+    progress_callback: Any | None = None,
 ) -> CompilationServiceProtocol:
     """Create compilation service for specified method type with explicit dependencies.
 
@@ -45,6 +46,7 @@ def create_compilation_service(
         workspace_cache_service: Workspace cache service (required for zmk_config method)
         build_cache_service: Build cache service (required for zmk_config method)
         session_metrics: Optional SessionMetrics instance for metrics integration
+        progress_callback: Optional progress callback for compilation progress tracking
 
     Returns:
         CompilationServiceProtocol: Configured compilation service
@@ -67,12 +69,14 @@ def create_compilation_service(
             session_metrics=session_metrics,
             workspace_cache_service=workspace_cache_service,
             build_cache_service=build_cache_service,
+            default_progress_callback=progress_callback,
         )
     elif method_type == "moergo":
         return create_moergo_nix_service(
             docker_adapter=docker_adapter,
             file_adapter=file_adapter,
             session_metrics=session_metrics,
+            default_progress_callback=progress_callback,
         )
     else:
         raise ValueError(
@@ -88,6 +92,7 @@ def create_zmk_west_service(
     session_metrics: "SessionMetrics",
     workspace_cache_service: "ZmkWorkspaceCacheService",
     build_cache_service: "CompilationBuildCacheService",
+    default_progress_callback: Any | None = None,
 ) -> CompilationServiceProtocol:
     """Create ZMK with West compilation service with explicit dependencies.
 
@@ -99,6 +104,7 @@ def create_zmk_west_service(
         workspace_cache_service: Required workspace cache service
         build_cache_service: Required build cache service
         session_metrics: Optional SessionMetrics instance for metrics integration
+        default_progress_callback: Optional default progress callback for compilation tracking
 
     Returns:
         CompilationServiceProtocol: ZMK config compilation service
@@ -115,6 +121,7 @@ def create_zmk_west_service(
         workspace_cache_service=workspace_cache_service,
         build_cache_service=build_cache_service,
         session_metrics=session_metrics,
+        default_progress_callback=default_progress_callback,
     )
 
 
@@ -122,6 +129,7 @@ def create_moergo_nix_service(
     docker_adapter: "DockerAdapterProtocol",
     file_adapter: "FileAdapterProtocol",
     session_metrics: "SessionMetrics",
+    default_progress_callback: Any | None = None,
 ) -> CompilationServiceProtocol:
     r"""Create simplified Moergo compilation service with explicit dependencies.
 
@@ -129,6 +137,7 @@ def create_moergo_nix_service(
         docker_adapter: Required DockerAdapter instance
         file_adapter: Required FileAdapter instance
         session_metrics: SessionMetrics instance for metrics integration
+        default_progress_callback: Optional default progress callback for compilation tracking
 
     Returns:
         CompilationServiceProtocol: Moergo compilation service
@@ -137,7 +146,9 @@ def create_moergo_nix_service(
         create_moergo_nix_service,
     )
 
-    return create_moergo_nix_service(docker_adapter, file_adapter, session_metrics)
+    return create_moergo_nix_service(
+        docker_adapter, file_adapter, session_metrics, default_progress_callback
+    )
 
 
 __all__ = [

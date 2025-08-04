@@ -13,7 +13,7 @@ from .os_utils import windows_to_wsl_path, wsl_to_windows_path
 
 
 if TYPE_CHECKING:
-    from glovebox.protocols.flash_os_protocol import FlashOSProtocol
+    pass
 
 logger = logging.getLogger(__name__)
 

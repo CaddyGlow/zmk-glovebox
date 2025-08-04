@@ -1,18 +1,13 @@
 """Core layout operations and file processing utilities."""
 
-import json
 import logging
 from collections.abc import Callable
-from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar
-
-from glovebox.layout.behavior.analysis import get_required_includes_for_layout
+from typing import TYPE_CHECKING, TypeVar
 
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
-    from glovebox.layout.zmk_generator import ZmkFileContentGenerator
 
 from glovebox.core.errors import LayoutError
 from glovebox.firmware.models import OutputPaths
@@ -91,14 +86,13 @@ def process_json_file(
         logger.info("%s from %s...", operation_name, file_path)
 
         # Load with or without template processing based on parameter
-        if process_templates:
-            from .json_operations import load_layout_file
+        from .json_operations import load_layout_file
 
-            layout_data = load_layout_file(file_path, file_adapter)
-        else:
-            # Load and validate the JSON data without template processing
-            json_data = load_json_file(file_path, file_adapter)
-            layout_data = validate_keymap_data(json_data)
+        layout_data = load_layout_file(
+            file_path,
+            file_adapter,
+            skip_template_processing=(not process_templates),
+        )
 
         # Perform the operation
         return operation_func(layout_data)
@@ -107,47 +101,6 @@ def process_json_file(
         exc_info = logger.isEnabledFor(logging.DEBUG)
         logger.error("%s failed: %s", operation_name, e, exc_info=exc_info)
         raise LayoutError(f"{operation_name} failed: {e}") from e
-
-
-def load_json_file(
-    file_path: Path, file_adapter: FileAdapterProtocol
-) -> dict[str, Any]:
-    """Load and parse a JSON file.
-
-    Args:
-        file_path: Path to the JSON file to load
-        file_adapter: File adapter for reading operations
-
-    Returns:
-        Parsed JSON data as a dictionary
-
-    Raises:
-        LayoutError: If file reading or JSON parsing fails
-    """
-    try:
-        return file_adapter.read_json(file_path)
-    except Exception as e:
-        exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.error("Failed to load JSON file %s: %s", file_path, e, exc_info=exc_info)
-        raise LayoutError(f"Failed to load JSON file {file_path}: {e}") from e
-
-
-def validate_keymap_data(json_data: dict[str, Any]) -> LayoutData:
-    """Validate JSON data as LayoutData.
-
-    Args:
-        json_data: Raw JSON data to validate
-
-    Returns:
-        Validated LayoutData instance
-
-    Raises:
-        LayoutError: If validation fails
-    """
-    try:
-        return LayoutData.model_validate(json_data)
-    except Exception as e:
-        raise LayoutError(f"Invalid keymap data: {e}") from e
 
 
 def resolve_template_file_path(keyboard_name: str, template_file: str) -> Path:

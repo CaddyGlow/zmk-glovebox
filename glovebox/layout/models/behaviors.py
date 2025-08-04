@@ -1,7 +1,5 @@
 """User behavior models for keyboard layouts."""
 
-from typing import Union
-
 from pydantic import Field, field_validator
 
 from glovebox.layout.behavior.models import ParamValue

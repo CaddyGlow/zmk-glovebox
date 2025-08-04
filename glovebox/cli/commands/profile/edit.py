@@ -3,24 +3,16 @@
 import logging
 import os
 import subprocess
-import tempfile
 from pathlib import Path
 from typing import Annotated, Any
 
 import typer
-from rich.console import Console
-from rich.table import Table
 
 from glovebox.cli.app import AppContext
+from glovebox.cli.core.command_base import IOCommand
 from glovebox.cli.decorators import handle_errors
-from glovebox.cli.helpers import (
-    print_error_message,
-    print_success_message,
-)
 from glovebox.cli.helpers.theme import (
-    Colors,
     Icons,
-    get_icon_mode_from_context,
     get_themed_console,
 )
 from glovebox.config.keyboard_profile import (
@@ -153,6 +145,256 @@ def _convert_value(value: str, field_type: type) -> Any:
         raise
 
 
+class ProfileEditCommand(IOCommand):
+    """Command for editing keyboard profile configurations.
+
+    Handles getting, setting, adding to, removing from, and clearing
+    keyboard configuration values in a unified interface.
+    """
+
+    def __init__(self, app_ctx: AppContext) -> None:
+        """Initialize profile edit command.
+
+        Args:
+            app_ctx: Application context with user configuration
+        """
+        super().__init__()
+        self.app_ctx = app_ctx
+
+    def execute(
+        self,
+        profile_name: str,
+        get: list[str] | None = None,
+        set: list[str] | None = None,  # noqa: A002
+        add: list[str] | None = None,
+        remove: list[str] | None = None,
+        clear: list[str] | None = None,
+        save: bool = True,  # noqa: ARG002
+        interactive: bool = False,
+    ) -> None:
+        """Execute the profile edit command.
+
+        Args:
+            profile_name: Name of the profile to edit
+            get: List of keys to get values for
+            set: List of key=value pairs to set
+            add: List of key=value pairs to add to lists
+            remove: List of key=value pairs to remove from lists
+            clear: List of keys to clear
+            save: Whether to save changes (currently unused)
+            interactive: Whether to use interactive editing mode
+        """
+        # Verify keyboard exists
+        self._verify_keyboard_exists(profile_name)
+
+        # Load keyboard configuration
+        keyboard_config = self._load_keyboard_config(profile_name)
+
+        # Handle interactive editing first (exclusive mode)
+        if interactive:
+            self._validate_interactive_mode(get, set, add, remove, clear)
+            self._handle_interactive_edit(profile_name)
+            return
+
+        # Ensure at least one operation is specified for non-interactive mode
+        self._validate_operations(get, set, add, remove, clear)
+
+        # Handle GET operations
+        if get:
+            self._handle_get_operations(get, keyboard_config)
+
+        # Handle modification operations (currently not supported)
+        if any([set, add, remove, clear]):
+            self._handle_unsupported_modifications()
+
+    def _verify_keyboard_exists(self, profile_name: str) -> None:
+        """Verify that the specified keyboard profile exists.
+
+        Args:
+            profile_name: Name of the profile to verify
+
+        Raises:
+            typer.Exit: If keyboard does not exist
+        """
+        keyboards = get_available_keyboards(self.app_ctx.user_config)
+        if profile_name not in keyboards:
+            self.console.print_error(f"Keyboard '{profile_name}' not found")
+            self.console.print_error(f"Available keyboards: {', '.join(keyboards)}")
+            raise typer.Exit(1)
+
+    def _load_keyboard_config(self, profile_name: str) -> KeyboardConfig:
+        """Load keyboard configuration for the specified profile.
+
+        Args:
+            profile_name: Name of the profile to load
+
+        Returns:
+            Loaded keyboard configuration
+
+        Raises:
+            typer.Exit: If configuration cannot be loaded
+        """
+        try:
+            return load_keyboard_config(profile_name, self.app_ctx.user_config)
+        except Exception as e:
+            self.handle_service_error(e, "load keyboard configuration")
+            # This line is never reached but required for type checking
+            raise  # pragma: no cover
+
+    def _validate_interactive_mode(
+        self,
+        get: list[str] | None,
+        set: list[str] | None,  # noqa: A002
+        add: list[str] | None,
+        remove: list[str] | None,
+        clear: list[str] | None,
+    ) -> None:
+        """Validate that interactive mode is not combined with other operations.
+
+        Args:
+            get: Get operations list
+            set: Set operations list
+            add: Add operations list
+            remove: Remove operations list
+            clear: Clear operations list
+
+        Raises:
+            typer.Exit: If interactive mode is combined with other operations
+        """
+        if any([get, set, add, remove, clear]):
+            self.console.print_error(
+                "Interactive mode (--interactive) cannot be combined with other operations"
+            )
+            raise typer.Exit(1)
+
+    def _validate_operations(
+        self,
+        get: list[str] | None,
+        set: list[str] | None,  # noqa: A002
+        add: list[str] | None,
+        remove: list[str] | None,
+        clear: list[str] | None,
+    ) -> None:
+        """Validate that at least one operation is specified.
+
+        Args:
+            get: Get operations list
+            set: Set operations list
+            add: Add operations list
+            remove: Remove operations list
+            clear: Clear operations list
+
+        Raises:
+            typer.Exit: If no operations are specified
+        """
+        if not any([get, set, add, remove, clear]):
+            self.console.print_error(
+                "At least one operation (--get, --set, --add, --remove, --clear, --interactive) must be specified"
+            )
+            raise typer.Exit(1)
+
+    def _handle_interactive_edit(self, profile_name: str) -> None:
+        """Handle interactive editing of the keyboard configuration file.
+
+        Args:
+            profile_name: Name of the profile to edit interactively
+        """
+        _handle_interactive_profile_edit(profile_name, self.app_ctx)
+
+    def _get_all_keyboard_config_keys(self) -> list[str]:
+        """Get all valid keyboard configuration keys from the models.
+
+        Returns:
+            List of all valid configuration keys
+        """
+        keys = []
+
+        # Add keyboard config keys
+        for field_name in KeyboardConfig.model_fields:
+            if field_name not in ["includes"]:  # Skip internal fields
+                keys.append(field_name)
+
+        # Add nested keys for complex objects
+        keys.extend(
+            [
+                "firmwares",
+                "compile_methods",
+                "flash_methods",
+                "behaviors.system_behaviors",
+                "behaviors.custom_behaviors",
+                "display.layout_structure",
+                "display.formatting",
+                "zmk.validation_limits",
+                "zmk.patterns",
+                "zmk.compatible_strings",
+            ]
+        )
+
+        return keys
+
+    def _handle_get_operations(
+        self, get_keys: list[str], keyboard_config: KeyboardConfig
+    ) -> None:
+        """Handle GET operations for configuration values.
+
+        Args:
+            get_keys: List of keys to get values for
+            keyboard_config: Loaded keyboard configuration
+        """
+        valid_keys = self._get_all_keyboard_config_keys()
+
+        for key in get_keys:
+            if key not in valid_keys:
+                self.console.print_error(f"Unknown keyboard configuration key: {key}")
+                continue
+
+            # Get value from keyboard config
+            value = _get_profile_config_value(keyboard_config, key)
+
+            # Format and display the value
+            self._display_config_value(key, value)
+
+    def _display_config_value(self, key: str, value: Any) -> None:
+        """Display a configuration key-value pair with proper formatting.
+
+        Args:
+            key: Configuration key name
+            value: Configuration value to display
+        """
+        if isinstance(value, list):
+            if not value:
+                self.console.console.print(
+                    f"[bold blue]{key}:[/bold blue] [dim](empty list)[/dim]"
+                )
+            else:
+                self.console.console.print(f"[bold blue]{key}:[/bold blue]")
+                for item in value:
+                    bullet_icon = Icons.get_icon("BULLET", self.app_ctx.icon_mode)
+                    self.console.console.print(f"  {bullet_icon} [white]{item}[/white]")
+        else:
+            self.console.console.print(
+                f"[bold blue]{key}:[/bold blue] [white]{value}[/white]"
+            )
+
+    def _handle_unsupported_modifications(self) -> None:
+        """Handle unsupported modification operations with informative error.
+
+        Raises:
+            typer.Exit: Always, as modifications are not yet supported
+        """
+        error_icon = Icons.get_icon("ERROR", self.app_ctx.icon_mode)
+        self.console.console.print(
+            f"\n[bold red]{error_icon} Direct editing of keyboard configuration values is not yet supported.[/bold red]"
+        )
+        self.console.console.print(
+            "[yellow]Keyboard configurations are loaded from YAML files in the keyboard_paths.[/yellow]"
+        )
+        self.console.console.print(
+            "[blue]Use --interactive mode to edit the YAML files directly, or modify the files manually.[/blue]\n"
+        )
+        raise typer.Exit(1)
+
+
 @handle_errors
 def edit_profile(
     ctx: typer.Context,
@@ -233,133 +475,18 @@ def edit_profile(
     # Get app context with user config
     app_ctx: AppContext = ctx.obj
 
-    # Verify keyboard exists
-    keyboards = get_available_keyboards(app_ctx.user_config)
-    if profile_name not in keyboards:
-        print_error_message(f"Keyboard '{profile_name}' not found")
-        print_error_message(f"Available keyboards: {', '.join(keyboards)}")
-        raise typer.Exit(1)
-
-    # Load keyboard configuration
-    try:
-        keyboard_config = load_keyboard_config(profile_name, app_ctx.user_config)
-    except Exception as e:
-        print_error_message(f"Failed to load keyboard configuration: {e}")
-        raise typer.Exit(1) from e
-
-    # Handle interactive editing first (exclusive mode)
-    if interactive:
-        if any([get, set, add, remove, clear]):
-            print_error_message(
-                "Interactive mode (--interactive) cannot be combined with other operations"
-            )
-            raise typer.Exit(1)
-
-        _handle_interactive_profile_edit(profile_name, app_ctx)
-        return
-
-    # Ensure at least one operation is specified for non-interactive mode
-    if not any([get, set, add, remove, clear]):
-        print_error_message(
-            "At least one operation (--get, --set, --add, --remove, --clear, --interactive) must be specified"
-        )
-        raise typer.Exit(1)
-
-    # Get all valid keys for validation
-    def get_all_keyboard_config_keys() -> list[str]:
-        """Get all valid keyboard configuration keys from the models."""
-        keys = []
-
-        # Add keyboard config keys
-        for field_name in KeyboardConfig.model_fields:
-            if field_name not in ["includes"]:  # Skip internal fields
-                keys.append(field_name)
-
-        # Add nested keys for complex objects
-        keys.extend(
-            [
-                "firmwares",
-                "compile_methods",
-                "flash_methods",
-                "behaviors.system_behaviors",
-                "behaviors.custom_behaviors",
-                "display.layout_structure",
-                "display.formatting",
-                "zmk.validation_limits",
-                "zmk.patterns",
-                "zmk.compatible_strings",
-            ]
-        )
-
-        return keys
-
-    def get_keyboard_field_info(key: str) -> tuple[Any, str]:
-        """Get default value and description for a keyboard configuration key."""
-        default_val = None
-        description = "No description available"
-
-        if "." not in key:
-            field_info = KeyboardConfig.model_fields.get(key)
-            if field_info:
-                default_val = field_info.default
-                if (
-                    hasattr(field_info, "default_factory")
-                    and field_info.default_factory is not None
-                ):
-                    try:
-                        default_val = field_info.default_factory()  # type: ignore
-                    except Exception:
-                        default_val = f"<factory: {field_info.default_factory}>"
-                description = field_info.description or "No description available"
-
-        return default_val, description
-
-    valid_keys = get_all_keyboard_config_keys()
-    changes_made = False
-
-    # Handle GET operations
-    if get:
-        for key in get:
-            if key not in valid_keys:
-                print_error_message(f"Unknown keyboard configuration key: {key}")
-                continue
-
-            # Get value from keyboard config
-            value = _get_profile_config_value(keyboard_config, key)
-
-            # Use rich console for better formatting
-            console = get_themed_console()
-
-            if isinstance(value, list):
-                if not value:
-                    console.console.print(
-                        f"[bold blue]{key}:[/bold blue] [dim](empty list)[/dim]"
-                    )
-                else:
-                    console.console.print(f"[bold blue]{key}:[/bold blue]")
-                    for item in value:
-                        bullet_icon = Icons.get_icon("BULLET", app_ctx.icon_mode)
-                        console.console.print(f"  {bullet_icon} [white]{item}[/white]")
-            else:
-                console.console.print(
-                    f"[bold blue]{key}:[/bold blue] [white]{value}[/white]"
-                )
-
-    # For now, we'll show a message that editing keyboard configs directly isn't fully supported
-    # since keyboard configs are typically loaded from YAML files
-    if any([set, add, remove, clear]):
-        console = get_themed_console()
-        error_icon = Icons.get_icon("ERROR", app_ctx.icon_mode)
-        console.console.print(
-            f"\n[bold red]{error_icon} Direct editing of keyboard configuration values is not yet supported.[/bold red]"
-        )
-        console.console.print(
-            "[yellow]Keyboard configurations are loaded from YAML files in the keyboard_paths.[/yellow]"
-        )
-        console.console.print(
-            "[blue]Use --interactive mode to edit the YAML files directly, or modify the files manually.[/blue]\n"
-        )
-        raise typer.Exit(1)
+    # Create and execute command
+    command = ProfileEditCommand(app_ctx)
+    command.execute(
+        profile_name=profile_name,
+        get=get,
+        set=set,
+        add=add,
+        remove=remove,
+        clear=clear,
+        save=save,
+        interactive=interactive,
+    )
 
 
 def _get_profile_config_value(keyboard_config: Any, key: str) -> Any:

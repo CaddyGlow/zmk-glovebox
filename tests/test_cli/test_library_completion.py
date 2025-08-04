@@ -1,6 +1,6 @@
 """Tests for library-aware parameter completion."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -8,7 +8,6 @@ from glovebox.cli.helpers.parameters import (
     _complete_library_references,
     complete_json_files,
 )
-from glovebox.library.models import LibraryEntry, LibrarySource
 
 
 class TestLibraryCompletion:

@@ -13,7 +13,7 @@ from glovebox.layout.models import (
     StickyKeyBehavior,
     TapDanceBehavior,
 )
-from glovebox.layout.parsers.ast_nodes import DTNode, DTProperty, DTValue, DTValueType
+from glovebox.layout.parsers.ast_nodes import DTNode, DTProperty, DTValueType
 
 
 logger = logging.getLogger(__name__)
@@ -957,8 +957,6 @@ class ASTBehaviorConverter:
         try:
             from glovebox.layout.models.behaviors import (
                 InputListener,
-                InputListenerNode,
-                InputProcessor,
             )
 
             # Extract the code (node name with &)
@@ -1005,7 +1003,6 @@ class ASTBehaviorConverter:
         try:
             from glovebox.layout.models.behaviors import (
                 InputListenerNode,
-                InputProcessor,
             )
 
             # Use child name as code

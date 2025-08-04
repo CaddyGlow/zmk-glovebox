@@ -149,7 +149,7 @@ class TestLayoutEditLayerReferences:
         assert "Removed layers: Navigation" in result.output
 
         # Load the result and check references were updated
-        with open(output_file) as f:
+        with Path(output_file).open() as f:
             updated_data = json.load(f)
 
         layout = LayoutData.model_validate(updated_data)
@@ -198,7 +198,7 @@ class TestLayoutEditLayerReferences:
         assert "Added layer 'Gaming'" in result.output
 
         # Load and check
-        with open(output_file) as f:
+        with Path(output_file).open() as f:
             data = json.load(f)
         layout = LayoutData.model_validate(data)
 
@@ -233,7 +233,7 @@ class TestLayoutEditLayerReferences:
         assert "Moved layer 'Numbers' from position 2 to 0" in result.output
 
         # Load and verify
-        with open(output_file) as f:
+        with Path(output_file).open() as f:
             data = json.load(f)
         layout = LayoutData.model_validate(data)
 
@@ -301,7 +301,7 @@ class TestLayoutEditLayerReferences:
         assert "Removed layers: Navigation" in result.output
 
         # Verify references were updated
-        with open(output_file) as f:
+        with Path(output_file).open() as f:
             data = json.load(f)
         layout = LayoutData.model_validate(data)
 
@@ -365,7 +365,7 @@ class TestLayoutEditLayerReferences:
         assert result.exit_code == 0
 
         # Check that variables are preserved
-        with open(output_file) as f:
+        with Path(output_file).open() as f:
             data = json.load(f)
         assert data["variables"]["layer_num"] == 2  # Variable unchanged
 

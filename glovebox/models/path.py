@@ -12,10 +12,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Any
 
-from pydantic import BeforeValidator, Field, field_serializer, field_validator
+from pydantic import BeforeValidator, Field
 from pydantic_core import core_schema
-
-from glovebox.models.base import GloveboxBaseModel
 
 
 class PreservingPath(Path):

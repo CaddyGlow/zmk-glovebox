@@ -3,9 +3,7 @@
 import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import Mock, patch
-
-import pytest
+from unittest.mock import patch
 
 from glovebox.cli.commands.layout.formatters import (
     LayoutOutputFormatter,

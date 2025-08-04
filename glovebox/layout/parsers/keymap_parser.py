@@ -22,7 +22,6 @@ from .parsing_models import ParsingContext, get_default_extraction_config
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
     from glovebox.layout.models import ConfigDirective, KeymapComment, KeymapInclude
-    from glovebox.protocols import TemplateAdapterProtocol
 
     from .parsing_models import ExtractionConfig
 
@@ -41,6 +40,7 @@ class ParsingMethod(str, Enum):
     """Keymap parsing method."""
 
     AST = "ast"  # AST-based parsing
+    REGEX = "regex"  # Legacy regex-based parsing
 
 
 class KeymapParseResult(GloveboxBaseModel):

@@ -1,8 +1,11 @@
 """Unit tests for layer reference validation in LayoutData."""
 
-import pytest
+from glovebox.layout.models import LayoutBinding, LayoutData
 
-from glovebox.layout.models import LayoutData
+
+def create_binding(value: str) -> LayoutBinding:
+    """Helper to create LayoutBinding from string value."""
+    return LayoutBinding(value=value)
 
 
 class TestValidateLayerReferences:
@@ -15,9 +18,21 @@ class TestValidateLayerReferences:
             title="Valid References",
             layer_names=["Base", "Nav", "Num"],
             layers=[
-                ["&mo 1", "&lt 2 SPACE", "&trans"],
-                ["&to 0", "&tog 2", "&trans"],
-                ["&to 0", "&mo 1", "&trans"],
+                [
+                    create_binding("&mo 1"),
+                    create_binding("&lt 2 SPACE"),
+                    create_binding("&trans"),
+                ],
+                [
+                    create_binding("&to 0"),
+                    create_binding("&tog 2"),
+                    create_binding("&trans"),
+                ],
+                [
+                    create_binding("&to 0"),
+                    create_binding("&mo 1"),
+                    create_binding("&trans"),
+                ],
             ],
         )
 
@@ -31,8 +46,16 @@ class TestValidateLayerReferences:
             title="Invalid References",
             layer_names=["Base", "Nav"],
             layers=[
-                ["&mo 1", "&lt 2 SPACE", "&tog 3"],  # 2 and 3 are out of range
-                ["&to 0", "&mo 5", "&trans"],  # 5 is out of range
+                [
+                    create_binding("&mo 1"),
+                    create_binding("&lt 2 SPACE"),
+                    create_binding("&tog 3"),
+                ],  # 2 and 3 are out of range
+                [
+                    create_binding("&to 0"),
+                    create_binding("&mo 5"),
+                    create_binding("&trans"),
+                ],  # 5 is out of range
             ],
         )
 
@@ -49,8 +72,8 @@ class TestValidateLayerReferences:
             title="Negative References",
             layer_names=["Base", "Nav"],
             layers=[
-                ["&mo -1", "&trans"],  # Negative index
-                ["&to 0", "&trans"],
+                [create_binding("&mo -1"), create_binding("&trans")],  # Negative index
+                [create_binding("&to 0"), create_binding("&trans")],
             ],
         )
 
@@ -77,7 +100,11 @@ class TestValidateLayerReferences:
             title="Single Layer",
             layer_names=["Base"],
             layers=[
-                ["&mo 0", "&to 0", "&trans"],  # Self-references are valid
+                [
+                    create_binding("&mo 0"),
+                    create_binding("&to 0"),
+                    create_binding("&trans"),
+                ],  # Self-references are valid
             ],
         )
 
@@ -91,8 +118,19 @@ class TestValidateLayerReferences:
             title="Mixed Behaviors",
             layer_names=["Base", "Nav"],
             layers=[
-                ["&kp Q", "&mt LCTRL A", "&mo 1", "&trans", "&none"],
-                ["&kp LEFT", "&to 0", "&hrm_l LALT Q", "&trans"],
+                [
+                    create_binding("&kp Q"),
+                    create_binding("&mt LCTRL A"),
+                    create_binding("&mo 1"),
+                    create_binding("&trans"),
+                    create_binding("&none"),
+                ],
+                [
+                    create_binding("&kp LEFT"),
+                    create_binding("&to 0"),
+                    create_binding("&hrm_l LALT Q"),
+                    create_binding("&trans"),
+                ],
             ],
         )
 
@@ -106,10 +144,18 @@ class TestValidateLayerReferences:
             title="Layer Tap",
             layer_names=["Base", "Nav", "Num", "Sym"],
             layers=[
-                ["&lt 1 SPACE", "&lt 3 ENTER", "&trans"],  # Valid layer-tap
-                ["&trans"] * 3,
-                ["&trans"] * 3,
-                ["&lt 4 TAB", "&trans", "&trans"],  # Invalid - layer 4 doesn't exist
+                [
+                    create_binding("&lt 1 SPACE"),
+                    create_binding("&lt 3 ENTER"),
+                    create_binding("&trans"),
+                ],  # Valid layer-tap
+                [create_binding("&trans")] * 3,
+                [create_binding("&trans")] * 3,
+                [
+                    create_binding("&lt 4 TAB"),
+                    create_binding("&trans"),
+                    create_binding("&trans"),
+                ],  # Invalid - layer 4 doesn't exist
             ],
         )
 
@@ -125,13 +171,18 @@ class TestValidateLayerReferences:
             layer_names=["Base", "One", "Two"],
             layers=[
                 [
-                    "&mo 3",
-                    "&lt 3 A",
-                    "&to 3",
-                    "&tog 3",
+                    create_binding("&mo 3"),
+                    create_binding("&lt 3 A"),
+                    create_binding("&to 3"),
+                    create_binding("&tog 3"),
                 ],  # All reference invalid layer 3
-                ["&mo 0", "&lt 1 B", "&to 2", "&tog 0"],  # All valid
-                ["&trans"] * 4,
+                [
+                    create_binding("&mo 0"),
+                    create_binding("&lt 1 B"),
+                    create_binding("&to 2"),
+                    create_binding("&tog 0"),
+                ],  # All valid
+                [create_binding("&trans")] * 4,
             ],
         )
 
@@ -150,8 +201,8 @@ class TestValidateLayerReferences:
             title="Mismatched",
             layer_names=["Base", "Nav", "Num"],  # 3 names
             layers=[
-                ["&mo 1", "&trans"],
-                ["&to 0", "&trans"],
+                [create_binding("&mo 1"), create_binding("&trans")],
+                [create_binding("&to 0"), create_binding("&trans")],
                 # Missing third layer
             ],
         )
@@ -167,11 +218,23 @@ class TestValidateLayerReferences:
             title="Boundaries",
             layer_names=["L0", "L1", "L2", "L3", "L4"],  # 5 layers (0-4)
             layers=[
-                ["&mo 0", "&mo 4", "&trans"],  # Min and max valid indices
-                ["&mo 5", "&trans", "&trans"],  # Just over max
-                ["&trans"] * 3,
-                ["&trans"] * 3,
-                ["&to 0", "&trans", "&trans"],
+                [
+                    create_binding("&mo 0"),
+                    create_binding("&mo 4"),
+                    create_binding("&trans"),
+                ],  # Min and max valid indices
+                [
+                    create_binding("&mo 5"),
+                    create_binding("&trans"),
+                    create_binding("&trans"),
+                ],  # Just over max
+                [create_binding("&trans")] * 3,
+                [create_binding("&trans")] * 3,
+                [
+                    create_binding("&to 0"),
+                    create_binding("&trans"),
+                    create_binding("&trans"),
+                ],
             ],
         )
 

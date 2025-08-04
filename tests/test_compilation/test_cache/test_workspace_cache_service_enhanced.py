@@ -1,21 +1,16 @@
 """Tests for enhanced ZmkWorkspaceCacheService methods for workspace creation."""
 
-import tempfile
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
-
-pytestmark = [pytest.mark.docker, pytest.mark.integration]
-
 from glovebox.compilation.cache.models import (
     WorkspaceCacheMetadata,
     WorkspaceCacheResult,
 )
 from glovebox.compilation.cache.workspace_cache_service import ZmkWorkspaceCacheService
-from glovebox.compilation.parsers.repository_spec_parser import RepositorySpec
 from glovebox.compilation.services.workspace_creation_service import (
     WorkspaceCreationResult,
     WorkspaceCreationService,
@@ -23,8 +18,10 @@ from glovebox.compilation.services.workspace_creation_service import (
 from glovebox.config.models.cache import CacheLevel
 from glovebox.config.user_config import UserConfig
 from glovebox.core.cache.cache_manager import CacheManager
-from glovebox.models.docker import DockerUserContext
 from glovebox.protocols import MetricsProtocol
+
+
+pytestmark = [pytest.mark.docker, pytest.mark.integration]
 
 
 @pytest.fixture

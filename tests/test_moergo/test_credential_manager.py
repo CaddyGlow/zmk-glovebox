@@ -2,8 +2,7 @@
 
 import base64
 import json
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 from cryptography.fernet import Fernet
@@ -14,7 +13,6 @@ from glovebox.moergo.client.credentials import (
 )
 from glovebox.moergo.client.models import AuthTokens, UserCredentials
 from glovebox.moergo.config import (
-    MoErgoCredentialConfig,
     create_moergo_credential_config,
 )
 

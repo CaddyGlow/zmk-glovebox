@@ -3,16 +3,15 @@
 import logging
 from collections.abc import Callable
 from functools import wraps
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import typer
 from click import Context as ClickContext
 
-from glovebox.cli.helpers import print_error_message
-from glovebox.cli.helpers.auto_profile import resolve_json_file_path
-from glovebox.cli.helpers.parameters import create_profile_from_param_unified
 
+if TYPE_CHECKING:
+    # Type hints only - not loaded at runtime
+    from glovebox.config.profile import KeyboardProfile
 
 logger = logging.getLogger(__name__)
 
@@ -49,120 +48,80 @@ def with_layout_context(
         @with_layout_context(needs_json=True, needs_profile=True)
         def my_command(
             ctx: typer.Context,
-            json_file: JsonFileArgument = None,
-            profile: ProfileOption = None,
-            # Injected by decorator:
-            resolved_json_file: Path = None,
-            keyboard_profile: "KeyboardProfile | None" = None,
-        ) -> None:
-            # Command implementation with resolved context
-            pass
+            json_file: Path | None = None,
+            profile: str | None = None,
+            **kwargs
+        ):
+            resolved_json = kwargs.get('resolved_json_file')
+            keyboard_profile = kwargs.get('keyboard_profile')
+            # ... command implementation
     """
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        # Check if the function has a ctx parameter at decoration time
-        import inspect
-
-        sig = inspect.signature(func)
-        if "ctx" not in sig.parameters:
-            raise RuntimeError(
-                f"Function '{func.__name__}' decorated with @with_layout_context must have a 'ctx: typer.Context' parameter."
-            )
-
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            # Find the Context object from the arguments
-            # Check for both typer.Context and click.Context since typer is built on click
-            ctx = next(
-                (arg for arg in args if isinstance(arg, typer.Context | ClickContext)),
-                None,
+            # Lazy import helpers only when decorator is actually used
+            from glovebox.cli.helpers import print_error_message
+            from glovebox.cli.helpers.auto_profile import resolve_json_file_path
+            from glovebox.cli.helpers.parameters import (
+                create_profile_from_param_unified,
             )
-            if ctx is None:
-                ctx = kwargs.get("ctx")
 
-            if not isinstance(ctx, typer.Context | ClickContext):
-                # This shouldn't happen if typer is working correctly
-                logger.warning(
-                    "Context not found in args or kwargs for %s. Args: %s, Kwargs keys: %s",
-                    func.__name__,
-                    [type(arg).__name__ for arg in args],
-                    list(kwargs.keys()),
-                )
-                raise RuntimeError(
-                    "with_layout_context decorator could not find typer.Context or click.Context in arguments."
-                )
+            # Extract context and parameters
+            ctx = None
+            json_file = None
+            profile_param = None
 
-            # Handle JSON file resolution
+            # Find the context and parameters in args/kwargs
+            for arg in args:
+                if isinstance(arg, typer.Context | ClickContext):
+                    ctx = arg
+                    break
+
+            # Get parameters from kwargs
+            json_file = kwargs.get("json_file")
+            profile_param = kwargs.get("profile")
+
+            # Process JSON file if needed
+            resolved_json_file = None
             if needs_json:
-                # Try different parameter names for JSON file
-                json_file_arg = (
-                    kwargs.get("json_file")
-                    or kwargs.get("layout_file")
-                    or kwargs.get("file1")  # For comparison commands
-                )
-
-                resolved_json_file = resolve_json_file_path(
-                    json_file_arg, "GLOVEBOX_JSON_FILE"
-                )
-
-                if not resolved_json_file:
-                    print_error_message(
-                        "JSON file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
-                    )
-                    raise typer.Exit(1)
-
-                if validate_json:
-                    if not resolved_json_file.exists():
-                        print_error_message(
-                            f"Layout file not found: {resolved_json_file}"
-                        )
-                        raise typer.Exit(1)
-                    if not resolved_json_file.is_file():
-                        print_error_message(f"Path is not a file: {resolved_json_file}")
-                        raise typer.Exit(1)
-
-                kwargs["resolved_json_file"] = resolved_json_file
-
-            # Handle profile resolution
-            if needs_profile:
                 try:
-                    keyboard_profile = create_profile_from_param_unified(
-                        ctx=ctx,
-                        profile=kwargs.get("profile"),
-                        default_profile=default_profile,
-                        json_file=kwargs.get("resolved_json_file"),
-                        no_auto=kwargs.get("no_auto", False),
-                    )
-                    kwargs["keyboard_profile"] = keyboard_profile
+                    # Use the helper to resolve JSON file path
+                    resolved_json_file = resolve_json_file_path(json_file)
+                    if resolved_json_file:
+                        logger.debug(f"Resolved JSON file: {resolved_json_file}")
+                        kwargs["resolved_json_file"] = resolved_json_file
                 except Exception as e:
-                    exc_info = logger.isEnabledFor(logging.DEBUG)
-                    logger.error("Failed to resolve profile: %s", e, exc_info=exc_info)
-                    print_error_message(f"Failed to resolve profile: {e}")
+                    print_error_message(f"Failed to resolve JSON file: {e}")
                     raise typer.Exit(1) from e
 
-            # Store injected values in the context for functions to access
-            if ctx:
-                if "resolved_json_file" in kwargs:
-                    ctx.meta["resolved_json_file"] = kwargs["resolved_json_file"]
-                if "keyboard_profile" in kwargs:
-                    ctx.meta["keyboard_profile"] = kwargs["keyboard_profile"]
+            # Process profile if needed
+            keyboard_profile = None
+            if needs_profile:
+                try:
+                    # Create profile with auto-detection support
+                    if ctx is not None:
+                        keyboard_profile = create_profile_from_param_unified(
+                            ctx=ctx,
+                            profile=profile_param,
+                            json_file=resolved_json_file,
+                            default_profile=default_profile,
+                        )
+                    else:
+                        # Fallback without context
+                        from glovebox.config.keyboard_profile import create_keyboard_profile
+                        keyboard_profile = create_keyboard_profile(
+                            profile_param or default_profile, None, None
+                        )
+                    if keyboard_profile:
+                        logger.debug(f"Using profile: {keyboard_profile}")
+                        kwargs["keyboard_profile"] = keyboard_profile
+                except Exception as e:
+                    print_error_message(f"Failed to create keyboard profile: {e}")
+                    raise typer.Exit(1) from e
 
-            # Clean up kwargs to remove parameters not in the original function signature
-            # This prevents TypeError: got an unexpected keyword argument
-            import inspect
-
-            sig = inspect.signature(func)
-            func_params = set(sig.parameters.keys())
-
-            # Remove injected parameters that are not in the function signature
-            injected_params = {"resolved_json_file", "keyboard_profile"}
-            filtered_kwargs = {
-                k: v
-                for k, v in kwargs.items()
-                if k in func_params or k not in injected_params
-            }
-
-            return func(*args, **filtered_kwargs)
+            # Call the original function with enhanced kwargs
+            return func(*args, **kwargs)
 
         return wrapper
 

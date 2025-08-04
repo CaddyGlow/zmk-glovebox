@@ -4,9 +4,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from glovebox.layout.models import HoldTapBehavior, LayoutData
+from glovebox.layout.models import LayoutData
 from glovebox.layout.template_service import (
-    CircularReferenceError,
     TemplateError,
     TemplateService,
     create_jinja2_template_service,

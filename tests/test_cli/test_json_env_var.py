@@ -2,7 +2,6 @@
 
 import json
 import os
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -78,7 +77,7 @@ def test_layout_compile_with_json_env_var(
         mock_result.keymap_path = output_dir / "test.keymap"
         mock_result.conf_path = output_dir / "test.conf"
         mock_result.json_path = output_dir / "test.json"
-        mock_layout_service.generate_from_file.return_value = mock_result
+        mock_layout_service.compile.return_value = mock_result
         mock_create_service.return_value = mock_layout_service
 
         # Mock user config
@@ -99,8 +98,8 @@ def test_layout_compile_with_json_env_var(
         )
 
         # Verify layout service was called with the file from env var
-        assert mock_layout_service.generate_from_file.called
-        call_args = mock_layout_service.generate_from_file.call_args
+        assert mock_layout_service.compile.called
+        call_args = mock_layout_service.compile.call_args
         assert call_args.kwargs["json_file_path"] == sample_json_layout
 
         assert cmd_result.exit_code == 0
@@ -352,7 +351,7 @@ def test_cli_argument_overrides_env_var(
         mock_result.keymap_path = output_dir / "test.keymap"
         mock_result.conf_path = output_dir / "test.conf"
         mock_result.json_path = output_dir / "test.json"
-        mock_layout_service.generate_from_file.return_value = mock_result
+        mock_layout_service.compile.return_value = mock_result
         mock_create_service.return_value = mock_layout_service
 
         # Mock user config
@@ -373,8 +372,8 @@ def test_cli_argument_overrides_env_var(
         )
 
         # Verify layout service was called with the explicit file, not the env var
-        assert mock_layout_service.generate_from_file.called
-        call_args = mock_layout_service.generate_from_file.call_args
+        assert mock_layout_service.compile.called
+        call_args = mock_layout_service.compile.call_args
         assert call_args.kwargs["json_file_path"] == other_json_file
         assert call_args.kwargs["json_file_path"] != sample_json_layout
 

@@ -1,15 +1,11 @@
 """Integration tests for file operations with workspace cache service."""
 
-from pathlib import Path
-from typing import Any
 from unittest.mock import Mock
 
 import pytest
 
 from glovebox.compilation.cache.workspace_cache_service import ZmkWorkspaceCacheService
-from glovebox.config.user_config import UserConfig
 from glovebox.core.cache.cache_manager import CacheManager
-from glovebox.core.file_operations import create_copy_service
 
 
 class TestWorkspaceCacheIntegration:
@@ -206,7 +202,6 @@ class TestWorkspaceCacheIntegration:
         self, workspace_service, tmp_path, caplog
     ):
         """Test that performance information is logged during copy operations."""
-        import logging
         from unittest.mock import patch
 
         # Create source directory

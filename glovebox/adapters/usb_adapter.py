@@ -4,14 +4,11 @@ import logging
 import threading
 from pathlib import Path
 
-from glovebox.firmware.flash.device_detector import create_device_detector
 from glovebox.firmware.flash.flash_operations import (
     FlashOperations,
-    create_flash_operations,
 )
-from glovebox.firmware.flash.models import BlockDevice, USBDevice, USBDeviceType
+from glovebox.firmware.flash.models import BlockDevice, USBDeviceType
 from glovebox.protocols.device_detector_protocol import DeviceDetectorProtocol
-from glovebox.protocols.flash_os_protocol import FlashOSProtocol
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
 from glovebox.utils.error_utils import create_usb_error
 
@@ -307,13 +304,19 @@ class USBAdapter:
                 shutil.copy2(source, destination)
                 return True
         except Exception as e:
+            # Extract device identifier from destination path (mount point)
+            device_id = (
+                str(destination.parent.name) if destination.parent else "unknown"
+            )
             error = create_usb_error(
-                str(source),
+                device_id,
                 "copy_file",
                 e,
                 {"source": str(source), "destination": str(destination)},
             )
-            logger.error("Failed to copy file: %s", e)
+            logger.error(
+                "Failed to copy file from %s to %s: %s", source, destination, e
+            )
             raise error from e
 
 

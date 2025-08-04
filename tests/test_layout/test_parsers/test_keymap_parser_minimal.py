@@ -1,12 +1,9 @@
 """Minimal tests for ZMK keymap parser functionality - only testing working APIs."""
 
-from pathlib import Path
-
 import pytest
 
 from glovebox.layout.parsers.keymap_parser import (
     KeymapParseResult,
-    ParsingMethod,
     ParsingMode,
     ZmkKeymapParser,
     create_zmk_keymap_parser,

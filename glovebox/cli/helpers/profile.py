@@ -197,7 +197,7 @@ def _handle_firmware_not_found_error(
     keyboard_name: str, firmware_name: str, user_config: UserConfig | None
 ) -> None:
     """Handle firmware not found error with helpful feedback."""
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Colors, Icons
 
     icon_mode = _get_icon_mode_safe(user_config)
     console = Console()
@@ -213,10 +213,10 @@ def _handle_firmware_not_found_error(
             table = Table(
                 title=f"{Icons.get_icon('FIRMWARE', icon_mode)} Available Firmwares for {keyboard_name}",
                 show_header=True,
-                header_style="bold green",
+                header_style=Colors.HEADER,
             )
-            table.add_column("Firmware", style="cyan", no_wrap=True)
-            table.add_column("Description", style="white")
+            table.add_column("Firmware", style=Colors.PRIMARY, no_wrap=True)
+            table.add_column("Description", style=Colors.FIELD_VALUE)
 
             for fw_name, fw_config in firmwares.items():
                 table.add_row(fw_name, fw_config.description)
@@ -232,7 +232,7 @@ def _handle_keyboard_not_found_error(
     keyboard_name: str, user_config: UserConfig | None
 ) -> None:
     """Handle keyboard not found error with helpful feedback."""
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Colors, Icons
 
     icon_mode = _get_icon_mode_safe(user_config)
     console = Console()
@@ -244,9 +244,9 @@ def _handle_keyboard_not_found_error(
         table = Table(
             title=f"{Icons.get_icon('KEYBOARD', icon_mode)} Available Keyboards",
             show_header=True,
-            header_style="bold green",
+            header_style=Colors.HEADER,
         )
-        table.add_column("Keyboard", style="cyan")
+        table.add_column("Keyboard", style=Colors.PRIMARY)
 
         for kb in keyboards:
             table.add_row(kb)
@@ -258,7 +258,7 @@ def _handle_general_config_error(
     error_message: str, user_config: UserConfig | None
 ) -> None:
     """Handle general configuration error with helpful feedback."""
-    from glovebox.cli.helpers.theme import Icons
+    from glovebox.cli.helpers.theme import Colors, Icons
 
     icon_mode = _get_icon_mode_safe(user_config)
     console = Console()
@@ -270,9 +270,9 @@ def _handle_general_config_error(
         table = Table(
             title=f"{Icons.get_icon('KEYBOARD', icon_mode)} Available Keyboards",
             show_header=True,
-            header_style="bold green",
+            header_style=Colors.HEADER,
         )
-        table.add_column("Keyboard", style="cyan")
+        table.add_column("Keyboard", style=Colors.PRIMARY)
 
         for kb in keyboards:
             table.add_row(kb)

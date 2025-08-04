@@ -1,12 +1,10 @@
 """Configuration update check commands."""
 
 import logging
-from typing import Annotated
 
 import typer
 
 from glovebox.cli.decorators import handle_errors
-from glovebox.cli.helpers import print_success_message
 
 
 logger = logging.getLogger(__name__)

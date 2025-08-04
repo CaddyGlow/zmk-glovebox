@@ -5,18 +5,15 @@ and that the complete workflow from CLI → templates → compilation works.
 """
 
 import json
-import tempfile
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
-
-pytestmark = pytest.mark.integration
 from typer.testing import CliRunner
 
 from glovebox.cli.app import app
-from glovebox.layout.models import LayoutData
+
+
+pytestmark = pytest.mark.integration
 
 
 class TestCLITemplateEditIntegration:

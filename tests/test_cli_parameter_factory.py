@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import inspect
 from pathlib import Path
-from typing import Annotated, Any, get_args, get_origin
+from typing import Annotated, get_args, get_origin
 
-import pytest
 import typer
 
 from glovebox.cli.helpers.parameter_factory import (

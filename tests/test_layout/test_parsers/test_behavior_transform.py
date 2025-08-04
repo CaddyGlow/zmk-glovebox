@@ -1,7 +1,5 @@
 """Tests for behavior reference transformation functionality."""
 
-import pytest
-
 from glovebox.layout.parsers.keymap_processors import TemplateAwareProcessor
 
 

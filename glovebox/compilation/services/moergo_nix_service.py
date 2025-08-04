@@ -3,12 +3,10 @@ with the nix toolchain
 """
 
 import logging
-import shutil
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from glovebox.adapters.docker_adapter import LoggerOutputMiddleware
 from glovebox.compilation.models import (
     CompilationConfigUnion,
     MoergoCompilationConfig,
@@ -22,23 +20,18 @@ from glovebox.firmware.models import (
     FirmwareOutputFiles,
     create_build_info_file,
 )
-from glovebox.models.docker import DockerUserContext
 from glovebox.models.docker_path import DockerPath
 from glovebox.protocols import (
     DockerAdapterProtocol,
     FileAdapterProtocol,
     MetricsProtocol,
 )
-from glovebox.utils.build_log_middleware import create_build_log_middleware
-from glovebox.utils.stream_process import (
-    DefaultOutputMiddleware,
-    OutputMiddleware,
-    create_chained_middleware,
-)
 
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
+    from glovebox.layout.models import LayoutData
+    from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
 
 
 class MoergoNixService(CompilationServiceProtocol):
@@ -49,11 +42,13 @@ class MoergoNixService(CompilationServiceProtocol):
         docker_adapter: DockerAdapterProtocol,
         file_adapter: FileAdapterProtocol,
         session_metrics: MetricsProtocol,
+        default_progress_callback: "CompilationProgressCallback | None" = None,
     ) -> None:
         """Initialize with Docker adapter, file adapter, and session metrics."""
         self.docker_adapter = docker_adapter
         self.file_adapter = file_adapter
         self.session_metrics = session_metrics
+        self.default_progress_callback = default_progress_callback
         self.logger = logging.getLogger(__name__)
 
     def compile(
@@ -180,8 +175,8 @@ class MoergoNixService(CompilationServiceProtocol):
     ) -> BuildResult:
         """Internal compilation method with progress tracking."""
         # Initialize display variables for cleanup
-        display = None
-        progress_coordinator = None
+        progress_manager = None
+        progress_context = None
 
         try:
             if not isinstance(config, MoergoCompilationConfig):
@@ -192,64 +187,83 @@ class MoergoNixService(CompilationServiceProtocol):
             # Extract board information dynamically
             board_info = self._extract_board_info_from_config(config)
 
-            # Always create progress coordinator (no conditional checks)
-            from glovebox.cli.helpers.theme import get_themed_console
-            from glovebox.compilation.simple_progress import (
-                ProgressConfig,
-                create_simple_compilation_display,
-                create_simple_progress_coordinator,
+            # Setup progress context using compilation-specific factory
+            from glovebox.cli.components import create_compilation_progress_manager
+
+            # Use provided progress_callback or fall back to default
+            effective_progress_callback = (
+                progress_callback or self.default_progress_callback
             )
 
-            # Create themed console and display
-            themed_console = get_themed_console()
-
-            # Create progress config for MoErgo Nix compilation
-            progress_config = ProgressConfig(
+            # Create progress manager with MoErgo-specific checkpoints
+            progress_manager = create_compilation_progress_manager(
                 operation_name="MoErgo Compilation",
-                tasks=[
-                    "Cache Setup",
+                base_checkpoints=[
                     "Docker Verification",
+                    "Workspace Setup",
                     "Nix Environment",
-                    "Building Firmware",
-                    "Post Processing",
                 ],
+                final_checkpoints=["Collecting Artifacts"],
+                board_info=board_info,
+                progress_callback=effective_progress_callback,
+                use_moergo_fallback=True,
             )
 
-            # Create display and coordinator (use the underlying Rich Console)
-            display = create_simple_compilation_display(
-                themed_console.console, progress_config
-            )
-            progress_coordinator = create_simple_progress_coordinator(display)
+            with progress_manager as progress_context:
+                return self._execute_compilation_with_progress(
+                    progress_context,
+                    board_info,
+                    config,
+                    keyboard_profile,
+                    keymap_file,
+                    config_file,
+                    keymap_content,
+                    config_content,
+                    output_dir,
+                    compilation_start_time,
+                )
 
-            # Set MoErgo-specific attributes
-            progress_coordinator.total_boards = board_info["total_boards"]
-            progress_coordinator.compilation_strategy = "moergo_nix"
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("Compilation failed: %s", e, exc_info=exc_info)
+            return BuildResult(success=False, errors=[str(e)])
 
-            # Start the display
-            display.start()
-
-            # Start with initialization phase
-            progress_coordinator.transition_to_phase(
-                "initialization", "Setting up build environment"
+    def _execute_compilation_with_progress(
+        self,
+        progress_context: "ProgressContextProtocol",
+        board_info: dict[str, Any],
+        config: MoergoCompilationConfig,
+        keyboard_profile: "KeyboardProfile",
+        keymap_file: Path | None,
+        config_file: Path | None,
+        keymap_content: str | None,
+        config_content: str | None,
+        output_dir: Path,
+        compilation_start_time: float,
+    ) -> BuildResult:
+        """Execute compilation with progress tracking."""
+        try:
+            progress_context.log(
+                f"Starting MoErgo compilation for {board_info['total_boards']} boards",
+                "info",
             )
 
             # Check/build Docker image with progress
-            progress_coordinator.transition_to_phase(
-                "docker_verification", "Verifying Docker image"
-            )
-            # Set the docker image name for display
-            progress_coordinator.docker_image_name = config.image
+            progress_context.start_checkpoint("Docker Verification")
+            progress_context.log(f"Verifying Docker image: {config.image}", "info")
 
-            if not self._ensure_docker_image(config, progress_coordinator):
+            if not self._ensure_docker_image(config, progress_context):
                 return BuildResult(success=False, errors=["Docker image setup failed"])
 
+            progress_context.complete_checkpoint("Docker Verification")
+
             # Setup workspace with progress
-            progress_coordinator.transition_to_phase(
-                "nix_build", "Building Nix environment"
-            )
+            progress_context.start_checkpoint("Workspace Setup")
+            progress_context.log("Setting up workspace directories and files", "info")
+
             workspace_path = self._setup_workspace(
                 keyboard_profile=keyboard_profile,
-                progress_coordinator=progress_coordinator,
+                progress_context=progress_context,
                 keymap_file=keymap_file,
                 config_file=config_file,
                 keymap_content=keymap_content,
@@ -258,21 +272,26 @@ class MoergoNixService(CompilationServiceProtocol):
             if not workspace_path or not workspace_path.host_path:
                 return BuildResult(success=False, errors=["Workspace setup failed"])
 
-            # Run compilation with progress (existing integration)
-            progress_coordinator.transition_to_phase(
-                "building", "Starting MoErgo Nix compilation"
-            )
+            progress_context.complete_checkpoint("Workspace Setup")
+
+            # Run compilation with board-specific progress tracking
+            progress_context.log("Starting MoErgo Nix compilation", "info")
+
             compilation_success = self._run_compilation(
-                workspace_path, config, output_dir, progress_coordinator
+                workspace_path, config, output_dir, progress_context, board_info
             )
 
+            # Individual board checkpoints are completed within _run_compilation
+
             # Collect artifacts with progress
-            progress_coordinator.transition_to_phase(
-                "cache_saving", "Generating .uf2 files"
-            )
+            progress_context.start_checkpoint("Collecting Artifacts")
+            progress_context.log("Collecting .uf2 files and artifacts", "info")
+
             output_files = self._collect_files(
-                workspace_path.host_path, output_dir, progress_coordinator
+                workspace_path.host_path, output_dir, progress_context
             )
+
+            progress_context.complete_checkpoint("Collecting Artifacts")
 
             if not compilation_success:
                 return BuildResult(
@@ -322,28 +341,17 @@ class MoergoNixService(CompilationServiceProtocol):
                 except Exception as e:
                     self.logger.warning("Failed to create build-info.json: %s", e)
 
-            # Mark compilation as fully complete
-            # Signal completion to progress coordinator for 100% display
-            progress_coordinator.complete_all_builds()
-
             result = BuildResult(
                 success=True,
                 output_files=output_files,
             )
             # Set unified success messages for MoErgo builds
             result.set_success_messages("moergo_nix", was_cached=False)
-
-            # Stop the display
-            display.stop()
             return result
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.error("Compilation failed: %s", e, exc_info=exc_info)
-
-            # Stop the display on error if it was created
-            if display is not None:
-                display.stop()
             return BuildResult(success=False, errors=[str(e)])
 
     def compile_from_json(
@@ -354,41 +362,111 @@ class MoergoNixService(CompilationServiceProtocol):
         keyboard_profile: "KeyboardProfile",
         progress_callback: CompilationProgressCallback | None = None,
     ) -> BuildResult:
-        """Execute compilation from JSON layout file (optimized - no temp files)."""
+        """Execute compilation from JSON layout file.
+
+        This method reads the JSON file and delegates to compile_from_data
+        following the unified input/output patterns.
+        """
         self.logger.info("Starting JSON to firmware compilation")
 
-        # Use optimized helper to convert JSON to content (eliminates temp files)
-        from glovebox.compilation.helpers import convert_json_to_keymap_content
+        try:
+            # Read and parse JSON file to get layout data
+            from glovebox.adapters import create_file_adapter
+            from glovebox.layout.utils import process_json_file
 
-        keymap_content, config_content, conversion_result = (
-            convert_json_to_keymap_content(
-                json_file=json_file,
-                keyboard_profile=keyboard_profile,
-                session_metrics=self.session_metrics,
+            file_adapter = create_file_adapter()
+
+            def extract_layout_data(layout_data: Any) -> Any:
+                """Extract layout data for delegation to compile_from_data."""
+                return layout_data
+
+            layout_data = process_json_file(
+                json_file,
+                "JSON parsing for compilation",
+                extract_layout_data,
+                file_adapter,
             )
-        )
 
-        if not conversion_result.success:
-            return conversion_result
+            # Delegate to memory-first method
+            return self.compile_from_data(
+                layout_data=layout_data,
+                output_dir=output_dir,
+                config=config,
+                keyboard_profile=keyboard_profile,
+                progress_callback=progress_callback,
+            )
 
-        # Ensure content was generated successfully (type safety)
-        assert keymap_content is not None, (
-            "Keymap content should be generated on success"
-        )
-        assert config_content is not None, (
-            "Config content should be generated on success"
-        )
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("JSON compilation failed: %s", e, exc_info=exc_info)
+            return BuildResult(success=False, errors=[str(e)])
 
-        # Compile directly from content (no temp files needed)
-        return self.compile_from_content(
-            keymap_content=keymap_content,
-            config_content=config_content,
-            output_dir=output_dir,
-            config=config,
-            keyboard_profile=keyboard_profile,
-            progress_callback=progress_callback,
-            json_file=json_file,
-        )
+    def compile_from_data(
+        self,
+        layout_data: "LayoutData",
+        output_dir: Path,
+        config: CompilationConfigUnion,
+        keyboard_profile: "KeyboardProfile",
+        progress_callback: CompilationProgressCallback | None = None,
+    ) -> BuildResult:
+        """Execute compilation from layout data (memory-first pattern).
+
+        This is the memory-first method that takes layout data as input
+        and returns content in the result object, following the unified
+        input/output patterns established in Phase 1/2 refactoring.
+
+        Args:
+            layout_data: Layout data object for compilation
+            output_dir: Output directory for build artifacts
+            config: Compilation configuration
+            keyboard_profile: Keyboard profile for dynamic generation
+            progress_callback: Optional callback for compilation progress updates
+
+        Returns:
+            BuildResult: Results of compilation with generated content
+        """
+        self.logger.info("Starting compilation from layout data")
+
+        try:
+            # Convert layout data to keymap and config content
+            from glovebox.compilation.helpers import (
+                convert_layout_data_to_keymap_content,
+            )
+
+            keymap_content, config_content, conversion_result = (
+                convert_layout_data_to_keymap_content(
+                    layout_data=layout_data,
+                    keyboard_profile=keyboard_profile,
+                    session_metrics=self.session_metrics,
+                )
+            )
+
+            if not conversion_result.success:
+                return conversion_result
+
+            # Ensure content was generated successfully (type safety)
+            assert keymap_content is not None, (
+                "Keymap content should be generated on success"
+            )
+            assert config_content is not None, (
+                "Config content should be generated on success"
+            )
+
+            # Compile directly from content (no temp files needed for MoErgo)
+            return self.compile_from_content(
+                keymap_content=keymap_content,
+                config_content=config_content,
+                output_dir=output_dir,
+                config=config,
+                keyboard_profile=keyboard_profile,
+                progress_callback=progress_callback,
+                json_file=None,  # No original JSON file since we have data directly
+            )
+
+        except Exception as e:
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error("Compilation from data failed: %s", e, exc_info=exc_info)
+            return BuildResult(success=False, errors=[str(e)])
 
     def validate_config(self, config: CompilationConfigUnion) -> bool:
         """Validate configuration."""
@@ -401,7 +479,7 @@ class MoergoNixService(CompilationServiceProtocol):
     def _setup_workspace(
         self,
         keyboard_profile: "KeyboardProfile",
-        progress_coordinator: Any,
+        progress_context: "ProgressContextProtocol",
         keymap_file: Path | None = None,
         config_file: Path | None = None,
         keymap_content: str | None = None,
@@ -409,9 +487,7 @@ class MoergoNixService(CompilationServiceProtocol):
     ) -> DockerPath | None:
         """Setup temporary workspace from files or content."""
         try:
-            progress_coordinator.update_workspace_progress(
-                0, 4, 0, 0, "", "Creating workspace directory"
-            )
+            progress_context.log("Creating workspace directory", "info")
 
             workspace_path = DockerPath(
                 host_path=Path(tempfile.mkdtemp(prefix="moergo_")),
@@ -422,9 +498,7 @@ class MoergoNixService(CompilationServiceProtocol):
             config_dir = workspace_path.host_path / "config"
             config_dir.mkdir(parents=True)
 
-            progress_coordinator.update_workspace_progress(
-                1, 4, 0, 0, "glove80.keymap", "Copying keymap file"
-            )
+            progress_context.log("Copying keymap file", "info")
 
             # Handle keymap: either copy from file or write content directly
             if keymap_content is not None:
@@ -442,9 +516,7 @@ class MoergoNixService(CompilationServiceProtocol):
                     "Either keymap_file or keymap_content must be provided"
                 )
 
-            progress_coordinator.update_workspace_progress(
-                2, 4, 0, 0, "glove80.conf", "Copying config file"
-            )
+            progress_context.log("Copying config file", "info")
 
             # Handle config: either copy from file or write content directly
             if config_content is not None:
@@ -462,9 +534,7 @@ class MoergoNixService(CompilationServiceProtocol):
                     "Either config_file or config_content must be provided"
                 )
 
-            progress_coordinator.update_workspace_progress(
-                3, 4, 0, 0, "default.nix", "Loading Nix toolchain"
-            )
+            progress_context.log("Loading Nix toolchain", "info")
 
             # Load default.nix from keyboard's toolchain directory
             default_nix_content = keyboard_profile.load_toolchain_file("default.nix")
@@ -476,9 +546,7 @@ class MoergoNixService(CompilationServiceProtocol):
                 config_dir / "default.nix", default_nix_content
             )
 
-            progress_coordinator.update_workspace_progress(
-                4, 4, 0, 0, "", "Workspace setup completed"
-            )
+            progress_context.log("Workspace setup completed", "info")
 
             return workspace_path
         except Exception as e:
@@ -491,32 +559,131 @@ class MoergoNixService(CompilationServiceProtocol):
         workspace_path: DockerPath,
         config: MoergoCompilationConfig,
         output_dir: Path,
-        progress_coordinator: Any,
+        progress_context: "ProgressContextProtocol",
+        board_info: dict[str, Any] | None = None,
     ) -> bool:
         """Run Docker compilation."""
         try:
             from glovebox.adapters.docker_adapter import LoggerOutputMiddleware
             from glovebox.models.docker import DockerUserContext
             from glovebox.utils.build_log_middleware import create_build_log_middleware
-            from glovebox.utils.stream_process import create_chained_middleware
+            from glovebox.utils.stream_process import (
+                DefaultOutputMiddleware,
+                create_chained_middleware,
+            )
+
+            # Extract board information for progress tracking
+            if board_info is None:
+                board_info = self._extract_board_info_from_config(config)
+
+            board_names = board_info.get("board_names", [])
+            total_boards = board_info.get("total_boards", 2)
+
+            # Default to left/right hand for MoErgo if no specific names
+            if not board_names:
+                if total_boards >= 2:
+                    board_names = ["Left Hand", "Right Hand"]
+                else:
+                    board_names = ["Firmware"]
 
             middlewares: list[Any] = []
 
             # Create build log middleware
-            build_log_middleware = create_build_log_middleware(output_dir)
+            build_log_middleware = create_build_log_middleware(
+                output_dir, progress_context
+            )
             middlewares.append(build_log_middleware)
 
-            # Always add progress middleware (no conditional checks)
-            from glovebox.adapters import create_compilation_progress_middleware
+            # Add board-specific progress tracking middleware
+            class MoErgoBoardProgressMiddleware(DefaultOutputMiddleware):
+                """Middleware to track individual board build progress for MoErgo."""
 
-            # Create middleware that delegates to existing coordinator with MoErgo-specific patterns
-            # MoErgo skips west update, so start directly with building
-            middleware = create_compilation_progress_middleware(
-                progress_coordinator=progress_coordinator,
-                progress_patterns=config.progress_patterns,  # Use MoErgo-specific patterns
-                skip_west_update=True,  # MoErgo doesn't use west update
-            )
-            middlewares.append(middleware)
+                def __init__(self) -> None:
+                    super().__init__()
+                    self.current_board_index = 0
+                    self.boards_completed = 0
+                    self.in_build_phase = False
+                    self.started_nix_env = False
+
+                def process_line(self, line: str, is_stderr: bool) -> None:
+                    """Process Docker output line to track board progress."""
+                    line_lower = line.lower()
+
+                    # Detect Nix environment setup start
+                    if not self.started_nix_env and (
+                        "nix-shell" in line_lower or "entering nix" in line_lower
+                    ):
+                        progress_context.start_checkpoint("Nix Environment")
+                        progress_context.log("Setting up Nix environment", "info")
+                        self.started_nix_env = True
+
+                    # Detect when Nix environment is ready and building starts
+                    if (
+                        self.started_nix_env
+                        and ("building" in line_lower or "compiling" in line_lower)
+                        and not self.in_build_phase
+                    ):
+                        progress_context.complete_checkpoint("Nix Environment")
+                        # Start first board build
+                        if self.current_board_index < len(board_names):
+                            board_name = board_names[self.current_board_index]
+                            checkpoint_name = f"Building {board_name}"
+                            progress_context.start_checkpoint(checkpoint_name)
+                            progress_context.log(
+                                f"Starting build for {board_name}", "info"
+                            )
+                            self.in_build_phase = True
+
+                    # Detect when a .uf2 file is created (indicates board completion)
+                    if (
+                        self.in_build_phase
+                        and ".uf2" in line_lower
+                        and ("created" in line_lower or "generated" in line_lower)
+                        and self.current_board_index < len(board_names)
+                    ):
+                        board_name = board_names[self.current_board_index]
+                        checkpoint_name = f"Building {board_name}"
+                        progress_context.complete_checkpoint(checkpoint_name)
+                        progress_context.log(
+                            f"Completed build for {board_name}", "info"
+                        )
+                        self.boards_completed += 1
+                        self.current_board_index += 1
+
+                        # Update overall progress
+                        progress_context.update_progress(
+                            current=self.boards_completed,
+                            total=total_boards,
+                            status=f"Built {self.boards_completed}/{total_boards} boards",
+                        )
+
+                        # Start next board if available
+                        if self.current_board_index < len(board_names):
+                            board_name = board_names[self.current_board_index]
+                            checkpoint_name = f"Building {board_name}"
+                            progress_context.start_checkpoint(checkpoint_name)
+                            progress_context.log(
+                                f"Starting build for {board_name}", "info"
+                            )
+                        else:
+                            self.in_build_phase = False
+
+                    # Detect build failures
+                    if (
+                        self.in_build_phase
+                        and (
+                            "error:" in line_lower
+                            or "failed" in line_lower
+                            or "make: *** [" in line_lower
+                        )
+                        and self.current_board_index < len(board_names)
+                    ):
+                        board_name = board_names[self.current_board_index]
+                        checkpoint_name = f"Building {board_name}"
+                        progress_context.fail_checkpoint(checkpoint_name)
+                        progress_context.log(f"Build failed for {board_name}", "error")
+
+            middlewares.append(MoErgoBoardProgressMiddleware())
 
             middlewares.append(LoggerOutputMiddleware(self.logger))
 
@@ -535,11 +702,12 @@ class MoergoNixService(CompilationServiceProtocol):
             try:
                 return_code, _, stderr = self.docker_adapter.run_container(
                     image=config.image,
-                    command=["build.sh"],  # Use the build script, not direct nix-build
                     volumes=[workspace_path.vol()],
                     environment=environment,
-                    user_context=user_context,
+                    progress_context=progress_context,
+                    command=["build.sh"],  # Use the build script, not direct nix-build
                     middleware=create_chained_middleware(middlewares),
+                    user_context=user_context,
                 )
             finally:
                 # Always close the build log middleware
@@ -555,7 +723,10 @@ class MoergoNixService(CompilationServiceProtocol):
             return False
 
     def _collect_files(
-        self, workspace_path: Path, output_dir: Path, progress_coordinator: Any
+        self,
+        workspace_path: Path,
+        output_dir: Path,
+        progress_context: "ProgressContextProtocol",
     ) -> FirmwareOutputFiles:
         """Collect firmware files from artifacts directory, including partial artifacts for debugging."""
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -563,9 +734,7 @@ class MoergoNixService(CompilationServiceProtocol):
         artifacts_dir = None
         collected_items = []
 
-        progress_coordinator.update_cache_progress(
-            "scanning", 25, 100, "Scanning for build artifacts"
-        )
+        progress_context.log("Scanning for build artifacts", "info")
 
         # Look for artifacts directory created by build.sh
         build_artifacts_dir = workspace_path / "artifacts"
@@ -575,11 +744,8 @@ class MoergoNixService(CompilationServiceProtocol):
                 items_to_copy = list(build_artifacts_dir.iterdir())
                 total_items = len(items_to_copy)
 
-                progress_coordinator.update_cache_progress(
-                    "copying",
-                    50,
-                    100,
-                    f"Copying {total_items} artifacts to output directory",
+                progress_context.log(
+                    f"Copying {total_items} artifacts to output directory", "info"
                 )
 
                 # Copy all contents of artifacts directory directly to output directory
@@ -608,12 +774,13 @@ class MoergoNixService(CompilationServiceProtocol):
                         # Update progress during copying
                         if i % 5 == 0 or i == total_items - 1:  # Update every 5 items
                             current_progress = 50 + (25 * i // total_items)
-                            progress_coordinator.update_cache_progress(
-                                "copying",
-                                current_progress,
-                                100,
-                                f"Copied {i + 1}/{total_items} artifacts",
-                            )
+                            # TODO: Enable after refactoring
+                            # progress_coordinator.update_cache_progress(
+                            #     "copying",
+                            #     current_progress,
+                            #     100,
+                            #     f"Copied {i + 1}/{total_items} artifacts",
+                            # )
 
                     except Exception as e:
                         self.logger.warning("Failed to copy artifact %s: %s", item, e)
@@ -646,9 +813,10 @@ class MoergoNixService(CompilationServiceProtocol):
                 build_artifacts_dir,
             )
 
-            progress_coordinator.update_cache_progress(
-                "scanning", 75, 100, "Searching for partial build files"
-            )
+            # TODO: Enable after refactoring
+            # progress_coordinator.update_cache_progress(
+            #     "scanning", 75, 100, "Searching for partial build files"
+            # )
 
             # Even without artifacts directory, check for any generated files in workspace
             partial_files: list[Path] = []
@@ -675,9 +843,10 @@ class MoergoNixService(CompilationServiceProtocol):
                             "Failed to copy partial file %s: %s", partial_file, e
                         )
 
-        progress_coordinator.update_cache_progress(
-            "completed", 100, 100, f"Collected {len(uf2_files)} firmware files"
-        )
+        # TODO: Enable after refactoring
+        # progress_coordinator.update_cache_progress(
+        #     "completed", 100, 100, f"Collected {len(uf2_files)} firmware files"
+        # )
 
         return FirmwareOutputFiles(
             output_dir=output_dir,
@@ -686,14 +855,13 @@ class MoergoNixService(CompilationServiceProtocol):
         )
 
     def _ensure_docker_image(
-        self, config: MoergoCompilationConfig, progress_coordinator: Any
+        self,
+        config: MoergoCompilationConfig,
+        progress_context: "ProgressContextProtocol",
     ) -> bool:
         """Ensure Docker image exists, build if not found."""
         try:
-            # Check image existence
-            progress_coordinator.update_cache_progress(
-                "checking", 25, 100, "Checking Docker image availability"
-            )
+            progress_context.log("Checking Docker image availability", "info")
 
             # Generate version-based image tag using glovebox version
             base_image_name = config.image.split(":")[0]
@@ -710,13 +878,11 @@ class MoergoNixService(CompilationServiceProtocol):
                 # Update config to use the versioned image
                 config.image = f"{versioned_image_name}:{versioned_tag}"
 
-                progress_coordinator.update_cache_progress(
-                    "completed", 100, 100, "Docker image ready"
-                )
+                progress_context.log("Docker image ready", "info")
                 return True
 
-            progress_coordinator.update_cache_progress(
-                "building", 50, 100, f"Building Docker image: {versioned_image_name}"
+            progress_context.log(
+                f"Building Docker image: {versioned_image_name}", "info"
             )
 
             self.logger.info(
@@ -743,9 +909,7 @@ class MoergoNixService(CompilationServiceProtocol):
                 self.logger.error("Toolchain directory not found: %s", dockerfile_dir)
                 return False
 
-            progress_coordinator.update_cache_progress(
-                "building", 75, 100, f"Building image from {dockerfile_dir}"
-            )
+            progress_context.log(f"Building image from {dockerfile_dir}", "info")
 
             # Build the image with versioned tag using middleware to show progress
             from glovebox.utils.stream_process import DefaultOutputMiddleware
@@ -754,6 +918,7 @@ class MoergoNixService(CompilationServiceProtocol):
             result: tuple[int, list[str], list[str]] = self.docker_adapter.build_image(
                 dockerfile_dir=dockerfile_dir,
                 image_name=versioned_image_name,
+                progress_context=progress_context,
                 image_tag=versioned_tag,
                 middleware=middleware,
             )
@@ -767,9 +932,7 @@ class MoergoNixService(CompilationServiceProtocol):
                 # Update config to use the versioned image
                 config.image = f"{versioned_image_name}:{versioned_tag}"
 
-                progress_coordinator.update_cache_progress(
-                    "completed", 100, 100, "Docker image built successfully"
-                )
+                progress_context.log("Docker image built successfully", "info")
                 return True
             else:
                 self.logger.error(
@@ -845,6 +1008,7 @@ def create_moergo_nix_service(
     docker_adapter: DockerAdapterProtocol,
     file_adapter: FileAdapterProtocol,
     session_metrics: MetricsProtocol,
+    default_progress_callback: "CompilationProgressCallback | None" = None,
 ) -> MoergoNixService:
     """Create Moergo nix service with session metrics for progress tracking.
 
@@ -852,8 +1016,11 @@ def create_moergo_nix_service(
         docker_adapter: Docker adapter for container operations
         file_adapter: File adapter for file operations
         session_metrics: Session metrics for tracking operations
+        default_progress_callback: Optional default progress callback for compilation tracking
 
     Returns:
         Configured MoergoNixService instance
     """
-    return MoergoNixService(docker_adapter, file_adapter, session_metrics)
+    return MoergoNixService(
+        docker_adapter, file_adapter, session_metrics, default_progress_callback
+    )

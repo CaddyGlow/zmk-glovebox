@@ -5,7 +5,7 @@ import time
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import diskcache  # type: ignore[import-untyped]
 

@@ -1,16 +1,6 @@
 """Tests for AST behavior converters."""
 
-import pytest
-
-from glovebox.layout.models import (
-    CapsWordBehavior,
-    LayoutBinding,
-    ModMorphBehavior,
-    StickyKeyBehavior,
-    TapDanceBehavior,
-)
 from glovebox.layout.parsers.ast_behavior_converter import (
-    ASTBehaviorConverter,
     create_ast_behavior_converter,
 )
 from glovebox.layout.parsers.ast_nodes import DTNode, DTProperty, DTValue, DTValueType
@@ -594,7 +584,7 @@ class TestBehaviorConverterEdgeCases:
         converter = create_ast_behavior_converter()
 
         # These should not crash
-        assert converter.convert_tap_dance_node(None) is None
-        assert converter.convert_sticky_key_node(None) is None
-        assert converter.convert_caps_word_node(None) is None
-        assert converter.convert_mod_morph_node(None) is None
+        assert converter.convert_tap_dance_node(None) is None  # type: ignore[arg-type]
+        assert converter.convert_sticky_key_node(None) is None  # type: ignore[arg-type]
+        assert converter.convert_caps_word_node(None) is None  # type: ignore[arg-type]
+        assert converter.convert_mod_morph_node(None) is None  # type: ignore[arg-type]

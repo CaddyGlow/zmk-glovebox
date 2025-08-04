@@ -3,9 +3,6 @@
 from typing import TYPE_CHECKING, cast
 from unittest.mock import Mock, patch
 
-import pytest
-import typer
-
 from glovebox.cli.commands.config.management import _show_all_config
 from glovebox.cli.helpers.theme import IconMode
 
@@ -176,7 +173,7 @@ class TestConfigIconModeDisplay:
 
         # Create mock app context with list value
         user_config = MockUserConfig()
-        user_config.config_values["keyboard_paths"] = ["/path/one", "/path/two"]
+        user_config.config_values["profiles_paths"] = ["/path/one", "/path/two"]
         app_ctx = MockAppContext(user_config)
 
         # Call the function
@@ -191,17 +188,17 @@ class TestConfigIconModeDisplay:
         # Check that table.add_row was called with formatted list
         table_calls = mock_table.add_row.call_args_list
 
-        # Find the keyboard_paths row
-        keyboard_paths_row = None
+        # Find the profiles_paths row
+        profiles_paths_row = None
         for call in table_calls:
             args = call[0]
-            if len(args) >= 2 and args[0] == "keyboard_paths":
-                keyboard_paths_row = args
+            if len(args) >= 2 and args[0] == "profiles_paths":
+                profiles_paths_row = args
                 break
 
-        assert keyboard_paths_row is not None, "keyboard_paths row should be present"
-        assert "/path/one" in keyboard_paths_row[1], "List should contain first path"
-        assert "/path/two" in keyboard_paths_row[1], "List should contain second path"
+        assert profiles_paths_row is not None, "profiles_paths row should be present"
+        assert "/path/one" in profiles_paths_row[1], "List should contain first path"
+        assert "/path/two" in profiles_paths_row[1], "List should contain second path"
 
     @patch("glovebox.cli.commands.config.management.Console")
     @patch("glovebox.cli.commands.config.management.Table")
@@ -217,7 +214,7 @@ class TestConfigIconModeDisplay:
 
         # Create mock app context with empty list
         user_config = MockUserConfig()
-        user_config.config_values["keyboard_paths"] = []
+        user_config.config_values["profiles_paths"] = []
         app_ctx = MockAppContext(user_config)
 
         # Call the function
@@ -232,17 +229,17 @@ class TestConfigIconModeDisplay:
         # Check that table.add_row was called with "(empty list)"
         table_calls = mock_table.add_row.call_args_list
 
-        # Find the keyboard_paths row
-        keyboard_paths_row = None
+        # Find the profiles_paths row
+        profiles_paths_row = None
         for call in table_calls:
             args = call[0]
-            if len(args) >= 2 and args[0] == "keyboard_paths":
-                keyboard_paths_row = args
+            if len(args) >= 2 and args[0] == "profiles_paths":
+                profiles_paths_row = args
                 break
 
-        assert keyboard_paths_row is not None, "keyboard_paths row should be present"
-        assert keyboard_paths_row[1] == "(empty list)", (
-            f"Expected '(empty list)', got '{keyboard_paths_row[1]}'"
+        assert profiles_paths_row is not None, "profiles_paths row should be present"
+        assert profiles_paths_row[1] == "(empty list)", (
+            f"Expected '(empty list)', got '{profiles_paths_row[1]}'"
         )
 
     @patch("glovebox.cli.commands.config.management.Console")

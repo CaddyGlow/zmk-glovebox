@@ -1,7 +1,5 @@
 """Test model converters, specifically macro parameter field extraction."""
 
-import pytest
-
 from glovebox.layout.models import MacroBehavior
 from glovebox.layout.parsers import ast_nodes
 from glovebox.layout.parsers.model_converters import MacroConverter

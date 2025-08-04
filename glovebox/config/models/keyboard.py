@@ -1,7 +1,7 @@
 """Keyboard configuration models."""
 
 import logging
-from typing import Any, TypeAlias, Union
+from typing import Any, TypeAlias
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -93,6 +93,10 @@ class KeyboardConfig(GloveboxBaseModel):
     description: str
     vendor: str
     key_count: int = Field(gt=0, description="Number of keys must be positive")
+    is_split: bool = Field(
+        default=False,
+        description="Whether this is a split keyboard (two separate halves)",
+    )
 
     # Method-specific configurations (required for all keyboards)
     compile_methods: list[CompileMethodConfigUnion] = Field(default_factory=list)

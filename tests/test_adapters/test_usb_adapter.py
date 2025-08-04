@@ -9,7 +9,6 @@ from glovebox.adapters.usb_adapter import USBAdapter, create_usb_adapter
 from glovebox.core.errors import USBError
 from glovebox.firmware.flash.models import BlockDevice, DiskInfo, USBDeviceInfo
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
-from tests.test_factories import create_usb_adapter_for_tests
 
 
 @pytest.fixture
@@ -240,8 +239,8 @@ class TestCreateUSBAdapter:
             flash_operations=mock_flash_operations,
             detector=mock_detector,
         )
-        assert isinstance(adapter, USBAdapter)
-        assert isinstance(adapter, USBAdapterProtocol)
+        assert isinstance(adapter, USBAdapter)  # type: ignore[unreachable]
+        assert isinstance(adapter, USBAdapterProtocol)  # type: ignore[unreachable]
 
 
 class TestUSBAdapterProtocol:

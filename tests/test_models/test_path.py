@@ -5,13 +5,13 @@ import tempfile
 from pathlib import Path
 
 import pytest
-
-
-pytestmark = pytest.mark.unit
 from pydantic import Field, field_serializer, field_validator
 
 from glovebox.models.base import GloveboxBaseModel
 from glovebox.models.path import PreservingPath, path_field
+
+
+pytestmark = pytest.mark.unit
 
 
 class ExamplePathModel(GloveboxBaseModel):

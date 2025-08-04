@@ -219,6 +219,33 @@ class LinuxUSBDeviceMonitor(USBDeviceMonitorBase):
 
                     # Handle storage vs non-storage devices
                     if hasattr(device, "subsystem") and device.subsystem == "block":
+                        # Wait for device to be fully initialized
+                        if not getattr(device, "is_initialized", True):
+                            logger.debug(
+                                f"Waiting for device {device.sys_name} to be initialized"
+                            )
+                            # Give udev time to finish processing
+                            time.sleep(0.5)
+
+                        # Verify device node exists before creating BlockDevice
+                        device_node = getattr(device, "device_node", None)
+                        if device_node:
+                            # Wait for device node to actually appear in filesystem
+                            max_retries = 10
+                            for retry in range(max_retries):
+                                if Path(device_node).exists():
+                                    break
+                                if retry < max_retries - 1:
+                                    logger.debug(
+                                        f"Waiting for device node {device_node} to appear (attempt {retry + 1}/{max_retries})"
+                                    )
+                                    time.sleep(0.2)
+                            else:
+                                logger.warning(
+                                    f"Device node {device_node} did not appear after {max_retries} attempts"
+                                )
+                                return
+
                         block_device = BlockDevice.from_pyudev_device(device)
                         with self._lock:
                             self.devices.append(block_device)

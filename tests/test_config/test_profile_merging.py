@@ -2,9 +2,6 @@
 
 import pytest
 
-
-pytestmark = [pytest.mark.network, pytest.mark.integration]
-
 from glovebox.config.models import (
     BuildOptions,
     FirmwareConfig,
@@ -19,6 +16,9 @@ from glovebox.config.models.zmk import ZmkConfig, ZmkPatterns
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import ConfigError
 from glovebox.layout.behavior.models import SystemBehavior
+
+
+pytestmark = [pytest.mark.network, pytest.mark.integration]
 
 
 @pytest.fixture

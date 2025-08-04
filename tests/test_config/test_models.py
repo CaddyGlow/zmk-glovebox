@@ -11,15 +11,15 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-
-pytestmark = pytest.mark.unit
-
 from glovebox.cli.helpers.theme import IconMode
 from glovebox.config.models import (
     FirmwareFlashConfig,
     UserConfigData,
     UserFirmwareConfig,
 )
+
+
+pytestmark = pytest.mark.unit
 
 
 class TestFirmwareFlashConfig:

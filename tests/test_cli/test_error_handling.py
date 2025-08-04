@@ -350,12 +350,13 @@ class TestCLIIntegrationErrorHandling:
         """Test error handling in layout commands."""
         json_file = tmp_path / "test.json"
         json_file.write_text(json.dumps({"version": 1, "layers": []}))
+        output_dir = tmp_path / "output"
 
         with patch(
             "glovebox.layout.service.create_layout_service"
         ) as mock_create_service:
             mock_service = Mock()
-            mock_service.generate_from_file.side_effect = KeymapError(
+            mock_service.compile.side_effect = KeymapError(
                 "Invalid layer configuration"
             )
             mock_create_service.return_value = mock_service
@@ -377,8 +378,9 @@ class TestCLIIntegrationErrorHandling:
                     [
                         "layout",
                         "compile",
-                        "output_prefix",
                         str(json_file),
+                        "--output",
+                        str(output_dir),
                         "--profile",
                         "glove80/v25.05",
                     ],
@@ -387,9 +389,10 @@ class TestCLIIntegrationErrorHandling:
 
                 assert result.exit_code == 1
 
-    def test_file_not_found_integration(self, cli_runner):
+    def test_file_not_found_integration(self, cli_runner, tmp_path):
         """Test file not found error in CLI integration."""
         nonexistent_file = "/path/that/does/not/exist.json"
+        output_dir = tmp_path / "output"
 
         # Register commands
         from glovebox.cli.app import app
@@ -402,8 +405,9 @@ class TestCLIIntegrationErrorHandling:
             [
                 "layout",
                 "compile",
-                "output_prefix",
                 nonexistent_file,
+                "--output",
+                str(output_dir),
                 "--profile",
                 "glove80/v25.05",
             ],
