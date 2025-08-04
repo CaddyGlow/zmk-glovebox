@@ -2,9 +2,6 @@
 
 import logging
 import sys
-
-# Import version from package metadata directly to avoid circular imports
-from importlib.metadata import distribution
 from typing import TYPE_CHECKING, Annotated
 
 import typer
@@ -21,7 +18,15 @@ if TYPE_CHECKING:
 __all__ = ["app", "main", "__version__", "setup_logging"]
 
 
-__version__ = distribution("glovebox").version
+# Try to get version from multiple sources
+try:
+    from glovebox._version import __version__
+except ImportError:
+    try:
+        from importlib.metadata import distribution
+        __version__ = distribution("glovebox").version
+    except Exception:
+        __version__ = "unknown"
 
 logger = logging.getLogger(__name__)
 
