@@ -1,6 +1,5 @@
 """Workspace processing utilities for cache commands."""
 
-import contextlib
 import json
 import logging
 import shutil
@@ -285,14 +284,6 @@ def extract_zip_file(
         Path to workspace directory
     """
     import time
-
-    from rich.progress import (
-        BarColumn,
-        Progress,
-        SpinnerColumn,
-        TaskProgressColumn,
-        TextColumn,
-    )
 
     if progress_context is None:
         progress_context = get_noop_progress_context()

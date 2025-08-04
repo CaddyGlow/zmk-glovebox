@@ -4,10 +4,10 @@ from pathlib import Path
 
 import pytest
 
+from glovebox.cli.helpers.docker_config import DockerConfigBuilder
+
 
 pytestmark = [pytest.mark.docker, pytest.mark.integration]
-
-from glovebox.cli.helpers.docker_config import DockerConfigBuilder
 
 
 def test_build_standard_strategy_defaults():

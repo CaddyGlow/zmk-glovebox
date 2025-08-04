@@ -3,13 +3,11 @@
 import contextlib
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator
 
-from glovebox.models.base import GloveboxBaseModel
 from glovebox.models.results import BaseResult
 
 
@@ -193,15 +191,16 @@ class USBDevice:
 
     def wait_for_ready(self, timeout: float = 5.0, poll_interval: float = 0.1) -> bool:
         """Wait for the device node to be ready.
-        
+
         Args:
             timeout: Maximum time to wait in seconds
             poll_interval: Time between checks in seconds
-            
+
         Returns:
             True if device becomes ready, False if timeout
         """
         import time
+
         start_time = time.time()
 
         while time.time() - start_time < timeout:
@@ -416,15 +415,16 @@ class BlockDevice:
 
     def wait_for_ready(self, timeout: float = 5.0, poll_interval: float = 0.1) -> bool:
         """Wait for the device node to be ready.
-        
+
         Args:
             timeout: Maximum time to wait in seconds
             poll_interval: Time between checks in seconds
-            
+
         Returns:
             True if device becomes ready, False if timeout
         """
         import time
+
         start_time = time.time()
 
         while time.time() - start_time < timeout:

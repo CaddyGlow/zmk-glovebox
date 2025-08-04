@@ -5,9 +5,7 @@ import shutil
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-import yaml
+from typing import TYPE_CHECKING
 
 from glovebox.compilation.models import ZmkCompilationConfig
 from glovebox.compilation.models.west_config import (
@@ -19,7 +17,6 @@ from glovebox.core.file_operations import (
     CompilationProgress,
     CompilationProgressCallback,
     CopyProgress,
-    CopyProgressCallback,
     FileCopyService,
     create_copy_service,
 )
@@ -27,9 +24,7 @@ from glovebox.protocols import FileAdapterProtocol, MetricsProtocol
 
 
 if TYPE_CHECKING:
-    from glovebox.protocols.progress_coordinator_protocol import (
-        ProgressCoordinatorProtocol,
-    )
+    pass
 
 
 class WorkspaceSetupService:

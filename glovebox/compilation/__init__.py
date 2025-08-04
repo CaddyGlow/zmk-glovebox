@@ -146,7 +146,9 @@ def create_moergo_nix_service(
         create_moergo_nix_service,
     )
 
-    return create_moergo_nix_service(docker_adapter, file_adapter, session_metrics, default_progress_callback)
+    return create_moergo_nix_service(
+        docker_adapter, file_adapter, session_metrics, default_progress_callback
+    )
 
 
 __all__ = [

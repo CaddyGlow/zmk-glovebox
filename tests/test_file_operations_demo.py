@@ -9,8 +9,6 @@ import logging
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from glovebox.core.file_operations import create_copy_service
 
 

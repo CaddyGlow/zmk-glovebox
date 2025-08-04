@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
-    from glovebox.protocols.flash_os_protocol import FlashOSProtocol
+    pass
 
 from glovebox.firmware.flash.models import BlockDevice
 

@@ -23,7 +23,6 @@ from .behaviors import (
     StickyKeyBehavior,
     TapDanceBehavior,
 )
-from .config import ConfigParameter
 from .core import LayoutBinding, LayoutLayer
 from .types import ConfigParamList, LayerBindings
 

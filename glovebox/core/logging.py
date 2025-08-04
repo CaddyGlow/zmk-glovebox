@@ -6,7 +6,6 @@ import logging.handlers
 import queue
 import sys
 import threading
-from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 

@@ -1,6 +1,5 @@
 """Cache delete CLI command."""
 
-import json
 import logging
 from pathlib import Path
 from typing import Annotated
@@ -11,7 +10,7 @@ from rich.console import Console
 from glovebox.cli.core.command_base import IOCommand
 from glovebox.cli.decorators.error_handling import handle_errors
 
-from .utils import get_icon, log_error_with_debug_stack
+from .utils import get_icon
 
 
 logger = logging.getLogger(__name__)

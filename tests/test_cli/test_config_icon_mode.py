@@ -3,9 +3,6 @@
 from typing import TYPE_CHECKING, cast
 from unittest.mock import Mock, patch
 
-import pytest
-import typer
-
 from glovebox.cli.commands.config.management import _show_all_config
 from glovebox.cli.helpers.theme import IconMode
 

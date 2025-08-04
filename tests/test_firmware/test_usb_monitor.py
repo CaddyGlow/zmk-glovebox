@@ -1,12 +1,11 @@
 """Tests for USB device monitoring functionality."""
 
 import json
-import platform
 import subprocess
 import threading
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 

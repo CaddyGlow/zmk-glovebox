@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
-from rich.console import Console
 from rich.table import Table
 
 from glovebox.cli.core.command_base import IOCommand

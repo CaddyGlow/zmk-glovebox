@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from glovebox.config.flash_methods import USBFlashConfig
 
-from glovebox.firmware.flash.models import BlockDevice, USBDevice, USBDeviceType
+from glovebox.firmware.flash.models import USBDeviceType
 from glovebox.firmware.flash.usb_monitor import USBDeviceMonitorBase, create_usb_monitor
 from glovebox.firmware.flash.wait_state import DeviceWaitState
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol

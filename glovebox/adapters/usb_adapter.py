@@ -4,14 +4,11 @@ import logging
 import threading
 from pathlib import Path
 
-from glovebox.firmware.flash.device_detector import create_device_detector
 from glovebox.firmware.flash.flash_operations import (
     FlashOperations,
-    create_flash_operations,
 )
-from glovebox.firmware.flash.models import BlockDevice, USBDevice, USBDeviceType
+from glovebox.firmware.flash.models import BlockDevice, USBDeviceType
 from glovebox.protocols.device_detector_protocol import DeviceDetectorProtocol
-from glovebox.protocols.flash_os_protocol import FlashOSProtocol
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
 from glovebox.utils.error_utils import create_usb_error
 

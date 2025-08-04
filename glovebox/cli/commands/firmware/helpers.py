@@ -10,14 +10,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
-    from glovebox.config.user_config import UserConfig
-    from glovebox.core.metrics.session_metrics import SessionMetrics
-    from glovebox.protocols.compilation_service_protocol import (
-        CompilationServiceProtocol,
-    )
-    from glovebox.protocols.progress_coordinator_protocol import (
-        ProgressCoordinatorProtocol,
-    )
 
 import typer
 
@@ -495,8 +487,6 @@ def cleanup_temp_directory(build_output_dir: Path, manual_cleanup_needed: bool) 
             )
 
 
-
-
 def compile_json_to_firmware(
     json_file: Path, keyboard_profile: "KeyboardProfile", ctx: typer.Context
 ) -> list[Path]:
@@ -622,5 +612,3 @@ def compile_json_to_firmware(
     except Exception as e:
         print_error_message(f"Compilation failed for {json_file.name}: {str(e)}")
         raise typer.Exit(1) from None
-
-

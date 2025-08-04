@@ -2,7 +2,6 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Optional
 
 from glovebox.cli.helpers.theme import Icons
 

@@ -1,6 +1,5 @@
 """Tests for firmware flash service."""
 
-import logging
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -8,7 +7,7 @@ import pytest
 
 from glovebox.config.flash_methods import USBFlashConfig
 from glovebox.firmware.flash.models import BlockDevice, FlashResult
-from glovebox.firmware.flash.service import FlashService, create_flash_service
+from glovebox.firmware.flash.service import create_flash_service
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.protocols.flash_protocols import FlasherProtocol
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol

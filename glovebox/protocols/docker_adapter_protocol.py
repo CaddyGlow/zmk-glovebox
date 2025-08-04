@@ -1,7 +1,7 @@
 """Protocol definition for Docker operations."""
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, TypeVar, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, TypeAlias, runtime_checkable
 
 from glovebox.models.docker import DockerUserContext
 from glovebox.utils.stream_process import OutputMiddleware, ProcessResult, T

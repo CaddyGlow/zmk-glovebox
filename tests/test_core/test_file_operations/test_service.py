@@ -1,12 +1,5 @@
 """Tests for FileCopyService simplified interface."""
 
-import logging
-import tempfile
-from pathlib import Path
-from unittest.mock import Mock
-
-import pytest
-
 from glovebox.core.file_operations.service import FileCopyService, create_copy_service
 
 

@@ -13,7 +13,6 @@ from glovebox.firmware.flash.models import (
     BlockDevice,
     BlockDeviceError,
     FlashResult,
-    USBDevice,
     USBDeviceType,
 )
 from glovebox.protocols.device_detector_protocol import DeviceDetectorProtocol

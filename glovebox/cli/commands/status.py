@@ -1,7 +1,7 @@
 """Status command for Glovebox CLI."""
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -14,7 +14,7 @@ from glovebox.cli.core.command_base import BaseCommand
 from glovebox.cli.decorators import handle_errors, with_metrics
 from glovebox.cli.helpers.output_formatter import OutputFormatter
 from glovebox.cli.helpers.parameters import OutputFormatOption
-from glovebox.cli.helpers.theme import Colors, Icons, format_status_message
+from glovebox.cli.helpers.theme import Colors, Icons
 from glovebox.config.user_config import UserConfig
 from glovebox.utils.diagnostics import collect_all_diagnostics
 

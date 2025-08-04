@@ -10,7 +10,6 @@ from glovebox.compilation.cache.models import (
     WorkspaceCacheMetadata,
     WorkspaceCacheResult,
 )
-from glovebox.compilation.models import ZmkCompilationConfig
 from glovebox.compilation.parsers.repository_spec_parser import (
     RepositorySpec,
     create_repository_spec_parser,

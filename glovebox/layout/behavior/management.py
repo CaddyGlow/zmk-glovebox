@@ -5,8 +5,6 @@ from collections import Counter
 from typing import TYPE_CHECKING
 
 from .exceptions import (
-    BehaviorConflictError,
-    BehaviorNotFoundError,
     BehaviorRegistrationError,
     BehaviorValidationError,
 )

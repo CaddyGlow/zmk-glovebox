@@ -1,10 +1,6 @@
 """Tests for build info generation in firmware models."""
 
 import json
-import tempfile
-from pathlib import Path
-
-import pytest
 
 from glovebox.firmware.models import create_build_info_file, generate_build_info
 

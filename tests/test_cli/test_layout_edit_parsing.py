@@ -1,9 +1,5 @@
 """Tests for layout edit command value parsing functionality."""
 
-from typing import Any
-
-import pytest
-
 from glovebox.cli.commands.layout.edit import parse_value
 
 

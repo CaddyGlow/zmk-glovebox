@@ -1,15 +1,10 @@
 """Tests for the variable resolution system."""
 
-import json
-from pathlib import Path
-
 import pytest
 
 from glovebox.layout.utils.variable_resolver import (
     CircularReferenceError,
-    InvalidVariableExpressionError,
     UndefinedVariableError,
-    VariableError,
     VariableResolver,
 )
 

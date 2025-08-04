@@ -1,7 +1,5 @@
 """Tests for MoErgo-specific edge case handling in parsers."""
 
-import pytest
-
 from glovebox.layout.parsers.ast_behavior_converter import ASTBehaviorConverter
 from glovebox.layout.parsers.keymap_parser import ZmkKeymapParser
 
@@ -87,7 +85,6 @@ class TestMoErgoEdgeCases:
 
     def test_edge_case_transformations_logged(self):
         """Test that edge case transformations are properly logged."""
-        import logging
         from unittest.mock import Mock
 
         parser = ZmkKeymapParser()

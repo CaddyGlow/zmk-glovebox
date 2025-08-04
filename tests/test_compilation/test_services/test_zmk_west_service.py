@@ -6,9 +6,6 @@ from unittest.mock import Mock
 
 import pytest
 
-
-pytestmark = [pytest.mark.docker, pytest.mark.integration]
-
 from glovebox.compilation.models import ZmkCompilationConfig
 from glovebox.compilation.models.build_matrix import BuildMatrix, BuildTarget
 from glovebox.compilation.services.zmk_west_service import create_zmk_west_service
@@ -16,6 +13,9 @@ from glovebox.config.profile import KeyboardProfile
 from glovebox.core.cache import create_default_cache
 from glovebox.core.metrics.session_metrics import SessionMetrics
 from glovebox.firmware.models import BuildResult
+
+
+pytestmark = [pytest.mark.docker, pytest.mark.integration]
 
 
 class TestZmkWestServiceIntegration:

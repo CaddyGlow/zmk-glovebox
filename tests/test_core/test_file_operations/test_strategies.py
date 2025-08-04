@@ -1,15 +1,7 @@
 """Tests for file copy strategies."""
 
-import os
-import shutil
-from pathlib import Path
-from unittest.mock import Mock, patch
-
-import pytest
-
 from glovebox.core.file_operations import (
     BaselineStrategy,
-    CopyStrategyProtocol,
     PipelineStrategy,
 )
 

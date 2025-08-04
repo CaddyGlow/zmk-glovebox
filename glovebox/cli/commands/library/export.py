@@ -1,6 +1,5 @@
 """Library export command for copying layouts to external locations."""
 
-import json
 from pathlib import Path
 from typing import Annotated
 
@@ -8,10 +7,9 @@ import typer
 
 from glovebox.cli.core.command_base import IOCommand
 from glovebox.cli.decorators import handle_errors, with_metrics
-from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
+from glovebox.cli.helpers.theme import get_icon_mode_from_context
 from glovebox.config import create_user_config
-from glovebox.library import FetchRequest, create_library_service
-from glovebox.library.models import LibraryEntry
+from glovebox.library import create_library_service
 
 
 export_app = typer.Typer(help="Export layouts from the library")

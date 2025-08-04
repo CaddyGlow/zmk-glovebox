@@ -1,6 +1,5 @@
 """Tests for the simplified ZmkWorkspaceCacheService."""
 
-import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -8,17 +7,16 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-
-pytestmark = [pytest.mark.docker, pytest.mark.integration]
-
 from glovebox.compilation.cache.models import (
     WorkspaceCacheMetadata,
-    WorkspaceCacheResult,
 )
 from glovebox.compilation.cache.workspace_cache_service import ZmkWorkspaceCacheService
 from glovebox.config.models.cache import CacheLevel
 from glovebox.config.user_config import UserConfig
 from glovebox.core.cache.cache_manager import CacheManager
+
+
+pytestmark = [pytest.mark.docker, pytest.mark.integration]
 
 
 class TestZmkWorkspaceCacheServiceSimplified:
@@ -644,7 +642,6 @@ class TestZmkWorkspaceCacheServiceSimplified:
         """Test successful workspace export."""
         from glovebox.compilation.cache.models import (
             ArchiveFormat,
-            WorkspaceExportResult,
         )
 
         repository = "zmkfirmware/zmk"

@@ -1,7 +1,6 @@
 """Keymap processing strategies for different parsing modes."""
 
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 from glovebox.layout.models import LayoutData

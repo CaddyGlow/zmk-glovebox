@@ -4,15 +4,10 @@ This test file validates the refactored layout commands using established
 test patterns and fixtures for proper isolation and maintainability.
 """
 
-import json
 from pathlib import Path
-from unittest.mock import Mock, patch
-
-import pytest
 
 from glovebox.cli.app import app
 from glovebox.cli.commands import register_all_commands
-from glovebox.layout.models import LayoutResult
 from tests.test_factories import (
     create_layout_component_service_for_tests,
     create_layout_display_service_for_tests,
@@ -296,7 +291,6 @@ class TestCodeReduction:
 
     def test_composer_complexity_reduction(self):
         """Test that composer pattern reduced complexity."""
-        import inspect
 
         from glovebox.cli.commands.layout.composition import LayoutCommandComposer
 
@@ -484,7 +478,6 @@ class TestFixtureUsage:
     def test_test_isolation_compliance(self, isolated_cli_environment):
         """Test that isolation patterns prevent test pollution."""
         # Test that we're in an isolated directory
-        import os
 
         current_dir = Path.cwd()
         assert str(current_dir) == str(isolated_cli_environment["temp_dir"])

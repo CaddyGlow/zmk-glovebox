@@ -1,44 +1,21 @@
 """Core layout CLI commands (compile, decompose, compose, validate, show)."""
 
-import json
 import logging
 from pathlib import Path
-from tempfile import gettempdir, tempdir
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import Annotated
 
 import typer
 
 from glovebox.cli.commands.layout.base import (
-    LayoutOutputCommand,
     ProfileAwareLayoutCommand,
 )
-from glovebox.cli.commands.layout.dependencies import create_full_layout_service
-from glovebox.cli.core.command_base import IOCommand
 from glovebox.cli.decorators import (
     handle_errors,
-    with_layout_context,
     with_metrics,
     with_profile,
 )
-from glovebox.cli.helpers.auto_profile import (
-    resolve_json_file_path,
-    resolve_profile_with_auto_detection,
-)
 from glovebox.cli.helpers.parameter_factory import ParameterFactory
-from glovebox.cli.helpers.parameters import (
-    KeyWidthOption,
-    LayerOption,
-    ProfileOption,
-    ViewModeOption,
-)
-from glovebox.cli.helpers.profile import (
-    create_profile_from_option,
-    get_keyboard_profile_from_context,
-    get_user_config_from_context,
-)
-from glovebox.cli.helpers.theme import get_themed_console
-from glovebox.config.profile import KeyboardProfile
-from glovebox.layout import LayoutService, ViewMode
+from glovebox.layout import ViewMode
 
 
 logger = logging.getLogger(__name__)

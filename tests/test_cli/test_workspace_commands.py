@@ -1,13 +1,9 @@
 """Tests for CLI workspace management commands."""
 
-import json
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-
-
-pytestmark = [pytest.mark.docker, pytest.mark.integration]
 from typer.testing import CliRunner
 
 from glovebox.cli.app import app
@@ -17,8 +13,10 @@ from glovebox.compilation.cache.models import (
     WorkspaceCacheResult,
 )
 from glovebox.compilation.cache.workspace_cache_service import ZmkWorkspaceCacheService
-from glovebox.config.models.cache import CacheLevel
 from glovebox.core.cache.cache_coordinator import reset_shared_cache_instances
+
+
+pytestmark = [pytest.mark.docker, pytest.mark.integration]
 
 
 class TestWorkspaceCreateCommand:

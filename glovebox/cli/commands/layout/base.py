@@ -1,6 +1,5 @@
 """Base classes for layout CLI commands."""
 
-import logging
 from abc import abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -8,8 +7,6 @@ from typing import TYPE_CHECKING, Any
 import typer
 
 from glovebox.cli.core.command_base import IOCommand
-from glovebox.cli.helpers.output_formatter import OutputFormatter
-from glovebox.cli.helpers.theme import get_themed_console
 
 
 if TYPE_CHECKING:

@@ -10,7 +10,6 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-import typer
 
 from glovebox.cli.core.command_base import IOCommand
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles

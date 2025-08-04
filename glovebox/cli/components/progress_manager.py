@@ -1,6 +1,5 @@
 """Progress manager with context manager pattern and logging capture."""
 
-import logging
 from typing import TYPE_CHECKING, Literal
 
 from glovebox.cli.components.progress_config import ProgressConfig

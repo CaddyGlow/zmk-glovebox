@@ -3,25 +3,16 @@
 import logging
 import os
 import subprocess
-import tempfile
 from pathlib import Path
 from typing import Annotated, Any
 
 import typer
-from rich.console import Console
-from rich.table import Table
 
 from glovebox.cli.app import AppContext
 from glovebox.cli.core.command_base import IOCommand
 from glovebox.cli.decorators import handle_errors
-from glovebox.cli.helpers import (
-    print_error_message,
-    print_success_message,
-)
 from glovebox.cli.helpers.theme import (
-    Colors,
     Icons,
-    get_icon_mode_from_context,
     get_themed_console,
 )
 from glovebox.config.keyboard_profile import (

@@ -2,7 +2,6 @@
 
 import logging
 
-import typer
 from rich.console import Console
 
 from glovebox.cli.core.command_base import IOCommand
@@ -11,7 +10,6 @@ from glovebox.cli.workspace_display_utils import generate_workspace_cache_key
 
 from .utils import (
     get_cache_manager_and_service,
-    log_error_with_debug_stack,
 )
 
 

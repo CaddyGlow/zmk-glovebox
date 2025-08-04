@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 
@@ -119,6 +119,7 @@ class CompileFirmwareCommand(FirmwareOutputCommand):
 
                 # Execute compilation
                 from glovebox.config import create_user_config
+
                 user_config = get_user_config_from_context(ctx) or create_user_config()
 
                 if is_json_input:

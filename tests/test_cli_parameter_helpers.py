@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -15,7 +14,6 @@ from glovebox.cli.helpers.parameter_helpers import (
     format_and_output_data,
     get_format_result_from_context,
     get_format_type_from_context,
-    get_formatter_from_context,
     get_input_data_from_context,
     get_input_path_from_context,
     get_input_result_from_context,
@@ -35,7 +33,6 @@ from glovebox.cli.helpers.parameter_types import (
     FormatResult,
     InputResult,
     OutputResult,
-    ValidationResult,
 )
 
 

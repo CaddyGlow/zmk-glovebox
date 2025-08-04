@@ -4,8 +4,6 @@ import json
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import pytest
-
 from glovebox.cli.app import app
 from glovebox.cli.commands import register_all_commands
 

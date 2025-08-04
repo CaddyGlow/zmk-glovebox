@@ -1,31 +1,27 @@
 """Tests for MoErgo API client."""
 
-import json
 import zlib
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
-
-
-pytestmark = [pytest.mark.network, pytest.mark.integration]
 import requests
 
 from glovebox.moergo.client import (
     APIError,
     AuthenticationError,
-    AuthTokens,
     CompilationError,
-    FirmwareCompileRequest,
     FirmwareCompileResponse,
     MoErgoClient,
     MoErgoLayout,
     NetworkError,
     TimeoutError,
-    UserCredentials,
 )
 from glovebox.moergo.client.credentials import create_credential_manager
 from glovebox.moergo.config import create_moergo_credential_config
+
+
+pytestmark = [pytest.mark.network, pytest.mark.integration]
 
 
 # CredentialManager tests moved to test_credential_manager.py for comprehensive coverage

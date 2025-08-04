@@ -7,16 +7,10 @@ from typing import Annotated, Any
 
 import typer
 from rich.console import Console
-from rich.table import Table
 
 from glovebox.adapters import create_file_adapter
 from glovebox.cli.commands.layout.base import BaseLayoutCommand
 from glovebox.cli.decorators import handle_errors, with_metrics
-from glovebox.cli.helpers import (
-    print_error_message,
-    print_list_item,
-    print_success_message,
-)
 from glovebox.cli.helpers.auto_profile import resolve_json_file_path
 from glovebox.cli.helpers.parameters import (
     JsonFileArgument,
@@ -31,7 +25,6 @@ from glovebox.layout.utils.field_parser import (
 from glovebox.layout.utils.json_operations import (
     VariableResolutionContext,
     load_layout_file,
-    save_layout_file,
 )
 from glovebox.layout.utils.layer_references import (
     create_layer_mapping_for_add,

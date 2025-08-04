@@ -9,7 +9,6 @@ from glovebox.cli.core.command_base import BaseCommand
 from glovebox.cli.decorators import handle_errors, with_metrics
 from glovebox.moergo.client import (
     AuthenticationError,
-    NetworkError,
     create_moergo_client,
 )
 
@@ -44,7 +43,7 @@ class LoginCommand(BaseCommand):
         """Execute the login command."""
         import os
 
-        from glovebox.cli.helpers.theme import Icons, get_themed_console
+        from glovebox.cli.helpers.theme import get_themed_console
 
         console = get_themed_console(ctx=ctx)
 

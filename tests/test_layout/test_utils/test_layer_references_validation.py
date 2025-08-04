@@ -1,7 +1,5 @@
 """Unit tests for layer reference validation in LayoutData."""
 
-import pytest
-
 from glovebox.layout.models import LayoutData
 
 

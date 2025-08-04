@@ -103,8 +103,6 @@ def test_factory_functions_exist(isolated_config):
     """Test that factory functions exist and work correctly."""
     from glovebox.compilation import (
         create_compilation_service,
-        create_moergo_nix_service,
-        create_zmk_west_service,
     )
 
     # ZMK config service is implemented

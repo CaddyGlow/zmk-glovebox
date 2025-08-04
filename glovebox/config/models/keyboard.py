@@ -1,7 +1,7 @@
 """Keyboard configuration models."""
 
 import logging
-from typing import Any, TypeAlias, Union
+from typing import Any, TypeAlias
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 

@@ -6,7 +6,7 @@ import typer
 
 from glovebox.cli.core.command_base import BaseCommand
 from glovebox.cli.decorators import handle_errors, with_metrics
-from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
+from glovebox.cli.helpers.theme import get_icon_mode_from_context
 from glovebox.config import create_user_config
 from glovebox.library import create_library_service
 

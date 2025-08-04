@@ -2,31 +2,13 @@
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 import typer
 
-from glovebox.cli.commands.layout.base import LayoutOutputCommand
 from glovebox.cli.commands.layout.dependencies import create_full_layout_service
-from glovebox.cli.core.command_base import IOCommand
 from glovebox.cli.decorators import handle_errors, with_metrics, with_profile
-from glovebox.cli.helpers.auto_profile import (
-    resolve_json_file_path,
-    resolve_profile_with_auto_detection,
-)
 from glovebox.cli.helpers.parameter_factory import ParameterFactory
-from glovebox.cli.helpers.parameters import (
-    JsonFileArgument,
-    OutputFormatOption,
-    ProfileOption,
-)
-from glovebox.cli.helpers.profile import (
-    create_profile_from_option,
-    get_keyboard_profile_from_context,
-    get_user_config_from_context,
-)
-from glovebox.layout import LayoutService
-from glovebox.layout.layer import create_layout_layer_service
 
 
 @handle_errors

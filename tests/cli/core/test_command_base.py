@@ -10,7 +10,7 @@ import typer
 import yaml
 
 from glovebox.cli.core.command_base import BaseCommand, IOCommand, ServiceCommand
-from glovebox.cli.helpers.parameter_types import InputResult, OutputResult
+from glovebox.cli.helpers.parameter_types import InputResult
 
 
 class ConcreteCommand(BaseCommand):

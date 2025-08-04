@@ -2,8 +2,6 @@
 
 from typing import Any
 
-import requests
-
 from glovebox.core.cache.cache_manager import CacheManager
 
 from .base_client import MoErgoBaseClient

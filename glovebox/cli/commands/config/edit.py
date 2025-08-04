@@ -4,7 +4,6 @@ import json
 import logging
 import os
 import subprocess
-import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
 
@@ -27,6 +26,7 @@ from glovebox.config.models.firmware import (
     FirmwareDockerConfig,
     FirmwareFlashConfig,
 )
+from glovebox.config.models.user import UserConfigData
 
 
 if TYPE_CHECKING:
@@ -64,7 +64,7 @@ class ConfigEditor:
         """
         try:
             if not self.user_config.get(field_path):
-                raise ValueError(f"Cannot get field '{field_path}': {e}") from e
+                raise ValueError(f"Field '{field_path}' not found or is None")
         except Exception as e:
             raise ValueError(f"Cannot get field '{field_path}': {e}") from e
 

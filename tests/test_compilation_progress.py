@@ -1,22 +1,20 @@
 #!/usr/bin/env python3
 """Unit tests for compilation progress functionality."""
 
-import re
-from typing import Any
 from unittest.mock import Mock
 
 import pytest
-
-
-pytestmark = [pytest.mark.network, pytest.mark.integration]
-
-pytestmark = [pytest.mark.docker, pytest.mark.integration]
 
 from glovebox.adapters.compilation_progress_middleware import (
     CompilationProgressMiddleware,
     create_compilation_progress_middleware,
 )
 from glovebox.core.file_operations import CompilationProgress
+
+
+pytestmark = [pytest.mark.network, pytest.mark.integration]
+
+pytestmark = [pytest.mark.docker, pytest.mark.integration]
 
 
 class TestCompilationProgress:

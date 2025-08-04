@@ -11,7 +11,6 @@ from unittest.mock import Mock, patch
 import pytest
 
 from glovebox.config import create_user_config
-from glovebox.core.metrics import create_session_metrics
 from glovebox.firmware.flash import create_flash_service
 from glovebox.firmware.flash.device_wait_service import create_device_wait_service
 from glovebox.firmware.flash.models import FlashResult, USBDeviceInfo
@@ -746,7 +745,7 @@ class TestFirmwareCommandIntegration:
 
     def test_helpers_command_integration(self):
         """Test firmware helpers command integration."""
-        from glovebox.cli.commands.firmware.helpers import list_devices, wait_for_device
+        from glovebox.cli.commands.firmware.helpers import list_devices
 
         mock_devices = [
             USBDeviceInfo(

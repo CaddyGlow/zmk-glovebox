@@ -2,22 +2,14 @@
 
 import logging
 import re
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
-from glovebox.cli.helpers.theme import Colors, Icons, format_status_message
-from glovebox.core.file_operations import (
-    CompilationProgress,
-    CompilationProgressCallback,
-)
 from glovebox.utils.stream_process import OutputMiddleware
 
 
 if TYPE_CHECKING:
     from glovebox.compilation.models.compilation_config import ProgressPhasePatterns
     from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
-    from glovebox.protocols.progress_coordinator_protocol import (
-        ProgressCoordinatorProtocol,
-    )
 
 
 logger = logging.getLogger(__name__)

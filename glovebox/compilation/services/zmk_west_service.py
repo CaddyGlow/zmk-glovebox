@@ -2,7 +2,6 @@
 
 import logging
 import shutil
-import tempfile
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -45,7 +44,6 @@ from glovebox.config.user_config import UserConfig
 from glovebox.core.cache.cache_manager import CacheManager
 from glovebox.core.cache.models import CacheKey
 from glovebox.core.file_operations import (
-    CompilationProgress,
     CompilationProgressCallback,
     FileCopyService,
     create_copy_service,
@@ -209,7 +207,9 @@ class ZmkWestService(CompilationServiceProtocol):
             board_info = self._extract_board_info_from_config(config)
 
             # Use provided progress_callback or fall back to default
-            effective_progress_callback = progress_callback or self.default_progress_callback
+            effective_progress_callback = (
+                progress_callback or self.default_progress_callback
+            )
 
             # Create progress manager with ZMK-specific checkpoints
             progress_manager = create_compilation_progress_manager(

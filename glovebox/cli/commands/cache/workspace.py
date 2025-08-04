@@ -1,7 +1,6 @@
 """Workspace cache management CLI commands."""
 
 import logging
-import shutil
 import time
 from pathlib import Path
 from typing import Annotated, Any
@@ -13,11 +12,8 @@ from glovebox.cli.decorators import with_metrics
 from glovebox.cli.helpers.theme import (
     Colors,
     Icons,
-    format_file_operation,
-    format_operation_status,
     format_status_message,
     get_icon_mode_from_config,
-    get_icon_mode_from_context,
 )
 from glovebox.cli.workspace_display_utils import (
     filter_workspaces,
@@ -29,7 +25,6 @@ from .utils import (
     format_size_display,
     get_cache_manager_and_service,
     get_directory_size_bytes,
-    get_icon,
     log_error_with_debug_stack,
 )
 from .workspace_processing import (
@@ -1421,8 +1416,6 @@ def workspace_update(
             )
 
             if metadata.dependencies_updated:
-                from datetime import datetime
-
                 time_str = metadata.dependencies_updated.strftime("%Y-%m-%d %H:%M:%S")
                 console.print(
                     f"[{Colors.FIELD_NAME}]Dependencies updated:[/{Colors.FIELD_NAME}] {time_str}"

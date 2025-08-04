@@ -12,11 +12,9 @@ Architecture:
 
 import os
 from pathlib import Path
-from typing import Any
 
-from pydantic import Field, computed_field, field_validator
+from pydantic import Field, field_validator
 
-from glovebox import __version__
 from glovebox.compilation.models.build_matrix import BuildMatrix
 from glovebox.models.base import GloveboxBaseModel
 from glovebox.models.docker_path import DockerPath

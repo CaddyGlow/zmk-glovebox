@@ -1,7 +1,5 @@
 """Tests for arithmetic expression parsing in preprocessor directives."""
 
-import pytest
-
 from glovebox.layout.parsers.lark_dt_parser import create_lark_dt_parser
 
 

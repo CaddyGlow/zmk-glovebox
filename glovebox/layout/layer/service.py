@@ -7,9 +7,7 @@ from typing import Any
 
 from glovebox.layout.models import LayoutBinding, LayoutData
 from glovebox.layout.utils.json_operations import (
-    load_json_data,
     load_layout_file,
-    save_json_data,
     save_layout_file,
 )
 from glovebox.layout.utils.validation import (

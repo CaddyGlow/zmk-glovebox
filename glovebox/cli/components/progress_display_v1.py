@@ -1,7 +1,6 @@
 """Progress display component with Rich and logging integration."""
 
 import time
-from typing import Any
 
 from rich.console import Console
 from rich.live import Live

@@ -1,7 +1,5 @@
 """Docker adapter for container operations."""
 
-import datetime
-import hashlib
 import logging
 import shlex
 import subprocess
@@ -155,7 +153,6 @@ class DockerAdapter:
         entrypoint: str | None = None,
     ) -> ProcessResult[T]:
         """Run a Docker container with specified configuration."""
-        from glovebox.utils import stream_process
 
         docker_cmd = ["docker", "run", "--rm"]
 
@@ -247,7 +244,6 @@ class DockerAdapter:
         middleware: OutputMiddleware[T] | None = None,
     ) -> ProcessResult[T]:
         """Build a Docker image from a Dockerfile."""
-        from glovebox.utils import stream_process
 
         image_full_name = f"{image_name}:{image_tag}"
 
@@ -421,7 +417,6 @@ class DockerAdapter:
         middleware: OutputMiddleware[T] | None = None,
     ) -> ProcessResult[T]:
         """Pull a Docker image from registry."""
-        from glovebox.utils import stream_process
 
         image_full_name = f"{image_name}:{image_tag}"
 

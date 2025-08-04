@@ -16,12 +16,9 @@ import typer
 
 from glovebox.cli.decorators.error_handling import handle_errors
 from glovebox.cli.helpers.output_formatter import (
-    OutputFormatter,
     create_output_formatter,
 )
 from glovebox.cli.helpers.parameter_helpers import (
-    process_input_parameter,
-    process_output_parameter,
     read_input_from_result,
     write_output_from_result,
 )
@@ -137,7 +134,6 @@ class IOCommand(BaseCommand):
         Returns:
             InputResult with loaded data
         """
-        import os
 
         import typer
 

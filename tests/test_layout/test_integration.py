@@ -5,7 +5,6 @@ Tests the full flow: JSON input → LayoutService → Output
 
 import json
 import os
-import tempfile
 from pathlib import Path
 from typing import Any
 from unittest.mock import Mock, patch
@@ -17,18 +16,7 @@ from glovebox.cli.helpers.stdin_utils import (
     is_stdin_input,
     resolve_input_source_with_env,
 )
-from glovebox.config.models import (
-    BuildOptions,
-    DisplayConfig,
-    FirmwareConfig,
-    FormattingConfig,
-    KConfigOption,
-    KeyboardConfig,
-    KeymapSection,
-)
-from glovebox.config.profile import KeyboardProfile
-from glovebox.core.metrics.session_metrics import SessionMetrics
-from glovebox.layout.models import LayoutData, LayoutResult
+from glovebox.layout.models import LayoutResult
 from glovebox.layout.service import LayoutService
 
 
@@ -166,9 +154,7 @@ def layout_service() -> LayoutService:
 @pytest.fixture
 def session_metrics():
     """Create mock session metrics for testing."""
-    import uuid
     from contextlib import contextmanager
-    from unittest.mock import MagicMock
 
     # Create a mock that implements the expected interface
     mock_metrics = Mock()

@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from glovebox.core.errors import FileSystemError, GloveboxError
+from glovebox.core.errors import GloveboxError
 from glovebox.models.base import GloveboxBaseModel
 
 

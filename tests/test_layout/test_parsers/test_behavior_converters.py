@@ -1,16 +1,6 @@
 """Tests for AST behavior converters."""
 
-import pytest
-
-from glovebox.layout.models import (
-    CapsWordBehavior,
-    LayoutBinding,
-    ModMorphBehavior,
-    StickyKeyBehavior,
-    TapDanceBehavior,
-)
 from glovebox.layout.parsers.ast_behavior_converter import (
-    ASTBehaviorConverter,
     create_ast_behavior_converter,
 )
 from glovebox.layout.parsers.ast_nodes import DTNode, DTProperty, DTValue, DTValueType

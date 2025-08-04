@@ -4,12 +4,10 @@ This module contains configuration models for the MoErgo domain,
 following domain-driven design principles where domains own their configuration.
 """
 
-import os
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Any
 
 from pydantic import Field, field_validator
-from pydantic_settings import NoDecode
 
 from glovebox.models.base import GloveboxBaseModel
 

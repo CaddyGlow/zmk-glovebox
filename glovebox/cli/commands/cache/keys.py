@@ -1,10 +1,8 @@
 """Cache keys CLI command."""
 
-import json
 import logging
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import Annotated, Any
 
 import typer

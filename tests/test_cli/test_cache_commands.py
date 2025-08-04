@@ -2,10 +2,7 @@
 
 import os
 import shutil
-from pathlib import Path
-from unittest.mock import Mock, patch
 
-import pytest
 from typer.testing import CliRunner
 
 from glovebox.cli.app import app

@@ -9,9 +9,7 @@ if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
     from glovebox.firmware.flash.device_wait_service import DeviceWaitService
 
-from glovebox.adapters.file_adapter import create_file_adapter
 from glovebox.config.flash_methods import USBFlashConfig
-from glovebox.firmware.flash.device_wait_service import create_device_wait_service
 from glovebox.firmware.flash.models import BlockDevice, FlashResult, USBDeviceType
 from glovebox.firmware.method_registry import flasher_registry
 from glovebox.protocols import FileAdapterProtocol, USBAdapterProtocol
@@ -118,10 +116,6 @@ class FlashService:
             device_query_to_use = get_device_query(profile, query, flash_config)
 
             # Flash devices one by one as they become available
-            from glovebox.firmware.flash.flash_helpers import (
-                create_device_result,
-                update_flash_result_counts,
-            )
 
             devices_flashed = 0
             devices_failed = 0
@@ -282,7 +276,7 @@ class FlashService:
             # Only process device additions
             if action != "add":
                 return
-            
+
             # Only process block devices for flashing
             if not isinstance(device, BlockDevice):
                 return

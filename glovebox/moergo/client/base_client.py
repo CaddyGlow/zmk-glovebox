@@ -1,17 +1,15 @@
 """Base MoErgo API client with authentication and core methods."""
 
-import json
 from datetime import datetime
 from typing import Any
 from urllib.parse import urljoin
 
 import requests
 
-from glovebox.core.cache import create_cache_from_user_config
 from glovebox.core.cache.cache_manager import CacheManager
 from glovebox.moergo.config import MoErgoServiceConfig
 
-from .auth import Glove80Auth, create_cognito_auth
+from .auth import create_cognito_auth
 from .credentials import CredentialManager, create_credential_manager
 from .models import (
     APIError,

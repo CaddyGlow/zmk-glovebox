@@ -14,7 +14,7 @@ import typer
 
 
 if TYPE_CHECKING:
-    from typer.models import ArgumentInfo, OptionInfo
+    pass
 
 from glovebox.cli.helpers.parameters import (
     complete_json_files,

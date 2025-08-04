@@ -22,7 +22,6 @@ from .parsing_models import ParsingContext, get_default_extraction_config
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
     from glovebox.layout.models import ConfigDirective, KeymapComment, KeymapInclude
-    from glovebox.protocols import TemplateAdapterProtocol
 
     from .parsing_models import ExtractionConfig
 

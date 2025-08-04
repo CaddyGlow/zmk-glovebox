@@ -9,7 +9,6 @@ from glovebox.adapters.usb_adapter import USBAdapter, create_usb_adapter
 from glovebox.core.errors import USBError
 from glovebox.firmware.flash.models import BlockDevice, DiskInfo, USBDeviceInfo
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
-from tests.test_factories import create_usb_adapter_for_tests
 
 
 @pytest.fixture

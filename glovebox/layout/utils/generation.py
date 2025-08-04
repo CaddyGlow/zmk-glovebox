@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any
 
 from glovebox.layout.behavior.analysis import (
     get_required_includes_for_layout,
-    register_layout_behaviors,
 )
 
 

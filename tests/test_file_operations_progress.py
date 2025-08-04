@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 """Unit tests for file operations progress callback functionality."""
 
-import tempfile
 from pathlib import Path
 from unittest.mock import Mock
 
-import pytest
-
 from glovebox.core.file_operations import BaselineStrategy, PipelineStrategy
-from glovebox.core.file_operations.models import CopyProgress, CopyProgressCallback
+from glovebox.core.file_operations.models import CopyProgress
 from glovebox.core.file_operations.service import FileCopyService
 
 

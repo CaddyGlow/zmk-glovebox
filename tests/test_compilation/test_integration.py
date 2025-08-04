@@ -15,7 +15,6 @@ import typer
 from glovebox.compilation import create_compilation_service
 from glovebox.config import create_user_config
 from glovebox.core.cache import get_shared_cache_instance
-from glovebox.core.metrics import create_session_metrics
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 
 

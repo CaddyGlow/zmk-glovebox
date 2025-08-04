@@ -2,7 +2,6 @@
 
 import logging
 import uuid as uuid_module
-from pathlib import Path
 from typing import Any
 
 from glovebox.config.models.user import UserConfigData

@@ -1,7 +1,6 @@
 """Layout service for all layout-related operations."""
 
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from glovebox.layout.formatting import ViewMode

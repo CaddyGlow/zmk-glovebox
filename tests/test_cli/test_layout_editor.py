@@ -4,8 +4,6 @@ This test file provides complete test coverage for the LayoutEditor class,
 including the enhanced remove_layer() method with regex pattern support.
 """
 
-import json
-from pathlib import Path
 from typing import Any
 
 import pytest

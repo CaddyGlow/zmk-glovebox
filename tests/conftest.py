@@ -22,21 +22,10 @@ from glovebox.config.models import (
 )
 from glovebox.config.profile import KeyboardProfile
 from glovebox.config.user_config import UserConfig
-from glovebox.core.cache import create_default_cache
 from glovebox.core.metrics.session_metrics import SessionMetrics
 from glovebox.firmware.flash.models import FlashResult
-from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.layout.models import LayoutResult, SystemBehavior
 from glovebox.protocols import FileAdapterProtocol, TemplateAdapterProtocol
-from tests.test_factories import (
-    create_device_detector_for_tests,
-    create_flash_service_for_tests,
-    create_layout_component_service_for_tests,
-    create_layout_display_service_for_tests,
-    create_layout_service_for_tests,
-    create_usb_adapter_for_tests,
-    create_usb_flasher_for_tests,
-)
 
 
 # Global test category markers

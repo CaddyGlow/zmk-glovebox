@@ -2,23 +2,19 @@
 
 import json
 import logging
-import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any
 
 import typer
-from rich.console import Console
 from rich.table import Table
 
 from glovebox.cli.core.command_base import BaseCommand, IOCommand
 from glovebox.cli.decorators import handle_errors
 from glovebox.cli.helpers.parameters import OutputFormatOption
-from glovebox.cli.helpers.theme import Colors, Icons, get_themed_console
-from glovebox.config.user_config import create_user_config
+from glovebox.cli.helpers.theme import Colors, get_themed_console
 from glovebox.core.cache import create_default_cache
 from glovebox.core.cache.cache_manager import CacheManager
-from glovebox.core.metrics.session_metrics import create_session_metrics
 
 
 logger = logging.getLogger(__name__)

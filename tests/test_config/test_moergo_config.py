@@ -4,9 +4,6 @@ from pathlib import Path
 
 import pytest
 
-
-pytestmark = [pytest.mark.network, pytest.mark.integration]
-
 from glovebox.moergo.config import (
     MoErgoCognitoConfig,
     MoErgoCredentialConfig,
@@ -15,6 +12,9 @@ from glovebox.moergo.config import (
     create_moergo_cognito_config,
     create_moergo_credential_config,
 )
+
+
+pytestmark = [pytest.mark.network, pytest.mark.integration]
 
 
 class TestMoErgoCredentialConfig:

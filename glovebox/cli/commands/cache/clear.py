@@ -10,7 +10,6 @@ from rich.console import Console
 
 from glovebox.cli.core.command_base import IOCommand
 from glovebox.cli.decorators.error_handling import handle_errors
-from glovebox.cli.decorators.profile import get_cache_manager_from_context
 from glovebox.config.user_config import create_user_config
 
 from .utils import (
@@ -62,6 +61,7 @@ class CacheClearCommand(IOCommand):
 
         # Check if in-memory cache exists
         from glovebox.core.cache import create_default_cache
+
         module_cache = create_default_cache(tag=module)
         has_inmemory_cache = len(module_cache.keys()) > 0
 
@@ -76,9 +76,7 @@ class CacheClearCommand(IOCommand):
                     f"Clear cache for module '{module}' ({format_size_display(size)})?"
                 )
             else:
-                confirm = typer.confirm(
-                    f"Clear in-memory cache for module '{module}'?"
-                )
+                confirm = typer.confirm(f"Clear in-memory cache for module '{module}'?")
             if not confirm:
                 console.print("[yellow]Cancelled[/yellow]")
                 return

@@ -1,7 +1,5 @@
 """Tests for input listener parsing functionality."""
 
-import pytest
-
 from glovebox.layout.parsers.keymap_processors import TemplateAwareProcessor
 
 

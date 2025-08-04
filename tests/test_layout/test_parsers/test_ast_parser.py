@@ -2,20 +2,14 @@
 
 import tempfile
 from pathlib import Path
-from typing import Any
-from unittest.mock import Mock
-
-import pytest
 
 from glovebox.layout.models import (
     ComboBehavior,
     HoldTapBehavior,
-    LayoutBinding,
     MacroBehavior,
 )
 from glovebox.layout.parsers import (
     DTNode,
-    DTParser,
     DTProperty,
     DTValue,
     DTValueType,

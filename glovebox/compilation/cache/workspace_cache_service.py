@@ -606,7 +606,6 @@ class ZmkWorkspaceCacheService:
         Returns:
             WorkspaceExportResult with export operation results
         """
-        import json
         import time
 
         # Set metrics context
@@ -1562,8 +1561,6 @@ class ZmkWorkspaceCacheService:
         Returns:
             WorkspaceCacheResult with operation results
         """
-        import tarfile
-        import zipfile
         from datetime import datetime
 
         if progress_context is None:

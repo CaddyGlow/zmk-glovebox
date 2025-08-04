@@ -1,9 +1,6 @@
 """Tests for build log capture middleware."""
 
-import tempfile
 from pathlib import Path
-
-import pytest
 
 from glovebox.utils.build_log_middleware import (
     BuildLogCaptureMiddleware,

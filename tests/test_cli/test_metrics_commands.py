@@ -3,13 +3,9 @@
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-
-
-pytestmark = [pytest.mark.docker, pytest.mark.integration]
 from typer.testing import CliRunner
 
 from glovebox.cli.commands.metrics import (
@@ -19,6 +15,9 @@ from glovebox.cli.commands.metrics import (
     _format_timestamp,
     metrics_app,
 )
+
+
+pytestmark = [pytest.mark.docker, pytest.mark.integration]
 
 
 @pytest.fixture
@@ -104,7 +103,6 @@ class TestUtilityFunctions:
 
     def test_format_timestamp_recent(self):
         """Test timestamp formatting for recent times."""
-        from datetime import timezone
 
         # Use UTC to avoid timezone issues
         now = datetime.now(UTC)
@@ -443,7 +441,6 @@ class TestMetricsCleanCommand:
     def test_clean_no_old_sessions(self, mock_get_cache):
         """Test clean command with no old sessions."""
         # Create session data with recent timestamps (should not be cleaned)
-        from datetime import timezone
 
         recent_session_uuid = str(uuid.uuid4())
         recent_date = datetime.now(UTC).isoformat()
@@ -476,7 +473,6 @@ class TestMetricsCleanCommand:
     @patch("glovebox.cli.commands.metrics._get_metrics_cache_manager")
     def test_clean_dry_run(self, mock_get_cache):
         """Test clean command with dry run."""
-        from datetime import timezone
 
         # Create old session data (older than the threshold)
         old_session_uuid = str(uuid.uuid4())

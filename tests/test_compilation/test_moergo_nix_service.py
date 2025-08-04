@@ -1,14 +1,10 @@
 """Tests for MoergoNixService compilation service."""
 
 import logging
-import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-
-
-pytestmark = [pytest.mark.docker, pytest.mark.integration]
 
 from glovebox.compilation.models import MoergoCompilationConfig, ZmkCompilationConfig
 from glovebox.compilation.services.moergo_nix_service import (
@@ -19,10 +15,11 @@ from glovebox.core.cache import create_default_cache
 from glovebox.core.metrics.session_metrics import SessionMetrics
 from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.layout.models.results import LayoutResult
-from glovebox.models.docker import DockerUserContext
 from glovebox.models.docker_path import DockerPath
 from glovebox.protocols import DockerAdapterProtocol, FileAdapterProtocol
-from tests.test_factories import create_moergo_nix_service_for_tests
+
+
+pytestmark = [pytest.mark.docker, pytest.mark.integration]
 
 
 @pytest.fixture

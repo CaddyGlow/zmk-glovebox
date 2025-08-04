@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Annotated, Any
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -14,11 +14,9 @@ from glovebox.cli.app import AppContext
 from glovebox.cli.decorators import handle_errors
 from glovebox.cli.helpers import (
     print_error_message,
-    print_list_item,
-    print_success_message,
 )
 from glovebox.cli.helpers.parameters import OutputFormatOption
-from glovebox.cli.helpers.theme import Colors, Icons, TableStyles
+from glovebox.cli.helpers.theme import Colors, Icons
 from glovebox.config.keyboard_profile import (
     get_available_keyboards,
     load_keyboard_config,
@@ -75,8 +73,6 @@ def _get_keyboard_config_sources(
     # This is a simplified implementation - in a full implementation,
     # we would need to modify the config loading to track sources
     from pathlib import Path
-
-    from glovebox.config.keyboard_profile import get_available_keyboards
 
     sources = {}
     keyboard_paths = app_ctx.user_config.get("keyboard_paths", [])

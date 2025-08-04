@@ -1,6 +1,6 @@
 """Protocol definitions for behavior-related interfaces."""
 
-from typing import TYPE_CHECKING, Any, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Optional, Protocol, runtime_checkable
 
 
 if TYPE_CHECKING:

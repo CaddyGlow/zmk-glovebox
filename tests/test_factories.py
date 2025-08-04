@@ -7,8 +7,6 @@ from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
-    from glovebox.compilation.services.moergo_nix_service import MoergoNixService
-    from glovebox.compilation.services.zmk_west_service import ZmkWestService
     from glovebox.firmware.flash.device_detector import DeviceDetector
     from glovebox.firmware.flash.flasher_methods import USBFlasher
     from glovebox.firmware.flash.service import FlashService

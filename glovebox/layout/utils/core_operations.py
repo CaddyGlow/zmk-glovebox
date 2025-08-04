@@ -1,18 +1,13 @@
 """Core layout operations and file processing utilities."""
 
-import json
 import logging
 from collections.abc import Callable
-from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar
-
-from glovebox.layout.behavior.analysis import get_required_includes_for_layout
+from typing import TYPE_CHECKING, TypeVar
 
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
-    from glovebox.layout.zmk_generator import ZmkFileContentGenerator
 
 from glovebox.core.errors import LayoutError
 from glovebox.firmware.models import OutputPaths

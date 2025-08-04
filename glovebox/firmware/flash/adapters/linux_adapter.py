@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
-    from glovebox.protocols.flash_os_protocol import FlashOSProtocol
+    pass
 
 from glovebox.firmware.flash.models import BlockDevice
 
@@ -41,7 +41,9 @@ class LinuxFlashOS:
                     break
                 time.sleep(0.1)
             else:
-                raise OSError(f"Device node {device_path} did not appear after 3 seconds")
+                raise OSError(
+                    f"Device node {device_path} did not appear after 3 seconds"
+                )
 
         # Check if udisksctl exists
         if not shutil.which("udisksctl"):

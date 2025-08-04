@@ -1,14 +1,10 @@
 """Tests for workspace creation service."""
 
 import tempfile
-import time
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-
-
-pytestmark = [pytest.mark.docker, pytest.mark.integration]
 
 from glovebox.compilation.parsers.repository_spec_parser import RepositorySpec
 from glovebox.compilation.services.workspace_creation_service import (
@@ -24,6 +20,9 @@ from glovebox.protocols import (
     FileAdapterProtocol,
     MetricsProtocol,
 )
+
+
+pytestmark = [pytest.mark.docker, pytest.mark.integration]
 
 
 class TestWorkspaceCreationResult:

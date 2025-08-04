@@ -12,8 +12,6 @@ from glovebox.config.flash_methods import USBFlashConfig
 from glovebox.firmware.flash.models import (
     BlockDevice,
     FlashResult,
-    USBDevice,
-    USBDeviceType,
 )
 
 

@@ -1,21 +1,19 @@
 """Tests for CompilationBuildCacheService."""
 
-import json
-import shutil
 from pathlib import Path
 from typing import Any
 from unittest.mock import Mock
 
 import pytest
 
-
-pytestmark = pytest.mark.integration
-
 from glovebox.compilation.cache.compilation_build_cache_service import (
     CompilationBuildCacheService,
 )
 from glovebox.config.user_config import UserConfig
 from glovebox.core.cache.cache_manager import CacheManager
+
+
+pytestmark = pytest.mark.integration
 
 
 class TestCompilationBuildCacheService:

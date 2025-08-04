@@ -6,19 +6,18 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-
-pytestmark = [pytest.mark.docker, pytest.mark.integration]
-
 from glovebox.adapters.docker_adapter import (
     DockerAdapter,
     LoggerOutputMiddleware,
     create_chained_docker_middleware,
     create_docker_adapter,
-    create_logger_middleware,
 )
 from glovebox.core.errors import DockerError
 from glovebox.models.docker import DockerUserContext
 from glovebox.protocols.docker_adapter_protocol import DockerAdapterProtocol
+
+
+pytestmark = [pytest.mark.docker, pytest.mark.integration]
 
 
 def _assert_docker_command_called(mock_run_command, expected_cmd):

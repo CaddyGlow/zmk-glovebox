@@ -3,12 +3,10 @@ with the nix toolchain
 """
 
 import logging
-import shutil
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from glovebox.adapters.docker_adapter import LoggerOutputMiddleware
 from glovebox.compilation.models import (
     CompilationConfigUnion,
     MoergoCompilationConfig,
@@ -22,18 +20,11 @@ from glovebox.firmware.models import (
     FirmwareOutputFiles,
     create_build_info_file,
 )
-from glovebox.models.docker import DockerUserContext
 from glovebox.models.docker_path import DockerPath
 from glovebox.protocols import (
     DockerAdapterProtocol,
     FileAdapterProtocol,
     MetricsProtocol,
-)
-from glovebox.utils.build_log_middleware import create_build_log_middleware
-from glovebox.utils.stream_process import (
-    DefaultOutputMiddleware,
-    OutputMiddleware,
-    create_chained_middleware,
 )
 
 
@@ -200,7 +191,9 @@ class MoergoNixService(CompilationServiceProtocol):
             from glovebox.cli.components import create_compilation_progress_manager
 
             # Use provided progress_callback or fall back to default
-            effective_progress_callback = progress_callback or self.default_progress_callback
+            effective_progress_callback = (
+                progress_callback or self.default_progress_callback
+            )
 
             # Create progress manager with MoErgo-specific checkpoints
             progress_manager = create_compilation_progress_manager(
@@ -1028,4 +1021,6 @@ def create_moergo_nix_service(
     Returns:
         Configured MoergoNixService instance
     """
-    return MoergoNixService(docker_adapter, file_adapter, session_metrics, default_progress_callback)
+    return MoergoNixService(
+        docker_adapter, file_adapter, session_metrics, default_progress_callback
+    )

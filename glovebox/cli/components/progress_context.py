@@ -4,7 +4,6 @@ import time
 from typing import Any
 
 from glovebox.cli.components.progress_display import ProgressDisplay
-from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
 
 
 class ProgressContext:

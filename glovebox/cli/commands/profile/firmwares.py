@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Annotated, Any
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -15,7 +15,6 @@ from glovebox.cli.decorators import handle_errors
 from glovebox.cli.helpers import (
     print_error_message,
     print_list_item,
-    print_success_message,
 )
 from glovebox.cli.helpers.theme import Colors, Icons
 from glovebox.config.keyboard_profile import load_keyboard_config

@@ -3,7 +3,6 @@
 import threading
 import time
 from datetime import datetime
-from typing import Any
 
 from rich.align import Align
 from rich.console import Console, Group

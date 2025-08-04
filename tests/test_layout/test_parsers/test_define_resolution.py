@@ -1,8 +1,5 @@
 """Test define resolution in keymap parsing."""
 
-import pytest
-
-from glovebox.layout.models import LayoutBinding, LayoutData
 from glovebox.layout.parsers.ast_behavior_converter import ASTBehaviorConverter
 from glovebox.layout.parsers.keymap_parser import ZmkKeymapParser
 from glovebox.layout.parsers.keymap_processors import FullKeymapProcessor

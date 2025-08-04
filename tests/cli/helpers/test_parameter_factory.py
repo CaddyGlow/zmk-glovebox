@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Annotated, get_args, get_origin
 
-import pytest
 import typer
 
 from glovebox.cli.helpers.parameter_factory import (
