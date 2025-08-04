@@ -282,6 +282,10 @@ class FlashService:
             # Only process device additions
             if action != "add":
                 return
+            
+            # Only process block devices for flashing
+            if not isinstance(device, BlockDevice):
+                return
 
             # Check if device matches query
             if not self._device_matches_query(device, device_query):
@@ -530,6 +534,18 @@ class FlashService:
                 getattr(device, "name", "unknown"),
             )
             return False
+
+        # Verify device is ready before attempting flash
+        if not device.is_ready():
+            logger.info("Waiting for device %s to be ready...", device.name)
+            if not device.wait_for_ready(timeout=5.0):
+                logger.error("Device %s did not become ready in time", device.name)
+                result.devices_failed += 1
+                device_details = create_device_result(
+                    device, False, "Device node not ready"
+                )
+                result.device_details.append(device_details)
+                return False
 
         logger.info("Flashing device: %s", device.description or device.name)
 

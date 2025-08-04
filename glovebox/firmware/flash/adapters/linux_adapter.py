@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -29,6 +30,18 @@ class LinuxFlashOS:
         """Mount device using udisksctl on Linux."""
         mount_points = []
         device_path = self.get_device_path(device.name)
+
+        # Check if device node exists
+        if not Path(device_path).exists():
+            logger.warning("Device node %s does not exist yet, waiting...", device_path)
+            # Wait up to 3 seconds for device node to appear
+            for _ in range(30):
+                if Path(device_path).exists():
+                    logger.info("Device node %s is now available", device_path)
+                    break
+                time.sleep(0.1)
+            else:
+                raise OSError(f"Device node {device_path} did not appear after 3 seconds")
 
         # Check if udisksctl exists
         if not shutil.which("udisksctl"):

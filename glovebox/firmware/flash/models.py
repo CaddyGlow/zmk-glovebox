@@ -185,6 +185,32 @@ class USBDevice:
         else:
             return self.name
 
+    def is_ready(self) -> bool:
+        """Check if the device node exists and is ready for operations."""
+        if not self.device_node:
+            return False
+        return Path(self.device_node).exists()
+
+    def wait_for_ready(self, timeout: float = 5.0, poll_interval: float = 0.1) -> bool:
+        """Wait for the device node to be ready.
+        
+        Args:
+            timeout: Maximum time to wait in seconds
+            poll_interval: Time between checks in seconds
+            
+        Returns:
+            True if device becomes ready, False if timeout
+        """
+        import time
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            if self.is_ready():
+                return True
+            time.sleep(poll_interval)
+
+        return False
+
     @property
     def type(self) -> str:
         """Alias for device_type for BlockDevice compatibility."""
@@ -381,6 +407,32 @@ class BlockDevice:
             return f"{self.model} {self.name}"
         else:
             return self.name
+
+    def is_ready(self) -> bool:
+        """Check if the device node exists and is ready for operations."""
+        if not self.device_node:
+            return False
+        return Path(self.device_node).exists()
+
+    def wait_for_ready(self, timeout: float = 5.0, poll_interval: float = 0.1) -> bool:
+        """Wait for the device node to be ready.
+        
+        Args:
+            timeout: Maximum time to wait in seconds
+            poll_interval: Time between checks in seconds
+            
+        Returns:
+            True if device becomes ready, False if timeout
+        """
+        import time
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            if self.is_ready():
+                return True
+            time.sleep(poll_interval)
+
+        return False
 
     @classmethod
     def from_pyudev_device(cls, device: Any) -> "BlockDevice":
