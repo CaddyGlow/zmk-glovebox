@@ -3,13 +3,12 @@
 import json
 import logging
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 import typer
 
 from glovebox.cli.commands.layout.dependencies import create_full_layout_service
 from glovebox.cli.decorators import handle_errors, with_metrics, with_profile
-from glovebox.cli.helpers.parameter_factory import ParameterFactory
 
 
 @handle_errors

@@ -9,7 +9,6 @@ import typer
 from glovebox.adapters import create_file_adapter
 from glovebox.cli.core.command_base import IOCommand
 from glovebox.cli.decorators import handle_errors, with_metrics
-from glovebox.cli.helpers.parameter_factory import ParameterFactory
 from glovebox.layout.comparison import create_layout_comparison_service
 
 

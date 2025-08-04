@@ -14,7 +14,6 @@ from glovebox.cli.decorators import (
     with_metrics,
     with_profile,
 )
-from glovebox.cli.helpers.parameter_factory import ParameterFactory
 from glovebox.layout import ViewMode
 
 

@@ -11,7 +11,7 @@ from click import Context as ClickContext
 
 if TYPE_CHECKING:
     # Type hints only - not loaded at runtime
-    from glovebox.config.profile import KeyboardProfile
+    pass
 
 logger = logging.getLogger(__name__)
 
