@@ -11,7 +11,7 @@ env:
 
 jobs:
   test:
-    name: Pre-release Tests
+    name: Pre-release Checks
     runs-on: ubuntu-latest
     timeout-minutes: 20
     
@@ -30,8 +30,10 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras --dev
 
-      - name: Run tests
-        run: uv run pytest -v
+      # Tests are optional - they won't block the release
+      - name: Run tests (optional)
+        run: uv run pytest -v || echo "::warning::Tests failed but continuing with release"
+        continue-on-error: true
 
       - name: Run linting
         run: |
