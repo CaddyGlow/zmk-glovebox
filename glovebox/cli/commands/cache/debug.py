@@ -1,6 +1,8 @@
 """Cache debug CLI command."""
 
 import logging
+from pathlib import Path
+from typing import Any
 
 from rich.console import Console
 
@@ -44,7 +46,7 @@ class CacheDebugCommand(IOCommand):
         except Exception as e:
             self.handle_service_error(e, "debug cache state")
 
-    def _show_filesystem_items(self, cache_dir) -> None:
+    def _show_filesystem_items(self, cache_dir: Path) -> None:
         """Show filesystem items in cache directory."""
         console.print("\n[bold cyan]1. Filesystem Items[/bold cyan]")
         filesystem_items = list(cache_dir.iterdir())
@@ -67,7 +69,7 @@ class CacheDebugCommand(IOCommand):
 
         console.print(f"\nTotal filesystem items: {len(filesystem_items)}")
 
-    def _show_cache_database_entries(self, cache_dir, cache_manager) -> None:
+    def _show_cache_database_entries(self, cache_dir: Path, cache_manager: Any) -> None:
         """Show cache database entries."""
         console.print("\n[bold cyan]2. Cache Database Entries[/bold cyan]")
         filesystem_items = list(cache_dir.iterdir())
@@ -104,7 +106,7 @@ class CacheDebugCommand(IOCommand):
 
         console.print(f"\nCache entries with metadata: {len(cache_entries)}")
 
-    def _test_specific_keys(self, cache_manager) -> None:
+    def _test_specific_keys(self, cache_manager: Any) -> None:
         """Test specific cache keys mentioned in logs."""
         test_keys = ["91005f829d37fa2b", "465b177522248c96"]
         console.print("\n[bold cyan]3. Test Specific Keys[/bold cyan]")
@@ -143,7 +145,7 @@ class CacheDebugCommand(IOCommand):
                 else:
                     console.print("    -> Filesystem: [red]NOT FOUND[/red]")
 
-    def _show_known_repo_keys(self, cache_manager) -> None:
+    def _show_known_repo_keys(self, cache_manager: Any) -> None:
         """Show cache keys for known repositories."""
         console.print(
             "\n[bold cyan]4. Cache Keys Generated for Known Repos[/bold cyan]"

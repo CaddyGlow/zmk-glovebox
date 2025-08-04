@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 
 from rich.align import Align
-from rich.console import Console, Group
+from rich.console import Console, ConsoleRenderable, Group
 from rich.live import Live
 from rich.panel import Panel
 from rich.progress_bar import ProgressBar
@@ -138,7 +138,8 @@ class ProgressDisplay:
             and self.state.checkpoints[self.state.current_checkpoint].status == "active"
         )
 
-        components = [
+        # Explicitly type components list to satisfy mypy
+        components: list[ConsoleRenderable | str] = [
             header,
             "",  # Empty line
             task_table,

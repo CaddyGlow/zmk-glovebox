@@ -37,7 +37,7 @@ class ProfileAwareLayoutCommand(BaseLayoutCommand):
     """Base class for layout commands that need keyboard profile resolution."""
 
     def get_keyboard_profile(
-        self, ctx: typer.Context, layout_data: dict, no_auto: bool
+        self, ctx: typer.Context, layout_data: dict[str, Any], no_auto: bool
     ) -> "KeyboardProfile":
         """Get keyboard profile from context or auto-detect.
 
@@ -108,7 +108,7 @@ class ProfileAwareLayoutCommand(BaseLayoutCommand):
     @abstractmethod
     def execute_command(
         self,
-        layout_data: dict,
+        layout_data: dict[str, Any],
         keyboard_profile: "KeyboardProfile",
         service: "LayoutService",
         **kwargs: Any,

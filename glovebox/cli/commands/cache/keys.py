@@ -3,7 +3,11 @@
 import logging
 import time
 from datetime import datetime
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
+
+
+if TYPE_CHECKING:
+    from glovebox.core.cache.cache_manager import CacheManager
 
 import typer
 from rich.console import Console
@@ -115,7 +119,7 @@ class CacheKeysCommand(IOCommand):
         self,
         module: str,
         cache_keys: list[str],
-        module_cache,
+        module_cache: "CacheManager",
         metadata: bool,
         values: bool,
         pattern: str | None,
@@ -211,7 +215,7 @@ class CacheKeysCommand(IOCommand):
         self,
         module: str,
         cache_keys: list[str],
-        module_cache,
+        module_cache: "CacheManager",
         metadata: bool,
         values: bool,
         pattern: str | None,
@@ -243,7 +247,11 @@ class CacheKeysCommand(IOCommand):
                 )
 
     def _display_keys_table(
-        self, cache_keys: list[str], module_cache, metadata: bool, values: bool
+        self,
+        cache_keys: list[str],
+        module_cache: "CacheManager",
+        metadata: bool,
+        values: bool,
     ) -> None:
         """Display cache keys in table format."""
         table = Table(show_header=True, header_style=Colors.HEADER)
@@ -314,7 +322,7 @@ class CacheKeysCommand(IOCommand):
         console.print(table)
 
     def _display_keys_list(
-        self, cache_keys: list[str], module_cache, values: bool
+        self, cache_keys: list[str], module_cache: "CacheManager", values: bool
     ) -> None:
         """Display cache keys in simple list format."""
         for i, key in enumerate(sorted(cache_keys), 1):

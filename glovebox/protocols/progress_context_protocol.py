@@ -1,6 +1,10 @@
 """Protocol for progress context information."""
 
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
+
+
+if TYPE_CHECKING:
+    from types import TracebackType
 
 
 @runtime_checkable
@@ -73,5 +77,39 @@ class ProgressContextProtocol(Protocol):
                 - transfer_speed: Transfer speed in MB/s
                 - eta_seconds: Estimated time to completion
                 - files_remaining: Number of files remaining
+        """
+        ...
+
+
+@runtime_checkable
+class ProgressManagerProtocol(Protocol):
+    """Protocol for progress managers that can be used as context managers.
+
+    This protocol combines context manager capabilities with progress context functionality.
+    """
+
+    def __enter__(self) -> ProgressContextProtocol:
+        """Enter context manager, returning a progress context.
+
+        Returns:
+            ProgressContextProtocol implementation for progress updates
+        """
+        ...
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: "TracebackType | None",
+    ) -> Literal[False]:
+        """Exit context manager.
+
+        Args:
+            exc_type: Exception type if an exception was raised
+            exc_val: Exception value if an exception was raised
+            exc_tb: Exception traceback if an exception was raised
+
+        Returns:
+            False to propagate any exception
         """
         ...

@@ -704,8 +704,14 @@ class ZmkWestService(CompilationServiceProtocol):
             middlewares: list[OutputMiddleware[Any]] = []
 
             # Create build log middleware
+            # Ensure we have a valid progress context for the middleware
+            from glovebox.cli.components.noop_progress_context import (
+                get_noop_progress_context,
+            )
+
+            effective_progress_context = progress_context or get_noop_progress_context()
             build_log_middleware = create_build_log_middleware(
-                output_dir, progress_context
+                output_dir, effective_progress_context
             )
 
             # Add build log middleware first to capture all output
@@ -810,7 +816,7 @@ class ZmkWestService(CompilationServiceProtocol):
                         image=config.image,
                         volumes=[(str(workspace_path), "/workspace")],
                         environment={},  # {"JOBS": "4"},
-                        progress_context=progress_context,
+                        progress_context=effective_progress_context,
                         command=["sh", "-c", "set -xeu; " + " && ".join(all_commands)],
                         middleware=chained,
                         user_context=user_context,

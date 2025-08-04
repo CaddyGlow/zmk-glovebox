@@ -1,8 +1,15 @@
 """No-operation progress context implementation."""
 
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
 
-from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
+from glovebox.protocols.progress_context_protocol import (
+    ProgressContextProtocol,
+    ProgressManagerProtocol,
+)
+
+
+if TYPE_CHECKING:
+    from types import TracebackType
 
 
 class NoOpProgressContext:
@@ -41,6 +48,33 @@ class NoOpProgressContext:
         """No-op implementation of set_status_info."""
         pass
 
+    def __enter__(self) -> ProgressContextProtocol:
+        """Enter context manager, returning self.
+
+        Returns:
+            Self as ProgressContextProtocol for progress updates
+        """
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: "TracebackType | None",
+    ) -> Literal[False]:
+        """Exit context manager.
+
+        Args:
+            exc_type: Exception type if an exception was raised
+            exc_val: Exception value if an exception was raised
+            exc_tb: Exception traceback if an exception was raised
+
+        Returns:
+            False to propagate any exception
+        """
+        # Don't suppress exceptions
+        return False
+
 
 # Singleton instance to avoid creating multiple NoOp objects
 _NOOP_PROGRESS_CONTEXT = NoOpProgressContext()
@@ -51,5 +85,14 @@ def get_noop_progress_context() -> ProgressContextProtocol:
 
     Returns:
         The singleton NoOpProgressContext instance that satisfies ProgressContextProtocol
+    """
+    return _NOOP_PROGRESS_CONTEXT
+
+
+def get_noop_progress_manager() -> ProgressManagerProtocol:
+    """Get the singleton NoOp progress context as a progress manager.
+
+    Returns:
+        The singleton NoOpProgressContext instance that satisfies ProgressManagerProtocol
     """
     return _NOOP_PROGRESS_CONTEXT

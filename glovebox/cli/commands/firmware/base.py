@@ -11,21 +11,20 @@ from glovebox.cli.core.command_base import IOCommand
 class BaseFirmwareCommand(IOCommand):
     """Base class for firmware commands with common error handling patterns."""
 
+    def print_operation_success(
+        self, message: str, details: dict[str, Any] | None = None
+    ) -> None:
+        """Print success message with operation details.
 
-def print_operation_success(
-    self, message: str, details: dict[str, Any] | None = None
-) -> None:
-    """Print success message with operation details.
-
-    Args:
-        message: Main success message
-        details: Dictionary of operation details to display
-    """
-    self.console.print_success(message)
-    if details:
-        for key, value in details.items():
-            if value is not None:
-                self.console.print_info(f"{key.replace('_', ' ').title()}: {value}")
+        Args:
+            message: Main success message
+            details: Dictionary of operation details to display
+        """
+        self.console.print_success(message)
+        if details:
+            for key, value in details.items():
+                if value is not None:
+                    self.console.print_info(f"{key.replace('_', ' ').title()}: {value}")
 
 
 class FirmwareFileCommand(BaseFirmwareCommand):

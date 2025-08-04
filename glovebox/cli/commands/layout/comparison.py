@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 
@@ -17,15 +17,21 @@ from glovebox.layout.comparison import create_layout_comparison_service
 @with_metrics("diff")
 def diff(
     ctx: typer.Context,
-    layout1: ParameterFactory.create_input_parameter(
-        help_text="First layout file, @library-ref, '-' for stdin, or env:GLOVEBOX_JSON_FILE"
-    ),
-    layout2: ParameterFactory.create_input_parameter(
-        help_text="Second layout file to compare or @library-name/uuid", required=True
-    ),
-    output: ParameterFactory.create_output_parameter(
-        help_text="Create LayoutDiff patch file for later application"
-    ) = None,
+    layout1: Annotated[
+        str,
+        typer.Argument(
+            help="First layout file, @library-ref, '-' for stdin, or env:GLOVEBOX_JSON_FILE"
+        ),
+    ],
+    layout2: Annotated[
+        str, typer.Argument(help="Second layout file to compare or @library-name/uuid")
+    ],
+    output: Annotated[
+        str | None,
+        typer.Option(
+            "--output", "-o", help="Create LayoutDiff patch file for later application"
+        ),
+    ] = None,
     detailed: Annotated[
         bool,
         typer.Option("--detailed", help="Show detailed key changes within layers"),
@@ -67,16 +73,24 @@ def diff(
 @with_metrics("patch")
 def patch(
     ctx: typer.Context,
-    layout_file: ParameterFactory.create_input_parameter(
-        help_text="Source layout file to patch, @library-ref, or '-' for stdin"
-    ),
-    patch_file: ParameterFactory.create_input_parameter(
-        help_text="JSON diff file from 'glovebox layout diff --output changes.json'",
-        required=True,
-    ),
-    output: ParameterFactory.create_output_parameter(
-        help_text="Create LayoutDiff patch file for later application"
-    ) = None,
+    layout_file: Annotated[
+        str,
+        typer.Argument(
+            help="Source layout file to patch, @library-ref, or '-' for stdin"
+        ),
+    ],
+    patch_file: Annotated[
+        str,
+        typer.Argument(
+            help="JSON diff file from 'glovebox layout diff --output changes.json'"
+        ),
+    ],
+    output: Annotated[
+        str | None,
+        typer.Option(
+            "--output", "-o", help="Create LayoutDiff patch file for later application"
+        ),
+    ] = None,
     force: Annotated[
         bool,
         typer.Option(
@@ -154,7 +168,7 @@ class DiffLayoutCommand(IOCommand):
         except Exception as e:
             self.handle_service_error(e, "compare layouts")
 
-    def _get_user_config(self, ctx: typer.Context):
+    def _get_user_config(self, ctx: typer.Context) -> Any:
         """Get user config from context."""
         from glovebox.cli.helpers.profile import get_user_config_from_context
         from glovebox.config import create_user_config
@@ -163,13 +177,13 @@ class DiffLayoutCommand(IOCommand):
 
     def _compare_with_temp_files(
         self,
-        layout1_data: dict,
-        layout2_data: dict,
-        service,
+        layout1_data: dict[str, Any],
+        layout2_data: dict[str, Any],
+        service: Any,
         format: str,
         include_dtsi: bool,
         detailed: bool,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Compare layouts using temporary files."""
         import json
         import tempfile
@@ -183,22 +197,24 @@ class DiffLayoutCommand(IOCommand):
             temp_path2 = Path(f2.name)
 
         try:
-            return service.compare_layouts(
+            result = service.compare_layouts(
                 layout1_path=temp_path1,
                 layout2_path=temp_path2,
                 output_format=format,
                 include_dtsi=include_dtsi,
                 detailed=detailed,
             )
+            # Ensure we return a dict[str, Any]
+            return dict(result) if result else {}
         finally:
             temp_path1.unlink(missing_ok=True)
             temp_path2.unlink(missing_ok=True)
 
     def _create_patch_file(
         self,
-        layout1_data: dict,
-        layout2_data: dict,
-        service,
+        layout1_data: dict[str, Any],
+        layout2_data: dict[str, Any],
+        service: Any,
         output: str,
         include_dtsi: bool,
     ) -> str:
@@ -234,7 +250,7 @@ class DiffLayoutCommand(IOCommand):
             temp_path2.unlink(missing_ok=True)
 
     def _handle_diff_result(
-        self, result: dict, format: str, output: str | None
+        self, result: dict[str, Any], format: str, output: str | None
     ) -> None:
         """Handle diff result output."""
         if format == "json":
@@ -244,7 +260,7 @@ class DiffLayoutCommand(IOCommand):
         else:
             self._format_text_output(result, output)
 
-    def _format_table_output(self, result: dict) -> None:
+    def _format_table_output(self, result: dict[str, Any]) -> None:
         """Format table output for diff results."""
         changes_list = []
         if "layer_changes" in result:
@@ -267,7 +283,7 @@ class DiffLayoutCommand(IOCommand):
                 )
         self.format_and_print(changes_list, "table")
 
-    def _format_text_output(self, result: dict, output: str | None) -> None:
+    def _format_text_output(self, result: dict[str, Any], output: str | None) -> None:
         """Format text output for diff results."""
         if result.get("has_changes", False):
             self.console.print_info("Layout differences found:")
@@ -279,7 +295,7 @@ class DiffLayoutCommand(IOCommand):
         else:
             self.console.print_success("No differences found between layouts")
 
-    def _print_summary(self, summary) -> None:
+    def _print_summary(self, summary: Any) -> None:
         """Print summary information."""
         if isinstance(summary, dict):
             for category, stats in summary.items():
@@ -352,7 +368,7 @@ class PatchLayoutCommand(IOCommand):
         except Exception as e:
             self.handle_service_error(e, "apply patch")
 
-    def _get_user_config(self, ctx: typer.Context):
+    def _get_user_config(self, ctx: typer.Context) -> Any:
         """Get user config from context."""
         from glovebox.cli.helpers.profile import get_user_config_from_context
         from glovebox.config import create_user_config
@@ -361,13 +377,13 @@ class PatchLayoutCommand(IOCommand):
 
     def _apply_patch_with_temp_files(
         self,
-        layout_data: dict,
-        patch_data: dict,
-        service,
+        layout_data: dict[str, Any],
+        patch_data: dict[str, Any],
+        service: Any,
         output: str,
         force: bool,
         exclude_dtsi: bool,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Apply patch using temporary files."""
         import json
         import tempfile
@@ -390,20 +406,28 @@ class PatchLayoutCommand(IOCommand):
                 create_dirs=True,
             )
 
-            result = service.apply_patch(
+            patch_result = service.apply_patch(
                 source_layout_path=temp_layout_path,
                 patch_file_path=temp_patch_path,
-                output=Path(output_result.path),
+                output=Path(output_result.resolved_path)
+                if output_result.resolved_path
+                else Path(output),
                 force=force,
                 skip_dtsi=exclude_dtsi,
             )
-            result["output_path"] = str(output_result.path)
+            # Ensure we return a dict[str, Any]
+            result = dict(patch_result) if patch_result else {}
+            result["output_path"] = (
+                str(output_result.resolved_path)
+                if output_result.resolved_path
+                else output
+            )
             return result
         finally:
             temp_layout_path.unlink(missing_ok=True)
             temp_patch_path.unlink(missing_ok=True)
 
-    def _handle_patch_success(self, result: dict, output: str) -> None:
+    def _handle_patch_success(self, result: dict[str, Any], output: str) -> None:
         """Handle successful patch application."""
         self.console.print_success("Applied patch successfully")
         self.console.print_info(f"  Output: {result.get('output_path', output)}")

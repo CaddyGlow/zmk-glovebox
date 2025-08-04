@@ -186,7 +186,7 @@ class CacheShowCommand(IOCommand):
 
     def _display_text_output(
         self,
-        cache_manager,
+        cache_manager: Any,
         module: str | None,
         limit: int | None,
         offset: int | None,
@@ -217,7 +217,7 @@ class CacheShowCommand(IOCommand):
         # Show usage instructions
         self._display_usage_instructions()
 
-    def _display_cache_stats(self, cache_manager) -> None:
+    def _display_cache_stats(self, cache_manager: Any) -> None:
         """Display cache performance statistics."""
 
         stats_icon = Icons.get_icon("INFO", "text")
@@ -316,7 +316,7 @@ class CacheShowCommand(IOCommand):
             )
             console.print(f"[dim]Cache directory: {cache_dir}[/dim]")
 
-    def _display_workspace_table(self, workspaces) -> None:
+    def _display_workspace_table(self, workspaces: Any) -> None:
         """Display workspaces in table format."""
 
         table = Table(show_header=True, header_style=f"bold {Colors.SUCCESS}")
@@ -369,7 +369,7 @@ class CacheShowCommand(IOCommand):
 
         console.print(table)
 
-    def _display_workspace_list(self, workspaces) -> None:
+    def _display_workspace_list(self, workspaces: Any) -> None:
         """Display workspaces in simple list format."""
         for workspace in sorted(workspaces, key=lambda x: x.repository):
             size_bytes = workspace.size_bytes or get_directory_size_bytes(
@@ -507,7 +507,11 @@ class CacheShowCommand(IOCommand):
             )
 
     def _display_all_modules(
-        self, cache_subdirs: list, limit: int | None, offset: int | None, verbose: bool
+        self,
+        cache_subdirs: list[Path],
+        limit: int | None,
+        offset: int | None,
+        verbose: bool,
     ) -> None:
         """Display all module caches."""
 

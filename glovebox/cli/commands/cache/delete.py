@@ -1,14 +1,16 @@
 """Cache delete CLI command."""
 
+import json
 import logging
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.console import Console
 
 from glovebox.cli.core.command_base import IOCommand
 from glovebox.cli.decorators.error_handling import handle_errors
+from glovebox.core.cache.cache_manager import CacheManager
 
 from .utils import get_icon
 
@@ -70,7 +72,7 @@ class CacheDeleteCommand(IOCommand):
         keys: str | None,
         json_file: Path | None,
         pattern: str | None,
-        module_cache,
+        module_cache: CacheManager,
         module: str,
     ) -> list[str]:
         """Get the list of keys to delete based on the provided options."""
@@ -102,18 +104,26 @@ class CacheDeleteCommand(IOCommand):
     def _load_keys_from_json(self, json_file: Path) -> list[str]:
         """Load keys from JSON file."""
         try:
-            data = self.load_json_input(str(json_file))
-            if isinstance(data, dict) and "keys" in data:
-                # Handle format from cache keys --json command
-                if isinstance(data["keys"], list):
-                    return [
-                        item["key"] if isinstance(item, dict) else str(item)
-                        for item in data["keys"]
-                    ]
-            elif isinstance(data, list):
-                # Handle simple list of keys
+            # Load JSON directly to handle both dict and list formats
+            with json_file.open("r", encoding="utf-8") as f:
+                data: Any = json.load(f)
+
+            # Handle simple list of keys
+            if isinstance(data, list):
                 return [str(key) for key in data]
 
+            # Handle dict format from cache keys --json command
+            if (
+                isinstance(data, dict)
+                and "keys" in data
+                and isinstance(data["keys"], list)
+            ):
+                return [
+                    item["key"] if isinstance(item, dict) else str(item)
+                    for item in data["keys"]
+                ]
+
+            # If we reach here, the JSON format is invalid
             console.print(f"[red]Invalid JSON format in {json_file}[/red]")
             raise typer.Exit(1)
         except Exception as e:
@@ -168,7 +178,7 @@ class CacheDeleteCommand(IOCommand):
         return keys_to_delete
 
     def _handle_dry_run(
-        self, keys_to_delete: list[str], module: str, module_cache
+        self, keys_to_delete: list[str], module: str, module_cache: CacheManager
     ) -> None:
         """Handle dry run mode - show what would be deleted without actually deleting."""
         console.print(

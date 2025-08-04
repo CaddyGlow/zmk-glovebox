@@ -40,6 +40,7 @@ class ParsingMethod(str, Enum):
     """Keymap parsing method."""
 
     AST = "ast"  # AST-based parsing
+    REGEX = "regex"  # Legacy regex-based parsing
 
 
 class KeymapParseResult(GloveboxBaseModel):

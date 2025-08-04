@@ -137,8 +137,6 @@ class IOCommand(BaseCommand):
 
         import typer
 
-        from glovebox.cli.helpers.parameter_helpers import InputResult
-
         resolved_path = None
         is_stdin = False
         env_fallback_used = False
@@ -231,7 +229,6 @@ class IOCommand(BaseCommand):
         """
         import typer
 
-        from glovebox.cli.helpers.parameter_helpers import OutputResult
         from glovebox.cli.helpers.theme import get_themed_console
 
         resolved_path = None

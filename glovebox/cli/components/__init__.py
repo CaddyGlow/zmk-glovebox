@@ -1,14 +1,20 @@
 """CLI components for reusable UI elements."""
 
-from typing import Any
+from typing import Any, Union
 
-from glovebox.cli.components.noop_progress_context import get_noop_progress_context
+from glovebox.cli.components.noop_progress_context import (
+    get_noop_progress_context,
+    get_noop_progress_manager,
+)
 from glovebox.cli.components.progress_config import ProgressConfig
 from glovebox.cli.components.progress_context import ProgressContext
 from glovebox.cli.components.progress_display import ProgressDisplay
 from glovebox.cli.components.progress_manager import ProgressManager
 from glovebox.cli.helpers.theme import IconMode
-from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
+from glovebox.protocols.progress_context_protocol import (
+    ProgressContextProtocol,
+    ProgressManagerProtocol,
+)
 
 
 def create_progress_display(config: ProgressConfig) -> Any:
@@ -77,7 +83,7 @@ def create_compilation_progress_manager(
     board_info: dict[str, Any],
     progress_callback: Any | None = None,
     use_moergo_fallback: bool = False,
-) -> ProgressManager:
+) -> ProgressManagerProtocol:
     """Create a progress manager for compilation operations with dynamic board checkpoints.
 
     This factory function handles the common pattern used in compilation services
@@ -96,7 +102,7 @@ def create_compilation_progress_manager(
         Context manager that provides progress tracking functionality
     """
     if progress_callback is None:
-        return get_noop_progress_context()
+        return get_noop_progress_manager()
 
     # Import required dependencies for progress setup
     from glovebox.cli.helpers.theme import get_icon_mode_from_config
@@ -144,9 +150,11 @@ __all__ = [
     "ProgressManager",
     "ProgressContext",
     "ProgressContextProtocol",
+    "ProgressManagerProtocol",
     "create_progress_display",
     "create_progress_manager",
     "create_progress_context",
     "create_compilation_progress_manager",
     "get_noop_progress_context",
+    "get_noop_progress_manager",
 ]

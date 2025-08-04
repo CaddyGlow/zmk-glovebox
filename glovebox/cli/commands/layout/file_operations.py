@@ -1,8 +1,9 @@
 """Layout file manipulation CLI commands (split, merge, export, import)."""
 
+import json
 import logging
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 
@@ -16,11 +17,21 @@ from glovebox.cli.helpers.parameter_factory import ParameterFactory
 @with_metrics("split")
 def split(
     ctx: typer.Context,
-    input: ParameterFactory.create_input_parameter(
-        help_text="JSON layout file, @library-ref, '-' for stdin, or env:GLOVEBOX_JSON_FILE"
-    ),
+    input: Annotated[
+        str,
+        typer.Argument(
+            help="JSON layout file, @library-ref, '-' for stdin, or env:GLOVEBOX_JSON_FILE"
+        ),
+    ],
     output_dir: Annotated[Path, typer.Argument(help="Directory to save split files")],
-    profile: ParameterFactory.create_profile_parameter() = None,
+    profile: Annotated[
+        str | None,
+        typer.Option(
+            "--profile",
+            "-p",
+            help="Keyboard profile in format 'keyboard' or 'keyboard/firmware'",
+        ),
+    ] = None,
     no_auto: Annotated[
         bool,
         typer.Option(
@@ -62,23 +73,22 @@ def split(
     output_formatter = create_output_formatter()
 
     try:
-        # Load JSON input using IOCommand
-        from glovebox.cli.core.command_base import IOCommand
+        # Load JSON input using direct input handling
+        if input == "-":
+            # Read from stdin
+            import sys
 
-        command = IOCommand(output_formatter)
-        input_result = command.load_input(
-            source=input,
-            supports_stdin=True,
-            required=True,
-            allowed_extensions=[".json"],
-        )
-        raw_data = input_result.data
-        import json
-
-        if isinstance(raw_data, str):
+            raw_data = sys.stdin.read()
             layout_data = json.loads(raw_data)
         else:
-            layout_data = raw_data
+            # Read from file
+            input_path = Path(input)
+            if not input_path.exists():
+                console.print_error(f"Input file does not exist: {input_path}")
+                raise typer.Exit(1)
+
+            with input_path.open() as f:
+                layout_data = json.load(f)
 
         # Get keyboard profile from context
         from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
@@ -104,13 +114,13 @@ def split(
 
         layout_model = LayoutData.model_validate(layout_data)
 
-        # Split layout
+        # Split layout using component service
         layout_service = create_full_layout_service()
-        result = layout_service.split_components(
-            profile=keyboard_profile,
-            layout_data=layout_model,
+        # Access the component service from the layout service
+        component_service = layout_service._component_service
+        result = component_service.split_components(
+            layout=layout_model,
             output_dir=Path(output_dir),
-            force=force,
         )
 
         if result.success:
@@ -153,7 +163,14 @@ def merge(
         typer.Argument(help="Directory with metadata.json and layers/ subdirectory"),
     ],
     output: Annotated[Path, typer.Argument(help="Output layout JSON file path")],
-    profile: ParameterFactory.create_profile_parameter() = None,
+    profile: Annotated[
+        str | None,
+        typer.Option(
+            "--profile",
+            "-p",
+            help="Keyboard profile in format 'keyboard' or 'keyboard/firmware'",
+        ),
+    ] = None,
     force: Annotated[
         bool,
         typer.Option(
@@ -196,60 +213,66 @@ def merge(
             console.print_error("Profile is required for layout merge operation")
             raise typer.Exit(1)
 
-        # Merge components
+        # Merge components using component service
         layout_service = create_full_layout_service()
-        result = layout_service.compile_from_directory(
-            profile=keyboard_profile,
-            components_dir=Path(input_dir),
-            output_file_prefix=Path(output).stem if output else "merged-layout",
-            session_metrics=ctx.obj.session_metrics if ctx.obj else None,
-            force=force,
+        component_service = layout_service._component_service
+
+        # Read metadata first
+        metadata_file = Path(input_dir) / "metadata.json"
+        if not metadata_file.exists():
+            console.print_error(f"metadata.json not found in {input_dir}")
+            raise typer.Exit(1)
+
+        with metadata_file.open() as f:
+            metadata_data = json.load(f)
+
+        from glovebox.layout.models import LayoutData
+
+        metadata_layout = LayoutData.model_validate(metadata_data)
+
+        # Merge components
+        layers_dir = Path(input_dir) / "layers"
+        merged_layout = component_service.merge_components(
+            metadata_layout=metadata_layout,
+            layers_dir=layers_dir,
         )
 
-        if result.success:
-            # Get the merged layout data
-            output_files = result.get_output_files()
-            if "json" in output_files:
-                # Read the merged JSON file
-                merged_json_path = output_files["json"]
-                with merged_json_path.open() as f:
-                    import json
+        # Write output
+        output_data = merged_layout.model_dump(mode="json", by_alias=True)
 
-                    merged_data = json.load(f)
-
-                # Write to specified output using IOCommand
-                from glovebox.cli.core.command_base import IOCommand
-
-                command = IOCommand(output_formatter)
-                formatted_data = json.dumps(merged_data, indent=2)
-                command.write_output(
-                    data=formatted_data,
-                    destination=output,
-                    format="text",  # Already formatted as JSON string
-                    supports_stdout=True,
-                    force_overwrite=force,
-                    create_dirs=True,
-                )
-
-                result_data = {
-                    "success": True,
-                    "source_directory": str(input_dir),
-                    "output_file": str(output),
-                    "components_merged": result.messages
-                    if hasattr(result, "messages")
-                    else [],
-                }
-
-                if format == "json":
-                    output_formatter.print_formatted(result_data, "json")
-                else:
-                    console.print_success("Components merged into layout")
-                    console.print_info(f"  Source directory: {input_dir}")
-                    console.print_info(f"  Output file: {output}")
-            else:
-                raise ValueError("Failed to generate JSON output from merge operation")
+        if str(output) == "-":
+            # Write to stdout
+            print(json.dumps(output_data, indent=2))
         else:
-            raise ValueError(f"Merge failed: {'; '.join(result.errors)}")
+            # Write to file
+            output_path = Path(output)
+
+            # Check for existing file
+            if output_path.exists() and not force:
+                console.print_warning(f"Output file already exists: {output_path}")
+                if not typer.confirm("Overwrite existing file?"):
+                    raise typer.Abort()
+
+            # Create parent directories if needed
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            with output_path.open("w") as f:
+                json.dump(output_data, f, indent=2)
+
+        result_data = {
+            "success": True,
+            "source_directory": str(input_dir),
+            "output_file": str(output),
+            "layers_merged": len(merged_layout.layers),
+        }
+
+        if format == "json":
+            output_formatter.print_formatted(result_data, "json")
+        else:
+            console.print_success("Components merged into layout")
+            console.print_info(f"  Source directory: {input_dir}")
+            console.print_info(f"  Output file: {output}")
+            console.print_info(f"  Layers merged: {len(merged_layout.layers)}")
 
     except Exception as e:
         # Handle service error

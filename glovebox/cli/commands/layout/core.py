@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 
@@ -16,6 +16,11 @@ from glovebox.cli.decorators import (
 )
 from glovebox.cli.helpers.parameter_factory import ParameterFactory
 from glovebox.layout import ViewMode
+
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
+    from glovebox.layout.service import LayoutService
 
 
 logger = logging.getLogger(__name__)
@@ -45,13 +50,13 @@ class CompileLayoutCommand(ProfileAwareLayoutCommand):
 
     def execute_command(
         self,
-        layout_data: dict,
-        keyboard_profile,
-        service,
+        layout_data: dict[str, Any],
+        keyboard_profile: "KeyboardProfile",
+        service: "LayoutService",
         output: str | None = None,
         force: bool = False,
         format: str = "text",
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Execute the specific compilation logic."""
         # Compile layout with profile information
@@ -108,11 +113,11 @@ class ValidateLayoutCommand(ProfileAwareLayoutCommand):
 
     def execute_command(
         self,
-        layout_data: dict,
-        keyboard_profile,
-        service,
+        layout_data: dict[str, Any],
+        keyboard_profile: "KeyboardProfile",
+        service: "LayoutService",
         format: str = "text",
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Execute the specific validation logic."""
         # Convert to LayoutData model and validate
@@ -135,7 +140,7 @@ class ValidateLayoutCommand(ProfileAwareLayoutCommand):
 
         self._handle_validation_result(result, format)
 
-    def _handle_validation_result(self, result: dict, format: str) -> None:
+    def _handle_validation_result(self, result: dict[str, Any], format: str) -> None:
         """Handle validation result output."""
         if format == "json":
             self.format_and_print(result, "json")
@@ -175,13 +180,13 @@ class ShowLayoutCommand(ProfileAwareLayoutCommand):
 
     def execute_command(
         self,
-        layout_data: dict,
-        keyboard_profile,
-        service,
+        layout_data: dict[str, Any],
+        keyboard_profile: "KeyboardProfile",
+        service: "LayoutService",
         key_width: int = 10,
         layer: str | None = None,
         format: str = "text",
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Execute the specific show logic."""
         # Resolve layer parameter
@@ -203,7 +208,9 @@ class ShowLayoutCommand(ProfileAwareLayoutCommand):
                 layout_data, keyboard_profile, key_width, resolved_layer_index, service
             )
 
-    def _resolve_layer_index(self, layer: str | None, layout_data: dict) -> int | None:
+    def _resolve_layer_index(
+        self, layer: str | None, layout_data: dict[str, Any]
+    ) -> int | None:
         """Resolve layer parameter to index."""
         if layer is None:
             return None
@@ -225,8 +232,8 @@ class ShowLayoutCommand(ProfileAwareLayoutCommand):
 
     def _handle_rich_format(
         self,
-        layout_data: dict,
-        keyboard_profile,
+        layout_data: dict[str, Any],
+        keyboard_profile: "KeyboardProfile",
         key_width: int,
         layer_index: int | None,
         format: str,
@@ -283,11 +290,11 @@ class ShowLayoutCommand(ProfileAwareLayoutCommand):
 
     def _handle_text_format(
         self,
-        layout_data: dict,
-        keyboard_profile,
+        layout_data: dict[str, Any],
+        keyboard_profile: "KeyboardProfile",
         key_width: int,
         layer_index: int | None,
-        service,
+        service: "LayoutService",
     ) -> None:
         """Handle text format display."""
         from glovebox.layout.models import LayoutData
@@ -304,13 +311,28 @@ class ShowLayoutCommand(ProfileAwareLayoutCommand):
 @with_metrics("compile")
 def compile_layout(
     ctx: typer.Context,
-    input: ParameterFactory.create_input_parameter(
-        help_text="JSON layout file, @library-ref, '-' for stdin, or env:GLOVEBOX_JSON_FILE"
-    ),
-    output: ParameterFactory.create_output_parameter(
-        help_text="Output directory/base filename (e.g., 'config/my_glove80'). Auto-generated if not specified."
-    ) = None,
-    profile: ParameterFactory.create_profile_parameter() = None,
+    input: Annotated[
+        str,
+        typer.Argument(
+            help="JSON layout file, @library-ref, '-' for stdin, or env:GLOVEBOX_JSON_FILE"
+        ),
+    ],
+    output: Annotated[
+        str | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output directory/base filename (e.g., 'config/my_glove80'). Auto-generated if not specified.",
+        ),
+    ] = None,
+    profile: Annotated[
+        str | None,
+        typer.Option(
+            "--profile",
+            "-p",
+            help="Keyboard profile in format 'keyboard' or 'keyboard/firmware'",
+        ),
+    ] = None,
     no_auto: Annotated[
         bool,
         typer.Option(
@@ -346,10 +368,20 @@ def compile_layout(
 @with_metrics("validate")
 def validate(
     ctx: typer.Context,
-    input: ParameterFactory.create_input_parameter(
-        help_text="JSON layout file, @library-ref, '-' for stdin, or env:GLOVEBOX_JSON_FILE"
-    ),
-    profile: ParameterFactory.create_profile_parameter() = None,
+    input: Annotated[
+        str,
+        typer.Argument(
+            help="JSON layout file, @library-ref, '-' for stdin, or env:GLOVEBOX_JSON_FILE"
+        ),
+    ],
+    profile: Annotated[
+        str | None,
+        typer.Option(
+            "--profile",
+            "-p",
+            help="Keyboard profile in format 'keyboard' or 'keyboard/firmware'",
+        ),
+    ] = None,
     no_auto: Annotated[
         bool,
         typer.Option(
@@ -379,9 +411,12 @@ def validate(
 @with_metrics("show")
 def show(
     ctx: typer.Context,
-    input: ParameterFactory.create_input_parameter(
-        help_text="JSON layout file, @library-ref, '-' for stdin, or env:GLOVEBOX_JSON_FILE"
-    ),
+    input: Annotated[
+        str,
+        typer.Argument(
+            help="JSON layout file, @library-ref, '-' for stdin, or env:GLOVEBOX_JSON_FILE"
+        ),
+    ],
     key_width: Annotated[
         int,
         typer.Option(
@@ -392,7 +427,14 @@ def show(
         str | None,
         typer.Option("--layer", "-l", help="Layer index or name to display"),
     ] = None,
-    profile: ParameterFactory.create_profile_parameter() = None,
+    profile: Annotated[
+        str | None,
+        typer.Option(
+            "--profile",
+            "-p",
+            help="Keyboard profile in format 'keyboard' or 'keyboard/firmware'",
+        ),
+    ] = None,
     no_auto: Annotated[
         bool,
         typer.Option(

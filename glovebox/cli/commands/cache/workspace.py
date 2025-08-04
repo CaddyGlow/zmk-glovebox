@@ -626,7 +626,7 @@ def workspace_add(
                 if used_direct_extraction:
                     archive_format = (
                         metadata.notes.split("archive")[0].split()[-1]
-                        if "archive" in metadata.notes
+                        if metadata.notes and "archive" in metadata.notes
                         else "archive"
                     )
                     method_note = f" (direct {archive_format} extraction)"
@@ -883,8 +883,10 @@ def workspace_export(
 
         finally:
             # Stop display if it was started
-            if display is not None:
-                display.stop()
+            # TODO: Re-enable when progress display is restored
+            # if display is not None:
+            #     display.stop()
+            pass
 
         if export_result.success:
             # Display success information
@@ -1101,8 +1103,10 @@ def workspace_create(
 
         finally:
             # Stop display if it was started
-            if display is not None:
-                display.stop()
+            # TODO: Re-enable when progress display is restored
+            # if display is not None:
+            #     display.stop()
+            pass
 
         if result.success and result.metadata:
             # Display success information
@@ -1393,8 +1397,10 @@ def workspace_update(
 
         finally:
             # Stop display if it was started
-            if display is not None:
-                display.stop()
+            # TODO: Re-enable when progress display is restored
+            # if display is not None:
+            #     display.stop()
+            pass
 
         if result.success and result.metadata:
             # Display success information

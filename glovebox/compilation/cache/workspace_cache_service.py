@@ -686,7 +686,7 @@ class ZmkWorkspaceCacheService:
                         include_git,
                         metadata,
                         progress_callback,
-                        progress_coordinator,
+                        progress_context=None,
                     )
                 else:
                     create_tar_archive(
@@ -697,7 +697,7 @@ class ZmkWorkspaceCacheService:
                         include_git,
                         metadata,
                         progress_callback,
-                        progress_coordinator,
+                        progress_context=None,
                     )
 
                 # Calculate final statistics
@@ -1314,6 +1314,7 @@ class ZmkWorkspaceCacheService:
                     command=["sh", "-c", "set -xeu; " + " && ".join(commands)],
                     volumes=[(str(workspace_path), "/workspace")],
                     environment={},
+                    progress_context=get_noop_progress_context(),
                     user_context=user_context,
                     middleware=middleware,
                 )
@@ -1455,6 +1456,7 @@ class ZmkWorkspaceCacheService:
                     command=["sh", "-c", "set -xeu; " + " && ".join(commands)],
                     volumes=[(str(workspace_path), "/workspace")],
                     environment={},
+                    progress_context=get_noop_progress_context(),
                     user_context=user_context,
                     middleware=middleware,
                 )
@@ -1666,6 +1668,8 @@ class ZmkWorkspaceCacheService:
                 docker_image=None,
                 west_manifest_path=None,
                 dependencies_updated=None,
+                creation_profile=None,
+                git_remotes={},
             )
 
             # Store in cache
@@ -1815,67 +1819,149 @@ class ZmkWorkspaceCacheService:
         import tarfile
         import time
 
-        # Determine compression mode
+        # Determine compression mode and use context manager directly
         if archive_format == "tar.gz":
-            mode = "r:gz"
+            with tarfile.open(str(archive_path), "r:gz") as tar_ref:
+                members = tar_ref.getmembers()
+                total_uncompressed_size = sum(
+                    member.size for member in members if member.isfile()
+                )
+
+                extracted_bytes = 0
+                extracted_files = 0
+                start_time = time.time()
+
+                for i, member in enumerate(members):
+                    # Skip .git files if not including git
+                    if not include_git and "/.git/" in member.name:
+                        continue
+
+                    # Extract member
+                    tar_ref.extract(member, cache_dir)
+                    if member.isfile():
+                        extracted_bytes += member.size
+                        extracted_files += 1
+
+                    # Update progress every 50 files or for last file
+                    if progress_context and (
+                        (i + 1) % 50 == 0 or (i + 1) == len(members)
+                    ):
+                        elapsed_time = time.time() - start_time
+                        speed_mb_s = 0.0
+                        eta_seconds = 0.0
+
+                        if elapsed_time > 0 and extracted_bytes > 0:
+                            speed_mb_s = (
+                                extracted_bytes / (1024 * 1024)
+                            ) / elapsed_time
+                            if speed_mb_s > 0:
+                                remaining_bytes = (
+                                    total_uncompressed_size - extracted_bytes
+                                )
+                                eta_seconds = remaining_bytes / (
+                                    speed_mb_s * 1024 * 1024
+                                )
+
+                        progress_context.update_progress(
+                            current=extracted_bytes,
+                            total=total_uncompressed_size,
+                            status=f"Extracting to cache: {member.name}",
+                        )
+
+                        progress_context.set_status_info(
+                            {
+                                "current_file": member.name,
+                                "files_remaining": len(members) - (i + 1),
+                                "bytes_copied": extracted_bytes,
+                                "total_bytes": total_uncompressed_size,
+                                "transfer_speed": speed_mb_s,
+                                "eta_seconds": eta_seconds,
+                            }
+                        )
+
+                return extracted_bytes, total_uncompressed_size, extracted_files
+
         elif archive_format == "tar.bz2":
-            mode = "r:bz2"
+            with tarfile.open(str(archive_path), "r:bz2") as tar_ref:
+                # Same logic as above - to avoid code duplication, let's use a helper
+                return self._extract_tar_members(
+                    tar_ref, cache_dir, include_git, progress_context
+                )
         elif archive_format == "tar.xz":
-            mode = "r:xz"
+            with tarfile.open(str(archive_path), "r:xz") as tar_ref:
+                return self._extract_tar_members(
+                    tar_ref, cache_dir, include_git, progress_context
+                )
         else:
-            mode = "r"
+            with tarfile.open(str(archive_path), "r") as tar_ref:
+                return self._extract_tar_members(
+                    tar_ref, cache_dir, include_git, progress_context
+                )
 
-        with tarfile.open(str(archive_path), mode) as tar_ref:
-            members = tar_ref.getmembers()
-            total_uncompressed_size = sum(
-                member.size for member in members if member.isfile()
-            )
+    def _extract_tar_members(
+        self,
+        tar_ref: Any,
+        cache_dir: Path,
+        include_git: bool,
+        progress_context: "ProgressContextProtocol | None" = None,
+    ) -> tuple[int, int, int]:
+        """Extract tar file members to cache directory.
 
-            extracted_bytes = 0
-            extracted_files = 0
-            start_time = time.time()
+        Returns:
+            Tuple of (extracted_bytes, total_bytes, extracted_files)
+        """
+        import time
 
-            for i, member in enumerate(members):
-                # Skip .git files if not including git
-                if not include_git and "/.git/" in member.name:
-                    continue
+        members = tar_ref.getmembers()
+        total_uncompressed_size = sum(
+            member.size for member in members if member.isfile()
+        )
 
-                # Extract member
-                tar_ref.extract(member, cache_dir)
-                if member.isfile():
-                    extracted_bytes += member.size
-                    extracted_files += 1
+        extracted_bytes = 0
+        extracted_files = 0
+        start_time = time.time()
 
-                # Update progress every 50 files or for last file
-                if progress_context and ((i + 1) % 50 == 0 or (i + 1) == len(members)):
-                    elapsed_time = time.time() - start_time
-                    speed_mb_s = 0.0
-                    eta_seconds = 0.0
+        for i, member in enumerate(members):
+            # Skip .git files if not including git
+            if not include_git and "/.git/" in member.name:
+                continue
 
-                    if elapsed_time > 0 and extracted_bytes > 0:
-                        speed_mb_s = (extracted_bytes / (1024 * 1024)) / elapsed_time
-                        if speed_mb_s > 0:
-                            remaining_bytes = total_uncompressed_size - extracted_bytes
-                            eta_seconds = remaining_bytes / (speed_mb_s * 1024 * 1024)
+            # Extract member
+            tar_ref.extract(member, cache_dir)
+            if member.isfile():
+                extracted_bytes += member.size
+                extracted_files += 1
 
-                    progress_context.update_progress(
-                        current=extracted_bytes,
-                        total=total_uncompressed_size,
-                        status=f"Extracting to cache: {member.name}",
-                    )
+            # Update progress every 50 files or for last file
+            if progress_context and ((i + 1) % 50 == 0 or (i + 1) == len(members)):
+                elapsed_time = time.time() - start_time
+                speed_mb_s = 0.0
+                eta_seconds = 0.0
 
-                    progress_context.set_status_info(
-                        {
-                            "current_file": member.name,
-                            "files_remaining": len(members) - (i + 1),
-                            "bytes_copied": extracted_bytes,
-                            "total_bytes": total_uncompressed_size,
-                            "transfer_speed": speed_mb_s,
-                            "eta_seconds": eta_seconds,
-                        }
-                    )
+                if elapsed_time > 0 and extracted_bytes > 0:
+                    speed_mb_s = (extracted_bytes / (1024 * 1024)) / elapsed_time
+                    if speed_mb_s > 0:
+                        remaining_bytes = total_uncompressed_size - extracted_bytes
+                        eta_seconds = remaining_bytes / (speed_mb_s * 1024 * 1024)
 
-            return extracted_bytes, total_uncompressed_size, extracted_files
+                progress_context.update_progress(
+                    current=extracted_bytes,
+                    total=total_uncompressed_size,
+                    status=f"Extracting to cache: {member.name}",
+                )
+
+                progress_context.set_status_info(
+                    {
+                        "current_file": member.name,
+                        "files_remaining": len(members) - (i + 1),
+                        "bytes_copied": extracted_bytes,
+                        "total_bytes": total_uncompressed_size,
+                        "transfer_speed": speed_mb_s,
+                        "eta_seconds": eta_seconds,
+                    }
+                )
+
+        return extracted_bytes, total_uncompressed_size, extracted_files
 
     def _analyze_workspace_structure(self, cache_dir: Path) -> dict[str, Any]:
         """Analyze workspace structure in extracted cache content.

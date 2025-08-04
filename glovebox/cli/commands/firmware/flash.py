@@ -136,7 +136,7 @@ class FlashFirmwareCommand(FirmwareFileCommand):
                     )
 
             # Check if this is a split keyboard from profile
-            is_split_keyboard = (
+            is_split_keyboard = bool(
                 profile
                 and hasattr(profile, "keyboard_config")
                 and hasattr(profile.keyboard_config, "is_split")
