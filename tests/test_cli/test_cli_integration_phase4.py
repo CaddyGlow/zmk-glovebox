@@ -132,12 +132,12 @@ class TestMoErgoCommandRefactoring:
             with patch("glovebox.cli.helpers.theme.get_themed_console") as mock_console:
                 mock_themed_console = Mock()
                 mock_console.return_value = mock_themed_console
+                with patch.object(command, "logger") as mock_logger:
+                    with pytest.raises(typer.Exit):
+                        command.execute(ctx, "test@example.com", "testpass")
 
-                with pytest.raises(typer.Exit):
-                    command.execute(ctx, "test@example.com", "testpass")
-
-                # Should log the error with proper format
-                assert command.logger.error.called
+                    # Should log the error with proper format
+                    mock_logger.error.assert_called()
 
     @patch("glovebox.cli.commands.moergo.create_moergo_client")
     def test_login_command_with_authentication_error(self, mock_create_client):
@@ -393,7 +393,7 @@ class TestCompleteSystemIntegration:
             assert issubclass(command_class, BaseCommand)
 
             # All should have execute method
-            command = command_class()
+            command = command_class()  # type: ignore[abstract]
             assert hasattr(command, "execute")
             assert callable(command.execute)
 
@@ -430,7 +430,7 @@ class TestPhase4CompletionValidation:
 
         for command_class in commands:
             assert issubclass(command_class, BaseCommand)
-            command = command_class()
+            command = command_class()  # type: ignore[abstract]
             assert hasattr(command, "execute")
 
     def test_cli_functions_delegate_to_command_classes(self):

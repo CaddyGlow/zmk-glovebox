@@ -584,7 +584,7 @@ class TestBehaviorConverterEdgeCases:
         converter = create_ast_behavior_converter()
 
         # These should not crash
-        assert converter.convert_tap_dance_node(None) is None
-        assert converter.convert_sticky_key_node(None) is None
-        assert converter.convert_caps_word_node(None) is None
-        assert converter.convert_mod_morph_node(None) is None
+        assert converter.convert_tap_dance_node(None) is None  # type: ignore[arg-type]
+        assert converter.convert_sticky_key_node(None) is None  # type: ignore[arg-type]
+        assert converter.convert_caps_word_node(None) is None  # type: ignore[arg-type]
+        assert converter.convert_mod_morph_node(None) is None  # type: ignore[arg-type]

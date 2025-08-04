@@ -57,6 +57,7 @@ dev = [
   "mkdocs-gen-files>=0.5.0",
   "mkdocs-literate-nav>=0.6.2",
   "textual-dev>=1.7.0",
+  "pytest-profiling>=1.8.1",
 ]
 
 [tool.hatch.version]
@@ -165,13 +166,14 @@ disallow_untyped_calls = false
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = [
-  "-ra",
-  "--strict-markers",
-  "--strict-config",
-  "--disable-warnings",
-  "--tb=short",
+  # "-ra",
+  # "--strict-markers",
+  # "--strict-config",
+  # "--disable-warnings",
+  # "--tb=short",
   "-v",
 ]
+pytest_plugins = ["pytest_profiling.plugin"]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]

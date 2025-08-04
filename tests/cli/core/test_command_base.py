@@ -112,7 +112,7 @@ class TestBaseCommand:
     def test_abstract_execute_not_implemented(self):
         """Test that execute must be implemented."""
         with pytest.raises(TypeError):
-            BaseCommand()  # Can't instantiate abstract class
+            BaseCommand()  # type: ignore[abstract]  # Testing abstract class instantiation
 
 
 class TestIOCommand:
@@ -140,14 +140,10 @@ class TestIOCommand:
         """Test loading input from stdin."""
         cmd = ConcreteIOCommand()
 
-        # Mock the entire parameter processing chain for stdin
-        mock_result = InputResult(
-            raw_value="-", resolved_path=None, is_stdin=True, data='{"stdin": "data"}'
-        )
-
+        # Mock the data reading function for stdin at the module where it's imported
         with patch(
-            "glovebox.cli.core.command_base.process_input_parameter",
-            return_value=mock_result,
+            "glovebox.cli.core.command_base.read_input_from_result",
+            return_value='{"stdin": "data"}',
         ):
             result = cmd.load_input("-")
             assert result.is_stdin
@@ -439,7 +435,7 @@ class TestServiceCommand:
         """Test getting value with no context."""
         cmd = ConcreteServiceCommand()
 
-        value = cmd.get_context_value(None, "any_value", default="fallback")
+        value = cmd.get_context_value(None, "any_value", default="fallback")  # type: ignore[arg-type]  # Testing None context handling
         assert value == "fallback"
 
     def test_require_context_value_exists(self):

@@ -173,10 +173,10 @@ class TestInputHandler:
 
     def test_library_reference_not_implemented(self, handler):
         """Test library references raise not implemented error."""
-        with pytest.raises(InputError, match="not yet implemented"):
+        with pytest.raises(InputError, match="Failed to resolve library reference"):
             handler.load_json_input("@my-library")
 
-        with pytest.raises(InputError, match="not yet implemented"):
+        with pytest.raises(InputError, match="Failed to resolve library reference"):
             handler.load_json_input("@uuid-12345")
 
     def test_library_reference_empty(self, handler):
@@ -205,7 +205,7 @@ class TestInputHandler:
         weird_file = tmp_path / "@library.json"
         weird_file.write_text('{"from": "file"}')
 
-        with pytest.raises(InputError, match="not yet implemented"):
+        with pytest.raises(InputError, match="Failed to resolve library reference"):
             handler.load_json_input("@library.json")
 
     def test_load_json_input_environment_precedence(self, handler, tmp_path):

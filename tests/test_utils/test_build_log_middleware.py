@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from glovebox.cli.components.noop_progress_context import get_noop_progress_context
 from glovebox.utils.build_log_middleware import (
     BuildLogCaptureMiddleware,
     create_build_log_middleware,
@@ -11,7 +12,7 @@ from glovebox.utils.build_log_middleware import (
 def test_build_log_middleware_basic_capture(tmp_path):
     """Test basic log capture functionality."""
     log_file = tmp_path / "test_build.log"
-    middleware = BuildLogCaptureMiddleware(log_file)
+    middleware = BuildLogCaptureMiddleware(log_file, get_noop_progress_context())
 
     # Process some test output
     middleware.process("Building project...", "stdout")
@@ -42,7 +43,9 @@ def test_build_log_middleware_basic_capture(tmp_path):
 def test_build_log_middleware_with_factory(tmp_path):
     """Test build log middleware creation via factory function."""
     artifacts_dir = tmp_path / "artifacts"
-    middleware = create_build_log_middleware(artifacts_dir, "custom_build.log")
+    middleware = create_build_log_middleware(
+        artifacts_dir, get_noop_progress_context(), "custom_build.log"
+    )
 
     # Process some output
     middleware.process("Factory test output", "stdout")
@@ -60,7 +63,10 @@ def test_build_log_middleware_timestamps_and_stream_types(tmp_path):
 
     # Test with both timestamps and stream types enabled
     middleware = BuildLogCaptureMiddleware(
-        log_file, include_timestamps=True, include_stream_type=True
+        log_file,
+        get_noop_progress_context(),
+        include_timestamps=True,
+        include_stream_type=True,
     )
     middleware.process("Test with full config", "stdout")
     middleware.close()
@@ -81,7 +87,10 @@ def test_build_log_middleware_minimal_config(tmp_path):
 
     # Test with timestamps and stream types disabled
     middleware = BuildLogCaptureMiddleware(
-        log_file, include_timestamps=False, include_stream_type=False
+        log_file,
+        get_noop_progress_context(),
+        include_timestamps=False,
+        include_stream_type=False,
     )
     middleware.process("Simple output", "stdout")
     middleware.close()
@@ -99,7 +108,7 @@ def test_build_log_middleware_minimal_config(tmp_path):
 def test_build_log_middleware_return_value_passthrough(tmp_path):
     """Test that middleware passes through original output for chaining."""
     log_file = tmp_path / "test_passthrough.log"
-    middleware = BuildLogCaptureMiddleware(log_file)
+    middleware = BuildLogCaptureMiddleware(log_file, get_noop_progress_context())
 
     # Test that the middleware returns the original line
     result = middleware.process("Original output", "stdout")
@@ -112,7 +121,7 @@ def test_build_log_middleware_context_manager(tmp_path):
     """Test middleware as context manager."""
     log_file = tmp_path / "test_context.log"
 
-    with BuildLogCaptureMiddleware(log_file) as middleware:
+    with BuildLogCaptureMiddleware(log_file, get_noop_progress_context()) as middleware:
         middleware.process("Context manager test", "stdout")
 
     # File should be closed automatically
@@ -124,7 +133,7 @@ def test_build_log_middleware_file_creation_error(tmp_path):
     """Test handling of file creation errors."""
     # Try to create log file in a non-existent directory without permission
     invalid_path = Path("/nonexistent/path/build.log")
-    middleware = BuildLogCaptureMiddleware(invalid_path)
+    middleware = BuildLogCaptureMiddleware(invalid_path, get_noop_progress_context())
 
     # Should handle the error gracefully and just pass through output
     result = middleware.process("Test output", "stdout")
@@ -142,7 +151,7 @@ def test_build_log_middleware_artifacts_directory_creation(tmp_path):
     assert not artifacts_dir.exists()
 
     # Create middleware via factory - should create parent directories
-    middleware = create_build_log_middleware(artifacts_dir)
+    middleware = create_build_log_middleware(artifacts_dir, get_noop_progress_context())
 
     # Directory should be created when initializing the log file
     assert artifacts_dir.exists()
@@ -158,7 +167,7 @@ def test_build_log_middleware_artifacts_directory_creation(tmp_path):
 def test_build_log_middleware_multiple_outputs(tmp_path):
     """Test capturing multiple lines of output."""
     log_file = tmp_path / "test_multiple.log"
-    middleware = BuildLogCaptureMiddleware(log_file)
+    middleware = BuildLogCaptureMiddleware(log_file, get_noop_progress_context())
 
     # Simulate a build with multiple output lines
     build_outputs = [

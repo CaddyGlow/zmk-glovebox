@@ -192,20 +192,18 @@ class TestFirmwareFlashIntegration:
     ):
         """Test error handling when multiple devices found without specific path."""
         mock_device1 = USBDeviceInfo(
-            path="/dev/device1",
+            name="Test Keyboard",
             vendor_id="1234",
             product_id="5678",
-            serial_number="TEST123",
-            manufacturer="Test Manufacturer",
-            product="Test Keyboard",
+            serial="TEST123",
+            vendor="Test Manufacturer",
         )
         mock_device2 = USBDeviceInfo(
-            path="/dev/device2",
+            name="Test Keyboard",
             vendor_id="1234",
             product_id="5678",
-            serial_number="TEST456",
-            manufacturer="Test Manufacturer",
-            product="Test Keyboard",
+            serial="TEST456",
+            vendor="Test Manufacturer",
         )
 
         with patch.object(flash_service, "list_devices") as mock_list_devices:
@@ -352,20 +350,18 @@ class TestFirmwareDeviceManagement:
         """Test device listing functionality."""
         mock_devices = [
             USBDeviceInfo(
-                path="/dev/device1",
+                name="Test Keyboard Left",
                 vendor_id="1234",
                 product_id="5678",
-                serial_number="TEST123",
-                manufacturer="Test Manufacturer",
-                product="Test Keyboard Left",
+                serial="TEST123",
+                vendor="Test Manufacturer",
             ),
             USBDeviceInfo(
-                path="/dev/device2",
+                name="Test Keyboard Right",
                 vendor_id="1234",
                 product_id="5679",
-                serial_number="TEST456",
-                manufacturer="Test Manufacturer",
-                product="Test Keyboard Right",
+                serial="TEST456",
+                vendor="Test Manufacturer",
             ),
         ]
 
@@ -425,10 +421,13 @@ class TestFirmwareServiceFactoryIntegration:
         session_metrics,
     ):
         """Test creating flash service with proper dependency injection."""
+        from unittest.mock import Mock
+
+        mock_device_wait_service = Mock()
         service = create_flash_service(
-            usb_adapter=mock_usb_adapter,
             file_adapter=mock_file_adapter,
-            session_metrics=session_metrics,
+            device_wait_service=mock_device_wait_service,
+            usb_adapter=mock_usb_adapter,
         )
 
         # Verify service was created with correct type
@@ -524,10 +523,10 @@ class TestFirmwareCommandIntegration:
         mock_keyboard_profile,
     ):
         """Test FlashCommand with IOCommand pattern workflow."""
-        from glovebox.cli.commands.firmware.flash import FlashCommand
+        from glovebox.cli.commands.firmware.flash import FlashFirmwareCommand
 
         # Create command instance
-        command = FlashCommand()
+        command = FlashFirmwareCommand()
 
         # Mock the flash service
         mock_result = FlashResult(success=True, devices_flashed=1)
@@ -567,9 +566,9 @@ class TestFirmwareCommandIntegration:
         self, sample_firmware_file, mock_device_info, mock_keyboard_profile
     ):
         """Test FlashCommand with specific device path."""
-        from glovebox.cli.commands.firmware.flash import FlashCommand
+        from glovebox.cli.commands.firmware.flash import FlashFirmwareCommand
 
-        command = FlashCommand()
+        command = FlashFirmwareCommand()
 
         mock_result = FlashResult(success=True, devices_flashed=1)
         mock_result.add_message(
@@ -608,9 +607,9 @@ class TestFirmwareCommandIntegration:
         self, sample_firmware_file, mock_keyboard_profile
     ):
         """Test FlashCommand error handling when service fails."""
-        from glovebox.cli.commands.firmware.flash import FlashCommand
+        from glovebox.cli.commands.firmware.flash import FlashFirmwareCommand
 
-        command = FlashCommand()
+        command = FlashFirmwareCommand()
 
         # Mock service failure
         mock_result = FlashResult(success=False, devices_flashed=0)
@@ -641,13 +640,13 @@ class TestFirmwareCommandIntegration:
         self, tmp_path: Path, sample_json_layout_with_compilation, mock_keyboard_profile
     ):
         """Test CompileCommand with IOCommand pattern workflow."""
-        from glovebox.cli.commands.firmware.compile import CompileCommand
+        from glovebox.cli.commands.firmware.compile import CompileFirmwareCommand
 
         json_file, layout_data = sample_json_layout_with_compilation
         output_dir = tmp_path / "firmware_output"
 
         # Create command instance
-        command = CompileCommand()
+        command = CompileFirmwareCommand()
 
         # Mock the compilation service
         from glovebox.firmware.models import BuildResult
@@ -697,12 +696,12 @@ class TestFirmwareCommandIntegration:
         self, tmp_path: Path, sample_json_layout_with_compilation, mock_keyboard_profile
     ):
         """Test CompileCommand with stdin input."""
-        from glovebox.cli.commands.firmware.compile import CompileCommand
+        from glovebox.cli.commands.firmware.compile import CompileFirmwareCommand
 
         json_file, layout_data = sample_json_layout_with_compilation
         output_dir = tmp_path / "firmware_output"
 
-        command = CompileCommand()
+        command = CompileFirmwareCommand()
 
         # Mock the compilation service
         from glovebox.firmware.models import BuildResult
@@ -745,16 +744,15 @@ class TestFirmwareCommandIntegration:
 
     def test_helpers_command_integration(self):
         """Test firmware helpers command integration."""
-        from glovebox.cli.commands.firmware.helpers import list_devices
+        from glovebox.cli.commands.firmware.devices import list_devices
 
         mock_devices = [
             USBDeviceInfo(
-                path="/dev/device1",
+                name="Test Keyboard",
                 vendor_id="1234",
                 product_id="5678",
-                serial_number="TEST123",
-                manufacturer="Test Manufacturer",
-                product="Test Keyboard",
+                serial="TEST123",
+                vendor="Test Manufacturer",
             )
         ]
 
@@ -804,7 +802,22 @@ class TestFirmwareMemoryFirstPatterns:
         output_dir.mkdir(parents=True)
 
         # Test memory-first pattern directly
-        service = create_compilation_service()
+        from unittest.mock import Mock
+
+        mock_user_config = Mock()
+        mock_docker_adapter = Mock()
+        mock_file_adapter = Mock()
+        mock_cache_manager = Mock()
+        mock_session_metrics = Mock()
+
+        service = create_compilation_service(
+            method_type="zmk_west",
+            user_config=mock_user_config,
+            docker_adapter=mock_docker_adapter,
+            file_adapter=mock_file_adapter,
+            cache_manager=mock_cache_manager,
+            session_metrics=mock_session_metrics,
+        )
 
         # Mock the service method
         from glovebox.firmware.models import BuildResult

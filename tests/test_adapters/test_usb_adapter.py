@@ -239,8 +239,8 @@ class TestCreateUSBAdapter:
             flash_operations=mock_flash_operations,
             detector=mock_detector,
         )
-        assert isinstance(adapter, USBAdapter)
-        assert isinstance(adapter, USBAdapterProtocol)
+        assert isinstance(adapter, USBAdapter)  # type: ignore[unreachable]
+        assert isinstance(adapter, USBAdapterProtocol)  # type: ignore[unreachable]
 
 
 class TestUSBAdapterProtocol:

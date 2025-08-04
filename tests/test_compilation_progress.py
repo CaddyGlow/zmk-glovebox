@@ -12,9 +12,7 @@ from glovebox.adapters.compilation_progress_middleware import (
 from glovebox.core.file_operations import CompilationProgress
 
 
-pytestmark = [pytest.mark.network, pytest.mark.integration]
-
-pytestmark = [pytest.mark.docker, pytest.mark.integration]
+pytestmark = [pytest.mark.network, pytest.mark.integration, pytest.mark.docker]
 
 
 class TestCompilationProgress:
@@ -96,7 +94,7 @@ class TestCompilationProgressMiddleware:
         middleware = create_compilation_progress_middleware(mock_coordinator)
 
         assert isinstance(middleware, CompilationProgressMiddleware)
-        assert middleware.progress_coordinator == mock_coordinator
+        assert middleware.progress_context == mock_coordinator
 
     def test_repository_download_parsing(self) -> None:
         """Test parsing of repository download lines."""
@@ -308,4 +306,4 @@ class TestCompilationProgressMiddleware:
         mock_coordinator = Mock()
         middleware = create_compilation_progress_middleware(mock_coordinator)
 
-        assert middleware.progress_coordinator == mock_coordinator
+        assert middleware.progress_context == mock_coordinator

@@ -12,9 +12,11 @@ from glovebox.adapters.docker_adapter import (
     create_chained_docker_middleware,
     create_docker_adapter,
 )
+from glovebox.cli.components.noop_progress_context import get_noop_progress_context
 from glovebox.core.errors import DockerError
 from glovebox.models.docker import DockerUserContext
 from glovebox.protocols.docker_adapter_protocol import DockerAdapterProtocol
+from glovebox.utils.stream_process import ProcessResult
 
 
 pytestmark = [pytest.mark.docker, pytest.mark.integration]
@@ -89,10 +91,11 @@ class TestDockerAdapter:
         )
 
         with patch("glovebox.utils.stream_process.run_command", mock_run_command):
-            result: tuple[int, list[str], list[str]] = adapter.run_container(
+            result: ProcessResult[str] = adapter.run_container(
                 image="ubuntu:latest",
                 volumes=[("/host/path", "/container/path")],
                 environment={"ENV_VAR": "value"},
+                progress_context=get_noop_progress_context(),
                 command=["echo", "hello"],
             )
             return_code, stdout, stderr = result
@@ -122,7 +125,12 @@ class TestDockerAdapter:
         mock_run_command = Mock(return_value=(0, [], []))
 
         with patch("glovebox.utils.stream_process.run_command", mock_run_command):
-            adapter.run_container(image="ubuntu:latest", volumes=[], environment={})
+            adapter.run_container(
+                image="ubuntu:latest",
+                volumes=[],
+                environment={},
+                progress_context=get_noop_progress_context(),
+            )
 
         expected_cmd = ["docker", "run", "--rm", "ubuntu:latest"]
         _assert_docker_command_called(mock_run_command, expected_cmd)
@@ -138,6 +146,7 @@ class TestDockerAdapter:
                 image="ubuntu:latest",
                 volumes=[("/host1", "/container1"), ("/host2", "/container2")],
                 environment={"VAR1": "value1", "VAR2": "value2"},
+                progress_context=get_noop_progress_context(),
             )
 
         expected_cmd = [
@@ -168,6 +177,7 @@ class TestDockerAdapter:
                 image="ubuntu:latest",
                 volumes=[],
                 environment={},
+                progress_context=get_noop_progress_context(),
                 middleware=mock_middleware,
             )
 
@@ -187,6 +197,7 @@ class TestDockerAdapter:
                 image="ubuntu:latest",
                 volumes=[],
                 environment={},
+                progress_context=get_noop_progress_context(),
                 entrypoint="/bin/bash",
             )
 
@@ -211,6 +222,7 @@ class TestDockerAdapter:
                 image="ubuntu:latest",
                 volumes=[("/host", "/container")],
                 environment={"TEST": "value"},
+                progress_context=get_noop_progress_context(),
                 command=["-c", "echo hello"],
                 entrypoint="/bin/bash",
             )
@@ -242,6 +254,7 @@ class TestDockerAdapter:
                 image="ubuntu:latest",
                 volumes=[],
                 environment={},
+                progress_context=get_noop_progress_context(),
                 entrypoint=None,
             )
 
@@ -262,6 +275,7 @@ class TestDockerAdapter:
                 image="ubuntu:latest",
                 volumes=[],
                 environment={},
+                progress_context=get_noop_progress_context(),
                 user_context=user_context,
             )
 
@@ -289,6 +303,7 @@ class TestDockerAdapter:
                 image="ubuntu:latest",
                 volumes=[],
                 environment={},
+                progress_context=get_noop_progress_context(),
                 user_context=user_context,
             )
 
@@ -314,6 +329,7 @@ class TestDockerAdapter:
                 image="ubuntu:latest",
                 volumes=[],
                 environment={},
+                progress_context=get_noop_progress_context(),
                 user_context=user_context,
             )
 
@@ -336,6 +352,7 @@ class TestDockerAdapter:
                 image="ubuntu:latest",
                 volumes=[("/host1", "/container1"), ("/host2", "/container2")],
                 environment={"VAR1": "value1", "VAR2": "value2"},
+                progress_context=get_noop_progress_context(),
                 command=["echo", "hello"],
                 middleware=mock_middleware,
                 user_context=user_context,
@@ -377,6 +394,7 @@ class TestDockerAdapter:
                 image="ubuntu:latest",
                 volumes=[],
                 environment={},
+                progress_context=get_noop_progress_context(),
                 user_context=None,
             )
 
@@ -396,7 +414,7 @@ class TestDockerAdapter:
                 DockerError, match="Failed to run Docker container: Test error"
             ),
         ):
-            adapter.run_container("ubuntu:latest", [], {})
+            adapter.run_container("ubuntu:latest", [], {}, get_noop_progress_context())
 
     def test_needs_sudo_permission_denied(self):
         """Test _needs_sudo returns True when permission denied."""
@@ -448,11 +466,11 @@ class TestDockerAdapter:
         adapter = DockerAdapter()
         mock_middleware = Mock()
 
-        mock_result = (0, ["success"], [])
+        mock_result: ProcessResult[str] = (0, ["success"], [])
         with patch(
             "glovebox.utils.stream_process.run_command", return_value=mock_result
         ) as mock_run:
-            result = adapter._run_with_sudo_fallback(
+            result: ProcessResult[str] = adapter._run_with_sudo_fallback(
                 ["docker", "version"], mock_middleware
             )
 
@@ -471,12 +489,12 @@ class TestDockerAdapter:
         )
 
         # Second call (with sudo) succeeds
-        sudo_result = (0, ["success with sudo"], [])
+        sudo_result: ProcessResult[str] = (0, ["success with sudo"], [])
 
         with patch("glovebox.utils.stream_process.run_command") as mock_run:
             mock_run.side_effect = [permission_error, sudo_result]
 
-            result = adapter._run_with_sudo_fallback(
+            result: ProcessResult[str] = adapter._run_with_sudo_fallback(
                 ["docker", "version"], mock_middleware
             )
 
@@ -514,11 +532,13 @@ class TestDockerAdapter:
         adapter = DockerAdapter()
 
         # Mock the sudo fallback method
-        mock_result = (0, ["output"], [])
+        mock_result: ProcessResult[str] = (0, ["output"], [])
         with patch.object(
             adapter, "_run_with_sudo_fallback", return_value=mock_result
         ) as mock_fallback:
-            result = adapter.run_container("ubuntu:latest", [], {})
+            result: ProcessResult[str] = adapter.run_container(
+                "ubuntu:latest", [], {}, get_noop_progress_context()
+            )
 
         assert result == mock_result
         mock_fallback.assert_called_once()
@@ -587,9 +607,10 @@ class TestDockerAdapter:
                 return_value=mock_dockerfile_dir,
             ),
         ):
-            result: tuple[int, list[str], list[str]] = adapter.build_image(
+            result: ProcessResult[str] = adapter.build_image(
                 dockerfile_dir=dockerfile_dir,
                 image_name="test-image",
+                progress_context=get_noop_progress_context(),
                 image_tag="v1.0",
                 no_cache=True,
             )
@@ -621,7 +642,11 @@ class TestDockerAdapter:
             patch.object(Path, "exists", return_value=True),
             patch.object(Path, "is_dir", return_value=True),
         ):
-            adapter.build_image(dockerfile_dir=dockerfile_dir, image_name="test-image")
+            adapter.build_image(
+                dockerfile_dir=dockerfile_dir,
+                image_name="test-image",
+                progress_context=get_noop_progress_context(),
+            )
 
         expected_cmd = [
             "docker",
@@ -642,7 +667,9 @@ class TestDockerAdapter:
             patch.object(adapter, "is_available", return_value=False),
             pytest.raises(DockerError, match="Docker is not available"),
         ):
-            adapter.build_image(Path("/test"), "test-image")
+            adapter.build_image(
+                Path("/test"), "test-image", get_noop_progress_context()
+            )
 
     def test_build_image_directory_not_found(self):
         """Test build_image raises error when directory doesn't exist."""
@@ -653,7 +680,9 @@ class TestDockerAdapter:
             patch.object(Path, "exists", return_value=False),
             pytest.raises(DockerError, match="Dockerfile directory not found"),
         ):
-            adapter.build_image(Path("/nonexistent"), "test-image")
+            adapter.build_image(
+                Path("/nonexistent"), "test-image", get_noop_progress_context()
+            )
 
     def test_build_image_not_directory(self):
         """Test build_image raises error when path is not a directory."""
@@ -665,7 +694,9 @@ class TestDockerAdapter:
             patch.object(Path, "is_dir", return_value=False),
             pytest.raises(DockerError, match="Dockerfile directory not found"),
         ):
-            adapter.build_image(Path("/test/file"), "test-image")
+            adapter.build_image(
+                Path("/test/file"), "test-image", get_noop_progress_context()
+            )
 
     def test_build_image_dockerfile_not_found(self):
         """Test build_image raises error when Dockerfile doesn't exist."""
@@ -686,7 +717,9 @@ class TestDockerAdapter:
                 patch.object(Path, "is_dir", mock_is_dir),
                 pytest.raises(DockerError, match="Dockerfile not found"),
             ):
-                adapter.build_image(dockerfile_dir, "test-image")
+                adapter.build_image(
+                    dockerfile_dir, "test-image", get_noop_progress_context()
+                )
 
     def test_build_image_subprocess_error(self):
         """Test build_image handles subprocess errors."""
@@ -706,7 +739,9 @@ class TestDockerAdapter:
                 match="Docker subprocess error",
             ),
         ):
-            adapter.build_image(dockerfile_dir, "test-image")
+            adapter.build_image(
+                dockerfile_dir, "test-image", get_noop_progress_context()
+            )
 
 
 class TestCreateDockerAdapter:

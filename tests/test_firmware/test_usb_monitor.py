@@ -1034,7 +1034,7 @@ class TestMacOSUSBDeviceMonitor:
         def mock_scan_side_effect():
             nonlocal scan_call_count
             if scan_call_count < len(scan_results):
-                monitor.devices = scan_results[scan_call_count]
+                monitor.devices = list(scan_results[scan_call_count])
                 scan_call_count += 1
 
         mock_scan.side_effect = mock_scan_side_effect

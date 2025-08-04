@@ -11,8 +11,6 @@ from glovebox.compilation.parsers.repository_spec_parser import (
 
 pytestmark = [pytest.mark.network, pytest.mark.integration]
 
-pytestmark = pytest.mark.integration
-
 
 class TestRepositorySpec:
     """Test RepositorySpec model functionality."""

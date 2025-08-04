@@ -54,7 +54,7 @@ class TestOutputHandler:
         assert handler.service_version == "1.0.0"
 
     def test_write_to_stdout_json(
-        self, handler: OutputHandler, sample_data: dict
+        self, handler: OutputHandler, sample_data: dict[str, Any]
     ) -> None:
         """Test writing JSON to stdout."""
         with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
@@ -66,7 +66,7 @@ class TestOutputHandler:
             assert parsed == sample_data
 
     def test_write_to_stdout_yaml(
-        self, handler: OutputHandler, sample_data: dict
+        self, handler: OutputHandler, sample_data: dict[str, Any]
     ) -> None:
         """Test writing YAML to stdout."""
         with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
@@ -100,14 +100,14 @@ class TestOutputHandler:
             assert "optional" not in parsed
 
     def test_write_to_stdout_invalid_format(
-        self, handler: OutputHandler, sample_data: dict
+        self, handler: OutputHandler, sample_data: dict[str, Any]
     ) -> None:
         """Test writing with invalid format raises error."""
         with pytest.raises(OutputError, match="Unsupported format: invalid"):
             handler.write_to_stdout(sample_data, format="invalid")
 
     def test_write_to_file_json(
-        self, handler: OutputHandler, sample_data: dict, tmp_path: Path
+        self, handler: OutputHandler, sample_data: dict[str, Any], tmp_path: Path
     ) -> None:
         """Test writing JSON to file."""
         output_file = tmp_path / "output.json"
@@ -119,7 +119,7 @@ class TestOutputHandler:
             assert loaded == sample_data
 
     def test_write_to_file_yaml(
-        self, handler: OutputHandler, sample_data: dict, tmp_path: Path
+        self, handler: OutputHandler, sample_data: dict[str, Any], tmp_path: Path
     ) -> None:
         """Test writing YAML to file."""
         output_file = tmp_path / "output.yaml"
@@ -140,7 +140,7 @@ class TestOutputHandler:
         assert output_file.read_text() == text_data
 
     def test_write_to_file_creates_parent_dirs(
-        self, handler: OutputHandler, sample_data: dict, tmp_path: Path
+        self, handler: OutputHandler, sample_data: dict[str, Any], tmp_path: Path
     ) -> None:
         """Test writing to file creates parent directories."""
         output_file = tmp_path / "nested" / "dir" / "output.json"
@@ -201,10 +201,11 @@ class TestOutputHandler:
         """Test writing non-dict to directory raises error."""
         output_dir = tmp_path / "output"
         with pytest.raises(OutputError, match="Expected dict for directory output"):
-            handler.write_to_directory("not a dict", output_dir)
+            # Type ignore is intentional - testing error handling for wrong type
+            handler.write_to_directory("not a dict", output_dir)  # type: ignore[arg-type]
 
     def test_write_output_to_stdout(
-        self, handler: OutputHandler, sample_data: dict
+        self, handler: OutputHandler, sample_data: dict[str, Any]
     ) -> None:
         """Test write_output with stdout destination."""
         with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
@@ -213,7 +214,7 @@ class TestOutputHandler:
             assert json.loads(output.strip()) == sample_data
 
     def test_write_output_to_file(
-        self, handler: OutputHandler, sample_data: dict, tmp_path: Path
+        self, handler: OutputHandler, sample_data: dict[str, Any], tmp_path: Path
     ) -> None:
         """Test write_output with file destination."""
         output_file = tmp_path / "output.json"
@@ -237,7 +238,7 @@ class TestOutputHandler:
         assert (output_dir / "file2.txt").read_text() == "content2"
 
     def test_write_output_to_new_file_path(
-        self, handler: OutputHandler, sample_data: dict, tmp_path: Path
+        self, handler: OutputHandler, sample_data: dict[str, Any], tmp_path: Path
     ) -> None:
         """Test write_output treats non-existent path as file."""
         output_file = tmp_path / "new" / "output.json"

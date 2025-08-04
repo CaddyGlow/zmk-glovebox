@@ -113,6 +113,61 @@ class ParameterFactory:
             opt,
         ]
 
+    # Dynamic method definitions - these will be replaced by _create_legacy_wrapper()
+    # Declare them here so mypy knows about the interface
+    if TYPE_CHECKING:
+        # Type-only stubs for mypy - not executed at runtime
+        @staticmethod
+        def input_file(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def input_file_optional(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def input_file_with_stdin(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def input_file_with_stdin_optional(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def json_file_argument(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def json_file_argument_optional(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def input_directory(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def input_multiple_files(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def output_file(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def output_file_path_only(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def output_directory(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def output_directory_optional(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def profile_option(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def output_format(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def legacy_format(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def json_boolean_flag(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def format_with_json_flag(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def force_overwrite(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def verbose_flag(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def quiet_flag(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def dry_run_flag(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def backup_flag(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def no_backup_flag(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def validate_only_flag(**kwargs: Any) -> Any: ...
+        @staticmethod
+        def skip_validation_flag(**kwargs: Any) -> Any: ...
+
 
 def _create_option_with_decls(
     param_decls: tuple[str, ...], **kwargs: Any
@@ -438,6 +493,7 @@ def _create_legacy_wrapper(factory_class: type[ParameterFactory]) -> None:
     }
 
     # Add all legacy methods to the factory class
+    # These will replace the stub methods defined above
     for method_name, method_func in legacy_methods.items():
         setattr(factory_class, method_name, method_func)
 
@@ -454,67 +510,67 @@ class CommonParameterSets:
     def input_output_format(**kwargs: Any) -> dict[str, Any]:
         """Create a standard input/output/format parameter set."""
         return {
-            "input_file": ParameterFactory.input_file_with_stdin(  # type: ignore[attr-defined]
+            "input_file": ParameterFactory.input_file_with_stdin(
                 help_text=kwargs.get("input_help"),
                 file_extensions=kwargs.get("input_extensions"),
             )
             if kwargs.get("supports_stdin", True)
-            else ParameterFactory.input_file(  # type: ignore[attr-defined]
+            else ParameterFactory.input_file(
                 help_text=kwargs.get("input_help"),
                 file_extensions=kwargs.get("input_extensions"),
             ),
-            "output": ParameterFactory.output_file(  # type: ignore[attr-defined]
+            "output": ParameterFactory.output_file(
                 help_text=kwargs.get("output_help"),
                 supports_stdout=kwargs.get("supports_stdout", False),
             ),
-            "output_format": ParameterFactory.output_format(  # type: ignore[attr-defined]
+            "output_format": ParameterFactory.output_format(
                 help_text=kwargs.get("format_help"),
                 supported_formats=kwargs.get("format_types"),
             ),
-            "force": ParameterFactory.force_overwrite(),  # type: ignore[attr-defined]
+            "force": ParameterFactory.force_overwrite(),
         }
 
     @staticmethod
     def compilation_parameters(**kwargs: Any) -> dict[str, Any]:
         """Create parameters for compilation commands."""
         return {
-            "json_file": ParameterFactory.json_file_argument(  # type: ignore[attr-defined]
+            "json_file": ParameterFactory.json_file_argument(
                 help_text=kwargs.get("input_help")
             ),
-            "output_dir": ParameterFactory.output_directory_optional(  # type: ignore[attr-defined]
+            "output_dir": ParameterFactory.output_directory_optional(
                 help_text=kwargs.get("output_help")
             ),
-            "profile": ParameterFactory.profile_option(),  # type: ignore[attr-defined]
-            "force": ParameterFactory.force_overwrite(),  # type: ignore[attr-defined]
-            "verbose": ParameterFactory.verbose_flag(),  # type: ignore[attr-defined]
+            "profile": ParameterFactory.profile_option(),
+            "force": ParameterFactory.force_overwrite(),
+            "verbose": ParameterFactory.verbose_flag(),
         }
 
     @staticmethod
     def display_parameters(**kwargs: Any) -> dict[str, Any]:
         """Create parameters for display/show commands."""
         return {
-            "json_file": ParameterFactory.json_file_argument(  # type: ignore[attr-defined]
+            "json_file": ParameterFactory.json_file_argument(
                 help_text=kwargs.get("input_help")
             ),
-            "output_format": ParameterFactory.output_format(  # type: ignore[attr-defined]
+            "output_format": ParameterFactory.output_format(
                 help_text=kwargs.get("format_help"),
                 supported_formats=kwargs.get("format_types"),
             ),
-            "verbose": ParameterFactory.verbose_flag(),  # type: ignore[attr-defined]
+            "verbose": ParameterFactory.verbose_flag(),
         }
 
     @staticmethod
     def file_transformation_parameters(**kwargs: Any) -> dict[str, Any]:
         """Create parameters for file transformation commands."""
         return {
-            "input_file": ParameterFactory.input_file_with_stdin(  # type: ignore[attr-defined]
+            "input_file": ParameterFactory.input_file_with_stdin(
                 help_text=kwargs.get("input_help")
             ),
-            "output": ParameterFactory.output_file(  # type: ignore[attr-defined]
+            "output": ParameterFactory.output_file(
                 help_text=kwargs.get("output_help"),
                 supports_stdout=kwargs.get("supports_stdout", True),
             ),
-            "force": ParameterFactory.force_overwrite(),  # type: ignore[attr-defined]
-            "backup": ParameterFactory.backup_flag(),  # type: ignore[attr-defined]
-            "dry_run": ParameterFactory.dry_run_flag(),  # type: ignore[attr-defined]
+            "force": ParameterFactory.force_overwrite(),
+            "backup": ParameterFactory.backup_flag(),
+            "dry_run": ParameterFactory.dry_run_flag(),
         }
