@@ -1825,7 +1825,7 @@ class ZmkWorkspaceCacheService:
         else:
             mode = "r"
 
-        with tarfile.open(archive_path, mode) as tar_ref:
+        with tarfile.open(str(archive_path), mode) as tar_ref:
             members = tar_ref.getmembers()
             total_uncompressed_size = sum(
                 member.size for member in members if member.isfile()
@@ -1877,7 +1877,7 @@ class ZmkWorkspaceCacheService:
 
             return extracted_bytes, total_uncompressed_size, extracted_files
 
-    def _analyze_workspace_structure(self, cache_dir: Path) -> dict[str, any]:
+    def _analyze_workspace_structure(self, cache_dir: Path) -> dict[str, Any]:
         """Analyze workspace structure in extracted cache content.
 
         Args:

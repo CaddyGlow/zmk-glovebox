@@ -113,14 +113,12 @@ class CacheDeleteCommand(IOCommand):
             elif isinstance(data, list):
                 # Handle simple list of keys
                 return [str(key) for key in data]
-            else:
-                console.print(f"[red]Invalid JSON format in {json_file}[/red]")
-                raise typer.Exit(1)
+            
+            console.print(f"[red]Invalid JSON format in {json_file}[/red]")
+            raise typer.Exit(1)
         except Exception as e:
             console.print(f"[red]Error reading JSON file: {e}[/red]")
             raise typer.Exit(1) from e
-
-        return []
 
     def _handle_compilation_safety(
         self, keys_to_delete: list[str], pattern: str

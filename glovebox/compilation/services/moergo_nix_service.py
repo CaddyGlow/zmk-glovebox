@@ -231,7 +231,7 @@ class MoergoNixService(CompilationServiceProtocol):
     def _execute_compilation_with_progress(
         self,
         progress_context: "ProgressContextProtocol",
-        board_info: dict,
+        board_info: dict[str, Any],
         config: MoergoCompilationConfig,
         keyboard_profile: "KeyboardProfile",
         keymap_file: Path | None,
@@ -376,7 +376,7 @@ class MoergoNixService(CompilationServiceProtocol):
 
             file_adapter = create_file_adapter()
 
-            def extract_layout_data(layout_data: Any) -> dict[str, Any]:
+            def extract_layout_data(layout_data: Any) -> Any:
                 """Extract layout data for delegation to compile_from_data."""
                 return layout_data
 
@@ -598,7 +598,7 @@ class MoergoNixService(CompilationServiceProtocol):
             class MoErgoBoardProgressMiddleware(DefaultOutputMiddleware):
                 """Middleware to track individual board build progress for MoErgo."""
 
-                def __init__(self):
+                def __init__(self) -> None:
                     super().__init__()
                     self.current_board_index = 0
                     self.boards_completed = 0
