@@ -247,6 +247,7 @@ def _run_startup_checks(app_context: AppContext) -> None:
 
             with create_early_workspace_display("Startup Checks"):
                 from glovebox.cli.helpers.theme import Icons
+
                 logger.info(
                     "%s Running startup checks...", Icons.get_icon("FIRMWARE", "text")
                 )

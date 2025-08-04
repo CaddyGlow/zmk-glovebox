@@ -88,6 +88,11 @@ class DefaultOutputMiddleware(OutputMiddleware[str]):
         Returns:
             The original line (unmodified)
         """
+        # Skip completely empty strings (filtered content)
+        # But preserve blank lines (lines with just whitespace/newline)
+        if not line:
+            return line
+
         prefix = self.stdout_prefix if stream_type == "stdout" else self.stderr_prefix
         print(f"{prefix}{line}")
         return line

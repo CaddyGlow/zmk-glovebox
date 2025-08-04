@@ -567,6 +567,9 @@ class MoergoNixService(CompilationServiceProtocol):
             from glovebox.adapters.docker_adapter import LoggerOutputMiddleware
             from glovebox.models.docker import DockerUserContext
             from glovebox.utils.build_log_middleware import create_build_log_middleware
+            from glovebox.utils.build_output_filter_middleware import (
+                create_build_output_filter_middleware,
+            )
             from glovebox.utils.stream_process import (
                 DefaultOutputMiddleware,
                 create_chained_middleware,
@@ -588,7 +591,11 @@ class MoergoNixService(CompilationServiceProtocol):
 
             middlewares: list[Any] = []
 
-            # Create build log middleware
+            # Create filter middleware FIRST to clean output before logging
+            filter_middleware = create_build_output_filter_middleware(progress_context)
+            middlewares.append(filter_middleware)
+
+            # Create build log middleware (will only log filtered output)
             build_log_middleware = create_build_log_middleware(
                 output_dir, progress_context
             )
@@ -605,8 +612,24 @@ class MoergoNixService(CompilationServiceProtocol):
                     self.in_build_phase = False
                     self.started_nix_env = False
 
-                def process_line(self, line: str, is_stderr: bool) -> None:
-                    """Process Docker output line to track board progress."""
+                def process(self, line: str, stream_type: str) -> str:
+                    """Process a line and track board progress.
+
+                    Args:
+                        line: Output line to process
+                        stream_type: Either "stdout" or "stderr"
+
+                    Returns:
+                        The original line (unmodified)
+                    """
+                    # Skip completely empty strings (filtered content)
+                    if not line:
+                        return line
+
+                    # Call parent to print the line (if not empty)
+                    super().process(line, stream_type)
+
+                    # Track progress
                     line_lower = line.lower()
 
                     # Detect Nix environment setup start
@@ -683,6 +706,8 @@ class MoergoNixService(CompilationServiceProtocol):
                         progress_context.fail_checkpoint(checkpoint_name)
                         progress_context.log(f"Build failed for {board_name}", "error")
 
+                    return line
+
             middlewares.append(MoErgoBoardProgressMiddleware())
 
             middlewares.append(LoggerOutputMiddleware(self.logger))
@@ -710,8 +735,9 @@ class MoergoNixService(CompilationServiceProtocol):
                     user_context=user_context,
                 )
             finally:
-                # Always close the build log middleware
+                # Always close the middlewares in reverse order
                 build_log_middleware.close()
+                filter_middleware.close()
 
             if return_code != 0:
                 self.logger.error("Build failed with exit code %d", return_code)
