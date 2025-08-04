@@ -1,14 +1,9 @@
 """Comprehensive tests for SessionMetrics system."""
 
-import json
 import time
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
-
-pytestmark = [pytest.mark.network, pytest.mark.integration]
 
 from glovebox.core.metrics.session_metrics import (
     NoOpCounter,
@@ -26,6 +21,9 @@ from glovebox.core.metrics.session_metrics import (
     create_session_metrics,
 )
 from glovebox.protocols.metrics_protocol import MetricsProtocol
+
+
+pytestmark = [pytest.mark.network, pytest.mark.integration]
 
 
 def create_test_session_metrics(session_id: str = "test-session") -> SessionMetrics:

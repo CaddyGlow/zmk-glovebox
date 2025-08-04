@@ -3,13 +3,12 @@
 import contextlib
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator
 
-from glovebox.models.base import GloveboxBaseModel
 from glovebox.models.results import BaseResult
 
 
@@ -18,6 +17,14 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+
+
+class FirmwareSide(str, Enum):
+    """Firmware side for split keyboards."""
+
+    LEFT = "left"
+    RIGHT = "right"
+    UNIFIED = "unified"  # For non-split keyboards or combined firmware
 
 
 class BlockDeviceError(Exception):
@@ -185,6 +192,33 @@ class USBDevice:
         else:
             return self.name
 
+    def is_ready(self) -> bool:
+        """Check if the device node exists and is ready for operations."""
+        if not self.device_node:
+            return False
+        return Path(self.device_node).exists()
+
+    def wait_for_ready(self, timeout: float = 5.0, poll_interval: float = 0.1) -> bool:
+        """Wait for the device node to be ready.
+
+        Args:
+            timeout: Maximum time to wait in seconds
+            poll_interval: Time between checks in seconds
+
+        Returns:
+            True if device becomes ready, False if timeout
+        """
+        import time
+
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            if self.is_ready():
+                return True
+            time.sleep(poll_interval)
+
+        return False
+
     @property
     def type(self) -> str:
         """Alias for device_type for BlockDevice compatibility."""
@@ -212,6 +246,31 @@ class DiskInfo:
     partitions: list[str] = field(default_factory=list)
 
 
+@dataclass
+class FirmwarePair:
+    """Represents a pair of firmware files for split keyboards."""
+
+    left: Path
+    right: Path
+    base_name: str = ""
+
+    def __post_init__(self) -> None:
+        """Validate firmware pair."""
+        if not self.left.exists():
+            raise ValueError(f"Left firmware file not found: {self.left}")
+        if not self.right.exists():
+            raise ValueError(f"Right firmware file not found: {self.right}")
+        if not self.base_name:
+            # Extract base name from left firmware
+            name = self.left.stem
+            for suffix in ["_lh", "_left", "-left", "_l"]:
+                if name.endswith(suffix):
+                    self.base_name = name[: -len(suffix)]
+                    break
+            if not self.base_name:
+                self.base_name = name
+
+
 class FlashResult(BaseResult):
     """Result of firmware flash operations."""
 
@@ -219,6 +278,8 @@ class FlashResult(BaseResult):
     devices_failed: int = 0
     firmware_path: Path | None = None
     device_details: list[dict[str, Any]] = Field(default_factory=list)
+    paired_mode: bool = False  # Track if this was a paired flash operation
+    firmware_pairs: list[FirmwarePair] = Field(default_factory=list)
 
     @field_validator("devices_flashed", "devices_failed")
     @classmethod
@@ -263,7 +324,10 @@ class FlashResult(BaseResult):
         return v
 
     def add_device_success(
-        self, device_name: str, device_info: dict[str, Any] | None = None
+        self,
+        device_name: str,
+        device_info: dict[str, Any] | None = None,
+        firmware_side: FirmwareSide | None = None,
     ) -> None:
         """Record a successful device flash."""
         if not isinstance(device_name, str) or not device_name.strip():
@@ -271,15 +335,22 @@ class FlashResult(BaseResult):
 
         self.devices_flashed += 1
         device_detail = {"name": device_name, "status": "success"}
+        if firmware_side:
+            device_detail["firmware_side"] = firmware_side.value
         if device_info:
             if not isinstance(device_info, dict):
                 raise ValueError("Device info must be a dictionary") from None
             device_detail.update(device_info)
         self.device_details.append(device_detail)
-        self.add_message(f"Successfully flashed device: {device_name}")
+        side_msg = f" ({firmware_side.value} side)" if firmware_side else ""
+        self.add_message(f"Successfully flashed device{side_msg}: {device_name}")
 
     def add_device_failure(
-        self, device_name: str, error: str, device_info: dict[str, Any] | None = None
+        self,
+        device_name: str,
+        error: str,
+        device_info: dict[str, Any] | None = None,
+        firmware_side: FirmwareSide | None = None,
     ) -> None:
         """Record a failed device flash."""
         if not isinstance(device_name, str) or not device_name.strip():
@@ -289,12 +360,15 @@ class FlashResult(BaseResult):
 
         self.devices_failed += 1
         device_detail = {"name": device_name, "status": "failed", "error": error}
+        if firmware_side:
+            device_detail["firmware_side"] = firmware_side.value
         if device_info:
             if not isinstance(device_info, dict):
                 raise ValueError("Device info must be a dictionary") from None
             device_detail.update(device_info)
         self.device_details.append(device_detail)
-        self.add_error(f"Failed to flash device {device_name}: {error}")
+        side_msg = f" ({firmware_side.value} side)" if firmware_side else ""
+        self.add_error(f"Failed to flash device{side_msg} {device_name}: {error}")
 
     def get_flash_summary(self) -> dict[str, Any]:
         """Get flash operation summary."""
@@ -381,6 +455,33 @@ class BlockDevice:
             return f"{self.model} {self.name}"
         else:
             return self.name
+
+    def is_ready(self) -> bool:
+        """Check if the device node exists and is ready for operations."""
+        if not self.device_node:
+            return False
+        return Path(self.device_node).exists()
+
+    def wait_for_ready(self, timeout: float = 5.0, poll_interval: float = 0.1) -> bool:
+        """Wait for the device node to be ready.
+
+        Args:
+            timeout: Maximum time to wait in seconds
+            poll_interval: Time between checks in seconds
+
+        Returns:
+            True if device becomes ready, False if timeout
+        """
+        import time
+
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            if self.is_ready():
+                return True
+            time.sleep(poll_interval)
+
+        return False
 
     @classmethod
     def from_pyudev_device(cls, device: Any) -> "BlockDevice":
@@ -488,3 +589,46 @@ class BlockDevice:
 
 # Type alias for USB device types
 USBDeviceType = BlockDevice | USBDevice
+
+
+def detect_firmware_side(firmware_path: Path) -> FirmwareSide:
+    """Detect the side of a firmware file based on its name.
+
+    Args:
+        firmware_path: Path to the firmware file
+
+    Returns:
+        FirmwareSide enum value (LEFT, RIGHT, or UNIFIED)
+    """
+    name = firmware_path.stem.lower()
+
+    # Check for left side patterns
+    left_patterns = ["_lh", "_left", "-left", "_l", "left_", "lh_"]
+    for pattern in left_patterns:
+        if pattern in name:
+            return FirmwareSide.LEFT
+
+    # Check for right side patterns
+    right_patterns = ["_rh", "_right", "-right", "_r", "right_", "rh_"]
+    for pattern in right_patterns:
+        if pattern in name:
+            return FirmwareSide.RIGHT
+
+    # Default to unified for non-split firmware
+    return FirmwareSide.UNIFIED
+
+
+def is_split_firmware(firmware_files: list[Path]) -> bool:
+    """Check if the firmware files are for a split keyboard.
+
+    Args:
+        firmware_files: List of firmware file paths
+
+    Returns:
+        True if files are for split keyboard (left/right pair)
+    """
+    if len(firmware_files) != 2:
+        return False
+
+    sides = [detect_firmware_side(f) for f in firmware_files]
+    return FirmwareSide.LEFT in sides and FirmwareSide.RIGHT in sides

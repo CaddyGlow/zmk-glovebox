@@ -786,7 +786,7 @@ class TestProfileCompletionIntegration:
         # Verify it's a typer.Option with correct properties
         assert hasattr(metadata, "help")
         assert "Output format" in metadata.help
-        assert "text|json|markdown|table" in metadata.help
+        assert "rich-table|text|json|markdown" in metadata.help
 
 
 class TestStaticCompletionCaching:
@@ -962,7 +962,8 @@ class TestJsonFileCompletion:
     ):
         """Test JSON file completion with empty input."""
         result = complete_json_files("")
-        assert result == ["examples/layouts/", "./", "../"]
+        # Now includes @ for library references as the first option
+        assert result == ["@", "examples/layouts/", "./", "../"]
 
     @pytest.mark.skip(
         reason="Mock path testing is complex - functionality tested in integration tests"

@@ -5,24 +5,267 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from rich.console import Console
 
+from glovebox.cli.commands.layout.base import BaseLayoutCommand
 from glovebox.cli.decorators import handle_errors, with_metrics, with_profile
-from glovebox.cli.helpers import (
-    print_error_message,
-    print_success_message,
-)
 from glovebox.cli.helpers.parameters import (
-    JsonFileArgument,
     OutputFormatOption,
     ProfileOption,
 )
-from glovebox.config import create_keyboard_profile
-from glovebox.layout import create_layout_service
 
 
 logger = logging.getLogger(__name__)
-console = Console()
+
+
+class ParseKeymapCommand(BaseLayoutCommand):
+    """Command to parse ZMK keymap files to JSON layout format."""
+
+    def execute(
+        self,
+        ctx: typer.Context,
+        keymap_file: Path,
+        profile: str | None,
+        mode: str,
+        method: str,
+        output: Path | None,
+        output_format: str,
+        force: bool,
+        verbose: bool,
+    ) -> None:
+        """Execute keymap parsing operation.
+
+        Args:
+            ctx: Typer context with profile information
+            keymap_file: Path to ZMK keymap file
+            profile: Keyboard profile string
+            mode: Parsing mode (auto/full/template)
+            method: Parsing method (ast/regex)
+            output: Output file path
+            output_format: Output format (text/json)
+            force: Force overwrite existing files
+            verbose: Show detailed information
+        """
+        try:
+            # Auto-detect parsing mode if not specified
+            if mode == "auto":
+                if profile:
+                    mode = "template"
+                    if verbose:
+                        self.console.print_info(
+                            "Auto-detected template mode (profile provided)"
+                        )
+                else:
+                    mode = "full"
+                    if verbose:
+                        self.console.print_info(
+                            "Auto-detected full mode (no profile provided)"
+                        )
+
+            # Determine output file
+            if output is None:
+                output = keymap_file.with_suffix(".json")
+
+            # Check if output exists and force not specified
+            if output.exists() and not force:
+                self.console.print_error(f"Output file already exists: {output}")
+                self.console.print_error("Use --force to overwrite")
+                raise typer.Exit(1)
+
+            # Get profile from context
+            from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
+
+            keyboard_profile = get_keyboard_profile_from_context(ctx)
+            if verbose and keyboard_profile:
+                self.console.print_info(
+                    f"Using keyboard profile: {keyboard_profile.keyboard_name}"
+                )
+
+            # Create keymap parser
+            from glovebox.layout import create_zmk_keymap_parser
+            from glovebox.layout.parsers.keymap_parser import ParsingMethod, ParsingMode
+
+            keymap_parser = create_zmk_keymap_parser()
+
+            if verbose:
+                self.console.print_info(f"Parsing mode: {mode}, method: {method}")
+                self.console.print_info(f"Input file: {keymap_file}")
+                self.console.print_info(f"Output file: {output}")
+
+            # Convert string modes to enum values
+            parsing_mode = (
+                ParsingMode.TEMPLATE_AWARE if mode == "template" else ParsingMode.FULL
+            )
+            parsing_method = (
+                ParsingMethod.AST if method == "ast" else ParsingMethod.REGEX
+            )
+
+            # Parse keymap file
+            result = keymap_parser.parse_keymap(
+                keymap_file=keymap_file,
+                mode=parsing_mode,
+                profile=keyboard_profile,
+                method=parsing_method,
+            )
+
+            if not result.success:
+                self.console.print_error("Keymap parsing failed:")
+                for error in result.errors:
+                    self.console.print_error(f"  • {error}")
+                raise typer.Exit(1)
+
+            # Save the parsed layout data to output file
+            if result.layout_data:
+                from glovebox.adapters import create_file_adapter
+
+                file_adapter = create_file_adapter()
+                file_adapter.write_json(output, result.layout_data.to_dict())
+
+            # Show success message
+            self.console.print_success(f"Successfully parsed keymap to {output}")
+
+            # Show additional information
+            if verbose or result.warnings:
+                for warning in result.warnings:
+                    self.console.print_info(f"  • {warning}")
+
+            # Format output if JSON requested
+            if output_format == "json":
+                result_data = {
+                    "success": result.success,
+                    "output_file": str(output),
+                    "warnings": result.warnings,
+                    "errors": result.errors,
+                }
+                self.write_output(result_data, destination=None)
+
+        except Exception as e:
+            self.handle_service_error(e, "parse keymap")
+
+
+class ImportKeymapCommand(BaseLayoutCommand):
+    """Command to import ZMK keymap files as new glovebox layouts."""
+
+    def execute(
+        self,
+        ctx: typer.Context,
+        keymap_file: Path,
+        profile: str | None,
+        name: str | None,
+        mode: str,
+        method: str,
+        output_dir: Path | None,
+        force: bool,
+    ) -> None:
+        """Execute keymap import operation.
+
+        Args:
+            ctx: Typer context with profile information
+            keymap_file: Path to ZMK keymap file
+            profile: Keyboard profile string
+            name: Name for imported layout
+            mode: Parsing mode (auto/full/template)
+            method: Parsing method (ast/regex)
+            output_dir: Output directory
+            force: Force overwrite existing files
+        """
+        try:
+            # Determine layout name
+            if name is None:
+                name = keymap_file.stem.replace("_", " ").title()
+
+            # Determine output directory
+            if output_dir is None:
+                output_dir = Path.cwd()
+            else:
+                output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Create output filename
+            safe_name = name.lower().replace(" ", "_").replace("-", "_")
+            output_file = output_dir / f"{safe_name}.json"
+
+            # Check if output exists
+            if output_file.exists() and not force:
+                self.console.print_error(f"Layout file already exists: {output_file}")
+                self.console.print_error("Use --force to overwrite")
+                raise typer.Exit(1)
+
+            # Auto-detect parsing mode if not specified
+            if mode == "auto":
+                if profile:
+                    mode = "template"
+                    self.console.print_info(
+                        "Auto-detected template mode (profile provided)"
+                    )
+                else:
+                    mode = "full"
+                    self.console.print_info(
+                        "Auto-detected full mode (no profile provided)"
+                    )
+
+            # Validate mode and profile combination
+            if mode == "template" and not profile:
+                self.console.print_error("Template mode requires a keyboard profile")
+                self.console.print_error(
+                    "Use --profile to specify keyboard (e.g., --profile glove80/v25.05) or use --mode full"
+                )
+                raise typer.Exit(1)
+
+            # Validate method parameter
+            if method not in ["ast", "regex"]:
+                self.console.print_error(f"Invalid parsing method: {method}")
+                self.console.print_error("Valid methods: ast, regex")
+                raise typer.Exit(1)
+
+            # Get profile from context
+            from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
+
+            keyboard_profile = get_keyboard_profile_from_context(ctx)
+
+            # Create keymap parser
+            from glovebox.layout import create_zmk_keymap_parser
+            from glovebox.layout.parsers.keymap_parser import ParsingMethod, ParsingMode
+
+            keymap_parser = create_zmk_keymap_parser()
+
+            # Convert string modes to enum values
+            parsing_mode = (
+                ParsingMode.TEMPLATE_AWARE if mode == "template" else ParsingMode.FULL
+            )
+            parsing_method = (
+                ParsingMethod.AST if method == "ast" else ParsingMethod.REGEX
+            )
+
+            # Parse keymap file
+            result = keymap_parser.parse_keymap(
+                keymap_file=keymap_file,
+                mode=parsing_mode,
+                profile=keyboard_profile,
+                method=parsing_method,
+            )
+
+            if not result.success:
+                self.console.print_error("Keymap parsing failed:")
+                for error in result.errors:
+                    self.console.print_error(f"  • {error}")
+                raise typer.Exit(1)
+
+            # Save the parsed layout data to output file
+            if result.layout_data:
+                from glovebox.adapters import create_file_adapter
+
+                file_adapter = create_file_adapter()
+                file_adapter.write_json(output_file, result.layout_data.to_dict())
+
+            # Show success message
+            self.console.print_success(f"Successfully imported keymap as '{name}'")
+            self.console.print_info(f"Saved to: {output_file}")
+
+            # Show parsing details
+            for warning in result.warnings:
+                self.console.print_info(f"  • {warning}")
+
+        except Exception as e:
+            self.handle_service_error(e, "import keymap")
 
 
 @handle_errors
@@ -101,93 +344,18 @@ def parse_keymap(
         # Full parsing mode with AST method
         glovebox layout parse-keymap third_party.keymap --mode full --method ast
     """
-
-    # Auto-detect parsing mode if not specified
-    if mode == "auto":
-        if profile:
-            mode = "template"
-            if verbose:
-                console.print(
-                    "Auto-detected template mode (profile provided)", style="dim"
-                )
-        else:
-            mode = "full"
-            if verbose:
-                console.print(
-                    "Auto-detected full mode (no profile provided)", style="dim"
-                )
-
-    # Determine output file
-    if output is None:
-        output = keymap_file.with_suffix(".json")
-
-    # Check if output exists and force not specified
-    if output.exists() and not force:
-        print_error_message(f"Output file already exists: {output}")
-        print_error_message("Use --force to overwrite")
-        raise typer.Exit(1)
-
-    try:
-        # Profile is handled by the @with_profile decorator (may be None)
-        from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
-
-        keyboard_profile = get_keyboard_profile_from_context(ctx)
-        if verbose and keyboard_profile:
-            console.print(
-                f"Using keyboard profile: {keyboard_profile.keyboard_name}",
-                style="dim",
-            )
-
-        # Create layout service with dependencies
-        from glovebox.cli.commands.layout.dependencies import create_full_layout_service
-
-        layout_service = create_full_layout_service()
-
-        if verbose:
-            console.print(f"Parsing mode: {mode}, method: {method}", style="dim")
-            console.print(f"Input file: {keymap_file}", style="dim")
-            console.print(f"Output file: {output}", style="dim")
-
-        # Parse keymap file
-        result = layout_service.parse_keymap_from_file(
-            keymap_file_path=keymap_file,
-            profile=keyboard_profile,
-            parsing_mode=mode,
-            parsing_method=method,
-            output_file_path=output,
-        )
-
-        if not result.success:
-            print_error_message("Keymap parsing failed:")
-            for error in result.errors:
-                console.print(f"  • {error}", style="red")
-            raise typer.Exit(1)
-
-        # Show success message
-        print_success_message(f"Successfully parsed keymap to {output}")
-
-        # Show additional information
-        if verbose or result.messages:
-            for message in result.messages:
-                console.print(f"  • {message}", style="dim")
-
-        # Format output if JSON requested
-        if output_format == "json":
-            import json
-
-            result_data = {
-                "success": result.success,
-                "output_file": str(output),
-                "messages": result.messages,
-                "errors": result.errors,
-            }
-            console.print(json.dumps(result_data, indent=2))
-
-    except Exception as e:
-        exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.error("Failed to parse keymap: %s", e, exc_info=exc_info)
-        print_error_message(f"Parsing failed: {e}")
-        raise typer.Exit(1) from e
+    command = ParseKeymapCommand()
+    command.execute(
+        ctx=ctx,
+        keymap_file=keymap_file,
+        profile=profile,
+        mode=mode,
+        method=method,
+        output=output,
+        output_format=output_format,
+        force=force,
+        verbose=verbose,
+    )
 
 
 @handle_errors
@@ -255,111 +423,17 @@ def import_keymap(
         # Import with custom name and location
         glovebox layout import-keymap keymap.keymap --profile glove80 --name "My Custom Layout" -d layouts/
     """
-    # Determine layout name
-    if name is None:
-        name = keymap_file.stem.replace("_", " ").title()
-
-    # Determine output directory
-    if output_dir is None:
-        output_dir = Path.cwd()
-    else:
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Create output filename
-    safe_name = name.lower().replace(" ", "_").replace("-", "_")
-    output_file = output_dir / f"{safe_name}.json"
-
-    # Check if output exists
-    if output_file.exists() and not force:
-        print_error_message(f"Layout file already exists: {output_file}")
-        print_error_message("Use --force to overwrite")
-        raise typer.Exit(1)
-
-    try:
-        # Auto-detect parsing mode if not specified
-        if mode == "auto":
-            if profile:
-                mode = "template"
-                console.print(
-                    "Auto-detected template mode (profile provided)", style="dim"
-                )
-            else:
-                mode = "full"
-                console.print(
-                    "Auto-detected full mode (no profile provided)", style="dim"
-                )
-
-        # Validate mode and profile combination
-        if mode == "template" and not profile:
-            print_error_message("Template mode requires a keyboard profile")
-            print_error_message(
-                "Use --profile to specify keyboard (e.g., --profile glove80/v25.05) or use --mode full"
-            )
-            raise typer.Exit(1)
-
-        # Validate method parameter
-        if method not in ["ast", "regex"]:
-            print_error_message(f"Invalid parsing method: {method}")
-            print_error_message("Valid methods: ast, regex")
-            raise typer.Exit(1)
-
-        # Profile is handled by the @with_profile decorator (may be None)
-        from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
-
-        keyboard_profile = get_keyboard_profile_from_context(ctx)
-
-        # Create layout service
-        from glovebox.cli.commands.layout.dependencies import create_full_layout_service
-
-        layout_service = create_full_layout_service()
-
-        # Parse keymap file (without saving yet)
-        result = layout_service.parse_keymap_from_file(
-            keymap_file_path=keymap_file,
-            profile=keyboard_profile,
-            parsing_mode=mode,
-            parsing_method=method,
-            output_file_path=None,  # Don't save yet
-        )
-
-        if not result.success:
-            print_error_message("Keymap parsing failed:")
-            for error in result.errors:
-                console.print(f"  • {error}", style="red")
-            raise typer.Exit(1)
-
-        # TODO: Enhance layout data with metadata
-        # This would add proper title, creator, notes, etc.
-        # For now, just save the parsed data
-
-        # Save to output file
-        from glovebox.adapters import create_file_adapter
-
-        file_adapter = create_file_adapter()
-        if hasattr(result, "layout_data") and result.layout_data:
-            # Get the parsed layout data from the parse result
-            # We need to access it differently since it wasn't saved to a file
-            # For now, re-run the parsing with the output file
-            result = layout_service.parse_keymap_from_file(
-                keymap_file_path=keymap_file,
-                profile=keyboard_profile,
-                parsing_mode=mode,
-                parsing_method=method,
-                output_file_path=output_file,
-            )
-
-        print_success_message(f"Successfully imported keymap as '{name}'")
-        console.print(f"  Saved to: {output_file}", style="dim")
-
-        # Show parsing details
-        for message in result.messages:
-            console.print(f"  • {message}", style="dim")
-
-    except Exception as e:
-        exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.error("Failed to import keymap: %s", e, exc_info=exc_info)
-        print_error_message(f"Import failed: {e}")
-        raise typer.Exit(1) from e
+    command = ImportKeymapCommand()
+    command.execute(
+        ctx=ctx,
+        keymap_file=keymap_file,
+        profile=profile,
+        name=name,
+        mode=mode,
+        method=method,
+        output_dir=output_dir,
+        force=force,
+    )
 
 
 # Create typer app for parsing commands

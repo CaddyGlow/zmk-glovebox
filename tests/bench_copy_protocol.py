@@ -4,7 +4,6 @@ Protocol-based copy benchmarking framework with strategy pattern.
 Provides clean separation between copy strategies and benchmarking logic.
 """
 
-import abc
 import os
 import shutil
 import time
@@ -12,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 import psutil
 

@@ -4,7 +4,6 @@ import base64
 import json
 import logging
 import platform
-from pathlib import Path
 from typing import Any
 
 from cryptography.fernet import Fernet

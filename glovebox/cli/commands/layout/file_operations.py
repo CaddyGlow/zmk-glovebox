@@ -1,38 +1,37 @@
 """Layout file manipulation CLI commands (split, merge, export, import)."""
 
+import json
+import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated, Any
 
 import typer
 
-from glovebox.cli.commands.layout.base import LayoutOutputCommand
 from glovebox.cli.commands.layout.dependencies import create_full_layout_service
 from glovebox.cli.decorators import handle_errors, with_metrics, with_profile
-from glovebox.cli.helpers.auto_profile import (
-    resolve_json_file_path,
-    resolve_profile_with_auto_detection,
-)
-from glovebox.cli.helpers.parameters import (
-    JsonFileArgument,
-    OutputFormatOption,
-    ProfileOption,
-)
-from glovebox.cli.helpers.profile import (
-    create_profile_from_option,
-    get_keyboard_profile_from_context,
-    get_user_config_from_context,
-)
-from glovebox.layout.layer import create_layout_layer_service
-from glovebox.layout.service import LayoutService
+from glovebox.cli.helpers.parameter_factory import ParameterFactory
 
 
 @handle_errors
 @with_profile(required=True, firmware_optional=True, support_auto_detection=True)
+@with_metrics("split")
 def split(
     ctx: typer.Context,
+    input: Annotated[
+        str,
+        typer.Argument(
+            help="JSON layout file, @library-ref, '-' for stdin, or env:GLOVEBOX_JSON_FILE"
+        ),
+    ],
     output_dir: Annotated[Path, typer.Argument(help="Directory to save split files")],
-    layout_file: JsonFileArgument = None,
-    profile: ProfileOption = None,
+    profile: Annotated[
+        str | None,
+        typer.Option(
+            "--profile",
+            "-p",
+            help="Keyboard profile in format 'keyboard' or 'keyboard/firmware'",
+        ),
+    ] = None,
     no_auto: Annotated[
         bool,
         typer.Option(
@@ -41,9 +40,15 @@ def split(
         ),
     ] = False,
     force: Annotated[
-        bool, typer.Option("--force", help="Overwrite existing files")
+        bool,
+        typer.Option(
+            "--force", "-f", help="Overwrite existing files without prompting"
+        ),
     ] = False,
-    output_format: OutputFormatOption = "text",
+    format: Annotated[
+        str,
+        typer.Option("--format", help="Output format: text, json"),
+    ] = "text",
 ) -> None:
     """Split layout into separate component files.
 
@@ -53,91 +58,99 @@ def split(
     - behaviors.dtsi (custom behaviors, if any)
     - devicetree.dtsi (custom device tree, if any)
 
-    \b
-    Profile precedence (highest to lowest):
-    1. CLI --profile flag (overrides all)
-    2. Auto-detection from JSON keyboard field (unless --no-auto)
-    3. GLOVEBOX_PROFILE environment variable
-    4. User config default profile
-    5. Hardcoded fallback profile
-
     Examples:
-        # Split layout into components with auto-profile detection
         glovebox layout split my-layout.json ./components/
-
-        # Use environment variable for JSON file
-        GLOVEBOX_JSON_FILE=layout.json glovebox layout split ./components/
-
-        # Disable auto-detection and specify profile
-        glovebox layout split layout.json ./out/ --no-auto --profile glove80/v25.05
+        glovebox layout split @my-gaming-layout ./out/
+        cat layout.json | glovebox layout split - ./components/
     """
-    # Resolve JSON file path (supports environment variable)
-    resolved_layout_file = resolve_json_file_path(layout_file, "GLOVEBOX_JSON_FILE")
+    # Use IO helper methods directly
+    from glovebox.cli.helpers.output_formatter import create_output_formatter
 
-    if resolved_layout_file is None:
-        from glovebox.cli.helpers import print_error_message
+    # Deprecated functions removed - using IOCommand instead
+    from glovebox.cli.helpers.theme import get_themed_console
 
-        print_error_message(
-            "Layout file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
-        )
-        raise typer.Exit(1)
-
-    command = LayoutOutputCommand()
-    command.validate_layout_file(resolved_layout_file)
+    console = get_themed_console()
+    output_formatter = create_output_formatter()
 
     try:
-        # Profile is already handled by the @with_profile decorator
+        # Load JSON input using direct input handling
+        if input == "-":
+            # Read from stdin
+            import sys
+
+            raw_data = sys.stdin.read()
+            layout_data = json.loads(raw_data)
+        else:
+            # Read from file
+            input_path = Path(input)
+            if not input_path.exists():
+                console.print_error(f"Input file does not exist: {input_path}")
+                raise typer.Exit(1)
+
+            with input_path.open() as f:
+                layout_data = json.load(f)
+
+        # Get keyboard profile from context
+        from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
+
         keyboard_profile = get_keyboard_profile_from_context(ctx)
 
-        layout_service = create_full_layout_service()
+        # Auto-detect profile if needed
+        if keyboard_profile is None and not no_auto:
+            keyboard_field = layout_data.get("keyboard")
+            if keyboard_field:
+                from glovebox.config import create_keyboard_profile
+
+                keyboard_profile = create_keyboard_profile(keyboard_field)
 
         if keyboard_profile is None:
-            from glovebox.cli.helpers import print_error_message
-
-            print_error_message("Profile is required for layout split operation")
+            console.print_error(
+                "No keyboard profile available. Use --profile or enable auto-detection."
+            )
             raise typer.Exit(1)
 
-        result = layout_service.split_components_from_file(
-            profile=keyboard_profile,
-            json_file_path=resolved_layout_file,
-            output_dir=output_dir,
-            force=force,
+        # Convert to LayoutData model
+        from glovebox.layout.models import LayoutData
+
+        layout_model = LayoutData.model_validate(layout_data)
+
+        # Split layout using component service
+        layout_service = create_full_layout_service()
+        # Access the component service from the layout service
+        component_service = layout_service._component_service
+        result = component_service.split_components(
+            layout=layout_model,
+            output_dir=Path(output_dir),
         )
 
         if result.success:
-            if output_format.lower() == "json":
-                result_data = {
-                    "success": True,
-                    "source_file": str(resolved_layout_file),
-                    "output_directory": str(output_dir),
-                    "components_created": result.messages
-                    if hasattr(result, "messages")
-                    else [],
-                }
-                command.format_output(result_data, "json")
+            result_data = {
+                "success": True,
+                "output_directory": str(output_dir),
+                "components_created": result.messages
+                if hasattr(result, "messages")
+                else [],
+            }
+
+            if format == "json":
+                output_formatter.print_formatted(result_data, "json")
             else:
-                command.print_operation_success(
-                    "Layout split into components",
-                    {
-                        "source": resolved_layout_file,
-                        "output_directory": output_dir,
-                        "components": "metadata.json, layers/, behaviors, devicetree",
-                    },
+                console.print_success("Layout split into components")
+                console.print_info(f"  Output directory: {output_dir}")
+                console.print_info(
+                    "  Components: metadata.json, layers/, behaviors, devicetree"
                 )
         else:
-            from glovebox.cli.app import AppContext
-            from glovebox.cli.helpers import print_error_message, print_list_item
-            from glovebox.cli.helpers.theme import get_icon_mode_from_context
-
-            icon_mode = get_icon_mode_from_context(ctx)
-
-            print_error_message("Layout split failed", icon_mode=icon_mode)
-            for error in result.errors:
-                print_list_item(error, icon_mode=icon_mode)
-            raise typer.Exit(1)
+            raise ValueError(f"Split failed: {'; '.join(result.errors)}")
 
     except Exception as e:
-        command.handle_service_error(e, "split layout")
+        # Handle service error
+        exc_info = logging.getLogger(__name__).isEnabledFor(logging.DEBUG)
+        logging.getLogger(__name__).error(
+            "Failed to split layout: %s", e, exc_info=exc_info
+        )
+        console.print_error(f"Failed to split layout: {e}")
+        raise typer.Exit(1) from e
 
 
 @handle_errors
@@ -149,12 +162,25 @@ def merge(
         Path,
         typer.Argument(help="Directory with metadata.json and layers/ subdirectory"),
     ],
-    output_file: Annotated[Path, typer.Argument(help="Output layout JSON file path")],
-    profile: ProfileOption = None,
+    output: Annotated[Path, typer.Argument(help="Output layout JSON file path")],
+    profile: Annotated[
+        str | None,
+        typer.Option(
+            "--profile",
+            "-p",
+            help="Keyboard profile in format 'keyboard' or 'keyboard/firmware'",
+        ),
+    ] = None,
     force: Annotated[
-        bool, typer.Option("--force", help="Overwrite existing files")
+        bool,
+        typer.Option(
+            "--force", "-f", help="Overwrite existing files without prompting"
+        ),
     ] = False,
-    output_format: OutputFormatOption = "text",
+    format: Annotated[
+        str,
+        typer.Option("--format", help="Output format: text, json"),
+    ] = "text",
 ) -> None:
     """Merge component files into a single layout JSON file.
 
@@ -163,68 +189,96 @@ def merge(
     - Combines all files in layers/ directory
     - Includes custom behaviors and device tree if present
 
-    This was previously called 'compose' but renamed for clarity.
-
     Examples:
-        # Merge components back into layout
         glovebox layout merge ./components/ merged-layout.json
-
-        # Force overwrite existing output file
         glovebox layout merge ./split/ layout.json --force
-
-        # Specify keyboard profile
-        glovebox layout merge ./components/ layout.json --profile glove80/v25.05
+        glovebox layout merge ./components/ - > output.json
     """
-    command = LayoutOutputCommand()
+    # Use IO helper methods directly
+    from glovebox.cli.helpers.output_formatter import create_output_formatter
+
+    # Deprecated functions removed - using IOCommand instead
+    from glovebox.cli.helpers.theme import get_themed_console
+
+    console = get_themed_console()
+    output_formatter = create_output_formatter()
 
     try:
-        layout_service = create_full_layout_service()
+        # Get keyboard profile from context
+        from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
+
         keyboard_profile = get_keyboard_profile_from_context(ctx)
 
         if keyboard_profile is None:
-            from glovebox.cli.helpers import print_error_message
-
-            print_error_message("Profile is required for layout merge operation")
+            console.print_error("Profile is required for layout merge operation")
             raise typer.Exit(1)
 
-        result = layout_service.compile_from_directory(
-            profile=keyboard_profile,
-            components_dir=input_dir,
-            output_file_prefix=output_file,
-            session_metrics=ctx.obj.session_metrics,
-            force=force,
+        # Merge components using component service
+        layout_service = create_full_layout_service()
+        component_service = layout_service._component_service
+
+        # Read metadata first
+        metadata_file = Path(input_dir) / "metadata.json"
+        if not metadata_file.exists():
+            console.print_error(f"metadata.json not found in {input_dir}")
+            raise typer.Exit(1)
+
+        with metadata_file.open() as f:
+            metadata_data = json.load(f)
+
+        from glovebox.layout.models import LayoutData
+
+        metadata_layout = LayoutData.model_validate(metadata_data)
+
+        # Merge components
+        layers_dir = Path(input_dir) / "layers"
+        merged_layout = component_service.merge_components(
+            metadata_layout=metadata_layout,
+            layers_dir=layers_dir,
         )
 
-        if result.success:
-            if output_format.lower() == "json":
-                result_data = {
-                    "success": True,
-                    "source_directory": str(input_dir),
-                    "output_file": str(output_file),
-                    "components_merged": result.messages
-                    if hasattr(result, "messages")
-                    else [],
-                }
-                command.format_output(result_data, "json")
-            else:
-                command.print_operation_success(
-                    "Components merged into layout",
-                    {
-                        "source_directory": input_dir,
-                        "output_file": output_file,
-                        "status": "Layout file created successfully",
-                    },
-                )
+        # Write output
+        output_data = merged_layout.model_dump(mode="json", by_alias=True)
+
+        if str(output) == "-":
+            # Write to stdout
+            print(json.dumps(output_data, indent=2))
         else:
-            from glovebox.cli.helpers import print_error_message, print_list_item
-            from glovebox.cli.helpers.theme import get_icon_mode_from_context
+            # Write to file
+            output_path = Path(output)
 
-            icon_mode = get_icon_mode_from_context(ctx)
+            # Check for existing file
+            if output_path.exists() and not force:
+                console.print_warning(f"Output file already exists: {output_path}")
+                if not typer.confirm("Overwrite existing file?"):
+                    raise typer.Abort()
 
-            print_error_message("Layout merge failed", icon_mode=icon_mode)
-            for error in result.errors:
-                print_list_item(error, icon_mode=icon_mode)
-            raise typer.Exit(1)
+            # Create parent directories if needed
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            with output_path.open("w") as f:
+                json.dump(output_data, f, indent=2)
+
+        result_data = {
+            "success": True,
+            "source_directory": str(input_dir),
+            "output_file": str(output),
+            "layers_merged": len(merged_layout.layers),
+        }
+
+        if format == "json":
+            output_formatter.print_formatted(result_data, "json")
+        else:
+            console.print_success("Components merged into layout")
+            console.print_info(f"  Source directory: {input_dir}")
+            console.print_info(f"  Output file: {output}")
+            console.print_info(f"  Layers merged: {len(merged_layout.layers)}")
 
     except Exception as e:
-        command.handle_service_error(e, "merge layout")
+        # Handle service error
+        exc_info = logging.getLogger(__name__).isEnabledFor(logging.DEBUG)
+        logging.getLogger(__name__).error(
+            "Failed to merge layout: %s", e, exc_info=exc_info
+        )
+        console.print_error(f"Failed to merge layout: {e}")
+        raise typer.Exit(1) from e

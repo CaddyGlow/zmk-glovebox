@@ -5,14 +5,12 @@ API exactly, allowing for seamless migration to Prometheus in the future while s
 metrics locally during CLI sessions.
 """
 
-import json
 import logging
 import time
 from contextlib import contextmanager
 from datetime import datetime
 from logging import getLogger
-from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from glovebox.core.cache.cache_manager import CacheManager
 

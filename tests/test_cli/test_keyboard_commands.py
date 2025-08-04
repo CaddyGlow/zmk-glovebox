@@ -1,16 +1,16 @@
 """Tests for CLI profile commands."""
 
 import json
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
-
-
-pytestmark = [pytest.mark.network, pytest.mark.integration]
 
 from glovebox.cli.app import app
 from glovebox.cli.commands import register_all_commands
 from glovebox.config.models import KeyboardConfig
+
+
+pytestmark = [pytest.mark.network, pytest.mark.integration]
 
 
 # Register commands with the app before running tests

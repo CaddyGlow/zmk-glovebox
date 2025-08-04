@@ -5,7 +5,6 @@ This module provides enhanced configuration loading capabilities that support
 include directives, recursive loading, and configuration composition.
 """
 
-import logging
 from pathlib import Path
 from typing import Any
 

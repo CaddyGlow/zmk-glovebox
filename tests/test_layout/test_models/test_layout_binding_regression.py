@@ -2,10 +2,10 @@
 
 import pytest
 
+from glovebox.layout.models import LayoutBinding
+
 
 pytestmark = pytest.mark.unit
-
-from glovebox.layout.models import LayoutBinding, LayoutParam
 
 
 class TestLayoutBindingParameterParsingRegression:

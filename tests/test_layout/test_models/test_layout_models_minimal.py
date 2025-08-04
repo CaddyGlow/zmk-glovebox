@@ -5,15 +5,15 @@ from datetime import UTC, datetime
 
 import pytest
 
-
-pytestmark = pytest.mark.unit
-
 from glovebox.layout.models import (
     LayoutBinding,
     LayoutData,
     LayoutLayer,
     LayoutParam,
 )
+
+
+pytestmark = pytest.mark.unit
 
 
 class TestLayoutDataBasic:

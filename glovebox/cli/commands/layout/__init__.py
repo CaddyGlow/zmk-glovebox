@@ -2,26 +2,24 @@
 
 import typer
 
-# Import comparison commands
-from .comparison import diff, patch
 
-# Import core operations
-from .core import compile_layout, show, validate
+def register_commands(app: typer.Typer) -> None:
+    """Register layout commands with the main app using lazy loading.
 
-# Import unified edit command
-from .edit import edit
+    Args:
+        app: The main Typer app
+    """
+    # Import commands only when this function is called
+    from .comparison import diff, patch
+    from .core import compile_layout, show, validate
+    from .edit import edit
+    from .file_operations import merge, split
+    from .parsing import register_parsing_commands
 
-# Import file operations
-from .file_operations import merge, split
-
-# Import parsing commands
-from .parsing import register_parsing_commands
-
-
-# Create a typer app for layout commands
-layout_app = typer.Typer(
-    name="layout",
-    help="""Layout management commands.
+    # Create a typer app for layout commands
+    layout_app = typer.Typer(
+        name="layout",
+        help="""Layout management commands.
 
 Transform JSON layouts to ZMK files, edit layouts with batch operations,
 manage file operations, handle version upgrades, and compare layouts.
@@ -48,36 +46,28 @@ Comparison:
   patch       - Apply JSON diff patch to layout
 
 """,
-    no_args_is_help=True,
-    rich_markup_mode="rich",
-)
+        no_args_is_help=True,
+        rich_markup_mode="rich",
+    )
 
-# Register core operations
-layout_app.command(name="compile")(compile_layout)
-layout_app.command()(validate)
-layout_app.command()(show)
+    # Register core operations
+    layout_app.command(name="compile")(compile_layout)
+    layout_app.command()(validate)
+    layout_app.command()(show)
 
-# Register unified edit command
-layout_app.command()(edit)
+    # Register unified edit command
+    layout_app.command()(edit)
 
+    # Register file operations
+    layout_app.command()(split)
+    layout_app.command()(merge)
 
-# Register file operations
-layout_app.command()(split)
-layout_app.command()(merge)
+    # Register parsing commands
+    register_parsing_commands(layout_app)
 
+    # Register comparison commands
+    layout_app.command()(diff)
+    layout_app.command()(patch)
 
-# Register parsing commands
-register_parsing_commands(layout_app)
-
-# Register comparison commands
-layout_app.command()(diff)
-layout_app.command()(patch)
-
-
-def register_commands(app: typer.Typer) -> None:
-    """Register layout commands with the main app.
-
-    Args:
-        app: The main Typer app
-    """
+    # Add to main app
     app.add_typer(layout_app, name="layout")

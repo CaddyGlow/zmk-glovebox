@@ -2,16 +2,14 @@
 
 import pytest
 
-
-pytestmark = [pytest.mark.network, pytest.mark.integration]
-
-pytestmark = pytest.mark.integration
-
 from glovebox.compilation.parsers.repository_spec_parser import (
     RepositorySpec,
     RepositorySpecParser,
     create_repository_spec_parser,
 )
+
+
+pytestmark = [pytest.mark.network, pytest.mark.integration]
 
 
 class TestRepositorySpec:

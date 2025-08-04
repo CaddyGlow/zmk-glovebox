@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Demo script to show layer reference handling in action."""
 
-import json
-from pathlib import Path
-
 from glovebox.layout.models import LayoutData
 from glovebox.layout.utils.layer_references import (
     create_layer_mapping_for_remove,

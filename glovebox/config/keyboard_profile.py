@@ -5,13 +5,9 @@ This module provides functions for loading and accessing keyboard configurations
 from YAML files, using Pydantic models for improved safety and validation.
 """
 
-import logging
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
-
-import yaml
-from pydantic import ValidationError
 
 
 if TYPE_CHECKING:

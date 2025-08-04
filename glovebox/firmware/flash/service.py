@@ -1,6 +1,7 @@
 """Refactored flash service using multi-method architecture."""
 
 import logging
+import queue
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -9,10 +10,13 @@ if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
     from glovebox.firmware.flash.device_wait_service import DeviceWaitService
 
-from glovebox.adapters.file_adapter import create_file_adapter
 from glovebox.config.flash_methods import USBFlashConfig
-from glovebox.firmware.flash.device_wait_service import create_device_wait_service
-from glovebox.firmware.flash.models import BlockDevice, FlashResult, USBDeviceType
+from glovebox.firmware.flash.models import (
+    BlockDevice,
+    FirmwareSide,
+    FlashResult,
+    USBDeviceType,
+)
 from glovebox.firmware.method_registry import flasher_registry
 from glovebox.protocols import FileAdapterProtocol, USBAdapterProtocol
 from glovebox.protocols.flash_protocols import FlasherProtocol
@@ -50,68 +54,6 @@ class FlashService:
         self.usb_adapter = usb_adapter
         self.loglevel = loglevel
 
-    def flash_from_file(
-        self,
-        firmware_file_path: Path,
-        profile: Optional["KeyboardProfile"] = None,
-        query: str = "",
-        timeout: int = 60,
-        count: int = 1,
-        track_flashed: bool = True,
-        skip_existing: bool = False,
-        wait: bool = False,
-        poll_interval: float = 0.5,
-        show_progress: bool = True,
-    ) -> FlashResult:
-        """Flash firmware from a file to devices using method selection.
-
-        Args:
-            firmware_file_path: Path to the firmware file to flash
-            profile: KeyboardProfile with flash configuration
-            query: Device query string (overrides profile-specific query)
-            timeout: Timeout in seconds for waiting for devices
-            count: Number of devices to flash (0 for unlimited)
-            track_flashed: Whether to track which devices have been flashed
-            skip_existing: Whether to skip devices already present at startup
-            wait: Wait for devices to connect before flashing
-            poll_interval: Polling interval in seconds when waiting for devices
-            show_progress: Show real-time device detection progress
-
-        Returns:
-            FlashResult with details of the flash operation
-        """
-        logger.info(
-            "Starting firmware flash operation from file: %s", firmware_file_path
-        )
-
-        # Validate firmware file existence
-        from glovebox.firmware.flash.flash_helpers import validate_firmware_file
-
-        error_result = validate_firmware_file(self.file_adapter, firmware_file_path)
-        if error_result:
-            return error_result
-
-        try:
-            # Use the main flash method with wait parameters
-            return self.flash(
-                firmware_file=firmware_file_path,
-                profile=profile,
-                query=query,
-                timeout=timeout,
-                count=count,
-                track_flashed=track_flashed,
-                skip_existing=skip_existing,
-                wait=wait,
-                poll_interval=poll_interval,
-                show_progress=show_progress,
-            )
-        except Exception as e:
-            exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Error preparing flash operation: %s", e, exc_info=exc_info)
-            result = FlashResult(success=False)
-            result.add_error(f"Flash preparation failed: {str(e)}")
-            return result
-
     def flash(
         self,
         firmware_file: str | Path,
@@ -124,6 +66,7 @@ class FlashService:
         wait: bool = False,
         poll_interval: float = 0.5,
         show_progress: bool = True,
+        paired_mode: bool = False,
     ) -> FlashResult:
         """Flash firmware to USB devices.
 
@@ -138,6 +81,7 @@ class FlashService:
             wait: Wait for devices to connect and flash them as they become available
             poll_interval: Polling interval in seconds when waiting for devices
             show_progress: Show real-time device detection progress
+            paired_mode: Enable paired flashing for split keyboards
 
         Returns:
             FlashResult with details of the flash operation
@@ -146,17 +90,45 @@ class FlashService:
             When wait=True, devices are flashed one by one as they become available
             until the count is reached or timeout occurs. The system does not wait
             for all devices to be available before starting to flash.
+            When paired_mode=True, the service attempts to match left/right firmware
+            to the appropriate device sides.
         """
         logger.info(
-            "Starting firmware flash operation using method selection with wait=%s",
+            "Starting firmware flash operation using method selection with wait=%s, paired=%s",
             wait,
+            paired_mode,
         )
-        result = FlashResult(success=True)
+        result = FlashResult(success=True, paired_mode=paired_mode)
 
         try:
-            # Convert firmware_file to Path if it's a string
+            # Convert firmware_file to Path if it's a string and resolve to absolute path
             if isinstance(firmware_file, str):
-                firmware_file = Path(firmware_file)
+                firmware_file = Path(firmware_file).resolve()
+            else:
+                firmware_file = firmware_file.resolve()
+
+            # Validate firmware file existence
+            from glovebox.firmware.flash.flash_helpers import validate_firmware_file
+
+            error_result = validate_firmware_file(self.file_adapter, firmware_file)
+            if error_result:
+                return error_result
+
+            # Import firmware side detection
+            from glovebox.firmware.flash.models import (
+                FirmwareSide,
+                detect_firmware_side,
+            )
+
+            # Detect firmware side if in paired mode
+            firmware_side = None
+            if paired_mode:
+                firmware_side = detect_firmware_side(firmware_file)
+                logger.info(
+                    "Detected firmware side: %s for file %s",
+                    firmware_side.value,
+                    firmware_file.name,
+                )
 
             # Get flash method configs from profile or use defaults
             flash_configs = self._get_flash_method_configs(profile, query)
@@ -173,10 +145,6 @@ class FlashService:
             device_query_to_use = get_device_query(profile, query, flash_config)
 
             # Flash devices one by one as they become available
-            from glovebox.firmware.flash.flash_helpers import (
-                create_device_result,
-                update_flash_result_counts,
-            )
 
             devices_flashed = 0
             devices_failed = 0
@@ -207,7 +175,12 @@ class FlashService:
                 # Flash up to target_count devices
                 for device in block_devices[:target_count]:
                     self._flash_single_device(
-                        flasher, device, firmware_file, flash_config, result
+                        flasher,
+                        device,
+                        firmware_file,
+                        flash_config,
+                        result,
+                        firmware_side=firmware_side if paired_mode else None,
                     )
 
             # Result counts are updated by the helper methods
@@ -308,7 +281,6 @@ class FlashService:
         import signal
         import threading
         import time
-        from queue import Queue
 
         start_time = time.time()
         devices_flashed = 0
@@ -324,7 +296,7 @@ class FlashService:
         seen_device_serials = set()
 
         # Queue for device events from callback
-        device_queue: Queue[USBDeviceType] = Queue()
+        device_queue: queue.Queue[USBDeviceType] = queue.Queue()
 
         # Lock for thread-safe operations
         flash_lock = threading.Lock()
@@ -336,6 +308,10 @@ class FlashService:
 
             # Only process device additions
             if action != "add":
+                return
+
+            # Only process block devices for flashing
+            if not isinstance(device, BlockDevice):
                 return
 
             # Check if device matches query
@@ -413,11 +389,9 @@ class FlashService:
                             new_device, "name", ""
                         )
 
-                        # Skip if we've already seen this device
+                        # Skip if we've already successfully flashed this device
                         if device_serial in seen_device_serials:
                             continue
-
-                        seen_device_serials.add(device_serial)
 
                         # Check if we still need more devices
                         if devices_flashed >= target_count:
@@ -427,14 +401,33 @@ class FlashService:
                             "Found new device %d/%d: %s",
                             devices_flashed + 1,
                             target_count,
-                            new_device.description or getattr(new_device, "name", "Unknown"),
+                            new_device.description
+                            or getattr(new_device, "name", "Unknown"),
                         )
 
+                        # Determine firmware side if in paired mode
+                        fw_side = None
+                        if result.paired_mode:
+                            from glovebox.firmware.flash.models import (
+                                detect_firmware_side,
+                            )
+
+                            fw_side = detect_firmware_side(firmware_file)
+
                         # Flash the device
-                        if self._flash_single_device(
-                            flasher, new_device, firmware_file, flash_config, result
-                        ):
+                        flash_success = self._flash_single_device(
+                            flasher,
+                            new_device,
+                            firmware_file,
+                            flash_config,
+                            result,
+                            firmware_side=fw_side,
+                        )
+
+                        if flash_success:
                             devices_flashed += 1
+                            # Only mark as seen if successfully flashed
+                            seen_device_serials.add(device_serial)
 
                             if show_progress:
                                 logger.info(
@@ -442,6 +435,14 @@ class FlashService:
                                     devices_flashed,
                                     target_count,
                                 )
+                        else:
+                            # Device flash failed - don't add to seen list so it can be retried
+                            logger.warning(
+                                "Failed to flash device %s, will retry if reconnected",
+                                new_device.description
+                                or getattr(new_device, "name", "Unknown"),
+                            )
+                            # Don't break on failure, continue trying with other devices
 
                         # Check if we've reached our target
                         if devices_flashed >= target_count:
@@ -451,10 +452,17 @@ class FlashService:
                             monitoring = False
                             break
 
+                except queue.Empty:
+                    # Queue was empty - this is normal when waiting for devices
+                    continue
+                except KeyboardInterrupt:
+                    # User pressed Ctrl+C
+                    logger.info("Flash operation interrupted by user")
+                    monitoring = False
+                    break
                 except Exception as e:
-                    # Queue was empty or other error, continue
-                    if "Empty" not in str(e):
-                        logger.debug("Queue processing error: %s", e)
+                    # Actual error occurred
+                    logger.debug("Queue processing error: %s", e)
                     continue
 
         finally:
@@ -529,8 +537,20 @@ class FlashService:
                         device.description or device.name,
                     )
 
+                    # Determine firmware side if in paired mode
+                    fw_side = None
+                    if result.paired_mode:
+                        from glovebox.firmware.flash.models import detect_firmware_side
+
+                        fw_side = detect_firmware_side(firmware_file)
+
                     if self._flash_single_device(
-                        flasher, device, firmware_file, flash_config, result
+                        flasher,
+                        device,
+                        firmware_file,
+                        flash_config,
+                        result,
+                        firmware_side=fw_side,
                     ):
                         devices_flashed += 1
 
@@ -562,6 +582,7 @@ class FlashService:
         firmware_file: Path,
         flash_config: "USBFlashConfig",
         result: FlashResult,
+        firmware_side: FirmwareSide | None = None,
     ) -> bool:
         """Flash a single device and update result.
 
@@ -571,6 +592,7 @@ class FlashService:
             firmware_file: Firmware file
             flash_config: Flash configuration
             result: FlashResult to update
+            firmware_side: Firmware side for paired mode
 
         Returns:
             True if flash was successful, False otherwise
@@ -585,7 +607,49 @@ class FlashService:
             )
             return False
 
-        logger.info("Flashing device: %s", device.description or device.name)
+        # Verify device is ready before attempting flash
+        if not device.is_ready():
+            logger.info("Waiting for device %s to be ready...", device.name)
+            if not device.wait_for_ready(timeout=5.0):
+                logger.error("Device %s did not become ready in time", device.name)
+                result.devices_failed += 1
+                device_details = create_device_result(
+                    device, False, "Device node not ready"
+                )
+                result.device_details.append(device_details)
+                return False
+
+        # Check device-firmware pairing if in paired mode
+        if firmware_side is not None:
+            from glovebox.firmware.flash.firmware_pairing import (
+                create_firmware_pairing_service,
+            )
+
+            pairing_service = create_firmware_pairing_service()
+            device_side = pairing_service.match_device_to_side(
+                device.serial or "",
+                device.name,
+                getattr(device, "label", "") or getattr(device, "volume_name", ""),
+            )
+
+            if not pairing_service.validate_pairing(firmware_side, device_side):
+                logger.warning(
+                    "Skipping device %s: firmware side mismatch (firmware: %s, device: %s)",
+                    device.name,
+                    firmware_side.value if firmware_side else "unknown",
+                    device_side.value if device_side else "unknown",
+                )
+                result.devices_failed += 1
+                device_details = create_device_result(
+                    device, False, "Firmware-device side mismatch"
+                )
+                result.device_details.append(device_details)
+                return False
+
+        side_msg = f" ({firmware_side.value} side)" if firmware_side else ""
+        logger.info(
+            "Flashing device%s: %s", side_msg, device.description or device.name
+        )
 
         try:
             device_result = flasher.flash_device(

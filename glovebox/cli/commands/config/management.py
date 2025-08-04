@@ -4,14 +4,12 @@ import logging
 from typing import Annotated, Any
 
 import typer
-from rich.console import Console
 from rich.table import Table
 
 from glovebox.cli.app import AppContext
 from glovebox.cli.decorators import handle_errors
 from glovebox.cli.helpers import (
     print_error_message,
-    print_success_message,
 )
 from glovebox.cli.helpers.parameters import GetConfigFieldOption
 from glovebox.cli.helpers.theme import Colors, get_themed_console

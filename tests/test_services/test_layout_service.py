@@ -1,6 +1,5 @@
 """Tests for LayoutService with keyboard configuration API."""
 
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -14,10 +13,11 @@ from glovebox.config.models import (
 )
 from glovebox.config.profile import KeyboardProfile
 from glovebox.core.errors import LayoutError
+from glovebox.layout import create_layout_service
 from glovebox.layout.models import LayoutData, SystemBehavior
-from glovebox.layout.service import LayoutService
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.protocols.template_adapter_protocol import TemplateAdapterProtocol
+from tests.test_factories import create_layout_service_for_tests
 
 
 # ---- Test Service Setup ----
@@ -61,7 +61,7 @@ def keymap_service():
     # Create mock keymap parser
     keymap_parser = Mock()
 
-    service = LayoutService(
+    service = create_layout_service(
         file_adapter=file_adapter,
         template_adapter=template_adapter,
         behavior_registry=behavior_registry,
@@ -199,7 +199,7 @@ class TestLayoutServiceWithKeyboardConfig:
         self.mock_keymap_parser = Mock()
 
         # Create the service
-        self.service = LayoutService(
+        self.service = create_layout_service(
             file_adapter=self.mock_file_adapter,
             template_adapter=self.mock_template_adapter,
             behavior_registry=self.mock_behavior_registry,
@@ -219,8 +219,8 @@ class TestLayoutServiceWithKeyboardConfig:
         # Convert to LayoutData
         keymap_data_obj = LayoutData.model_validate(keymap_data)
 
-        # Execute - use validate instead of validate_config
-        result = self.service.validate(self.mock_profile, keymap_data_obj)
+        # Execute - use validate with raw data
+        result = self.service.validate(keymap_data)
 
         # Verify
         assert result is True
@@ -235,7 +235,7 @@ class TestLayoutServiceWithKeyboardConfig:
         keymap_data_obj = LayoutData.model_validate(keymap_data)
 
         # Execute - should warn about mismatch but not fail
-        result = self.service.validate(self.mock_profile, keymap_data_obj)
+        result = self.service.validate(keymap_data)
 
         # Verify - returns True despite warning
         assert result is True
@@ -249,7 +249,7 @@ class TestLayoutServiceWithKeyboardConfig:
         keymap_data_obj = LayoutData.model_validate(keymap_data)
 
         # This test should pass now since templates are optional in the schema
-        result = self.service.validate(self.mock_profile, keymap_data_obj)
+        result = self.service.validate(keymap_data)
         assert result is True
 
     def test_validate_config_with_templates(self, sample_keymap_json):
@@ -261,43 +261,26 @@ class TestLayoutServiceWithKeyboardConfig:
         keymap_data_obj = LayoutData.model_validate(keymap_data)
 
         # Execute
-        result = self.service.validate(self.mock_profile, keymap_data_obj)
+        result = self.service.validate(keymap_data)
 
         # Verify
         assert result is True
 
     def test_show_error_handling(self, sample_keymap_json):
         """Test error handling in the show method."""
-        # Make the layout service's show method raise an error
-        with patch.object(
-            self.mock_layout_service,
-            "show",
-            side_effect=Exception("Layout generation failed"),
-        ):
-            # Convert to LayoutData
-            keymap_data = LayoutData.model_validate(sample_keymap_json)
+        # Test with invalid data that will cause validation to fail
+        invalid_data = {"invalid": "data"}
 
-            with pytest.raises(LayoutError):
-                self.service.show(profile=self.mock_profile, keymap_data=keymap_data)
+        with pytest.raises(LayoutError):
+            self.service.show(layout_data=invalid_data)
 
-    @patch("glovebox.layout.service.prepare_output_paths")
     def test_generate_with_keyboard_config(
         self,
-        mock_prepare_paths,
         sample_keymap_json,
         tmp_path,
         session_metrics,
     ):
         """Test keymap compilation with keyboard configuration."""
-        # Setup path mock
-        from glovebox.firmware.models import OutputPaths
-
-        output_paths = OutputPaths(
-            keymap=Path(tmp_path / "output/test.keymap"),
-            conf=Path(tmp_path / "output/test.conf"),
-            json=Path(tmp_path / "output/test.json"),
-        )
-        mock_prepare_paths.return_value = output_paths
 
         # Setup file adapter mock
         # ruff: noqa: SIM117 - Nested with statements are more readable here
@@ -335,61 +318,37 @@ class TestLayoutServiceWithKeyboardConfig:
                                     "render_string",
                                     return_value="// Generated keymap content",
                                 ):
-                                    # Convert to LayoutData
-                                    keymap_data = LayoutData.model_validate(
-                                        sample_keymap_json
-                                    )
-
-                                    # Execute
+                                    # Execute with raw data
                                     result = self.service.compile(
-                                        profile=self.mock_profile,
-                                        keymap_data=keymap_data,
-                                        output_file_prefix=str(
-                                            tmp_path / "output/test"
-                                        ),
-                                        session_metrics=session_metrics,
+                                        layout_data=sample_keymap_json
                                     )
 
                                     # Verify
                                     assert result.success is True
-                                    assert result.keymap_path == output_paths.keymap
-                                    assert result.conf_path == output_paths.conf
+                                    assert result.keymap_content is not None
+                                    assert result.config_content is not None
+                                    assert result.json_content is not None
 
-                                    # Verify file writes
-                                    self.mock_file_adapter.create_directory.assert_called()
-                                    self.mock_file_adapter.write_text.assert_called()
+                                    # Verify content is generated correctly
+                                    assert "Generated keymap" in result.keymap_content
+                                    assert "Generated config" in result.config_content
 
-                                    # Verify write_json was called with correct model_dump parameters
-                                    self.mock_file_adapter.write_json.assert_called()
+                                    # Verify JSON data structure
+                                    json_data = result.json_content
+                                    assert json_data is not None
+                                    assert isinstance(json_data, dict)
 
-                                    # Get the write_json call arguments to verify model_dump parameters
-                                    write_json_calls = (
-                                        self.mock_file_adapter.write_json.call_args_list
-                                    )
-                                    json_call = write_json_calls[
-                                        -1
-                                    ]  # Get the last call (JSON file save)
-
-                                    # The second argument should be the serialized data from model_dump
-                                    json_data = json_call[0][
-                                        1
-                                    ]  # Second positional argument
-
-                                    # Verify the JSON data structure has correct field names (aliases)
-                                    assert (
-                                        "holdTaps" in json_data
-                                        or len(json_data.get("holdTaps", [])) == 0
-                                    )  # Should use alias
-                                    assert (
-                                        "layer_names" in json_data
-                                    )  # Should use alias
-                                    assert (
-                                        "custom_defined_behaviors" in json_data
-                                    )  # Should use alias
-
-                                    # Verify exclude_unset=True behavior: fields with None/default values should be excluded
-                                    # We can't test this directly without knowing the exact test data,
-                                    # but we can verify the structure is clean
+                                    # Verify the JSON data has expected structure
+                                    if "holdTaps" in json_data:
+                                        assert isinstance(json_data["holdTaps"], list)
+                                    if "layer_names" in json_data:
+                                        assert isinstance(
+                                            json_data["layer_names"], list
+                                        )
+                                    if "custom_defined_behaviors" in json_data:
+                                        assert isinstance(
+                                            json_data["custom_defined_behaviors"], str
+                                        )
 
     def test_register_behaviors(self, mock_keyboard_config):
         """Test registration of system behaviors using functional approach."""
@@ -464,24 +423,13 @@ class TestLayoutServiceWithKeyboardConfig:
                 elif behavior.code == "&mo":
                     assert behavior.expected_params == 1
 
-    @patch("glovebox.layout.service.prepare_output_paths")
     def test_model_dump_parameters_verification(
         self,
-        mock_prepare_paths,
         sample_keymap_json,
         tmp_path,
         session_metrics,
     ):
         """Test that layout compilation uses correct model_dump parameters."""
-        # Setup path mock
-        from glovebox.firmware.models import OutputPaths
-
-        output_paths = OutputPaths(
-            keymap=Path(tmp_path / "output/test.keymap"),
-            conf=Path(tmp_path / "output/test.conf"),
-            json=Path(tmp_path / "output/test.json"),
-        )
-        mock_prepare_paths.return_value = output_paths
 
         # Create test data with template variables and optional fields
         test_data = sample_keymap_json.copy()
@@ -525,30 +473,15 @@ class TestLayoutServiceWithKeyboardConfig:
                                     "render_string",
                                     return_value="// Generated keymap content",
                                 ):
-                                    # Convert to LayoutData
-                                    keymap_data = LayoutData.model_validate(test_data)
-
-                                    # Execute
-                                    result = self.service.compile(
-                                        profile=self.mock_profile,
-                                        keymap_data=keymap_data,
-                                        output_file_prefix=str(
-                                            tmp_path / "output/test"
-                                        ),
-                                        session_metrics=session_metrics,
-                                    )
+                                    # Execute with raw data
+                                    result = self.service.compile(layout_data=test_data)
 
                                     # Verify success
                                     assert result.success is True
 
-                                    # Verify write_json was called
-                                    mock_write_json.assert_called()
-
-                                    # Get the JSON data that was written
-                                    json_call_args = mock_write_json.call_args_list[-1]
-                                    json_data = json_call_args[0][
-                                        1
-                                    ]  # Second positional argument
+                                    # Get the JSON data from the result
+                                    json_data = result.json_content
+                                    assert json_data is not None
 
                                     # Test 1: Verify by_alias=True - should use camelCase aliases
                                     assert "holdTaps" in json_data, (
@@ -589,134 +522,104 @@ class TestLayoutServiceWithKeyboardConfig:
 
 
 class TestLayoutServiceWithMockedConfig:
-    """Tests using mocked config API."""
+    """Tests using mocked config API with memory-first patterns."""
 
     @patch("glovebox.config.keyboard_profile.create_keyboard_profile")
     @patch("glovebox.config.keyboard_profile.get_available_keyboards")
-    @patch("glovebox.layout.service.prepare_output_paths")
-    def test_integrated_keymap_workflow(
+    def test_memory_first_compile_workflow(
         self,
-        mock_prepare_paths,
         mock_get_keyboards,
         mock_create_profile,
         sample_keymap_json,
-        tmp_path,
         session_metrics,
     ):
-        """Test integrated keymap workflow with mocked config API."""
-        # Setup path mock
-        from glovebox.firmware.models import OutputPaths
-
-        mock_prepare_paths.return_value = OutputPaths(
-            keymap=Path(tmp_path / "output/test.keymap"),
-            conf=Path(tmp_path / "output/test.conf"),
-            json=Path(tmp_path / "output/test.json"),
-        )
+        """Test memory-first compile workflow with mocked config API."""
 
         # Setup mocks
         mock_get_keyboards.return_value = ["test_keyboard", "glove80"]
 
-        # Create a detailed mock profile
-        mock_profile = Mock(spec=KeyboardProfile)
-        mock_profile.keyboard_name = "test_keyboard"  # String, not Mock
-        mock_profile.firmware_version = "default"  # String, not Mock
+        # Create service using factory function
+        service = create_layout_service_for_tests()
 
-        # Create mock keyboard config
-        mock_profile.keyboard_config = Mock()
-        mock_profile.keyboard_config.key_count = 80
-        mock_profile.keyboard_config.description = "Test Keyboard"
+        # Test memory-first compilation - service takes dict input
+        result = service.compile(layout_data=sample_keymap_json)
 
-        # Create mock keymap
-        mock_profile.keyboard_config.keymap = Mock()
-        mock_profile.keyboard_config.keymap.keymap_dtsi = "// Template content"
-        mock_profile.keyboard_config.keymap.keymap_dtsi_file = (
-            None  # Using inline template
-        )
-        mock_profile.keyboard_config.keymap.key_position_header = "// Key positions"
-        mock_profile.keyboard_config.keymap.system_behaviors_dts = "// Behaviors"
-        mock_profile.keyboard_config.keymap.includes = []
+        # Service should return success with content objects
+        assert result.success is True
+        assert result.keymap_content is not None
+        assert result.config_content is not None
+        assert result.json_content is not None
+        assert isinstance(result.keymap_content, str)
+        assert isinstance(result.config_content, str)
+        assert isinstance(result.json_content, dict)
 
-        # Create mock formatting
-        mock_profile.keyboard_config.keymap.formatting = Mock()
-        mock_profile.keyboard_config.keymap.formatting.key_gap = "  "
-        mock_profile.keyboard_config.keymap.formatting.base_indent = ""
-        mock_profile.keyboard_config.keymap.formatting.rows = [[0, 1, 2, 3, 4]]
+    def test_memory_first_compile_invalid_data(
+        self,
+        session_metrics,
+    ):
+        """Test memory-first compile with invalid layout data."""
 
-        mock_profile.keyboard_config.keymap.kconfig_options = {}
+        # Create service using factory function
+        service = create_layout_service_for_tests()
 
-        # Add ZMK configuration section
-        mock_profile.keyboard_config.zmk = Mock(spec=ZmkConfig)
-        mock_profile.keyboard_config.zmk.validation_limits = Mock(spec=ValidationLimits)
-        mock_profile.keyboard_config.zmk.validation_limits.warn_many_layers_threshold = 10
-        mock_profile.keyboard_config.zmk.patterns = Mock()
-        mock_profile.keyboard_config.zmk.patterns.kconfig_prefix = "CONFIG_"
-        mock_profile.system_behaviors = []
-        mock_profile.kconfig_options = {}
-        mock_profile.keyboard_config.keymap.header_includes = []
-        mock_profile.keyboard_config.keymap.system_behaviors = []
+        # Test with invalid data - missing required fields
+        invalid_data = {"invalid": "data"}
 
-        mock_create_profile.return_value = mock_profile
+        # Should raise LayoutError for invalid data
+        from glovebox.core.errors import LayoutError
 
-        # Create service with mocked adapters for testing
-        file_adapter = Mock(spec=FileAdapterProtocol)
+        with pytest.raises(LayoutError):
+            service.compile(layout_data=invalid_data)
 
-        # Set up file adapter methods
-        # ruff: noqa: SIM117 - Nested with statements are more readable here
-        with patch.object(file_adapter, "create_directory", return_value=None):
-            with patch.object(file_adapter, "write_text", return_value=None):
-                with patch.object(file_adapter, "write_json", return_value=None):
-                    template_adapter = Mock(spec=TemplateAdapterProtocol)
+    def test_memory_first_compile_empty_layers(
+        self,
+        session_metrics,
+    ):
+        """Test memory-first compile with empty layers."""
 
-                    # Set up template adapter methods
-                    with patch.object(
-                        template_adapter,
-                        "render_string",
-                        return_value="// Generated keymap",
-                    ):
-                        behavior_registry = Mock()
-                        behavior_formatter = Mock()
-                        dtsi_generator = Mock()
-                        component_service = Mock()
-                        layout_service = Mock()
-                        keymap_parser = Mock()
+        # Create service using factory function
+        service = create_layout_service_for_tests()
 
-                        # Configure mocks
-                        with patch.object(
-                            dtsi_generator,
-                            "generate_kconfig_conf",
-                            return_value=("// Config content", {}),
-                        ):
-                            service = LayoutService(
-                                file_adapter=file_adapter,
-                                template_adapter=template_adapter,
-                                behavior_registry=behavior_registry,
-                                behavior_formatter=behavior_formatter,
-                                dtsi_generator=dtsi_generator,
-                                component_service=component_service,
-                                layout_service=layout_service,
-                                keymap_parser=keymap_parser,
-                            )
+        # Test with data that has no layers
+        empty_data = {
+            "keyboard": "test_keyboard",
+            "title": "test_layout",
+            "layers": [],
+        }
 
-                            # Convert to LayoutData
-                            keymap_data = LayoutData.model_validate(sample_keymap_json)
+        # Should raise LayoutError for empty layers
+        from glovebox.core.errors import LayoutError
 
-                            output_file_prefix = str(tmp_path / "output/test")
+        with pytest.raises(LayoutError, match="No layers found"):
+            service.compile(layout_data=empty_data)
 
-                            try:
-                                # We're only testing that the integration points don't raise exceptions
-                                result = service.compile(
-                                    mock_profile,
-                                    keymap_data,
-                                    output_file_prefix=output_file_prefix,
-                                    session_metrics=session_metrics,
-                                )
-                                success = True
-                                assert result.success is True
-                            except Exception as e:
-                                print(f"Failed with exception: {e}")
-                                success = False
+    def test_compile_returns_content_objects_not_files(
+        self,
+        sample_keymap_json,
+        session_metrics,
+    ):
+        """Test that compile returns content objects, not file paths."""
 
-                            assert success is True
+        # Create service using factory function
+        service = create_layout_service_for_tests()
+
+        result = service.compile(layout_data=sample_keymap_json)
+
+        # Verify result contains content, not file paths
+        assert result.success is True
+        assert hasattr(result, "keymap_content")
+        assert hasattr(result, "config_content")
+        assert hasattr(result, "json_content")
+
+        # Content should be strings/dicts, not Path objects
+        assert isinstance(result.keymap_content, str)
+        assert isinstance(result.config_content, str)
+        assert isinstance(result.json_content, dict)
+
+        # Should not have file path attributes
+        assert not hasattr(result, "keymap_file")
+        assert not hasattr(result, "config_file")
+        assert not hasattr(result, "json_file")
 
 
 def test_register_behaviors_with_fixture(keymap_service):

@@ -3,7 +3,6 @@
 from pathlib import Path
 from typing import Any
 
-from glovebox.layout.models import LayoutData
 from glovebox.layout.utils.field_parser import (
     extract_field_value_from_model,
     parse_field_value,
@@ -16,7 +15,6 @@ from glovebox.layout.utils.json_operations import (
     save_layout_file,
 )
 from glovebox.layout.utils.validation import validate_output_path
-from glovebox.layout.utils.variable_resolver import VariableResolver
 from glovebox.protocols import FileAdapterProtocol
 
 

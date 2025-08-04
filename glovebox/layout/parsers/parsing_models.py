@@ -1,12 +1,12 @@
 """Data models for keymap parsing operations."""
 
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Literal
 
 from glovebox.models.base import GloveboxBaseModel
 
 
 if TYPE_CHECKING:
-    from glovebox.config.profile import KeyboardProfile
+    pass
 
 
 class ExtractionConfig(GloveboxBaseModel):

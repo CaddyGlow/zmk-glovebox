@@ -3,7 +3,6 @@
 import functools
 import logging
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any, TypeVar
 
 import typer

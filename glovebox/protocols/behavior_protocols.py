@@ -1,6 +1,6 @@
 """Protocol definitions for behavior-related interfaces."""
 
-from typing import TYPE_CHECKING, Any, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Optional, Protocol, runtime_checkable
 
 
 if TYPE_CHECKING:
@@ -15,10 +15,14 @@ class BehaviorRegistryProtocol(Protocol):
         """Get information about a registered behavior."""
         ...
 
-    def register_behavior(self, behavior: Any) -> None:
+    def register_behavior(self, behavior: "SystemBehavior") -> None:
         """Register a behavior in the registry."""
         ...
 
-    def list_behaviors(self) -> dict[str, Any]:
+    def list_behaviors(self) -> dict[str, "SystemBehavior"]:
         """List all registered behaviors."""
+        ...
+
+    def clear(self) -> None:
+        """Clear all registered behaviors."""
         ...

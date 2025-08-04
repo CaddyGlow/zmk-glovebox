@@ -13,7 +13,6 @@ from glovebox.layout.formatting import (
     LayoutConfig,
     LayoutMetadata,
     ViewMode,
-    create_grid_layout_formatter,
 )
 from glovebox.layout.models import LayoutData
 

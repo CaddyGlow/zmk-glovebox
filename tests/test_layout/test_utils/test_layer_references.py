@@ -2,10 +2,9 @@
 
 import pytest
 
-from glovebox.layout.models import LayoutBinding, LayoutData, LayoutParam
+from glovebox.layout.models import LayoutBinding, LayoutData
 from glovebox.layout.utils.layer_references import (
     LAYER_REFERENCING_BEHAVIORS,
-    LayerReference,
     create_layer_mapping_for_add,
     create_layer_mapping_for_move,
     create_layer_mapping_for_remove,

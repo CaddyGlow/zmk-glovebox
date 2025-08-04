@@ -8,8 +8,7 @@ from glovebox.config.models import (
     KeyboardConfig,
     LayoutStructure,
 )
-from glovebox.layout.display_service import LayoutDisplayService
-from glovebox.layout.formatting import GridLayoutFormatter
+from glovebox.layout import GridLayoutFormatter, LayoutDisplayService
 from glovebox.layout.models import LayoutBinding, LayoutData
 
 

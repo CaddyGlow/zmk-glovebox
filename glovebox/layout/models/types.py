@@ -16,10 +16,3 @@ TemplateNumeric: TypeAlias = int | str | None
 
 # This type alias improves type safety and makes future changes easier
 LayerBindings: TypeAlias = list["LayoutBinding"]
-
-# Type alias for configuration parameters
-ConfigParamList: TypeAlias = list["ConfigParameter"]
-
-# ConfigParameter forward reference - will be defined in config.py
-if TYPE_CHECKING:
-    from .config import ConfigParameter

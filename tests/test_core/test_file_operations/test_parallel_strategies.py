@@ -1,8 +1,5 @@
 """Tests for parallel file copy strategies."""
 
-from pathlib import Path
-from unittest.mock import Mock, patch
-
 import pytest
 
 from glovebox.core.file_operations import PipelineStrategy

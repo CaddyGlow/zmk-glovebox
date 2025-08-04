@@ -22,21 +22,10 @@ from glovebox.config.models import (
 )
 from glovebox.config.profile import KeyboardProfile
 from glovebox.config.user_config import UserConfig
-from glovebox.core.cache import create_default_cache
 from glovebox.core.metrics.session_metrics import SessionMetrics
 from glovebox.firmware.flash.models import FlashResult
-from glovebox.firmware.models import BuildResult, FirmwareOutputFiles
 from glovebox.layout.models import LayoutResult, SystemBehavior
 from glovebox.protocols import FileAdapterProtocol, TemplateAdapterProtocol
-from tests.test_factories import (
-    create_device_detector_for_tests,
-    create_flash_service_for_tests,
-    create_layout_component_service_for_tests,
-    create_layout_display_service_for_tests,
-    create_layout_service_for_tests,
-    create_usb_adapter_for_tests,
-    create_usb_flasher_for_tests,
-)
 
 
 # Global test category markers
@@ -883,33 +872,23 @@ def mock_create_keyboard_profile(mock_keyboard_profile) -> Generator[Mock, None,
 
 @pytest.fixture
 def mock_layout_service() -> Mock:
-    """Mock LayoutService with common behaviors."""
+    """Mock LayoutService with new IOCommand-compatible API."""
     mock = Mock()
 
-    # Mock successful generate result
-    result = LayoutResult(success=True)
-    result.keymap_path = Path("/tmp/output/keymap.keymap")
-    result.conf_path = Path("/tmp/output/keymap.conf")
-    mock.generate.return_value = result
-    mock.generate_from_file.return_value = result
+    # Mock successful compile result (new memory-first pattern)
+    result = LayoutResult(
+        success=True,
+        keymap_content="// Mock keymap content",
+        config_content="# Mock config content",
+        errors=[],
+    )
+    mock.compile.return_value = result
 
-    # Mock successful extract result
-    extract_result = LayoutResult(success=True)
-    mock.extract_components.return_value = extract_result
-    mock.extract_components_from_file.return_value = extract_result
-
-    # Mock successful merge result
-    merge_result = LayoutResult(success=True)
-    mock.combine_components.return_value = merge_result
-    mock.combine_components_from_directory.return_value = merge_result
-
-    # Mock show result
-    mock.show.return_value = ["Layer 1", "Layer 2"]
-    mock.show_from_file.return_value = ["Layer 1", "Layer 2"]
-
-    # Mock validation result
+    # Mock validation result (memory-first)
     mock.validate.return_value = True
-    mock.validate_file.return_value = True
+
+    # Mock show result (memory-first)
+    mock.show.return_value = "Mock layout display content"
 
     return mock
 
@@ -930,7 +909,6 @@ def mock_flash_service() -> Mock:
         ],
     )
     mock.flash.return_value = result
-    mock.flash_from_file.return_value = result
 
     return mock
 

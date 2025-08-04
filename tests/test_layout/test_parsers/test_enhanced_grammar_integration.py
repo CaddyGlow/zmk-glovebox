@@ -1,7 +1,5 @@
 """Integration tests for enhanced grammar functionality with real-world examples."""
 
-import pytest
-
 from glovebox.layout.parsers.lark_dt_parser import create_lark_dt_parser
 
 

@@ -4,9 +4,8 @@ import json
 import logging
 import os
 import subprocess
-import tempfile
 from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 
@@ -30,13 +29,16 @@ from glovebox.config.models.firmware import (
 from glovebox.config.models.user import UserConfigData
 
 
+if TYPE_CHECKING:
+    from glovebox.config.user_config import UserConfig
+
 logger = logging.getLogger(__name__)
 
 
 class ConfigEditor:
     """Atomic configuration editor that performs all operations in memory."""
 
-    def __init__(self, user_config: Any):
+    def __init__(self, user_config: "UserConfig"):
         """Initialize editor with user configuration.
 
         Args:
@@ -49,6 +51,8 @@ class ConfigEditor:
     def get_field(self, field_path: str) -> Any:
         """Get field value.
 
+        TODO: Handle errors better
+
         Args:
             field_path: Dot notation path to field
 
@@ -59,7 +63,8 @@ class ConfigEditor:
             ValueError: If field not found
         """
         try:
-            return self.user_config.get(field_path)
+            if not self.user_config.get(field_path):
+                raise ValueError(f"Field '{field_path}' not found or is None")
         except Exception as e:
             raise ValueError(f"Cannot get field '{field_path}': {e}") from e
 
@@ -372,10 +377,8 @@ def edit(
             return
 
         except Exception as e:
-            exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Failed to read configuration: %s", e, exc_info=exc_info)
-            print_error_message(f"Failed to read configuration: {e}")
-            raise typer.Exit(1) from e
+            # Let @handle_errors decorator handle the exception consistently
+            raise
 
     # Handle write operations
     try:
@@ -491,10 +494,8 @@ def edit(
             print_success_message("No operations performed")
 
     except Exception as e:
-        exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.error("Failed to edit configuration: %s", e, exc_info=exc_info)
-        print_error_message(f"Failed to edit configuration: {e}")
-        raise typer.Exit(1) from e
+        # Let @handle_errors decorator handle the exception consistently
+        raise
 
 
 def _handle_interactive_edit(app_ctx: AppContext) -> None:

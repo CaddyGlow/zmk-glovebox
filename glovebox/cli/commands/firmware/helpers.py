@@ -5,7 +5,11 @@ import shutil
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from glovebox.config.profile import KeyboardProfile
 
 import typer
 
@@ -19,8 +23,19 @@ from glovebox.cli.helpers import (
     print_success_message,
 )
 from glovebox.cli.helpers.profile import get_user_config_from_context
+from glovebox.compilation.cache.compilation_build_cache_service import (
+    CompilationBuildCacheService,
+)
+from glovebox.compilation.cache.workspace_cache_service import ZmkWorkspaceCacheService
 from glovebox.compilation.models import CompilationConfigUnion
+from glovebox.config.models.filename_templates import FilenameTemplateConfig
 from glovebox.config.profile import KeyboardProfile
+from glovebox.core.cache.cache_manager import CacheManager
+from glovebox.core.file_operations.models import (
+    CompilationProgress,
+    CompilationProgressCallback,
+)
+from glovebox.firmware.models import BuildResult
 
 
 logger = logging.getLogger(__name__)
@@ -90,7 +105,7 @@ def update_config_from_profile(
 
 
 def format_compilation_output(
-    result: Any, output_format: str, output_dir: Path
+    result: BuildResult, output_format: str, output_dir: Path
 ) -> None:
     """Format and display compilation results."""
     if result.success:
@@ -117,10 +132,10 @@ def format_compilation_output(
 
 
 def determine_firmware_outputs(
-    result: Any,
+    result: BuildResult,
     base_filename: str,
-    templates: Any = None,
-    layout_data: dict[str, Any] | None = None,
+    templates: FilenameTemplateConfig | None = None,
+    layout_data: dict[str, str] | None = None,
     original_filename: str | None = None,
 ) -> list[tuple[Path, Path]]:
     """Determine which firmware files to create based on build result.
@@ -208,7 +223,7 @@ def determine_firmware_outputs(
 
 
 def process_compilation_output(
-    result: Any, input_file: Path, output_dir: Path | None
+    result: BuildResult, input_file: Path, output_dir: Path | None
 ) -> None:
     """Process compilation output based on --output flag.
 
@@ -314,7 +329,7 @@ def process_compilation_output(
 
 def setup_progress_display(
     ctx: typer.Context, show_progress: bool
-) -> tuple[Any, Any, Any]:
+) -> tuple[None, None, CompilationProgressCallback | None]:
     """Set up progress display components.
 
     Args:
@@ -327,48 +342,22 @@ def setup_progress_display(
     if not show_progress:
         return None, None, None
 
-    from rich.console import Console
+    # New progress system: Let compilation services handle their own progress management
+    # by providing a simple callback that signals progress is enabled
 
-    from glovebox.cli.helpers.theme import get_icon_mode_from_context
-    from glovebox.compilation.simple_progress import (
-        ProgressConfig,
-        create_simple_compilation_display,
-        create_simple_progress_coordinator,
-    )
+    def progress_callback(progress: CompilationProgress) -> None:
+        """Simple progress callback that enables progress tracking in compilation services."""
+        # The compilation services now handle their own progress display using progress managers
+        # This callback just needs to exist to signal that progress is enabled
+        pass
 
-    # Get icon mode from context (which contains user config)
-    icon_mode = get_icon_mode_from_context(ctx)
-
-    # Create firmware compilation configuration
-    firmware_config = ProgressConfig(
-        operation_name="Firmware Build",
-        icon_mode=icon_mode,
-    )
-
-    console = Console()
-    progress_display = create_simple_compilation_display(
-        console, firmware_config, icon_mode
-    )
-    progress_coordinator = create_simple_progress_coordinator(progress_display)
-    progress_display.start()
-
-    # Create a bridge callback that forwards to our coordinator
-    def progress_callback(progress: Any) -> None:
-        """Bridge callback that forwards progress updates to our simple coordinator."""
-        if (
-            hasattr(progress, "state")
-            and progress.state
-            and hasattr(progress, "compilation_phase")
-        ):
-            progress_coordinator.transition_to_phase(
-                progress.compilation_phase, progress.description or ""
-            )
-            # Note: This is a basic bridge - more sophisticated mapping could be added
-
-    return progress_display, progress_coordinator, progress_callback
+    # Return None for display and coordinator since services handle their own
+    return None, None, progress_callback
 
 
-def get_cache_services_with_fallback(ctx: typer.Context) -> tuple[Any, Any, Any]:
+def get_cache_services_with_fallback(
+    ctx: typer.Context,
+) -> tuple[CacheManager, ZmkWorkspaceCacheService, CompilationBuildCacheService]:
     """Get cache services from context with fallback creation.
 
     Args:
@@ -498,35 +487,128 @@ def cleanup_temp_directory(build_output_dir: Path, manual_cleanup_needed: bool) 
             )
 
 
-def create_compilation_service_with_progress(
-    compilation_strategy: str,
-    user_config: Any,
-    session_metrics: Any,
-    progress_coordinator: Any,
-    cache_manager: Any,
-    workspace_cache_service: Any,
-    build_cache_service: Any,
-) -> Any:
-    """Create compilation service with common setup."""
-    from glovebox.adapters import create_docker_adapter, create_file_adapter
-    from glovebox.compilation import create_compilation_service
+def compile_json_to_firmware(
+    json_file: Path, keyboard_profile: "KeyboardProfile", ctx: typer.Context
+) -> list[Path]:
+    """Compile JSON file to firmware and return list of UF2 files.
 
-    docker_adapter = create_docker_adapter()
-    file_adapter = create_file_adapter()
+    Args:
+        json_file: Path to JSON layout file
+        keyboard_profile: Keyboard profile for compilation
+        ctx: Typer context
 
-    compilation_service = create_compilation_service(
-        compilation_strategy,
-        user_config=user_config,
-        docker_adapter=docker_adapter,
-        file_adapter=file_adapter,
-        cache_manager=cache_manager,
-        workspace_cache_service=workspace_cache_service,
-        build_cache_service=build_cache_service,
-        session_metrics=session_metrics,
+    Returns:
+        List of compiled UF2 firmware file paths
+
+    Raises:
+        typer.Exit: If compilation fails
+    """
+    import shutil
+    from pathlib import Path
+    from tempfile import mkdtemp
+
+    from glovebox.cli.helpers import (
+        print_error_message,
+        print_success_message,
     )
+    from glovebox.cli.helpers.profile import get_user_config_from_context
+    from glovebox.config import create_user_config
 
-    # If we have a progress coordinator, try to pass it directly
-    if hasattr(compilation_service, "set_progress_coordinator"):
-        compilation_service.set_progress_coordinator(progress_coordinator)
+    print_success_message(f"Compiling JSON layout to firmware: {json_file.name}")
 
-    return compilation_service
+    try:
+        # Get user config
+        user_config = get_user_config_from_context(ctx) or create_user_config()
+
+        # Create temporary directory for compilation output
+        temp_dir = Path(mkdtemp(prefix="glovebox_compile_"))
+
+        try:
+            # Resolve compilation strategy and config
+            compilation_strategy, compile_config = resolve_compilation_type(
+                keyboard_profile, None
+            )
+
+            # Update config with profile settings
+            update_config_from_profile(compile_config, keyboard_profile)
+
+            # Get cache services
+            cache_manager, workspace_cache_service, build_cache_service = (
+                get_cache_services_with_fallback(ctx)
+            )
+
+            # Create compilation service directly
+            from glovebox.adapters import create_docker_adapter, create_file_adapter
+            from glovebox.compilation import create_compilation_service
+
+            docker_adapter = create_docker_adapter()
+            file_adapter = create_file_adapter()
+
+            compilation_service = create_compilation_service(
+                compilation_strategy,
+                user_config=user_config,
+                docker_adapter=docker_adapter,
+                file_adapter=file_adapter,
+                cache_manager=cache_manager,
+                workspace_cache_service=workspace_cache_service,
+                build_cache_service=build_cache_service,
+                session_metrics=ctx.obj.session_metrics,
+            )
+
+            # Compile the JSON file
+            result = compilation_service.compile_from_json(
+                json_file=json_file,
+                output_dir=temp_dir,
+                config=compile_config,
+                keyboard_profile=keyboard_profile,
+            )
+
+            if not result.success:
+                print_error_message(
+                    f"Failed to compile {json_file.name}: {'; '.join(result.errors)}"
+                )
+                raise typer.Exit(1)
+
+            # Find all UF2 files in the output
+            uf2_files = []
+            if result.output_files and result.output_files.uf2_files:
+                # Copy UF2 files to persistent location (current directory)
+                for uf2_file in result.output_files.uf2_files:
+                    if uf2_file.exists():
+                        # Create a name based on the original JSON file
+                        base_name = json_file.stem
+                        if (
+                            "lh" in uf2_file.name.lower()
+                            or "lf" in uf2_file.name.lower()
+                        ):
+                            target_name = f"{base_name}_lf.uf2"
+                        elif "rh" in uf2_file.name.lower():
+                            target_name = f"{base_name}_rh.uf2"
+                        else:
+                            target_name = f"{base_name}.uf2"
+
+                        target_path = Path(target_name)
+                        shutil.copy2(uf2_file, target_path)
+                        uf2_files.append(target_path)
+                        print_success_message(f"Created firmware file: {target_path}")
+
+            if not uf2_files:
+                print_error_message(
+                    f"No firmware files were generated from {json_file.name}"
+                )
+                raise typer.Exit(1)
+
+            return uf2_files
+
+        finally:
+            # Clean up temporary directory
+            try:
+                shutil.rmtree(temp_dir)
+            except Exception as cleanup_error:
+                logger.warning(
+                    "Failed to clean up temporary directory: %s", cleanup_error
+                )
+
+    except Exception as e:
+        print_error_message(f"Compilation failed for {json_file.name}: {str(e)}")
+        raise typer.Exit(1) from None

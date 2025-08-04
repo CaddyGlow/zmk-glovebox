@@ -5,11 +5,11 @@ from typing import TYPE_CHECKING, Any
 
 from rich.columns import Columns
 from rich.console import Console
-from rich.layout import Layout
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from glovebox.cli.helpers.theme import Colors
 from glovebox.layout.models import LayoutBinding, LayoutData
 
 
@@ -146,10 +146,10 @@ class RichLayoutFormatter:
         # Create header content
         header_text = Text()
         header_text.append("Keyboard: ", style="bold")
-        header_text.append(f"{keyboard}", style="cyan")
+        header_text.append(f"{keyboard}", style=Colors.PRIMARY)
         header_text.append(" | ")
         header_text.append("Title: ", style="bold")
-        header_text.append(f"{title}", style="green")
+        header_text.append(f"{title}", style=Colors.SUCCESS)
         header_text.append(f"\nCreator: {creator} | Locale: {locale}", style="dim")
 
         if notes:
@@ -284,7 +284,7 @@ class RichLayoutFormatter:
                     key_panel = Panel(
                         Text("???", justify="center", style="dim red"),
                         padding=(0, 0),
-                        border_style="red",
+                        border_style=Colors.ERROR,
                         width=10,
                     )
                     key_panels.append(key_panel)

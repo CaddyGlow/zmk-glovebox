@@ -26,7 +26,6 @@ from .behaviors import (
     StickyKeyBehavior,
     TapDanceBehavior,
 )
-from .config import ConfigParameter
 from .core import LayoutBinding, LayoutLayer, LayoutParam
 from .keymap import (
     ConfigDirective,
@@ -35,10 +34,9 @@ from .keymap import (
     KeymapInclude,
     KeymapMetadata,
 )
-from .metadata import LayoutData, LayoutMetadata
+from .metadata import ConfigParameter, LayoutData, LayoutMetadata
 from .results import KeymapResult, LayoutResult
 from .types import (
-    ConfigParamList,
     ConfigValue,
     LayerBindings,
     LayerIndex,
@@ -54,7 +52,6 @@ __all__ = [
     "TemplateNumeric",
     "LayerBindings",
     "BehaviorList",
-    "ConfigParamList",
     # Layout models
     "LayoutParam",
     "LayoutBinding",

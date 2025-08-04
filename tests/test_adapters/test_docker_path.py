@@ -1,18 +1,17 @@
 """Tests for DockerPath and DockerPathSet."""
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
-
-
-pytestmark = [pytest.mark.docker, pytest.mark.integration]
 
 from glovebox.models.docker_path import (
     DockerPath,
     DockerPathSet,
     # create_zmk_docker_paths,  # TODO: Function removed, update tests
 )
+
+
+pytestmark = [pytest.mark.docker, pytest.mark.integration]
 
 
 class TestDockerPath:

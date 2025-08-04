@@ -1,10 +1,14 @@
 """Protocol definition for Docker operations."""
 
 from pathlib import Path
-from typing import Any, Protocol, TypeAlias, TypeVar, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, TypeAlias, runtime_checkable
 
 from glovebox.models.docker import DockerUserContext
 from glovebox.utils.stream_process import OutputMiddleware, ProcessResult, T
+
+
+if TYPE_CHECKING:
+    from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
 
 
 # Type aliases for Docker operations
@@ -33,6 +37,7 @@ class DockerAdapterProtocol(Protocol):
         image: str,
         volumes: list[DockerVolume],
         environment: DockerEnv,
+        progress_context: "ProgressContextProtocol",
         command: list[str] | None = None,
         middleware: OutputMiddleware[T] | None = None,
         user_context: DockerUserContext | None = None,
@@ -61,6 +66,7 @@ class DockerAdapterProtocol(Protocol):
         self,
         dockerfile_dir: Path,
         image_name: str,
+        progress_context: "ProgressContextProtocol",
         image_tag: str = "latest",
         no_cache: bool = False,
         middleware: OutputMiddleware[T] | None = None,
@@ -97,6 +103,7 @@ class DockerAdapterProtocol(Protocol):
     def pull_image(
         self,
         image_name: str,
+        progress_context: "ProgressContextProtocol",
         image_tag: str = "latest",
         middleware: OutputMiddleware[T] | None = None,
     ) -> ProcessResult[T]:

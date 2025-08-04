@@ -33,7 +33,6 @@ class LayoutPatchSystem:
         Returns:
             New LayoutData instance with changes applied
         """
-        from glovebox.layout.diffing.models import LayoutDiff
 
         # Convert to dict for manipulation
         target_dict = layout.model_dump(mode="json", by_alias=True, exclude_unset=True)

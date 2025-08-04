@@ -5,12 +5,13 @@ import os
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
-    from glovebox.protocols.flash_os_protocol import FlashOSProtocol
+    pass
 
 from glovebox.firmware.flash.models import BlockDevice
 
@@ -30,6 +31,20 @@ class LinuxFlashOS:
         mount_points = []
         device_path = self.get_device_path(device.name)
 
+        # Check if device node exists
+        if not Path(device_path).exists():
+            logger.warning("Device node %s does not exist yet, waiting...", device_path)
+            # Wait up to 3 seconds for device node to appear
+            for _ in range(30):
+                if Path(device_path).exists():
+                    logger.info("Device node %s is now available", device_path)
+                    break
+                time.sleep(0.1)
+            else:
+                raise OSError(
+                    f"Device node {device_path} did not appear after 3 seconds"
+                )
+
         # Check if udisksctl exists
         if not shutil.which("udisksctl"):
             raise OSError("`udisksctl` command not found. Please install udisks2.")
@@ -47,12 +62,23 @@ class LinuxFlashOS:
             if result.returncode == 0:
                 mount_point = self._extract_mount_point_from_output(result.stdout)
                 if mount_point:
-                    mount_points.append(mount_point)
+                    # Verify the mount point actually exists (device might have crashed)
+                    if Path(mount_point).exists():
+                        mount_points.append(mount_point)
+                        logger.debug("Mount point verified: %s", mount_point)
+                    else:
+                        logger.warning(
+                            "Mount reported success but mount point %s doesn't exist (device may have crashed)",
+                            mount_point,
+                        )
             elif "already mounted" in result.stderr.lower():
                 # Device already mounted, get mount point from udisksctl info
                 mount_point = self._get_mount_point_from_info(device_path)
-                if mount_point:
+                if mount_point and Path(mount_point).exists():
                     mount_points.append(mount_point)
+                    logger.debug(
+                        "Already mounted, mount point verified: %s", mount_point
+                    )
             elif "not authorized" in result.stderr.lower():
                 raise PermissionError(
                     f"Authorization failed for mounting {device_path}"
@@ -78,8 +104,11 @@ class LinuxFlashOS:
                         mount_point = self._extract_mount_point_from_output(
                             part_result.stdout
                         )
-                        if mount_point:
+                        if mount_point and Path(mount_point).exists():
                             mount_points.append(mount_point)
+                            logger.debug(
+                                "Partition mount point verified: %s", mount_point
+                            )
 
             if not mount_points:
                 logger.warning("Could not mount device %s", device_path)

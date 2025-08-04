@@ -6,8 +6,6 @@ This module contains focused tests to ensure the core fixes continue to work:
 3. Section extraction with inner block content
 """
 
-import pytest
-
 from glovebox.layout.parsers.ast_behavior_converter import ASTBehaviorConverter
 from glovebox.layout.parsers.ast_nodes import (
     DTComment,

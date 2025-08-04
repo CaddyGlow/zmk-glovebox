@@ -2,13 +2,12 @@
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from glovebox.config import UserConfig
 from glovebox.layout.diffing.diff import LayoutDiffSystem
-from glovebox.layout.diffing.models import BehaviorChanges, LayoutDiff
+from glovebox.layout.diffing.models import LayoutDiff
 from glovebox.layout.diffing.patch import LayoutPatchSystem
-from glovebox.layout.models import LayoutData
 from glovebox.layout.utils.json_operations import load_layout_file, save_layout_file
 from glovebox.layout.utils.validation import validate_output_path
 from glovebox.protocols import FileAdapterProtocol

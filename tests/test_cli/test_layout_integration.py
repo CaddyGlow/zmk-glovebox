@@ -1,17 +1,15 @@
 """Integration tests for refactored layout CLI commands."""
 
 import json
-import tempfile
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
-
-pytestmark = pytest.mark.integration
-
 from glovebox.cli.app import app
 from glovebox.cli.commands import register_all_commands
+
+
+pytestmark = pytest.mark.integration
 
 
 # Register commands with the app before running tests

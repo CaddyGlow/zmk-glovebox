@@ -1,7 +1,6 @@
 """Cache configuration models for comprehensive TTL management."""
 
 from enum import Enum
-from pathlib import Path
 from typing import Annotated
 
 from pydantic import Field

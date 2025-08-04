@@ -289,7 +289,6 @@ class TestProfileHelperFunctions:
 
     def test_get_effective_profile_with_user_config(self, isolated_config):
         """Test get_effective_profile with user config providing keyboard-only default."""
-        from glovebox.config.models import UserConfigData
 
         # Create a keyboard-only profile using isolated config
         isolated_config.set("profile", "custom_keyboard")

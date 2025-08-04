@@ -19,7 +19,6 @@ from typing import Any
 import pytest
 
 from glovebox.layout.models import LayoutData
-from glovebox.layout.template_service import create_jinja2_template_service
 from glovebox.layout.utils.field_parser import set_field_value_on_model
 
 

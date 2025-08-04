@@ -1,6 +1,5 @@
 """Tests for firmware flash service."""
 
-import logging
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -8,7 +7,7 @@ import pytest
 
 from glovebox.config.flash_methods import USBFlashConfig
 from glovebox.firmware.flash.models import BlockDevice, FlashResult
-from glovebox.firmware.flash.service import FlashService, create_flash_service
+from glovebox.firmware.flash.service import create_flash_service
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.protocols.flash_protocols import FlasherProtocol
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
@@ -118,7 +117,7 @@ def mock_usb_adapter():
 @pytest.fixture
 def flash_service(mock_file_adapter, mock_device_wait_service, mock_usb_adapter):
     """Create a flash service instance for testing."""
-    return FlashService(
+    return create_flash_service(
         file_adapter=mock_file_adapter,
         device_wait_service=mock_device_wait_service,
         usb_adapter=mock_usb_adapter,
@@ -133,7 +132,7 @@ class TestFlashServiceInit:
         self, mock_file_adapter, mock_device_wait_service, mock_usb_adapter
     ):
         """Test initialization with provided file adapter."""
-        service = FlashService(
+        service = create_flash_service(
             file_adapter=mock_file_adapter,
             device_wait_service=mock_device_wait_service,
             usb_adapter=mock_usb_adapter,
@@ -173,89 +172,100 @@ class TestFlashServiceInit:
         assert service.loglevel == "INFO"
 
 
-class TestFlashServiceFlashFromFile:
-    """Test FlashService flash_from_file method."""
+class TestFlashServiceUnifiedAPI:
+    """Test FlashService unified flash API (no separate flash_from_file method)."""
 
     @patch("glovebox.firmware.flash.service.create_device_wait_service")
-    def test_flash_from_file_success(
+    @patch("glovebox.firmware.flash.service.flasher_registry")
+    def test_flash_unified_api_success(
         self,
+        mock_registry,
         mock_create_wait,
         mock_file_adapter,
+        mock_flasher,
         firmware_file,
         sample_keyboard_profile,
+        sample_block_device,
     ):
-        """Test successful flash from file operation."""
+        """Test successful flash operation using unified API."""
         mock_wait_service = Mock()
         mock_create_wait.return_value = mock_wait_service
+
+        mock_registry.create_method.return_value = mock_flasher
+        mock_flasher.list_devices.return_value = [sample_block_device]
+        mock_flasher.flash_device.return_value = FlashResult(success=True)
 
         service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
-        # Mock the main flash method
-        expected_result = FlashResult(success=True, devices_flashed=1)
-        with patch.object(service, "flash", return_value=expected_result) as mock_flash:
-            result = service.flash_from_file(
-                firmware_file_path=firmware_file,
-                profile=sample_keyboard_profile,
-                query="test:query",
-                timeout=30,
-                count=2,
-                track_flashed=False,
-                skip_existing=True,
-                wait=True,
-                poll_interval=1.0,
-                show_progress=False,
-            )
+        # Test the unified flash API with all parameters
+        result = service.flash(
+            firmware_file=firmware_file,
+            profile=sample_keyboard_profile,
+            query="test:query",
+            timeout=30,
+            count=2,
+            track_flashed=False,
+            skip_existing=True,
+            wait=False,
+            poll_interval=1.0,
+            show_progress=False,
+        )
 
-            assert result is expected_result
-            mock_flash.assert_called_once_with(
-                firmware_file=firmware_file,
-                profile=sample_keyboard_profile,
-                query="test:query",
-                timeout=30,
-                count=2,
-                track_flashed=False,
-                skip_existing=True,
-                wait=True,
-                poll_interval=1.0,
-                show_progress=False,
-            )
+        assert result.success
+        assert result.devices_flashed == 1
+
+        # Verify the flasher was called correctly
+        mock_flasher.flash_device.assert_called_once()
 
     @patch("glovebox.firmware.flash.service.create_device_wait_service")
-    def test_flash_from_file_missing_firmware(
+    def test_flash_missing_firmware_file(
         self, mock_create_wait, mock_file_adapter, firmware_file
     ):
-        """Test flash from file with missing firmware file."""
+        """Test flash with missing firmware file."""
         mock_wait_service = Mock()
         mock_create_wait.return_value = mock_wait_service
+
+        # Mock file adapter to return False for file existence check
         mock_file_adapter.check_exists.return_value = False
 
         service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
-        result = service.flash_from_file(firmware_file_path=firmware_file)
+        result = service.flash(firmware_file=firmware_file)
 
         assert not result.success
         assert "Firmware file not found" in str(result.errors)
-        mock_file_adapter.check_exists.assert_called_once_with(firmware_file)
 
     @patch("glovebox.firmware.flash.service.create_device_wait_service")
-    def test_flash_from_file_flash_exception(
-        self, mock_create_wait, mock_file_adapter, firmware_file
+    @patch("glovebox.firmware.flash.service.flasher_registry")
+    def test_flash_accepts_string_and_path_objects(
+        self,
+        mock_registry,
+        mock_create_wait,
+        mock_file_adapter,
+        mock_flasher,
+        firmware_file,
+        sample_block_device,
     ):
-        """Test flash from file when flash method raises exception."""
+        """Test that flash accepts both string paths and Path objects."""
         mock_wait_service = Mock()
         mock_create_wait.return_value = mock_wait_service
 
+        mock_registry.create_method.return_value = mock_flasher
+        mock_flasher.list_devices.return_value = [sample_block_device]
+        mock_flasher.flash_device.return_value = FlashResult(success=True)
+
         service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
-        # Mock the main flash method to raise an exception
-        with patch.object(
-            service, "flash", side_effect=Exception("Flash error")
-        ) as mock_flash:
-            result = service.flash_from_file(firmware_file_path=firmware_file)
+        # Test with string path
+        result1 = service.flash(firmware_file=str(firmware_file), wait=False)
+        assert result1.success
 
-            assert not result.success
-            assert "Flash preparation failed: Flash error" in str(result.errors)
-            mock_flash.assert_called_once()
+        # Test with Path object
+        result2 = service.flash(firmware_file=firmware_file, wait=False)
+        assert result2.success
+
+        # Both should work and result in same behavior
+        assert mock_flasher.flash_device.call_count == 2
 
 
 class TestFlashServiceFlash:
@@ -1044,8 +1054,8 @@ class TestFlashServiceIntegration:
         assert len(list_result.device_details) == 1
 
         # Then flash the device
-        flash_result = service.flash_from_file(
-            firmware_file_path=firmware_file,
+        flash_result = service.flash(
+            firmware_file=firmware_file,
             query="model=Glove80_Bootloader",
             wait=False,
         )
@@ -1070,7 +1080,7 @@ class TestFlashServiceIntegration:
         service = create_flash_service_for_tests(file_adapter=mock_file_adapter)
 
         # First attempt should fail
-        result = service.flash_from_file(firmware_file_path=firmware_file)
+        result = service.flash(firmware_file=firmware_file)
         assert not result.success
         assert "Flash operation failed" in str(result.errors)
 
@@ -1080,7 +1090,7 @@ class TestFlashServiceIntegration:
         mock_flasher.list_devices.return_value = []  # No devices
 
         # Second attempt should handle no devices gracefully
-        result = service.flash_from_file(firmware_file_path=firmware_file)
+        result = service.flash(firmware_file=firmware_file)
         assert not result.success
         assert "No compatible devices found" in str(result.errors)
 

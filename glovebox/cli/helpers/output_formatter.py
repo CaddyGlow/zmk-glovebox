@@ -8,6 +8,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from glovebox.cli.helpers.theme import Colors
+
 
 class FormattableData(Protocol):
     """Protocol for data that can be formatted for output."""
@@ -132,14 +134,14 @@ class OutputFormatter:
         else:
             # Simple single-value table
             table = Table(show_header=False)
-            table.add_column("Value", style="cyan")
+            table.add_column("Value", style=Colors.PRIMARY)
             table.add_row(str(data))
             self.console.print(table)
 
     def _print_dict_table(self, data: dict[str, Any]) -> None:
         """Print dictionary as Rich table."""
         table = Table(show_header=True, header_style="bold blue")
-        table.add_column("Property", style="cyan", no_wrap=True)
+        table.add_column("Property", style=Colors.PRIMARY, no_wrap=True)
         table.add_column("Value", style="white")
 
         for key, value in data.items():
@@ -164,7 +166,7 @@ class OutputFormatter:
         else:
             # Simple list
             table = Table(show_header=True, header_style="bold blue")
-            table.add_column("Item", style="cyan")
+            table.add_column("Item", style=Colors.PRIMARY)
 
             for item in data:
                 table.add_row(str(item))
@@ -185,7 +187,7 @@ class OutputFormatter:
 
         # Add columns for each key
         for key in sorted(all_keys):
-            table.add_column(key.replace("_", " ").title(), style="cyan")
+            table.add_column(key.replace("_", " ").title(), style=Colors.PRIMARY)
 
         # Add rows
         for item in data:
@@ -299,12 +301,12 @@ class DeviceListFormatter(OutputFormatter):
         table = Table(
             title=f"{device_icon} USB Devices",
             show_header=True,
-            header_style="bold cyan",
+            header_style=Colors.HEADER,
         )
-        table.add_column("Device", style="cyan", no_wrap=True)
-        table.add_column("Serial", style="yellow")
-        table.add_column("Vendor ID", style="magenta")
-        table.add_column("Product ID", style="magenta")
+        table.add_column("Device", style=Colors.PRIMARY, no_wrap=True)
+        table.add_column("Serial", style=Colors.WARNING)
+        table.add_column("Vendor ID", style=Colors.ACCENT)
+        table.add_column("Product ID", style=Colors.ACCENT)
         table.add_column("Path", style="dim")
         table.add_column("Status", style="bold")
 
@@ -371,7 +373,11 @@ class LayoutDisplayFormatter(OutputFormatter):
         header = Text(title, style="bold magenta")
         keyboard_icon = Icons.get_icon("KEYBOARD", icon_mode)
         self.console.print(
-            Panel(header, title=f"{keyboard_icon} Layout Display", border_style="blue")
+            Panel(
+                header,
+                title=f"{keyboard_icon} Layout Display",
+                border_style=Colors.SECONDARY,
+            )
         )
         self.console.print()
 
@@ -379,7 +385,7 @@ class LayoutDisplayFormatter(OutputFormatter):
         info_table = Table(
             title="Layout Information", show_header=True, header_style="bold green"
         )
-        info_table.add_column("Property", style="cyan", no_wrap=True)
+        info_table.add_column("Property", style=Colors.PRIMARY, no_wrap=True)
         info_table.add_column("Value", style="white")
 
         basic_info = {

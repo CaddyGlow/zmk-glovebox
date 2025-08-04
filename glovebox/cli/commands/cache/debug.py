@@ -1,16 +1,17 @@
 """Cache debug CLI command."""
 
 import logging
-from typing import Annotated
+from pathlib import Path
+from typing import Any
 
-import typer
 from rich.console import Console
 
+from glovebox.cli.core.command_base import IOCommand
+from glovebox.cli.decorators.error_handling import handle_errors
 from glovebox.cli.workspace_display_utils import generate_workspace_cache_key
 
 from .utils import (
     get_cache_manager_and_service,
-    log_error_with_debug_stack,
 )
 
 
@@ -18,22 +19,35 @@ logger = logging.getLogger(__name__)
 console = Console()
 
 
-def cache_debug() -> None:
-    """Debug cache state - show filesystem vs cache database entries."""
-    try:
-        cache_manager, workspace_cache_service, user_config = (
-            get_cache_manager_and_service()
-        )
+class CacheDebugCommand(IOCommand):
+    """Command to debug cache state and show filesystem vs cache database entries."""
 
-        cache_dir = workspace_cache_service.get_cache_directory()
-        console.print("[bold]Cache Debug Report[/bold]")
-        console.print(f"Cache directory: {cache_dir}")
-        console.print("=" * 60)
+    def execute(self) -> None:
+        """Execute the cache debug command."""
+        try:
+            cache_manager, workspace_cache_service, user_config = (
+                get_cache_manager_and_service()
+            )
 
-        if not cache_dir.exists():
-            console.print("[red]Cache directory does not exist[/red]")
-            return
+            cache_dir = workspace_cache_service.get_cache_directory()
+            console.print("[bold]Cache Debug Report[/bold]")
+            console.print(f"Cache directory: {cache_dir}")
+            console.print("=" * 60)
 
+            if not cache_dir.exists():
+                console.print("[red]Cache directory does not exist[/red]")
+                return
+
+            self._show_filesystem_items(cache_dir)
+            self._show_cache_database_entries(cache_dir, cache_manager)
+            self._test_specific_keys(cache_manager)
+            self._show_known_repo_keys(cache_manager)
+
+        except Exception as e:
+            self.handle_service_error(e, "debug cache state")
+
+    def _show_filesystem_items(self, cache_dir: Path) -> None:
+        """Show filesystem items in cache directory."""
         console.print("\n[bold cyan]1. Filesystem Items[/bold cyan]")
         filesystem_items = list(cache_dir.iterdir())
         for item in sorted(filesystem_items):
@@ -55,8 +69,12 @@ def cache_debug() -> None:
 
         console.print(f"\nTotal filesystem items: {len(filesystem_items)}")
 
+    def _show_cache_database_entries(self, cache_dir: Path, cache_manager: Any) -> None:
+        """Show cache database entries."""
         console.print("\n[bold cyan]2. Cache Database Entries[/bold cyan]")
+        filesystem_items = list(cache_dir.iterdir())
         cache_entries = []
+
         for item in filesystem_items:
             if item.is_file():
                 continue
@@ -88,9 +106,11 @@ def cache_debug() -> None:
 
         console.print(f"\nCache entries with metadata: {len(cache_entries)}")
 
-        # Test specific cache key mentioned in logs
+    def _test_specific_keys(self, cache_manager: Any) -> None:
+        """Test specific cache keys mentioned in logs."""
         test_keys = ["91005f829d37fa2b", "465b177522248c96"]
         console.print("\n[bold cyan]3. Test Specific Keys[/bold cyan]")
+
         for test_key in test_keys:
             cached_data = cache_manager.get(test_key)
             if cached_data:
@@ -105,6 +125,10 @@ def cache_debug() -> None:
                 console.print(f"  {test_key}: [red]NOT FOUND[/red]")
 
                 # Check if it exists on filesystem
+                cache_manager, workspace_cache_service, user_config = (
+                    get_cache_manager_and_service()
+                )
+                cache_dir = workspace_cache_service.get_cache_directory()
                 cache_item = cache_dir / test_key
                 if cache_item.exists():
                     item_type = "symlink" if cache_item.is_symlink() else "directory"
@@ -121,6 +145,8 @@ def cache_debug() -> None:
                 else:
                     console.print("    -> Filesystem: [red]NOT FOUND[/red]")
 
+    def _show_known_repo_keys(self, cache_manager: Any) -> None:
+        """Show cache keys for known repositories."""
         console.print(
             "\n[bold cyan]4. Cache Keys Generated for Known Repos[/bold cyan]"
         )
@@ -137,7 +163,9 @@ def cache_debug() -> None:
             status = "[green]FOUND[/green]" if cached_data else "[red]NOT FOUND[/red]"
             console.print(f"  {repo}@{branch} ({level}): {cache_key} -> {status}")
 
-    except Exception as e:
-        log_error_with_debug_stack(logger, "Failed to debug cache: %s", e)
-        console.print(f"[red]Error: {e}[/red]")
-        raise typer.Exit(1) from e
+
+@handle_errors
+def cache_debug() -> None:
+    """Debug cache state - show filesystem vs cache database entries."""
+    command = CacheDebugCommand()
+    command.execute()

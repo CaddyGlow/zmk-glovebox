@@ -1,7 +1,6 @@
 """Tests for concurrent access to DiskCache."""
 
 import multiprocessing
-import time
 from pathlib import Path
 from typing import Any
 

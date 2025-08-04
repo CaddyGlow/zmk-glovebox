@@ -5,7 +5,6 @@ import logging
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta
-from typing import Any
 
 from pydantic import BaseModel
 

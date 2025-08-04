@@ -11,15 +11,14 @@ from typing import Annotated, Any
 import typer
 
 from glovebox.cli.decorators import handle_errors, with_profile
-from glovebox.cli.helpers import (
-    print_error_message,
-    print_list_item,
-    print_success_message,
-)
 from glovebox.cli.helpers.parameter_factory import ParameterFactory
 from glovebox.cli.helpers.parameters import ProfileOption
 from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
-from glovebox.cli.helpers.theme import Icons, get_icon_mode_from_context
+from glovebox.cli.helpers.theme import (
+    Icons,
+    get_icon_mode_from_context,
+    get_themed_console,
+)
 from glovebox.firmware.flash.models import BlockDevice
 
 
@@ -58,6 +57,10 @@ def list_devices(
     Shows device information including name, vendor, mount status, and connection
     details. Supports filtering by device query string and multiple output formats.
 
+    When a profile is loaded, the device query from the profile's flash configuration
+    is automatically applied to filter devices (e.g., for Glove80: "serial~=GLV80-.* and removable=true").
+    Use --all to bypass all filtering and show all USB devices.
+
     \b
     Device information displayed:
     - Device name and vendor identification
@@ -66,20 +69,26 @@ def list_devices(
     - Compatibility with keyboard profile flash methods
 
     Examples:
-        # List all available devices (default: only removable devices)
+        # List devices matching profile's flash query (if profile loaded)
         glovebox firmware devices
 
-        # Show all devices including non-removable ones
+        # List devices for specific profile (uses profile's device query)
+        glovebox firmware devices --profile glove80
+
+        # Show ALL devices, bypassing profile and default filters
         glovebox firmware devices --all
 
-        # Filter devices by query string
+        # Filter devices by custom query string
         glovebox firmware devices --query "nice_nano"
 
         # Show device list in JSON format
         glovebox firmware devices --output-format json --profile glove80
 
-        # Continuously monitor for device connections/disconnections
+        # Continuously monitor for device connections (uses profile query)
         glovebox firmware devices --wait
+
+        # Monitor ALL devices without filtering
+        glovebox firmware devices --wait --all
 
         # Monitor with specific query filter
         glovebox firmware devices --wait --query "vendor=Adafruit"
@@ -92,33 +101,53 @@ def list_devices(
     device_wait_service = create_device_wait_service()
     flash_service = create_flash_service(file_adapter, device_wait_service)
 
-    # Get icon mode from context for consistent theming
+    # Get themed console and icon mode from context for consistent theming
+    console = get_themed_console()
     icon_mode = get_icon_mode_from_context(ctx)
 
     try:
         # Get the keyboard profile from context
         keyboard_profile = get_keyboard_profile_from_context(ctx)
 
-        # Handle --all/-a flag to bypass default filtering
-        if all_devices and not query:
-            # --all flag bypasses default removable=true filtering by using empty query
+        # Handle query determination based on flags and profile
+        if all_devices:
+            # --all flag bypasses all filtering by using empty query
             effective_query = ""
         elif query:
-            # Explicit query provided
+            # Explicit query provided by user
             effective_query = query
         else:
-            # No query provided and --all not specified, use None to trigger defaults
+            # No explicit query, use profile defaults (None will trigger profile-based query)
             effective_query = None
 
         # Check if wait mode is requested
         if wait:
             # Continuous monitoring mode using real-time callbacks
-            print_success_message(
+            console.print_success(
                 "Starting continuous device monitoring (Ctrl+C to stop)..."
             )
-            print_list_item(
-                f"Query filter: {effective_query or 'None (showing all devices)'}"
-            )
+
+            # Determine actual query being used for display
+            if effective_query == "":
+                display_query = "None (showing all devices)"
+            elif effective_query is None:
+                # Will use profile defaults - get the actual query from profile
+                if keyboard_profile and hasattr(
+                    keyboard_profile.keyboard_config, "flash_methods"
+                ):
+                    flash_methods = keyboard_profile.keyboard_config.flash_methods
+                    if flash_methods and hasattr(flash_methods[0], "device_query"):
+                        display_query = (
+                            flash_methods[0].device_query or "removable=true (default)"
+                        )
+                    else:
+                        display_query = "removable=true (default)"
+                else:
+                    display_query = "removable=true (default)"
+            else:
+                display_query = effective_query
+
+            console.print_list_item(f"Query filter: {display_query}")
             print()
 
             # Track known devices to show add/remove events
@@ -135,12 +164,49 @@ def list_devices(
                 vendor_id = device_info.get("vendor_id", "N/A")
                 product_id = device_info.get("product_id", "N/A")
                 volume_name = device_info.get("name", "N/A")
-                return f"{device_info['name']} - Serial: {device_info['serial']} - VID: {vendor_id} - PID: {product_id} - Path: {device_info['path']}"
+
+                # Try to detect side for split keyboards
+                from glovebox.firmware.flash.firmware_pairing import (
+                    create_firmware_pairing_service,
+                )
+
+                pairing_service = create_firmware_pairing_service()
+                device_side = pairing_service.match_device_to_side(
+                    device_info.get("serial", ""),
+                    device_info.get("name", ""),
+                    device_info.get("label", "") or device_info.get("volume_name", ""),
+                )
+
+                # Build display string
+                display = f"{device_info['name']} - Serial: {device_info['serial']} - VID: {vendor_id} - PID: {product_id}"
+                if device_side:
+                    display += f" - Side: {device_side.value.upper()}"
+                display += f" - Path: {device_info['path']}"
+
+                return display
 
             def matches_query(device: Any) -> bool:
                 """Check if device matches the current query filter."""
-                if not effective_query:
+                # If effective_query is "" (from --all flag), show all devices
+                if effective_query == "":
                     return True
+
+                # If effective_query is None, we need to use profile defaults
+                actual_query = effective_query
+                if actual_query is None:
+                    # Get query from profile or use default
+                    if keyboard_profile and hasattr(
+                        keyboard_profile.keyboard_config, "flash_methods"
+                    ):
+                        flash_methods = keyboard_profile.keyboard_config.flash_methods
+                        if flash_methods and hasattr(flash_methods[0], "device_query"):
+                            actual_query = (
+                                flash_methods[0].device_query or "removable=true"
+                            )
+                        else:
+                            actual_query = "removable=true"
+                    else:
+                        actual_query = "removable=true"
 
                 # Parse and evaluate query conditions
                 try:
@@ -150,7 +216,7 @@ def list_devices(
                         and hasattr(detector_ref, "parse_query")
                         and hasattr(detector_ref, "evaluate_condition")
                     ):
-                        conditions = detector_ref.parse_query(effective_query)
+                        conditions = detector_ref.parse_query(actual_query)
 
                         for field, operator, value in conditions:
                             if not detector_ref.evaluate_condition(
@@ -184,6 +250,10 @@ def list_devices(
                     or getattr(device, "sys_path", "Unknown"),
                     "vendor": getattr(device, "vendor", "Unknown"),
                     "model": getattr(device, "model", "Unknown"),
+                    "label": getattr(device, "label", ""),
+                    "volume_name": getattr(
+                        device, "label", ""
+                    ),  # Use label as volume_name
                 }
 
                 # Queue the event for processing in main thread
@@ -194,7 +264,7 @@ def list_devices(
             def signal_handler(sig: int, frame: Any) -> None:
                 nonlocal monitoring
                 print()
-                print_success_message("Stopping device monitoring...")
+                console.print_success("Stopping device monitoring...")
                 monitoring = False
                 sys.exit(0)
 
@@ -204,12 +274,12 @@ def list_devices(
                 # Access the device detector through the USB adapter
                 usb_adapter = getattr(flash_service, "usb_adapter", None)
                 if not usb_adapter:
-                    print_error_message("USB adapter not available")
+                    console.print_error("USB adapter not available")
                     raise typer.Exit(1)
 
                 detector = getattr(usb_adapter, "detector", None)
                 if not detector:
-                    print_error_message(
+                    console.print_error(
                         "Device monitoring not available in this environment"
                     )
                     raise typer.Exit(1)
@@ -230,18 +300,18 @@ def list_devices(
                 )
 
                 if initial_result.success and initial_result.device_details:
-                    print_success_message(
+                    console.print_success(
                         f"Currently connected devices: {len(initial_result.device_details)}"
                     )
                     for device_info in initial_result.device_details:
                         known_devices[device_info["path"]] = device_info
-                        print_list_item(format_device_display(device_info))
+                        console.print_list_item(format_device_display(device_info))
                     print()
                 else:
-                    print_list_item("No devices currently connected")
+                    console.print_list_item("No devices currently connected")
                     print()
 
-                print_list_item("Monitoring for device changes (real-time)...")
+                console.print_list_item("Monitoring for device changes (real-time)...")
 
                 # Main loop - process events from the queue
                 while monitoring:
@@ -289,10 +359,29 @@ def list_devices(
             if result.success and result.device_details:
                 if output_format.lower() == "json":
                     # JSON output for automation
+                    from glovebox.firmware.flash.firmware_pairing import (
+                        create_firmware_pairing_service,
+                    )
+
+                    pairing_service = create_firmware_pairing_service()
+
+                    # Add side information to devices
+                    devices_with_sides = []
+                    for device in result.device_details:
+                        device_copy = device.copy()
+                        device_side = pairing_service.match_device_to_side(
+                            device.get("serial", ""),
+                            device.get("name", ""),
+                            device.get("label", "") or device.get("volume_name", ""),
+                        )
+                        if device_side:
+                            device_copy["side"] = device_side.value
+                        devices_with_sides.append(device_copy)
+
                     result_data = {
                         "success": True,
-                        "device_count": len(result.device_details),
-                        "devices": result.device_details,
+                        "device_count": len(devices_with_sides),
+                        "devices": devices_with_sides,
                     }
                     from glovebox.cli.helpers.output_formatter import OutputFormatter
 
@@ -308,19 +397,37 @@ def list_devices(
                     formatter.format_device_list(result.device_details, "table")
                 else:
                     # Text output (default)
-                    print_success_message(
+                    from glovebox.firmware.flash.firmware_pairing import (
+                        create_firmware_pairing_service,
+                    )
+
+                    pairing_service = create_firmware_pairing_service()
+
+                    console.print_success(
                         f"Found {len(result.device_details)} device(s)"
                     )
                     for device in result.device_details:
                         vendor_id = device.get("vendor_id", "N/A")
                         product_id = device.get("product_id", "N/A")
-                        print_list_item(
-                            f"{device['name']} - Serial: {device['serial']} - VID: {vendor_id} - PID: {product_id} - Path: {device['path']}"
+
+                        # Try to detect side for split keyboards
+                        device_side = pairing_service.match_device_to_side(
+                            device.get("serial", ""),
+                            device.get("name", ""),
+                            device.get("label", "") or device.get("volume_name", ""),
                         )
+
+                        # Build display string
+                        display = f"{device['name']} - Serial: {device['serial']} - VID: {vendor_id} - PID: {product_id}"
+                        if device_side:
+                            display += f" - Side: {device_side.value.upper()}"
+                        display += f" - Path: {device['path']}"
+
+                        console.print_list_item(display)
             else:
-                print_error_message("No devices found matching criteria")
+                console.print_error("No devices found matching criteria")
                 for message in result.messages:
-                    print_list_item(message)
+                    console.print_list_item(message)
     except Exception as e:
-        print_error_message(f"Error listing devices: {str(e)}")
+        console.print_error(f"Error listing devices: {str(e)}")
         raise typer.Exit(1) from None
