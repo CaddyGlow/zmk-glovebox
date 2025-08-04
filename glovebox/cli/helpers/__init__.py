@@ -22,18 +22,23 @@ def __getattr__(name: str) -> Any:
     """
     if name == "print_success_message":
         from glovebox.cli.helpers.output import print_success_message
+
         return print_success_message
     elif name == "print_error_message":
         from glovebox.cli.helpers.output import print_error_message
+
         return print_error_message
     elif name == "print_list_item":
         from glovebox.cli.helpers.output import print_list_item
+
         return print_list_item
     elif name == "print_result":
         from glovebox.cli.helpers.output import print_result
+
         return print_result
     elif name == "create_profile_from_option":
         from glovebox.cli.helpers.profile import create_profile_from_option
+
         return create_profile_from_option
     else:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

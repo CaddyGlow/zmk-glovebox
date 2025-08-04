@@ -58,6 +58,11 @@ class LoggerOutputMiddleware(OutputMiddleware[str]):
         Returns:
             The original line (unmodified)
         """
+        # Skip completely empty strings (filtered content)
+        # But preserve blank lines (lines with just whitespace/newline)
+        if not line:
+            return line
+
         if stream_type == "stdout":
             logger_rich.info(f"{self.stdout_prefix}{line}")
             logger.debug(f"{self.stdout_prefix}{line}")

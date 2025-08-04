@@ -109,7 +109,10 @@ def with_layout_context(
                         )
                     else:
                         # Fallback without context
-                        from glovebox.config.keyboard_profile import create_keyboard_profile
+                        from glovebox.config.keyboard_profile import (
+                            create_keyboard_profile,
+                        )
+
                         keyboard_profile = create_keyboard_profile(
                             profile_param or default_profile, None, None
                         )
