@@ -2,6 +2,7 @@ keyboard: "corne"
 description: "Corne (CRKBD) 42-key split keyboard"
 vendor: "foostan"
 key_count: 42
+is_split: true
 
 # Include all component configurations
 includes:

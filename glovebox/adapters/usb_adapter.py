@@ -304,13 +304,19 @@ class USBAdapter:
                 shutil.copy2(source, destination)
                 return True
         except Exception as e:
+            # Extract device identifier from destination path (mount point)
+            device_id = (
+                str(destination.parent.name) if destination.parent else "unknown"
+            )
             error = create_usb_error(
-                str(source),
+                device_id,
                 "copy_file",
                 e,
                 {"source": str(source), "destination": str(destination)},
             )
-            logger.error("Failed to copy file: %s", e)
+            logger.error(
+                "Failed to copy file from %s to %s: %s", source, destination, e
+            )
             raise error from e
 
 

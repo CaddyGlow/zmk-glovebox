@@ -6,6 +6,7 @@ keyboard: "glove80"
 description: "MoErgo Glove80 split ergonomic keyboard"
 vendor: "MoErgo"
 key_count: 80
+is_split: true
 
 # Include all component configurations
 includes:

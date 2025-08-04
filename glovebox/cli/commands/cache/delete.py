@@ -113,7 +113,7 @@ class CacheDeleteCommand(IOCommand):
             elif isinstance(data, list):
                 # Handle simple list of keys
                 return [str(key) for key in data]
-            
+
             console.print(f"[red]Invalid JSON format in {json_file}[/red]")
             raise typer.Exit(1)
         except Exception as e:

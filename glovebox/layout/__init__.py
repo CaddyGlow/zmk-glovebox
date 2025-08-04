@@ -47,7 +47,6 @@ from glovebox.layout.models import (
     BehaviorList,
     ComboBehavior,
     ConfigParameter,
-    ConfigParamList,
     ConfigValue,
     HoldTapBehavior,
     InputListener,
@@ -96,7 +95,6 @@ __all__ = [
     "LayerIndex",
     "ConfigValue",
     "ConfigParameter",
-    "ConfigParamList",
     "BehaviorList",
     # Behavior models
     "HoldTapBehavior",

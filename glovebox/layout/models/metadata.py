@@ -24,7 +24,15 @@ from .behaviors import (
     TapDanceBehavior,
 )
 from .core import LayoutBinding, LayoutLayer
-from .types import ConfigParamList, LayerBindings
+from .types import ConfigValue, LayerBindings
+
+
+class ConfigParameter(GloveboxBaseModel):
+    """Model for configuration parameters."""
+
+    param_name: str = Field(alias="paramName")
+    value: ConfigValue
+    description: str | None = None
 
 
 class LayoutMetadata(GloveboxBaseModel):
@@ -57,7 +65,7 @@ class LayoutMetadata(GloveboxBaseModel):
     )
 
     # Configuration
-    config_parameters: ConfigParamList = Field(
+    config_parameters: list[ConfigParameter] = Field(
         default_factory=list, alias="config_parameters"
     )
 

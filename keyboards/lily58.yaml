@@ -2,6 +2,7 @@ keyboard: "lily58"
 description: "Lily58 58-key split keyboard with dedicated number row"
 vendor: "kata0510"
 key_count: 58
+is_split: true
 
 # Include all component configurations
 includes:

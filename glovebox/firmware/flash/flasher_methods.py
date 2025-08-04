@@ -68,8 +68,16 @@ class USBFlasher:
 
             try:
                 # Copy firmware to device with timeout
-                logger.debug("Copying firmware to device")
+                logger.debug(
+                    "Copying firmware %s to device at %s", firmware_file, mount_point
+                )
                 target_file = mount_point / firmware_file.name
+
+                # Ensure firmware file still exists before copying
+                if not firmware_file.exists():
+                    result.success = False
+                    result.add_error(f"Firmware file not found: {firmware_file}")
+                    return result
 
                 success = self.usb_adapter.copy_file(firmware_file, target_file)
                 if not success:

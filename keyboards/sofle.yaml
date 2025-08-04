@@ -2,6 +2,7 @@ keyboard: "sofle"
 description: "Sofle 58-key split keyboard with rotary encoders and OLED displays"
 vendor: "josefadamcik"
 key_count: 58
+is_split: true
 
 # Include all component configurations
 includes:

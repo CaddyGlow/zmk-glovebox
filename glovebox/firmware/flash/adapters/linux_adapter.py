@@ -62,12 +62,23 @@ class LinuxFlashOS:
             if result.returncode == 0:
                 mount_point = self._extract_mount_point_from_output(result.stdout)
                 if mount_point:
-                    mount_points.append(mount_point)
+                    # Verify the mount point actually exists (device might have crashed)
+                    if Path(mount_point).exists():
+                        mount_points.append(mount_point)
+                        logger.debug("Mount point verified: %s", mount_point)
+                    else:
+                        logger.warning(
+                            "Mount reported success but mount point %s doesn't exist (device may have crashed)",
+                            mount_point,
+                        )
             elif "already mounted" in result.stderr.lower():
                 # Device already mounted, get mount point from udisksctl info
                 mount_point = self._get_mount_point_from_info(device_path)
-                if mount_point:
+                if mount_point and Path(mount_point).exists():
                     mount_points.append(mount_point)
+                    logger.debug(
+                        "Already mounted, mount point verified: %s", mount_point
+                    )
             elif "not authorized" in result.stderr.lower():
                 raise PermissionError(
                     f"Authorization failed for mounting {device_path}"
@@ -93,8 +104,11 @@ class LinuxFlashOS:
                         mount_point = self._extract_mount_point_from_output(
                             part_result.stdout
                         )
-                        if mount_point:
+                        if mount_point and Path(mount_point).exists():
                             mount_points.append(mount_point)
+                            logger.debug(
+                                "Partition mount point verified: %s", mount_point
+                            )
 
             if not mount_points:
                 logger.warning("Could not mount device %s", device_path)
